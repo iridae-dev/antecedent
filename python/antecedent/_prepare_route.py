@@ -70,6 +70,7 @@ from .query import (
     Counterfactual,
     DirectionalDerivative,
     Elasticity,
+    FeedbackMechanism,
     InterventionalDistribution,
     InterventionResponse,
     MediationEffect,
@@ -196,6 +197,23 @@ def _parse_response_estimator_config(
 def _response_options_wire(options: Mapping[str, Any], seed: int) -> dict[str, Any]:
     """A curve's response options; the simultaneous-band multipliers follow the study seed."""
     return {"multiplier_seed": seed, **options}
+
+
+def _feedback_tuple(
+    feedback: FeedbackMechanism | None,
+) -> tuple[int, float, float, float, float, str | None, float] | None:
+    """The declared feedback mechanism in the native argument order."""
+    if feedback is None:
+        return None
+    return (
+        feedback.delay,
+        feedback.level,
+        feedback.autoregression,
+        feedback.input_gain,
+        feedback.innovation_variance,
+        feedback.initial_law,
+        feedback.initial_state,
+    )
 
 
 def _lagged_edges(
@@ -772,6 +790,7 @@ class _PrepareRoute:
             policy=query.policy,
             treatment_lag=query.treatment_lag,
             max_history_lag=query.max_history_lag,
+            feedback=_feedback_tuple(query.feedback),
             **common,
             **observation_kwargs,
         )

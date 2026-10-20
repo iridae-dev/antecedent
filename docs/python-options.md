@@ -197,6 +197,22 @@ parent under the pulse parent-adjustment fallback, the refusal names
 default, the unfolding grows to the graph's own chain bound, and a refusal
 there (a lagged cycle) is not helped by a cap.
 
+## Declare delayed feedback
+
+A temporal `ResponseCurve` or `InterventionResponse` takes a keyword-only
+`feedback=FeedbackMechanism(delay=, level=, autoregression=, input_gain=,
+innovation_variance=, initial_law=None, initial_state=0.0)`. It declares the
+dynamics `s <- a s + b u + e`; they are declared, not fitted. `delay` is the
+feedback delay in ticks (at least 1) and is not `treatment_lag`; `level` is the
+dose the pulse or sustained policy holds; `initial_law` is `None` for the
+contemporaneous observed law or the name of a law, and `initial_state` is its
+level at the origin. With a declaration the response is the finite-horizon
+rollout of those dynamics at every requested horizon
+(`model.delayed_feedback.finite_horizon`), with no band; without one the fitted
+dose-by-horizon surface is published. Feedback requires `horizons`. An
+off-cadence horizon, a delay that arrives after the horizon, and an ancestry
+deeper than the declared `max_history_lag` are refused.
+
 ## Choose a Bayesian likelihood
 
 `Bayesian(likelihood=...)` chooses the g-computation outcome model:

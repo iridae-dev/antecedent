@@ -174,6 +174,64 @@ pub struct TemporalResponseSpecWire {
     /// Optional unfolding history cap.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_history_lag: Option<u32>,
+    /// Declared delayed-feedback mechanism. Absent = the fitted surface.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feedback: Option<FeedbackDeclarationWire>,
+}
+
+/// Declared delayed-feedback mechanism on the wire.
+///
+/// Floating-point fields travel as IEEE-754 bit patterns so the declaration
+/// round-trips exactly and enters identity unambiguously.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct FeedbackDeclarationWire {
+    /// Feedback delay in ticks, at least 1.
+    pub delay_ticks: u32,
+    /// Bits of the dose the policy holds.
+    pub level_bits: u64,
+    /// Bits of the autoregressive coefficient.
+    pub autoregression_bits: u64,
+    /// Bits of the input gain.
+    pub input_gain_bits: u64,
+    /// Bits of the innovation variance.
+    pub innovation_variance_bits: u64,
+    /// Name of the initial law. Absent = the contemporaneous observed law.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial_law: Option<String>,
+    /// Bits of the state at the origin.
+    pub initial_state_bits: u64,
+}
+
+impl FeedbackDeclarationWire {
+    fn from_domain(feedback: &antecedent_core::FeedbackDeclaration) -> Self {
+        Self {
+            delay_ticks: feedback.delay_ticks,
+            level_bits: feedback.level.to_bits(),
+            autoregression_bits: feedback.autoregression.to_bits(),
+            input_gain_bits: feedback.input_gain.to_bits(),
+            innovation_variance_bits: feedback.innovation_variance.to_bits(),
+            initial_law: feedback.initial_law.name().map(str::to_owned),
+            initial_state_bits: feedback.initial_state.to_bits(),
+        }
+    }
+
+    fn to_domain(&self) -> Result<antecedent_core::FeedbackDeclaration, IoError> {
+        let initial_law = match &self.initial_law {
+            None => antecedent_core::InitialLaw::contemporaneous_observed(),
+            Some(name) => antecedent_core::InitialLaw::named(name.as_str())
+                .map_err(|e| IoError::Convert(e.to_string()))?,
+        };
+        Ok(antecedent_core::FeedbackDeclaration {
+            delay_ticks: self.delay_ticks,
+            level: f64::from_bits(self.level_bits),
+            autoregression: f64::from_bits(self.autoregression_bits),
+            input_gain: f64::from_bits(self.input_gain_bits),
+            innovation_variance: f64::from_bits(self.innovation_variance_bits),
+            initial_law,
+            initial_state: f64::from_bits(self.initial_state_bits),
+        })
+    }
 }
 
 /// Encode a response query.
@@ -197,6 +255,7 @@ pub fn response_query_to_wire(q: &ResponseQuery) -> Result<ResponseQueryWire, Io
                 horizons: t.horizons.to_vec(),
                 policy: crate::query_wire::TemporalPolicyWire::from_domain(&t.policy)?,
                 max_history_lag: t.max_history_lag,
+                feedback: t.feedback.as_ref().map(FeedbackDeclarationWire::from_domain),
             }),
         },
         outcome_functional: crate::query_wire::OutcomeFunctionalWire::from_domain(
@@ -226,10 +285,15 @@ pub fn response_query_from_wire(w: &ResponseQueryWire) -> Result<ResponseQuery, 
         outcome_functional: w.outcome_functional.to_domain(),
     };
     if let Some(t) = &w.temporal {
-        q.temporal = Some(
+        let mut spec =
             TemporalResponseSpec::new(t.horizons.clone(), t.policy.to_domain(), t.max_history_lag)
-                .map_err(|e| IoError::Convert(e.to_string()))?,
-        );
+                .map_err(|e| IoError::Convert(e.to_string()))?;
+        if let Some(feedback) = &t.feedback {
+            spec = spec
+                .with_feedback(feedback.to_domain()?)
+                .map_err(|e| IoError::Convert(e.to_string()))?;
+        }
+        q.temporal = Some(spec);
     }
     q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
     Ok(q)
@@ -1195,6 +1259,99 @@ mod tests {
         ];
         for functional in functionals {
             round_trip_query(&ResponseQuery::new(functional));
+        }
+    }
+
+    fn feedback_declaration() -> antecedent_core::FeedbackDeclaration {
+        antecedent_core::FeedbackDeclaration {
+            delay_ticks: 1,
+            level: 1.0,
+            autoregression: 0.5,
+            input_gain: 1.0,
+            innovation_variance: 1.0,
+            initial_law: antecedent_core::InitialLaw::contemporaneous_observed(),
+            initial_state: 0.0,
+        }
+    }
+
+    fn feedback_query(
+        feedback: Option<antecedent_core::FeedbackDeclaration>,
+    ) -> antecedent_core::CausalQuery {
+        let mut spec = antecedent_core::TemporalResponseSpec::new(
+            vec![1, 2],
+            antecedent_core::TemporalPolicy::pulse(-1),
+            None,
+        )
+        .unwrap();
+        if let Some(feedback) = feedback {
+            spec = spec.with_feedback(feedback).unwrap();
+        }
+        antecedent_core::CausalQuery::Response(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
+            })
+            .with_temporal(spec),
+        )
+    }
+
+    fn target_digest(query: &antecedent_core::CausalQuery) -> antecedent_core::SemanticDigest {
+        let wire = crate::query_wire::causal_query_to_wire(query).unwrap();
+        crate::identity::digest_wire(antecedent_core::IdentityDomain::Target, &wire).unwrap()
+    }
+
+    #[test]
+    fn a_declared_feedback_mechanism_round_trips() {
+        let mut named = feedback_declaration();
+        named.initial_law = antecedent_core::InitialLaw::named("origin").unwrap();
+        for feedback in [feedback_declaration(), named] {
+            let antecedent_core::CausalQuery::Response(query) = feedback_query(Some(feedback))
+            else {
+                unreachable!("the fixture is a response query");
+            };
+            round_trip_query(&query);
+        }
+    }
+
+    #[test]
+    fn an_absent_feedback_declaration_leaves_the_wire_bytes_unchanged() {
+        let antecedent_core::CausalQuery::Response(query) = feedback_query(None) else {
+            unreachable!("the fixture is a response query");
+        };
+        let wire = response_query_to_wire(&query).unwrap();
+        assert!(wire.temporal.as_ref().unwrap().feedback.is_none());
+        let bytes = to_cbor(&wire).unwrap();
+        assert!(!bytes.windows(8).any(|window| window == b"feedback"));
+    }
+
+    #[test]
+    fn every_feedback_field_enters_the_target_identity() {
+        let base = feedback_declaration();
+        let without = target_digest(&feedback_query(None));
+        let declared = target_digest(&feedback_query(Some(base.clone())));
+        assert_ne!(without, declared);
+        let variants: [(&str, fn(&mut antecedent_core::FeedbackDeclaration)); 7] = [
+            ("delay", |f| f.delay_ticks = 2),
+            ("level", |f| f.level = 2.0),
+            ("autoregression", |f| f.autoregression = 0.25),
+            ("input gain", |f| f.input_gain = 2.0),
+            ("innovation variance", |f| f.innovation_variance = 2.0),
+            ("initial law", |f| {
+                f.initial_law = antecedent_core::InitialLaw::named("origin").unwrap();
+            }),
+            ("initial state", |f| f.initial_state = 0.5),
+        ];
+        for (field, change) in variants {
+            let mut changed = base.clone();
+            change(&mut changed);
+            assert_ne!(
+                declared,
+                target_digest(&feedback_query(Some(changed))),
+                "{field} is not part of the target identity"
+            );
         }
     }
 

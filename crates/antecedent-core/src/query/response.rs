@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use crate::intervention::TemporalPolicy;
-use crate::{Intervention, TargetPopulation, VariableId};
+use crate::{InitialLaw, Intervention, TargetPopulation, VariableId};
 
 use super::QueryError;
 use super::functional::OutcomeFunctional;
@@ -44,6 +44,68 @@ pub struct TemporalResponseLicense {
     pub default_treatment_lag: u32,
 }
 
+/// Declared delayed-feedback mechanism of a temporal response.
+///
+/// The dynamics `s <- a s + b u + e` are declared, not fitted: the coefficients,
+/// the innovation variance, and the state at the origin are the caller's
+/// statement about the system. `delay_ticks` is the feedback delay, the ticks
+/// before the action re-enters the state. It is not the action lag, which is the
+/// negative start of the policy. `level` is the dose the pulse or sustained
+/// policy holds. [`TemporalResponseSpec::validate`] checks the numbers are
+/// finite, the delay is at least one tick, and the variance is not negative.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FeedbackDeclaration {
+    /// Ticks before the action re-enters the state (at least 1).
+    pub delay_ticks: u32,
+    /// Dose the policy holds.
+    pub level: f64,
+    /// Autoregressive coefficient `a`.
+    pub autoregression: f64,
+    /// Coefficient `b` on the delayed action.
+    pub input_gain: f64,
+    /// Variance of the transition's innovation (not negative).
+    pub innovation_variance: f64,
+    /// Law whose level at the origin is `initial_state`.
+    pub initial_law: InitialLaw,
+    /// Level of `initial_law` at the origin.
+    pub initial_state: f64,
+}
+
+impl FeedbackDeclaration {
+    /// Validate delay, finiteness, and variance.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::InvalidResponse`] for a zero delay, a non-finite number, or
+    /// a negative innovation variance.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        if self.delay_ticks == 0 {
+            return Err(QueryError::InvalidResponse(
+                "feedback delay must be at least one tick; zero is contemporaneous transmission"
+                    .into(),
+            ));
+        }
+        let numbers = [
+            self.level,
+            self.autoregression,
+            self.input_gain,
+            self.innovation_variance,
+            self.initial_state,
+        ];
+        if numbers.iter().any(|value| !value.is_finite()) {
+            return Err(QueryError::InvalidResponse(
+                "feedback level, coefficients, variance, and initial state must be finite".into(),
+            ));
+        }
+        if self.innovation_variance < 0.0 {
+            return Err(QueryError::InvalidResponse(
+                "feedback innovation variance must not be negative".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// Temporal attachment for a continuous-response query (ADR 0021).
 ///
 /// When present, the query is a temporal cell: dose × horizon surfaces for
@@ -59,6 +121,9 @@ pub struct TemporalResponseSpec {
     pub policy: TemporalPolicy,
     /// Optional max history lag (steps) when unfolding; `None` = planner default.
     pub max_history_lag: Option<u32>,
+    /// Declared delayed-feedback mechanism. `None` publishes the fitted
+    /// dose-by-horizon surface.
+    pub feedback: Option<FeedbackDeclaration>,
 }
 
 impl TemporalResponseSpec {
@@ -118,9 +183,20 @@ impl TemporalResponseSpec {
         max_history_lag: Option<u32>,
     ) -> Result<Self, QueryError> {
         let horizons = horizons.into();
-        let spec = Self { horizons, policy, max_history_lag };
+        let spec = Self { horizons, policy, max_history_lag, feedback: None };
         spec.validate()?;
         Ok(spec)
+    }
+
+    /// Declare the delayed-feedback mechanism the response is asked under.
+    ///
+    /// # Errors
+    ///
+    /// The declaration's validation errors.
+    pub fn with_feedback(mut self, feedback: FeedbackDeclaration) -> Result<Self, QueryError> {
+        self.feedback = Some(feedback);
+        self.validate()?;
+        Ok(self)
     }
 
     /// Validate horizons and nested policy.
@@ -162,6 +238,9 @@ impl TemporalResponseSpec {
                         .into(),
                 ));
             }
+        }
+        if let Some(feedback) = &self.feedback {
+            feedback.validate()?;
         }
         Ok(())
     }

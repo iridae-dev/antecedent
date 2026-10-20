@@ -391,3 +391,52 @@ def test_prepared_temporal_rejects_wrong_identifier_and_refute_click():
     prepared = PreparedAnalysis.prepare(data, graph=_EDGES, query=query, refute=False)
     with pytest.raises(CausalUnsupportedError, match="ResponseCurve cheap/full/placebo"):
         prepared.refute(data)
+
+
+def _feedback(**changes: Any) -> antecedent.FeedbackMechanism:
+    fields: dict[str, Any] = {
+        "delay": 1,
+        "level": 1.0,
+        "autoregression": 0.5,
+        "input_gain": 2.0,
+        "innovation_variance": 1.0,
+    }
+    fields.update(changes)
+    return antecedent.FeedbackMechanism(**fields)
+
+
+@pytest.mark.parametrize("policy", ["pulse", "sustained"])
+def test_declared_feedback_reaches_the_response(policy: str):
+    query = antecedent.ResponseCurve(
+        "t",
+        "y",
+        grid=[0.0, 1.0],
+        horizons=[1],
+        policy=policy,
+        treatment_lag=1,
+        feedback=_feedback(initial_law="origin", initial_state=0.25),
+    )
+    assert query.feedback is not None
+    assert query.feedback.initial_law == "origin"
+    result = antecedent.analyze(
+        _fixture_data(), graph=_EDGES, query=query, refute=False, bootstrap=0, seed=21
+    )
+    assert result.response is not None
+
+
+def test_feedback_is_keyword_only_and_validated():
+    with pytest.raises(TypeError):
+        antecedent.FeedbackMechanism(1, 1.0, 0.5, 2.0, 1.0)  # type: ignore[misc]
+    for changes in (
+        {"delay": 0},
+        {"level": float("nan")},
+        {"autoregression": float("inf")},
+        {"innovation_variance": -1.0},
+        {"initial_law": " "},
+    ):
+        with pytest.raises(CausalValueError):
+            _feedback(**changes)
+    with pytest.raises(CausalValueError, match="feedback requires horizons"):
+        antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], feedback=_feedback())
+    with pytest.raises(CausalValueError, match="feedback requires horizons"):
+        antecedent.InterventionResponse("y", intervention=Set("t", 1.0), feedback=_feedback())

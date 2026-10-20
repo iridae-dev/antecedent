@@ -1937,6 +1937,7 @@ class PreparedAnalysis:
         policy: Any = ...,
         treatment_lag: Any = ...,
         max_history_lag: str | None = None,
+        feedback: tuple[int, float, float, float, float, str | None, float] | None = None,
         accepted: bool = False,
         class_graph: Any = None,
         class_prior_ordered: list[float] | None = None,

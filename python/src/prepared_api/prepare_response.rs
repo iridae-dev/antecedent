@@ -4,8 +4,8 @@
 
 use antecedent::Study;
 use antecedent_core::{
-    CausalQuery, ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery,
-    TemporalResponseSpec,
+    CausalQuery, ContinuousDomain, FeedbackDeclaration, GridSpec, InitialLaw, ResponseFunctional,
+    ResponseQuery, TemporalResponseSpec,
 };
 use antecedent_data::TableView;
 use pyo3::prelude::*;
@@ -18,6 +18,29 @@ use super::{
 };
 use crate::response_api::build_functional;
 use crate::{dag_from_named_edges, py_err, temporal_dag_from_schema_edges};
+
+/// Declared feedback mechanism in the Python facade's argument order: delay
+/// ticks, level, autoregression, input gain, innovation variance, initial law
+/// name (`None` is the contemporaneous observed law), and initial state.
+type FeedbackArgs = (u32, f64, f64, f64, f64, Option<String>, f64);
+
+fn feedback_declaration(args: FeedbackArgs) -> PyResult<FeedbackDeclaration> {
+    let (delay_ticks, level, autoregression, input_gain, innovation_variance, law, initial_state) =
+        args;
+    let initial_law = match law {
+        None => InitialLaw::contemporaneous_observed(),
+        Some(name) => InitialLaw::named(name).map_err(|e| crate::value_err(e.to_string()))?,
+    };
+    Ok(FeedbackDeclaration {
+        delay_ticks,
+        level,
+        autoregression,
+        input_gain,
+        innovation_variance,
+        initial_law,
+        initial_state,
+    })
+}
 
 #[pymethods]
 impl PyPreparedAnalysis {
@@ -107,6 +130,7 @@ impl PyPreparedAnalysis {
         policy=crate::temporal_license::DEFAULT_POLICY,
         treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
         max_history_lag=None,
+        feedback=None,
         accepted=false,
         class_graph=None,
         class_prior_ordered=None,
@@ -144,6 +168,7 @@ impl PyPreparedAnalysis {
         policy: &str,
         treatment_lag: u32,
         max_history_lag: Option<u32>,
+        feedback: Option<FeedbackArgs>,
         accepted: bool,
         class_graph: Option<Bound<'_, PyAny>>,
         class_prior_ordered: Option<Vec<f64>>,
@@ -198,8 +223,14 @@ impl PyPreparedAnalysis {
             let origin = -i32::try_from(treatment_lag)
                 .map_err(|_| crate::value_err("treatment_lag does not fit in i32"))?;
             let functional = crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
-            let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
-                .map_err(|e| crate::value_err(e.to_string()))?;
+            let mut temporal =
+                TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
+                    .map_err(|e| crate::value_err(e.to_string()))?;
+            if let Some(feedback) = feedback {
+                temporal = temporal
+                    .with_feedback(feedback_declaration(feedback)?)
+                    .map_err(|e| crate::value_err(e.to_string()))?;
+            }
             let observation =
                 observation_kind.map(|kind| crate::observation_api::ObservationArgs {
                     kind,

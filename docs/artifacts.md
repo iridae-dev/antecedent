@@ -160,6 +160,14 @@ static response query. When present, `TemporalResponseSpecWire` contains:
   queries (`Dynamic` remains a `TemporalEffect` spelling and is refused on
   `TemporalResponseSpec`);
 - `max_history_lag: Option<u32>` — optional finite-unfolding history cap.
+- `feedback: Option<FeedbackDeclarationWire>` — optional declared delayed
+  feedback, omitted when absent so queries without it keep their bytes and
+  digests. Its fields are `delay_ticks` (at least 1), `level_bits`,
+  `autoregression_bits`, `input_gain_bits`, `innovation_variance_bits`, and
+  `initial_state_bits` (IEEE-754 bit patterns), and `initial_law` (a law name;
+  omitted for the contemporaneous observed law). The dynamics are declared, not
+  fitted; a declaration changes the target digest and publishes the
+  finite-horizon rollout instead of the fitted surface.
 
 A temporal `MeanCurve` result uses `ResponseValueWire::Surface` with
 `dimension = 2`. Values are dose-major:

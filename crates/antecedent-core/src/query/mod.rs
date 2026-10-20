@@ -72,7 +72,7 @@ pub use randomized::{
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, randomized_graphless_coordinate,
 };
 pub use response::{
-    ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
+    ContinuousDomain, DerivativeScale, DerivativeWeighting, FeedbackDeclaration, GridSpec,
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,

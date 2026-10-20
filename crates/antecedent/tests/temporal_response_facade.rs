@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
-    Assumption, CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec,
-    Intervention, InterventionSequence, Lag, MeasurementSpec, MechanismOverride, MemoryBudget,
+    Assumption, CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext,
+    FeedbackDeclaration, GridSpec, InitialLaw, Intervention, InterventionSequence, Lag, MeasurementSpec, MechanismOverride, MemoryBudget,
     ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
     RoleHint, SequencedIntervention, SmallRoleSet, SupportStatus, TargetPopulation,
     TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
@@ -388,6 +388,106 @@ fn pulse_and_single_step_sustained_match_surface_projection() {
         sustained_click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
         "prepared Sustained must reuse identification"
     );
+}
+
+fn declared_feedback() -> FeedbackDeclaration {
+    FeedbackDeclaration {
+        delay_ticks: 1,
+        level: 1.0,
+        autoregression: 0.5,
+        input_gain: 2.0,
+        innovation_variance: 1.0,
+        initial_law: InitialLaw::contemporaneous_observed(),
+        initial_state: 0.0,
+    }
+}
+
+fn feedback_response(
+    policy: TemporalPolicy,
+    feedback: Option<FeedbackDeclaration>,
+    ctx: &ExecutionContext,
+) -> Result<antecedent::result::StudyResult, antecedent::CausalError> {
+    let (series, graph) = temporal_fixture_series();
+    let mut spec = TemporalResponseSpec::new(vec![1], policy, None).unwrap();
+    if let Some(feedback) = feedback {
+        spec = spec.with_feedback(feedback).unwrap();
+    }
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(Arc::from([0.0, 1.0])),
+        ),
+    })
+    .with_temporal(spec);
+    Study::series(series)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .and_then(|study| study.run(ctx))
+}
+
+#[test]
+fn a_declared_feedback_mechanism_publishes_the_finite_horizon_rollout_for_pulse_and_sustained() {
+    let ctx = ExecutionContext::for_tests(23);
+    for policy in [TemporalPolicy::pulse(-1), TemporalPolicy::sustained(-1, -1)] {
+        let result = feedback_response(policy, Some(declared_feedback()), &ctx).unwrap();
+        let response = result.response().expect("temporal response payload");
+        assert_eq!(response.provenance_id.as_ref(), "model.delayed_feedback.finite_horizon");
+        // One delayed tick at the declared gain: the input arrives at the origin.
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(level)) =
+            &response.estimate
+        else {
+            panic!("a single horizon publishes its scalar rollout");
+        };
+        assert_eq!(level.to_bits(), 2.0f64.to_bits());
+    }
+}
+
+#[test]
+fn without_a_feedback_declaration_the_fitted_surface_is_published() {
+    let ctx = ExecutionContext::for_tests(23);
+    let result = feedback_response(TemporalPolicy::pulse(-1), None, &ctx).unwrap();
+    let response = result.response().expect("temporal response payload");
+    assert_ne!(response.provenance_id.as_ref(), "model.delayed_feedback.finite_horizon");
+    assert!(matches!(
+        response.estimate,
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { .. })
+    ));
+}
+
+#[test]
+fn an_unstable_declared_autoregression_publishes_the_finite_horizon() {
+    let ctx = ExecutionContext::for_tests(23);
+    let unstable = FeedbackDeclaration { autoregression: 1.5, ..declared_feedback() };
+    let result = feedback_response(TemporalPolicy::pulse(-1), Some(unstable), &ctx).unwrap();
+    assert_eq!(
+        result.response().unwrap().provenance_id.as_ref(),
+        "model.delayed_feedback.finite_horizon"
+    );
+}
+
+#[test]
+fn feedback_arriving_after_the_horizon_refuses_end_to_end() {
+    let ctx = ExecutionContext::for_tests(23);
+    let late = FeedbackDeclaration { delay_ticks: 3, ..declared_feedback() };
+    assert!(feedback_response(TemporalPolicy::pulse(-1), Some(late), &ctx).is_err());
+}
+
+#[test]
+fn a_dynamic_policy_and_an_invalid_declaration_are_refused_when_the_spec_is_built() {
+    let dynamic = TemporalPolicy::dynamic(antecedent_core::DynamicRuleId::from_raw(1), [0]);
+    assert!(TemporalResponseSpec::new(vec![1], dynamic, None).is_err());
+    let spec = TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None).unwrap();
+    for invalid in [
+        FeedbackDeclaration { delay_ticks: 0, ..declared_feedback() },
+        FeedbackDeclaration { innovation_variance: -1.0, ..declared_feedback() },
+        FeedbackDeclaration { input_gain: f64::NAN, ..declared_feedback() },
+    ] {
+        assert!(spec.clone().with_feedback(invalid).is_err());
+    }
 }
 
 fn noisy_pulse_series(n: usize) -> (TimeSeriesData, TemporalDag) {

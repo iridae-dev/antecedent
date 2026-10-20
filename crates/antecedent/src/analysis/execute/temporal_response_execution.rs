@@ -44,7 +44,7 @@ pub(crate) struct CheckedTemporalResponseExecution {
 /// The delay is the feedback delay: ticks before the action re-enters the
 /// state. It is not the action lag, which is the negative start of the policy.
 /// The level is the dose the pulse or sustained policy holds. The dynamics are
-/// the fitted transition and carry the initial law the frame binds.
+/// the declared transition and carry the initial law the frame binds.
 #[derive(Clone, Debug)]
 pub(crate) struct FeedbackMechanism {
     delay: FeedbackDelay,
@@ -57,14 +57,30 @@ impl FeedbackMechanism {
     ///
     /// A zero delay is contemporaneous transmission and a non-finite level is
     /// not a dose; both are refused.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn declared(
+    fn declared(
         delay_ticks: u32,
         level: f64,
         dynamics: DelayedDynamics,
     ) -> Result<Self, HistoryOperatorError> {
         DelayedAction::pulse(0, level)?;
         Ok(Self { delay: FeedbackDelay::delayed(delay_ticks)?, level, dynamics })
+    }
+
+    /// The mechanism a query's declaration states.
+    ///
+    /// The dynamics are the declared coefficients and carry the declared
+    /// initial law; nothing is fitted.
+    fn from_declaration(
+        declaration: &antecedent_core::FeedbackDeclaration,
+    ) -> Result<Self, HistoryOperatorError> {
+        let dynamics = DelayedDynamics::try_new(
+            declaration.autoregression,
+            declaration.input_gain,
+            declaration.innovation_variance,
+            declaration.initial_law.clone(),
+            declaration.initial_state,
+        )?;
+        Self::declared(declaration.delay_ticks, declaration.level, dynamics)
     }
 }
 
@@ -102,17 +118,17 @@ impl CheckedTemporalResponseExecution {
         identification.status = status;
         identification.required_assumptions = assumptions;
         let estimand = operation.primary_estimand()?.clone();
-        Ok(Self { operation, result_context, physical, identification, estimand, feedback: None })
-    }
-
-    /// Attach the feedback mechanism the response is declared to have.
-    ///
-    /// Without one the fitted dose-by-horizon surface is published.
-    #[cfg_attr(not(test), allow(dead_code))]
-    #[must_use]
-    pub(crate) fn with_feedback(mut self, feedback: FeedbackMechanism) -> Self {
-        self.feedback = Some(feedback);
-        self
+        // A declaration on the query is the response's feedback mechanism. Without
+        // one the fitted dose-by-horizon surface is published.
+        let feedback = operation
+            .query()
+            .temporal
+            .as_ref()
+            .and_then(|temporal| temporal.feedback.as_ref())
+            .map(FeedbackMechanism::from_declaration)
+            .transpose()
+            .map_err(causal_refusal)?;
+        Ok(Self { operation, result_context, physical, identification, estimand, feedback })
     }
 
     /// Retained response plan for refresh validation and descriptor inspection.
@@ -609,44 +625,50 @@ mod tests {
     use crate::strategy_table::{EstimatorId, IdentifierId};
     use antecedent_core::ResponseQuery;
     use antecedent_core::{
-        ContinuousDomain, GridSpec, Lag, ResponseFunctional, TemporalEffectQuery, TemporalPolicy,
-        TemporalResponseSpec, VariableId,
+        ContinuousDomain, FeedbackDeclaration, GridSpec, Lag, ResponseFunctional,
+        TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, VariableId,
     };
     use antecedent_data::TimeSeriesData;
     use antecedent_graph::{TemporalDag, ensure_lagged};
     use antecedent_identify::IdentificationStatus;
     use antecedent_identify::temporal_backdoor::TemporalBackdoorIdentifier;
 
-    #[test]
-    fn full_result_is_assembled_from_the_retained_operation_and_context() {
-        let n = 800;
-        let treatment = (0..n).map(|i| ((i * 31 % 997) as f64 - 498.0) / 250.0).collect::<Vec<_>>();
-        let outcome = std::iter::once(0.0)
-            .chain(treatment.iter().take(n - 1).map(|value| 1.5 + 2.0 * value))
-            .collect::<Vec<_>>();
-        let data = TimeSeriesData::from_f64_columns(
-            [("t", treatment.as_slice()), ("y", outcome.as_slice())],
-            1,
-        )
-        .unwrap();
+    /// Series, graph, query, and sealed operation of a one-horizon response.
+    struct Fixture {
+        data: TimeSeriesData,
+        graph: TemporalDag,
+        query: ResponseQuery,
+        operation: crate::analysis::CheckedTemporalResponseOperation,
+        history: u32,
+    }
+
+    fn fixture(
+        data: TimeSeriesData,
+        policy: TemporalPolicy,
+        feedback: Option<FeedbackDeclaration>,
+    ) -> Fixture {
         let t = VariableId::from_raw(0);
         let y = VariableId::from_raw(1);
         let mut graph = TemporalDag::empty();
         let t_lag = ensure_lagged(&mut graph, t, Lag::from_raw(1)).unwrap();
         let y_now = ensure_lagged(&mut graph, y, Lag::CONTEMPORANEOUS).unwrap();
         graph.insert_directed(t_lag, y_now).unwrap();
-        let policy = TemporalPolicy::pulse(-1);
+        let horizon = 1;
+        let mut spec = TemporalResponseSpec::new(vec![horizon], policy.clone(), None).unwrap();
+        if let Some(feedback) = feedback {
+            spec = spec.with_feedback(feedback).unwrap();
+        }
         let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
             outcome: y,
             treatment: ContinuousDomain::new(t, GridSpec::Values(Arc::from([-0.5, 0.0, 0.5]))),
         })
-        .with_temporal(TemporalResponseSpec::new(vec![1], policy.clone(), None).unwrap());
-        let mut effect = TemporalEffectQuery::pulse(t, y, 1.0).with_horizon_steps(1);
+        .with_temporal(spec);
+        let mut effect = TemporalEffectQuery::pulse(t, y, 1.0).with_horizon_steps(horizon);
         effect.policy = policy;
         let identified =
             TemporalBackdoorIdentifier::new().identify_temporal(&graph, &effect).unwrap();
         let member = crate::analysis::TemporalResponseHorizonEvidence::checked(
-            1,
+            horizon,
             effect,
             identified.result.clone(),
             identified.result.estimands[0].clone(),
@@ -663,25 +685,53 @@ mod tests {
             &InferenceMode::Frequentist,
         )
         .unwrap();
+        Fixture { data, graph, query, operation, history: identified.indexer.history() }
+    }
 
-        // Freeze result metadata at preparation. Execution below receives no Study.
-        let study = Study::series(data.clone())
-            .graph(graph.clone())
-            .query(CausalQuery::Response(query.clone()))
+    fn study_of(fixture: &Fixture) -> Study {
+        Study::series(fixture.data.clone())
+            .graph(fixture.graph.clone())
+            .query(CausalQuery::Response(fixture.query.clone()))
             .refute(RefuteSuite::None)
             .bootstrap_replicates(32)
             .build()
-            .unwrap();
-        let context = IdentifiedResultContext::from_study(&study);
+            .unwrap()
+    }
+
+    /// Seal the fixture's operation against the result metadata frozen from `study`.
+    fn seal(
+        fixture: &Fixture,
+        study: &Study,
+        ctx: &ExecutionContext,
+    ) -> Result<CheckedTemporalResponseExecution, CausalError> {
+        let context = IdentifiedResultContext::from_study(study);
+        let logical = crate::planner::compile_logical_temporal_response(
+            &fixture.data,
+            &fixture.graph,
+            &fixture.query,
+            false,
+        )
+        .unwrap();
+        let physical =
+            logical.compile_physical_with_graph(ctx, Some(fixture.graph.clone())).unwrap();
+        CheckedTemporalResponseExecution::checked(
+            fixture.operation.clone(),
+            context,
+            Arc::new(physical),
+        )
+    }
+
+    #[test]
+    fn full_result_is_assembled_from_the_retained_operation_and_context() {
+        let data = linear_series();
+        let fixture = fixture(data.clone(), TemporalPolicy::pulse(-1), None);
+        let query = fixture.query.clone();
+
+        // Freeze result metadata at preparation. Execution below receives no Study.
+        let study = study_of(&fixture);
         let ctx = ExecutionContext::for_tests(41);
         let reference = study.run(&ctx).unwrap();
-        let logical =
-            crate::planner::compile_logical_temporal_response(&data, &graph, &query, false)
-                .unwrap();
-        let physical = logical.compile_physical_with_graph(&ctx, Some(graph.clone())).unwrap();
-        let execution =
-            CheckedTemporalResponseExecution::checked(operation, context, Arc::new(physical))
-                .unwrap();
+        let execution = seal(&fixture, &study, &ctx).unwrap();
         drop(study);
         let result = execution.execute(&data, &ctx).unwrap();
 
@@ -757,6 +807,19 @@ mod tests {
     fn mechanism() -> FeedbackMechanism {
         FeedbackMechanism::declared(1, 1.0, dynamics_for(InitialLaw::contemporaneous_observed()))
             .unwrap()
+    }
+
+    /// The query-level declaration of [`mechanism`].
+    fn declaration() -> FeedbackDeclaration {
+        FeedbackDeclaration {
+            delay_ticks: 1,
+            level: 1.0,
+            autoregression: 0.5,
+            input_gain: 1.0,
+            innovation_variance: 1.0,
+            initial_law: InitialLaw::contemporaneous_observed(),
+            initial_state: 0.0,
+        }
     }
 
     fn admit_at(
@@ -846,6 +909,7 @@ mod tests {
             horizons: Arc::from([3]),
             policy: dynamic,
             max_history_lag: None,
+            feedback: None,
         };
         let error =
             admit_delayed_finite_horizon(&cadence(1, 8), &spec, 3, 0, &mechanism()).unwrap_err();
@@ -912,67 +976,44 @@ mod tests {
         TemporalBackdoorIdentifier::new().identify_temporal(&graph, &effect).unwrap().result
     }
 
-    fn published_finite_horizon(policy: TemporalPolicy) -> f64 {
-        let n = 16;
-        let treatment = vec![0.0; n];
-        let outcome = vec![0.0; n];
-        let data = TimeSeriesData::from_f64_columns(
+    /// `y_t = 1.5 + 2 t_{t-1}`: a lagged linear response the fitted surface can recover.
+    fn linear_series() -> TimeSeriesData {
+        let n = 800;
+        let treatment = (0..n).map(|i| ((i * 31 % 997) as f64 - 498.0) / 250.0).collect::<Vec<_>>();
+        let outcome = std::iter::once(0.0)
+            .chain(treatment.iter().take(n - 1).map(|value| 1.5 + 2.0 * value))
+            .collect::<Vec<_>>();
+        TimeSeriesData::from_f64_columns(
             [("t", treatment.as_slice()), ("y", outcome.as_slice())],
             1,
         )
-        .unwrap();
-        let t = VariableId::from_raw(0);
-        let y = VariableId::from_raw(1);
-        let mut graph = TemporalDag::empty();
-        let t_lag = ensure_lagged(&mut graph, t, Lag::from_raw(1)).unwrap();
-        let y_now = ensure_lagged(&mut graph, y, Lag::CONTEMPORANEOUS).unwrap();
-        graph.insert_directed(t_lag, y_now).unwrap();
-        let horizon = 1;
-        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
-            outcome: y,
-            treatment: ContinuousDomain::new(t, GridSpec::Values(Arc::from([-0.5, 0.0, 0.5]))),
-        })
-        .with_temporal(TemporalResponseSpec::new(vec![horizon], policy.clone(), None).unwrap());
-        let mut effect = TemporalEffectQuery::pulse(t, y, 1.0).with_horizon_steps(horizon);
-        effect.policy = policy;
-        let identified =
-            TemporalBackdoorIdentifier::new().identify_temporal(&graph, &effect).unwrap();
-        let member = crate::analysis::TemporalResponseHorizonEvidence::checked(
-            horizon,
-            effect,
-            identified.result.clone(),
-            identified.result.estimands[0].clone(),
-            identified.indexer.clone(),
-        )
-        .unwrap();
-        let operation = crate::analysis::CheckedTemporalResponseOperation::checked(
-            &graph,
-            &query,
-            vec![member],
-            IdentifierId::TemporalBackdoorUnfolded,
-            EstimatorId::TemporalResponseGcomp,
-            32,
-            &InferenceMode::Frequentist,
-        )
-        .unwrap();
-        let study = Study::series(data.clone())
-            .graph(graph.clone())
-            .query(CausalQuery::Response(query.clone()))
-            .refute(RefuteSuite::None)
-            .bootstrap_replicates(32)
-            .build()
-            .unwrap();
-        let context = IdentifiedResultContext::from_study(&study);
+        .unwrap()
+    }
+
+    fn zero_series() -> TimeSeriesData {
+        let zeros = vec![0.0; 16];
+        TimeSeriesData::from_f64_columns([("t", zeros.as_slice()), ("y", zeros.as_slice())], 1)
+            .unwrap()
+    }
+
+    /// Execute a response declared with `feedback` and return the sealed result
+    /// together with the history depth its proof needed.
+    fn run_declared(
+        policy: TemporalPolicy,
+        feedback: Option<FeedbackDeclaration>,
+    ) -> (StudyResult, TemporalResponseSpec, TimeSeriesData, u32) {
+        let series = if feedback.is_some() { zero_series() } else { linear_series() };
+        let fixture = fixture(series, policy, feedback);
+        let study = study_of(&fixture);
         let ctx = ExecutionContext::for_tests(7);
-        let logical =
-            crate::planner::compile_logical_temporal_response(&data, &graph, &query, false)
-                .unwrap();
-        let physical = logical.compile_physical_with_graph(&ctx, Some(graph)).unwrap();
-        let execution =
-            CheckedTemporalResponseExecution::checked(operation, context, Arc::new(physical))
-                .unwrap()
-                .with_feedback(mechanism());
-        let result = execution.execute(&data, &ctx).unwrap();
+        let execution = seal(&fixture, &study, &ctx).unwrap();
+        let result = execution.execute(&fixture.data, &ctx).unwrap();
+        let spec = fixture.query.temporal.clone().unwrap();
+        (result, spec, fixture.data, fixture.history)
+    }
+
+    fn published_finite_horizon(policy: TemporalPolicy) -> f64 {
+        let (result, spec, data, history) = run_declared(policy, Some(declaration()));
         let antecedent_core::ResponseIdentification::PointIdentified(
             antecedent_core::ResponseValue::Scalar(level),
         ) = &result.response().unwrap().estimate
@@ -984,15 +1025,15 @@ mod tests {
             result.response().unwrap().provenance_id.as_ref(),
             "model.delayed_feedback.finite_horizon"
         );
-        let spec = query.temporal.as_ref().unwrap();
-        let admitted = admit_delayed_finite_horizon(
-            data.time_index(),
-            spec,
-            horizon,
-            identified.indexer.history(),
-            &mechanism(),
-        )
-        .unwrap();
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "model.delayed_feedback.finite_horizon")
+        );
+        let admitted =
+            admit_delayed_finite_horizon(data.time_index(), &spec, 1, history, &mechanism())
+                .unwrap();
         let operator = temporal_target_response(
             &admitted,
             ResponseTarget::FiniteHorizon,
@@ -1007,6 +1048,90 @@ mod tests {
     fn a_declared_feedback_mechanism_publishes_the_finite_horizon_rollout() {
         let pulse = published_finite_horizon(TemporalPolicy::pulse(-1));
         assert_eq!(pulse.to_bits(), 1.0f64.to_bits());
+        let sustained = published_finite_horizon(TemporalPolicy::sustained(-1, -1));
+        assert_eq!(sustained.to_bits(), 1.0f64.to_bits());
+    }
+
+    #[test]
+    fn the_declared_dynamics_set_the_published_rollout() {
+        let declared = FeedbackDeclaration { input_gain: 3.0, level: 2.0, ..declaration() };
+        let (result, ..) = run_declared(TemporalPolicy::pulse(-1), Some(declared));
+        let antecedent_core::ResponseIdentification::PointIdentified(
+            antecedent_core::ResponseValue::Scalar(level),
+        ) = &result.response().unwrap().estimate
+        else {
+            panic!("delayed feedback published a dose-by-horizon fit");
+        };
+        assert_eq!(level.to_bits(), 6.0f64.to_bits());
+    }
+
+    #[test]
+    fn without_a_declaration_the_fitted_surface_is_published() {
+        let (result, ..) = run_declared(TemporalPolicy::pulse(-1), None);
+        assert_ne!(
+            result.response().unwrap().provenance_id.as_ref(),
+            "model.delayed_feedback.finite_horizon"
+        );
+        assert!(matches!(
+            result.response().unwrap().estimate,
+            antecedent_core::ResponseIdentification::PointIdentified(
+                antecedent_core::ResponseValue::Surface { .. }
+            )
+        ));
+    }
+
+    #[test]
+    fn an_unstable_declared_autoregression_still_publishes_the_finite_horizon() {
+        let declared = FeedbackDeclaration { autoregression: 1.5, ..declaration() };
+        let (result, ..) = run_declared(TemporalPolicy::pulse(-1), Some(declared));
+        assert_eq!(
+            result.response().unwrap().provenance_id.as_ref(),
+            "model.delayed_feedback.finite_horizon"
+        );
+    }
+
+    #[test]
+    fn an_invalid_declaration_is_refused_when_the_spec_is_built() {
+        let spec = response_spec(TemporalPolicy::pulse(-1), vec![1], None);
+        for declared in [
+            FeedbackDeclaration { delay_ticks: 0, ..declaration() },
+            FeedbackDeclaration { level: f64::NAN, ..declaration() },
+            FeedbackDeclaration { autoregression: f64::INFINITY, ..declaration() },
+            FeedbackDeclaration { innovation_variance: -1.0, ..declaration() },
+        ] {
+            assert!(spec.clone().with_feedback(declared).is_err());
+        }
+    }
+
+    #[test]
+    fn a_named_initial_law_is_the_law_the_frame_binds() {
+        // The declaration carries its own law, so the frame cannot bind another.
+        let named = FeedbackDeclaration {
+            initial_law: InitialLaw::named("other").unwrap(),
+            ..declaration()
+        };
+        let (result, ..) = run_declared(TemporalPolicy::pulse(-1), Some(named));
+        assert_eq!(
+            result.response().unwrap().provenance_id.as_ref(),
+            "model.delayed_feedback.finite_horizon"
+        );
+    }
+
+    #[test]
+    fn a_feedback_delay_beyond_the_horizon_is_refused_at_execution() {
+        let late = FeedbackDeclaration { delay_ticks: 3, ..declaration() };
+        let fixture = fixture(zero_series(), TemporalPolicy::pulse(-1), Some(late));
+        let study = study_of(&fixture);
+        let ctx = ExecutionContext::for_tests(7);
+        let execution = seal(&fixture, &study, &ctx).unwrap();
+        let error = execution.execute(&fixture.data, &ctx).unwrap_err();
+        assert!(matches!(error, CausalError::Compile { .. }));
+    }
+
+    #[test]
+    fn a_dynamic_policy_cannot_carry_a_feedback_declaration() {
+        let dynamic = TemporalPolicy::dynamic(antecedent_core::DynamicRuleId::from_raw(1), [0]);
+        assert!(TemporalResponseSpec::new(vec![1], dynamic, None).is_err());
     }
 
     #[test]

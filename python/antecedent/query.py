@@ -206,11 +206,55 @@ def _validate_max_history_lag(max_history_lag: int | None) -> None:
         raise CausalValueError("max_history_lag must be non-negative")
 
 
+@dataclass(frozen=True, slots=True)
+class FeedbackMechanism:
+    """Declared delayed-feedback dynamics ``s <- a s + b u + e`` of a temporal response.
+
+    The dynamics are declared, not fitted: ``autoregression`` is ``a``,
+    ``input_gain`` is ``b``, ``innovation_variance`` is the variance of ``e``, and
+    ``initial_state`` is the level of the ``initial_law`` at the origin
+    (``None`` is the contemporaneous observed law, a string names a law).
+    ``delay`` is the feedback delay in ticks before the action re-enters the
+    state; it is not ``treatment_lag``. ``level`` is the dose the pulse or
+    sustained policy holds. A response that declares one publishes the
+    finite-horizon rollout of these dynamics at every requested horizon instead
+    of the fitted dose-by-horizon surface.
+    """
+
+    _: KW_ONLY
+    delay: int
+    level: float
+    autoregression: float
+    input_gain: float
+    innovation_variance: float
+    initial_law: str | None = None
+    initial_state: float = 0.0
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "delay", _count(self.delay, "delay", minimum=1, maximum=2**32 - 1)
+        )
+        numbers = {
+            "level": self.level,
+            "autoregression": self.autoregression,
+            "input_gain": self.input_gain,
+            "innovation_variance": self.innovation_variance,
+            "initial_state": self.initial_state,
+        }
+        for name, value in numbers.items():
+            _require_finite(f"feedback {name}", value)
+        if self.innovation_variance < 0:
+            raise CausalValueError("feedback innovation_variance must not be negative")
+        if self.initial_law is not None:
+            _require_name("initial_law", self.initial_law)
+
+
 def _validate_temporal(
     horizons: Sequence[int] | None,
     policy: str,
     treatment_lag: int,
     max_history_lag: int | None,
+    feedback: FeedbackMechanism | None = None,
 ) -> None:
     """Shared temporal-attachment validation for ``ResponseCurve`` and
     ``InterventionResponse`` (ADR 0021). No-op when ``horizons`` is ``None``
@@ -218,7 +262,11 @@ def _validate_temporal(
     :data:`temporal_response_spec`.
     """
     if horizons is None:
+        if feedback is not None:
+            raise CausalValueError("feedback requires horizons; a static cell has no dynamics")
         return
+    if feedback is not None and not isinstance(feedback, FeedbackMechanism):
+        raise CausalValueError("feedback must be a FeedbackMechanism")
     _validate_horizons(horizons)
     if policy not in temporal_response_spec.allowed_policies:
         allowed = "' or '".join(temporal_response_spec.allowed_policies)
@@ -637,7 +685,9 @@ class ResponseCurve:
     a ``TemporalDag``, ``TemporalCpdag``, or ``TemporalPag``. Class graphs retain
     per-completion responses and structural uncertainty. ``treatment_lag`` defaults to
     :attr:`temporal_response_spec.default_treatment_lag` (policy origin ``-lag``),
-    matching :class:`PulseEffect` / :class:`SustainedEffect`.
+    matching :class:`PulseEffect` / :class:`SustainedEffect`. Keyword-only
+    ``feedback`` declares a :class:`FeedbackMechanism`: the response is then the
+    finite-horizon rollout of the declared dynamics, not the fitted surface.
     """
 
     treatment: str
@@ -651,6 +701,7 @@ class ResponseCurve:
     policy: str = temporal_response_spec.default_policy
     treatment_lag: int = temporal_response_spec.default_treatment_lag
     max_history_lag: int | None = None
+    feedback: FeedbackMechanism | None = None
     kind: Literal["response_curve"] = field(default="response_curve", init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -684,7 +735,13 @@ class ResponseCurve:
                 "max_history_lag",
                 _count(self.max_history_lag, "max_history_lag", minimum=0, maximum=2**32 - 1),
             )
-        _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
+        _validate_temporal(
+            self.horizons,
+            self.policy,
+            self.treatment_lag,
+            self.max_history_lag,
+            self.feedback,
+        )
         if (
             self.horizons is not None
             and len(self.grid) * len(self.horizons) > temporal_response_spec.max_cells
@@ -871,7 +928,8 @@ class InterventionResponse:
     preceding interventions. Outcomes are not clipped. Nested ``Sequence`` is unsupported.
     Multi-step never collapses to the last step. ``treatment_lag``
     defaults to :attr:`temporal_response_spec.default_treatment_lag`, matching
-    :class:`PulseEffect`.
+    :class:`PulseEffect`. Keyword-only ``feedback`` declares a
+    :class:`FeedbackMechanism`, as on :class:`ResponseCurve`.
     """
 
     outcome: str
@@ -884,6 +942,7 @@ class InterventionResponse:
     policy: str = temporal_response_spec.default_policy
     treatment_lag: int = temporal_response_spec.default_treatment_lag
     max_history_lag: int | None = None
+    feedback: FeedbackMechanism | None = None
     outcome_functional: object | None = None
     kind: Literal["intervention_response"] = field(
         default="intervention_response", init=False, repr=False
@@ -913,7 +972,13 @@ class InterventionResponse:
                 "max_history_lag",
                 _count(self.max_history_lag, "max_history_lag", minimum=0, maximum=2**32 - 1),
             )
-        _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
+        _validate_temporal(
+            self.horizons,
+            self.policy,
+            self.treatment_lag,
+            self.max_history_lag,
+            self.feedback,
+        )
 
     @property
     def is_temporal(self) -> bool:
@@ -932,6 +997,7 @@ __all__ = [
     "Elasticity",
     "Exceedance",
     "ExceedanceGrid",
+    "FeedbackMechanism",
     "InterventionalDistribution",
     "InterventionResponse",
     "Mean",

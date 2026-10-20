@@ -165,6 +165,7 @@ impl core::clone::Clone for antecedent_io_core::ExprNodeWire
 impl core::clone::Clone for antecedent_io_core::ExternalComposeIdentityWire
 impl core::clone::Clone for antecedent_io_core::ExternalEstimateAttach
 impl core::clone::Clone for antecedent_io_core::ExternalPriorSourceIdentityWire
+impl core::clone::Clone for antecedent_io_core::FeedbackDeclarationWire
 impl core::clone::Clone for antecedent_io_core::FormatVersion
 impl core::clone::Clone for antecedent_io_core::FunctionalProgramWire
 impl core::clone::Clone for antecedent_io_core::GlmOptionsWire
@@ -814,6 +815,7 @@ impl core::cmp::Eq for antecedent_io_core::ExposureMappingWire
 impl core::cmp::Eq for antecedent_io_core::ExposureProbabilityMethodWire
 impl core::cmp::Eq for antecedent_io_core::ExternalComposeIdentityWire
 impl core::cmp::Eq for antecedent_io_core::ExternalPriorSourceIdentityWire
+impl core::cmp::Eq for antecedent_io_core::FeedbackDeclarationWire
 impl core::cmp::Eq for antecedent_io_core::FormatVersion
 impl core::cmp::Eq for antecedent_io_core::GlmOptionsWire
 impl core::cmp::Eq for antecedent_io_core::HedgeCertificateWire
@@ -1229,6 +1231,7 @@ impl core::cmp::PartialEq for antecedent_io_core::ExprArenaWire
 impl core::cmp::PartialEq for antecedent_io_core::ExprNodeWire
 impl core::cmp::PartialEq for antecedent_io_core::ExternalComposeIdentityWire
 impl core::cmp::PartialEq for antecedent_io_core::ExternalPriorSourceIdentityWire
+impl core::cmp::PartialEq for antecedent_io_core::FeedbackDeclarationWire
 impl core::cmp::PartialEq for antecedent_io_core::FormatVersion
 impl core::cmp::PartialEq for antecedent_io_core::FunctionalProgramWire
 impl core::cmp::PartialEq for antecedent_io_core::GlmOptionsWire
@@ -2009,6 +2012,7 @@ impl core::fmt::Debug for antecedent_io_core::ExprNodeWire
 impl core::fmt::Debug for antecedent_io_core::ExternalComposeIdentityWire
 impl core::fmt::Debug for antecedent_io_core::ExternalEstimateAttach
 impl core::fmt::Debug for antecedent_io_core::ExternalPriorSourceIdentityWire
+impl core::fmt::Debug for antecedent_io_core::FeedbackDeclarationWire
 impl core::fmt::Debug for antecedent_io_core::FormatVersion
 impl core::fmt::Debug for antecedent_io_core::FunctionalProgramWire
 impl core::fmt::Debug for antecedent_io_core::GlmOptionsWire
@@ -2850,6 +2854,7 @@ impl core::marker::Freeze for antecedent_io_core::ExprNodeWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ExternalComposeIdentityWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ExternalEstimateAttach [auto]
 impl core::marker::Freeze for antecedent_io_core::ExternalPriorSourceIdentityWire [auto]
+impl core::marker::Freeze for antecedent_io_core::FeedbackDeclarationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::FormatVersion [auto]
 impl core::marker::Freeze for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::marker::Freeze for antecedent_io_core::GlmOptionsWire [auto]
@@ -3542,6 +3547,7 @@ impl core::marker::Send for antecedent_io_core::ExprNodeWire [auto]
 impl core::marker::Send for antecedent_io_core::ExternalComposeIdentityWire [auto]
 impl core::marker::Send for antecedent_io_core::ExternalEstimateAttach [auto]
 impl core::marker::Send for antecedent_io_core::ExternalPriorSourceIdentityWire [auto]
+impl core::marker::Send for antecedent_io_core::FeedbackDeclarationWire [auto]
 impl core::marker::Send for antecedent_io_core::FormatVersion [auto]
 impl core::marker::Send for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::marker::Send for antecedent_io_core::GlmOptionsWire [auto]
@@ -4231,6 +4237,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::ExprArenaWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ExprNodeWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ExternalComposeIdentityWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ExternalPriorSourceIdentityWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::FeedbackDeclarationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::FormatVersion
 impl core::marker::StructuralPartialEq for antecedent_io_core::FunctionalProgramWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::GlmOptionsWire
@@ -4883,6 +4890,7 @@ impl core::marker::Sync for antecedent_io_core::ExprNodeWire [auto]
 impl core::marker::Sync for antecedent_io_core::ExternalComposeIdentityWire [auto]
 impl core::marker::Sync for antecedent_io_core::ExternalEstimateAttach [auto]
 impl core::marker::Sync for antecedent_io_core::ExternalPriorSourceIdentityWire [auto]
+impl core::marker::Sync for antecedent_io_core::FeedbackDeclarationWire [auto]
 impl core::marker::Sync for antecedent_io_core::FormatVersion [auto]
 impl core::marker::Sync for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::marker::Sync for antecedent_io_core::GlmOptionsWire [auto]
@@ -5575,6 +5583,7 @@ impl core::marker::Unpin for antecedent_io_core::ExprNodeWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ExternalComposeIdentityWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ExternalEstimateAttach [auto]
 impl core::marker::Unpin for antecedent_io_core::ExternalPriorSourceIdentityWire [auto]
+impl core::marker::Unpin for antecedent_io_core::FeedbackDeclarationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::FormatVersion [auto]
 impl core::marker::Unpin for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::marker::Unpin for antecedent_io_core::GlmOptionsWire [auto]
@@ -6267,6 +6276,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ExprNodeWir
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ExternalComposeIdentityWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ExternalEstimateAttach [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ExternalPriorSourceIdentityWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::FeedbackDeclarationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::FormatVersion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::GlmOptionsWire [auto]
@@ -6959,6 +6969,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ExprNodeWire [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ExternalComposeIdentityWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ExternalEstimateAttach [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ExternalPriorSourceIdentityWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::FeedbackDeclarationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::FormatVersion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::FunctionalProgramWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::GlmOptionsWire [auto]
@@ -7638,6 +7649,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::ExprArenaWire
 impl serde_core::ser::Serialize for antecedent_io_core::ExprNodeWire
 impl serde_core::ser::Serialize for antecedent_io_core::ExternalComposeIdentityWire
 impl serde_core::ser::Serialize for antecedent_io_core::ExternalPriorSourceIdentityWire
+impl serde_core::ser::Serialize for antecedent_io_core::FeedbackDeclarationWire
 impl serde_core::ser::Serialize for antecedent_io_core::FormatVersion
 impl serde_core::ser::Serialize for antecedent_io_core::FunctionalProgramWire
 impl serde_core::ser::Serialize for antecedent_io_core::GlmOptionsWire
@@ -8208,6 +8220,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ExprArenaWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ExprNodeWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ExternalComposeIdentityWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ExternalPriorSourceIdentityWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::FeedbackDeclarationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::FormatVersion
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::FunctionalProgramWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::GlmOptionsWire
@@ -9473,6 +9486,13 @@ pub field antecedent_io_core::ExternalPriorSourceIdentityWire::ess_bits: core::o
 pub field antecedent_io_core::ExternalPriorSourceIdentityWire::id: alloc::string::String
 pub field antecedent_io_core::ExternalPriorSourceIdentityWire::mixture_weight_bits: core::option::Option<u64>
 pub field antecedent_io_core::ExternalPriorSourceIdentityWire::prior: antecedent_io_core::PriorSetIdentityWire
+pub field antecedent_io_core::FeedbackDeclarationWire::autoregression_bits: u64
+pub field antecedent_io_core::FeedbackDeclarationWire::delay_ticks: u32
+pub field antecedent_io_core::FeedbackDeclarationWire::initial_law: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::FeedbackDeclarationWire::initial_state_bits: u64
+pub field antecedent_io_core::FeedbackDeclarationWire::innovation_variance_bits: u64
+pub field antecedent_io_core::FeedbackDeclarationWire::input_gain_bits: u64
+pub field antecedent_io_core::FeedbackDeclarationWire::level_bits: u64
 pub field antecedent_io_core::FormatVersion::major: u16
 pub field antecedent_io_core::FormatVersion::minor: u16
 pub field antecedent_io_core::FunctionalProgramWire::arena: antecedent_io_core::ExprArenaWire
@@ -10199,6 +10219,7 @@ pub field antecedent_io_core::TemporalMediationSliceWire::total: core::option::O
 pub field antecedent_io_core::TemporalMediationSliceWire::uncertainty: antecedent_io_core::TemporalMediationUncertaintyWire
 pub field antecedent_io_core::TemporalNodeKeyWire::lag: u32
 pub field antecedent_io_core::TemporalNodeKeyWire::variable: u32
+pub field antecedent_io_core::TemporalResponseSpecWire::feedback: core::option::Option<antecedent_io_core::FeedbackDeclarationWire>
 pub field antecedent_io_core::TemporalResponseSpecWire::horizons: alloc::vec::Vec<u32>
 pub field antecedent_io_core::TemporalResponseSpecWire::max_history_lag: core::option::Option<u32>
 pub field antecedent_io_core::TemporalResponseSpecWire::policy: antecedent_io_core::TemporalPolicyWire
@@ -13048,6 +13069,7 @@ pub struct antecedent_io_core::ExprArenaWire
 pub struct antecedent_io_core::ExternalComposeIdentityWire
 pub struct antecedent_io_core::ExternalEstimateAttach
 pub struct antecedent_io_core::ExternalPriorSourceIdentityWire
+pub struct antecedent_io_core::FeedbackDeclarationWire
 pub struct antecedent_io_core::FormatVersion
 pub struct antecedent_io_core::FunctionalProgramWire
 pub struct antecedent_io_core::GlmOptionsWire
@@ -13979,6 +14001,7 @@ pub use antecedent_io_core::response_wire::CausalResponseWire = antecedent_io_co
 pub use antecedent_io_core::response_wire::ContinuousDomainWire = antecedent_io_core::ContinuousDomainWire
 pub use antecedent_io_core::response_wire::DerivativeScaleWire = antecedent_io_core::DerivativeScaleWire
 pub use antecedent_io_core::response_wire::DerivativeWeightingWire = antecedent_io_core::DerivativeWeightingWire
+pub use antecedent_io_core::response_wire::FeedbackDeclarationWire = antecedent_io_core::FeedbackDeclarationWire
 pub use antecedent_io_core::response_wire::GridSpecWire = antecedent_io_core::GridSpecWire
 pub use antecedent_io_core::response_wire::HorizonAdjustmentNodeWire = antecedent_io_core::HorizonAdjustmentNodeWire
 pub use antecedent_io_core::response_wire::IdentificationStatusWire = antecedent_io_core::IdentificationStatusWire

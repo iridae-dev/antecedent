@@ -278,7 +278,7 @@ pub use reader::{
 };
 pub use response_wire::{
     CausalResponseWire, ContinuousDomainWire, DerivativeScaleWire, DerivativeWeightingWire,
-    GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire, IntervalInterpretationWire,
+    FeedbackDeclarationWire, GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire, IntervalInterpretationWire,
     ObservationAssumptionWire, ObservationSpecWire, ResponseEnvelopeWire, ResponseFunctionalWire,
     ResponseIdentificationWire, ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire,
     SupportDiagnosticWire, SupportRegionWire, SupportReportWire, SupportStatusWire,

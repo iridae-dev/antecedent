@@ -199,6 +199,7 @@ impl core::clone::Clone for antecedent_core::ExprType
 impl core::clone::Clone for antecedent_core::ExpressionFault
 impl core::clone::Clone for antecedent_core::FailedCapabilityAttempt
 impl core::clone::Clone for antecedent_core::FailedRngAttempt
+impl core::clone::Clone for antecedent_core::FeedbackDeclaration
 impl core::clone::Clone for antecedent_core::FixedCandidateRegretInputs
 impl core::clone::Clone for antecedent_core::FixedGroupDosePolicy
 impl core::clone::Clone for antecedent_core::Fnv1a64
@@ -1049,6 +1050,7 @@ impl core::cmp::PartialEq for antecedent_core::ExprType
 impl core::cmp::PartialEq for antecedent_core::ExpressionFault
 impl core::cmp::PartialEq for antecedent_core::FailedCapabilityAttempt
 impl core::cmp::PartialEq for antecedent_core::FailedRngAttempt
+impl core::cmp::PartialEq for antecedent_core::FeedbackDeclaration
 impl core::cmp::PartialEq for antecedent_core::FixedCandidateRegretInputs
 impl core::cmp::PartialEq for antecedent_core::FixedGroupDosePolicy
 impl core::cmp::PartialEq for antecedent_core::FoldId
@@ -1612,6 +1614,7 @@ impl core::fmt::Debug for antecedent_core::ExprType
 impl core::fmt::Debug for antecedent_core::ExpressionFault
 impl core::fmt::Debug for antecedent_core::FailedCapabilityAttempt
 impl core::fmt::Debug for antecedent_core::FailedRngAttempt
+impl core::fmt::Debug for antecedent_core::FeedbackDeclaration
 impl core::fmt::Debug for antecedent_core::FixedCandidateRegretInputs
 impl core::fmt::Debug for antecedent_core::FixedGroupDosePolicy
 impl core::fmt::Debug for antecedent_core::Fnv1a64
@@ -2698,6 +2701,7 @@ impl core::marker::Freeze for antecedent_core::ExprType [auto]
 impl core::marker::Freeze for antecedent_core::ExpressionFault [auto]
 impl core::marker::Freeze for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Freeze for antecedent_core::FailedRngAttempt [auto]
+impl core::marker::Freeze for antecedent_core::FeedbackDeclaration [auto]
 impl core::marker::Freeze for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Freeze for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Freeze for antecedent_core::Fnv1a64 [auto]
@@ -3150,6 +3154,7 @@ impl core::marker::Send for antecedent_core::ExprType [auto]
 impl core::marker::Send for antecedent_core::ExpressionFault [auto]
 impl core::marker::Send for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Send for antecedent_core::FailedRngAttempt [auto]
+impl core::marker::Send for antecedent_core::FeedbackDeclaration [auto]
 impl core::marker::Send for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Send for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Send for antecedent_core::Fnv1a64 [auto]
@@ -3598,6 +3603,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::ExprType
 impl core::marker::StructuralPartialEq for antecedent_core::ExpressionFault
 impl core::marker::StructuralPartialEq for antecedent_core::FailedCapabilityAttempt
 impl core::marker::StructuralPartialEq for antecedent_core::FailedRngAttempt
+impl core::marker::StructuralPartialEq for antecedent_core::FeedbackDeclaration
 impl core::marker::StructuralPartialEq for antecedent_core::FixedCandidateRegretInputs
 impl core::marker::StructuralPartialEq for antecedent_core::FixedGroupDosePolicy
 impl core::marker::StructuralPartialEq for antecedent_core::FoldId
@@ -4035,6 +4041,7 @@ impl core::marker::Sync for antecedent_core::ExprType [auto]
 impl core::marker::Sync for antecedent_core::ExpressionFault [auto]
 impl core::marker::Sync for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Sync for antecedent_core::FailedRngAttempt [auto]
+impl core::marker::Sync for antecedent_core::FeedbackDeclaration [auto]
 impl core::marker::Sync for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Sync for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Sync for antecedent_core::Fnv1a64 [auto]
@@ -4489,6 +4496,7 @@ impl core::marker::Unpin for antecedent_core::ExprType [auto]
 impl core::marker::Unpin for antecedent_core::ExpressionFault [auto]
 impl core::marker::Unpin for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Unpin for antecedent_core::FailedRngAttempt [auto]
+impl core::marker::Unpin for antecedent_core::FeedbackDeclaration [auto]
 impl core::marker::Unpin for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Unpin for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Unpin for antecedent_core::Fnv1a64 [auto]
@@ -4946,6 +4954,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExprType [auto
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExpressionFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FailedRngAttempt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FeedbackDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Fnv1a64 [auto]
@@ -5399,6 +5408,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ExprType [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ExpressionFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FailedRngAttempt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FeedbackDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Fnv1a64 [auto]
@@ -6129,6 +6139,13 @@ pub field antecedent_core::FactorNeed::conditioned_on: &'a [antecedent_core::Var
 pub field antecedent_core::FactorNeed::interventions: &'a [antecedent_core::VariableId]
 pub field antecedent_core::FactorNeed::population: &'a str
 pub field antecedent_core::FactorNeed::variables: &'a [antecedent_core::VariableId]
+pub field antecedent_core::FeedbackDeclaration::autoregression: f64
+pub field antecedent_core::FeedbackDeclaration::delay_ticks: u32
+pub field antecedent_core::FeedbackDeclaration::initial_law: antecedent_core::InitialLaw
+pub field antecedent_core::FeedbackDeclaration::initial_state: f64
+pub field antecedent_core::FeedbackDeclaration::innovation_variance: f64
+pub field antecedent_core::FeedbackDeclaration::input_gain: f64
+pub field antecedent_core::FeedbackDeclaration::level: f64
 pub field antecedent_core::FixedCandidateRegretInputs::candidates: alloc::sync::Arc<[alloc::sync::Arc<[bool]>]>
 pub field antecedent_core::FixedCandidateRegretInputs::selected_index: usize
 pub field antecedent_core::FixedCandidateRegretInputs::training_subject_ids: alloc::sync::Arc<[alloc::sync::Arc<str>]>
@@ -6400,6 +6417,7 @@ pub field antecedent_core::TemporalResponseLicense::default_policy: &'static str
 pub field antecedent_core::TemporalResponseLicense::default_treatment_lag: u32
 pub field antecedent_core::TemporalResponseLicense::max_cells: usize
 pub field antecedent_core::TemporalResponseLicense::max_horizons: usize
+pub field antecedent_core::TemporalResponseSpec::feedback: core::option::Option<antecedent_core::FeedbackDeclaration>
 pub field antecedent_core::TemporalResponseSpec::horizons: alloc::sync::Arc<[u32]>
 pub field antecedent_core::TemporalResponseSpec::max_history_lag: core::option::Option<u32>
 pub field antecedent_core::TemporalResponseSpec::policy: antecedent_core::TemporalPolicy
@@ -6848,6 +6866,7 @@ pub fn <antecedent_core::FailedCapabilityAttempt>::fn diagnostic(&self) -> antec
 pub fn <antecedent_core::FailedCapabilityAttempt>::fn provider_name(&self) -> &str
 pub fn <antecedent_core::FailedRngAttempt>::const fn batch(self) -> antecedent_core::BatchSize
 pub fn <antecedent_core::FailedRngAttempt>::const fn worker(self) -> antecedent_core::WorkerId
+pub fn <antecedent_core::FeedbackDeclaration>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::FixedGroupDosePolicy>::fn validate(&self, baseline_groups: &[alloc::sync::Arc<str>]) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::Fnv1a64>::const fn finish(&self) -> u64
 pub fn <antecedent_core::Fnv1a64>::const fn new() -> Self
@@ -7321,6 +7340,7 @@ pub fn <antecedent_core::TemporalResponseSpec>::fn new(horizons: impl core::conv
 pub fn <antecedent_core::TemporalResponseSpec>::fn parse_policy(tag: &str, at: i32) -> core::result::Result<antecedent_core::TemporalPolicy, antecedent_core::QueryError>
 pub fn <antecedent_core::TemporalResponseSpec>::fn treatment_offset(&self) -> core::result::Result<i32, antecedent_core::QueryError>
 pub fn <antecedent_core::TemporalResponseSpec>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::TemporalResponseSpec>::fn with_feedback(self, feedback: antecedent_core::FeedbackDeclaration) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::TheoremFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::TheoremScope>::fn classical_sid() -> Self
 pub fn <antecedent_core::TheoremScope>::fn classical_sid_complete() -> Self
@@ -7938,6 +7958,7 @@ pub struct antecedent_core::FailedCapabilityAttempt
 pub struct antecedent_core::FailedCapabilityAttempt has private fields
 pub struct antecedent_core::FailedRngAttempt
 pub struct antecedent_core::FailedRngAttempt has private fields
+pub struct antecedent_core::FeedbackDeclaration
 pub struct antecedent_core::FixedCandidateRegretInputs
 pub struct antecedent_core::FixedGroupDosePolicy
 pub struct antecedent_core::Fnv1a64
@@ -8460,6 +8481,7 @@ pub use antecedent_core::query::ExposureLevel = antecedent_core::ExposureLevel
 pub use antecedent_core::query::ExposureMapping = antecedent_core::ExposureMapping
 pub use antecedent_core::query::ExposurePropensityProvenance = antecedent_core::ExposurePropensityProvenance
 pub use antecedent_core::query::FactorNeed = antecedent_core::FactorNeed
+pub use antecedent_core::query::FeedbackDeclaration = antecedent_core::FeedbackDeclaration
 pub use antecedent_core::query::FixedCandidateRegretInputs = antecedent_core::FixedCandidateRegretInputs
 pub use antecedent_core::query::FixedGroupDosePolicy = antecedent_core::FixedGroupDosePolicy
 pub use antecedent_core::query::GridSpec = antecedent_core::GridSpec

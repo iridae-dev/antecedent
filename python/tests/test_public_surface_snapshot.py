@@ -304,6 +304,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "Counterfactual",
         "DirectionalDerivative",
         "Elasticity",
+        "FeedbackMechanism",
         "InterventionResponse",
         "InterventionalDistribution",
         "MediationEffect",
