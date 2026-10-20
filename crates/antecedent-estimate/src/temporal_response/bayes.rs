@@ -1,4 +1,8 @@
 //! Bayesian temporal response estimation.
+//!
+//! Horizons are separate fits. Independent draws may be paired by index for a
+//! simultaneous band; that product of marginals is not a joint trajectory posterior,
+//! and shared time labels do not make it one.
 
 use std::sync::Arc;
 
@@ -6,9 +10,8 @@ use crate::error::EstimationError;
 use crate::serial_dependence::{DependenceScope, SerialDependence};
 use crate::temporal_adjustment::TemporalLinearAdjustment;
 use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     CausalResponse, CredibleDraws, Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity,
-    ExecutionContext, IdentificationStatus, Intervention, ParametricAssumption, ResponseFunctional,
+    ExecutionContext, IdentificationStatus, Intervention, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
     TargetPopulation, TemporalEffectQuery, Value,
 };
@@ -16,9 +19,10 @@ use antecedent_data::TimeSeriesData;
 
 use super::{
     TemporalIdentification, TemporalResponseEstimator, assumptions::HorizonTempering,
-    assumptions::TEMPORAL_BAYESIAN_TEMPERING_CAPPED,
+    assumptions::INDEPENDENT_DRAW_STATEMENT, assumptions::TEMPORAL_BAYESIAN_TEMPERING_CAPPED,
     assumptions::TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC,
     assumptions::TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE, assumptions::is_tempering_record,
+    assumptions::temporal_bayesian_product_posterior_assumption,
     assumptions::temporal_bayesian_tempering_assumption, band::max_deviation_band_columns,
     band::publish_simultaneous_band, plan::TemporalInterventionPlan,
     plan::plan_temporal_intervention, support::intervention_support, support::mean_curve_support,
@@ -206,10 +210,11 @@ impl TemporalResponseEstimator {
                 band_columns.push(values.clone());
             }
         }
-        // Horizons are separate conjugate fits with independent draws; pairing draw r
+        // Horizons are separate conjugate fits with independent draws. Pairing draw r
         // across horizons samples a product of marginals, used only for the simultaneous
-        // band and never retained as an aligned joint posterior. Within a horizon every
-        // dose shares one coefficient draw.
+        // band. That alignment is not a joint trajectory posterior, and shared time
+        // labels do not make it one. Within a horizon every dose shares one coefficient
+        // draw.
         let n_joint = cell_draws.iter().map(|values| values.len()).min().unwrap_or(0);
         let cell_draws: Vec<&[f64]> = cell_draws.iter().map(|values| &values[..n_joint]).collect();
         let simultaneous = max_deviation_band_columns(&mean, &cell_draws, 0.95);
@@ -226,17 +231,16 @@ impl TemporalResponseEstimator {
                 mean_curve_support(&doses, temporal, &ranges),
             )
         };
-        publish_simultaneous_band(
-            &mut support,
-            simultaneous,
+        let simultaneous_detail = format!(
             "simultaneous CREDIBLE band: max studentized deviation of the posterior draws of the \
              whole grid around the posterior mean; doses at one horizon share each coefficient \
              draw, while horizons are separate fits whose independent draws are paired by index \
-             (a product of per-horizon posteriors, not a joint horizon posterior); conditional \
-             on the observed adjustment distribution; each horizon's posterior is the \
-             long-run-tempered generalized posterior (support diagnostic \
-             response.temporal_bayesian.tempering)",
+             (a product of per-horizon posteriors, not a joint horizon posterior). \
+             {INDEPENDENT_DRAW_STATEMENT} Conditional on the observed adjustment distribution; \
+             each horizon's posterior is the long-run-tempered generalized posterior (support \
+             diagnostic response.temporal_bayesian.tempering)"
         );
+        publish_simultaneous_band(&mut support, simultaneous, &simultaneous_detail);
         support.diagnostics.push(SupportDiagnostic {
             id: Arc::from(TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC),
             values: Arc::from(tempering.iter().map(|t| t.kappa).collect::<Vec<_>>()),
@@ -289,11 +293,7 @@ impl TemporalResponseEstimator {
                 ),
             ));
         }
-        assumptions.push(AssumptionRecord {
-            assumption: Assumption::ParametricRestriction(ParametricAssumption { id: Arc::from("bayesian.temporal_response.linear_additive"),
-                description: Arc::from("Gaussian linear-additive unfolded outcome model at each horizon, fit separately per horizon. Pointwise posterior intervals and the simultaneous credible band (support diagnostics response.simultaneous_band.*) are conditional on the observed adjustment and treatment distribution: they describe the level at the sample covariate average, not the population average. The simultaneous band pairs independent per-horizon draws, so across horizons it is a product-posterior band, not a joint horizon posterior.") }),
-            source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("response.temporal.bayesian") }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,
-        });
+        assumptions.push(temporal_bayesian_product_posterior_assumption());
         assumptions.push(temporal_bayesian_tempering_assumption(&temporal.horizons, &tempering));
         let band_draws = if intervention.is_some() {
             retained_response_draws(&band_columns, temporal.horizons.len())
@@ -331,8 +331,9 @@ impl TemporalResponseEstimator {
 /// relation to index r of another. Only a response with exactly one horizon
 /// has a single coordinate whose retained draws are a posterior in their own
 /// right; several horizons retain nothing, so no consumer can read the
-/// index-paired product as an aligned joint posterior (a nonlinear functional
-/// across horizons has no draws to evaluate and falls to the refusal path).
+/// index-paired product as a joint trajectory posterior. Shared time labels
+/// do not change that (a nonlinear functional across horizons has no draws to
+/// evaluate and falls to the refusal path).
 pub(super) fn retained_response_draws(
     columns: &[Vec<f64>],
     horizon_count: usize,
@@ -342,4 +343,39 @@ pub(super) fn retained_response_draws(
     }
     let n_draws = columns[0].len();
     (n_draws >= 2).then(|| CredibleDraws::columns(n_draws, columns))
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::Assumption;
+
+    use crate::temporal_response::assumptions::{
+        INDEPENDENT_DRAW_STATEMENT, TEMPORAL_BAYESIAN_PRODUCT_POSTERIOR_ID, TrajectoryDrawReading,
+        temporal_bayesian_product_posterior_assumption,
+    };
+
+    use super::retained_response_draws;
+
+    #[test]
+    fn independent_horizon_draws_are_a_product_posterior_not_a_trajectory() {
+        let record = temporal_bayesian_product_posterior_assumption();
+        let Assumption::ParametricRestriction(restriction) = &record.assumption else {
+            panic!("expected a parametric restriction");
+        };
+        assert_eq!(restriction.id.as_ref(), TEMPORAL_BAYESIAN_PRODUCT_POSTERIOR_ID);
+        let text = restriction.description.as_ref();
+        assert!(text.contains("product-posterior band, not a joint horizon posterior"), "{text}");
+        assert!(text.contains(INDEPENDENT_DRAW_STATEMENT), "{text}");
+        assert!(text.contains("The per-horizon draws are independent."));
+        assert!(text.contains("not a joint trajectory posterior"));
+        assert!(text.contains("shared time labels do not make it one"));
+        assert_eq!(
+            TrajectoryDrawReading::IndependentProduct.statement(),
+            INDEPENDENT_DRAW_STATEMENT
+        );
+        let column = vec![0.5, 1.5, 2.5];
+        assert!(retained_response_draws(std::slice::from_ref(&column), 1).is_some());
+        let columns = vec![column, vec![9.0, 8.0, 7.0]];
+        assert!(retained_response_draws(&columns, 2).is_none());
+    }
 }

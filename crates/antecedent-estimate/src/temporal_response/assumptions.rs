@@ -1,4 +1,8 @@
-//! Assumption records and tempering diagnostics.
+//! Assumption records, tempering diagnostics, and what a shared calendar couples.
+//!
+//! A common calendar may couple block and cluster resamples across mechanisms and
+//! horizons. Independent per-horizon draws stay a product of marginals: shared time
+//! labels are not a joint trajectory posterior.
 
 use std::sync::Arc;
 
@@ -11,7 +15,7 @@ use antecedent_core::{
     AssumptionStatus, ParametricAssumption,
 };
 
-use super::block::ResponseBlockLength;
+use super::block::{ResponseBlockLength, calendar_coupling_statement};
 
 pub(super) fn with_pointwise_homoskedastic_ols_assumption(
     mut assumptions: AssumptionSet,
@@ -49,14 +53,32 @@ pub(super) fn with_pointwise_homoskedastic_ols_assumption(
     assumptions
 }
 
+/// What independent per-horizon draws are, once they have been placed on one index.
+pub(super) const INDEPENDENT_DRAW_STATEMENT: &str = "The per-horizon draws are independent. Pairing them by index is a product of marginals, \
+     not a joint trajectory posterior, and shared time labels do not make it one.";
+
+/// What a common calendar couples, and what shared time labels do not.
+pub(super) const COMMON_CALENDAR_COUPLING: &str = "When mechanisms and horizons share a calendar, one circular-block plan is mapped into each \
+     of them, and one cluster draw on that calendar is shared the same way. A cluster replicate \
+     has a variable row count and is not stored as a groups-by-replicates index matrix. \
+     Independent draws stay independent: shared time labels do not couple them, and aligning \
+     those draws is not a joint trajectory posterior.";
+
 /// Construction text for the joint circular-block surface bootstrap.
-pub(super) const BLOCK_BOOTSTRAP_CONSTRUCTION: &str = "max-studentized deviation of the joint circular-block \
+pub(super) const BLOCK_BOOTSTRAP_CONSTRUCTION: &str = concat!(
+    "max-studentized deviation of the joint circular-block \
      bootstrap replicates of the whole dose × horizon surface around the full-sample estimate; \
      each replicate resamples time-aligned blocks of lag-aligned rows (block length: support \
      diagnostic response.temporal.block_length), refits every horizon and recomputes the \
      covariate averages; replicate deviations carry the circular-Bartlett fixed-b factor for \
      b = block/rows, the HC1 factor sqrt(rows/(rows − p)) and each cell's kernel-bias factor \
-     (response.temporal.kernel_bias_factor)";
+     (response.temporal.kernel_bias_factor). ",
+    "When mechanisms and horizons share a calendar, one circular-block plan is mapped into each \
+     of them, and one cluster draw on that calendar is shared the same way. A cluster replicate \
+     has a variable row count and is not stored as a groups-by-replicates index matrix. \
+     Independent draws stay independent: shared time labels do not couple them, and aligning \
+     those draws is not a joint trajectory posterior.",
+);
 
 /// What one surface-bootstrap replicate refits, for [`disclose_response_block_bootstrap`].
 pub(super) const SURFACE_REFIT: &str = "one replicate refits every horizon on the same time-aligned \
@@ -72,6 +94,7 @@ pub(super) fn block_bootstrap_assumption(
     refit: &str,
 ) -> AssumptionRecord {
     let ResponseBlockLength { length, rule, testing, rows } = block;
+    let coupling = TrajectoryDrawReading::CommonCalendarResample.statement();
     AssumptionRecord {
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
             id: Arc::from(BLOCK_BOOTSTRAP_ASSUMPTION_ID),
@@ -98,7 +121,8 @@ pub(super) fn block_bootstrap_assumption(
                  diagnostics response.simultaneous_band.*) is the max-studentized deviation over \
                  the whole grid from the same scaled replicates; the fixed-b ratio is derived for \
                  one pointwise 95% interval, so carrying it into the sup-t band is a heuristic \
-                 extension, supported by the calibration rather than by theory."
+                 extension, supported by the calibration rather than by theory. \
+                 {coupling}"
             )),
         }),
         source: AssumptionSource::AlgorithmDefault {
@@ -160,6 +184,60 @@ impl HorizonTempering {
             ""
         };
         format!("h={horizon}: {:.4}{flag}", self.kappa)
+    }
+}
+
+/// How aligned draws may be read. Alignment alone is never a trajectory posterior.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum TrajectoryDrawReading {
+    /// Separate fits. The result says the draws are independent.
+    IndependentProduct,
+    /// One block plan or one cluster draw, shared across mechanisms and horizons
+    /// on a common calendar. A joint resampling draw, not a posterior.
+    CommonCalendarResample,
+}
+
+impl TrajectoryDrawReading {
+    /// Wording the published result uses for this reading.
+    #[must_use]
+    pub(super) fn statement(self) -> &'static str {
+        match self {
+            Self::IndependentProduct => INDEPENDENT_DRAW_STATEMENT,
+            Self::CommonCalendarResample => calendar_coupling_statement(),
+        }
+    }
+}
+
+/// Assumption id of the per-horizon Gaussian temporal response posterior.
+pub(super) const TEMPORAL_BAYESIAN_PRODUCT_POSTERIOR_ID: &str =
+    "bayesian.temporal_response.linear_additive";
+
+/// Gaussian linear-additive model text carried with [`INDEPENDENT_DRAW_STATEMENT`].
+const TEMPORAL_BAYESIAN_PRODUCT_POSTERIOR: &str = "Gaussian linear-additive unfolded outcome \
+     model at each horizon, fit separately per horizon. Pointwise posterior intervals and the \
+     simultaneous credible band (support diagnostics response.simultaneous_band.*) are \
+     conditional on the observed adjustment and treatment distribution: they describe the level \
+     at the sample covariate average, not the population average. The simultaneous band pairs \
+     independent per-horizon draws, so across horizons it is a product-posterior band, not a \
+     joint horizon posterior.";
+
+/// The product-posterior assumption `response.temporal.bayesian` publishes.
+///
+/// Independent per-horizon draws stay independent in the record. Shared time labels
+/// are not promoted to a joint trajectory posterior.
+#[must_use]
+pub(super) fn temporal_bayesian_product_posterior_assumption() -> AssumptionRecord {
+    let coupling = TrajectoryDrawReading::IndependentProduct.statement();
+    AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from(TEMPORAL_BAYESIAN_PRODUCT_POSTERIOR_ID),
+            description: Arc::from(format!("{TEMPORAL_BAYESIAN_PRODUCT_POSTERIOR} {coupling}")),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("response.temporal.bayesian"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
     }
 }
 

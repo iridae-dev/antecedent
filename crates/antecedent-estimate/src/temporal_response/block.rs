@@ -1,4 +1,8 @@
-//! Circular-block length selection and bootstrap disclosure.
+//! Circular-block length selection, bootstrap disclosure, and common-calendar coupling.
+//!
+//! A common calendar may share one block plan, or one cluster draw, across mechanisms
+//! and horizons. Cluster replicates keep a variable row count. They are not packed into
+//! a groups-by-replicates index matrix.
 
 use std::sync::Arc;
 
@@ -317,11 +321,221 @@ pub fn block_dispersion_inflation(rows: usize, block: usize, parameters: usize) 
     if ratio.is_finite() && ratio >= 1.0 { ratio } else { 1.0 }
 }
 
+/// Clusters drawn for one replicate, with replacement, in draw order.
+///
+/// Expanding the draw through a cluster-member table yields that replicate's rows.
+/// Cluster sizes differ and a cluster may be drawn more than once, so the row count
+/// belongs to this replicate. Mechanisms and horizons that share the calendar share
+/// this draw; it is not a column of a groups-by-replicates index matrix.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ClusterReplicate {
+    drawn: Vec<usize>,
+}
+
+impl ClusterReplicate {
+    /// `drawn` indexes the cluster-member table.
+    #[must_use]
+    #[allow(
+        clippy::missing_const_for_fn,
+        reason = "the constructor moves a Vec, which is not a const operation on the 1.85 MSRV"
+    )]
+    pub(super) fn new(drawn: Vec<usize>) -> Self {
+        Self { drawn }
+    }
+
+    /// How many clusters this replicate drew, counting replacement.
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn, reason = "Vec::len is not a const fn on the 1.85 MSRV")]
+    pub(super) fn cluster_count(&self) -> usize {
+        self.drawn.len()
+    }
+
+    /// Rows of this replicate, in draw order.
+    ///
+    /// `None` when a drawn cluster is outside `members`. The length is the sum of
+    /// the drawn clusters' lengths.
+    #[must_use]
+    pub(super) fn rows(&self, members: &[Vec<usize>]) -> Option<Vec<usize>> {
+        let mut rows = Vec::new();
+        for &cluster in &self.drawn {
+            let member = members.get(cluster)?;
+            rows.extend_from_slice(member);
+        }
+        Some(rows)
+    }
+}
+
+/// One resample shared by every mechanism and horizon on a common calendar.
+///
+/// There is no group axis. Block positions are one list. A cluster draw is one
+/// [`ClusterReplicate`]. [`Self::group_replicate_index_matrix`] is always empty.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum SharedCalendarDraw {
+    /// Circular-block positions of one replicate. `block_length` is the plan.
+    Blocks { block_length: usize, positions: Vec<usize> },
+    /// One cluster draw. Row expansion is [`ClusterReplicate::rows`].
+    Clusters { replicate: ClusterReplicate },
+}
+
+impl SharedCalendarDraw {
+    /// One circular-block plan. `positions` are calendar positions, not groups.
+    #[must_use]
+    pub(super) fn blocks(block_length: usize, positions: Vec<usize>) -> Self {
+        Self::Blocks { block_length, positions }
+    }
+
+    /// One cluster draw, shared across mechanisms and horizons.
+    #[must_use]
+    pub(super) fn clusters(replicate: ClusterReplicate) -> Self {
+        Self::Clusters { replicate }
+    }
+
+    /// This draw is one shared resample with a usable plan.
+    #[must_use]
+    #[allow(
+        clippy::missing_const_for_fn,
+        reason = "Vec::is_empty is not a const fn on the 1.85 MSRV"
+    )]
+    pub(super) fn is_one_shared_draw(&self) -> bool {
+        match self {
+            Self::Blocks { block_length, positions } => *block_length >= 1 && !positions.is_empty(),
+            Self::Clusters { replicate } => replicate.cluster_count() >= 1,
+        }
+    }
+
+    /// A groups-by-replicates index matrix is not defined for this draw.
+    ///
+    /// Block positions are the calendar of one replicate. Cluster rows have a
+    /// variable length, so they are not a rectangular index either.
+    #[must_use]
+    pub(super) fn group_replicate_index_matrix(&self) -> Option<Vec<Vec<usize>>> {
+        match self {
+            Self::Blocks { .. } | Self::Clusters { .. } => None,
+        }
+    }
+}
+
+/// Whether `replicates` expanded through `members` have more than one row count.
+///
+/// `false` when any draw names a missing cluster, or when every replicate has the
+/// same row count (including when there are fewer than two replicates).
+#[must_use]
+pub(super) fn cluster_row_counts_vary(
+    replicates: &[ClusterReplicate],
+    members: &[Vec<usize>],
+) -> bool {
+    let mut counts = Vec::with_capacity(replicates.len());
+    for replicate in replicates {
+        let Some(rows) = replicate.rows(members) else {
+            return false;
+        };
+        counts.push(rows.len());
+    }
+    let Some(&first) = counts.first() else {
+        return false;
+    };
+    counts.iter().any(|count| *count != first)
+}
+
+/// Published common-calendar sentence, or a contradiction if the jagged-draw
+/// contract does not hold.
+#[must_use]
+pub(super) fn calendar_coupling_statement() -> &'static str {
+    const MATRIX_BUILT: &str = "A groups-by-replicates index matrix was built for a \
+         common-calendar draw. That matrix is refused: cluster replicates have a variable row \
+         count, and mechanisms and horizons share one block plan or one cluster draw.";
+    const ROWS_DID_NOT_VARY: &str = "Illustrative unequal clusters produced equal row counts, so \
+         the jagged cluster-replicate contract failed.";
+    let blocks = SharedCalendarDraw::blocks(2, vec![0, 1]);
+    let clusters = SharedCalendarDraw::clusters(ClusterReplicate::new(vec![0]));
+    if !blocks.is_one_shared_draw()
+        || !clusters.is_one_shared_draw()
+        || blocks.group_replicate_index_matrix().is_some()
+        || clusters.group_replicate_index_matrix().is_some()
+    {
+        return MATRIX_BUILT;
+    }
+    let members = [vec![0_usize], vec![1, 2], vec![3, 4, 5, 6, 7]];
+    let replicates = [
+        ClusterReplicate::new(vec![0, 0]),
+        ClusterReplicate::new(vec![1]),
+        ClusterReplicate::new(vec![2]),
+    ];
+    if !cluster_row_counts_vary(&replicates, &members) {
+        return ROWS_DID_NOT_VARY;
+    }
+    super::assumptions::COMMON_CALENDAR_COUPLING
+}
+
 /// Scale each replicate's deviation from `center` by `factor`, in place.
 pub fn inflate_replicates(center: &[f64], draws: &mut [Vec<f64>], factor: f64) {
     for draw in draws {
         for (value, mid) in draw.iter_mut().zip(center) {
             *value = mid + factor * (*value - mid);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::Assumption;
+
+    use crate::temporal_response::assumptions::{
+        BLOCK_BOOTSTRAP_ASSUMPTION_ID, COMMON_CALENDAR_COUPLING, TrajectoryDrawReading,
+        block_bootstrap_assumption,
+    };
+
+    use super::{
+        ClusterReplicate, ResponseBlockLength, SharedCalendarDraw, calendar_coupling_statement,
+        cluster_row_counts_vary,
+    };
+
+    #[test]
+    fn cluster_replicates_keep_a_variable_row_count() {
+        let members = [vec![0], vec![1, 2], vec![3, 4, 5, 6, 7]];
+        let short = ClusterReplicate::new(vec![0, 0]);
+        let medium = ClusterReplicate::new(vec![1]);
+        let long = ClusterReplicate::new(vec![2]);
+        assert_eq!(short.rows(&members).unwrap(), vec![0, 0]);
+        assert_eq!(medium.rows(&members).unwrap(), vec![1, 2]);
+        assert_eq!(long.rows(&members).unwrap(), vec![3, 4, 5, 6, 7]);
+        assert!(cluster_row_counts_vary(&[short, medium.clone(), long.clone()], &members));
+        assert_ne!(medium.rows(&members).unwrap().len(), long.rows(&members).unwrap().len());
+        assert!(ClusterReplicate::new(vec![3]).rows(&members).is_none());
+        assert!(!cluster_row_counts_vary(&[ClusterReplicate::new(vec![9])], &members));
+    }
+
+    #[test]
+    fn shared_calendar_draw_is_not_a_groups_by_replicates_matrix() {
+        let blocks = SharedCalendarDraw::blocks(4, vec![10, 11, 12, 13]);
+        let clusters = SharedCalendarDraw::clusters(ClusterReplicate::new(vec![1, 0]));
+        assert!(blocks.is_one_shared_draw());
+        assert!(clusters.is_one_shared_draw());
+        assert!(blocks.group_replicate_index_matrix().is_none());
+        assert!(clusters.group_replicate_index_matrix().is_none());
+        assert_eq!(calendar_coupling_statement(), COMMON_CALENDAR_COUPLING);
+        assert_eq!(
+            TrajectoryDrawReading::CommonCalendarResample.statement(),
+            COMMON_CALENDAR_COUPLING
+        );
+    }
+
+    #[test]
+    fn block_bootstrap_assumption_states_common_calendar_coupling() {
+        let block = ResponseBlockLength { length: 4, rule: 4, testing: 0, rows: 16 };
+        let record =
+            block_bootstrap_assumption(block, 1.25, 1.0, "one replicate refits every horizon");
+        let Assumption::ParametricRestriction(restriction) = &record.assumption else {
+            panic!("expected a parametric restriction");
+        };
+        assert_eq!(restriction.id.as_ref(), BLOCK_BOOTSTRAP_ASSUMPTION_ID);
+        let text = restriction.description.as_ref();
+        assert!(text.contains(COMMON_CALENDAR_COUPLING), "{text}");
+        assert!(text.contains("mechanisms and horizons"));
+        assert!(text.contains("variable row count"));
+        assert!(text.contains("not stored as a groups-by-replicates index matrix"));
+        assert!(text.contains("Independent draws stay independent"));
+        assert!(text.contains("shared time labels"));
+        assert!(text.contains("not a joint trajectory posterior"));
     }
 }
