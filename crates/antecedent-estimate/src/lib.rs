@@ -65,6 +65,7 @@ pub mod interference;
 pub mod interference_observational;
 pub mod interference_saturation;
 pub mod iv;
+pub mod lagged_instrument;
 pub mod joint_bayesian_transport;
 pub mod joint_if;
 pub mod latent_class_effects;
