@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, Intervention, StreamDomain, VariableId};
+use antecedent_core::intervention::{AdmitError, ExecutionSurface, InterventionOperation};
+use antecedent_core::{
+    CausalRng, ExecutionContext, Intervention, StreamDomain, TemporalPolicy, Value, VariableId,
+};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
@@ -15,6 +18,48 @@ use antecedent_model::{
 };
 
 use crate::error::CounterfactualError;
+
+/// Admit `intervention` on a counterfactual world.
+///
+/// The operation is the same one a static model admits. A shift is not a set.
+/// A pulse, a sustained action, and an initial-state change are refused.
+///
+/// # Errors
+///
+/// [`CounterfactualError`] naming the operation this surface cannot perform.
+pub fn admit_counterfactual(
+    intervention: &Intervention,
+    temporal: Option<&TemporalPolicy>,
+) -> Result<InterventionOperation, CounterfactualError> {
+    ExecutionSurface::Counterfactual.admit(intervention, temporal).map_err(counterfactual_refusal)
+}
+
+/// Refuse an initial-state change on a counterfactual world.
+///
+/// # Errors
+///
+/// [`CounterfactualError`] naming `initial_state_change`.
+pub fn admit_counterfactual_initial_state(
+    law_name: &str,
+    level: f64,
+) -> Result<(), CounterfactualError> {
+    let operation = InterventionOperation::initial_state(law_name, Value::f64(level))
+        .map_err(|error| CounterfactualError::model_msg(error.to_string()))?;
+    ExecutionSurface::Counterfactual
+        .admit_operation(&operation)
+        .map_err(|refusal| CounterfactualError::model_msg(refusal.to_string()))?;
+    Err(CounterfactualError::model_msg(
+        "an initial-state change replaces the initial-state law and is not a hard clamp",
+    ))
+}
+
+fn counterfactual_refusal(error: AdmitError) -> CounterfactualError {
+    match error {
+        AdmitError::Refused(refusal) => CounterfactualError::model_msg(refusal.to_string()),
+        AdmitError::Invalid(invalid) => CounterfactualError::model_msg(invalid.to_string()),
+        other => CounterfactualError::model_msg(other.to_string()),
+    }
+}
 
 /// Stream index of the abduction draw within [`StreamDomain::Counterfactual`].
 const ABDUCTION_STREAM: u64 = 0xAB_D0;
@@ -464,6 +509,9 @@ impl CounterfactualEngine {
                         return Err(CounterfactualError::NestedNotAllowed);
                     }
                 }
+            }
+            for iv in world.interventions.iter() {
+                admit_counterfactual(iv, None)?;
             }
             let overlay =
                 InterventionOverlay::from_interventions(&self.model, &world.interventions)?;
@@ -2418,5 +2466,29 @@ mod tests {
             assert!((replay.get(0, DenseNodeId::from_raw(1), i) - hand_demand).abs() < 1e-9);
             assert!((replay.get(0, DenseNodeId::from_raw(1), i) - d1[i]).abs() < 1e-9);
         }
+    }
+
+    #[test]
+    fn counterfactual_set_matches_static_and_refuses_a_rewritten_action() {
+        let variable = antecedent_core::VariableId::from_raw(0);
+        let set = Intervention::set(variable, Value::f64(1.0));
+        let counterfactual = admit_counterfactual(&set, None).unwrap();
+        let static_op =
+            antecedent_core::intervention::ExecutionSurface::Static.admit(&set, None).unwrap();
+        assert_eq!(counterfactual, static_op);
+        let shift = Intervention::shift(variable, Value::f64(1.0));
+        let shifted = admit_counterfactual(&shift, None).unwrap();
+        assert_ne!(shifted, counterfactual);
+        assert_eq!(shifted.name(), "shift");
+        let pulse = admit_counterfactual(&set, Some(&TemporalPolicy::pulse(0))).unwrap_err();
+        assert!(pulse.to_string().contains("pulse"));
+        let sustained =
+            admit_counterfactual(&set, Some(&TemporalPolicy::sustained(0, 0))).unwrap_err();
+        assert!(sustained.to_string().contains("sustained"));
+        assert_ne!(pulse.to_string(), sustained.to_string());
+        let soft = Intervention::soft(variable, MechanismOverride::constant(1.0));
+        assert_eq!(admit_counterfactual(&soft, None).unwrap().name(), "soft");
+        let initial = admit_counterfactual_initial_state("x0", 2.0).unwrap_err();
+        assert!(initial.to_string().contains("initial_state_change"));
     }
 }

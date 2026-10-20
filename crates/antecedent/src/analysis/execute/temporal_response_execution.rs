@@ -17,7 +17,7 @@ use super::{
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::require_primary_pair;
-use antecedent_core::{HistoryWindow, IdentificationStatus, TemporalPolicy};
+use antecedent_core::{HistoryWindow, IdentificationStatus};
 use antecedent_data::TimeIndex;
 use antecedent_model::history_operators::{
     DelayedAction, DelayedDynamics, DelayedFeedback, DelayedFeedbackRequest, FeedbackDelay,
@@ -303,8 +303,14 @@ impl CheckedTemporalResponseExecution {
                 .map(|member| member.indexer().history())
                 .max()
                 .unwrap_or(0);
-            let levels =
-                finite_horizon_levels(data.time_index(), temporal, searched_steps, mechanism)?;
+            let intervention = mechanism_intervention(mechanism, treatment);
+            let levels = finite_horizon_levels(
+                data.time_index(),
+                temporal,
+                searched_steps,
+                mechanism,
+                &intervention,
+            )?;
             let response = finite_horizon_causal_response(
                 &self.operation.query().functional,
                 &self.identification,
@@ -401,12 +407,29 @@ fn truncation_certificate(
 /// of the policy. An off-cadence horizon, an uncertified truncation, feedback
 /// arriving after the horizon, and an ancestry deeper than the declared search
 /// cap are refusals. The cap is not replaced by the depth the identifier walked.
+fn mechanism_intervention(
+    mechanism: &FeedbackMechanism,
+    treatment: antecedent_core::VariableId,
+) -> antecedent_core::Intervention {
+    antecedent_core::FeedbackDeclaration {
+        delay_ticks: mechanism.delay.ticks(),
+        level: mechanism.level,
+        autoregression: mechanism.dynamics.autoregression(),
+        input_gain: mechanism.dynamics.input_gain(),
+        innovation_variance: mechanism.dynamics.innovation_variance(),
+        initial_law: mechanism.dynamics.initial_law().clone(),
+        initial_state: mechanism.dynamics.initial_state(),
+    }
+    .dose(treatment)
+}
+
 fn admit_delayed_finite_horizon(
     cadence: &TimeIndex,
     temporal: &antecedent_core::TemporalResponseSpec,
     steps: u32,
     searched_steps: u32,
     mechanism: &FeedbackMechanism,
+    intervention: &antecedent_core::Intervention,
 ) -> Result<DelayedFeedback, HistoryOperatorError> {
     let horizon = horizon_ending_after(cadence, steps)?;
     let history = match temporal.max_history_lag {
@@ -419,7 +442,9 @@ fn admit_delayed_finite_horizon(
         initial_law: Some(mechanism.dynamics.initial_law().clone()),
         history,
         delay: Some(mechanism.delay),
-        action: delayed_action(&temporal.policy, mechanism.level)?,
+        intervention: intervention.clone(),
+        temporal: temporal.policy.clone(),
+        initial_state_change: None,
         truncation: truncation_certificate(temporal, searched_steps),
         search_cap: temporal.max_history_lag.map(FeedbackSearchCap::declared),
         ancestry_steps: searched_steps,
@@ -432,14 +457,21 @@ fn finite_horizon_levels(
     temporal: &antecedent_core::TemporalResponseSpec,
     searched_steps: u32,
     mechanism: &FeedbackMechanism,
+    intervention: &antecedent_core::Intervention,
 ) -> Result<Vec<HorizonLevel>, CausalError> {
     temporal
         .horizons
         .iter()
         .map(|&steps| {
-            let feedback =
-                admit_delayed_finite_horizon(cadence, temporal, steps, searched_steps, mechanism)
-                    .map_err(causal_refusal)?;
+            let feedback = admit_delayed_finite_horizon(
+                cadence,
+                temporal,
+                steps,
+                searched_steps,
+                mechanism,
+                intervention,
+            )
+            .map_err(causal_refusal)?;
             let finite = temporal_target_response(
                 &feedback,
                 ResponseTarget::FiniteHorizon,
@@ -517,17 +549,6 @@ fn temporal_target_response(
         });
     }
     Ok(response)
-}
-
-fn delayed_action(
-    policy: &TemporalPolicy,
-    level: f64,
-) -> Result<DelayedAction, HistoryOperatorError> {
-    match policy {
-        TemporalPolicy::Pulse { at } => DelayedAction::pulse(*at, level),
-        TemporalPolicy::Sustained { from, until } => DelayedAction::sustained(*from, *until, level),
-        _ => Err(HistoryOperatorError::ActionNotDelayable),
-    }
 }
 
 fn causal_refusal(error: HistoryOperatorError) -> CausalError {
@@ -785,6 +806,7 @@ mod tests {
         ResponseTarget, admit_delayed_finite_horizon, causal_refusal,
         finite_horizon_causal_response, finite_horizon_levels, temporal_target_response,
     };
+    use antecedent_model::history_operators::delayed_action_of;
     use antecedent_core::InitialLaw;
     use antecedent_data::{SamplingRegularity, TimeIndex};
 
@@ -822,6 +844,10 @@ mod tests {
         }
     }
 
+    fn dose() -> antecedent_core::Intervention {
+        declaration().dose(VariableId::from_raw(0))
+    }
+
     fn admit_at(
         policy: TemporalPolicy,
         steps: u32,
@@ -829,7 +855,14 @@ mod tests {
         searched_steps: u32,
     ) -> Result<DelayedFeedback, HistoryOperatorError> {
         let spec = response_spec(policy, vec![steps], max_history_lag);
-        admit_delayed_finite_horizon(&cadence(1, 8), &spec, steps, searched_steps, &mechanism())
+        admit_delayed_finite_horizon(
+            &cadence(1, 8),
+            &spec,
+            steps,
+            searched_steps,
+            &mechanism(),
+            &dose(),
+        )
     }
 
     fn rollout(feedback: &DelayedFeedback) -> f64 {
@@ -869,6 +902,25 @@ mod tests {
         assert_eq!(rollout(&one_step).to_bits(), 0.5f64.to_bits());
         assert_ne!(pulse.action(), one_step.action());
         assert_ne!(pulse.action(), sustained.action());
+        let supplied = dose();
+        assert_eq!(
+            pulse.action(),
+            delayed_action_of(&supplied, &TemporalPolicy::pulse(0)).unwrap()
+        );
+        assert_eq!(
+            one_step.action(),
+            delayed_action_of(&supplied, &TemporalPolicy::sustained(0, 0)).unwrap()
+        );
+        let shift = antecedent_core::Intervention::shift(
+            VariableId::from_raw(0),
+            antecedent_core::Value::f64(1.0),
+        );
+        let refused = delayed_action_of(&shift, &TemporalPolicy::pulse(0)).unwrap_err();
+        assert!(matches!(
+            refused,
+            HistoryOperatorError::UnsupportedOperation { operation: "shift", .. }
+        ));
+        assert_ne!(refused, HistoryOperatorError::ActionNotDelayable);
     }
 
     #[test]
@@ -912,7 +964,8 @@ mod tests {
             feedback: None,
         };
         let error =
-            admit_delayed_finite_horizon(&cadence(1, 8), &spec, 3, 0, &mechanism()).unwrap_err();
+            admit_delayed_finite_horizon(&cadence(1, 8), &spec, 3, 0, &mechanism(), &dose())
+                .unwrap_err();
         assert_eq!(error, HistoryOperatorError::ActionNotDelayable);
         let zero = FeedbackMechanism::declared(
             0,
@@ -926,7 +979,8 @@ mod tests {
     #[test]
     fn temporal_response_publishes_every_requested_horizon() {
         let spec = response_spec(TemporalPolicy::pulse(-1), vec![1, 2, 3], None);
-        let levels = finite_horizon_levels(&cadence(1, 8), &spec, 0, &mechanism()).unwrap();
+        let levels =
+            finite_horizon_levels(&cadence(1, 8), &spec, 0, &mechanism(), &dose()).unwrap();
         assert_eq!(
             levels,
             [
@@ -1031,9 +1085,15 @@ mod tests {
                 .iter()
                 .any(|d| d.code.as_ref() == "model.delayed_feedback.finite_horizon")
         );
-        let admitted =
-            admit_delayed_finite_horizon(data.time_index(), &spec, 1, history, &mechanism())
-                .unwrap();
+        let admitted = admit_delayed_finite_horizon(
+            data.time_index(),
+            &spec,
+            1,
+            history,
+            &mechanism(),
+            &dose(),
+        )
+        .unwrap();
         let operator = temporal_target_response(
             &admitted,
             ResponseTarget::FiniteHorizon,
@@ -1138,13 +1198,20 @@ mod tests {
     fn temporal_response_refuses_an_off_cadence_horizon() {
         let irregular = TimeIndex { regularity: SamplingRegularity::Irregular, length: 8 };
         let spec = response_spec(TemporalPolicy::pulse(-1), vec![1], None);
-        let error =
-            admit_delayed_finite_horizon(&irregular, &spec, 1, 0, &mechanism()).unwrap_err();
+        let error = admit_delayed_finite_horizon(
+            &irregular,
+            &spec,
+            1,
+            0,
+            &mechanism(),
+            &dose(),
+        )
+        .unwrap_err();
         assert_eq!(
             error,
             HistoryOperatorError::CadenceWithoutInterval { interval_ns: None, steps: 1 }
         );
-        let past = admit_delayed_finite_horizon(&cadence(1, 8), &spec, 9, 0, &mechanism());
+        let past = admit_delayed_finite_horizon(&cadence(1, 8), &spec, 9, 0, &mechanism(), &dose());
         assert!(matches!(past, Err(HistoryOperatorError::HorizonCrossesCadence { end_ns: 9, .. })));
     }
 

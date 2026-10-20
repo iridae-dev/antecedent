@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Intervention requests on a linear free block.
+//! Interventions on a linear free block.
 //!
-//! A hard clamp is the only request this block executes. It deletes the clamped
-//! equations and leaves
+//! Callers pass [`antecedent_core::Intervention`]. An untimed
+//! [`Intervention::Set`](antecedent_core::Intervention::Set) is a hard clamp:
+//! it deletes the clamped equations and leaves
 //! [`FREE_BLOCK_EQUATION`](crate::linear_solution::FREE_BLOCK_EQUATION). The
 //! disturbance on the free variables stays marginal.
 //!
-//! A mechanism shift, a pulse, a sustained action, and an initial-state change
-//! each bind their own target and identity. None of them is rewritten as a clamp.
-//! A pulse is not a sustained action, including when the sustained window is a
+//! A shift, a soft mechanism replacement, a pulse, a sustained action, and an
+//! initial-state change are refused. None of them is rewritten as a clamp. A
+//! pulse is not a sustained action, including when the sustained window is a
 //! single step. An initial-state change is not a hard clamp.
 //!
 //! After a hard clamp, [`revalidate_solvability`] decides the free block again.
@@ -23,6 +24,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+use antecedent_core::intervention::{AdmitError, ExecutionSurface, InterventionOperation};
+use antecedent_core::{Intervention, InterventionError, TemporalPolicy, Value};
 use thiserror::Error;
 
 use crate::cyclic_component::CyclicComponent;
@@ -34,70 +37,6 @@ use crate::scc_compile::{
     CompileBudget, CompiledEquilibrium, GaussianDisturbance, SccCompileError,
     compile_gaussian_equilibrium,
 };
-
-const MECHANISM_SHIFT_NEXT: &str = concat!(
-    "replace the structural coefficient on its edge; ",
-    "a mechanism shift is not a hard clamp",
-);
-const PULSE_NEXT: &str = concat!(
-    "apply the action at its single offset; ",
-    "a pulse is not a sustained action and is not a hard clamp",
-);
-const SUSTAINED_NEXT: &str = concat!(
-    "hold the action on its window; ",
-    "a sustained action is not a pulse and is not a hard clamp",
-);
-const INITIAL_STATE_NEXT: &str =
-    concat!("replace the initial-state law; ", "an initial-state change is not a hard clamp",);
-
-/// Which intervention was requested.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum InterventionKind {
-    /// Hold free-block variables at assigned levels.
-    HardClamp,
-    /// Replace one structural coefficient.
-    MechanismShift,
-    /// Apply an action at one time offset.
-    Pulse,
-    /// Hold an action on an inclusive step window.
-    SustainedAction,
-    /// Replace an initial-state law.
-    InitialStateChange,
-}
-
-impl InterventionKind {
-    /// Stable name of this kind.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::HardClamp => "hard_clamp",
-            Self::MechanismShift => "mechanism_shift",
-            Self::Pulse => "pulse",
-            Self::SustainedAction => "sustained_action",
-            Self::InitialStateChange => "initial_state_change",
-        }
-    }
-
-    /// Why this kind is not executed as a hard clamp.
-    ///
-    /// [`Self::HardClamp`] has no refusal text.
-    #[must_use]
-    pub const fn clamp_refusal(self) -> Option<&'static str> {
-        match self {
-            Self::HardClamp => None,
-            Self::MechanismShift => Some(MECHANISM_SHIFT_NEXT),
-            Self::Pulse => Some(PULSE_NEXT),
-            Self::SustainedAction => Some(SUSTAINED_NEXT),
-            Self::InitialStateChange => Some(INITIAL_STATE_NEXT),
-        }
-    }
-}
-
-impl std::fmt::Display for InterventionKind {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
 
 /// Variables whose structural equations a hard clamp deletes.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -127,113 +66,11 @@ impl HardClampIdentity {
     }
 }
 
-/// Structural edge a mechanism shift replaces. This is not a clamped variable.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct MechanismTarget {
-    /// Model order.
-    pub dimension: usize,
-    /// Variable the coefficient enters.
-    pub into_node: usize,
-    /// Variable the coefficient comes from.
-    pub from_node: usize,
-}
-
-/// Replacement coefficient of a [`MechanismTarget`].
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct MechanismShiftIdentity {
-    /// Model order.
-    pub dimension: usize,
-    /// Variable the coefficient enters.
-    pub into_node: usize,
-    /// Variable the coefficient comes from.
-    pub from_node: usize,
-    /// Bit pattern of the replacement coefficient.
-    pub replacement_bits: u64,
-}
-
-/// One variable at one time offset.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct PulseTarget {
-    /// Model order.
-    pub dimension: usize,
-    /// Variable the pulse acts on.
-    pub node: usize,
-    /// Time offset of the pulse.
-    pub at: i32,
-}
-
-/// Level of a [`PulseTarget`]. The offset stays on the target.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct PulseIdentity {
-    /// Model order.
-    pub dimension: usize,
-    /// Variable the pulse acts on.
-    pub node: usize,
-    /// Time offset of the pulse.
-    pub at: i32,
-    /// Bit pattern of the pulse level.
-    pub level_bits: u64,
-}
-
-/// One variable on an inclusive step window.
-///
-/// A window with `from == until` is still a sustained action. It is not a pulse.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct SustainedTarget {
-    /// Model order.
-    pub dimension: usize,
-    /// Variable the action holds.
-    pub node: usize,
-    /// First intervened step.
-    pub from: i32,
-    /// Last intervened step, inclusive.
-    pub until: i32,
-}
-
-/// Level held on a [`SustainedTarget`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct SustainedIdentity {
-    /// Model order.
-    pub dimension: usize,
-    /// Variable the action holds.
-    pub node: usize,
-    /// First intervened step.
-    pub from: i32,
-    /// Last intervened step, inclusive.
-    pub until: i32,
-    /// Bit pattern of the held level.
-    pub level_bits: u64,
-}
-
-/// Initial-state law a change replaces. This is not an equilibrium variable.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct InitialStateTarget {
-    /// Name of the law being replaced.
-    pub law_name: String,
-}
-
-/// Replacement level of an [`InitialStateTarget`].
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct InitialStateIdentity {
-    /// Name of the law being replaced.
-    pub law_name: String,
-    /// Bit pattern of the replacement level.
-    pub level_bits: u64,
-}
-
-/// One request bound to the target and identity of its kind.
+/// One hard clamp. Other interventions are refused before a clamp is built.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InterventionRequest {
     /// Hard clamp of equilibrium variables.
     HardClamp(HardClampRequest),
-    /// Replacement of one structural coefficient.
-    MechanismShift(MechanismShiftRequest),
-    /// One-offset action.
-    Pulse(PulseRequest),
-    /// Action held on a window.
-    SustainedAction(SustainedActionRequest),
-    /// Replacement of an initial-state law.
-    InitialStateChange(InitialStateChangeRequest),
 }
 
 /// Hard clamp bound to its variables and its assigned levels.
@@ -246,80 +83,13 @@ pub struct HardClampRequest {
     clamp: HardClamp,
 }
 
-/// Mechanism shift bound to its edge and its replacement coefficient.
+/// Clamp variables and the levels assigned to them.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MechanismShiftRequest {
-    /// Edge the shift replaces.
-    pub target: MechanismTarget,
-    /// Replacement that distinguishes this shift from another on the same edge.
-    pub identity: MechanismShiftIdentity,
-}
-
-/// Pulse bound to its offset and its level.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PulseRequest {
-    /// Variable and offset.
-    pub target: PulseTarget,
-    /// Level that distinguishes this pulse from another at the same offset.
-    pub identity: PulseIdentity,
-}
-
-/// Sustained action bound to its window and its level.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SustainedActionRequest {
-    /// Variable and window.
-    pub target: SustainedTarget,
-    /// Level that distinguishes this action from another on the same window.
-    pub identity: SustainedIdentity,
-}
-
-/// Initial-state change bound to its law and its replacement level.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct InitialStateChangeRequest {
-    /// Law being replaced.
-    pub target: InitialStateTarget,
-    /// Level that distinguishes this change from another of the same law.
-    pub identity: InitialStateIdentity,
-}
-
-/// Target and identity of one request, one variant per kind.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum InterventionBinding {
-    /// Clamp variables and assigned levels.
-    HardClamp {
-        /// Variables held.
-        target: ClampTarget,
-        /// Assigned levels.
-        identity: HardClampIdentity,
-    },
-    /// Mechanism edge and replacement coefficient.
-    MechanismShift {
-        /// Edge replaced.
-        target: MechanismTarget,
-        /// Replacement coefficient.
-        identity: MechanismShiftIdentity,
-    },
-    /// Pulse offset and level.
-    Pulse {
-        /// Variable and offset.
-        target: PulseTarget,
-        /// Pulse level.
-        identity: PulseIdentity,
-    },
-    /// Sustained window and level.
-    SustainedAction {
-        /// Variable and window.
-        target: SustainedTarget,
-        /// Held level.
-        identity: SustainedIdentity,
-    },
-    /// Initial-state law and replacement level.
-    InitialStateChange {
-        /// Law replaced.
-        target: InitialStateTarget,
-        /// Replacement level.
-        identity: InitialStateIdentity,
-    },
+pub struct InterventionBinding {
+    /// Variables held.
+    pub target: ClampTarget,
+    /// Assigned levels.
+    pub identity: HardClampIdentity,
 }
 
 impl InterventionRequest {
@@ -340,108 +110,13 @@ impl InterventionRequest {
         Ok(Self::HardClamp(HardClampRequest::try_new(dimension, nodes, values)?))
     }
 
-    /// Replace the coefficient of `from_node` into `into_node`.
-    ///
-    /// # Errors
-    ///
-    /// A non-positive dimension, an out-of-range node, a diagonal target, or a
-    /// non-finite replacement.
-    #[must_use = "a refused mechanism shift is not a request"]
-    pub fn mechanism_shift(
-        dimension: usize,
-        into_node: usize,
-        from_node: usize,
-        replacement: f64,
-    ) -> Result<Self, InterventionRequestError> {
-        Ok(Self::MechanismShift(MechanismShiftRequest::try_new(
-            dimension,
-            into_node,
-            from_node,
-            replacement,
-        )?))
-    }
-
-    /// Pulse `node` at offset `at`.
-    ///
-    /// # Errors
-    ///
-    /// A non-positive dimension, an out-of-range node, or a non-finite level.
-    #[must_use = "a refused pulse is not a request"]
-    pub fn pulse(
-        dimension: usize,
-        node: usize,
-        at: i32,
-        level: f64,
-    ) -> Result<Self, InterventionRequestError> {
-        Ok(Self::Pulse(PulseRequest::try_new(dimension, node, at, level)?))
-    }
-
-    /// Hold `node` from `from` through `until`, inclusive.
-    ///
-    /// `from == until` stays a sustained action.
-    ///
-    /// # Errors
-    ///
-    /// A non-positive dimension, an out-of-range node, a window that ends before
-    /// it starts, or a non-finite level.
-    #[must_use = "a refused sustained action is not a request"]
-    pub fn sustained(
-        dimension: usize,
-        node: usize,
-        from: i32,
-        until: i32,
-        level: f64,
-    ) -> Result<Self, InterventionRequestError> {
-        Ok(Self::SustainedAction(SustainedActionRequest::try_new(
-            dimension, node, from, until, level,
-        )?))
-    }
-
-    /// Replace the initial-state law `law_name`.
-    ///
-    /// # Errors
-    ///
-    /// An empty law name or a non-finite level.
-    #[must_use = "a refused initial-state change is not a request"]
-    pub fn initial_state(law_name: &str, level: f64) -> Result<Self, InterventionRequestError> {
-        Ok(Self::InitialStateChange(InitialStateChangeRequest::try_new(law_name, level)?))
-    }
-
-    /// Kind of this request.
-    #[must_use]
-    pub const fn kind(&self) -> InterventionKind {
-        match self {
-            Self::HardClamp(_) => InterventionKind::HardClamp,
-            Self::MechanismShift(_) => InterventionKind::MechanismShift,
-            Self::Pulse(_) => InterventionKind::Pulse,
-            Self::SustainedAction(_) => InterventionKind::SustainedAction,
-            Self::InitialStateChange(_) => InterventionKind::InitialStateChange,
-        }
-    }
-
-    /// Target and identity of this request.
+    /// Target and identity of this clamp.
     #[must_use]
     pub fn binding(&self) -> InterventionBinding {
-        match self {
-            Self::HardClamp(request) => InterventionBinding::HardClamp {
-                target: request.target.clone(),
-                identity: request.identity.clone(),
-            },
-            Self::MechanismShift(request) => InterventionBinding::MechanismShift {
-                target: request.target.clone(),
-                identity: request.identity.clone(),
-            },
-            Self::Pulse(request) => {
-                InterventionBinding::Pulse { target: request.target, identity: request.identity }
-            }
-            Self::SustainedAction(request) => InterventionBinding::SustainedAction {
-                target: request.target,
-                identity: request.identity,
-            },
-            Self::InitialStateChange(request) => InterventionBinding::InitialStateChange {
-                target: request.target.clone(),
-                identity: request.identity.clone(),
-            },
+        let Self::HardClamp(request) = self;
+        InterventionBinding {
+            target: request.target.clone(),
+            identity: request.identity.clone(),
         }
     }
 }
@@ -478,88 +153,6 @@ impl HardClampRequest {
 
     fn values(&self) -> Vec<f64> {
         self.identity.levels()
-    }
-}
-
-impl MechanismShiftRequest {
-    fn try_new(
-        dimension: usize,
-        into_node: usize,
-        from_node: usize,
-        replacement: f64,
-    ) -> Result<Self, InterventionRequestError> {
-        require_dimension(dimension)?;
-        require_node(dimension, into_node)?;
-        require_node(dimension, from_node)?;
-        if into_node == from_node {
-            return Err(InterventionRequestError::DiagonalMechanism { node: into_node });
-        }
-        let replacement = finite_level(replacement)?;
-        Ok(Self {
-            target: MechanismTarget { dimension, into_node, from_node },
-            identity: MechanismShiftIdentity {
-                dimension,
-                into_node,
-                from_node,
-                replacement_bits: replacement.to_bits(),
-            },
-        })
-    }
-}
-
-impl PulseRequest {
-    fn try_new(
-        dimension: usize,
-        node: usize,
-        at: i32,
-        level: f64,
-    ) -> Result<Self, InterventionRequestError> {
-        require_dimension(dimension)?;
-        require_node(dimension, node)?;
-        let level = finite_level(level)?;
-        Ok(Self {
-            target: PulseTarget { dimension, node, at },
-            identity: PulseIdentity { dimension, node, at, level_bits: level.to_bits() },
-        })
-    }
-}
-
-impl SustainedActionRequest {
-    fn try_new(
-        dimension: usize,
-        node: usize,
-        from: i32,
-        until: i32,
-        level: f64,
-    ) -> Result<Self, InterventionRequestError> {
-        require_dimension(dimension)?;
-        require_node(dimension, node)?;
-        if until < from {
-            return Err(InterventionRequestError::InvertedWindow { from, until });
-        }
-        let level = finite_level(level)?;
-        Ok(Self {
-            target: SustainedTarget { dimension, node, from, until },
-            identity: SustainedIdentity {
-                dimension,
-                node,
-                from,
-                until,
-                level_bits: level.to_bits(),
-            },
-        })
-    }
-}
-
-impl InitialStateChangeRequest {
-    fn try_new(law_name: &str, level: f64) -> Result<Self, InterventionRequestError> {
-        if law_name.is_empty() {
-            return Err(InterventionRequestError::EmptyInitialLaw);
-        }
-        let level = finite_level(level)?;
-        let identity =
-            InitialStateIdentity { law_name: law_name.to_owned(), level_bits: level.to_bits() };
-        Ok(Self { target: InitialStateTarget { law_name: law_name.to_owned() }, identity })
     }
 }
 
@@ -602,13 +195,13 @@ impl RevalidatedFreeBlock {
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
 pub enum InterventionRequestError {
-    /// The kind is not a hard clamp and was not rewritten as one.
-    #[error("{kind} is not a free-block hard clamp; next attempt: {next_attempt}")]
+    /// The operation is not a hard clamp and was not rewritten as one.
+    #[error("{operation} is not a free-block hard clamp: {reason}")]
     UnsupportedSemantic {
-        /// Kind that was refused.
-        kind: InterventionKind,
-        /// What would carry that kind, instead of a clamp.
-        next_attempt: &'static str,
+        /// Operation that was refused.
+        operation: &'static str,
+        /// Why it was not executed as a hard clamp.
+        reason: &'static str,
     },
     /// The clamp leaves a singular or non-finite free block.
     ///
@@ -643,26 +236,9 @@ pub enum InterventionRequestError {
         /// Model dimension.
         dimension: usize,
     },
-    /// A sustained window ends before it starts.
-    #[error("sustained window from {from} until {until} ends before it starts")]
-    InvertedWindow {
-        /// First step.
-        from: i32,
-        /// Last step.
-        until: i32,
-    },
     /// The initial-state law was not named.
     #[error("initial-state law name is empty")]
     EmptyInitialLaw,
-    /// The shift would write a structural diagonal.
-    #[error(
-        "mechanism shift into node {node} from itself is a diagonal coefficient; next attempt: \
-         keep the structural diagonal at zero"
-    )]
-    DiagonalMechanism {
-        /// Variable whose diagonal was targeted.
-        node: usize,
-    },
     /// The clamp itself was refused.
     #[error(transparent)]
     Solution(LinearSolutionError),
@@ -684,9 +260,129 @@ pub enum InterventionRequestError {
 pub fn hard_clamp_of(
     request: &InterventionRequest,
 ) -> Result<(&HardClamp, Vec<f64>), InterventionRequestError> {
-    match request {
-        InterventionRequest::HardClamp(clamp) => Ok((&clamp.clamp, clamp.values())),
-        other => Err(unsupported(other.kind())),
+    let InterventionRequest::HardClamp(clamp) = request;
+    Ok((&clamp.clamp, clamp.values()))
+}
+
+/// Recheck the free block an [`Intervention`] leaves.
+///
+/// An untimed [`Intervention::Set`](antecedent_core::Intervention::Set) is the
+/// hard clamp of that variable. Every other operation is refused by name.
+///
+/// # Errors
+///
+/// [`InterventionRequestError::UnsupportedSemantic`] when the operation is not
+/// an untimed set, [`InterventionRequestError::NotSolvable`], or a clamp error.
+#[must_use = "a refused free block is not a solution"]
+pub fn revalidate_intervention(
+    model: &LinearStructuralMap,
+    intervention: &Intervention,
+    temporal: Option<&TemporalPolicy>,
+) -> Result<RevalidatedFreeBlock, InterventionRequestError> {
+    let request = clamp_for_set(model.dimension(), intervention, temporal)?;
+    revalidate_solvability(model, &request)
+}
+
+/// Compile the Gaussian equilibrium under `intervention`.
+///
+/// An untimed set is rechecked, then compiled. The free disturbance stays
+/// marginal. A shift, a soft replacement, a pulse, and a sustained action are
+/// refused before a clamp is built.
+///
+/// # Errors
+///
+/// The errors of [`revalidate_intervention`], or [`InterventionRequestError::Compile`].
+#[must_use = "a refused intervention is not an equilibrium"]
+pub fn compile_intervention(
+    component: &CyclicComponent,
+    model: &LinearStructuralMap,
+    disturbance: &GaussianDisturbance,
+    intervention: &Intervention,
+    temporal: Option<&TemporalPolicy>,
+    budget: CompileBudget,
+) -> Result<CompiledEquilibrium, InterventionRequestError> {
+    let request = clamp_for_set(model.dimension(), intervention, temporal)?;
+    compile_under_request(component, model, disturbance, &request, budget)
+}
+
+/// Refuse an initial-state change. It is not compiled as a hard clamp.
+///
+/// # Errors
+///
+/// [`InterventionRequestError::UnsupportedSemantic`] naming `initial_state_change`,
+/// or a malformed law name or level.
+#[must_use = "a refused initial-state change is not a clamp"]
+pub fn revalidate_initial_state(
+    model: &LinearStructuralMap,
+    law_name: &str,
+    level: f64,
+) -> Result<RevalidatedFreeBlock, InterventionRequestError> {
+    let _ = model;
+    let operation = InterventionOperation::initial_state(law_name, Value::f64(level))
+        .map_err(map_intervention_error)?;
+    match ExecutionSurface::Cyclic.admit_operation(&operation) {
+        Err(refusal) => Err(refused(refusal)),
+        Ok(()) => Err(InterventionRequestError::UnsupportedSemantic {
+            operation: "initial_state_change",
+            reason: "an initial-state change replaces the initial-state law and is not a \
+                     hard clamp",
+        }),
+    }
+}
+
+fn clamp_for_set(
+    dimension: usize,
+    intervention: &Intervention,
+    temporal: Option<&TemporalPolicy>,
+) -> Result<InterventionRequest, InterventionRequestError> {
+    let operation =
+        ExecutionSurface::Cyclic.admit(intervention, temporal).map_err(map_admit_error)?;
+    let InterventionOperation::Set { variable, value } = operation else {
+        return Err(InterventionRequestError::UnsupportedSemantic {
+            operation: operation.name(),
+            reason: "only an untimed set is a free-block hard clamp",
+        });
+    };
+    let Value::Float64(level) = value else {
+        return Err(InterventionRequestError::UnsupportedSemantic {
+            operation: "set",
+            reason: "a hard clamp needs one finite float level and does not coerce other values",
+        });
+    };
+    if !level.is_finite() {
+        return Err(InterventionRequestError::NonFiniteLevel);
+    }
+    let node = usize::try_from(variable.raw()).map_err(|_| InterventionRequestError::Shape {
+        message: "intervention variable index does not fit usize",
+    })?;
+    InterventionRequest::hard_clamp(dimension, &[node], &[level])
+}
+
+fn map_admit_error(error: AdmitError) -> InterventionRequestError {
+    match error {
+        AdmitError::Refused(refusal) => refused(refusal),
+        AdmitError::Invalid(invalid) => map_intervention_error(invalid),
+        _ => InterventionRequestError::UnsupportedSemantic {
+            operation: "intervention",
+            reason: "the intervention was not admitted",
+        },
+    }
+}
+
+fn map_intervention_error(error: InterventionError) -> InterventionRequestError {
+    match error {
+        InterventionError::NonFiniteLevel => InterventionRequestError::NonFiniteLevel,
+        InterventionError::EmptyInitialLaw => InterventionRequestError::EmptyInitialLaw,
+        _ => InterventionRequestError::Shape {
+            message: "the intervention is not a cyclic hard clamp",
+        },
+    }
+}
+
+fn refused(refusal: antecedent_core::intervention::CapabilityRefusal) -> InterventionRequestError {
+    InterventionRequestError::UnsupportedSemantic {
+        operation: refusal.operation(),
+        reason: refusal.reason(),
     }
 }
 
@@ -745,27 +441,11 @@ pub fn compile_under_request(
         .map_err(InterventionRequestError::Compile)
 }
 
-fn unsupported(kind: InterventionKind) -> InterventionRequestError {
-    match kind.clamp_refusal() {
-        Some(next_attempt) => InterventionRequestError::UnsupportedSemantic { kind, next_attempt },
-        None => InterventionRequestError::Shape {
-            message: "a hard clamp has no unsupported-semantic refusal",
-        },
-    }
-}
-
 fn require_dimension(dimension: usize) -> Result<(), InterventionRequestError> {
     if dimension == 0 {
         return Err(InterventionRequestError::Shape {
             message: "an intervention needs a positive model dimension",
         });
-    }
-    Ok(())
-}
-
-fn require_node(dimension: usize, node: usize) -> Result<(), InterventionRequestError> {
-    if node >= dimension {
-        return Err(InterventionRequestError::NodeOutOfRange { node, dimension });
     }
     Ok(())
 }
@@ -780,8 +460,8 @@ fn finite_level(value: f64) -> Result<f64, InterventionRequestError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        InterventionBinding, InterventionKind, InterventionRequest, InterventionRequestError,
-        compile_under_request, hard_clamp_of, revalidate_solvability,
+        InterventionRequest, InterventionRequestError, compile_intervention, compile_under_request,
+        hard_clamp_of, revalidate_initial_state, revalidate_intervention, revalidate_solvability,
     };
     use crate::cyclic_component::{CyclicComponent, CyclicComponentError};
     use crate::linear_solution::{
@@ -858,20 +538,12 @@ mod tests {
         // Var(B) stays 1, the marginal variance, rather than 0.91.
         let model = map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0]);
         let request = InterventionRequest::hard_clamp(2, &[0], &[2.0]).expect("clamp A");
-        let (left, right) = match (request.binding(), {
-            let other = InterventionRequest::hard_clamp(2, &[0], &[3.0]).expect("other level");
-            other.binding()
-        }) {
-            (
-                InterventionBinding::HardClamp { target: left, identity: left_id },
-                InterventionBinding::HardClamp { target: right, identity: right_id },
-            ) => {
-                assert_eq!(left, right);
-                assert_ne!(left_id, right_id);
-                (left_id.levels(), right_id.levels())
-            }
-            other => panic!("hard clamp bindings {other:?}"),
-        };
+        let left = request.binding();
+        let right =
+            InterventionRequest::hard_clamp(2, &[0], &[3.0]).expect("other level").binding();
+        assert_eq!(left.target, right.target);
+        assert_ne!(left.identity, right.identity);
+        let (left, right) = (left.identity.levels(), right.identity.levels());
         assert!(close(left[0], 2.0));
         assert!(close(right[0], 3.0));
 
@@ -907,109 +579,109 @@ mod tests {
         assert!((law.covariance()[3] - 0.91).abs() > 0.05);
     }
 
-    #[test]
-    fn mechanism_shift_is_not_a_hard_clamp() {
-        let shift = InterventionRequest::mechanism_shift(2, 1, 0, 0.2).expect("shift");
-        match shift.binding() {
-            InterventionBinding::MechanismShift { target, identity } => {
-                assert_eq!(target.into_node, 1);
-                assert_eq!(target.from_node, 0);
-                assert_eq!(identity.replacement_bits, 0.2_f64.to_bits());
-            }
-            other => panic!("mechanism binding {other:?}"),
-        }
-        let clamp = InterventionRequest::hard_clamp(2, &[0], &[0.2]).expect("clamp");
-        assert_ne!(shift.kind(), clamp.kind());
-        assert_ne!(shift, clamp);
-        assert_eq!(
-            hard_clamp_of(&shift).expect_err("not a clamp"),
-            InterventionRequestError::UnsupportedSemantic {
-                kind: InterventionKind::MechanismShift,
-                next_attempt: InterventionKind::MechanismShift.clamp_refusal().expect("text"),
-            }
-        );
-        let diagonal = InterventionRequest::mechanism_shift(2, 1, 1, 0.2);
-        assert!(matches!(diagonal, Err(InterventionRequestError::DiagonalMechanism { node: 1 })));
+    fn node(raw: u32) -> antecedent_core::VariableId {
+        antecedent_core::VariableId::from_raw(raw)
+    }
 
-        // The overlapping loops are singular under do(C). A shift is refused as a
-        // semantic, not as that singular clamp.
+    fn refused_operation(error: InterventionRequestError) -> &'static str {
+        match error {
+            InterventionRequestError::UnsupportedSemantic { operation, .. } => operation,
+            other => panic!("expected a named refusal, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_same_set_is_the_cyclic_clamp_and_other_operations_are_refused() {
+        use antecedent_core::{Intervention, MechanismOverride, TemporalPolicy, Value};
+        use antecedent_graph::Dag;
+        use crate::compile::CompiledCausalModel;
+        use crate::overlay::InterventionOverlay;
+
+        let model = map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0]);
+        let set = Intervention::set(node(0), Value::f64(2.0));
+        let static_model = CompiledCausalModel::compile(Dag::with_variables(2)).expect("dag");
+        let overlay = InterventionOverlay::from_declared(&static_model, &set, None).expect("set");
+        assert_eq!(overlay.hard_set[0], Some(2.0));
+        let rechecked = revalidate_intervention(&model, &set, None).expect("clamp");
+        assert_eq!(rechecked.block().factor.clamped, vec![0]);
+        let law = compile_intervention(
+            &component_for(&model),
+            &model,
+            &identity_noise(2),
+            &set,
+            None,
+            CompileBudget::unlimited(),
+        )
+        .expect("equilibrium");
+        assert!(close(law.mean()[0], overlay.hard_set[0].expect("assigned")));
+        assert!(close(law.mean()[1], 1.0));
+
+        let shift = Intervention::shift(node(0), Value::f64(0.2));
+        let soft = Intervention::soft(node(0), MechanismOverride::constant(0.2));
         let loops = map(vec![0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0], vec![0.0, 0.0, 0.0]);
-        let edge = InterventionRequest::mechanism_shift(3, 0, 1, 0.0).expect("edge");
-        let err = revalidate_solvability(&loops, &edge).expect_err("unsupported");
-        assert!(matches!(
-            err,
-            InterventionRequestError::UnsupportedSemantic {
-                kind: InterventionKind::MechanismShift,
-                ..
-            }
-        ));
-    }
-
-    #[test]
-    fn pulse_is_not_a_sustained_action() {
-        let pulse = InterventionRequest::pulse(2, 0, 0, 1.0).expect("pulse");
-        let sustained = InterventionRequest::sustained(2, 0, 0, 0, 1.0).expect("one step");
-        assert_eq!(pulse.kind(), InterventionKind::Pulse);
-        assert_eq!(sustained.kind(), InterventionKind::SustainedAction);
-        assert_ne!(pulse, sustained);
-        match (pulse.binding(), sustained.binding()) {
-            (
-                InterventionBinding::Pulse { target, identity },
-                InterventionBinding::SustainedAction { target: window, identity: held },
-            ) => {
-                assert_eq!(target.at, 0);
-                assert_eq!(identity.level_bits, 1.0_f64.to_bits());
-                assert_eq!(window.from, 0);
-                assert_eq!(window.until, 0);
-                assert_eq!(held.level_bits, 1.0_f64.to_bits());
-            }
-            other => panic!("temporal bindings {other:?}"),
-        }
         assert_eq!(
-            hard_clamp_of(&pulse).expect_err("pulse"),
-            InterventionRequestError::UnsupportedSemantic {
-                kind: InterventionKind::Pulse,
-                next_attempt: InterventionKind::Pulse.clamp_refusal().expect("text"),
-            }
+            refused_operation(revalidate_intervention(&loops, &shift, None).expect_err("shift")),
+            "shift"
         );
         assert_eq!(
-            hard_clamp_of(&sustained).expect_err("sustained"),
-            InterventionRequestError::UnsupportedSemantic {
-                kind: InterventionKind::SustainedAction,
-                next_attempt: InterventionKind::SustainedAction.clamp_refusal().expect("text"),
-            }
-        );
-        let inverted = InterventionRequest::sustained(2, 0, 2, 1, 1.0);
-        assert_eq!(inverted, Err(InterventionRequestError::InvertedWindow { from: 2, until: 1 }));
-    }
-
-    #[test]
-    fn initial_state_change_is_not_a_hard_clamp() {
-        let change = InterventionRequest::initial_state("x0", 2.0).expect("law");
-        let clamp = InterventionRequest::hard_clamp(2, &[0], &[2.0]).expect("clamp");
-        assert_ne!(change, clamp);
-        match change.binding() {
-            InterventionBinding::InitialStateChange { target, identity } => {
-                assert_eq!(target.law_name, "x0");
-                assert_eq!(identity.level_bits, 2.0_f64.to_bits());
-                assert_eq!(identity.law_name, "x0");
-            }
-            other => panic!("initial-state binding {other:?}"),
-        }
-        assert_eq!(
-            hard_clamp_of(&change).expect_err("not a clamp"),
-            InterventionRequestError::UnsupportedSemantic {
-                kind: InterventionKind::InitialStateChange,
-                next_attempt: InterventionKind::InitialStateChange.clamp_refusal().expect("text"),
-            }
+            refused_operation(revalidate_intervention(&model, &soft, None).expect_err("soft")),
+            "soft"
         );
         assert_eq!(
-            InterventionRequest::initial_state("", 2.0).expect_err("unnamed"),
+            refused_operation(
+                revalidate_intervention(&model, &set, Some(&TemporalPolicy::pulse(0)))
+                    .expect_err("pulse")
+            ),
+            "pulse"
+        );
+        assert_eq!(
+            refused_operation(
+                revalidate_intervention(&model, &set, Some(&TemporalPolicy::sustained(0, 0)))
+                    .expect_err("sustained")
+            ),
+            "sustained"
+        );
+        assert_ne!(
+            refused_operation(
+                revalidate_intervention(&model, &set, Some(&TemporalPolicy::pulse(0)))
+                    .expect_err("pulse")
+            ),
+            refused_operation(
+                revalidate_intervention(&model, &set, Some(&TemporalPolicy::sustained(0, 0)))
+                    .expect_err("sustained")
+            )
+        );
+        assert_eq!(
+            refused_operation(revalidate_initial_state(&model, "x0", 2.0).expect_err("law")),
+            "initial_state_change"
+        );
+        assert_eq!(
+            revalidate_initial_state(&model, "", 2.0).expect_err("unnamed"),
             InterventionRequestError::EmptyInitialLaw
         );
         assert_eq!(
-            InterventionRequest::pulse(2, 0, 0, f64::NAN).expect_err("nan"),
+            revalidate_intervention(
+                &model,
+                &Intervention::set(node(0), Value::f64(f64::NAN)),
+                None
+            )
+            .expect_err("nan"),
             InterventionRequestError::NonFiniteLevel
+        );
+        let stand_in = component_for(&model);
+        assert_eq!(
+            refused_operation(
+                compile_intervention(
+                    &stand_in,
+                    &loops,
+                    &identity_noise(3),
+                    &shift,
+                    None,
+                    CompileBudget::unlimited(),
+                )
+                .expect_err("shift stays failed")
+            ),
+            "shift"
         );
     }
 
@@ -1176,22 +848,21 @@ mod tests {
                 refusal: SolvabilityRefusal::Singular { members: vec![0, 1] },
             }
         );
-        let shift = InterventionRequest::mechanism_shift(3, 0, 1, 0.0).expect("shift");
-        let shift_err = compile_under_request(
-            &stand_in,
-            &model,
-            &identity_noise(3),
-            &shift,
-            CompileBudget::unlimited(),
-        )
-        .expect_err("shift stays failed");
-        assert!(matches!(
-            shift_err,
-            InterventionRequestError::UnsupportedSemantic {
-                kind: InterventionKind::MechanismShift,
-                ..
-            }
-        ));
+        let shift = antecedent_core::Intervention::shift(node(0), antecedent_core::Value::f64(0.0));
+        assert_eq!(
+            refused_operation(
+                compile_intervention(
+                    &stand_in,
+                    &model,
+                    &identity_noise(3),
+                    &shift,
+                    None,
+                    CompileBudget::unlimited(),
+                )
+                .expect_err("shift stays failed")
+            ),
+            "shift"
+        );
     }
 
     #[test]

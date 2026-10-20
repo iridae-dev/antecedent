@@ -32,7 +32,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{HistoryWindow, InitialLaw, is_blank};
+use antecedent_core::intervention::{AdmitError, ExecutionSurface, InterventionOperation};
+use antecedent_core::{
+    HistoryWindow, InitialLaw, Intervention, InterventionError, TemporalPolicy, Value, is_blank,
+};
 use antecedent_data::{SamplingRegularity, TimeIndex};
 use thiserror::Error;
 
@@ -331,6 +334,14 @@ pub enum HistoryOperatorError {
         frame: InitialLaw,
         /// Initial law the dynamics were declared for.
         dynamics: InitialLaw,
+    },
+    /// The intervention is not a pulse or a sustained set, and was not rewritten.
+    #[error("{operation} is not a delayed-feedback action: {reason}")]
+    UnsupportedOperation {
+        /// Operation that was asked for.
+        operation: &'static str,
+        /// Why it was not executed as a different action.
+        reason: &'static str,
     },
     /// The cadence has no regular positive interval to convert steps into nanoseconds.
     #[error(
@@ -662,6 +673,18 @@ impl FeedbackDelay {
     }
 }
 
+/// Caller-supplied replacement of an initial-state law.
+///
+/// Construction of [`DelayedFeedback`] refuses this. It does not clamp a
+/// variable and it does not change the declared dynamics.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InitialStateChange {
+    /// Name of the law being replaced.
+    pub law_name: String,
+    /// Replacement level.
+    pub level: f64,
+}
+
 /// Cap on a feedback-ancestry search, in steps.
 ///
 /// The stored count is the cap that was declared. Certifying a deeper ancestry
@@ -705,6 +728,129 @@ impl TruncationCertificate {
     #[must_use = "the retained depth is the history the certificate allows"]
     pub const fn retained_ticks(self) -> u32 {
         self.retained_ticks
+    }
+}
+
+/// Build the delayed action the caller declared.
+///
+/// A pulse of a set stays a pulse. A sustained set stays sustained, including a
+/// window of one step. A shift, a soft replacement, and an untimed set are
+/// refused and are not rewritten as a hard assignment.
+///
+/// # Errors
+///
+/// [`HistoryOperatorError::ActionNotDelayable`] for a dynamic schedule.
+/// [`HistoryOperatorError::UnsupportedOperation`] when the intervention is not
+/// a pulse or a sustained set. [`HistoryOperatorError::NonFiniteLevel`] when
+/// the set level is not finite. [`HistoryOperatorError::InvertedWindow`] when
+/// the sustained window ends before it starts.
+#[must_use = "a refused action is not the caller's intervention"]
+pub fn delayed_action_of(
+    intervention: &Intervention,
+    temporal: &TemporalPolicy,
+) -> Result<DelayedAction, HistoryOperatorError> {
+    if matches!(temporal, TemporalPolicy::Dynamic { .. }) {
+        return Err(HistoryOperatorError::ActionNotDelayable);
+    }
+    let operation = ExecutionSurface::Temporal
+        .admit(intervention, Some(temporal))
+        .map_err(history_refusal)?;
+    match operation {
+        InterventionOperation::Pulse { at, action } => {
+            DelayedAction::pulse(at, finite_set_level(action.as_ref())?)
+        }
+        InterventionOperation::Sustained { from, until, action } => {
+            DelayedAction::sustained(from, until, finite_set_level(action.as_ref())?)
+        }
+        other => Err(HistoryOperatorError::UnsupportedOperation {
+            operation: other.name(),
+            reason: "a delayed-feedback action is a pulse or a sustained set",
+        }),
+    }
+}
+
+/// Refuse a replacement of the initial-state law.
+///
+/// The rollout keeps the law the dynamics declared. The change is not applied
+/// as a clamp and is not applied as the action level.
+///
+/// # Errors
+///
+/// [`HistoryOperatorError::UnsupportedOperation`] naming `initial_state_change`,
+/// or a malformed law name or level.
+#[must_use = "a refused initial-state change is not a rollout"]
+pub fn refuse_initial_state_change(law_name: &str, level: f64) -> Result<(), HistoryOperatorError> {
+    let operation =
+        InterventionOperation::initial_state(law_name, Value::f64(level)).map_err(|error| {
+            match error {
+                InterventionError::EmptyInitialLaw => {
+                    HistoryOperatorError::EmptyName { field: "initial law" }
+                }
+                InterventionError::NonFiniteLevel => {
+                    HistoryOperatorError::NonFiniteLevel { value: level }
+                }
+                _ => HistoryOperatorError::UnsupportedOperation {
+                    operation: "initial_state_change",
+                    reason: "an initial-state change replaces the initial-state law and is not a \
+                             hard clamp",
+                },
+            }
+        })?;
+    match ExecutionSurface::Temporal.admit_operation(&operation) {
+        Err(refusal) => Err(history_operation(refusal)),
+        Ok(()) => Err(HistoryOperatorError::UnsupportedOperation {
+            operation: "initial_state_change",
+            reason: "an initial-state change replaces the initial-state law and is not a \
+                     hard clamp",
+        }),
+    }
+}
+
+fn history_refusal(error: AdmitError) -> HistoryOperatorError {
+    match error {
+        AdmitError::Refused(refusal) => history_operation(refusal),
+        AdmitError::Invalid(InterventionError::InvalidTemporalWindow { from, until }) => {
+            HistoryOperatorError::InvertedWindow { from_step: from, until_step: until }
+        }
+        AdmitError::Invalid(InterventionError::NonFiniteLevel) => {
+            HistoryOperatorError::NonFiniteLevel { value: f64::NAN }
+        }
+        AdmitError::Invalid(_) => HistoryOperatorError::UnsupportedOperation {
+            operation: "intervention",
+            reason: "the intervention is malformed",
+        },
+        _ => HistoryOperatorError::UnsupportedOperation {
+            operation: "intervention",
+            reason: "the intervention was not admitted",
+        },
+    }
+}
+
+fn history_operation(
+    refusal: antecedent_core::intervention::CapabilityRefusal,
+) -> HistoryOperatorError {
+    HistoryOperatorError::UnsupportedOperation {
+        operation: refusal.operation(),
+        reason: refusal.reason(),
+    }
+}
+
+fn finite_set_level(action: &InterventionOperation) -> Result<f64, HistoryOperatorError> {
+    match action {
+        InterventionOperation::Set { value: Value::Float64(level), .. } if level.is_finite() => {
+            Ok(*level)
+        }
+        InterventionOperation::Set { value: Value::Float64(level), .. } => {
+            Err(HistoryOperatorError::NonFiniteLevel { value: *level })
+        }
+        InterventionOperation::Set { .. } => Err(HistoryOperatorError::UnsupportedOperation {
+            operation: "set",
+            reason: "a delayed-feedback set holds one finite float and is not coerced",
+        }),
+        other => Err(HistoryOperatorError::UnsupportedOperation {
+            operation: other.name(),
+            reason: "a delayed-feedback action holds a set and does not rewrite it",
+        }),
     }
 }
 
@@ -995,8 +1141,13 @@ pub struct DelayedFeedbackRequest {
     pub history: HistoryWindow,
     /// Delay. [`None`] is a finite horizon with contemporaneous transmission.
     pub delay: Option<FeedbackDelay>,
-    /// Pulse or sustained action.
-    pub action: DelayedAction,
+    /// Intervention applied on [`Self::temporal`]. A set is not a shift.
+    pub intervention: Intervention,
+    /// Pulse or sustained timing of [`Self::intervention`].
+    pub temporal: TemporalPolicy,
+    /// Replacement of the initial-state law. Absence does not add one.
+    /// Presence is refused and is not executed as the action.
+    pub initial_state_change: Option<InitialStateChange>,
     /// Certificate for a history shorter than the delay. Absence refuses that history.
     pub truncation: Option<TruncationCertificate>,
     /// Declared ancestry cap. [`None`] is the planner default, not a raised cap.
@@ -1032,11 +1183,17 @@ impl DelayedFeedback {
             initial_law,
             history,
             delay,
-            action,
+            intervention,
+            temporal,
+            initial_state_change,
             truncation,
             search_cap,
             ancestry_steps,
         } = request;
+        if let Some(change) = &initial_state_change {
+            refuse_initial_state_change(&change.law_name, change.level)?;
+        }
+        let action = delayed_action_of(&intervention, &temporal)?;
         let history =
             HistoryConstruction::try_new(cadence.clone(), horizon, initial_law.clone(), history)?;
         let transition = Transition::try_new(cadence, horizon, initial_law)?;
@@ -1757,17 +1914,82 @@ mod tests {
     }
 
     fn delayed_request(action: DelayedAction) -> DelayedFeedbackRequest {
+        let variable = antecedent_core::VariableId::from_raw(0);
+        let (intervention, temporal) = match action {
+            DelayedAction::Pulse { at_step, level_bits } => (
+                Intervention::set(variable, Value::f64(f64::from_bits(level_bits))),
+                TemporalPolicy::pulse(at_step),
+            ),
+            DelayedAction::Sustained { from_step, until_step, level_bits } => (
+                Intervention::set(variable, Value::f64(f64::from_bits(level_bits))),
+                TemporalPolicy::sustained(from_step, until_step),
+            ),
+        };
         DelayedFeedbackRequest {
             cadence: regular(1, 8),
             horizon: Horizon::ending_at(3),
             initial_law: Some(origin()),
             history: HistoryWindow::planner_default(),
             delay: Some(FeedbackDelay::delayed(1).unwrap()),
-            action,
+            intervention,
+            temporal,
+            initial_state_change: None,
             truncation: None,
             search_cap: Some(FeedbackSearchCap::declared(2)),
             ancestry_steps: 2,
         }
+    }
+
+    #[test]
+    fn a_shift_or_initial_state_change_is_not_executed_as_the_supplied_set() {
+        let variable = antecedent_core::VariableId::from_raw(0);
+        let shift = Intervention::shift(variable, Value::f64(1.0));
+        let pulse = TemporalPolicy::pulse(0);
+        let refused = delayed_action_of(&shift, &pulse).unwrap_err();
+        assert_eq!(
+            refused,
+            HistoryOperatorError::UnsupportedOperation {
+                operation: "shift",
+                reason: "a shift is an additive change on the factual scale and is not executed \
+                         as a set",
+            }
+        );
+        let soft = Intervention::soft(variable, antecedent_core::MechanismOverride::constant(1.0));
+        let soft_refused = delayed_action_of(&soft, &pulse).unwrap_err();
+        assert!(matches!(
+            soft_refused,
+            HistoryOperatorError::UnsupportedOperation { operation: "soft", .. }
+        ));
+        let set = Intervention::set(variable, Value::f64(1.0));
+        let from_pulse = delayed_action_of(&set, &pulse).unwrap();
+        let from_sustained = delayed_action_of(&set, &TemporalPolicy::sustained(0, 0)).unwrap();
+        assert_ne!(from_pulse, from_sustained);
+        assert!(matches!(from_pulse, DelayedAction::Pulse { at_step: 0, .. }));
+        assert!(matches!(
+            from_sustained,
+            DelayedAction::Sustained { from_step: 0, until_step: 0, .. }
+        ));
+
+        let mut request = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        request.intervention = shift;
+        request.temporal = pulse;
+        let as_request = DelayedFeedback::try_new(request).unwrap_err();
+        assert!(matches!(
+            as_request,
+            HistoryOperatorError::UnsupportedOperation { operation: "shift", .. }
+        ));
+        let initial = refuse_initial_state_change("x0", 2.0).unwrap_err();
+        assert!(matches!(
+            initial,
+            HistoryOperatorError::UnsupportedOperation { operation: "initial_state_change", .. }
+        ));
+        let mut change = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        change.initial_state_change =
+            Some(InitialStateChange { law_name: "x0".to_owned(), level: 2.0 });
+        assert!(matches!(
+            DelayedFeedback::try_new(change).unwrap_err(),
+            HistoryOperatorError::UnsupportedOperation { operation: "initial_state_change", .. }
+        ));
     }
 
     #[test]

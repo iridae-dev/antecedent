@@ -643,6 +643,404 @@ pub enum InterventionError {
         /// What is wrong with the expression.
         fault: ExpressionFault,
     },
+    /// A sequence already names a policy on each step.
+    #[error("a sequence carries its own temporal policy and cannot take another")]
+    TimedSequence,
+    /// An initial-state law was not named.
+    #[error("initial-state law name is empty")]
+    EmptyInitialLaw,
+}
+
+/// Which model surface is being asked to execute an intervention.
+///
+/// The operation comes from [`Intervention`] and, when the action is temporal,
+/// [`TemporalPolicy`]. A surface that cannot perform that operation refuses it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum ExecutionSurface {
+    /// One decision time. No pulse, sustained window, or initial-state law.
+    Static,
+    /// Finite-horizon delayed feedback. Pulse and sustained sets only.
+    Temporal,
+    /// Counterfactual worlds on a static structural model.
+    Counterfactual,
+    /// Linear equilibrium of a cyclic model. Untimed [`Intervention::Set`] only.
+    Cyclic,
+}
+
+impl ExecutionSurface {
+    /// Every surface, in a stable order.
+    pub const ALL: [Self; 4] = [Self::Static, Self::Temporal, Self::Counterfactual, Self::Cyclic];
+
+    /// Stable name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Static => "static",
+            Self::Temporal => "temporal",
+            Self::Counterfactual => "counterfactual",
+            Self::Cyclic => "cyclic",
+        }
+    }
+
+    /// Classify `intervention` under `temporal` and accept it on this surface.
+    ///
+    /// `temporal` of `None` is the untimed intervention. A pulse and a sustained
+    /// window stay those policies, including a sustained window of one step.
+    /// The returned operation is the intervention's own meaning.
+    ///
+    /// # Errors
+    ///
+    /// [`CapabilityRefusal`] when this surface cannot perform the operation.
+    /// [`InterventionError`] when the intervention or the policy is malformed.
+    pub fn admit(
+        self,
+        intervention: &Intervention,
+        temporal: Option<&TemporalPolicy>,
+    ) -> Result<InterventionOperation, AdmitError> {
+        let operation = intervention.operation(temporal)?;
+        self.admit_operation(&operation)?;
+        Ok(operation)
+    }
+
+    /// Accept `operation` on this surface.
+    ///
+    /// # Errors
+    ///
+    /// [`CapabilityRefusal`] naming the operation this surface cannot perform.
+    pub fn admit_operation(
+        self,
+        operation: &InterventionOperation,
+    ) -> Result<(), CapabilityRefusal> {
+        if self.supports(operation) { Ok(()) } else { Err(self.refusal(operation)) }
+    }
+
+    /// Whether this surface performs `operation` without changing it.
+    #[must_use]
+    pub fn supports(self, operation: &InterventionOperation) -> bool {
+        match self {
+            Self::Static | Self::Counterfactual => matches!(
+                operation,
+                InterventionOperation::Set { .. }
+                    | InterventionOperation::Shift { .. }
+                    | InterventionOperation::Stochastic { .. }
+                    | InterventionOperation::Soft { .. }
+                    | InterventionOperation::Transform { .. }
+                    | InterventionOperation::Assign { .. }
+                    | InterventionOperation::Sequence(_)
+            ),
+            Self::Cyclic => matches!(operation, InterventionOperation::Set { .. }),
+            Self::Temporal => match operation {
+                InterventionOperation::Pulse { action, .. }
+                | InterventionOperation::Sustained { action, .. } => {
+                    matches!(action.as_ref(), InterventionOperation::Set { .. })
+                }
+                _ => false,
+            },
+        }
+    }
+
+    fn refusal(self, operation: &InterventionOperation) -> CapabilityRefusal {
+        let name = refusal_name(operation);
+        let reason = match (self, name) {
+            (Self::Temporal, "shift") => {
+                "a shift is an additive change on the factual scale and is not executed as a set"
+            }
+            (Self::Temporal, "soft") => {
+                "a soft intervention replaces a mechanism and is not executed as a set"
+            }
+            (Self::Temporal, "set") => {
+                "an untimed set is a hard clamp and a finite-horizon rollout does not hard-clamp"
+            }
+            (_, "shift") => {
+                "a shift is an additive change on the factual scale and is not a hard clamp"
+            }
+            (_, "soft") => "a soft intervention replaces a mechanism and is not a hard clamp",
+            (_, "pulse") => {
+                "a pulse is one intervention time and is not a hard clamp and is not a sustained \
+                 action"
+            }
+            (_, "sustained") => {
+                "a sustained action holds its level across its window and is not a pulse and is \
+                 not a hard clamp"
+            }
+            (_, "initial_state_change") => {
+                "an initial-state change replaces the initial-state law and is not a hard clamp"
+            }
+            (_, "stochastic") => "a stochastic assignment is not a hard clamp",
+            (_, "transform") => "a transform runs the mechanism and is not a hard clamp",
+            (_, "assign") => "an assignment discards the mechanism and is not a hard clamp",
+            (_, "sequence") => "a sequence is not a hard clamp",
+            (_, "dynamic") => {
+                "a dynamic schedule is not a pulse or a sustained action and is not a hard clamp"
+            }
+            (_, "set") => "an untimed set is a hard clamp and this surface does not hard-clamp",
+            _ => "this surface does not perform that operation",
+        };
+        CapabilityRefusal { surface: self, operation: name, reason }
+    }
+}
+
+impl std::fmt::Display for ExecutionSurface {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// Refusal to perform an intervention, or a malformed intervention at admission.
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum AdmitError {
+    /// The intervention or its policy is malformed.
+    #[error(transparent)]
+    Invalid(#[from] InterventionError),
+    /// The surface cannot perform the operation.
+    #[error(transparent)]
+    Refused(#[from] CapabilityRefusal),
+}
+
+/// A surface cannot perform an operation and did not rewrite it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("{surface} refuses {operation}: {reason}")]
+pub struct CapabilityRefusal {
+    /// Surface that refused.
+    pub surface: ExecutionSurface,
+    /// Operation that was asked for.
+    pub operation: &'static str,
+    /// Why that operation was not rewritten into one this surface supports.
+    pub reason: &'static str,
+}
+
+impl CapabilityRefusal {
+    /// Operation name.
+    #[must_use]
+    pub const fn operation(self) -> &'static str {
+        self.operation
+    }
+
+    /// Why the operation was refused.
+    #[must_use]
+    pub const fn reason(self) -> &'static str {
+        self.reason
+    }
+}
+
+/// Meaning of an [`Intervention`], timed by [`TemporalPolicy`] when the caller supplied one.
+///
+/// Equality is the execution identity. A shift is not a set. A soft replacement
+/// is not a set. A pulse is not a sustained window. An initial-state change is
+/// not a set.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum InterventionOperation {
+    /// Hard assignment `do(variable := value)`.
+    Set {
+        /// Target variable.
+        variable: VariableId,
+        /// Assigned value.
+        value: Value,
+    },
+    /// Additive `do(variable := variable + delta)` on the factual scale.
+    Shift {
+        /// Target variable.
+        variable: VariableId,
+        /// Delta added to the factual assignment.
+        delta: Value,
+    },
+    /// Stochastic assignment.
+    Stochastic {
+        /// Target variable.
+        variable: VariableId,
+        /// Sampling policy.
+        policy: StochasticPolicy,
+    },
+    /// Mechanism replacement.
+    Soft {
+        /// Target variable.
+        variable: VariableId,
+        /// Replacement mechanism.
+        mechanism: MechanismOverride,
+    },
+    /// Mechanism runs, then the expression replaces the generated value.
+    Transform {
+        /// Target variable.
+        variable: VariableId,
+        /// Expression of the generated value.
+        expr: ValueExpr,
+        /// Declared reads.
+        reads: PolicyReads,
+    },
+    /// Mechanism discarded; the expression assigns the variable.
+    Assign {
+        /// Target variable.
+        variable: VariableId,
+        /// Expression of other variables.
+        expr: ValueExpr,
+        /// Declared reads.
+        reads: PolicyReads,
+    },
+    /// One intervention time. Not a sustained window and not an untimed set.
+    Pulse {
+        /// Time offset of the pulse.
+        at: i32,
+        /// Operation applied at that time.
+        action: Box<InterventionOperation>,
+    },
+    /// Level held on an inclusive window. A window of one step is still sustained.
+    Sustained {
+        /// First intervened step.
+        from: i32,
+        /// Last intervened step, inclusive.
+        until: i32,
+        /// Operation held on the window.
+        action: Box<InterventionOperation>,
+    },
+    /// Rule-tagged schedule. Not a pulse and not a sustained window.
+    Dynamic {
+        /// Opaque rule handle.
+        rule: DynamicRuleId,
+        /// Active offsets.
+        active_at: Arc<[i32]>,
+        /// Operation applied at those offsets.
+        action: Box<InterventionOperation>,
+    },
+    /// Ordered steps. Each step keeps the policy it was declared with.
+    Sequence(Arc<[InterventionOperation]>),
+    /// Replacement of an initial-state law. Not a clamp of an equilibrium variable.
+    InitialState {
+        /// Name of the law being replaced.
+        law_name: Arc<str>,
+        /// Replacement level.
+        level: Value,
+    },
+}
+
+impl InterventionOperation {
+    /// Replace the initial-state law `law_name`.
+    ///
+    /// This is not [`Intervention::Set`].
+    ///
+    /// # Errors
+    ///
+    /// [`InterventionError::EmptyInitialLaw`] when `law_name` is empty.
+    /// [`InterventionError::NonFiniteLevel`] when `level` is a non-finite float.
+    #[must_use = "a refused initial-state change is not an operation"]
+    pub fn initial_state(
+        law_name: impl Into<Arc<str>>,
+        level: Value,
+    ) -> Result<Self, InterventionError> {
+        let law_name = law_name.into();
+        if law_name.is_empty() {
+            return Err(InterventionError::EmptyInitialLaw);
+        }
+        if matches!(level, Value::Float64(value) if !value.is_finite()) {
+            return Err(InterventionError::NonFiniteLevel);
+        }
+        Ok(Self::InitialState { law_name, level })
+    }
+
+    /// Stable name of this operation.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Set { .. } => "set",
+            Self::Shift { .. } => "shift",
+            Self::Stochastic { .. } => "stochastic",
+            Self::Soft { .. } => "soft",
+            Self::Transform { .. } => "transform",
+            Self::Assign { .. } => "assign",
+            Self::Pulse { .. } => "pulse",
+            Self::Sustained { .. } => "sustained",
+            Self::Dynamic { .. } => "dynamic",
+            Self::Sequence(_) => "sequence",
+            Self::InitialState { .. } => "initial_state_change",
+        }
+    }
+}
+
+impl Intervention {
+    /// Operation this intervention performs.
+    ///
+    /// `temporal` of `None` leaves the intervention untimed. A pulse and a
+    /// sustained window wrap the intervention and do not rewrite it: a shift
+    /// stays a shift, and a sustained window of one step stays sustained.
+    ///
+    /// # Errors
+    ///
+    /// [`InterventionError::TimedSequence`] when `temporal` is supplied for a
+    /// sequence. Nested policy and expression errors of [`Self::validate`].
+    pub fn operation(
+        &self,
+        temporal: Option<&TemporalPolicy>,
+    ) -> Result<InterventionOperation, InterventionError> {
+        if let Some(policy) = temporal {
+            policy.validate()?;
+            if matches!(self, Self::Sequence(_)) {
+                return Err(InterventionError::TimedSequence);
+            }
+        }
+        let untimed = match self {
+            Self::Set { variable, value } => {
+                InterventionOperation::Set { variable: *variable, value: value.clone() }
+            }
+            Self::Shift { variable, delta } => {
+                InterventionOperation::Shift { variable: *variable, delta: delta.clone() }
+            }
+            Self::Stochastic { variable, policy } => InterventionOperation::Stochastic {
+                variable: *variable,
+                policy: policy.clone(),
+            },
+            Self::Soft { variable, mechanism } => {
+                InterventionOperation::Soft { variable: *variable, mechanism: mechanism.clone() }
+            }
+            Self::Transform { variable, expr, reads } => InterventionOperation::Transform {
+                variable: *variable,
+                expr: expr.clone(),
+                reads: reads.clone(),
+            },
+            Self::Assign { variable, expr, reads } => InterventionOperation::Assign {
+                variable: *variable,
+                expr: expr.clone(),
+                reads: reads.clone(),
+            },
+            Self::Sequence(seq) => {
+                let mut steps = Vec::with_capacity(seq.steps.len());
+                for step in seq.steps.iter() {
+                    steps.push(step.intervention.operation(Some(&step.temporal))?);
+                }
+                InterventionOperation::Sequence(Arc::from(steps))
+            }
+        };
+        Ok(match temporal {
+            None => untimed,
+            Some(TemporalPolicy::Pulse { at }) => {
+                InterventionOperation::Pulse { at: *at, action: Box::new(untimed) }
+            }
+            Some(TemporalPolicy::Sustained { from, until }) => InterventionOperation::Sustained {
+                from: *from,
+                until: *until,
+                action: Box::new(untimed),
+            },
+            Some(TemporalPolicy::Dynamic { rule, active_at }) => InterventionOperation::Dynamic {
+                rule: *rule,
+                active_at: Arc::clone(active_at),
+                action: Box::new(untimed),
+            },
+        })
+    }
+}
+
+/// Name the inner operation when a timed wrapper would hide a shift, a soft
+/// replacement, or another action that is not a set.
+fn refusal_name(operation: &InterventionOperation) -> &'static str {
+    match operation {
+        InterventionOperation::Pulse { action, .. }
+        | InterventionOperation::Sustained { action, .. }
+        | InterventionOperation::Dynamic { action, .. } => match action.as_ref() {
+            InterventionOperation::Set { .. } => operation.name(),
+            inner => inner.name(),
+        },
+        other => other.name(),
+    }
 }
 
 #[cfg(test)]
@@ -786,5 +1184,91 @@ mod tests {
         assert_eq!(p.active_offsets().unwrap().as_ref(), &[0, 2, 5]);
         let empty = TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), []);
         assert!(matches!(empty.validate(), Err(InterventionError::EmptyDynamicSchedule)));
+    }
+
+    fn refusal_operation(error: AdmitError) -> &'static str {
+        match error {
+            AdmitError::Refused(refusal) => refusal.operation(),
+            AdmitError::Invalid(error) => panic!("malformed intervention: {error}"),
+        }
+    }
+
+    #[test]
+    fn the_same_set_is_one_operation_on_every_surface_that_supports_it() {
+        let set = Intervention::set(VariableId::from_raw(0), Value::f64(1.0));
+        let static_op = ExecutionSurface::Static.admit(&set, None).unwrap();
+        let counterfactual_op = ExecutionSurface::Counterfactual.admit(&set, None).unwrap();
+        let cyclic_op = ExecutionSurface::Cyclic.admit(&set, None).unwrap();
+        assert_eq!(static_op, counterfactual_op);
+        assert_eq!(static_op, cyclic_op);
+        assert!(matches!(static_op, InterventionOperation::Set { .. }));
+        let refused = ExecutionSurface::Temporal.admit(&set, None).unwrap_err();
+        let AdmitError::Refused(refusal) = refused else {
+            panic!("an untimed set is not a finite-horizon action");
+        };
+        assert_eq!(refusal.operation(), "set");
+    }
+
+    #[test]
+    fn shift_soft_pulse_sustained_and_initial_state_are_not_a_set() {
+        let variable = VariableId::from_raw(0);
+        let set = Intervention::set(variable, Value::f64(1.0));
+        let shift = Intervention::shift(variable, Value::f64(1.0));
+        let soft = Intervention::soft(variable, MechanismOverride::constant(1.0));
+        let shift_op = ExecutionSurface::Static.admit(&shift, None).unwrap();
+        let soft_op = ExecutionSurface::Static.admit(&soft, None).unwrap();
+        assert!(matches!(shift_op, InterventionOperation::Shift { .. }));
+        assert!(matches!(soft_op, InterventionOperation::Soft { .. }));
+        assert_ne!(shift_op, ExecutionSurface::Static.admit(&set, None).unwrap());
+        assert_ne!(soft_op, ExecutionSurface::Static.admit(&set, None).unwrap());
+
+        let pulse =
+            ExecutionSurface::Temporal.admit(&set, Some(&TemporalPolicy::pulse(0))).unwrap();
+        let sustained = ExecutionSurface::Temporal
+            .admit(&set, Some(&TemporalPolicy::sustained(0, 0)))
+            .unwrap();
+        assert!(matches!(pulse, InterventionOperation::Pulse { .. }));
+        assert!(matches!(sustained, InterventionOperation::Sustained { .. }));
+        assert_ne!(pulse, sustained);
+        assert_ne!(pulse.name(), "set");
+        assert_ne!(sustained.name(), "set");
+        assert_ne!(pulse.name(), sustained.name());
+
+        for surface in
+            [ExecutionSurface::Static, ExecutionSurface::Counterfactual, ExecutionSurface::Cyclic]
+        {
+            let admitted_shift = surface.supports(&shift_op);
+            let admitted_soft = surface.supports(&soft_op);
+            assert_eq!(admitted_shift, surface != ExecutionSurface::Cyclic);
+            assert_eq!(admitted_soft, surface != ExecutionSurface::Cyclic);
+            if surface == ExecutionSurface::Cyclic {
+                assert_eq!(refusal_operation(surface.admit(&shift, None).unwrap_err()), "shift");
+                assert_eq!(refusal_operation(surface.admit(&soft, None).unwrap_err()), "soft");
+            }
+            assert_eq!(
+                refusal_operation(
+                    surface.admit(&set, Some(&TemporalPolicy::pulse(0))).unwrap_err()
+                ),
+                "pulse"
+            );
+            assert_eq!(
+                refusal_operation(
+                    surface.admit(&set, Some(&TemporalPolicy::sustained(0, 0))).unwrap_err()
+                ),
+                "sustained"
+            );
+        }
+
+        let initial = InterventionOperation::initial_state("x0", Value::f64(2.0)).unwrap();
+        assert_eq!(initial.name(), "initial_state_change");
+        for surface in ExecutionSurface::ALL {
+            let refusal = surface.admit_operation(&initial).unwrap_err();
+            assert_eq!(refusal.operation(), "initial_state_change");
+            assert!(refusal.reason().contains("not a hard clamp"));
+        }
+        assert_eq!(
+            InterventionOperation::initial_state("", Value::f64(2.0)).unwrap_err(),
+            InterventionError::EmptyInitialLaw
+        );
     }
 }

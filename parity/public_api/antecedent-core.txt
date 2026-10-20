@@ -44,6 +44,7 @@
 #[non_exhaustive] pub enum antecedent_core::SamplingDesignError
 #[non_exhaustive] pub enum antecedent_core::SchemaError
 #[non_exhaustive] pub enum antecedent_core::ScientificTargetError
+#[non_exhaustive] pub enum antecedent_core::ScratchRefusal
 #[non_exhaustive] pub enum antecedent_core::ShapleyMode
 #[non_exhaustive] pub enum antecedent_core::StochasticPolicy
 #[non_exhaustive] pub enum antecedent_core::TargetForm
@@ -54,11 +55,17 @@
 #[non_exhaustive] pub enum antecedent_core::TransportSupportCoordinate
 #[non_exhaustive] pub enum antecedent_core::ValueExpr
 #[non_exhaustive] pub enum antecedent_core::cancellation_boundary::BoundaryError
+#[non_exhaustive] pub enum antecedent_core::device_reservation::CpuAdmissionError
 #[non_exhaustive] pub enum antecedent_core::device_reservation::DeviceReservationError
+#[non_exhaustive] pub enum antecedent_core::device_reservation::PredictionOrderError
+#[non_exhaustive] pub enum antecedent_core::diagnostic::RouteKind
+#[non_exhaustive] pub enum antecedent_core::diagnostic::RouteNativeDiagnostic
 #[non_exhaustive] pub enum antecedent_core::execution::AdmissionError
 #[non_exhaustive] pub enum antecedent_core::execution_facts::ExecutionFactError
 #[non_exhaustive] pub enum antecedent_core::execution_facts::ExecutionFactStatus
 #[non_exhaustive] pub enum antecedent_core::inspect::InspectionRefusal
+#[non_exhaustive] pub enum antecedent_core::intervention::AdmitError
+#[non_exhaustive] pub enum antecedent_core::intervention::InterventionOperation
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ArmBinding
 #[non_exhaustive] pub enum antecedent_core::measurement_model::DifferentialAxis
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ErrorStructure
@@ -84,7 +91,10 @@
 #[non_exhaustive] pub struct antecedent_core::CalibrationBasis
 #[non_exhaustive] pub struct antecedent_core::ContractIdentities
 #[non_exhaustive] pub struct antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl !core::marker::Freeze for antecedent_core::ScratchLease [auto]
 impl !core::marker::Freeze for antecedent_core::device_reservation::DeviceReservationLease [auto]
+impl !core::marker::Freeze for antecedent_core::device_reservation::FoldAdmission [auto]
+impl !core::marker::Freeze for antecedent_core::device_reservation::LearnerAdmission [auto]
 impl !core::marker::Freeze for antecedent_core::execution::AdmissionLease [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExecutionContext [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_core::ExecutionContext [auto]
@@ -347,6 +357,7 @@ impl core::clone::Clone for antecedent_core::ScientificTargetError
 impl core::clone::Clone for antecedent_core::ScientificWorldId
 impl core::clone::Clone for antecedent_core::ScoreFrequentist
 impl core::clone::Clone for antecedent_core::ScoreModel
+impl core::clone::Clone for antecedent_core::ScratchRefusal
 impl core::clone::Clone for antecedent_core::SearchLimits
 impl core::clone::Clone for antecedent_core::SearchReceipt
 impl core::clone::Clone for antecedent_core::SearchStop
@@ -426,10 +437,21 @@ impl core::clone::Clone for antecedent_core::cancellation_boundary::ProviderDisp
 impl core::clone::Clone for antecedent_core::cancellation_boundary::StopReceipt
 impl core::clone::Clone for antecedent_core::cancellation_boundary::SuccessReceipt
 impl core::clone::Clone for antecedent_core::cancellation_boundary::UninterruptibleAdmission
+impl core::clone::Clone for antecedent_core::device_reservation::ArithmeticPath
+impl core::clone::Clone for antecedent_core::device_reservation::ComputeSelection
+impl core::clone::Clone for antecedent_core::device_reservation::CpuAdmission
+impl core::clone::Clone for antecedent_core::device_reservation::CpuAdmissionError
 impl core::clone::Clone for antecedent_core::device_reservation::DeviceReservationError
 impl core::clone::Clone for antecedent_core::device_reservation::DeviceReservationPool
 impl core::clone::Clone for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::clone::Clone for antecedent_core::device_reservation::DeviceReservationRequest
+impl core::clone::Clone for antecedent_core::device_reservation::PredictionOrderError
+impl core::clone::Clone for antecedent_core::diagnostic::MeasuredMass
+impl core::clone::Clone for antecedent_core::diagnostic::RouteCheck
+impl core::clone::Clone for antecedent_core::diagnostic::RouteKind
+impl core::clone::Clone for antecedent_core::diagnostic::RouteMass
+impl core::clone::Clone for antecedent_core::diagnostic::RouteMassError
+impl core::clone::Clone for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::clone::Clone for antecedent_core::execution::AdmissionError
 impl core::clone::Clone for antecedent_core::execution::AdmissionPool
 impl core::clone::Clone for antecedent_core::execution::AdmissionRemainder
@@ -456,6 +478,10 @@ impl core::clone::Clone for antecedent_core::inspect::MaterializationSnapshot
 impl core::clone::Clone for antecedent_core::inspect::PlanInspection
 impl core::clone::Clone for antecedent_core::inspect::ReuseSnapshot
 impl core::clone::Clone for antecedent_core::inspect::UncertaintyDemand
+impl core::clone::Clone for antecedent_core::intervention::AdmitError
+impl core::clone::Clone for antecedent_core::intervention::CapabilityRefusal
+impl core::clone::Clone for antecedent_core::intervention::ExecutionSurface
+impl core::clone::Clone for antecedent_core::intervention::InterventionOperation
 impl core::clone::Clone for antecedent_core::measurement_model::ArmBinding
 impl core::clone::Clone for antecedent_core::measurement_model::BinaryArmRates
 impl core::clone::Clone for antecedent_core::measurement_model::CorrectedFunctionalRecord
@@ -740,6 +766,7 @@ impl core::cmp::Eq for antecedent_core::ScientificTargetError
 impl core::cmp::Eq for antecedent_core::ScientificWorldId
 impl core::cmp::Eq for antecedent_core::ScoreFrequentist
 impl core::cmp::Eq for antecedent_core::ScoreModel
+impl core::cmp::Eq for antecedent_core::ScratchRefusal
 impl core::cmp::Eq for antecedent_core::SearchLimits
 impl core::cmp::Eq for antecedent_core::SearchReceipt
 impl core::cmp::Eq for antecedent_core::SearchStop
@@ -808,9 +835,20 @@ impl core::cmp::Eq for antecedent_core::cancellation_boundary::ProviderDispositi
 impl core::cmp::Eq for antecedent_core::cancellation_boundary::StopReceipt
 impl core::cmp::Eq for antecedent_core::cancellation_boundary::SuccessReceipt
 impl core::cmp::Eq for antecedent_core::cancellation_boundary::UninterruptibleAdmission
+impl core::cmp::Eq for antecedent_core::device_reservation::ArithmeticPath
+impl core::cmp::Eq for antecedent_core::device_reservation::ComputeSelection
+impl core::cmp::Eq for antecedent_core::device_reservation::CpuAdmission
+impl core::cmp::Eq for antecedent_core::device_reservation::CpuAdmissionError
 impl core::cmp::Eq for antecedent_core::device_reservation::DeviceReservationError
 impl core::cmp::Eq for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::cmp::Eq for antecedent_core::device_reservation::DeviceReservationRequest
+impl core::cmp::Eq for antecedent_core::device_reservation::PredictionOrderError
+impl core::cmp::Eq for antecedent_core::diagnostic::MeasuredMass
+impl core::cmp::Eq for antecedent_core::diagnostic::RouteCheck
+impl core::cmp::Eq for antecedent_core::diagnostic::RouteKind
+impl core::cmp::Eq for antecedent_core::diagnostic::RouteMass
+impl core::cmp::Eq for antecedent_core::diagnostic::RouteMassError
+impl core::cmp::Eq for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::cmp::Eq for antecedent_core::execution::AdmissionError
 impl core::cmp::Eq for antecedent_core::execution::AdmissionRemainder
 impl core::cmp::Eq for antecedent_core::execution::AdmissionRequest
@@ -835,6 +873,10 @@ impl core::cmp::Eq for antecedent_core::inspect::MaterializationSnapshot
 impl core::cmp::Eq for antecedent_core::inspect::PlanInspection
 impl core::cmp::Eq for antecedent_core::inspect::ReuseSnapshot
 impl core::cmp::Eq for antecedent_core::inspect::UncertaintyDemand
+impl core::cmp::Eq for antecedent_core::intervention::AdmitError
+impl core::cmp::Eq for antecedent_core::intervention::CapabilityRefusal
+impl core::cmp::Eq for antecedent_core::intervention::ExecutionSurface
+impl core::cmp::Eq for antecedent_core::intervention::InterventionOperation
 impl core::cmp::Eq for antecedent_core::measurement_model::ArmBinding
 impl core::cmp::Eq for antecedent_core::measurement_model::DifferentialAxis
 impl core::cmp::Eq for antecedent_core::measurement_model::ErrorStructure
@@ -1195,6 +1237,7 @@ impl core::cmp::PartialEq for antecedent_core::ScientificTargetError
 impl core::cmp::PartialEq for antecedent_core::ScientificWorldId
 impl core::cmp::PartialEq for antecedent_core::ScoreFrequentist
 impl core::cmp::PartialEq for antecedent_core::ScoreModel
+impl core::cmp::PartialEq for antecedent_core::ScratchRefusal
 impl core::cmp::PartialEq for antecedent_core::SearchLimits
 impl core::cmp::PartialEq for antecedent_core::SearchReceipt
 impl core::cmp::PartialEq for antecedent_core::SearchStop
@@ -1273,9 +1316,20 @@ impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::ProviderDi
 impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::StopReceipt
 impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::SuccessReceipt
 impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::UninterruptibleAdmission
+impl core::cmp::PartialEq for antecedent_core::device_reservation::ArithmeticPath
+impl core::cmp::PartialEq for antecedent_core::device_reservation::ComputeSelection
+impl core::cmp::PartialEq for antecedent_core::device_reservation::CpuAdmission
+impl core::cmp::PartialEq for antecedent_core::device_reservation::CpuAdmissionError
 impl core::cmp::PartialEq for antecedent_core::device_reservation::DeviceReservationError
 impl core::cmp::PartialEq for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::cmp::PartialEq for antecedent_core::device_reservation::DeviceReservationRequest
+impl core::cmp::PartialEq for antecedent_core::device_reservation::PredictionOrderError
+impl core::cmp::PartialEq for antecedent_core::diagnostic::MeasuredMass
+impl core::cmp::PartialEq for antecedent_core::diagnostic::RouteCheck
+impl core::cmp::PartialEq for antecedent_core::diagnostic::RouteKind
+impl core::cmp::PartialEq for antecedent_core::diagnostic::RouteMass
+impl core::cmp::PartialEq for antecedent_core::diagnostic::RouteMassError
+impl core::cmp::PartialEq for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::cmp::PartialEq for antecedent_core::execution::AdmissionError
 impl core::cmp::PartialEq for antecedent_core::execution::AdmissionRemainder
 impl core::cmp::PartialEq for antecedent_core::execution::AdmissionRequest
@@ -1300,6 +1354,10 @@ impl core::cmp::PartialEq for antecedent_core::inspect::MaterializationSnapshot
 impl core::cmp::PartialEq for antecedent_core::inspect::PlanInspection
 impl core::cmp::PartialEq for antecedent_core::inspect::ReuseSnapshot
 impl core::cmp::PartialEq for antecedent_core::inspect::UncertaintyDemand
+impl core::cmp::PartialEq for antecedent_core::intervention::AdmitError
+impl core::cmp::PartialEq for antecedent_core::intervention::CapabilityRefusal
+impl core::cmp::PartialEq for antecedent_core::intervention::ExecutionSurface
+impl core::cmp::PartialEq for antecedent_core::intervention::InterventionOperation
 impl core::cmp::PartialEq for antecedent_core::measurement_model::ArmBinding
 impl core::cmp::PartialEq for antecedent_core::measurement_model::BinaryArmRates
 impl core::cmp::PartialEq for antecedent_core::measurement_model::CorrectedFunctionalRecord
@@ -1420,6 +1478,7 @@ impl core::convert::From<antecedent_core::ConditionalEffectQuery> for antecedent
 impl core::convert::From<antecedent_core::CounterfactualQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::HistoryMatchQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::InterferenceQuery> for antecedent_core::CausalQuery
+impl core::convert::From<antecedent_core::InterventionError> for antecedent_core::intervention::AdmitError
 impl core::convert::From<antecedent_core::InterventionalDistributionQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::LocalPolynomialRatioQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::LongitudinalRegimeQuery> for antecedent_core::CausalQuery
@@ -1437,6 +1496,7 @@ impl core::convert::From<antecedent_core::TemporalEffectQuery> for antecedent_co
 impl core::convert::From<antecedent_core::TransportQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::UnitChangeQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::VariableId> for antecedent_core::ComponentId
+impl core::convert::From<antecedent_core::intervention::CapabilityRefusal> for antecedent_core::intervention::AdmitError
 impl core::default::Default for antecedent_core::AdaptiveBootstrapBudget
 impl core::default::Default for antecedent_core::AdaptiveDrawBudget
 impl core::default::Default for antecedent_core::AnomalyReference
@@ -1488,13 +1548,19 @@ impl core::error::Error for antecedent_core::RouteMemoryError
 impl core::error::Error for antecedent_core::SamplingDesignError
 impl core::error::Error for antecedent_core::SchemaError
 impl core::error::Error for antecedent_core::ScientificTargetError
+impl core::error::Error for antecedent_core::ScratchRefusal
 impl core::error::Error for antecedent_core::TemporalIndexError
 impl core::error::Error for antecedent_core::ToleranceError
 impl core::error::Error for antecedent_core::cancellation_boundary::BoundaryError
+impl core::error::Error for antecedent_core::device_reservation::CpuAdmissionError
 impl core::error::Error for antecedent_core::device_reservation::DeviceReservationError
+impl core::error::Error for antecedent_core::device_reservation::PredictionOrderError
+impl core::error::Error for antecedent_core::diagnostic::RouteMassError
 impl core::error::Error for antecedent_core::execution::AdmissionError
 impl core::error::Error for antecedent_core::execution_facts::ExecutionFactError
 impl core::error::Error for antecedent_core::inspect::InspectionRefusal
+impl core::error::Error for antecedent_core::intervention::AdmitError
+impl core::error::Error for antecedent_core::intervention::CapabilityRefusal
 impl core::error::Error for antecedent_core::parallel_axis::ParallelPlanError
 impl core::error::Error for antecedent_core::physical_choice::PhysicalChoiceRefusal
 impl core::error::Error for antecedent_core::provider_capability::UnansweredCapability
@@ -1762,6 +1828,8 @@ impl core::fmt::Debug for antecedent_core::ScientificTargetError
 impl core::fmt::Debug for antecedent_core::ScientificWorldId
 impl core::fmt::Debug for antecedent_core::ScoreFrequentist
 impl core::fmt::Debug for antecedent_core::ScoreModel
+impl core::fmt::Debug for antecedent_core::ScratchLease
+impl core::fmt::Debug for antecedent_core::ScratchRefusal
 impl core::fmt::Debug for antecedent_core::SearchLimits
 impl core::fmt::Debug for antecedent_core::SearchReceipt
 impl core::fmt::Debug for antecedent_core::SearchStop
@@ -1842,11 +1910,24 @@ impl core::fmt::Debug for antecedent_core::cancellation_boundary::ProviderDispos
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::StopReceipt
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::SuccessReceipt
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::UninterruptibleAdmission
+impl core::fmt::Debug for antecedent_core::device_reservation::ArithmeticPath
+impl core::fmt::Debug for antecedent_core::device_reservation::ComputeSelection
+impl core::fmt::Debug for antecedent_core::device_reservation::CpuAdmission
+impl core::fmt::Debug for antecedent_core::device_reservation::CpuAdmissionError
 impl core::fmt::Debug for antecedent_core::device_reservation::DeviceReservationError
 impl core::fmt::Debug for antecedent_core::device_reservation::DeviceReservationLease
 impl core::fmt::Debug for antecedent_core::device_reservation::DeviceReservationPool
 impl core::fmt::Debug for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::fmt::Debug for antecedent_core::device_reservation::DeviceReservationRequest
+impl core::fmt::Debug for antecedent_core::device_reservation::FoldAdmission
+impl core::fmt::Debug for antecedent_core::device_reservation::LearnerAdmission
+impl core::fmt::Debug for antecedent_core::device_reservation::PredictionOrderError
+impl core::fmt::Debug for antecedent_core::diagnostic::MeasuredMass
+impl core::fmt::Debug for antecedent_core::diagnostic::RouteCheck
+impl core::fmt::Debug for antecedent_core::diagnostic::RouteKind
+impl core::fmt::Debug for antecedent_core::diagnostic::RouteMass
+impl core::fmt::Debug for antecedent_core::diagnostic::RouteMassError
+impl core::fmt::Debug for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::fmt::Debug for antecedent_core::execution::AdmissionError
 impl core::fmt::Debug for antecedent_core::execution::AdmissionLease
 impl core::fmt::Debug for antecedent_core::execution::AdmissionPool
@@ -1873,6 +1954,10 @@ impl core::fmt::Debug for antecedent_core::inspect::MaterializationSnapshot
 impl core::fmt::Debug for antecedent_core::inspect::PlanInspection
 impl core::fmt::Debug for antecedent_core::inspect::ReuseSnapshot
 impl core::fmt::Debug for antecedent_core::inspect::UncertaintyDemand
+impl core::fmt::Debug for antecedent_core::intervention::AdmitError
+impl core::fmt::Debug for antecedent_core::intervention::CapabilityRefusal
+impl core::fmt::Debug for antecedent_core::intervention::ExecutionSurface
+impl core::fmt::Debug for antecedent_core::intervention::InterventionOperation
 impl core::fmt::Debug for antecedent_core::measurement_model::ArmBinding
 impl core::fmt::Debug for antecedent_core::measurement_model::BinaryArmRates
 impl core::fmt::Debug for antecedent_core::measurement_model::CorrectedFunctionalRecord
@@ -2016,6 +2101,7 @@ impl core::fmt::Display for antecedent_core::SchemaError
 impl core::fmt::Display for antecedent_core::ScientificTargetError
 impl core::fmt::Display for antecedent_core::ScientificWorldId
 impl core::fmt::Display for antecedent_core::ScoreModel
+impl core::fmt::Display for antecedent_core::ScratchRefusal
 impl core::fmt::Display for antecedent_core::SemanticDigest
 impl core::fmt::Display for antecedent_core::SourceDependencyId
 impl core::fmt::Display for antecedent_core::SplittingRule
@@ -2031,12 +2117,21 @@ impl core::fmt::Display for antecedent_core::cancellation_boundary::CancelSite
 impl core::fmt::Display for antecedent_core::cancellation_boundary::LeaseId
 impl core::fmt::Display for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::fmt::Display for antecedent_core::cancellation_boundary::UninterruptibleAdmission
+impl core::fmt::Display for antecedent_core::device_reservation::ArithmeticPath
+impl core::fmt::Display for antecedent_core::device_reservation::CpuAdmissionError
 impl core::fmt::Display for antecedent_core::device_reservation::DeviceReservationError
+impl core::fmt::Display for antecedent_core::device_reservation::PredictionOrderError
+impl core::fmt::Display for antecedent_core::diagnostic::RouteMass
+impl core::fmt::Display for antecedent_core::diagnostic::RouteMassError
+impl core::fmt::Display for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::fmt::Display for antecedent_core::execution::AdmissionError
 impl core::fmt::Display for antecedent_core::execution_facts::ExecutionFactError
 impl core::fmt::Display for antecedent_core::execution_facts::ExecutionFactStatus
 impl core::fmt::Display for antecedent_core::execution_facts::OutputRetention
 impl core::fmt::Display for antecedent_core::inspect::InspectionRefusal
+impl core::fmt::Display for antecedent_core::intervention::AdmitError
+impl core::fmt::Display for antecedent_core::intervention::CapabilityRefusal
+impl core::fmt::Display for antecedent_core::intervention::ExecutionSurface
 impl core::fmt::Display for antecedent_core::parallel_axis::ParallelAxis
 impl core::fmt::Display for antecedent_core::parallel_axis::ParallelPlanError
 impl core::fmt::Display for antecedent_core::physical_choice::DeclaredCost
@@ -2232,6 +2327,7 @@ impl core::hash::Hash for antecedent_core::ScientificTarget
 impl core::hash::Hash for antecedent_core::ScientificWorldId
 impl core::hash::Hash for antecedent_core::ScoreFrequentist
 impl core::hash::Hash for antecedent_core::ScoreModel
+impl core::hash::Hash for antecedent_core::ScratchRefusal
 impl core::hash::Hash for antecedent_core::SearchLimits
 impl core::hash::Hash for antecedent_core::SearchStop
 impl core::hash::Hash for antecedent_core::SemanticDigest
@@ -2281,9 +2377,13 @@ impl core::hash::Hash for antecedent_core::cancellation_boundary::ProviderDispos
 impl core::hash::Hash for antecedent_core::cancellation_boundary::StopReceipt
 impl core::hash::Hash for antecedent_core::cancellation_boundary::SuccessReceipt
 impl core::hash::Hash for antecedent_core::cancellation_boundary::UninterruptibleAdmission
+impl core::hash::Hash for antecedent_core::device_reservation::ArithmeticPath
+impl core::hash::Hash for antecedent_core::device_reservation::ComputeSelection
+impl core::hash::Hash for antecedent_core::device_reservation::CpuAdmission
 impl core::hash::Hash for antecedent_core::device_reservation::DeviceReservationError
 impl core::hash::Hash for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::hash::Hash for antecedent_core::device_reservation::DeviceReservationRequest
+impl core::hash::Hash for antecedent_core::diagnostic::RouteKind
 impl core::hash::Hash for antecedent_core::execution::AdmissionError
 impl core::hash::Hash for antecedent_core::execution::AdmissionRemainder
 impl core::hash::Hash for antecedent_core::execution::AdmissionRequest
@@ -2304,6 +2404,8 @@ impl core::hash::Hash for antecedent_core::inspect::MaterializationSnapshot
 impl core::hash::Hash for antecedent_core::inspect::PlanInspection
 impl core::hash::Hash for antecedent_core::inspect::ReuseSnapshot
 impl core::hash::Hash for antecedent_core::inspect::UncertaintyDemand
+impl core::hash::Hash for antecedent_core::intervention::ExecutionSurface
+impl core::hash::Hash for antecedent_core::intervention::InterventionOperation
 impl core::hash::Hash for antecedent_core::measurement_model::ArmBinding
 impl core::hash::Hash for antecedent_core::measurement_model::DifferentialAxis
 impl core::hash::Hash for antecedent_core::measurement_model::ErrorStructure
@@ -2474,6 +2576,7 @@ impl core::marker::Copy for antecedent_core::SamplingDesignDeclaration
 impl core::marker::Copy for antecedent_core::SamplingDesignError
 impl core::marker::Copy for antecedent_core::ScalarType
 impl core::marker::Copy for antecedent_core::ScientificWorldId
+impl core::marker::Copy for antecedent_core::ScratchRefusal
 impl core::marker::Copy for antecedent_core::SearchLimits
 impl core::marker::Copy for antecedent_core::SearchStop
 impl core::marker::Copy for antecedent_core::SemanticDigest
@@ -2513,9 +2616,20 @@ impl core::marker::Copy for antecedent_core::cancellation_boundary::ProviderDisp
 impl core::marker::Copy for antecedent_core::cancellation_boundary::StopReceipt
 impl core::marker::Copy for antecedent_core::cancellation_boundary::SuccessReceipt
 impl core::marker::Copy for antecedent_core::cancellation_boundary::UninterruptibleAdmission
+impl core::marker::Copy for antecedent_core::device_reservation::ArithmeticPath
+impl core::marker::Copy for antecedent_core::device_reservation::ComputeSelection
+impl core::marker::Copy for antecedent_core::device_reservation::CpuAdmission
+impl core::marker::Copy for antecedent_core::device_reservation::CpuAdmissionError
 impl core::marker::Copy for antecedent_core::device_reservation::DeviceReservationError
 impl core::marker::Copy for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::marker::Copy for antecedent_core::device_reservation::DeviceReservationRequest
+impl core::marker::Copy for antecedent_core::device_reservation::PredictionOrderError
+impl core::marker::Copy for antecedent_core::diagnostic::MeasuredMass
+impl core::marker::Copy for antecedent_core::diagnostic::RouteCheck
+impl core::marker::Copy for antecedent_core::diagnostic::RouteKind
+impl core::marker::Copy for antecedent_core::diagnostic::RouteMass
+impl core::marker::Copy for antecedent_core::diagnostic::RouteMassError
+impl core::marker::Copy for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::marker::Copy for antecedent_core::execution::AdmissionError
 impl core::marker::Copy for antecedent_core::execution::AdmissionRemainder
 impl core::marker::Copy for antecedent_core::execution::AdmissionRequest
@@ -2530,6 +2644,8 @@ impl core::marker::Copy for antecedent_core::execution_facts::PhysicalExecutionI
 impl core::marker::Copy for antecedent_core::inspect::EstimatedResources
 impl core::marker::Copy for antecedent_core::inspect::InspectionRefusal
 impl core::marker::Copy for antecedent_core::inspect::UncertaintyDemand
+impl core::marker::Copy for antecedent_core::intervention::CapabilityRefusal
+impl core::marker::Copy for antecedent_core::intervention::ExecutionSurface
 impl core::marker::Copy for antecedent_core::measurement_model::DifferentialAxis
 impl core::marker::Copy for antecedent_core::measurement_model::ErrorStructure
 impl core::marker::Copy for antecedent_core::measurement_model::MeasurementIdentities
@@ -2849,6 +2965,7 @@ impl core::marker::Freeze for antecedent_core::ScientificTargetError [auto]
 impl core::marker::Freeze for antecedent_core::ScientificWorldId [auto]
 impl core::marker::Freeze for antecedent_core::ScoreFrequentist [auto]
 impl core::marker::Freeze for antecedent_core::ScoreModel [auto]
+impl core::marker::Freeze for antecedent_core::ScratchRefusal [auto]
 impl core::marker::Freeze for antecedent_core::SearchLimits [auto]
 impl core::marker::Freeze for antecedent_core::SearchReceipt [auto]
 impl core::marker::Freeze for antecedent_core::SearchStop [auto]
@@ -2929,10 +3046,21 @@ impl core::marker::Freeze for antecedent_core::cancellation_boundary::ProviderDi
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::StopReceipt [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
+impl core::marker::Freeze for antecedent_core::device_reservation::ArithmeticPath [auto]
+impl core::marker::Freeze for antecedent_core::device_reservation::ComputeSelection [auto]
+impl core::marker::Freeze for antecedent_core::device_reservation::CpuAdmission [auto]
+impl core::marker::Freeze for antecedent_core::device_reservation::CpuAdmissionError [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::DeviceReservationPool [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::DeviceReservationRemainder [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::DeviceReservationRequest [auto]
+impl core::marker::Freeze for antecedent_core::device_reservation::PredictionOrderError [auto]
+impl core::marker::Freeze for antecedent_core::diagnostic::MeasuredMass [auto]
+impl core::marker::Freeze for antecedent_core::diagnostic::RouteCheck [auto]
+impl core::marker::Freeze for antecedent_core::diagnostic::RouteKind [auto]
+impl core::marker::Freeze for antecedent_core::diagnostic::RouteMass [auto]
+impl core::marker::Freeze for antecedent_core::diagnostic::RouteMassError [auto]
+impl core::marker::Freeze for antecedent_core::diagnostic::RouteNativeDiagnostic [auto]
 impl core::marker::Freeze for antecedent_core::execution::AdmissionError [auto]
 impl core::marker::Freeze for antecedent_core::execution::AdmissionPool [auto]
 impl core::marker::Freeze for antecedent_core::execution::AdmissionRemainder [auto]
@@ -2958,6 +3086,10 @@ impl core::marker::Freeze for antecedent_core::inspect::MaterializationSnapshot 
 impl core::marker::Freeze for antecedent_core::inspect::PlanInspection [auto]
 impl core::marker::Freeze for antecedent_core::inspect::ReuseSnapshot [auto]
 impl core::marker::Freeze for antecedent_core::inspect::UncertaintyDemand [auto]
+impl core::marker::Freeze for antecedent_core::intervention::AdmitError [auto]
+impl core::marker::Freeze for antecedent_core::intervention::CapabilityRefusal [auto]
+impl core::marker::Freeze for antecedent_core::intervention::ExecutionSurface [auto]
+impl core::marker::Freeze for antecedent_core::intervention::InterventionOperation [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -3302,6 +3434,8 @@ impl core::marker::Send for antecedent_core::ScientificTargetError [auto]
 impl core::marker::Send for antecedent_core::ScientificWorldId [auto]
 impl core::marker::Send for antecedent_core::ScoreFrequentist [auto]
 impl core::marker::Send for antecedent_core::ScoreModel [auto]
+impl core::marker::Send for antecedent_core::ScratchLease [auto]
+impl core::marker::Send for antecedent_core::ScratchRefusal [auto]
 impl core::marker::Send for antecedent_core::SearchLimits [auto]
 impl core::marker::Send for antecedent_core::SearchReceipt [auto]
 impl core::marker::Send for antecedent_core::SearchStop [auto]
@@ -3382,11 +3516,24 @@ impl core::marker::Send for antecedent_core::cancellation_boundary::ProviderDisp
 impl core::marker::Send for antecedent_core::cancellation_boundary::StopReceipt [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
+impl core::marker::Send for antecedent_core::device_reservation::ArithmeticPath [auto]
+impl core::marker::Send for antecedent_core::device_reservation::ComputeSelection [auto]
+impl core::marker::Send for antecedent_core::device_reservation::CpuAdmission [auto]
+impl core::marker::Send for antecedent_core::device_reservation::CpuAdmissionError [auto]
 impl core::marker::Send for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::marker::Send for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl core::marker::Send for antecedent_core::device_reservation::DeviceReservationPool [auto]
 impl core::marker::Send for antecedent_core::device_reservation::DeviceReservationRemainder [auto]
 impl core::marker::Send for antecedent_core::device_reservation::DeviceReservationRequest [auto]
+impl core::marker::Send for antecedent_core::device_reservation::FoldAdmission [auto]
+impl core::marker::Send for antecedent_core::device_reservation::LearnerAdmission [auto]
+impl core::marker::Send for antecedent_core::device_reservation::PredictionOrderError [auto]
+impl core::marker::Send for antecedent_core::diagnostic::MeasuredMass [auto]
+impl core::marker::Send for antecedent_core::diagnostic::RouteCheck [auto]
+impl core::marker::Send for antecedent_core::diagnostic::RouteKind [auto]
+impl core::marker::Send for antecedent_core::diagnostic::RouteMass [auto]
+impl core::marker::Send for antecedent_core::diagnostic::RouteMassError [auto]
+impl core::marker::Send for antecedent_core::diagnostic::RouteNativeDiagnostic [auto]
 impl core::marker::Send for antecedent_core::execution::AdmissionError [auto]
 impl core::marker::Send for antecedent_core::execution::AdmissionLease [auto]
 impl core::marker::Send for antecedent_core::execution::AdmissionPool [auto]
@@ -3413,6 +3560,10 @@ impl core::marker::Send for antecedent_core::inspect::MaterializationSnapshot [a
 impl core::marker::Send for antecedent_core::inspect::PlanInspection [auto]
 impl core::marker::Send for antecedent_core::inspect::ReuseSnapshot [auto]
 impl core::marker::Send for antecedent_core::inspect::UncertaintyDemand [auto]
+impl core::marker::Send for antecedent_core::intervention::AdmitError [auto]
+impl core::marker::Send for antecedent_core::intervention::CapabilityRefusal [auto]
+impl core::marker::Send for antecedent_core::intervention::ExecutionSurface [auto]
+impl core::marker::Send for antecedent_core::intervention::InterventionOperation [auto]
 impl core::marker::Send for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::marker::Send for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::marker::Send for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -3746,6 +3897,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::ScientificTargetErro
 impl core::marker::StructuralPartialEq for antecedent_core::ScientificWorldId
 impl core::marker::StructuralPartialEq for antecedent_core::ScoreFrequentist
 impl core::marker::StructuralPartialEq for antecedent_core::ScoreModel
+impl core::marker::StructuralPartialEq for antecedent_core::ScratchRefusal
 impl core::marker::StructuralPartialEq for antecedent_core::SearchLimits
 impl core::marker::StructuralPartialEq for antecedent_core::SearchReceipt
 impl core::marker::StructuralPartialEq for antecedent_core::SearchStop
@@ -3822,9 +3974,20 @@ impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundar
 impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::StopReceipt
 impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::SuccessReceipt
 impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::UninterruptibleAdmission
+impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::ArithmeticPath
+impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::ComputeSelection
+impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::CpuAdmission
+impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::CpuAdmissionError
 impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::DeviceReservationError
 impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::DeviceReservationRequest
+impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::PredictionOrderError
+impl core::marker::StructuralPartialEq for antecedent_core::diagnostic::MeasuredMass
+impl core::marker::StructuralPartialEq for antecedent_core::diagnostic::RouteCheck
+impl core::marker::StructuralPartialEq for antecedent_core::diagnostic::RouteKind
+impl core::marker::StructuralPartialEq for antecedent_core::diagnostic::RouteMass
+impl core::marker::StructuralPartialEq for antecedent_core::diagnostic::RouteMassError
+impl core::marker::StructuralPartialEq for antecedent_core::diagnostic::RouteNativeDiagnostic
 impl core::marker::StructuralPartialEq for antecedent_core::execution::AdmissionError
 impl core::marker::StructuralPartialEq for antecedent_core::execution::AdmissionRemainder
 impl core::marker::StructuralPartialEq for antecedent_core::execution::AdmissionRequest
@@ -3849,6 +4012,10 @@ impl core::marker::StructuralPartialEq for antecedent_core::inspect::Materializa
 impl core::marker::StructuralPartialEq for antecedent_core::inspect::PlanInspection
 impl core::marker::StructuralPartialEq for antecedent_core::inspect::ReuseSnapshot
 impl core::marker::StructuralPartialEq for antecedent_core::inspect::UncertaintyDemand
+impl core::marker::StructuralPartialEq for antecedent_core::intervention::AdmitError
+impl core::marker::StructuralPartialEq for antecedent_core::intervention::CapabilityRefusal
+impl core::marker::StructuralPartialEq for antecedent_core::intervention::ExecutionSurface
+impl core::marker::StructuralPartialEq for antecedent_core::intervention::InterventionOperation
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::ArmBinding
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::BinaryArmRates
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::CorrectedFunctionalRecord
@@ -4189,6 +4356,8 @@ impl core::marker::Sync for antecedent_core::ScientificTargetError [auto]
 impl core::marker::Sync for antecedent_core::ScientificWorldId [auto]
 impl core::marker::Sync for antecedent_core::ScoreFrequentist [auto]
 impl core::marker::Sync for antecedent_core::ScoreModel [auto]
+impl core::marker::Sync for antecedent_core::ScratchLease [auto]
+impl core::marker::Sync for antecedent_core::ScratchRefusal [auto]
 impl core::marker::Sync for antecedent_core::SearchLimits [auto]
 impl core::marker::Sync for antecedent_core::SearchReceipt [auto]
 impl core::marker::Sync for antecedent_core::SearchStop [auto]
@@ -4269,11 +4438,24 @@ impl core::marker::Sync for antecedent_core::cancellation_boundary::ProviderDisp
 impl core::marker::Sync for antecedent_core::cancellation_boundary::StopReceipt [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
+impl core::marker::Sync for antecedent_core::device_reservation::ArithmeticPath [auto]
+impl core::marker::Sync for antecedent_core::device_reservation::ComputeSelection [auto]
+impl core::marker::Sync for antecedent_core::device_reservation::CpuAdmission [auto]
+impl core::marker::Sync for antecedent_core::device_reservation::CpuAdmissionError [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::DeviceReservationPool [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::DeviceReservationRemainder [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::DeviceReservationRequest [auto]
+impl core::marker::Sync for antecedent_core::device_reservation::FoldAdmission [auto]
+impl core::marker::Sync for antecedent_core::device_reservation::LearnerAdmission [auto]
+impl core::marker::Sync for antecedent_core::device_reservation::PredictionOrderError [auto]
+impl core::marker::Sync for antecedent_core::diagnostic::MeasuredMass [auto]
+impl core::marker::Sync for antecedent_core::diagnostic::RouteCheck [auto]
+impl core::marker::Sync for antecedent_core::diagnostic::RouteKind [auto]
+impl core::marker::Sync for antecedent_core::diagnostic::RouteMass [auto]
+impl core::marker::Sync for antecedent_core::diagnostic::RouteMassError [auto]
+impl core::marker::Sync for antecedent_core::diagnostic::RouteNativeDiagnostic [auto]
 impl core::marker::Sync for antecedent_core::execution::AdmissionError [auto]
 impl core::marker::Sync for antecedent_core::execution::AdmissionLease [auto]
 impl core::marker::Sync for antecedent_core::execution::AdmissionPool [auto]
@@ -4300,6 +4482,10 @@ impl core::marker::Sync for antecedent_core::inspect::MaterializationSnapshot [a
 impl core::marker::Sync for antecedent_core::inspect::PlanInspection [auto]
 impl core::marker::Sync for antecedent_core::inspect::ReuseSnapshot [auto]
 impl core::marker::Sync for antecedent_core::inspect::UncertaintyDemand [auto]
+impl core::marker::Sync for antecedent_core::intervention::AdmitError [auto]
+impl core::marker::Sync for antecedent_core::intervention::CapabilityRefusal [auto]
+impl core::marker::Sync for antecedent_core::intervention::ExecutionSurface [auto]
+impl core::marker::Sync for antecedent_core::intervention::InterventionOperation [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -4644,6 +4830,8 @@ impl core::marker::Unpin for antecedent_core::ScientificTargetError [auto]
 impl core::marker::Unpin for antecedent_core::ScientificWorldId [auto]
 impl core::marker::Unpin for antecedent_core::ScoreFrequentist [auto]
 impl core::marker::Unpin for antecedent_core::ScoreModel [auto]
+impl core::marker::Unpin for antecedent_core::ScratchLease [auto]
+impl core::marker::Unpin for antecedent_core::ScratchRefusal [auto]
 impl core::marker::Unpin for antecedent_core::SearchLimits [auto]
 impl core::marker::Unpin for antecedent_core::SearchReceipt [auto]
 impl core::marker::Unpin for antecedent_core::SearchStop [auto]
@@ -4724,11 +4912,24 @@ impl core::marker::Unpin for antecedent_core::cancellation_boundary::ProviderDis
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::StopReceipt [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
+impl core::marker::Unpin for antecedent_core::device_reservation::ArithmeticPath [auto]
+impl core::marker::Unpin for antecedent_core::device_reservation::ComputeSelection [auto]
+impl core::marker::Unpin for antecedent_core::device_reservation::CpuAdmission [auto]
+impl core::marker::Unpin for antecedent_core::device_reservation::CpuAdmissionError [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::DeviceReservationPool [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::DeviceReservationRemainder [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::DeviceReservationRequest [auto]
+impl core::marker::Unpin for antecedent_core::device_reservation::FoldAdmission [auto]
+impl core::marker::Unpin for antecedent_core::device_reservation::LearnerAdmission [auto]
+impl core::marker::Unpin for antecedent_core::device_reservation::PredictionOrderError [auto]
+impl core::marker::Unpin for antecedent_core::diagnostic::MeasuredMass [auto]
+impl core::marker::Unpin for antecedent_core::diagnostic::RouteCheck [auto]
+impl core::marker::Unpin for antecedent_core::diagnostic::RouteKind [auto]
+impl core::marker::Unpin for antecedent_core::diagnostic::RouteMass [auto]
+impl core::marker::Unpin for antecedent_core::diagnostic::RouteMassError [auto]
+impl core::marker::Unpin for antecedent_core::diagnostic::RouteNativeDiagnostic [auto]
 impl core::marker::Unpin for antecedent_core::execution::AdmissionError [auto]
 impl core::marker::Unpin for antecedent_core::execution::AdmissionLease [auto]
 impl core::marker::Unpin for antecedent_core::execution::AdmissionPool [auto]
@@ -4755,6 +4956,10 @@ impl core::marker::Unpin for antecedent_core::inspect::MaterializationSnapshot [
 impl core::marker::Unpin for antecedent_core::inspect::PlanInspection [auto]
 impl core::marker::Unpin for antecedent_core::inspect::ReuseSnapshot [auto]
 impl core::marker::Unpin for antecedent_core::inspect::UncertaintyDemand [auto]
+impl core::marker::Unpin for antecedent_core::intervention::AdmitError [auto]
+impl core::marker::Unpin for antecedent_core::intervention::CapabilityRefusal [auto]
+impl core::marker::Unpin for antecedent_core::intervention::ExecutionSurface [auto]
+impl core::marker::Unpin for antecedent_core::intervention::InterventionOperation [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -5102,6 +5307,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ScientificTarg
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ScientificWorldId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ScoreFrequentist [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ScoreModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ScratchLease [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ScratchRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SearchLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SearchReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SearchStop [auto]
@@ -5182,11 +5389,24 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_b
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::StopReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::ArithmeticPath [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::ComputeSelection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::CpuAdmission [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::CpuAdmissionError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::DeviceReservationPool [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::DeviceReservationRemainder [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::DeviceReservationRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::FoldAdmission [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::LearnerAdmission [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::PredictionOrderError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::diagnostic::MeasuredMass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::diagnostic::RouteCheck [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::diagnostic::RouteKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::diagnostic::RouteMass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::diagnostic::RouteMassError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::diagnostic::RouteNativeDiagnostic [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionLease [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionPool [auto]
@@ -5213,6 +5433,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::Mater
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::PlanInspection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::ReuseSnapshot [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::UncertaintyDemand [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::intervention::AdmitError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::intervention::CapabilityRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::intervention::ExecutionSurface [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::intervention::InterventionOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -5556,6 +5780,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ScientificTargetE
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ScientificWorldId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ScoreFrequentist [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ScoreModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ScratchLease [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ScratchRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SearchLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SearchReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SearchStop [auto]
@@ -5636,11 +5862,24 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boun
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::StopReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::ArithmeticPath [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::ComputeSelection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::CpuAdmission [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::CpuAdmissionError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::DeviceReservationPool [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::DeviceReservationRemainder [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::DeviceReservationRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::FoldAdmission [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::LearnerAdmission [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::PredictionOrderError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::diagnostic::MeasuredMass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::diagnostic::RouteCheck [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::diagnostic::RouteKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::diagnostic::RouteMass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::diagnostic::RouteMassError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::diagnostic::RouteNativeDiagnostic [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionLease [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionPool [auto]
@@ -5667,6 +5906,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::Material
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::PlanInspection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::ReuseSnapshot [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::UncertaintyDemand [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::intervention::AdmitError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::intervention::CapabilityRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::intervention::ExecutionSurface [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::intervention::InterventionOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -5827,6 +6070,7 @@ pub const <antecedent_core::TransportOutcomeKind>::ALL: [Self; 10]
 pub const <antecedent_core::TransportOutcomeKind>::IDENTIFICATION: [Self; 5]
 pub const <antecedent_core::TransportOutcomeKind>::LEGACY_IDENTIFICATION_SPELLINGS: [(&'static str, Self); 6]
 pub const <antecedent_core::cancellation_boundary::CancelSite>::ALL: [Self; 7]
+pub const <antecedent_core::intervention::ExecutionSurface>::ALL: [Self; 4]
 pub const <antecedent_core::measurement_model::MeasurementKind>::ALL: [Self; 6]
 pub const <antecedent_core::measurement_model::MeasurementRoute>::ALL: [Self; 5]
 pub const <antecedent_core::physical_choice::OperatorCapability>::ALL: [Self; 4]
@@ -5868,6 +6112,12 @@ pub const antecedent_core::reason_code::RUNTIME_REFUSAL_CODES: &[&str]
 pub const antecedent_core::recalc::MAX_EXTERNAL_BRANCHES: u8
 pub const antecedent_core::recalc::STANDING_INPUT_VERSION: u64
 pub const fn antecedent_core::derive_stream(master: u64, stream_id: u64) -> u64
+pub const fn antecedent_core::device_reservation::nested_thread_request(free_threads: u32) -> u32
+pub const fn antecedent_core::device_reservation::neural_baseline() -> antecedent_core::device_reservation::ArithmeticPath
+pub const fn antecedent_core::device_reservation::retain_scientific_f64(value: f64) -> f64
+pub const fn antecedent_core::device_reservation::scientific_arithmetic() -> antecedent_core::device_reservation::ArithmeticPath
+pub const fn antecedent_core::device_reservation::scientific_tolerance() -> core::option::Option<antecedent_core::PhysicalTolerance>
+pub const fn antecedent_core::device_reservation::select_compute(selection: antecedent_core::device_reservation::ComputeSelection) -> core::result::Result<antecedent_core::device_reservation::CpuAdmission, antecedent_core::device_reservation::DeviceReservationError>
 pub const fn antecedent_core::execution::checked_byte_product(count: u64, width: u64) -> core::option::Option<u64>
 pub const fn antecedent_core::execution::checked_byte_sum(left: u64, right: u64) -> core::option::Option<u64>
 pub const fn antecedent_core::execution::mix64(z: u64) -> u64
@@ -5957,8 +6207,12 @@ pub enum antecedent_core::cancellation_boundary::BoundaryReport
 pub enum antecedent_core::cancellation_boundary::CancelSite
 pub enum antecedent_core::cancellation_boundary::ProviderDisposition
 pub enum antecedent_core::cancellation_boundary::UninterruptibleAdmission
+pub enum antecedent_core::device_reservation::ArithmeticPath
+pub enum antecedent_core::device_reservation::ComputeSelection
+pub enum antecedent_core::diagnostic::RouteMass
 pub enum antecedent_core::execution_attempt::Operation
 pub enum antecedent_core::execution_facts::OutputRetention
+pub enum antecedent_core::intervention::ExecutionSurface
 pub enum antecedent_core::measurement_model::MeasurementParameters
 pub enum antecedent_core::measurement_model::MeasurementRoute
 pub enum antecedent_core::parallel_axis::ParallelAxis
@@ -6475,6 +6729,9 @@ pub field antecedent_core::execution_attempt::ExecutionAttempt::result: core::re
 pub field antecedent_core::execution_attempt::OperationCounts::attempted: u64
 pub field antecedent_core::execution_attempt::OperationCounts::completed: u64
 pub field antecedent_core::execution_attempt::OperationCounts::failed: u64
+pub field antecedent_core::intervention::CapabilityRefusal::operation: &'static str
+pub field antecedent_core::intervention::CapabilityRefusal::reason: &'static str
+pub field antecedent_core::intervention::CapabilityRefusal::surface: antecedent_core::intervention::ExecutionSurface
 pub field antecedent_core::measurement_model::BinaryArmRates::arm_id: core::option::Option<alloc::string::String>
 pub field antecedent_core::measurement_model::BinaryArmRates::sensitivity: f64
 pub field antecedent_core::measurement_model::BinaryArmRates::sensitivity_variance: f64
@@ -6624,6 +6881,7 @@ pub fn <antecedent_core::CancellationPoints>::fn iter(self) -> impl core::iter::
 pub fn <antecedent_core::CancellationToken>::fn cancel(&self)
 pub fn <antecedent_core::CancellationToken>::fn downgrade(&self) -> antecedent_core::WeakCancellationToken
 pub fn <antecedent_core::CancellationToken>::fn is_cancelled(&self) -> bool
+pub fn <antecedent_core::CancellationToken>::fn is_requested(&self) -> bool
 pub fn <antecedent_core::CancellationToken>::fn new() -> Self
 pub fn <antecedent_core::CanonicalWriter>::fn bytes(&mut self, bytes: &[u8]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn digest_bytes(tag: &str, bytes: &[u8]) -> [u8; 32]
@@ -6781,13 +7039,17 @@ pub fn <antecedent_core::DesignRules>::const fn variance(self) -> antecedent_cor
 pub fn <antecedent_core::DeviceName>::fn as_str(&self) -> &str
 pub fn <antecedent_core::DeviceName>::fn new(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::Diagnostic>::fn new(code: impl core::convert::Into<alloc::sync::Arc<str>>, kind: antecedent_core::DiagnosticKind, severity: antecedent_core::DiagnosticSeverity, message: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_core::Diagnostic>::fn unevaluable_mass(&self) -> core::option::Option<antecedent_core::diagnostic::RouteMass>
 pub fn <antecedent_core::Diagnostic>::fn with_fields<K, V>(self, fields: impl core::iter::traits::collect::IntoIterator<Item = (K, V)>) -> Self where K: core::convert::Into<alloc::sync::Arc<str>>, V: core::convert::Into<alloc::sync::Arc<str>>
+pub fn <antecedent_core::Diagnostic>::fn with_route(self, record: antecedent_core::diagnostic::RouteNativeDiagnostic) -> Self
 pub fn <antecedent_core::DiagnosticScope>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::DiagnosticScope>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::DiagnosticSet>::fn is_empty(&self) -> bool
 pub fn <antecedent_core::DiagnosticSet>::fn len(&self) -> usize
 pub fn <antecedent_core::DiagnosticSet>::fn new() -> Self
 pub fn <antecedent_core::DiagnosticSet>::fn push(&mut self, diagnostic: antecedent_core::Diagnostic)
+pub fn <antecedent_core::DiagnosticSet>::fn push_route(&mut self, record: antecedent_core::diagnostic::RouteNativeDiagnostic)
+pub fn <antecedent_core::DiagnosticSet>::fn route_diagnostics(&self) -> alloc::vec::Vec<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_core::DistributionRef>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::DistributionRef>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::DistributionRef>::const fn raw(self) -> u32
@@ -6845,6 +7107,8 @@ pub fn <antecedent_core::ExecutionContext>::fn acquire_admission(&self, threads:
 pub fn <antecedent_core::ExecutionContext>::fn acquire_admission_bounded(&self, threads: u32, bytes: u64, bound: core::time::Duration) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::ExecutionContext>::fn acquire_admission_product(&self, threads: u32, count: u64, width: u64) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::ExecutionContext>::fn admission(&self) -> antecedent_core::execution::AdmissionPool
+pub fn <antecedent_core::ExecutionContext>::fn admit_scratch(&self, work_items: usize, per_worker_bytes: u64) -> core::result::Result<antecedent_core::ScratchLease, antecedent_core::ScratchRefusal>
+pub fn <antecedent_core::ExecutionContext>::fn capped_workers(&self, work_items: usize) -> usize
 pub fn <antecedent_core::ExecutionContext>::fn for_tests(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn production(seed: u64, max_threads: u32) -> Self
@@ -6866,6 +7130,7 @@ pub fn <antecedent_core::FailedCapabilityAttempt>::fn diagnostic(&self) -> antec
 pub fn <antecedent_core::FailedCapabilityAttempt>::fn provider_name(&self) -> &str
 pub fn <antecedent_core::FailedRngAttempt>::const fn batch(self) -> antecedent_core::BatchSize
 pub fn <antecedent_core::FailedRngAttempt>::const fn worker(self) -> antecedent_core::WorkerId
+pub fn <antecedent_core::FeedbackDeclaration>::fn dose(&self, variable: antecedent_core::VariableId) -> antecedent_core::Intervention
 pub fn <antecedent_core::FeedbackDeclaration>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::FixedGroupDosePolicy>::fn validate(&self, baseline_groups: &[alloc::sync::Arc<str>]) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::Fnv1a64>::const fn finish(&self) -> u64
@@ -6910,6 +7175,7 @@ pub fn <antecedent_core::Intervention>::const fn set(variable: antecedent_core::
 pub fn <antecedent_core::Intervention>::const fn shift(variable: antecedent_core::VariableId, delta: antecedent_core::Value) -> Self
 pub fn <antecedent_core::Intervention>::const fn stochastic(variable: antecedent_core::VariableId, policy: antecedent_core::StochasticPolicy) -> Self
 pub fn <antecedent_core::Intervention>::fn assign(variable: antecedent_core::VariableId, expr: antecedent_core::ValueExpr) -> Self
+pub fn <antecedent_core::Intervention>::fn operation(&self, temporal: core::option::Option<&antecedent_core::TemporalPolicy>) -> core::result::Result<antecedent_core::intervention::InterventionOperation, antecedent_core::InterventionError>
 pub fn <antecedent_core::Intervention>::fn portability(&self) -> antecedent_core::Portability
 pub fn <antecedent_core::Intervention>::fn primary_variable(&self) -> core::option::Option<antecedent_core::VariableId>
 pub fn <antecedent_core::Intervention>::fn sequence(seq: antecedent_core::InterventionSequence) -> Self
@@ -7222,6 +7488,7 @@ pub fn <antecedent_core::SamplingDesign>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::SamplingDesignDeclaration>::const fn design(self) -> antecedent_core::DeclaredSamplingDesign
 pub fn <antecedent_core::SamplingDesignDeclaration>::const fn new(design: antecedent_core::DeclaredSamplingDesign, time_column_present: bool) -> Self
 pub fn <antecedent_core::SamplingDesignDeclaration>::const fn time_column_present(self) -> bool
+pub fn <antecedent_core::SamplingDesignError>::const fn route_diagnostic(self) -> core::option::Option<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_core::ScientificTarget>::const fn assumptions(&self) -> &antecedent_core::ModelAssumptions
 pub fn <antecedent_core::ScientificTarget>::const fn form(&self) -> &antecedent_core::TargetForm
 pub fn <antecedent_core::ScientificTarget>::const fn inference(&self) -> antecedent_core::InferenceSelection
@@ -7236,6 +7503,9 @@ pub fn <antecedent_core::ScoreFrequentist>::const fn score(&self) -> &antecedent
 pub fn <antecedent_core::ScoreFrequentist>::fn identity(&self) -> antecedent_core::SemanticDigest
 pub fn <antecedent_core::ScoreModel>::fn name(&self) -> &str
 pub fn <antecedent_core::ScoreModel>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_core::DeclarationError>
+pub fn <antecedent_core::ScratchLease>::const fn bytes(&self) -> u64
+pub fn <antecedent_core::ScratchLease>::const fn workers(&self) -> usize
+pub fn <antecedent_core::ScratchLease>::fn remainder(&self) -> antecedent_core::execution::AdmissionRemainder
 pub fn <antecedent_core::SearchBudget<'a>>::const fn depth_reached(&self) -> usize
 pub fn <antecedent_core::SearchBudget<'a>>::const fn limits(&self) -> antecedent_core::SearchLimits
 pub fn <antecedent_core::SearchBudget<'a>>::const fn memory_limit_bytes(&self) -> u64
@@ -7506,6 +7776,7 @@ pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn provid
 pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn site(self) -> antecedent_core::cancellation_boundary::CancelSite
 pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn spill_cleaned(self) -> bool
 pub fn <antecedent_core::cancellation_boundary::UninterruptibleAdmission>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::device_reservation::CpuAdmission>::fn reserve_nothing(self, pool: &antecedent_core::device_reservation::DeviceReservationPool) -> antecedent_core::device_reservation::DeviceReservationRemainder
 pub fn <antecedent_core::device_reservation::DeviceReservationLease>::fn acquire_child(&self, device_bytes: u64, spill_bytes: u64, cancelled: bool) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
 pub fn <antecedent_core::device_reservation::DeviceReservationLease>::fn acquire_child_product(&self, device_count: u64, device_width: u64, spill_count: u64, spill_width: u64, cancelled: bool) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
 pub fn <antecedent_core::device_reservation::DeviceReservationLease>::fn acquire_child_request(&self, request: antecedent_core::device_reservation::DeviceReservationRequest, cancelled: bool) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
@@ -7531,6 +7802,34 @@ pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn
 pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn spill_bytes(self) -> u64
 pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn try_product(device_count: u64, device_width: u64, spill_count: u64, spill_width: u64) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
 pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn try_sum(device_parts: &[u64], spill_parts: &[u64]) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
+pub fn <antecedent_core::device_reservation::FoldAdmission>::fn admit_learner(&self, scratch: &antecedent_core::scratch_pool::ScratchPool, threads: u32, bytes: u64) -> core::result::Result<antecedent_core::device_reservation::LearnerAdmission, antecedent_core::device_reservation::CpuAdmissionError>
+pub fn <antecedent_core::device_reservation::FoldAdmission>::fn held_threads(&self) -> u32
+pub fn <antecedent_core::device_reservation::FoldAdmission>::fn observe_cancel(&mut self, token: &antecedent_core::CancellationToken) -> bool
+pub fn <antecedent_core::device_reservation::LearnerAdmission>::fn observe_cancel(&mut self, token: &antecedent_core::CancellationToken) -> bool
+pub fn <antecedent_core::diagnostic::RouteCheck>::const fn failed(self) -> bool
+pub fn <antecedent_core::diagnostic::RouteCheck>::const fn new(failed: bool, unevaluable_mass: antecedent_core::diagnostic::RouteMass) -> Self
+pub fn <antecedent_core::diagnostic::RouteCheck>::const fn unevaluable_mass(self) -> antecedent_core::diagnostic::RouteMass
+pub fn <antecedent_core::diagnostic::RouteKind>::const fn name(self) -> &'static str
+pub fn <antecedent_core::diagnostic::RouteMass>::const fn bits(self) -> core::option::Option<u64>
+pub fn <antecedent_core::diagnostic::RouteMass>::const fn get(self) -> core::option::Option<f64>
+pub fn <antecedent_core::diagnostic::RouteMass>::const fn is_unreported(self) -> bool
+pub fn <antecedent_core::diagnostic::RouteMass>::const fn unreported() -> Self
+pub fn <antecedent_core::diagnostic::RouteMass>::const fn zero() -> Self
+pub fn <antecedent_core::diagnostic::RouteMass>::fn new(mass: f64) -> core::result::Result<Self, antecedent_core::diagnostic::RouteMassError>
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn check(kind: antecedent_core::diagnostic::RouteKind, check: antecedent_core::diagnostic::RouteCheck) -> Self
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn computational_failure(unevaluable_mass: antecedent_core::diagnostic::RouteMass) -> Self
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn failed(self) -> bool
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn is_computational_failure(self) -> bool
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn is_model_restriction(self) -> bool
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn is_unsupported_inference(self) -> bool
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn kind(self) -> core::option::Option<antecedent_core::diagnostic::RouteKind>
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn model_restriction(unevaluable_mass: antecedent_core::diagnostic::RouteMass) -> Self
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn outcome_name(self) -> &'static str
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn route_name(self) -> &'static str
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn unevaluable_mass(self) -> antecedent_core::diagnostic::RouteMass
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::const fn unsupported_inference(unevaluable_mass: antecedent_core::diagnostic::RouteMass) -> Self
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::fn from_diagnostic(diagnostic: &antecedent_core::Diagnostic) -> core::option::Option<Self>
+pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::fn to_diagnostic(self) -> antecedent_core::Diagnostic
 pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child(&self, threads: u32, bytes: u64) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child_product(&self, threads: u32, count: u64, width: u64) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child_request(&self, request: antecedent_core::execution::AdmissionRequest) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
@@ -7635,6 +7934,14 @@ pub fn <antecedent_core::inspect::ReuseSnapshot>::fn name(&self) -> &str
 pub fn <antecedent_core::inspect::UncertaintyDemand>::const fn declared(joint: bool, level: f64) -> Self
 pub fn <antecedent_core::inspect::UncertaintyDemand>::const fn joint(self) -> bool
 pub fn <antecedent_core::inspect::UncertaintyDemand>::const fn level(self) -> f64
+pub fn <antecedent_core::intervention::CapabilityRefusal>::const fn operation(self) -> &'static str
+pub fn <antecedent_core::intervention::CapabilityRefusal>::const fn reason(self) -> &'static str
+pub fn <antecedent_core::intervention::ExecutionSurface>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::intervention::ExecutionSurface>::fn admit(self, intervention: &antecedent_core::Intervention, temporal: core::option::Option<&antecedent_core::TemporalPolicy>) -> core::result::Result<antecedent_core::intervention::InterventionOperation, antecedent_core::intervention::AdmitError>
+pub fn <antecedent_core::intervention::ExecutionSurface>::fn admit_operation(self, operation: &antecedent_core::intervention::InterventionOperation) -> core::result::Result<(), antecedent_core::intervention::CapabilityRefusal>
+pub fn <antecedent_core::intervention::ExecutionSurface>::fn supports(self, operation: &antecedent_core::intervention::InterventionOperation) -> bool
+pub fn <antecedent_core::intervention::InterventionOperation>::const fn name(&self) -> &'static str
+pub fn <antecedent_core::intervention::InterventionOperation>::fn initial_state(law_name: impl core::convert::Into<alloc::sync::Arc<str>>, level: antecedent_core::Value) -> core::result::Result<Self, antecedent_core::InterventionError>
 pub fn <antecedent_core::measurement_model::CorrectedFunctionalRecord>::const fn has_interval(&self) -> bool
 pub fn <antecedent_core::measurement_model::DifferentialAxis>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::measurement_model::MeasurementInference>::const fn as_str(self) -> &'static str
@@ -7799,6 +8106,9 @@ pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn work(self
 pub fn antecedent_core::blake3_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::clip_value(value: f64, lower: f64, upper: f64) -> f64
 pub fn antecedent_core::default_user_threads() -> u32
+pub fn antecedent_core::device_reservation::admit_fold(ctx: &antecedent_core::ExecutionContext, scratch: &antecedent_core::scratch_pool::ScratchPool, threads: u32, bytes: u64) -> core::result::Result<antecedent_core::device_reservation::FoldAdmission, antecedent_core::device_reservation::CpuAdmissionError>
+pub fn antecedent_core::device_reservation::place_physical_predictions(n_rows: usize, folds: &[(&[u64], &[f64])]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_core::device_reservation::PredictionOrderError>
+pub fn antecedent_core::device_reservation::within_declared_tolerance(left: f64, right: f64, tolerance: antecedent_core::PhysicalTolerance) -> bool
 pub fn antecedent_core::execution::splitmix64(state: &mut u64) -> u64
 pub fn antecedent_core::execution_attempt::observe_execution<T, E>(execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 pub fn antecedent_core::fnv1a_u64(bytes: &[u8]) -> u64
@@ -7843,6 +8153,7 @@ pub mod antecedent_core::route_memory
 pub mod antecedent_core::sampling_design
 pub mod antecedent_core::schema
 pub mod antecedent_core::scientific_target
+pub mod antecedent_core::scratch_admission
 pub mod antecedent_core::scratch_pool
 pub mod antecedent_core::search
 pub mod antecedent_core::search_budget
@@ -8103,6 +8414,8 @@ pub struct antecedent_core::ScoreFrequentist
 pub struct antecedent_core::ScoreFrequentist has private fields
 pub struct antecedent_core::ScoreModel
 pub struct antecedent_core::ScoreModel has private fields
+pub struct antecedent_core::ScratchLease
+pub struct antecedent_core::ScratchLease has private fields
 pub struct antecedent_core::SearchBudget has private fields
 pub struct antecedent_core::SearchBudget<'a>
 pub struct antecedent_core::SearchLimits
@@ -8178,6 +8491,7 @@ pub struct antecedent_core::cancellation_boundary::StopReceipt
 pub struct antecedent_core::cancellation_boundary::StopReceipt has private fields
 pub struct antecedent_core::cancellation_boundary::SuccessReceipt
 pub struct antecedent_core::cancellation_boundary::SuccessReceipt has private fields
+pub struct antecedent_core::device_reservation::CpuAdmission
 pub struct antecedent_core::device_reservation::DeviceReservationLease
 pub struct antecedent_core::device_reservation::DeviceReservationLease has private fields
 pub struct antecedent_core::device_reservation::DeviceReservationPool
@@ -8186,6 +8500,15 @@ pub struct antecedent_core::device_reservation::DeviceReservationRemainder
 pub struct antecedent_core::device_reservation::DeviceReservationRemainder has private fields
 pub struct antecedent_core::device_reservation::DeviceReservationRequest
 pub struct antecedent_core::device_reservation::DeviceReservationRequest has private fields
+pub struct antecedent_core::device_reservation::FoldAdmission
+pub struct antecedent_core::device_reservation::FoldAdmission has private fields
+pub struct antecedent_core::device_reservation::LearnerAdmission
+pub struct antecedent_core::device_reservation::LearnerAdmission has private fields
+pub struct antecedent_core::diagnostic::MeasuredMass
+pub struct antecedent_core::diagnostic::MeasuredMass has private fields
+pub struct antecedent_core::diagnostic::RouteCheck
+pub struct antecedent_core::diagnostic::RouteCheck has private fields
+pub struct antecedent_core::diagnostic::RouteMassError
 pub struct antecedent_core::execution::AdmissionLease
 pub struct antecedent_core::execution::AdmissionLease has private fields
 pub struct antecedent_core::execution::AdmissionPool
@@ -8228,6 +8551,7 @@ pub struct antecedent_core::inspect::ReuseSnapshot
 pub struct antecedent_core::inspect::ReuseSnapshot has private fields
 pub struct antecedent_core::inspect::UncertaintyDemand
 pub struct antecedent_core::inspect::UncertaintyDemand has private fields
+pub struct antecedent_core::intervention::CapabilityRefusal
 pub struct antecedent_core::measurement_model::BinaryArmRates
 pub struct antecedent_core::measurement_model::CorrectedFunctionalRecord
 pub struct antecedent_core::measurement_model::MeasurementBinding
@@ -8646,6 +8970,8 @@ pub use antecedent_core::scientific_target::TimeFrame = antecedent_core::TimeFra
 pub use antecedent_core::scientific_target::WorldAction = antecedent_core::WorldAction
 pub use antecedent_core::scientific_target::WorldBinding = antecedent_core::WorldBinding
 pub use antecedent_core::scientific_target::WorldCollection = antecedent_core::WorldCollection
+pub use antecedent_core::scratch_admission::ScratchLease = antecedent_core::ScratchLease
+pub use antecedent_core::scratch_admission::ScratchRefusal = antecedent_core::ScratchRefusal
 pub use antecedent_core::search::DEFAULT_SEARCH_MEMORY_BYTES = antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES
 pub use antecedent_core::search::SearchBudget = antecedent_core::SearchBudget
 pub use antecedent_core::search::SearchLimits = antecedent_core::SearchLimits
@@ -8936,11 +9262,13 @@ pub variant antecedent_core::Intervention::Soft { variable: antecedent_core::Var
 pub variant antecedent_core::Intervention::Stochastic { variable: antecedent_core::VariableId, policy: antecedent_core::StochasticPolicy }
 pub variant antecedent_core::Intervention::Transform { variable: antecedent_core::VariableId, expr: antecedent_core::ValueExpr, reads: antecedent_core::PolicyReads }
 pub variant antecedent_core::InterventionError::EmptyDynamicSchedule
+pub variant antecedent_core::InterventionError::EmptyInitialLaw
 pub variant antecedent_core::InterventionError::EmptySequence
 pub variant antecedent_core::InterventionError::Expression { fault: antecedent_core::ExpressionFault }
 pub variant antecedent_core::InterventionError::InvalidStochasticPolicy { message: &'static str }
 pub variant antecedent_core::InterventionError::InvalidTemporalWindow { from: i32, until: i32 }
 pub variant antecedent_core::InterventionError::NonFiniteLevel
+pub variant antecedent_core::InterventionError::TimedSequence
 pub variant antecedent_core::LawOrigin::Measured
 pub variant antecedent_core::LawOrigin::ModelArtifact { artifact: alloc::sync::Arc<str> }
 pub variant antecedent_core::LawOrigin::Recovered { derivation: alloc::sync::Arc<str> }
@@ -9208,6 +9536,10 @@ pub variant antecedent_core::ScientificTargetError::TreatmentEqualsOutcome { id:
 pub variant antecedent_core::ScientificTargetError::UnexpectedReference { id: antecedent_core::ScientificWorldId }
 pub variant antecedent_core::ScientificTargetError::UnknownWorld { id: antecedent_core::ScientificWorldId }
 pub variant antecedent_core::ScientificTargetError::WorldsNotDistinct
+pub variant antecedent_core::ScratchRefusal::Cancelled
+pub variant antecedent_core::ScratchRefusal::HardLimit { bytes: u64, limit: u64 }
+pub variant antecedent_core::ScratchRefusal::Overflow
+pub variant antecedent_core::ScratchRefusal::PoolShort { bytes: u64 }
 pub variant antecedent_core::SearchStop::Cancelled
 pub variant antecedent_core::SearchStop::Depth
 pub variant antecedent_core::SearchStop::Memory
@@ -9342,10 +9674,39 @@ pub variant antecedent_core::cancellation_boundary::ProviderDisposition::Isolate
 pub variant antecedent_core::cancellation_boundary::ProviderDisposition::Refused
 pub variant antecedent_core::cancellation_boundary::UninterruptibleAdmission::Isolate
 pub variant antecedent_core::cancellation_boundary::UninterruptibleAdmission::Refuse
+pub variant antecedent_core::device_reservation::ArithmeticPath::NeuralF32
+pub variant antecedent_core::device_reservation::ArithmeticPath::ScientificF64
+pub variant antecedent_core::device_reservation::ComputeSelection::Accelerator
+pub variant antecedent_core::device_reservation::ComputeSelection::Cpu
+pub variant antecedent_core::device_reservation::CpuAdmissionError::Cancelled
+pub variant antecedent_core::device_reservation::CpuAdmissionError::FoldExceedsLease { requested_threads: u32, requested_bytes: u64, remaining_threads: u32, remaining_bytes: u64 }
+pub variant antecedent_core::device_reservation::CpuAdmissionError::LearnerExceedsLease { requested_threads: u32, requested_bytes: u64, remaining_threads: u32, remaining_bytes: u64 }
+pub variant antecedent_core::device_reservation::CpuAdmissionError::Overflow
+pub variant antecedent_core::device_reservation::CpuAdmissionError::Released
+pub variant antecedent_core::device_reservation::CpuAdmissionError::Scratch(antecedent_core::scratch_pool::ScratchFull)
 pub variant antecedent_core::device_reservation::DeviceReservationError::Cancelled
 pub variant antecedent_core::device_reservation::DeviceReservationError::ExceedsRemainder { requested_device_bytes: u64, requested_spill_bytes: u64, remaining_device_bytes: u64, remaining_spill_bytes: u64 }
 pub variant antecedent_core::device_reservation::DeviceReservationError::Overflow
 pub variant antecedent_core::device_reservation::DeviceReservationError::Released
+pub variant antecedent_core::device_reservation::DeviceReservationError::Unpromoted
+pub variant antecedent_core::device_reservation::PredictionOrderError::Duplicate { row: u64 }
+pub variant antecedent_core::device_reservation::PredictionOrderError::LengthMismatch
+pub variant antecedent_core::device_reservation::PredictionOrderError::Missing { row: u64 }
+pub variant antecedent_core::device_reservation::PredictionOrderError::Outside { row: u64 }
+pub variant antecedent_core::diagnostic::RouteKind::Censoring
+pub variant antecedent_core::diagnostic::RouteKind::ConstrainedDraws
+pub variant antecedent_core::diagnostic::RouteKind::Convergence
+pub variant antecedent_core::diagnostic::RouteKind::DependentResampling
+pub variant antecedent_core::diagnostic::RouteKind::MonteCarloError
+pub variant antecedent_core::diagnostic::RouteKind::Positivity
+pub variant antecedent_core::diagnostic::RouteKind::PosteriorEss
+pub variant antecedent_core::diagnostic::RouteKind::RHat
+pub variant antecedent_core::diagnostic::RouteMass::Measured(antecedent_core::diagnostic::MeasuredMass)
+pub variant antecedent_core::diagnostic::RouteMass::Unreported
+pub variant antecedent_core::diagnostic::RouteNativeDiagnostic::Check { kind: antecedent_core::diagnostic::RouteKind, check: antecedent_core::diagnostic::RouteCheck }
+pub variant antecedent_core::diagnostic::RouteNativeDiagnostic::ComputationalFailure(antecedent_core::diagnostic::RouteMass)
+pub variant antecedent_core::diagnostic::RouteNativeDiagnostic::ModelRestriction(antecedent_core::diagnostic::RouteMass)
+pub variant antecedent_core::diagnostic::RouteNativeDiagnostic::UnsupportedInference(antecedent_core::diagnostic::RouteMass)
 pub variant antecedent_core::execution::AdmissionError::Cancelled
 pub variant antecedent_core::execution::AdmissionError::ExceedsRemainder { requested_threads: u32, requested_bytes: u64, remaining_threads: u32, remaining_bytes: u64 }
 pub variant antecedent_core::execution::AdmissionError::Overflow
@@ -9387,6 +9748,23 @@ pub variant antecedent_core::inspect::InspectionRefusal::MissingRealization
 pub variant antecedent_core::inspect::InspectionRefusal::MissingReuse
 pub variant antecedent_core::inspect::InspectionRefusal::MissingTarget
 pub variant antecedent_core::inspect::InspectionRefusal::MissingUncertaintyDemand
+pub variant antecedent_core::intervention::AdmitError::Invalid(antecedent_core::InterventionError)
+pub variant antecedent_core::intervention::AdmitError::Refused(antecedent_core::intervention::CapabilityRefusal)
+pub variant antecedent_core::intervention::ExecutionSurface::Counterfactual
+pub variant antecedent_core::intervention::ExecutionSurface::Cyclic
+pub variant antecedent_core::intervention::ExecutionSurface::Static
+pub variant antecedent_core::intervention::ExecutionSurface::Temporal
+pub variant antecedent_core::intervention::InterventionOperation::Assign { variable: antecedent_core::VariableId, expr: antecedent_core::ValueExpr, reads: antecedent_core::PolicyReads }
+pub variant antecedent_core::intervention::InterventionOperation::Dynamic { rule: antecedent_core::DynamicRuleId, active_at: alloc::sync::Arc<[i32]>, action: alloc::boxed::Box<antecedent_core::intervention::InterventionOperation> }
+pub variant antecedent_core::intervention::InterventionOperation::InitialState { law_name: alloc::sync::Arc<str>, level: antecedent_core::Value }
+pub variant antecedent_core::intervention::InterventionOperation::Pulse { at: i32, action: alloc::boxed::Box<antecedent_core::intervention::InterventionOperation> }
+pub variant antecedent_core::intervention::InterventionOperation::Sequence(alloc::sync::Arc<[antecedent_core::intervention::InterventionOperation]>)
+pub variant antecedent_core::intervention::InterventionOperation::Set { variable: antecedent_core::VariableId, value: antecedent_core::Value }
+pub variant antecedent_core::intervention::InterventionOperation::Shift { variable: antecedent_core::VariableId, delta: antecedent_core::Value }
+pub variant antecedent_core::intervention::InterventionOperation::Soft { variable: antecedent_core::VariableId, mechanism: antecedent_core::MechanismOverride }
+pub variant antecedent_core::intervention::InterventionOperation::Stochastic { variable: antecedent_core::VariableId, policy: antecedent_core::StochasticPolicy }
+pub variant antecedent_core::intervention::InterventionOperation::Sustained { from: i32, until: i32, action: alloc::boxed::Box<antecedent_core::intervention::InterventionOperation> }
+pub variant antecedent_core::intervention::InterventionOperation::Transform { variable: antecedent_core::VariableId, expr: antecedent_core::ValueExpr, reads: antecedent_core::PolicyReads }
 pub variant antecedent_core::measurement_model::ArmBinding::AllArms
 pub variant antecedent_core::measurement_model::ArmBinding::Arm(alloc::string::String)
 pub variant antecedent_core::measurement_model::DifferentialAxis::Arm

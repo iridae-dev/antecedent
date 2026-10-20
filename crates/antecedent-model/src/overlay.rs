@@ -4,9 +4,10 @@
 
 use std::sync::Arc;
 
+use antecedent_core::intervention::{AdmitError, ExecutionSurface};
 use antecedent_core::{
     Intervention, InterventionSequence, MechanismOverride, PolicyReads, StochasticPolicy,
-    TemporalPolicy, ValueExpr, VariableId,
+    TemporalPolicy, Value, ValueExpr, VariableId,
 };
 use antecedent_graph::DenseNodeId;
 
@@ -176,6 +177,7 @@ impl InterventionOverlay {
     ) -> Result<Self, ModelError> {
         let mut overlay = Self::observational(model.n_nodes());
         for iv in interventions {
+            admit_static(iv, None)?;
             apply_intervention(model, &mut overlay, iv, true, 0)?;
         }
         // Checked once here rather than per-variant inside `apply_intervention`: the
@@ -184,6 +186,52 @@ impl InterventionOverlay {
         overlay.validate()?;
         overlay.plan_order(model)?;
         Ok(overlay)
+    }
+
+    /// Execute one intervention on a static model.
+    ///
+    /// `temporal` of `None` is the untimed intervention. A pulse, a sustained
+    /// window, and an initial-state change are refused. A shift stays a shift
+    /// and a soft replacement stays a mechanism replacement.
+    ///
+    /// # Errors
+    ///
+    /// [`ModelError::Unsupported`] naming the refused operation, or the errors
+    /// of [`Self::from_interventions`].
+    pub fn from_declared(
+        model: &CompiledCausalModel,
+        intervention: &Intervention,
+        temporal: Option<&TemporalPolicy>,
+    ) -> Result<Self, ModelError> {
+        admit_static(intervention, temporal)?;
+        Self::from_interventions(model, std::slice::from_ref(intervention))
+    }
+
+    /// Refuse an initial-state change. A static model has no initial-state law
+    /// to replace, and the change is not applied as a hard set.
+    ///
+    /// # Errors
+    ///
+    /// [`ModelError::Unsupported`] naming `initial_state_change`.
+    pub fn from_initial_state(
+        model: &CompiledCausalModel,
+        law_name: &str,
+        level: f64,
+    ) -> Result<Self, ModelError> {
+        let _ = model;
+        let operation = antecedent_core::intervention::InterventionOperation::initial_state(
+            law_name,
+            Value::f64(level),
+        )
+        .map_err(|error| ModelError::Unsupported { message: error.to_string() })?;
+        ExecutionSurface::Static.admit_operation(&operation).map_err(|refusal| {
+            ModelError::Unsupported { message: refusal.to_string() }
+        })?;
+        Err(ModelError::Unsupported {
+            message: "an initial-state change replaces the initial-state law and is not a \
+                      hard clamp"
+                .into(),
+        })
     }
 
     /// Overlay for a temporal sequence at discrete step `t`.
@@ -224,6 +272,18 @@ impl InterventionOverlay {
         overlay.plan_order(model)?;
         Ok(overlay)
     }
+}
+
+fn admit_static(
+    intervention: &Intervention,
+    temporal: Option<&TemporalPolicy>,
+) -> Result<(), ModelError> {
+    ExecutionSurface::Static.admit(intervention, temporal).map_err(|error| match error {
+        AdmitError::Refused(refusal) => ModelError::Unsupported { message: refusal.to_string() },
+        AdmitError::Invalid(invalid) => ModelError::Unsupported { message: invalid.to_string() },
+        other => ModelError::Unsupported { message: other.to_string() },
+    })?;
+    Ok(())
 }
 
 fn program_conflict(subject: String) -> ModelError {
@@ -708,5 +768,48 @@ mod tests {
         assert!(idle.hard_set[0].is_none());
         let again = InterventionOverlay::from_sequence_at(&model, &seq, 2).unwrap();
         assert_eq!(again.hard_set[0], Some(1.0));
+    }
+
+    #[test]
+    fn a_static_set_matches_the_cyclic_operation_and_other_actions_are_not_clamps() {
+        let g = Dag::with_variables(1);
+        let model = CompiledCausalModel::compile(g).unwrap();
+        let variable = VariableId::from_raw(0);
+        let set = Intervention::set(variable, Value::f64(2.0));
+        let static_op = antecedent_core::intervention::ExecutionSurface::Static
+            .admit(&set, None)
+            .unwrap();
+        let cyclic_op = antecedent_core::intervention::ExecutionSurface::Cyclic
+            .admit(&set, None)
+            .unwrap();
+        assert_eq!(static_op, cyclic_op);
+        let overlay = InterventionOverlay::from_declared(&model, &set, None).unwrap();
+        assert_eq!(overlay.hard_set[0], Some(2.0));
+        assert_eq!(overlay.shifts[0], 0.0);
+        assert!(overlay.soft[0].is_none());
+
+        let shift = Intervention::shift(variable, Value::f64(2.0));
+        let shifted = InterventionOverlay::from_declared(&model, &shift, None).unwrap();
+        assert!(shifted.hard_set[0].is_none());
+        assert!((shifted.shifts[0] - 2.0).abs() < 1e-12);
+        let soft = Intervention::soft(variable, MechanismOverride::constant(2.0));
+        let replaced = InterventionOverlay::from_declared(&model, &soft, None).unwrap();
+        assert!(replaced.hard_set[0].is_none());
+        assert!(replaced.soft[0].is_some());
+
+        let pulse = InterventionOverlay::from_declared(
+            &model,
+            &set,
+            Some(&TemporalPolicy::pulse(0)),
+        );
+        assert!(pulse.unwrap_err().to_string().contains("pulse"));
+        let sustained = InterventionOverlay::from_declared(
+            &model,
+            &set,
+            Some(&TemporalPolicy::sustained(0, 0)),
+        );
+        assert!(sustained.unwrap_err().to_string().contains("sustained"));
+        let initial = InterventionOverlay::from_initial_state(&model, "x0", 2.0);
+        assert!(initial.unwrap_err().to_string().contains("initial_state_change"));
     }
 }

@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use crate::intervention::TemporalPolicy;
-use crate::{InitialLaw, Intervention, TargetPopulation, VariableId};
+use crate::{InitialLaw, Intervention, TargetPopulation, Value, VariableId};
 
 use super::QueryError;
 use super::functional::OutcomeFunctional;
@@ -103,6 +103,15 @@ impl FeedbackDeclaration {
             ));
         }
         Ok(())
+    }
+
+    /// Hard assignment of `variable` to this declaration's dose.
+    ///
+    /// The dose is [`Intervention::Set`]. It is not a shift. Timing stays on the
+    /// response's [`TemporalPolicy`].
+    #[must_use]
+    pub fn dose(&self, variable: VariableId) -> Intervention {
+        Intervention::set(variable, Value::f64(self.level))
     }
 }
 
