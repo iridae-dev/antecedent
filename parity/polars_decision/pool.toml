@@ -1,0 +1,30 @@
+# Fixed process configuration for a Polars thread pool.
+# Direct Arrow remains the preparation path. This file stores no timings.
+# Choices for that configuration are admission, isolation, or a refusal.
+# The selected choice is a refusal: no Polars crate is linked, so a study
+# thread count is not applied to a process pool.
+
+schema = 1
+preparation_path = "direct_arrow"
+scope = "process"
+configuration = "fixed"
+disposition = "refusal"
+pool_linked = false
+per_study_resize = "refused"
+polars_feature = "polars = []"
+dependency_added = false
+decision_record = "parity/polars_decision/decision.toml"
+why = """
+A Polars thread pool is fixed for the process when a crate is linked. This
+repository links no Polars crate, so the fixed configuration is a refusal. A
+study thread count is not applied. Direct Arrow remains the preparation path.
+Latency, RSS, spill, build, MSRV, and wheel were not measured.
+"""
+
+[measurements]
+latency = "not_measured"
+rss = "not_measured"
+spill = "not_measured"
+build = "not_measured"
+msrv = "not_measured"
+wheel = "not_measured"
