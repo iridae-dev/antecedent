@@ -1,0 +1,45 @@
+feature_id = "estimate.bayesian_local_ratio"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.bayesian_local_ratio
+# (EstimatorId::BayesianLocalRatio, public name bayesian.local_ratio; plan ids
+# bayesian.fuzzy_rd and bayesian.regression_kink).
+#
+# The cited papers supply the estimands: the fuzzy regression-discontinuity
+# effect as the outcome jump over the treatment jump at the cutoff, and the
+# regression-kink effect as the outcome slope change over the treatment slope
+# change. The Bayesian layer is the repository's own construction, not a
+# procedure from either paper: the fixed-bandwidth local-linear Gaussian model
+# of estimate.bayesian_rd is fitted to the outcome and to the received
+# treatment on the same design, independent zero-centered Normal coefficient
+# priors and a plug-in 2x2 residual covariance, and the numerator and
+# denominator coefficients are drawn jointly so the ratio draws carry the
+# outcome-treatment residual correlation. Continuity at the cutoff, exclusion
+# of the cutoff from the outcome except through treatment and, for the jump,
+# monotone compliance stay declared; the prior supplies none of them.
+papers = [
+ { title = "Identification and Estimation of Treatment Effects with a Regression-Discontinuity Design", doi = "10.1111/1468-0262.00183", sections = ["fuzzy design: ratio of the outcome and treatment discontinuities"] },
+ { title = "Inference on Causal Effects in a Generalized Regression Kink Design", doi = "10.3982/ECTA11224", sections = ["kink estimand as the ratio of outcome and treatment slope changes"] },
+]
+
+implementation_deviations = [
+ "Unweighted rectangular window with a caller-declared symmetric bandwidth and local-linear fits on both sides; no kernel weighting, data-driven bandwidth, local quadratic or cubic fit, or robust bias correction of the frequentist local-polynomial row.",
+ "A ratio of two Normal posteriors has no finite mean: the reported point is the posterior median and the posterior mean of the ratio is never reported.",
+ "When the denominator posterior has mass within a declared floor of zero above the interval's tail mass, the credible interval is withheld and the mass is reported with a weak-first-stage diagnostic; the ratio is not divided through.",
+ "Residual covariance is a plug-in 2x2 estimate and is not given a prior or integrated out; the correlation is clamped away from one so the joint draw stays positive definite.",
+ "Manipulation, density, continuity-placebo and covariate-adjusted checks are not provided.",
+ "The route is explicitly unlicensed and uncalibrated: no coverage record covers the credible interval.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/bayesian_local_ratio/tests.rs (fuzzy_jump_posterior_matches_the_independent_bivariate_normal_ratio, kink_posterior_uses_the_slope_change_coefficients, a_denominator_with_mass_near_zero_withholds_the_interval_and_reports_the_mass, thin_windows_and_invalid_inputs_are_refused, a_constant_treatment_is_flagged_weak_not_divided_through)",
+ "crates/antecedent/tests/bayesian_design_routes.rs (local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak)",
+ "python/tests/test_bayesian_design_routes.py (test_bayesian_local_ratio_recovers_truth_and_withholds_a_weak_interval)",
+ "independent bivariate Normal ratio draws computed inside the test, not by the library",
+]

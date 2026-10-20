@@ -109,9 +109,10 @@ structures = ["accepted", "graph_posterior"]
 reason = "Tier-rule backgrounds are an explicit structure source."
 
 [[n_a]]
+queries = ["InterventionResponse"]
 graph_classes = ["CoDetermined", "Unknown"]
 inferences = ["Bayesian"]
-reason = "Tier-rule cells are Frequentist (cell.aipw joint / two-scenario envelope)."
+reason = "Joint InterventionResponse on a tier background is Frequentist (cell.aipw joint); AverageEffect is the tier-rule query with a Bayesian posterior."
 
 [[n_a]]
 queries = ["AverageEffect", "InterventionResponse"]

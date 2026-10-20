@@ -129,8 +129,21 @@ reason = "InterferenceQuery has no native refuter suite; ATE refuters do not app
 
 [[closed]]
 queries = ["ConditionalEffect"]
-graph_classes = ["Admg", "TemporalAdmg"]
-reason = "ConditionalEffect on Admg or TemporalAdmg has no compile arm; Dag, Cpdag, and Pag are licensed."
+graph_classes = ["TemporalAdmg"]
+reason = "A contrast on a TemporalAdmg is not identified: the contemporaneous projection answers a different target than the Pulse/Sustained contrast, so ConditionalEffect on TemporalAdmg is refused. The typed refusal names the next attempts: TemporalConditionalPulse or TemporalConditionalSustained on a TemporalDag when the lag structure has no latent confounding, or the static Admg for the contemporaneous conditional effect."
+
+[[closed]]
+queries = ["ConditionalEffect"]
+graph_classes = ["Admg"]
+structures = ["graph_posterior"]
+reason = "ConditionalEffect on Admg is licensed for an explicit or accepted graph at validation none; graph-posterior mixing over Admg atoms is not staged."
+
+[[closed]]
+queries = ["ConditionalEffect"]
+graph_classes = ["Admg"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "ConditionalEffect on Admg is licensed at validation none only; cheap and full are not licensed: no refuter suite is staged for the IDC contrast over a modifier law."
 
 [[closed]]
 queries = ["PathSpecificEffect"]

@@ -141,9 +141,9 @@ Do not edit this block by hand.
 |---|---:|---:|---:|
 | AnomalyAttribution | 4 | 36 | 140 |
 | AverageDerivative | 20 | 68 | 92 |
-| AverageEffect | 92 | 88 | 0 |
+| AverageEffect | 94 | 86 | 0 |
 | ChangeAttribution | 4 | 36 | 140 |
-| ConditionalEffect | 54 | 90 | 36 |
+| ConditionalEffect | 58 | 90 | 32 |
 | Counterfactual | 20 | 36 | 124 |
 | DirectionalDerivative | 20 | 68 | 92 |
 | Elasticity | 20 | 68 | 92 |
@@ -164,7 +164,7 @@ Do not edit this block by hand.
 | TransportQuery | 4 | 90 | 86 |
 | InterferenceQuery | 2 | 90 | 88 |
 
-717 licensed cells.
+723 licensed cells.
 
 | Query | Graph class | Structures | Inferences | Validations | Cells |
 |---|---|---|---|---|---:|
@@ -179,11 +179,12 @@ Do not edit this block by hand.
 | AverageEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | AverageEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | AverageEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| AverageEffect | CoDetermined | explicit | Frequentist | none | 1 |
-| AverageEffect | Unknown | explicit | Frequentist | none | 1 |
+| AverageEffect | CoDetermined | explicit | Frequentist, Bayesian | none | 2 |
+| AverageEffect | Unknown | explicit | Frequentist, Bayesian | none | 2 |
 | ChangeAttribution | Dag | explicit | Frequentist, Bayesian | none | 2 |
 | ChangeAttribution | TemporalDag | explicit | Frequentist, Bayesian | none | 2 |
 | ConditionalEffect | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ConditionalEffect | Admg | explicit, accepted | Frequentist, Bayesian | none | 4 |
 | ConditionalEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ConditionalEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | Counterfactual | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |

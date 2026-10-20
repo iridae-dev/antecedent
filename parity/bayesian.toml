@@ -399,3 +399,33 @@ evidence_test = "crates/antecedent-validate/src/bayesian_checks/tests.rs"
 evidence_assertion = "sbc_glm_families_rank_on_the_response_scale"
 limitations = "Executed 100-replicate rank checks for Bernoulli logit, Bernoulli probit and Poisson models on one fixed design; HMC ranks use one draw per independent chain. SBC checks posterior computation under the model prior, not repeated-sampling causal coverage or identification."
 notes = "The calibration-gate test is ignored in ordinary unit suites and executed explicitly by the calibration gate."
+
+[[capabilities]]
+id = "bayes.estimate.panel_did"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "crates/antecedent-estimate/src/bayesian_panel_did/tests.rs"
+evidence_test = "crates/antecedent/tests/bayesian_design_routes.rs"
+evidence_assertion = "panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared"
+limitations = "Normal-Inverse-Gamma posterior of the same difference in outcome changes the frequentist panel DiD row estimates, with independent units (a cluster holding more than one unit is refused). Parallel untreated trends and no anticipation stay declared; the prior supplies and the posterior tests neither. Unlicensed and uncalibrated: no coverage record covers the credible interval, and a posterior is not a calibrated result."
+notes = "Plan id bayesian.panel_did; covers the cross-section, panel, augmented and never-treated event-study designs. Posterior values are checked against closed forms computed inside the tests."
+
+[[capabilities]]
+id = "bayes.estimate.synthetic_control"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "crates/antecedent-estimate/src/bayesian_synthetic_control/tests.rs"
+evidence_assertion = "synthetic_control_posterior_recovers_the_effect_and_records_convergence"
+evidence_test = "crates/antecedent/tests/bayesian_design_routes.rs"
+limitations = "Dirichlet donor-weight posterior with declared-coefficient AR(1) errors, sampled by Metropolis-within-Gibbs over four chains gated by split R-hat and effective sample size. The convex-donor premise, unaffected donors and a persisting pre-period relation stay declared; a good pre-fit does not establish them for the post period. The difference-in-differences synthetic variant has no posterior. Unlicensed and uncalibrated: no coverage record covers the credible interval."
+notes = "Plan id bayesian.synthetic_control. The weight posterior is checked against simplex quadrature computed inside the tests."
+
+[[capabilities]]
+id = "bayes.estimate.local_ratio"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "crates/antecedent-estimate/src/bayesian_local_ratio/tests.rs"
+evidence_test = "crates/antecedent/tests/bayesian_design_routes.rs"
+evidence_assertion = "local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak"
+limitations = "Fixed-bandwidth local-linear Gaussian posterior of the fuzzy-jump or regression-kink ratio under independent Normal coefficient priors and a plug-in residual covariance. Continuity, exclusion and, for the jump, monotone compliance stay declared. The posterior mean of a ratio of Normals does not exist, so the median is reported and the credible interval is withheld when the denominator has posterior mass near zero. Unlicensed and uncalibrated: no coverage record covers the credible interval."
+notes = "Plan ids bayesian.fuzzy_rd and bayesian.regression_kink. Draws are checked against an independent bivariate Normal ratio computed inside the tests."

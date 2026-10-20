@@ -1,0 +1,42 @@
+feature_id = "estimate.bayesian_panel_did"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.bayesian_panel_did
+# (EstimatorId::BayesianPanelDid, public name bayesian.panel_did).
+#
+# The cited papers supply the difference-in-differences estimands: the
+# group-time (cohort-by-period) average effect on the treated against
+# never-treated controls, and the covariate-conditional doubly robust form for
+# the augmented design. The Bayesian layer on top of those estimands is the
+# repository's own conjugate construction, not a procedure from either paper:
+# a Gaussian outcome model `y | beta, sigma2 ~ N(X beta, sigma2 I)` with a
+# Normal-Inverse-Gamma prior on the change-score (or per-arm) regression, whose
+# marginal posterior of the group coefficient is a Student-t. The prior supplies
+# no identifying premise; parallel untreated trends and no anticipation stay
+# declared and are not tested.
+papers = [
+ { title = "Difference-in-differences with multiple time periods", doi = "10.1016/j.jeconom.2020.12.001", sections = ["group-time average treatment effects against never-treated controls", "post-adoption event-time aggregation"] },
+ { title = "Doubly robust difference-in-differences estimators", doi = "10.1016/j.jeconom.2020.06.003", sections = ["covariate-conditional parallel trends and the augmented two-period estimand"] },
+]
+
+implementation_deviations = [
+ "Posterior, not a design-based estimator: the point is the posterior mean (or median) of the same difference in outcome changes under a Gaussian Normal-Inverse-Gamma model, and the interval is an equal-tailed credible interval. It is neither the cluster-robust CR1 interval of the frequentist row nor the paper's inference.",
+ "Units are modelled as independent. A cluster that holds more than one unit is refused rather than silently treated as independent; there is no hierarchical or cluster-level likelihood.",
+ "The augmented form fits per-arm Gaussian regressions on the supplied covariates and forms the two-arm contrast; it is a model-based outcome-regression posterior, not the doubly robust estimator analysed in the paper, and no propensity model is used.",
+ "Event-time contrasts are pointwise marginal posteriors that share the never-treated subjects; nothing is claimed simultaneously across the curve, and pre-adoption leads are descriptive posteriors, not a test of parallel trends.",
+ "Prior scale and the Inverse-Gamma variance prior are caller-declared with a diffuse default; no prior sensitivity or calibration of the credible interval is claimed.",
+ "The route is explicitly unlicensed and uncalibrated: no coverage record covers the credible interval.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/bayesian_panel_did/tests.rs (cross_section_posterior_matches_the_analytic_normal_inverse_gamma_posterior, panel_posterior_matches_the_analytic_change_score_posterior, augmented_posterior_matches_the_analytic_two_arm_regression_posterior, dependent_units_and_thin_designs_are_refused_with_the_next_attempt, invalid_priors_and_non_finite_outcomes_are_refused)",
+ "crates/antecedent/tests/bayesian_design_routes.rs (panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared, panel_did_refuses_shared_clusters_and_foreign_backends_with_next_attempts)",
+ "python/tests/test_bayesian_design_routes.py (test_bayesian_panel_did_matches_the_closed_form_and_stays_unlicensed)",
+ "closed-form Normal-Inverse-Gamma posterior computed by counting and sums of squares inside the tests, independent of the library",
+]

@@ -143,6 +143,12 @@ status = "bound"
 python = "antecedent.transport._temporal_extensions.consume_temporal_initial_state_artifact"
 
 [[entry]]
+rust = "antecedent::analysis::api::consume_period_refresh_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._period_refresh.consume_period_refresh_artifact"
+
+[[entry]]
 rust = "antecedent::analysis::api::consume_temporal_refresh_artifact"
 kind = "fn"
 status = "bound"

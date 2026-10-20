@@ -1,0 +1,42 @@
+feature_id = "estimate.bayesian_synthetic_control"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.bayesian_synthetic_control
+# (EstimatorId::BayesianSyntheticControl, public name
+# bayesian.synthetic_control).
+#
+# The cited paper supplies the synthetic-control estimand: the average
+# post-intervention gap between the treated unit and the donor-weighted
+# average of the donors' outcomes, with weights on the simplex. The Bayesian
+# layer is the repository's own construction, not a procedure from the paper:
+# a Dirichlet prior on the donor-weight simplex, a stationary Gaussian AR(1)
+# error with a declared coefficient and an Inverse-Gamma innovation variance,
+# sampled by pairwise-transfer Metropolis steps with a Gibbs update of the
+# variance over four overdispersed chains gated by split R-hat and effective
+# sample size. The convex-donor premise, donors unaffected by the intervention
+# and a persisting pre-period relation stay declared; a good pre-fit does not
+# establish them for the post period.
+papers = [
+ { title = "Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California's Tobacco Control Program", doi = "10.1198/jasa.2009.ap08746", sections = ["donor weights constrained to the simplex", "treated-unit counterfactual as the weighted donor outcome"] },
+]
+
+implementation_deviations = [
+ "Posterior, not the constrained least-squares or predictor-matched weight selection of the paper: weights are a Dirichlet-prior posterior given pre-period outcomes only, with no predictor matrix or covariate balance step.",
+ "The AR(1) coefficient is declared, not estimated, and the counterfactual continues the error process from the last pre-period residual; a misdeclared coefficient is not detected.",
+ "The posterior has no closed form; it is sampled and is reported only when split R-hat and effective sample size pass their gates, otherwise the fit is refused rather than reported.",
+ "Placebo-in-space and placebo-in-time permutation inference of the paper is not performed; the interval is an equal-tailed credible interval and carries no repeated-sampling guarantee.",
+ "A treated path outside the donor hull is reported as a diagnostic, not repaired by extrapolation; the difference-in-differences synthetic variant is not given a posterior and is refused naming the frequentist route.",
+ "The route is explicitly unlicensed and uncalibrated: no coverage record covers the credible interval.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/bayesian_synthetic_control/tests.rs (posterior_matches_the_simplex_quadrature_under_independent_errors, ar1_errors_carry_the_last_residual_into_the_post_period_counterfactual, a_concentrated_dirichlet_prior_pulls_the_weights_toward_equal, a_treated_path_outside_the_donor_hull_is_reported_not_repaired, malformed_panels_and_specs_are_refused)",
+ "crates/antecedent/tests/bayesian_design_routes.rs (synthetic_control_posterior_recovers_the_effect_and_records_convergence)",
+ "independent simplex quadrature of the weight posterior computed inside the test, not by the library sampler",
+]
