@@ -221,7 +221,9 @@ mod tests {
     #[test]
     fn bayesian_temporal_class_operation_rejects_frequentist_mode() {
         let error = checked_settings(&InferenceMode::Frequentist, RefuteSuite::None).unwrap_err();
-        assert!(matches!(error, CausalError::Compile { .. }));
+        let records = error.route_diagnostics();
+        assert_eq!(records.len(), 1, "{error}");
+        assert!(records[0].is_unsupported_inference(), "{error}");
     }
 
     #[test]

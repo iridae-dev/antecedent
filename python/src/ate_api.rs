@@ -758,6 +758,20 @@ pub(crate) fn ate_result_from_analysis(
             .iter()
             .map(|d| format!("{}: {}", d.code, d.message))
             .collect(),
+        route_diagnostics: result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.starts_with("route."))
+            .filter_map(|d| antecedent_core::diagnostic::RouteNativeDiagnostic::from_diagnostic(d))
+            .map(|record| {
+                (
+                    record.route_name().to_owned(),
+                    record.outcome_name().to_owned(),
+                    record.failed(),
+                    record.unevaluable_mass().get(),
+                )
+            })
+            .collect(),
         provenance_node_count: result.provenance.len(),
         plan_id,
         modality,

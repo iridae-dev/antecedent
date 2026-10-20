@@ -296,9 +296,9 @@ impl super::CheckedRandomizedOperation {
         _ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let InferenceMode::Bayesian(config) = &self.result_context.inference else {
-            return Err(CausalError::Compile {
-                message: "Bayesian randomized execution requires Bayesian inference".into(),
-            });
+            return Err(CausalError::unsupported_inference(
+                "Bayesian randomized execution requires Bayesian inference",
+            ));
         };
         if matches!(self.query.design, RandomizationDesign::Switchback { .. }) {
             return self.execute_bayesian_switchback(data, config);

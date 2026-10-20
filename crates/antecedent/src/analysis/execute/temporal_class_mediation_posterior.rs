@@ -335,9 +335,9 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         use antecedent_estimate::bayesian_mediation::require_gaussian_mediation;
         let InferenceMode::Bayesian(cfg) = &self.inference else {
-            return Err(CausalError::Unsupported {
-                message: "Bayesian TemporalCpdag/Pag graph-posterior mediation requires Bayesian inference",
-            });
+            return Err(CausalError::unsupported_inference(
+                "Bayesian TemporalCpdag/Pag graph-posterior mediation requires Bayesian inference",
+            ));
         };
         let cfg = cfg.clone();
         let estimator = bayesian_gcomp(&cfg, ctx);

@@ -898,6 +898,10 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: ChangeAttribution: GCM distribution-change Shapley (``total_change``
     #: is also ``estimate.ate``).
     change_attribution: ChangeAttributionResult | None = None
+    #: Route-native diagnostics on the result (the ``route.*`` diagnostics): one mapping per
+    #: record with ``route``, ``outcome``, ``failed`` and ``unevaluable_mass`` (``None`` when
+    #: the route did not report a mass). The same shape as ``CausalError.route_diagnostics``.
+    route_diagnostics: Sequence[Mapping[str, Any]] = ()
 
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)

@@ -125,7 +125,29 @@ impl StatsError {
     pub const fn route_diagnostic(&self) -> Option<RouteNativeDiagnostic> {
         match self {
             Self::Route { diagnostic, .. } => Some(*diagnostic),
+            // A singular design is a failed solve, not a failed check. The error reports no
+            // mass, so the mass is unreported.
+            Self::RankDeficient { .. } | Self::SingularLocalDesign { .. } => {
+                Some(RouteNativeDiagnostic::computational_failure(
+                    antecedent_core::diagnostic::RouteMass::unreported(),
+                ))
+            }
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod singular_route_tests {
+    use super::StatsError;
+
+    #[test]
+    fn a_singular_design_is_a_computational_failure_with_the_same_message() {
+        let error = StatsError::RankDeficient { rank: 1, ncols: 2 };
+        assert_eq!(error.to_string(), "rank deficient: rank=1 ncols=2");
+        let record = error.route_diagnostic().expect("a singular design carries a record");
+        assert!(record.is_computational_failure());
+        assert!(record.unevaluable_mass().is_unreported());
+        assert!(StatsError::Shape { message: "x" }.route_diagnostic().is_none());
     }
 }

@@ -382,9 +382,9 @@ fn evaluate_class_atom_bayesian(
     let cfg = match &study.inference {
         InferenceMode::Bayesian(c) => c.clone(),
         InferenceMode::Frequentist => {
-            return Err(CausalError::Unsupported {
-                message: "evaluate_class_atom_bayesian requires inference=Bayesian",
-            });
+            return Err(CausalError::unsupported_inference(
+                "evaluate_class_atom_bayesian requires inference=Bayesian",
+            ));
         }
     };
     let est = bayesian_gcomp(&cfg, ctx);

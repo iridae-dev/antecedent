@@ -106,9 +106,9 @@ impl CheckedBayesianBasisAteExecution {
             });
         }
         let InferenceMode::Bayesian(config) = inference else {
-            return Err(CausalError::Unsupported {
-                message: "bayesian.basis.gcomp requires inference=Bayesian",
-            });
+            return Err(CausalError::unsupported_inference(
+                "bayesian.basis.gcomp requires inference=Bayesian",
+            ));
         };
         if config.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
             || config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian

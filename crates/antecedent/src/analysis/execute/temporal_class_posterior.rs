@@ -624,9 +624,9 @@ fn evaluate_temporal_class_atom_bayesian(
     let cfg = match &study.inference {
         InferenceMode::Bayesian(c) => c.clone(),
         InferenceMode::Frequentist => {
-            return Err(CausalError::Unsupported {
-                message: "evaluate_temporal_class_atom_bayesian requires inference=Bayesian",
-            });
+            return Err(CausalError::unsupported_inference(
+                "evaluate_temporal_class_atom_bayesian requires inference=Bayesian",
+            ));
         }
     };
     if query.is_multi_step_sustained() {
@@ -741,9 +741,9 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
     let cfg = match &study.inference {
         InferenceMode::Bayesian(c) => c,
         InferenceMode::Frequentist => {
-            return Err(CausalError::Unsupported {
-                message: "evaluate_temporal_class_atom_sequential_bayesian requires Bayesian",
-            });
+            return Err(CausalError::unsupported_inference(
+                "evaluate_temporal_class_atom_sequential_bayesian requires Bayesian",
+            ));
         }
     };
     let bayes = bayesian_gcomp(cfg, ctx);

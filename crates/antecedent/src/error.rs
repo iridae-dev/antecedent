@@ -698,6 +698,22 @@ impl CausalError {
         antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
     }
 
+    /// Refusal for an inference mode the route does not perform.
+    ///
+    /// The record is unsupported inference, not a failed check or a computational failure.
+    /// The refusal reports no mass, so the mass is unreported. The message is `summary`.
+    #[must_use = "the refusal is dropped if the error is discarded"]
+    pub fn unsupported_inference(summary: impl Into<String>) -> Self {
+        Self::Estimate(EstimationError::Prob(ProbError::Route {
+            summary: summary.into(),
+            diagnostics: vec![
+                antecedent_core::diagnostic::RouteNativeDiagnostic::unsupported_inference(
+                    antecedent_core::diagnostic::RouteMass::unreported(),
+                ),
+            ],
+        }))
+    }
+
     /// Route records carried by this error.
     ///
     /// A failed check is included. Model restriction, computational failure, and
@@ -709,8 +725,8 @@ impl CausalError {
             Self::Estimate(EstimationError::Prob(ProbError::Route { diagnostics, .. })) => {
                 diagnostics.clone()
             }
-            Self::Estimate(EstimationError::Stats(StatsError::Route { diagnostic, .. })) => {
-                vec![*diagnostic]
+            Self::Estimate(EstimationError::Stats(error)) => {
+                error.route_diagnostic().into_iter().collect()
             }
             Self::Data(error) | Self::Estimate(EstimationError::Data(error)) => {
                 error.route_diagnostic().into_iter().collect()

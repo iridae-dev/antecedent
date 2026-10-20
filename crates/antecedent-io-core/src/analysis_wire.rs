@@ -490,3 +490,35 @@ pub fn diagnostic_from_wire(w: &DiagnosticWire) -> Result<Diagnostic, IoError> {
             .into(),
     })
 }
+
+#[cfg(test)]
+mod route_diagnostic_wire_tests {
+    use super::{diagnostic_from_wire, diagnostic_to_wire};
+    use antecedent_core::diagnostic::{
+        RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic,
+    };
+
+    #[test]
+    fn route_records_round_trip_through_the_wire_with_their_mass() {
+        let measured = RouteMass::new(0.0625).expect("a finite mass");
+        let records = [
+            RouteNativeDiagnostic::check(RouteKind::Convergence, RouteCheck::new(false, measured)),
+            RouteNativeDiagnostic::check(RouteKind::RHat, RouteCheck::new(false, RouteMass::zero())),
+            RouteNativeDiagnostic::check(
+                RouteKind::PosteriorEss,
+                RouteCheck::new(true, RouteMass::unreported()),
+            ),
+            RouteNativeDiagnostic::unsupported_inference(RouteMass::unreported()),
+        ];
+        for record in records {
+            let diagnostic = record.to_diagnostic();
+            let wire = diagnostic_to_wire(&diagnostic);
+            let bytes = serde_json::to_vec(&wire).expect("the wire encodes");
+            let decoded: super::DiagnosticWire =
+                serde_json::from_slice(&bytes).expect("the wire decodes");
+            let restored = diagnostic_from_wire(&decoded).expect("the diagnostic decodes");
+            assert_eq!(restored, diagnostic);
+            assert_eq!(RouteNativeDiagnostic::from_diagnostic(&restored), Some(record));
+        }
+    }
+}

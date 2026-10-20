@@ -1043,16 +1043,7 @@ pub(super) fn chain_refusal_under_draw_controls(
 /// The record is unsupported inference, not a failed check or a computational
 /// failure. The refusal reports no mass, so the mass is unreported.
 pub(super) fn unsupported_inference_error(summary: &str) -> CausalError {
-    CausalError::Estimate(antecedent_estimate::EstimationError::Prob(
-        antecedent_prob::ProbError::Route {
-            summary: summary.into(),
-            diagnostics: vec![
-                antecedent_core::diagnostic::RouteNativeDiagnostic::unsupported_inference(
-                    antecedent_core::diagnostic::RouteMass::unreported(),
-                ),
-            ],
-        },
-    ))
+    CausalError::unsupported_inference(summary)
 }
 
 /// Refuse a posterior whose interval endpoints are not set by the posterior: the Monte Carlo
@@ -1081,6 +1072,41 @@ pub(super) fn enforce_draw_controls(posterior: &mut CausalPosterior) -> Result<(
     }
     posterior.diagnostics.notes.push(error.note());
     Ok(())
+}
+
+/// Route records of the checks a published posterior passed, with its measured unevaluable mass.
+///
+/// The Monte Carlo error check is recorded only when draw controls ran it and the endpoints were
+/// within tolerance. Records follow the fixed check order.
+pub(super) fn passed_route_records(
+    diagnostics: &antecedent_prob::InferenceDiagnostics,
+    unevaluable_mass: f64,
+) -> Vec<antecedent_core::diagnostic::RouteNativeDiagnostic> {
+    use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
+    let mass = RouteMass::new(unevaluable_mass).unwrap_or_else(|_| RouteMass::unreported());
+    let mut records = diagnostics.passed_route_records(mass);
+    if !records.is_empty()
+        && antecedent_estimate::endpoint_mcse_from_notes(&diagnostics.notes)
+            .is_some_and(|error| !error.exceeds_tolerance())
+    {
+        records.push(RouteNativeDiagnostic::check(
+            RouteKind::MonteCarloError,
+            RouteCheck::new(false, mass),
+        ));
+    }
+    records
+}
+
+/// Append the passed route records of a published posterior to `diagnostics`.
+pub(super) fn push_passed_route_diagnostics(
+    diagnostics: &mut Vec<Diagnostic>,
+    posterior: &CausalPosterior,
+) {
+    diagnostics.extend(
+        passed_route_records(&posterior.diagnostics, posterior.unevaluable_mass)
+            .into_iter()
+            .map(antecedent_core::diagnostic::RouteNativeDiagnostic::to_diagnostic),
+    );
 }
 
 impl super::Study {
@@ -1142,6 +1168,7 @@ impl super::Study {
         if let Some(cs) = posterior.conflict_summary.as_ref() {
             push_conflict_diagnostics(&mut extra_diagnostics, cs);
         }
+        push_passed_route_diagnostics(&mut extra_diagnostics, &posterior);
 
         clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
         let (posterior, refutations, predictive_checks) = self.validate_bayesian_gcomp(
@@ -1218,9 +1245,9 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let InferenceMode::Bayesian(cfg) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "tiered Bayesian average requires inference=Bayesian".into(),
-            });
+            return Err(CausalError::unsupported_inference(
+                "tiered Bayesian average requires inference=Bayesian",
+            ));
         };
         self.refuse_unsupported_tiered_average(query, cfg)?;
         let identifier_id = IdentifierId::GeneralizedAdjustment;
@@ -1558,9 +1585,9 @@ impl super::Study {
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
-                return Err(CausalError::Unsupported {
-                    message: "execute_pag_bayesian requires inference=Bayesian",
-                });
+                return Err(CausalError::unsupported_inference(
+                    "execute_pag_bayesian requires inference=Bayesian",
+                ));
             }
         };
         let est = bayesian_gcomp(&cfg, ctx);
@@ -1856,9 +1883,9 @@ impl super::Study {
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
-                return Err(CausalError::Unsupported {
-                    message: "graph-posterior discovery requires inference=Bayesian for effect mixture",
-                });
+                return Err(CausalError::unsupported_inference(
+                    "graph-posterior discovery requires inference=Bayesian for effect mixture",
+                ));
             }
         };
         let est = bayesian_gcomp(&cfg, ctx);
@@ -2266,9 +2293,9 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         if checked.is_none() && !self.inference.is_frequentist() {
-            return Err(CausalError::Unsupported {
-                message: "execute_graph_posterior_frequentist requires inference=Frequentist",
-            });
+            return Err(CausalError::unsupported_inference(
+                "execute_graph_posterior_frequentist requires inference=Frequentist",
+            ));
         }
         let conditional = checked.map_or_else(
             || matches!(self.query, CausalQuery::ConditionalEffect(_)),
@@ -2836,9 +2863,9 @@ impl super::Study {
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
-                return Err(CausalError::Unsupported {
-                    message: "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
-                });
+                return Err(CausalError::unsupported_inference(
+                    "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
+                ));
             }
         };
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -3395,9 +3422,9 @@ impl super::Study {
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
-                return Err(CausalError::Unsupported {
-                    message: "Bayesian DBN-posterior mediation requires inference=Bayesian",
-                });
+                return Err(CausalError::unsupported_inference(
+                    "Bayesian DBN-posterior mediation requires inference=Bayesian",
+                ));
             }
         };
         if cfg.has_transfer() {
@@ -4533,8 +4560,65 @@ fn dbn_frequentist_structural_mixture(
 }
 
 #[cfg(test)]
+mod passed_route_record_tests {
+    use super::passed_route_records;
+    use antecedent_prob::InferenceDiagnostics;
+
+    fn summary(records: &[antecedent_core::diagnostic::RouteNativeDiagnostic]) -> Vec<(&str, u64)> {
+        records
+            .iter()
+            .map(|record| {
+                assert!(!record.failed());
+                (record.route_name(), record.unevaluable_mass().bits().expect("a measured mass"))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn conjugate_and_laplace_posteriors_record_passed_checks_with_the_measured_mass() {
+        let bits = 0.25_f64.to_bits();
+        let conjugate = InferenceDiagnostics::analytic("conjugate_gaussian");
+        assert_eq!(summary(&passed_route_records(&conjugate, 0.25)), [("convergence", bits)]);
+        let laplace =
+            InferenceDiagnostics::laplace("laplace", true, 4, 1e-6, 10.0, false, Vec::new());
+        assert_eq!(summary(&passed_route_records(&laplace, 0.25)), [("convergence", bits)]);
+    }
+
+    #[test]
+    fn an_unrefused_unmeasurable_mass_is_unreported_not_zero() {
+        let conjugate = InferenceDiagnostics::analytic("conjugate_gaussian");
+        let records = passed_route_records(&conjugate, f64::NAN);
+        assert!(records.iter().all(|record| record.unevaluable_mass().is_unreported()));
+    }
+
+    #[test]
+    fn a_fit_that_would_be_refused_records_no_passed_checks() {
+        let unconverged =
+            InferenceDiagnostics::laplace("laplace", false, 4, 1e-6, 10.0, false, Vec::new());
+        assert!(passed_route_records(&unconverged, 0.0).is_empty());
+    }
+}
+
+#[cfg(test)]
 mod unsupported_inference_tests {
     use super::unsupported_inference_error;
+
+    #[test]
+    fn every_unified_refusal_carries_the_unsupported_inference_record() {
+        for summary in [
+            "execute_pag_bayesian requires inference=Bayesian",
+            "execute_graph_posterior_frequentist requires inference=Frequentist",
+            "bayesian.basis.gcomp requires inference=Bayesian",
+            "bayesian.robust_ate requires Bayesian inference",
+        ] {
+            let error = crate::CausalError::unsupported_inference(summary);
+            assert_eq!(error.to_string(), summary);
+            let records = error.route_diagnostics();
+            assert_eq!(records.len(), 1, "{summary}: {records:?}");
+            assert!(records[0].is_unsupported_inference(), "{summary}");
+            assert!(records[0].unevaluable_mass().is_unreported(), "{summary}");
+        }
+    }
 
     #[test]
     fn an_unsupported_inference_refusal_is_not_a_failed_check_or_a_computational_failure() {

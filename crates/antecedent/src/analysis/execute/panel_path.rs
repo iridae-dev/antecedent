@@ -582,9 +582,9 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let InferenceMode::Bayesian(cfg) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "panel class Bayesian execute requires Bayesian inference".into(),
-            });
+            return Err(CausalError::unsupported_inference(
+                "panel class Bayesian execute requires Bayesian inference",
+            ));
         };
         let started = Instant::now();
         let (identifier_id, bundle, identify_cached) =

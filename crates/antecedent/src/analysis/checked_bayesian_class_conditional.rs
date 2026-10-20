@@ -47,7 +47,7 @@ impl CheckedBayesianClassConditional {
         latency_mode: Option<super::latency::LatencyMode>,
     ) -> Result<Self, CausalError> {
         let InferenceMode::Bayesian(_) = inference else {
-            return Err(compile_error(
+            return Err(CausalError::unsupported_inference(
                 "checked Bayesian class conditional effect requires Bayesian inference",
             ));
         };

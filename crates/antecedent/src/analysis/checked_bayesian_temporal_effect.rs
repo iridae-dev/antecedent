@@ -87,7 +87,7 @@ pub(super) fn checked_bayesian_settings(
     validation_support: &'static str,
 ) -> Result<BayesianConfig, CausalError> {
     let InferenceMode::Bayesian(config) = inference else {
-        return Err(CausalError::Compile { message: requires_bayesian.into() });
+        return Err(CausalError::unsupported_inference(requires_bayesian));
     };
     if !validation.is_point() {
         return Err(CausalError::Unsupported { message: validation_support });
@@ -135,6 +135,8 @@ mod tests {
     #[test]
     fn bayesian_temporal_operation_rejects_frequentist_mode() {
         let error = checked_settings(&InferenceMode::Frequentist, RefuteSuite::None).unwrap_err();
-        assert!(matches!(error, CausalError::Compile { .. }));
+        let records = error.route_diagnostics();
+        assert_eq!(records.len(), 1, "{error}");
+        assert!(records[0].is_unsupported_inference(), "{error}");
     }
 }

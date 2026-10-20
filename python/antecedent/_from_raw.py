@@ -1437,6 +1437,10 @@ def _wrap_ate(
             bytes_borrowed=getattr(sec_performance, "bytes_borrowed", None),
         ),
         diagnostics=list(raw.diagnostics),
+        route_diagnostics=tuple(
+            {"route": route, "outcome": outcome, "failed": failed, "unevaluable_mass": mass}
+            for route, outcome, failed, mass in getattr(raw, "route_diagnostics", ())
+        ),
         provenance={
             "node_count": raw.provenance_node_count,
             "worker_threads": getattr(raw, "worker_threads", None),

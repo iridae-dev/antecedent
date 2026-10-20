@@ -483,9 +483,9 @@ fn evaluate_class_atom_response_bayesian(
     let cfg = match &study.inference {
         InferenceMode::Bayesian(c) => c.clone(),
         InferenceMode::Frequentist => {
-            return Err(CausalError::Unsupported {
-                message: "evaluate_class_atom_response_bayesian requires inference=Bayesian",
-            });
+            return Err(CausalError::unsupported_inference(
+                "evaluate_class_atom_response_bayesian requires inference=Bayesian",
+            ));
         }
     };
     let mut weighted = Vec::new();

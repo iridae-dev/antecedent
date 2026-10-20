@@ -888,6 +888,20 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
             | antecedent_estimate::EstimationError::RefusedWithFields { .. }
             | antecedent_estimate::EstimationError::TargetPopulation),
         ) => unsupported_py_err(e.to_string()),
+        // An inference mode the route does not perform is the one refusal class, however the
+        // route spelled it; a refusal with any other route record stays an estimate error.
+        RustCausalError::Estimate(
+            e @ antecedent_estimate::EstimationError::Prob(antecedent_prob::ProbError::Route {
+                ..
+            }),
+        ) if {
+            let records = RustCausalError::route_diagnostics(&RustCausalError::Estimate(e.clone()));
+            !records.is_empty()
+                && records.iter().all(|record| record.is_unsupported_inference())
+        } =>
+        {
+            unsupported_py_err(e.to_string())
+        }
         RustCausalError::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
         RustCausalError::Validate(e) => CausalValidateError::new_err(e.to_string()),
         RustCausalError::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
@@ -1211,6 +1225,10 @@ pub(crate) struct AteAnalysisResult {
     /// Human-readable diagnostic messages from the analysis.
     #[pyo3(get)]
     diagnostics: Vec<String>,
+    /// Route-native diagnostics on the result, one `(route, outcome, failed, unevaluable_mass)`
+    /// row per `route.*` diagnostic; the mass is `None` when the route did not report one.
+    #[pyo3(get)]
+    route_diagnostics: Vec<(String, String, bool, Option<f64>)>,
     /// Number of provenance nodes recorded for this run.
     #[pyo3(get)]
     provenance_node_count: usize,

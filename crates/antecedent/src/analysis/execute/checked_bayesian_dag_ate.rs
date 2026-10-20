@@ -402,6 +402,7 @@ impl CheckedBayesianDagAteExecution {
         if let Some(conflict) = posterior.conflict_summary.as_ref() {
             push_conflict_diagnostics(&mut diagnostics, conflict);
         }
+        super::bayesian_path::push_passed_route_diagnostics(&mut diagnostics, &posterior);
 
         clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
         let (posterior, refutations, predictive_checks) = self.validate(

@@ -90,9 +90,9 @@ impl super::Study {
                 )
                 || !self.inference.is_bayesian())
         {
-            return Err(CausalError::Unsupported {
-                message: "bayesian.basis.gcomp requires Bayesian inference, tabular data, a supplied DAG, and an ATE or CATE query",
-            });
+            return Err(CausalError::unsupported_inference(
+                "bayesian.basis.gcomp requires Bayesian inference, tabular data, a supplied DAG, and an ATE or CATE query",
+            ));
         }
         if let DataInput::Panel(panel) = &self.data {
             super::super::builder::refuse_unlicensed_panel_route(

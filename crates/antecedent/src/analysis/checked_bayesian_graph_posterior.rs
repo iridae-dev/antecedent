@@ -62,9 +62,9 @@ impl CheckedBayesianGraphPosteriorAte {
             latency_mode,
         } = premises;
         let InferenceMode::Bayesian(_) = inference else {
-            return Err(CausalError::Unsupported {
-                message: "checked Bayesian graph-posterior ATE requires Bayesian inference",
-            });
+            return Err(CausalError::unsupported_inference(
+                "checked Bayesian graph-posterior ATE requires Bayesian inference",
+            ));
         };
         let query = target.inner();
         let atom_query = target.atom_identification_query();

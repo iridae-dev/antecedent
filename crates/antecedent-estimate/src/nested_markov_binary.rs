@@ -594,6 +594,9 @@ pub struct FitDiagnostics {
     pub boundary_margin: Option<f64>,
     /// Fitted probabilities within [`BOUNDARY_TOLERANCE`] of 0 or 1.
     pub boundary_count: Option<usize>,
+    /// The regime-cell positivity check, passed: every count was strictly positive, so the
+    /// measured non-positive share of cells is zero.
+    pub positivity: RouteNativeDiagnostic,
 }
 
 /// A refusal with the diagnostics the failing step produced.
@@ -851,6 +854,10 @@ pub fn fit_nested_markov(
         normalization: None,
         boundary_margin: None,
         boundary_count: None,
+        positivity: RouteNativeDiagnostic::check(
+            RouteKind::Positivity,
+            RouteCheck::new(false, RouteMass::zero()),
+        ),
     };
     if let Some(limit) = options.refuse_constraint_residual_above {
         if residuals.max_abs > limit {
