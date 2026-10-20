@@ -30,6 +30,23 @@ use super::{
     surface::horizon_identification_of,
 };
 
+/// Why an ordinary or non-Gaussian likelihood is refused, and the attempt that would reach the
+/// same end-state.
+///
+/// The Bayesian temporal response is the long-run-tempered generalized posterior of a Gaussian
+/// linear-additive model on the identified unfolded design: Gaussian identity loss, the declared
+/// coefficient prior at full weight, and a per-horizon learning rate `1 / kappa_h`. An ordinary
+/// posterior needs a likelihood for the residual serial dependence, which the unfolded horizon
+/// regression does not have: at horizon 2 and beyond its residuals are moving-average through the
+/// omitted intermediate states, and a Bernoulli or Poisson likelihood has no tempering rule.
+pub(crate) const ORDINARY_LIKELIHOOD_REFUSAL: &str = "Bayesian temporal response is the \
+long-run-tempered generalized posterior of a Gaussian linear-additive model (Gaussian identity \
+loss, the declared coefficient prior at full weight, learning rate 1/kappa per horizon); an \
+ordinary or non-Gaussian posterior needs a likelihood for the serial dependence of the unfolded \
+horizon residuals, which this route does not model. Next attempt: fit a dynamic mechanism with its \
+own likelihood (BVAR or state-space) and roll the intervention out through it, or request the \
+GaussianIdentity likelihood";
+
 impl TemporalResponseEstimator {
     /// Bayesian Gaussian linear-additive response on the identified unfolded
     /// design at each horizon. Intervals are pointwise posterior quantiles.
@@ -53,11 +70,13 @@ impl TemporalResponseEstimator {
         query.validate()?;
         if query.observation != antecedent_core::ObservationSpec::Complete
             || query.target_population != TargetPopulation::AllObserved
-            || estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
         {
             return Err(EstimationError::unsupported(
-                "Bayesian temporal response requires complete observations, AllObserved, and GaussianIdentity",
+                "Bayesian temporal response requires complete observations and the AllObserved population",
             ));
+        }
+        if estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity {
+            return Err(EstimationError::unsupported(ORDINARY_LIKELIHOOD_REFUSAL));
         }
         if !matches!(
             identification_status,

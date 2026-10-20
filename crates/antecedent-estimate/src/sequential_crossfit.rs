@@ -466,6 +466,12 @@ pub struct SequentialContrast {
     pub evaluated_rows: u64,
     /// Smallest regime-action probability used in a score.
     pub minimum_action_probability: f64,
+    /// Cross-fit score of the active regime, one per subject in panel order.
+    pub active_scores: Vec<f64>,
+    /// Cross-fit score of the control regime, one per subject in panel order.
+    pub control_scores: Vec<f64>,
+    /// Active minus control score, one per subject in panel order.
+    pub contrast_scores: Vec<f64>,
     /// Nuisance roles fitted during this call.
     pub fits_computed: u64,
     /// Nuisance roles borrowed from the store during this call.
@@ -516,6 +522,9 @@ pub fn estimate_sequential_contrast(
         unmeasured_score_scale: score_scale(&contrast_scores)?,
         evaluated_rows,
         minimum_action_probability: active_scores.minimum.min(control_scores.minimum),
+        active_scores: active_scores.values,
+        control_scores: control_scores.values,
+        contrast_scores,
         fits_computed: store.computed().saturating_sub(computed_before),
         fits_reused,
     })

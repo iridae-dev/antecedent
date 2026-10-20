@@ -14,7 +14,8 @@
 //!
 //! [`trajectory_survival_contrast`] is the weighted product-limit contrast of two regimes.
 //! The risk set at each period is the subjects who followed that regime so far. No interval
-//! is issued.
+//! is issued by that function; [`trajectory_survival_bootstrap`] resamples subjects for a
+//! percentile interval conditional on the supplied weights.
 //!
 //! [`trajectory_hazard_posterior`] is a different object. Conditional on the same weights,
 //! each period hazard has an independent beta posterior from the weighted Bernoulli
@@ -22,7 +23,11 @@
 //! of period survivals. It is not the product-limit, and it does not model the treatment or
 //! censoring mechanisms that produced the weights.
 //!
+//! [`trajectory_hazard_credible_interval`] states why a credible interval is refused.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use crate::splitmix::splitmix64;
 
 /// Subject-major discrete-time trajectories.
 ///
@@ -176,6 +181,138 @@ pub fn trajectory_hazard_posterior(
         control_restricted_mean,
         restricted_mean_difference_mean: active_restricted_mean - control_restricted_mean,
     })
+}
+
+/// Percentile subject-bootstrap intervals of the weighted product-limit contrast.
+///
+/// Whole subject trajectories are resampled with their supplied treatment probabilities and
+/// censoring weights attached, so these intervals condition on the weights: the nuisance
+/// models that produced them are not refitted, and their estimation error is not included.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TrajectoryBootstrapIntervals {
+    /// Active minus control survival at the horizon.
+    pub survival_difference: [f64; 2],
+    /// Active minus control restricted mean.
+    pub restricted_mean_difference: [f64; 2],
+    /// Requested bootstrap replicates.
+    pub replicates_requested: u32,
+    /// Replicates whose risk sets were all nonempty.
+    pub replicates_ok: u32,
+}
+
+/// Subject-resampling percentile intervals for [`trajectory_survival_contrast`].
+///
+/// A replicate that leaves either regime with an empty weighted risk set at some period is
+/// dropped. The interval is refused when more than a tenth of the replicates are lost.
+///
+/// # Errors
+///
+/// Returns every error of [`trajectory_survival_contrast`] on the observed rows, an error
+/// when the replicate count is outside `199..=100000`, and an error when too many
+/// replicates fail their support checks.
+#[must_use = "the interval conditions on the supplied weights"]
+pub fn trajectory_survival_bootstrap(
+    rows: &TrajectoryRows<'_>,
+    active: &[bool],
+    control: &[bool],
+    replicates: u32,
+    seed: u64,
+) -> Result<TrajectoryBootstrapIntervals, &'static str> {
+    if !(199..=100_000).contains(&replicates) {
+        return Err("trajectory bootstrap requires 199 to 100000 replicates");
+    }
+    trajectory_survival_contrast(rows, active, control)?;
+    let TrajectoryRows { subjects, periods, .. } = *rows;
+    let mut stream = seed ^ 0x5CA1_AB1E_7A11_0B5E;
+    let mut survival = Vec::new();
+    let mut restricted = Vec::new();
+    for _ in 0..replicates {
+        let picks: Vec<usize> = (0..subjects)
+            .map(|_| {
+                let draw = splitmix64(&mut stream) % u64::try_from(subjects).unwrap_or(u64::MAX);
+                usize::try_from(draw).unwrap_or(0)
+            })
+            .collect();
+        let gather = |column: &[bool]| -> Vec<bool> {
+            picks
+                .iter()
+                .flat_map(|&s| column[s * periods..(s + 1) * periods].iter().copied())
+                .collect()
+        };
+        let weigh = |column: &[f64]| -> Vec<f64> {
+            picks
+                .iter()
+                .flat_map(|&s| column[s * periods..(s + 1) * periods].iter().copied())
+                .collect()
+        };
+        let (treatment, event, at_risk) =
+            (gather(rows.treatment), gather(rows.event), gather(rows.at_risk));
+        let (probability, censoring) =
+            (weigh(rows.treatment_probability), weigh(rows.censoring_weight));
+        let replicate = TrajectoryRows {
+            subjects,
+            periods,
+            treatment: &treatment,
+            event: &event,
+            at_risk: &at_risk,
+            treatment_probability: &probability,
+            censoring_weight: &censoring,
+            minimum_probability: rows.minimum_probability,
+        };
+        if let Ok(contrast) = trajectory_survival_contrast(&replicate, active, control) {
+            survival.push(contrast.survival_difference);
+            restricted.push(contrast.restricted_mean_difference);
+        }
+    }
+    let ok = u32::try_from(survival.len()).map_err(|_| "too many trajectory bootstrap draws")?;
+    if ok < 199 || ok < replicates.saturating_sub(replicates / 10) {
+        return Err("trajectory bootstrap lost more than 10% of subject draws to empty risk sets");
+    }
+    Ok(TrajectoryBootstrapIntervals {
+        survival_difference: percentile_95(&mut survival),
+        restricted_mean_difference: percentile_95(&mut restricted),
+        replicates_requested: replicates,
+        replicates_ok: ok,
+    })
+}
+
+fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
+    draws.sort_by(f64::total_cmp);
+    let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+        draws,
+        0.95,
+        antecedent_stats::QuantileRule::Interpolated,
+    );
+    [lower, upper]
+}
+
+/// Credible interval for the trajectory survival contrast: refused.
+///
+/// The weighted-hazard posterior of [`trajectory_hazard_posterior`] conditions on treatment
+/// probabilities and censoring weights that stand in for mechanisms it does not model, so
+/// its spread is not a posterior for the survival under a regime. A credible interval needs
+/// a joint likelihood for the time-varying confounders, the treatment, the censoring and the
+/// event hazard (a parametric g-formula posterior under sequential exchangeability with
+/// confounding that treatment affects), which this design does not supply. The weights
+/// supply a point and a conditional subject-bootstrap interval, not a likelihood.
+///
+/// # Errors
+///
+/// Returns every validation error of [`trajectory_survival_contrast`] on the rows, and
+/// otherwise always refuses. Next attempt: supply a longitudinal outcome, confounder,
+/// treatment and censoring model with priors, or use [`trajectory_survival_bootstrap`].
+#[must_use = "a refused credible interval is not an empty interval"]
+pub fn trajectory_hazard_credible_interval(
+    rows: &TrajectoryRows<'_>,
+    active: &[bool],
+    control: &[bool],
+) -> Result<[f64; 2], &'static str> {
+    regime_masses(rows, active, control)?;
+    Err("a trajectory credible interval needs a joint likelihood for confounders, treatment, \
+         censoring and event hazard (parametric g-formula posterior); the supplied weights \
+         give a point and a conditional bootstrap interval, not a posterior; next attempt: \
+         supply a longitudinal confounder, treatment, censoring and event model with priors, \
+         or report the conditional bootstrap interval")
 }
 
 struct PeriodMass {
@@ -469,5 +606,67 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(improper, "hazard prior counts must be finite and positive");
+    }
+
+    #[test]
+    fn bootstrap_interval_width_matches_the_binomial_standard_error() {
+        // One period, equal treatment probabilities and unit censoring weights, so the
+        // weighted product limit is the plain event share among followers. The reference
+        // width is the independent two-sample binomial standard error of that difference.
+        let subjects = 600;
+        let mut treatment = Vec::new();
+        let mut event = Vec::new();
+        for i in 0..subjects {
+            let arm = i % 2 == 0;
+            let u = crate::splitmix::keyed_unit(5, i as u64);
+            treatment.push(arm);
+            event.push(u < if arm { 0.25 } else { 0.40 });
+        }
+        let at_risk = vec![true; subjects];
+        let probability = vec![0.5; subjects];
+        let censoring = vec![1.0; subjects];
+        let data = TrajectoryRows {
+            subjects,
+            periods: 1,
+            treatment: &treatment,
+            event: &event,
+            at_risk: &at_risk,
+            treatment_probability: &probability,
+            censoring_weight: &censoring,
+            minimum_probability: 0.2,
+        };
+        let intervals = trajectory_survival_bootstrap(&data, &[true], &[false], 999, 17).unwrap();
+        let share = |arm: bool| {
+            let members = treatment.iter().filter(|value| **value == arm).count() as f64;
+            let events =
+                treatment.iter().zip(&event).filter(|(value, hit)| **value == arm && **hit).count()
+                    as f64;
+            (members, events / members)
+        };
+        let (n1, p1) = share(true);
+        let (n0, p0) = share(false);
+        let standard_error = (p1 * (1.0 - p1) / n1 + p0 * (1.0 - p0) / n0).sqrt();
+        let point = trajectory_survival_contrast(&data, &[true], &[false]).unwrap();
+        near(point.survival_difference, (1.0 - p1) - (1.0 - p0));
+        let [lower, upper] = intervals.survival_difference;
+        assert!(lower < point.survival_difference && point.survival_difference < upper);
+        let reference = 2.0 * 1.959_964 * standard_error;
+        assert!(((upper - lower) / reference - 1.0).abs() < 0.15, "{lower} {upper} {reference}");
+        assert_eq!(intervals.replicates_requested, 999);
+        assert!(intervals.replicates_ok >= 899);
+    }
+
+    #[test]
+    fn bootstrap_and_credible_interval_refusals_name_what_is_missing() {
+        let data = fixture();
+        let few =
+            trajectory_survival_bootstrap(&rows(&data), &ACTIVE, &CONTROL, 10, 1).unwrap_err();
+        assert_eq!(few, "trajectory bootstrap requires 199 to 100000 replicates");
+        let invalid = trajectory_hazard_credible_interval(&rows(&data), &[false, true], &CONTROL)
+            .unwrap_err();
+        assert_eq!(invalid, "a trajectory risk set has no positive weight");
+        let refused =
+            trajectory_hazard_credible_interval(&rows(&data), &ACTIVE, &CONTROL).unwrap_err();
+        assert!(refused.contains("joint likelihood") && refused.contains("g-formula"));
     }
 }

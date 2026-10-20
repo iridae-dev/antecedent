@@ -10,6 +10,7 @@ use antecedent_core::{AssumptionSet, CacheBudget, ContractIdentities, QueryId, S
 use crate::error::StateError;
 use crate::event::StateEvent;
 use crate::invalidation::{ChangedInput, InvalidationLog, InvalidationTarget};
+use crate::refresh_contract::{RefreshChange, RefreshDisposition, RefreshRoute, route_contract};
 use crate::store::{
     CachedResult, DataCatalog, DataVersion, GraphEvidenceStore, ModelStore, QueryStore,
     ResultStore, SuffStatStore,
@@ -129,17 +130,29 @@ impl CausalState {
             StateEvent::AppendData(batch) => {
                 self.data_catalog.batches.push(batch);
                 self.data_catalog.version = self.data_catalog.version.next();
-                self.invalidate_data_dependents(v, "append_data", input);
+                self.invalidate_data_dependents(v, "append_data", input, RefreshChange::AppendRows);
             }
             StateEvent::ReplaceData(new_ver) => {
                 self.data_catalog.version = new_ver;
                 self.data_catalog.batches.clear();
-                self.invalidate_data_dependents(v, "replace_data", input);
-                self.suff_stats.ols.clear();
-                self.suff_stats.cov.clear();
-                self.suff_stats.lag_indexes.clear();
-                self.suff_stats.graph_scores.clear();
-                self.suff_stats.particle_filters.clear();
+                self.invalidate_data_dependents(
+                    v,
+                    "replace_data",
+                    input,
+                    RefreshChange::SourceChanged,
+                );
+                if matches!(
+                    route_contract(RefreshRoute::LinearOlsGram, RefreshChange::SourceChanged),
+                    RefreshDisposition::InvalidateAndRecompute { .. }
+                ) {
+                    self.suff_stats.ols.clear();
+                }
+                if matches!(
+                    route_contract(RefreshRoute::StreamingCovariance, RefreshChange::SourceChanged),
+                    RefreshDisposition::InvalidateAndRecompute { .. }
+                ) {
+                    self.suff_stats.cov.clear();
+                }
                 // Drain through the budget-aware path so the bytes each slot was charged
                 // are returned, not stranded until the budget is exhausted.
                 let keys: Vec<_> = self.suff_stats.mechanism_diags.keys().cloned().collect();
@@ -514,7 +527,17 @@ impl CausalState {
         v: StateVersion,
         reason: &str,
         input: Option<ChangedInput>,
+        change: RefreshChange,
     ) {
+        // Each kept route answers the change as its contract says: an in-place update the
+        // caller applies, or a drop and recompute. The caches are cleared only when the
+        // contract says so, so the table and this method cannot drift apart.
+        let drops = |route| {
+            matches!(
+                route_contract(route, change),
+                RefreshDisposition::InvalidateAndRecompute { .. }
+            )
+        };
         self.invalidate_all_results(v, reason, input);
         for key in self.suff_stats.ols.keys().cloned().collect::<Vec<_>>() {
             self.invalidations.push(
@@ -525,12 +548,18 @@ impl CausalState {
         }
         self.invalidations.push(v, InvalidationTarget::LagIndexes, reason);
         // Lag indexes become stale on data change; drop metadata.
-        self.suff_stats.lag_indexes.clear();
+        if drops(RefreshRoute::LagIndexCache) {
+            self.suff_stats.lag_indexes.clear();
+        }
         // Graph scores are data-dependent; clear until a streaming family exists.
-        self.suff_stats.graph_scores.clear();
+        if drops(RefreshRoute::GraphScoreCache) {
+            self.suff_stats.graph_scores.clear();
+        }
         self.invalidations.push(v, InvalidationTarget::GraphScores, reason);
         // Particle filters: drop on append (caller re-inits / steps a fresh filter).
-        self.suff_stats.particle_filters.clear();
+        if drops(RefreshRoute::ParticleFilter) {
+            self.suff_stats.particle_filters.clear();
+        }
         self.invalidations.push(v, InvalidationTarget::ParticleFilters, reason);
         // Mechanism diagnostics stream via caller append; log stale without clearing.
         self.invalidations.push(v, InvalidationTarget::MechanismDiagnostics, reason);
@@ -884,5 +913,33 @@ mod tests {
             .expect("append");
         assert!(state.is_stale(q));
         assert!(state.cached_results.results.is_empty());
+    }
+
+    #[test]
+    fn data_events_follow_the_route_contract_for_the_kept_summaries() {
+        use crate::suff_stats::StreamingCovariance;
+        let batch = |id: &str| DataBatchRef { id: Arc::from(id), nrows: 4, bytes: 32 };
+        for (event_is_append, change) in
+            [(true, RefreshChange::AppendRows), (false, RefreshChange::SourceChanged)]
+        {
+            let mut state = CausalState::new(CacheBudget::unlimited());
+            let ols: Arc<str> = Arc::from("ols");
+            let cov: Arc<str> = Arc::from("cov");
+            state.suff_stats.ols.insert(Arc::clone(&ols), LinearOlsSuffStats::new(2));
+            state.suff_stats.cov.insert(Arc::clone(&cov), StreamingCovariance::new(2));
+            let event = if event_is_append {
+                StateEvent::AppendData(batch("b"))
+            } else {
+                StateEvent::ReplaceData(DataVersion::default().next())
+            };
+            state.apply(event).expect("apply");
+            for (route, kept) in [
+                (RefreshRoute::LinearOlsGram, state.suff_stats.ols.contains_key(&ols)),
+                (RefreshRoute::StreamingCovariance, state.suff_stats.cov.contains_key(&cov)),
+            ] {
+                let expect_kept = route_contract(route, change) == RefreshDisposition::ExactUpdate;
+                assert_eq!(kept, expect_kept, "{route:?} after {change:?}");
+            }
+        }
     }
 }

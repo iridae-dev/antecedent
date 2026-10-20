@@ -434,6 +434,15 @@ impl Covariance {
     }
 }
 
+/// Weights of the generalized-least-squares unit summary under the declared dependence and its
+/// exact variance, `None` for an incomplete or inadmissible structure. The summary is the
+/// sufficient statistic for a common mean of a unit's measurements, which is what the posterior
+/// of [`super::repeated_measures_posterior`] conditions on.
+pub(super) fn gls_unit_summary(structure: &OutcomeStructure) -> Option<(Vec<f64>, f64)> {
+    let covariance = Covariance::build(structure)?;
+    Some((covariance.weights(UnitSummary::Gls), covariance.summary_variance(UnitSummary::Gls)))
+}
+
 // -- Validated spec -------------------------------------------------------------------------------
 
 /// A validated repeated-measures or clustered procedure.

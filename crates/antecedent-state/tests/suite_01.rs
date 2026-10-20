@@ -3,6 +3,10 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "conjugate_refresh_oracle.rs"]
+mod conjugate_refresh_oracle;
+#[path = "ols_refresh_contract.rs"]
+mod ols_refresh_contract;
 #[path = "particle_filter_oracle.rs"]
 mod particle_filter_oracle;
 #[path = "rolling_mechanism_oracle.rs"]

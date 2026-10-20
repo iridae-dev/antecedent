@@ -473,11 +473,48 @@ pub fn evaluate_multi_action_policy_value_scores(
     })
 }
 
-fn evaluate_scores(
+/// Per-row scores of a fixed binary policy, its reference and their paired difference.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BinaryPolicyRowScores {
+    /// Net policy score per evaluation row.
+    pub policy: Vec<f64>,
+    /// Net reference score per evaluation row.
+    pub reference: Vec<f64>,
+    /// Policy-minus-reference score per evaluation row.
+    pub incremental: Vec<f64>,
+}
+
+/// The per-row scores of [`evaluate_policy_value_scores`] (or the point-only IPW form when
+/// `nuisance` is `None`), before they are averaged. Same validation and the same scores the
+/// summary averages, so a posterior over them is a posterior of the same functional.
+pub fn binary_policy_row_scores(
     outcome: &[f64],
     design: &BinaryPolicyDesign<'_>,
     nuisance: Option<(&[f64], &[f64])>,
-) -> Result<PolicyValueScores, &'static str> {
+) -> Result<BinaryPolicyRowScores, &'static str> {
+    let rows = row_scores(outcome, design, nuisance)?;
+    Ok(BinaryPolicyRowScores {
+        policy: rows.policy,
+        reference: rows.reference,
+        incremental: rows.incremental,
+    })
+}
+
+struct RowScores {
+    policy: Vec<f64>,
+    reference: Vec<f64>,
+    incremental: Vec<f64>,
+    treated: usize,
+    total_cost: f64,
+    propensity_min: f64,
+    propensity_max: f64,
+}
+
+fn row_scores(
+    outcome: &[f64],
+    design: &BinaryPolicyDesign<'_>,
+    nuisance: Option<(&[f64], &[f64])>,
+) -> Result<RowScores, &'static str> {
     let BinaryPolicyDesign { assignment, actions, propensity, reference, costs, reference_costs } =
         *design;
     let n = outcome.len();
@@ -537,6 +574,32 @@ fn evaluate_scores(
         rs.push(rv);
         ds.push(pv - rv);
     }
+    Ok(RowScores {
+        policy: ps,
+        reference: rs,
+        incremental: ds,
+        treated,
+        total_cost,
+        propensity_min: pmin,
+        propensity_max: pmax,
+    })
+}
+
+fn evaluate_scores(
+    outcome: &[f64],
+    design: &BinaryPolicyDesign<'_>,
+    nuisance: Option<(&[f64], &[f64])>,
+) -> Result<PolicyValueScores, &'static str> {
+    let RowScores {
+        policy: ps,
+        reference: rs,
+        incremental: ds,
+        treated,
+        total_cost,
+        propensity_min: pmin,
+        propensity_max: pmax,
+    } = row_scores(outcome, design, nuisance)?;
+    let n = outcome.len();
     let mean = |v: &[f64]| v.iter().sum::<f64>() / n as f64;
     let se = |v: &[f64], m: f64| {
         (v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / ((n - 1) as f64 * n as f64)).sqrt()

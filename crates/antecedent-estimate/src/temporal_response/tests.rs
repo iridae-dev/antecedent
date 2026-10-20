@@ -1248,3 +1248,37 @@ fn bayesian_response_retains_draws_only_for_a_single_horizon() {
     // Fewer than two draws is not a retained posterior.
     assert!(super::bayes::retained_response_draws(&[vec![1.0]], 1).is_none());
 }
+
+#[test]
+fn bayesian_response_refuses_an_ordinary_or_non_gaussian_likelihood_and_names_the_next_attempt() {
+    let (data, graph) = synthetic_series(120);
+    let (estimand, indexer) = identify(&graph, 1);
+    let query = surface_query(&[-1.0, 1.0], vec![1]);
+    for likelihood in [
+        antecedent_prob::BayesLikelihood::BernoulliLogit,
+        antecedent_prob::BayesLikelihood::PoissonLog,
+    ] {
+        let estimator = crate::BayesianGComputationAte {
+            likelihood,
+            ..crate::BayesianGComputationAte::conjugate()
+        };
+        let err = TemporalResponseEstimator::new()
+            .estimate_bayesian(
+                &data,
+                TemporalIdentification {
+                    horizons: &[(&estimand, &indexer)],
+                    status: IdentificationStatus::NonparametricallyIdentified,
+                    assumptions: AssumptionSet::new(),
+                },
+                &query,
+                &estimator,
+                &ExecutionContext::for_tests(7),
+            )
+            .unwrap_err();
+        let text = err.to_string();
+        assert!(text.contains("long-run-tempered generalized posterior"), "{text}");
+        assert!(text.contains("serial dependence of the unfolded horizon residuals"), "{text}");
+        assert!(text.contains("Next attempt"), "{text}");
+        assert!(text.contains("GaussianIdentity"), "{text}");
+    }
+}

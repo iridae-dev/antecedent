@@ -11,14 +11,28 @@
 //!
 //! [`FrequentistHistoryContrast`] and [`BayesianHistoryContrast`] are different objects. A
 //! [`ContrastPrior`] is not a sampling weight and does not enter the weight total. No posterior
-//! for this contrast is constructed. This file is not a temporal matching route, and a
-//! time-series regression is not a substitute.
+//! for this contrast is constructed: [`BayesianHistoryContrast::refuse_posterior`] names the
+//! missing premise and the next attempt (see [`crate::matching_posterior_boundary`]).
+//!
+//! [`PeriodHistoryContrast`] is the temporal matching route. Units carry a calendar period
+//! ([`HistoryUnit::in_period`]); a treated unit is matched only to a control of its own period,
+//! so a match never crosses a unit or a calendar boundary, and a period with no control leaves
+//! its treated units unmatched instead of borrowing a donor from another period. The estimand is
+//! the sampling-weighted effect on the matched treated units, conditional on the period and on
+//! the history-mean score. It is identified under unconfoundedness given that score within a
+//! period, overlap of the scores within the period, a stable unit and no interference. A mean
+//! history is a coarse sufficient statistic: it is the caller's assumption that it carries the
+//! confounding. Its variance is the Abadie-Imbens (2006) form for one match with replacement and
+//! a known scalar score; for a scalar score the matching discrepancy bias is of smaller order
+//! than `n^-1/2`, so no bias adjustment is applied. A time-series regression is not a substitute.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 
 use crate::EstimationError;
+use crate::matching_posterior_boundary::{MatchingPosteriorRequest, refuse_matching_posterior};
 
 /// One unit: a history, the outcome contrasted after it, and a sampling weight.
 #[derive(Clone, Debug)]
@@ -27,6 +41,7 @@ pub struct HistoryUnit {
     outcome: f64,
     treated: bool,
     weight: f64,
+    period: i64,
 }
 
 impl HistoryUnit {
@@ -49,7 +64,7 @@ impl HistoryUnit {
                 "history match requires a non-empty finite history",
             ));
         }
-        let unit = Self { history: history.to_vec(), outcome, treated, weight };
+        let unit = Self { history: history.to_vec(), outcome, treated, weight, period: 0 };
         if !unit.score().is_finite() {
             return Err(EstimationError::data_msg("history match score must be finite"));
         }
@@ -60,6 +75,14 @@ impl HistoryUnit {
             return Err(EstimationError::data_msg("history match sampling weight must be finite"));
         }
         Ok(unit)
+    }
+
+    /// Calendar period (or treatment cohort) the unit is observed in. A match inside a period
+    /// never reaches a donor of another period. Units start in period `0`.
+    #[must_use]
+    pub const fn in_period(mut self, period: i64) -> Self {
+        self.period = period;
+        self
     }
 
     /// Mean of the observed history.
@@ -220,15 +243,13 @@ impl BayesianHistoryContrast {
     ///
     /// A successful match still returns an error. The prior is not written into the sampling
     /// weights, and a time-series regression is not returned in its place. A match failure is
-    /// returned as that failure.
+    /// returned as that failure. The refusal names the missing premise and the next attempt.
     #[must_use]
     pub fn refuse_posterior(&self, units: &[HistoryUnit]) -> EstimationError {
         if let Err(error) = match_histories(self.caliper, units) {
             return error;
         }
-        EstimationError::unsupported(
-            "no posterior for the history-matched contrast; a prior is not a sampling weight",
-        )
+        refuse_matching_posterior(MatchingPosteriorRequest::WithinPeriodHistory)
     }
 }
 
@@ -248,6 +269,152 @@ pub struct BayesianHistoryEstimate {
     pub matched_donors: Vec<usize>,
     /// Prior supplied to the Bayesian object. It did not enter `weight_total`.
     pub prior: ContrastPrior,
+}
+
+/// Frequentist nearest-neighbor contrast on history scores, matched within calendar periods.
+#[derive(Clone, Debug)]
+pub struct PeriodHistoryContrast {
+    caliper: Option<f64>,
+}
+
+impl PeriodHistoryContrast {
+    /// Match within each period, with `caliper` as the maximum absolute score distance (a
+    /// distance equal to it is a match) or no caliper.
+    ///
+    /// # Errors
+    /// `caliper` is `Some` and is non-finite or negative.
+    pub fn try_new(caliper: Option<f64>) -> Result<Self, EstimationError> {
+        validate_caliper(caliper)?;
+        Ok(Self { caliper })
+    }
+
+    /// Weighted mean of treated-minus-matched-control outcomes, each treated unit matched to the
+    /// nearest control history of its own period (lowest input index on a tie, donors reused).
+    ///
+    /// # Errors
+    /// The histories differ in length, no treated unit has a control within its period and the
+    /// caliper, or the sampling weights on the matched treated units have a non-positive total.
+    pub fn contrast(
+        &self,
+        units: &[HistoryUnit],
+    ) -> Result<PeriodHistoryEstimate, EstimationError> {
+        validate_caliper(self.caliper)?;
+        let Some(first) = units.first() else {
+            return Err(EstimationError::data_msg(
+                "history match requires treated and control histories",
+            ));
+        };
+        if units.iter().any(|unit| unit.history.len() != first.history.len()) {
+            return Err(EstimationError::data_msg(
+                "history match requires every history to have the same length",
+            ));
+        }
+        let mut periods: BTreeMap<i64, (Vec<Row>, Vec<Row>)> = BTreeMap::new();
+        for (index, unit) in units.iter().enumerate() {
+            let row =
+                Row { index, outcome: unit.outcome, weight: unit.weight, score: unit.score() };
+            let (treated, control) = periods.entry(unit.period).or_default();
+            if unit.treated {
+                treated.push(row);
+            } else {
+                control.push(row);
+            }
+        }
+        let mut pairs = Vec::new();
+        let mut periods_matched = 0_usize;
+        for (treated, control) in periods.values() {
+            if treated.is_empty() || control.is_empty() {
+                continue;
+            }
+            let (found, _) = match_rows(self.caliper, treated, control);
+            periods_matched += usize::from(!found.is_empty());
+            pairs.extend(found);
+        }
+        pairs.sort_by_key(|pair| pair.query);
+        if pairs.is_empty() {
+            return Err(EstimationError::data_msg("no matched units within caliper and period"));
+        }
+        let weight_total: f64 = pairs.iter().map(|pair| pair.weight).sum();
+        if weight_total.partial_cmp(&0.0_f64) != Some(Ordering::Greater) {
+            return Err(EstimationError::data_msg(
+                "history-matched contrast weights left no positive mass on matched units",
+            ));
+        }
+        let contrast =
+            pairs.iter().map(|pair| pair.weight * pair.difference).sum::<f64>() / weight_total;
+        let standard_error = abadie_imbens_standard_error(&pairs, contrast, weight_total);
+        let matched_queries: Vec<usize> = pairs.iter().map(|pair| pair.query).collect();
+        let matched_donors: Vec<usize> = pairs.iter().map(|pair| pair.donor).collect();
+        let unmatched_treated: Vec<usize> = units
+            .iter()
+            .enumerate()
+            .filter(|(index, unit)| unit.treated && matched_queries.binary_search(index).is_err())
+            .map(|(index, _)| index)
+            .collect();
+        Ok(PeriodHistoryEstimate {
+            contrast,
+            standard_error,
+            weight_total,
+            matched_queries,
+            matched_donors,
+            unmatched_treated,
+            periods_matched,
+        })
+    }
+}
+
+/// Period-matched history contrast with its analytic standard error.
+#[must_use]
+#[derive(Clone, Debug)]
+pub struct PeriodHistoryEstimate {
+    /// Sampling-weighted mean of treated-minus-matched-control outcomes.
+    pub contrast: f64,
+    /// Abadie-Imbens standard error for one match with replacement and a known scalar score.
+    /// `None` with fewer than two matched units, a non-positive matched weight, or a single
+    /// matched unit carrying all the weight. Its repeated-sampling calibration is unmeasured.
+    pub standard_error: Option<f64>,
+    /// Sum of sampling weights on matched treated units.
+    pub weight_total: f64,
+    /// Input indices of matched treated units, in input order.
+    pub matched_queries: Vec<usize>,
+    /// Input index of the control each matched query used.
+    pub matched_donors: Vec<usize>,
+    /// Treated units with no control inside their period and the caliper, in input order.
+    pub unmatched_treated: Vec<usize>,
+    /// Periods in which at least one treated unit matched.
+    pub periods_matched: usize,
+}
+
+/// Abadie-Imbens (2006) standard error of a weighted matched mean with one match.
+///
+/// With shares `w_q = weight_q / total`, `sigma^2 = 1/2 sum_q w_q (d_q - tau)^2 / (1 - sum_q
+/// w_q^2)` and `Var = sigma^2 (sum_q w_q^2 + sum_j c_j^2)`, where `c_j` is the share of the
+/// queries that control `j` donated to. At equal weights `c_j = K_j / n` and this is
+/// `sigma^2 (n + sum K_j^2) / n^2`.
+fn abadie_imbens_standard_error(pairs: &[Pair], contrast: f64, weight_total: f64) -> Option<f64> {
+    if pairs.len() < 2
+        || pairs.iter().any(|pair| pair.weight.partial_cmp(&0.0_f64) != Some(Ordering::Greater))
+    {
+        return None;
+    }
+    let shares: Vec<f64> = pairs.iter().map(|pair| pair.weight / weight_total).collect();
+    let concentration: f64 = shares.iter().map(|share| share * share).sum();
+    let denominator = 1.0 - concentration;
+    if !denominator.is_finite() || denominator <= 0.0 {
+        return None;
+    }
+    let spread: f64 = shares
+        .iter()
+        .zip(pairs)
+        .map(|(share, pair)| share * (pair.difference - contrast).powi(2))
+        .sum();
+    let mut donated: BTreeMap<usize, f64> = BTreeMap::new();
+    for (share, pair) in shares.iter().zip(pairs) {
+        *donated.entry(pair.donor).or_insert(0.0) += share;
+    }
+    let reuse: f64 = donated.values().map(|share| share * share).sum();
+    let variance = 0.5 * spread / denominator * (concentration + reuse);
+    (variance.is_finite() && variance >= 0.0).then_some(variance.sqrt())
 }
 
 struct Row {
@@ -306,22 +473,16 @@ fn match_histories(
             "history match requires treated and control histories",
         ));
     }
-    let scores: Vec<f64> = control.iter().map(|row| row.score).collect();
-    let index = CollapsedHistoryIndex::from_donors(&scores);
-    let collapsed_donors = index.by_score.len();
+    let (pairs, collapsed_donors) = match_rows(caliper, &treated, &control);
     let mut numerator = 0.0_f64;
     let mut weight_total = 0.0_f64;
     let mut queries = Vec::new();
     let mut donors = Vec::new();
-    for query in &treated {
-        let Some((donor_slot, _)) = index.nearest(query.score, caliper) else {
-            continue;
-        };
-        let donor = &control[donor_slot];
-        numerator += query.weight * (query.outcome - donor.outcome);
-        weight_total += query.weight;
-        queries.push(query.index);
-        donors.push(donor.index);
+    for pair in &pairs {
+        numerator += pair.weight * pair.difference;
+        weight_total += pair.weight;
+        queries.push(pair.query);
+        donors.push(pair.donor);
     }
     if queries.is_empty() {
         return Err(EstimationError::data_msg("no matched units within caliper"));
@@ -338,6 +499,37 @@ fn match_histories(
         queries,
         donors,
     })
+}
+
+/// One treated unit and the control it matched, by input index.
+struct Pair {
+    query: usize,
+    donor: usize,
+    weight: f64,
+    difference: f64,
+}
+
+/// Match every treated row to its nearest control row, with replacement. Returns the pairs in
+/// treated order and the number of control scores left after equal scores collapsed.
+fn match_rows(caliper: Option<f64>, treated: &[Row], control: &[Row]) -> (Vec<Pair>, usize) {
+    let scores: Vec<f64> = control.iter().map(|row| row.score).collect();
+    let index = CollapsedHistoryIndex::from_donors(&scores);
+    let mut pairs = Vec::new();
+    for query in treated {
+        let Some((donor_slot, _)) = index.nearest(query.score, caliper) else {
+            continue;
+        };
+        let Some(donor) = control.get(donor_slot) else {
+            continue;
+        };
+        pairs.push(Pair {
+            query: query.index,
+            donor: donor.index,
+            weight: query.weight,
+            difference: query.outcome - donor.outcome,
+        });
+    }
+    (pairs, index.by_score.len())
 }
 
 /// Donor index after equal history scores collapse.
@@ -410,7 +602,10 @@ impl CollapsedHistoryIndex {
 
 #[cfg(test)]
 mod tests {
-    use super::{BayesianHistoryContrast, ContrastPrior, FrequentistHistoryContrast, HistoryUnit};
+    use super::{
+        BayesianHistoryContrast, ContrastPrior, FrequentistHistoryContrast, HistoryUnit,
+        PeriodHistoryContrast,
+    };
 
     fn unit(history: &[f64], outcome: f64, treated: bool, weight: f64) -> HistoryUnit {
         HistoryUnit::try_new(history, outcome, treated, weight).unwrap()
@@ -620,5 +815,102 @@ mod tests {
         assert!(bad_prior.to_string().contains("variance must be finite and positive"));
         let flat = ContrastPrior::try_new(0.0, f64::INFINITY).unwrap_err();
         assert!(flat.to_string().contains("variance must be finite and positive"));
+    }
+
+    fn periodic(
+        period: i64,
+        history: &[f64],
+        outcome: f64,
+        treated: bool,
+        weight: f64,
+    ) -> HistoryUnit {
+        unit(history, outcome, treated, weight).in_period(period)
+    }
+
+    /// Nine units over three periods. Period 1 has an equidistant control pair, period 2 has a
+    /// treated unit far from its only control, and period 3 has a treated unit and no control.
+    /// Unit 0 has the same score as the period-2 control, unit 4, which it must not meet.
+    fn periodic_sample() -> Vec<HistoryUnit> {
+        vec![
+            periodic(1, &[1.0, 3.0], 10.0, true, 1.0),
+            periodic(1, &[1.0, 1.0], 4.0, false, 1.0),
+            periodic(1, &[3.0, 3.0], 6.0, false, 1.0),
+            periodic(1, &[2.8, 3.0], 9.0, true, 2.0),
+            periodic(2, &[2.0, 2.0], 5.0, false, 1.0),
+            periodic(2, &[6.0, 6.0], 7.0, false, 1.0),
+            periodic(2, &[5.0, 6.0], 12.0, true, 1.5),
+            periodic(2, &[9.0, 9.0], 20.0, true, 1.0),
+            periodic(3, &[1.0, 1.0], 3.0, true, 1.0),
+        ]
+    }
+
+    fn close(actual: f64, expected: f64) {
+        assert!((actual - expected).abs() < 1.0e-12, "actual {actual} expected {expected}");
+    }
+
+    #[test]
+    fn period_match_stays_inside_its_period_and_matches_the_reference() {
+        // Reference: brute-force nearest control inside each period (lowest index on a tie) and
+        // the Abadie-Imbens weighted variance from per-unit coefficients, in numpy.
+        let estimate = PeriodHistoryContrast::try_new(Some(2.0))
+            .unwrap()
+            .contrast(&periodic_sample())
+            .unwrap();
+        assert_eq!(estimate.matched_queries, vec![0, 3, 6]);
+        assert_eq!(estimate.matched_donors, vec![1, 2, 5]);
+        assert_eq!(estimate.unmatched_treated, vec![7, 8]);
+        assert_eq!(estimate.periods_matched, 2);
+        close(estimate.weight_total, 4.5);
+        close(estimate.contrast, 4.333_333_333_333_333);
+        close(estimate.standard_error.unwrap(), 0.931_408_271_125_701_1);
+    }
+
+    #[test]
+    fn period_match_without_a_caliper_reuses_a_donor() {
+        let estimate =
+            PeriodHistoryContrast::try_new(None).unwrap().contrast(&periodic_sample()).unwrap();
+        assert_eq!(estimate.matched_queries, vec![0, 3, 6, 7]);
+        assert_eq!(estimate.matched_donors, vec![1, 2, 5, 5]);
+        assert_eq!(estimate.unmatched_treated, vec![8]);
+        close(estimate.weight_total, 5.5);
+        close(estimate.contrast, 5.909_090_909_090_908);
+        close(estimate.standard_error.unwrap(), 2.348_609_256_457_778);
+    }
+
+    #[test]
+    fn one_period_reduces_to_the_cross_sectional_history_match() {
+        let units = hand_sample();
+        let cross = FrequentistHistoryContrast::new().contrast(&units).unwrap();
+        let periodic = PeriodHistoryContrast::try_new(None).unwrap().contrast(&units).unwrap();
+        close(periodic.contrast, cross.contrast);
+        assert_eq!(periodic.matched_queries, cross.matched_queries);
+        assert_eq!(periodic.matched_donors, cross.matched_donors);
+    }
+
+    #[test]
+    fn a_control_in_another_period_is_not_a_donor() {
+        let units = vec![periodic(1, &[1.0], 5.0, true, 1.0), periodic(2, &[1.0], 2.0, false, 1.0)];
+        let error = PeriodHistoryContrast::try_new(None).unwrap().contrast(&units).unwrap_err();
+        assert!(
+            error.to_string().contains("no matched units within caliper and period"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn a_single_matched_unit_has_no_standard_error() {
+        let units = vec![periodic(1, &[1.0], 5.0, true, 1.0), periodic(1, &[1.5], 2.0, false, 1.0)];
+        let estimate = PeriodHistoryContrast::try_new(None).unwrap().contrast(&units).unwrap();
+        close(estimate.contrast, 3.0);
+        assert!(estimate.standard_error.is_none());
+    }
+
+    #[test]
+    fn the_bayesian_refusal_names_the_premise_and_the_next_attempt() {
+        let prior = ContrastPrior::try_new(0.0, 1.0).unwrap();
+        let bayesian = BayesianHistoryContrast::try_new(prior, None).unwrap();
+        let message = bayesian.refuse_posterior(&periodic_sample()).to_string();
+        assert!(message.contains("no likelihood"), "{message}");
+        assert!(message.contains("next attempt: declare a Bayesian outcome model"), "{message}");
     }
 }

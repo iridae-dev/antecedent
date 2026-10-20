@@ -5,17 +5,21 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod conjugate_refresh;
 pub mod error;
 pub mod event;
 pub mod graph_score;
 pub mod invalidation;
 pub mod mechanism_diag;
+pub mod ols_refresh;
 pub mod particle_filter;
+pub mod refresh_contract;
 pub mod retention;
 pub mod state;
 pub mod store;
 pub mod suff_stats;
 
+pub use conjugate_refresh::{ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary};
 pub use error::StateError;
 pub use event::StateEvent;
 pub use graph_score::{
@@ -26,7 +30,9 @@ pub use invalidation::{ChangedInput, InvalidationEntry, InvalidationLog, Invalid
 pub use mechanism_diag::{
     RollingMechanismDiagnostics, evict_mechanism_diag, insert_mechanism_diag,
 };
+pub use ols_refresh::{OlsLedgerState, OlsRefresh, OlsSnapshot, RefreshOutcome, RefreshRow};
 pub use particle_filter::{LgssmParams, ParticleFilterState};
+pub use refresh_contract::{RefreshChange, RefreshDisposition, RefreshRoute, route_contract};
 pub use retention::RetentionPolicy;
 pub use state::{CausalState, ResultPublication};
 pub use store::{

@@ -590,7 +590,7 @@ fn bounds_refusal(message: &str) -> EstimationError {
 }
 
 /// The grid-count bound of a query (`dose_response.bounds_exceeded`).
-fn check_grid_bound(query: &SmoothedDoseTransportQuery) -> Result<(), EstimationError> {
+pub(crate) fn check_grid_bound(query: &SmoothedDoseTransportQuery) -> Result<(), EstimationError> {
     if query.grid.len() > SMOOTHED_DOSE_MAX_GRID {
         return Err(bounds_refusal(&format!(
             "{} grid doses; at most {SMOOTHED_DOSE_MAX_GRID}",
@@ -602,7 +602,9 @@ fn check_grid_bound(query: &SmoothedDoseTransportQuery) -> Result<(), Estimation
 
 /// Every grid window `[a - h, a + h]` lies inside the declared dose support; there are
 /// no boundary kernels (`dose_response.grid_outside_dose_support`).
-fn check_grid_windows(query: &SmoothedDoseTransportQuery) -> Result<(), EstimationError> {
+pub(crate) fn check_grid_windows(
+    query: &SmoothedDoseTransportQuery,
+) -> Result<(), EstimationError> {
     let (lo, hi) = query.dose_support;
     let h = query.bandwidth;
     for &a in query.grid.iter() {
@@ -874,7 +876,7 @@ fn membership_design(input: &SmoothedDoseInput) -> Vec<f64> {
 }
 
 /// Outcome design at `(dose(r), x_{rows[r]})` for every `r`, column-major.
-fn outcome_design(
+pub(crate) fn outcome_design(
     basis: &DoseBasis,
     covariates: &[Vec<f64>],
     rows: &[usize],
@@ -1014,7 +1016,7 @@ fn chunk_design_rows(width: usize) -> usize {
 /// The composite Gauss-Legendre rule on `[-1, 1]` for the window `[a - h, a + h]`, split at
 /// every basis knot strictly inside it: the base rule mapped onto each piece. Without a
 /// knot inside the window it is the base rule itself, bit for bit.
-fn split_rule(
+pub(crate) fn split_rule(
     knots: &[f64],
     (a, h): (f64, f64),
     (nodes, weights): (&[f64], &[f64]),

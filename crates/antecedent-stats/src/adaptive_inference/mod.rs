@@ -48,6 +48,10 @@
 //! probability, and expected-loss, futility and recruitment-cap decisions at
 //! completed-participant batch boundaries, with a posterior claim and a
 //! time-uniform confidence-sequence claim read at every look.
+//! [`repeated_measures_posterior`] is the exact conjugate posterior of the arm means of such a
+//! trial under the same declared within-unit dependence: it conditions on the observed units
+//! and so needs no correction for the adaptation (the likelihood principle), while the
+//! frequentist statements above are calibrated to the whole procedure.
 //! [`capacity`] holds the resource bounds of all of these routes, one class of
 //! limit per refusal, and the receipt a simulation returns.
 //!
@@ -65,6 +69,7 @@ pub mod procedure_law;
 pub mod procedure_repeated_measures;
 pub mod procedure_simulation;
 pub mod procedure_uncertainty;
+pub mod repeated_measures_posterior;
 pub mod weighting;
 
 use thiserror::Error;
@@ -134,6 +139,12 @@ pub use procedure_uncertainty::{
     MAX_INVERSION_LAWS, ObservedTerminal, OrderingPValues, PosteriorMeanGap, UncertaintyParadigm,
     admit, anytime_exclusion_probability, anytime_valid_report, bayesian_report, decision_report,
     inversion_interval, ordering_p_values, posterior_mean_gaps,
+};
+pub use repeated_measures_posterior::{
+    ArmMeanPosterior, ContrastPosterior, MAX_POSTERIOR_UNITS, NormalMeanPrior,
+    REPEATED_MEASURES_POSTERIOR_LIKELIHOOD, RepeatedMeasuresPosterior,
+    RepeatedMeasuresPosteriorRequest, SELECTION_IGNORABILITY_PREMISE, SelectionEvidence,
+    SelectionMechanism, UnitRecord, repeated_measures_posterior,
 };
 pub use weighting::{
     AdaptiveEstimate, Estimand, MAX_ADAPTIVE_UNITS, MAX_WEIGHTED_ARMS, OutcomeModelPrior,

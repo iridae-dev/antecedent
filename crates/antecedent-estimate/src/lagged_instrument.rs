@@ -14,6 +14,15 @@
 //! Both treat lag-aligned rows as independent. The standard error and the likelihood do not
 //! account for serial dependence.
 //!
+//! Three premises hold at every period, and a time column supplies none of them. Relevance: the
+//! lagged value predicts treatment, which the first-stage F statistic checks. Exclusion: the lag
+//! reaches the outcome only through treatment, so there is no direct path and no common cause of
+//! the lag and the outcome apart from what treatment carries. Exogeneity: the lagged value is
+//! independent of the structural disturbance at `t`. A persistent unobserved confounder breaks
+//! exogeneity, because it moves both `Z_{t-lag}` and the disturbance, and a lag that is an
+//! earlier treatment or outcome of the same series often breaks exclusion. Neither can be tested
+//! from a just-identified fit. The caller declares them.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{QuantileRule, column_is_constant, quantile_sorted};

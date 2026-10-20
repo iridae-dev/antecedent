@@ -302,7 +302,7 @@ impl DoseGridRow {
     }
 }
 
-fn refuse(code: &'static str, detail: &'static str, message: &str) -> EstimationError {
+pub(crate) fn refuse(code: &'static str, detail: &'static str, message: &str) -> EstimationError {
     EstimationError::refused_with_fields(
         code,
         format!("{detail}: {message}"),
