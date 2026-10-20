@@ -4,11 +4,13 @@
 #[doc(hidden)] pub const fn antecedent::error::is_runtime_refusal_code(code: &str) -> bool
 #[doc(hidden)] pub fn <antecedent::EvidenceLedgerSession>::fn pooled_interval_candidate(&self, result: antecedent_contract::evidence_ledger::ids::ResultId) -> core::result::Result<antecedent::analysis::evidence_ledger::PooledIntervalCandidate, antecedent::EvidenceLedgerRefusal>
 #[doc(hidden)] pub fn antecedent::analysis::max_t_critical_value(correlation: &antecedent_estimate::joint_if::JointCovariance, level: f64, seed: u64, draws: u32, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent::BatchRetargetError>
+#[doc(hidden)] pub fn antecedent::analysis::repeated_measures_posterior_report::seal_report_without_validation(report: &antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport) -> core::result::Result<alloc::string::String, antecedent::AdaptiveInferenceRefusal>
 #[doc(hidden)] pub fn antecedent::analysis::simultaneous_band_unpublished(report: &antecedent::BatchRetargetReport, level: f64, seed: u64, draws: u32, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SimultaneousBand, antecedent::BatchRetargetError>
 #[doc(hidden)] pub fn antecedent::analysis::temporal_dependent_interval_candidate(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire, antecedent_io_core::error::IoError>
 #[doc(hidden)] pub struct antecedent::analysis::evidence_ledger::PooledIntervalCandidate
 #[non_exhaustive] pub enum antecedent::CausalError
 #[non_exhaustive] pub enum antecedent::CompileCause
+#[non_exhaustive] pub enum antecedent::DesignPosteriorModel
 #[non_exhaustive] pub enum antecedent::EstimatorId
 #[non_exhaustive] pub enum antecedent::EstimatorSpec
 #[non_exhaustive] pub enum antecedent::GraphClass
@@ -175,6 +177,7 @@ impl core::clone::Clone for antecedent::DependenceRangeRequest
 impl core::clone::Clone for antecedent::DependentColumn
 impl core::clone::Clone for antecedent::DerivedTreatmentDeclaration
 impl core::clone::Clone for antecedent::DerivedTreatmentPlan
+impl core::clone::Clone for antecedent::DesignPosteriorModel
 impl core::clone::Clone for antecedent::DroppedColumn
 impl core::clone::Clone for antecedent::DuplicateGroup
 impl core::clone::Clone for antecedent::EnumeratedStatus
@@ -196,6 +199,7 @@ impl core::clone::Clone for antecedent::FittedPropensity
 impl core::clone::Clone for antecedent::ForwardEvaluation
 impl core::clone::Clone for antecedent::ForwardInterval
 impl core::clone::Clone for antecedent::GraphClass
+impl core::clone::Clone for antecedent::HistoryMatchEstimate
 impl core::clone::Clone for antecedent::Identification
 impl core::clone::Clone for antecedent::IdentifierId
 impl core::clone::Clone for antecedent::InferenceDefault
@@ -292,6 +296,7 @@ impl core::clone::Clone for antecedent::ScientificBridgeResult
 impl core::clone::Clone for antecedent::ScoreQuantile
 impl core::clone::Clone for antecedent::ScoreSource
 impl core::clone::Clone for antecedent::ScreenSplitReceipt
+impl core::clone::Clone for antecedent::SequentialContrastEstimate
 impl core::clone::Clone for antecedent::SharedBatchDesign
 impl core::clone::Clone for antecedent::SharedCovariateDesign
 impl core::clone::Clone for antecedent::SimultaneousBand
@@ -405,6 +410,7 @@ impl core::clone::Clone for antecedent::analysis::PropagationClaim
 impl core::clone::Clone for antecedent::analysis::PropagationDraws
 impl core::clone::Clone for antecedent::analysis::ResolvedLatencyBudget
 impl core::clone::Clone for antecedent::analysis::Retention
+impl core::clone::Clone for antecedent::analysis::SmoothedDosePosteriorResult
 impl core::clone::Clone for antecedent::analysis::TransportGridData
 impl core::clone::Clone for antecedent::analysis::TransportGridPoint
 impl core::clone::Clone for antecedent::analysis::TransportGridQuery
@@ -415,6 +421,11 @@ impl core::clone::Clone for antecedent::analysis::adaptive_procedure_report::Rep
 impl core::clone::Clone for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport
 impl core::clone::Clone for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportBody
 impl core::clone::Clone for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest
+impl core::clone::Clone for antecedent::analysis::array_fits::ArrayFit
+impl core::clone::Clone for antecedent::analysis::array_fits::TemporalScoreModel
+impl core::clone::Clone for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
+impl core::clone::Clone for antecedent::analysis::array_fits::TreatmentScoreSpec
+impl core::clone::Clone for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::clone::Clone for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::clone::Clone for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::clone::Clone for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -495,6 +506,7 @@ impl core::clone::Clone for antecedent::analysis::inverse_sources::Observational
 impl core::clone::Clone for antecedent::analysis::joint_law_composed_basis::Resolution
 impl core::clone::Clone for antecedent::analysis::latent_class_effects::LatentClassEffects
 impl core::clone::Clone for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+impl core::clone::Clone for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::clone::Clone for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 impl core::clone::Clone for antecedent::analysis::multi_level_treatment::AdjustmentColumn
 impl core::clone::Clone for antecedent::analysis::multi_level_treatment::LevelMeanWire
@@ -574,6 +586,14 @@ impl core::clone::Clone for antecedent::analysis::recalc_static::StaticResponseS
 impl core::clone::Clone for antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal
 impl core::clone::Clone for antecedent::analysis::recovery_chain::RecoveryChain
 impl core::clone::Clone for antecedent::analysis::repair::RepairFacadeError
+impl core::clone::Clone for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire
+impl core::clone::Clone for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire
+impl core::clone::Clone for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit
+impl core::clone::Clone for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire
+impl core::clone::Clone for antecedent::analysis::repeated_measures_posterior_report::PriorWire
+impl core::clone::Clone for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport
+impl core::clone::Clone for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire
+impl core::clone::Clone for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec
 impl core::clone::Clone for antecedent::analysis::sample_split_analysis::AnalysisBinding
 impl core::clone::Clone for antecedent::analysis::sample_split_analysis::AnalysisEffectRequest
 impl core::clone::Clone for antecedent::analysis::sample_split_analysis::SplitAnalysisEffect
@@ -628,6 +648,10 @@ impl core::clone::Clone for antecedent::gcm::PreparedPolicy
 impl core::clone::Clone for antecedent::gcm::UnitEffectIntervals
 impl core::clone::Clone for antecedent::inference::DecodedPriorHydrate
 impl core::clone::Clone for antecedent::inference::ExternalComposeSpec
+impl core::clone::Clone for antecedent::period_refresh::PeriodRefresh
+impl core::clone::Clone for antecedent::period_refresh::PeriodRefreshOutcome
+impl core::clone::Clone for antecedent::period_refresh::RefreshBlock
+impl core::clone::Clone for antecedent::period_refresh::RefreshEvent
 impl core::clone::Clone for antecedent::planner::LogicalAnalysisPlan
 impl core::clone::Clone for antecedent::planner::PhysicalExecutionPlan
 impl core::clone::Clone for antecedent::result::InterferenceInference
@@ -725,6 +749,7 @@ impl core::cmp::Eq for antecedent::analysis::effect_constancy_consumers::Constan
 impl core::cmp::Eq for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding
 impl core::cmp::Eq for antecedent::analysis::joint_law_composed_basis::Resolution
 impl core::cmp::Eq for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+impl core::cmp::Eq for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::cmp::Eq for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 impl core::cmp::Eq for antecedent::analysis::multi_level_treatment::MultiLevelTargetWire
 impl core::cmp::Eq for antecedent::analysis::observation_query::ObservationQueryRefusal
@@ -753,6 +778,7 @@ impl core::cmp::Eq for antecedent::cross_world::CrossWorldOptions
 impl core::cmp::Eq for antecedent::discovery::GraphMcmcSchedule
 impl core::cmp::Eq for antecedent::error::PendingEdge
 impl core::cmp::Eq for antecedent::gcm::NestedOutcomeMechanism
+impl core::cmp::Eq for antecedent::period_refresh::PeriodRefreshOutcome
 impl core::cmp::Eq for antecedent::result::MissingDataReport
 impl core::cmp::Eq for antecedent::strategy_table::UnknownStrategy
 impl core::cmp::Ord for antecedent::SupportGraphClass
@@ -812,6 +838,7 @@ impl core::cmp::PartialEq for antecedent::DependenceRangeRequest
 impl core::cmp::PartialEq for antecedent::DependentColumn
 impl core::cmp::PartialEq for antecedent::DerivedTreatmentDeclaration
 impl core::cmp::PartialEq for antecedent::DerivedTreatmentPlan
+impl core::cmp::PartialEq for antecedent::DesignPosteriorModel
 impl core::cmp::PartialEq for antecedent::DroppedColumn
 impl core::cmp::PartialEq for antecedent::DuplicateGroup
 impl core::cmp::PartialEq for antecedent::EnumeratedStatus
@@ -827,6 +854,7 @@ impl core::cmp::PartialEq for antecedent::FittedPropensity
 impl core::cmp::PartialEq for antecedent::ForwardEvaluation
 impl core::cmp::PartialEq for antecedent::ForwardInterval
 impl core::cmp::PartialEq for antecedent::GraphClass
+impl core::cmp::PartialEq for antecedent::HistoryMatchEstimate
 impl core::cmp::PartialEq for antecedent::IdentifierId
 impl core::cmp::PartialEq for antecedent::InferenceDefault
 impl core::cmp::PartialEq for antecedent::InferenceMode
@@ -887,6 +915,7 @@ impl core::cmp::PartialEq for antecedent::ScientificBridgeRefusal
 impl core::cmp::PartialEq for antecedent::ScoreQuantile
 impl core::cmp::PartialEq for antecedent::ScoreSource
 impl core::cmp::PartialEq for antecedent::ScreenSplitReceipt
+impl core::cmp::PartialEq for antecedent::SequentialContrastEstimate
 impl core::cmp::PartialEq for antecedent::SharedBatchDesign
 impl core::cmp::PartialEq for antecedent::SharedCovariateDesign
 impl core::cmp::PartialEq for antecedent::SimultaneousBand
@@ -967,6 +996,11 @@ impl core::cmp::PartialEq for antecedent::analysis::TransportedDecisionInspectio
 impl core::cmp::PartialEq for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport
 impl core::cmp::PartialEq for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportBody
 impl core::cmp::PartialEq for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest
+impl core::cmp::PartialEq for antecedent::analysis::array_fits::ArrayFit
+impl core::cmp::PartialEq for antecedent::analysis::array_fits::TemporalScoreModel
+impl core::cmp::PartialEq for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
+impl core::cmp::PartialEq for antecedent::analysis::array_fits::TreatmentScoreSpec
+impl core::cmp::PartialEq for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::cmp::PartialEq for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::cmp::PartialEq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::cmp::PartialEq for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -1022,6 +1056,7 @@ impl core::cmp::PartialEq for antecedent::analysis::inverse_sources::Observation
 impl core::cmp::PartialEq for antecedent::analysis::joint_law_composed_basis::Resolution
 impl core::cmp::PartialEq for antecedent::analysis::latent_class_effects::LatentClassEffects
 impl core::cmp::PartialEq for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+impl core::cmp::PartialEq for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::cmp::PartialEq for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 impl core::cmp::PartialEq for antecedent::analysis::multi_level_treatment::AdjustmentColumn
 impl core::cmp::PartialEq for antecedent::analysis::multi_level_treatment::LevelMeanWire
@@ -1072,6 +1107,14 @@ impl core::cmp::PartialEq for antecedent::analysis::recalc_receipt::StageCounts
 impl core::cmp::PartialEq for antecedent::analysis::recalc_receipt::StandingInputDeclaration
 impl core::cmp::PartialEq for antecedent::analysis::recalc_receipt::UtilitySpec
 impl core::cmp::PartialEq for antecedent::analysis::repair::RepairFacadeError
+impl core::cmp::PartialEq for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire
+impl core::cmp::PartialEq for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire
+impl core::cmp::PartialEq for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit
+impl core::cmp::PartialEq for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire
+impl core::cmp::PartialEq for antecedent::analysis::repeated_measures_posterior_report::PriorWire
+impl core::cmp::PartialEq for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport
+impl core::cmp::PartialEq for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire
+impl core::cmp::PartialEq for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec
 impl core::cmp::PartialEq for antecedent::analysis::sample_split_analysis::AnalysisBinding
 impl core::cmp::PartialEq for antecedent::analysis::sample_split_analysis::AnalysisEffectRequest
 impl core::cmp::PartialEq for antecedent::analysis::sample_split_analysis::SplitAnalysisEffect
@@ -1104,6 +1147,9 @@ impl core::cmp::PartialEq for antecedent::gcm::NestedOutcomeMechanism
 impl core::cmp::PartialEq for antecedent::gcm::PolicyValue
 impl core::cmp::PartialEq for antecedent::gcm::UnitEffectIntervals
 impl core::cmp::PartialEq for antecedent::inference::ExternalComposeSpec
+impl core::cmp::PartialEq for antecedent::period_refresh::PeriodRefreshOutcome
+impl core::cmp::PartialEq for antecedent::period_refresh::RefreshBlock
+impl core::cmp::PartialEq for antecedent::period_refresh::RefreshEvent
 impl core::cmp::PartialEq for antecedent::result::InterferenceInference
 impl core::cmp::PartialEq for antecedent::result::InterferencePointwiseInterval
 impl core::cmp::PartialEq for antecedent::result::IntervalBinding
@@ -1189,6 +1235,8 @@ impl core::convert::From<antecedent_identify::error::IdentificationError> for an
 impl core::convert::From<antecedent_identify::error::IdentificationError> for antecedent::CompileCause
 impl core::convert::From<antecedent_identify::recovery_chain::ChainRecoveryError> for antecedent::CausalError
 impl core::convert::From<antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError> for antecedent::AdaptiveInferenceRefusal
+impl core::convert::From<antecedent_io::array_fit_artifact::ArrayFitError> for antecedent::CausalError
+impl core::convert::From<antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError> for antecedent::CausalError
 impl core::convert::From<antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError> for antecedent::CausalError
 impl core::convert::From<antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError> for antecedent::CausalError
 impl core::convert::From<antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError> for antecedent::CausalError
@@ -1355,6 +1403,7 @@ impl core::fmt::Debug for antecedent::DependenceRangeRequest
 impl core::fmt::Debug for antecedent::DependentColumn
 impl core::fmt::Debug for antecedent::DerivedTreatmentDeclaration
 impl core::fmt::Debug for antecedent::DerivedTreatmentPlan
+impl core::fmt::Debug for antecedent::DesignPosteriorModel
 impl core::fmt::Debug for antecedent::DroppedColumn
 impl core::fmt::Debug for antecedent::DuplicateGroup
 impl core::fmt::Debug for antecedent::EnumeratedStatus
@@ -1376,6 +1425,7 @@ impl core::fmt::Debug for antecedent::FittedPropensity
 impl core::fmt::Debug for antecedent::ForwardEvaluation
 impl core::fmt::Debug for antecedent::ForwardInterval
 impl core::fmt::Debug for antecedent::GraphClass
+impl core::fmt::Debug for antecedent::HistoryMatchEstimate
 impl core::fmt::Debug for antecedent::Identification
 impl core::fmt::Debug for antecedent::IdentifierId
 impl core::fmt::Debug for antecedent::InferenceDefault
@@ -1472,6 +1522,7 @@ impl core::fmt::Debug for antecedent::ScientificBridgeResult
 impl core::fmt::Debug for antecedent::ScoreQuantile
 impl core::fmt::Debug for antecedent::ScoreSource
 impl core::fmt::Debug for antecedent::ScreenSplitReceipt
+impl core::fmt::Debug for antecedent::SequentialContrastEstimate
 impl core::fmt::Debug for antecedent::SharedBatchDesign
 impl core::fmt::Debug for antecedent::SharedCovariateDesign
 impl core::fmt::Debug for antecedent::SimultaneousBand
@@ -1586,6 +1637,7 @@ impl core::fmt::Debug for antecedent::analysis::PropagationClaim
 impl core::fmt::Debug for antecedent::analysis::PropagationDraws
 impl core::fmt::Debug for antecedent::analysis::ResolvedLatencyBudget
 impl core::fmt::Debug for antecedent::analysis::Retention
+impl core::fmt::Debug for antecedent::analysis::SmoothedDosePosteriorResult
 impl core::fmt::Debug for antecedent::analysis::TransportGridData
 impl core::fmt::Debug for antecedent::analysis::TransportGridPoint
 impl core::fmt::Debug for antecedent::analysis::TransportGridQuery
@@ -1596,6 +1648,11 @@ impl core::fmt::Debug for antecedent::analysis::adaptive_procedure_report::Repea
 impl core::fmt::Debug for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport
 impl core::fmt::Debug for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportBody
 impl core::fmt::Debug for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest
+impl core::fmt::Debug for antecedent::analysis::array_fits::ArrayFit
+impl core::fmt::Debug for antecedent::analysis::array_fits::TemporalScoreModel
+impl core::fmt::Debug for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
+impl core::fmt::Debug for antecedent::analysis::array_fits::TreatmentScoreSpec
+impl core::fmt::Debug for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::fmt::Debug for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::fmt::Debug for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::fmt::Debug for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -1678,6 +1735,7 @@ impl core::fmt::Debug for antecedent::analysis::inverse_sources::ObservationalSc
 impl core::fmt::Debug for antecedent::analysis::joint_law_composed_basis::Resolution
 impl core::fmt::Debug for antecedent::analysis::latent_class_effects::LatentClassEffects
 impl core::fmt::Debug for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+impl core::fmt::Debug for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::fmt::Debug for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 impl core::fmt::Debug for antecedent::analysis::multi_level_treatment::AdjustmentColumn
 impl core::fmt::Debug for antecedent::analysis::multi_level_treatment::LevelMeanWire
@@ -1762,6 +1820,14 @@ impl core::fmt::Debug for antecedent::analysis::recalc_temporal::TemporalRunErro
 impl core::fmt::Debug for antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal
 impl core::fmt::Debug for antecedent::analysis::recovery_chain::RecoveryChain
 impl core::fmt::Debug for antecedent::analysis::repair::RepairFacadeError
+impl core::fmt::Debug for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire
+impl core::fmt::Debug for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire
+impl core::fmt::Debug for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit
+impl core::fmt::Debug for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire
+impl core::fmt::Debug for antecedent::analysis::repeated_measures_posterior_report::PriorWire
+impl core::fmt::Debug for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport
+impl core::fmt::Debug for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire
+impl core::fmt::Debug for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec
 impl core::fmt::Debug for antecedent::analysis::sample_split_analysis::AnalysisBinding
 impl core::fmt::Debug for antecedent::analysis::sample_split_analysis::AnalysisEffectRequest
 impl core::fmt::Debug for antecedent::analysis::sample_split_analysis::SplitAnalysisEffect
@@ -1817,6 +1883,10 @@ impl core::fmt::Debug for antecedent::gcm::PreparedPolicy
 impl core::fmt::Debug for antecedent::gcm::UnitEffectIntervals
 impl core::fmt::Debug for antecedent::inference::DecodedPriorHydrate
 impl core::fmt::Debug for antecedent::inference::ExternalComposeSpec
+impl core::fmt::Debug for antecedent::period_refresh::PeriodRefresh
+impl core::fmt::Debug for antecedent::period_refresh::PeriodRefreshOutcome
+impl core::fmt::Debug for antecedent::period_refresh::RefreshBlock
+impl core::fmt::Debug for antecedent::period_refresh::RefreshEvent
 impl core::fmt::Debug for antecedent::planner::LogicalAnalysisPlan
 impl core::fmt::Debug for antecedent::planner::PhysicalExecutionPlan
 impl core::fmt::Debug for antecedent::result::InterferenceInference
@@ -1949,6 +2019,7 @@ impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::Tr
 impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::TrialConfidenceSetKind
 impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::TrialLogicalBoundReason
 impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::TrialRandomization
+impl core::marker::Copy for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::marker::Copy for antecedent::analysis::multi_level_treatment::LevelMeanWire
 impl core::marker::Copy for antecedent::analysis::multi_level_treatment::LevelRowsWire
 impl core::marker::Copy for antecedent::analysis::multi_level_treatment::MultiLevelTargetWire
@@ -1971,6 +2042,9 @@ impl core::marker::Copy for antecedent::analysis::recalc_receipt::SessionStandin
 impl core::marker::Copy for antecedent::analysis::recalc_receipt::StageCounts
 impl core::marker::Copy for antecedent::analysis::recalc_receipt::StandingInputDeclaration
 impl core::marker::Copy for antecedent::analysis::recalc_receipt::UtilitySpec
+impl core::marker::Copy for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire
+impl core::marker::Copy for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire
+impl core::marker::Copy for antecedent::analysis::repeated_measures_posterior_report::PriorWire
 impl core::marker::Copy for antecedent::analysis::sample_split_analysis::SplitEffectInterval
 impl core::marker::Copy for antecedent::analysis::sample_split_parent_set_effect::ParentSetOptions
 impl core::marker::Copy for antecedent::counterfactual_id::CounterfactualIdConsumeLimits
@@ -2054,6 +2128,7 @@ impl core::marker::Freeze for antecedent::DependenceRangeRequest [auto]
 impl core::marker::Freeze for antecedent::DependentColumn [auto]
 impl core::marker::Freeze for antecedent::DerivedTreatmentDeclaration [auto]
 impl core::marker::Freeze for antecedent::DerivedTreatmentPlan [auto]
+impl core::marker::Freeze for antecedent::DesignPosteriorModel [auto]
 impl core::marker::Freeze for antecedent::DroppedColumn [auto]
 impl core::marker::Freeze for antecedent::DuplicateGroup [auto]
 impl core::marker::Freeze for antecedent::EmpiricalScenarioInput [auto]
@@ -2077,6 +2152,7 @@ impl core::marker::Freeze for antecedent::FittedPropensity [auto]
 impl core::marker::Freeze for antecedent::ForwardEvaluation [auto]
 impl core::marker::Freeze for antecedent::ForwardInterval [auto]
 impl core::marker::Freeze for antecedent::GraphClass [auto]
+impl core::marker::Freeze for antecedent::HistoryMatchEstimate [auto]
 impl core::marker::Freeze for antecedent::Identification [auto]
 impl core::marker::Freeze for antecedent::IdentifierId [auto]
 impl core::marker::Freeze for antecedent::InferenceDefault [auto]
@@ -2174,6 +2250,7 @@ impl core::marker::Freeze for antecedent::ScientificBridgeResult [auto]
 impl core::marker::Freeze for antecedent::ScoreQuantile [auto]
 impl core::marker::Freeze for antecedent::ScoreSource [auto]
 impl core::marker::Freeze for antecedent::ScreenSplitReceipt [auto]
+impl core::marker::Freeze for antecedent::SequentialContrastEstimate [auto]
 impl core::marker::Freeze for antecedent::SharedBatchDesign [auto]
 impl core::marker::Freeze for antecedent::SharedCovariateDesign [auto]
 impl core::marker::Freeze for antecedent::SimultaneousBand [auto]
@@ -2287,6 +2364,7 @@ impl core::marker::Freeze for antecedent::analysis::PropagationClaim [auto]
 impl core::marker::Freeze for antecedent::analysis::PropagationDraws [auto]
 impl core::marker::Freeze for antecedent::analysis::ResolvedLatencyBudget [auto]
 impl core::marker::Freeze for antecedent::analysis::Retention [auto]
+impl core::marker::Freeze for antecedent::analysis::SmoothedDosePosteriorResult [auto]
 impl core::marker::Freeze for antecedent::analysis::TransportGridData [auto]
 impl core::marker::Freeze for antecedent::analysis::TransportGridPoint [auto]
 impl core::marker::Freeze for antecedent::analysis::TransportGridQuery [auto]
@@ -2297,6 +2375,11 @@ impl core::marker::Freeze for antecedent::analysis::adaptive_procedure_report::R
 impl core::marker::Freeze for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport [auto]
 impl core::marker::Freeze for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportBody [auto]
 impl core::marker::Freeze for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest [auto]
+impl core::marker::Freeze for antecedent::analysis::array_fits::ArrayFit [auto]
+impl core::marker::Freeze for antecedent::analysis::array_fits::TemporalScoreModel [auto]
+impl core::marker::Freeze for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
+impl core::marker::Freeze for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::marker::Freeze for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Freeze for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Freeze for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -2378,6 +2461,7 @@ impl core::marker::Freeze for antecedent::analysis::inverse_sources::Observation
 impl core::marker::Freeze for antecedent::analysis::joint_law_composed_basis::Resolution [auto]
 impl core::marker::Freeze for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
 impl core::marker::Freeze for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::marker::Freeze for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Freeze for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::marker::Freeze for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
@@ -2481,6 +2565,14 @@ impl core::marker::Freeze for antecedent::analysis::recalc_temporal::TemporalSes
 impl core::marker::Freeze for antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal [auto]
 impl core::marker::Freeze for antecedent::analysis::recovery_chain::RecoveryChain [auto]
 impl core::marker::Freeze for antecedent::analysis::repair::RepairFacadeError [auto]
+impl core::marker::Freeze for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire [auto]
+impl core::marker::Freeze for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire [auto]
+impl core::marker::Freeze for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit [auto]
+impl core::marker::Freeze for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire [auto]
+impl core::marker::Freeze for antecedent::analysis::repeated_measures_posterior_report::PriorWire [auto]
+impl core::marker::Freeze for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport [auto]
+impl core::marker::Freeze for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire [auto]
+impl core::marker::Freeze for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec [auto]
 impl core::marker::Freeze for antecedent::analysis::sample_split_analysis::AnalysisBinding [auto]
 impl core::marker::Freeze for antecedent::analysis::sample_split_analysis::AnalysisEffectRequest [auto]
 impl core::marker::Freeze for antecedent::analysis::sample_split_analysis::SplitAnalysisEffect [auto]
@@ -2535,6 +2627,10 @@ impl core::marker::Freeze for antecedent::gcm::PreparedPolicy [auto]
 impl core::marker::Freeze for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::marker::Freeze for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::marker::Freeze for antecedent::inference::ExternalComposeSpec [auto]
+impl core::marker::Freeze for antecedent::period_refresh::PeriodRefresh [auto]
+impl core::marker::Freeze for antecedent::period_refresh::PeriodRefreshOutcome [auto]
+impl core::marker::Freeze for antecedent::period_refresh::RefreshBlock [auto]
+impl core::marker::Freeze for antecedent::period_refresh::RefreshEvent [auto]
 impl core::marker::Freeze for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::marker::Freeze for antecedent::result::InterferenceInference [auto]
 impl core::marker::Freeze for antecedent::result::InterferencePointwiseInterval [auto]
@@ -2622,6 +2718,7 @@ impl core::marker::Send for antecedent::DependenceRangeRequest [auto]
 impl core::marker::Send for antecedent::DependentColumn [auto]
 impl core::marker::Send for antecedent::DerivedTreatmentDeclaration [auto]
 impl core::marker::Send for antecedent::DerivedTreatmentPlan [auto]
+impl core::marker::Send for antecedent::DesignPosteriorModel [auto]
 impl core::marker::Send for antecedent::DroppedColumn [auto]
 impl core::marker::Send for antecedent::DuplicateGroup [auto]
 impl core::marker::Send for antecedent::EmpiricalScenarioInput [auto]
@@ -2645,6 +2742,7 @@ impl core::marker::Send for antecedent::FittedPropensity [auto]
 impl core::marker::Send for antecedent::ForwardEvaluation [auto]
 impl core::marker::Send for antecedent::ForwardInterval [auto]
 impl core::marker::Send for antecedent::GraphClass [auto]
+impl core::marker::Send for antecedent::HistoryMatchEstimate [auto]
 impl core::marker::Send for antecedent::Identification [auto]
 impl core::marker::Send for antecedent::IdentifierId [auto]
 impl core::marker::Send for antecedent::InferenceDefault [auto]
@@ -2742,6 +2840,7 @@ impl core::marker::Send for antecedent::ScientificBridgeResult [auto]
 impl core::marker::Send for antecedent::ScoreQuantile [auto]
 impl core::marker::Send for antecedent::ScoreSource [auto]
 impl core::marker::Send for antecedent::ScreenSplitReceipt [auto]
+impl core::marker::Send for antecedent::SequentialContrastEstimate [auto]
 impl core::marker::Send for antecedent::SharedBatchDesign [auto]
 impl core::marker::Send for antecedent::SharedCovariateDesign [auto]
 impl core::marker::Send for antecedent::SimultaneousBand [auto]
@@ -2856,6 +2955,7 @@ impl core::marker::Send for antecedent::analysis::PropagationClaim [auto]
 impl core::marker::Send for antecedent::analysis::PropagationDraws [auto]
 impl core::marker::Send for antecedent::analysis::ResolvedLatencyBudget [auto]
 impl core::marker::Send for antecedent::analysis::Retention [auto]
+impl core::marker::Send for antecedent::analysis::SmoothedDosePosteriorResult [auto]
 impl core::marker::Send for antecedent::analysis::TransportGridData [auto]
 impl core::marker::Send for antecedent::analysis::TransportGridPoint [auto]
 impl core::marker::Send for antecedent::analysis::TransportGridQuery [auto]
@@ -2866,6 +2966,11 @@ impl core::marker::Send for antecedent::analysis::adaptive_procedure_report::Rep
 impl core::marker::Send for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport [auto]
 impl core::marker::Send for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportBody [auto]
 impl core::marker::Send for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest [auto]
+impl core::marker::Send for antecedent::analysis::array_fits::ArrayFit [auto]
+impl core::marker::Send for antecedent::analysis::array_fits::TemporalScoreModel [auto]
+impl core::marker::Send for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
+impl core::marker::Send for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::marker::Send for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Send for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Send for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Send for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -2948,6 +3053,7 @@ impl core::marker::Send for antecedent::analysis::inverse_sources::Observational
 impl core::marker::Send for antecedent::analysis::joint_law_composed_basis::Resolution [auto]
 impl core::marker::Send for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
 impl core::marker::Send for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::marker::Send for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Send for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::marker::Send for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::marker::Send for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
@@ -3051,6 +3157,14 @@ impl core::marker::Send for antecedent::analysis::recalc_temporal::TemporalSessi
 impl core::marker::Send for antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal [auto]
 impl core::marker::Send for antecedent::analysis::recovery_chain::RecoveryChain [auto]
 impl core::marker::Send for antecedent::analysis::repair::RepairFacadeError [auto]
+impl core::marker::Send for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire [auto]
+impl core::marker::Send for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire [auto]
+impl core::marker::Send for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit [auto]
+impl core::marker::Send for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire [auto]
+impl core::marker::Send for antecedent::analysis::repeated_measures_posterior_report::PriorWire [auto]
+impl core::marker::Send for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport [auto]
+impl core::marker::Send for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire [auto]
+impl core::marker::Send for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec [auto]
 impl core::marker::Send for antecedent::analysis::sample_split_analysis::AnalysisBinding [auto]
 impl core::marker::Send for antecedent::analysis::sample_split_analysis::AnalysisEffectRequest [auto]
 impl core::marker::Send for antecedent::analysis::sample_split_analysis::SplitAnalysisEffect [auto]
@@ -3106,6 +3220,10 @@ impl core::marker::Send for antecedent::gcm::PreparedPolicy [auto]
 impl core::marker::Send for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::marker::Send for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::marker::Send for antecedent::inference::ExternalComposeSpec [auto]
+impl core::marker::Send for antecedent::period_refresh::PeriodRefresh [auto]
+impl core::marker::Send for antecedent::period_refresh::PeriodRefreshOutcome [auto]
+impl core::marker::Send for antecedent::period_refresh::RefreshBlock [auto]
+impl core::marker::Send for antecedent::period_refresh::RefreshEvent [auto]
 impl core::marker::Send for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::marker::Send for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::marker::Send for antecedent::result::InterferenceInference [auto]
@@ -3169,6 +3287,7 @@ impl core::marker::StructuralPartialEq for antecedent::DependenceRangeRequest
 impl core::marker::StructuralPartialEq for antecedent::DependentColumn
 impl core::marker::StructuralPartialEq for antecedent::DerivedTreatmentDeclaration
 impl core::marker::StructuralPartialEq for antecedent::DerivedTreatmentPlan
+impl core::marker::StructuralPartialEq for antecedent::DesignPosteriorModel
 impl core::marker::StructuralPartialEq for antecedent::DroppedColumn
 impl core::marker::StructuralPartialEq for antecedent::DuplicateGroup
 impl core::marker::StructuralPartialEq for antecedent::EnumeratedStatus
@@ -3184,6 +3303,7 @@ impl core::marker::StructuralPartialEq for antecedent::FittedPropensity
 impl core::marker::StructuralPartialEq for antecedent::ForwardEvaluation
 impl core::marker::StructuralPartialEq for antecedent::ForwardInterval
 impl core::marker::StructuralPartialEq for antecedent::GraphClass
+impl core::marker::StructuralPartialEq for antecedent::HistoryMatchEstimate
 impl core::marker::StructuralPartialEq for antecedent::IdentifierId
 impl core::marker::StructuralPartialEq for antecedent::InferenceDefault
 impl core::marker::StructuralPartialEq for antecedent::InferenceMode
@@ -3244,6 +3364,7 @@ impl core::marker::StructuralPartialEq for antecedent::ScientificBridgeRefusal
 impl core::marker::StructuralPartialEq for antecedent::ScoreQuantile
 impl core::marker::StructuralPartialEq for antecedent::ScoreSource
 impl core::marker::StructuralPartialEq for antecedent::ScreenSplitReceipt
+impl core::marker::StructuralPartialEq for antecedent::SequentialContrastEstimate
 impl core::marker::StructuralPartialEq for antecedent::SharedBatchDesign
 impl core::marker::StructuralPartialEq for antecedent::SharedCovariateDesign
 impl core::marker::StructuralPartialEq for antecedent::SimultaneousBand
@@ -3324,6 +3445,11 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::TransportedDeci
 impl core::marker::StructuralPartialEq for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport
 impl core::marker::StructuralPartialEq for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportBody
 impl core::marker::StructuralPartialEq for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest
+impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::ArrayFit
+impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::TemporalScoreModel
+impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
+impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::TreatmentScoreSpec
+impl core::marker::StructuralPartialEq for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::marker::StructuralPartialEq for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -3379,6 +3505,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::inverse_sources
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_law_composed_basis::Resolution
 impl core::marker::StructuralPartialEq for antecedent::analysis::latent_class_effects::LatentClassEffects
 impl core::marker::StructuralPartialEq for antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+impl core::marker::StructuralPartialEq for antecedent::analysis::matching_posterior_refusal::MatchingSetting
 impl core::marker::StructuralPartialEq for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::multi_level_treatment::AdjustmentColumn
 impl core::marker::StructuralPartialEq for antecedent::analysis::multi_level_treatment::LevelMeanWire
@@ -3429,6 +3556,14 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::recalc_receipt:
 impl core::marker::StructuralPartialEq for antecedent::analysis::recalc_receipt::StandingInputDeclaration
 impl core::marker::StructuralPartialEq for antecedent::analysis::recalc_receipt::UtilitySpec
 impl core::marker::StructuralPartialEq for antecedent::analysis::repair::RepairFacadeError
+impl core::marker::StructuralPartialEq for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire
+impl core::marker::StructuralPartialEq for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire
+impl core::marker::StructuralPartialEq for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit
+impl core::marker::StructuralPartialEq for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire
+impl core::marker::StructuralPartialEq for antecedent::analysis::repeated_measures_posterior_report::PriorWire
+impl core::marker::StructuralPartialEq for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport
+impl core::marker::StructuralPartialEq for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire
+impl core::marker::StructuralPartialEq for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec
 impl core::marker::StructuralPartialEq for antecedent::analysis::sample_split_analysis::AnalysisBinding
 impl core::marker::StructuralPartialEq for antecedent::analysis::sample_split_analysis::AnalysisEffectRequest
 impl core::marker::StructuralPartialEq for antecedent::analysis::sample_split_analysis::SplitAnalysisEffect
@@ -3461,6 +3596,9 @@ impl core::marker::StructuralPartialEq for antecedent::gcm::NestedOutcomeMechani
 impl core::marker::StructuralPartialEq for antecedent::gcm::PolicyValue
 impl core::marker::StructuralPartialEq for antecedent::gcm::UnitEffectIntervals
 impl core::marker::StructuralPartialEq for antecedent::inference::ExternalComposeSpec
+impl core::marker::StructuralPartialEq for antecedent::period_refresh::PeriodRefreshOutcome
+impl core::marker::StructuralPartialEq for antecedent::period_refresh::RefreshBlock
+impl core::marker::StructuralPartialEq for antecedent::period_refresh::RefreshEvent
 impl core::marker::StructuralPartialEq for antecedent::result::InterferenceInference
 impl core::marker::StructuralPartialEq for antecedent::result::InterferencePointwiseInterval
 impl core::marker::StructuralPartialEq for antecedent::result::IntervalBinding
@@ -3543,6 +3681,7 @@ impl core::marker::Sync for antecedent::DependenceRangeRequest [auto]
 impl core::marker::Sync for antecedent::DependentColumn [auto]
 impl core::marker::Sync for antecedent::DerivedTreatmentDeclaration [auto]
 impl core::marker::Sync for antecedent::DerivedTreatmentPlan [auto]
+impl core::marker::Sync for antecedent::DesignPosteriorModel [auto]
 impl core::marker::Sync for antecedent::DroppedColumn [auto]
 impl core::marker::Sync for antecedent::DuplicateGroup [auto]
 impl core::marker::Sync for antecedent::EmpiricalScenarioInput [auto]
@@ -3566,6 +3705,7 @@ impl core::marker::Sync for antecedent::FittedPropensity [auto]
 impl core::marker::Sync for antecedent::ForwardEvaluation [auto]
 impl core::marker::Sync for antecedent::ForwardInterval [auto]
 impl core::marker::Sync for antecedent::GraphClass [auto]
+impl core::marker::Sync for antecedent::HistoryMatchEstimate [auto]
 impl core::marker::Sync for antecedent::Identification [auto]
 impl core::marker::Sync for antecedent::IdentifierId [auto]
 impl core::marker::Sync for antecedent::InferenceDefault [auto]
@@ -3663,6 +3803,7 @@ impl core::marker::Sync for antecedent::ScientificBridgeResult [auto]
 impl core::marker::Sync for antecedent::ScoreQuantile [auto]
 impl core::marker::Sync for antecedent::ScoreSource [auto]
 impl core::marker::Sync for antecedent::ScreenSplitReceipt [auto]
+impl core::marker::Sync for antecedent::SequentialContrastEstimate [auto]
 impl core::marker::Sync for antecedent::SharedBatchDesign [auto]
 impl core::marker::Sync for antecedent::SharedCovariateDesign [auto]
 impl core::marker::Sync for antecedent::SimultaneousBand [auto]
@@ -3777,6 +3918,7 @@ impl core::marker::Sync for antecedent::analysis::PropagationClaim [auto]
 impl core::marker::Sync for antecedent::analysis::PropagationDraws [auto]
 impl core::marker::Sync for antecedent::analysis::ResolvedLatencyBudget [auto]
 impl core::marker::Sync for antecedent::analysis::Retention [auto]
+impl core::marker::Sync for antecedent::analysis::SmoothedDosePosteriorResult [auto]
 impl core::marker::Sync for antecedent::analysis::TransportGridData [auto]
 impl core::marker::Sync for antecedent::analysis::TransportGridPoint [auto]
 impl core::marker::Sync for antecedent::analysis::TransportGridQuery [auto]
@@ -3787,6 +3929,11 @@ impl core::marker::Sync for antecedent::analysis::adaptive_procedure_report::Rep
 impl core::marker::Sync for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport [auto]
 impl core::marker::Sync for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportBody [auto]
 impl core::marker::Sync for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest [auto]
+impl core::marker::Sync for antecedent::analysis::array_fits::ArrayFit [auto]
+impl core::marker::Sync for antecedent::analysis::array_fits::TemporalScoreModel [auto]
+impl core::marker::Sync for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
+impl core::marker::Sync for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::marker::Sync for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Sync for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Sync for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -3869,6 +4016,7 @@ impl core::marker::Sync for antecedent::analysis::inverse_sources::Observational
 impl core::marker::Sync for antecedent::analysis::joint_law_composed_basis::Resolution [auto]
 impl core::marker::Sync for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
 impl core::marker::Sync for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::marker::Sync for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Sync for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::marker::Sync for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
@@ -3972,6 +4120,14 @@ impl core::marker::Sync for antecedent::analysis::recalc_temporal::TemporalSessi
 impl core::marker::Sync for antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal [auto]
 impl core::marker::Sync for antecedent::analysis::recovery_chain::RecoveryChain [auto]
 impl core::marker::Sync for antecedent::analysis::repair::RepairFacadeError [auto]
+impl core::marker::Sync for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire [auto]
+impl core::marker::Sync for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire [auto]
+impl core::marker::Sync for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit [auto]
+impl core::marker::Sync for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire [auto]
+impl core::marker::Sync for antecedent::analysis::repeated_measures_posterior_report::PriorWire [auto]
+impl core::marker::Sync for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport [auto]
+impl core::marker::Sync for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire [auto]
+impl core::marker::Sync for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec [auto]
 impl core::marker::Sync for antecedent::analysis::sample_split_analysis::AnalysisBinding [auto]
 impl core::marker::Sync for antecedent::analysis::sample_split_analysis::AnalysisEffectRequest [auto]
 impl core::marker::Sync for antecedent::analysis::sample_split_analysis::SplitAnalysisEffect [auto]
@@ -4027,6 +4183,10 @@ impl core::marker::Sync for antecedent::gcm::PreparedPolicy [auto]
 impl core::marker::Sync for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::marker::Sync for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::marker::Sync for antecedent::inference::ExternalComposeSpec [auto]
+impl core::marker::Sync for antecedent::period_refresh::PeriodRefresh [auto]
+impl core::marker::Sync for antecedent::period_refresh::PeriodRefreshOutcome [auto]
+impl core::marker::Sync for antecedent::period_refresh::RefreshBlock [auto]
+impl core::marker::Sync for antecedent::period_refresh::RefreshEvent [auto]
 impl core::marker::Sync for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::marker::Sync for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::marker::Sync for antecedent::result::InterferenceInference [auto]
@@ -4115,6 +4275,7 @@ impl core::marker::Unpin for antecedent::DependenceRangeRequest [auto]
 impl core::marker::Unpin for antecedent::DependentColumn [auto]
 impl core::marker::Unpin for antecedent::DerivedTreatmentDeclaration [auto]
 impl core::marker::Unpin for antecedent::DerivedTreatmentPlan [auto]
+impl core::marker::Unpin for antecedent::DesignPosteriorModel [auto]
 impl core::marker::Unpin for antecedent::DroppedColumn [auto]
 impl core::marker::Unpin for antecedent::DuplicateGroup [auto]
 impl core::marker::Unpin for antecedent::EmpiricalScenarioInput [auto]
@@ -4138,6 +4299,7 @@ impl core::marker::Unpin for antecedent::FittedPropensity [auto]
 impl core::marker::Unpin for antecedent::ForwardEvaluation [auto]
 impl core::marker::Unpin for antecedent::ForwardInterval [auto]
 impl core::marker::Unpin for antecedent::GraphClass [auto]
+impl core::marker::Unpin for antecedent::HistoryMatchEstimate [auto]
 impl core::marker::Unpin for antecedent::Identification [auto]
 impl core::marker::Unpin for antecedent::IdentifierId [auto]
 impl core::marker::Unpin for antecedent::InferenceDefault [auto]
@@ -4235,6 +4397,7 @@ impl core::marker::Unpin for antecedent::ScientificBridgeResult [auto]
 impl core::marker::Unpin for antecedent::ScoreQuantile [auto]
 impl core::marker::Unpin for antecedent::ScoreSource [auto]
 impl core::marker::Unpin for antecedent::ScreenSplitReceipt [auto]
+impl core::marker::Unpin for antecedent::SequentialContrastEstimate [auto]
 impl core::marker::Unpin for antecedent::SharedBatchDesign [auto]
 impl core::marker::Unpin for antecedent::SharedCovariateDesign [auto]
 impl core::marker::Unpin for antecedent::SimultaneousBand [auto]
@@ -4349,6 +4512,7 @@ impl core::marker::Unpin for antecedent::analysis::PropagationClaim [auto]
 impl core::marker::Unpin for antecedent::analysis::PropagationDraws [auto]
 impl core::marker::Unpin for antecedent::analysis::ResolvedLatencyBudget [auto]
 impl core::marker::Unpin for antecedent::analysis::Retention [auto]
+impl core::marker::Unpin for antecedent::analysis::SmoothedDosePosteriorResult [auto]
 impl core::marker::Unpin for antecedent::analysis::TransportGridData [auto]
 impl core::marker::Unpin for antecedent::analysis::TransportGridPoint [auto]
 impl core::marker::Unpin for antecedent::analysis::TransportGridQuery [auto]
@@ -4359,6 +4523,11 @@ impl core::marker::Unpin for antecedent::analysis::adaptive_procedure_report::Re
 impl core::marker::Unpin for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport [auto]
 impl core::marker::Unpin for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportBody [auto]
 impl core::marker::Unpin for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest [auto]
+impl core::marker::Unpin for antecedent::analysis::array_fits::ArrayFit [auto]
+impl core::marker::Unpin for antecedent::analysis::array_fits::TemporalScoreModel [auto]
+impl core::marker::Unpin for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
+impl core::marker::Unpin for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::marker::Unpin for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::marker::Unpin for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Unpin for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -4441,6 +4610,7 @@ impl core::marker::Unpin for antecedent::analysis::inverse_sources::Observationa
 impl core::marker::Unpin for antecedent::analysis::joint_law_composed_basis::Resolution [auto]
 impl core::marker::Unpin for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
 impl core::marker::Unpin for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::marker::Unpin for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::marker::Unpin for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::marker::Unpin for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
@@ -4544,6 +4714,14 @@ impl core::marker::Unpin for antecedent::analysis::recalc_temporal::TemporalSess
 impl core::marker::Unpin for antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal [auto]
 impl core::marker::Unpin for antecedent::analysis::recovery_chain::RecoveryChain [auto]
 impl core::marker::Unpin for antecedent::analysis::repair::RepairFacadeError [auto]
+impl core::marker::Unpin for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire [auto]
+impl core::marker::Unpin for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire [auto]
+impl core::marker::Unpin for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit [auto]
+impl core::marker::Unpin for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire [auto]
+impl core::marker::Unpin for antecedent::analysis::repeated_measures_posterior_report::PriorWire [auto]
+impl core::marker::Unpin for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport [auto]
+impl core::marker::Unpin for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire [auto]
+impl core::marker::Unpin for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec [auto]
 impl core::marker::Unpin for antecedent::analysis::sample_split_analysis::AnalysisBinding [auto]
 impl core::marker::Unpin for antecedent::analysis::sample_split_analysis::AnalysisEffectRequest [auto]
 impl core::marker::Unpin for antecedent::analysis::sample_split_analysis::SplitAnalysisEffect [auto]
@@ -4599,6 +4777,10 @@ impl core::marker::Unpin for antecedent::gcm::PreparedPolicy [auto]
 impl core::marker::Unpin for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::marker::Unpin for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::marker::Unpin for antecedent::inference::ExternalComposeSpec [auto]
+impl core::marker::Unpin for antecedent::period_refresh::PeriodRefresh [auto]
+impl core::marker::Unpin for antecedent::period_refresh::PeriodRefreshOutcome [auto]
+impl core::marker::Unpin for antecedent::period_refresh::RefreshBlock [auto]
+impl core::marker::Unpin for antecedent::period_refresh::RefreshEvent [auto]
 impl core::marker::Unpin for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::marker::Unpin for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::marker::Unpin for antecedent::result::InterferenceInference [auto]
@@ -4689,6 +4871,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DependenceRangeRequ
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DependentColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DerivedTreatmentDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DerivedTreatmentPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DesignPosteriorModel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DroppedColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::DuplicateGroup [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::EmpiricalScenarioInput [auto]
@@ -4712,6 +4895,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::FittedPropensity [a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ForwardEvaluation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ForwardInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::GraphClass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::HistoryMatchEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::Identification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::IdentifierId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::InferenceDefault [auto]
@@ -4807,6 +4991,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ScientificBridgeRes
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ScoreQuantile [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ScoreSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ScreenSplitReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SequentialContrastEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SharedBatchDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SharedCovariateDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SimultaneousBand [auto]
@@ -4919,6 +5104,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::Propagati
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::PropagationDraws [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::ResolvedLatencyBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::Retention [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::SmoothedDosePosteriorResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::TransportGridData [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::TransportGridPoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::TransportGridQuery [auto]
@@ -4929,6 +5115,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::adaptive_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportBody [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fits::ArrayFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fits::TemporalScoreModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -5011,6 +5202,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::inverse_s
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_law_composed_basis::Resolution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
@@ -5106,6 +5298,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::recalc_te
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::recovery_chain::RecoveryChain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::repair::RepairFacadeError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::repeated_measures_posterior_report::PriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sample_split_analysis::AnalysisBinding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sample_split_analysis::AnalysisEffectRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sample_split_analysis::SplitAnalysisEffect [auto]
@@ -5157,6 +5357,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::PreparedPolicy
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::inference::ExternalComposeSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::PeriodRefresh [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::PeriodRefreshOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::RefreshBlock [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::RefreshEvent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::InterferenceInference [auto]
@@ -5244,6 +5448,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::DependenceRangeRequest
 impl core::panic::unwind_safe::UnwindSafe for antecedent::DependentColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::DerivedTreatmentDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::DerivedTreatmentPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::DesignPosteriorModel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::DroppedColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::DuplicateGroup [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::EmpiricalScenarioInput [auto]
@@ -5267,6 +5472,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::FittedPropensity [auto
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ForwardEvaluation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ForwardInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::GraphClass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::HistoryMatchEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::Identification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::IdentifierId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::InferenceDefault [auto]
@@ -5362,6 +5568,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::ScientificBridgeResult
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ScoreQuantile [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ScoreSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ScreenSplitReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::SequentialContrastEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::SharedBatchDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::SharedCovariateDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::SimultaneousBand [auto]
@@ -5474,6 +5681,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::PropagationC
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::PropagationDraws [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::ResolvedLatencyBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::Retention [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::SmoothedDosePosteriorResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::TransportGridData [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::TransportGridPoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::TransportGridQuery [auto]
@@ -5484,6 +5692,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::adaptive_pro
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportBody [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::ArrayFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::TemporalScoreModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -5566,6 +5779,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::inverse_sour
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_law_composed_basis::Resolution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::latent_class_effects::LatentClassEffects [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::learned_joint_closed::LearnedJointRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::matching_posterior_refusal::MatchingSetting [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::mechanism_discrepancy::MechanismDiscrepancyRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::multi_level_treatment::AdjustmentColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::multi_level_treatment::LevelMeanWire [auto]
@@ -5661,6 +5875,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::recalc_tempo
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::recovery_chain::RecoveryChain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::repair::RepairFacadeError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::repeated_measures_posterior_report::PriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::sample_split_analysis::AnalysisBinding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::sample_split_analysis::AnalysisEffectRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::sample_split_analysis::SplitAnalysisEffect [auto]
@@ -5712,6 +5934,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::PreparedPolicy [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::UnitEffectIntervals [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::inference::ExternalComposeSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::PeriodRefresh [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::PeriodRefreshOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::RefreshBlock [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::RefreshEvent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::InterferenceInference [auto]
@@ -5803,6 +6029,12 @@ impl serde_core::ser::Serialize for antecedent::analysis::proposal_arrival::Arri
 impl serde_core::ser::Serialize for antecedent::analysis::proposal_arrival::ArrivalPoint
 impl serde_core::ser::Serialize for antecedent::analysis::proposal_arrival::ArrivalRequest
 impl serde_core::ser::Serialize for antecedent::analysis::proposal_arrival::ArrivalWork
+impl serde_core::ser::Serialize for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire
+impl serde_core::ser::Serialize for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire
+impl serde_core::ser::Serialize for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire
+impl serde_core::ser::Serialize for antecedent::analysis::repeated_measures_posterior_report::PriorWire
+impl serde_core::ser::Serialize for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport
+impl serde_core::ser::Serialize for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::PreflightInput<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
@@ -5818,6 +6050,7 @@ impl<'a> core::clone::Clone for antecedent::analysis::closed_pilots::SampledReco
 impl<'a> core::clone::Clone for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a>
+impl<'a> core::clone::Clone for antecedent::period_refresh::PeriodRefreshSpec<'a>
 impl<'a> core::clone::Clone for antecedent::strategy_table::StaticEstimateInput<'a>
 impl<'a> core::cmp::Eq for antecedent::ScreenUnits<'a>
 impl<'a> core::cmp::PartialEq for antecedent::ScreenUnits<'a>
@@ -5829,6 +6062,7 @@ impl<'a> core::fmt::Debug for antecedent::analysis::closed_pilots::SampledRecove
 impl<'a> core::fmt::Debug for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a>
+impl<'a> core::fmt::Debug for antecedent::period_refresh::PeriodRefreshSpec<'a>
 impl<'a> core::marker::Copy for antecedent::GraphRef<'a>
 impl<'a> core::marker::Copy for antecedent::ScreenUnits<'a>
 impl<'a> core::marker::Copy for antecedent::SequenceEndpoints<'a>
@@ -5837,6 +6071,7 @@ impl<'a> core::marker::Copy for antecedent::analysis::closed_pilots::SampledReco
 impl<'a> core::marker::Copy for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a>
 impl<'a> core::marker::Copy for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a>
 impl<'a> core::marker::Copy for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a>
+impl<'a> core::marker::Copy for antecedent::period_refresh::PeriodRefreshSpec<'a>
 impl<'a> core::marker::Copy for antecedent::strategy_table::StaticEstimateInput<'a>
 impl<'a> core::marker::Freeze for antecedent::GraphRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::PreflightInput<'a> [auto]
@@ -5848,6 +6083,7 @@ impl<'a> core::marker::Freeze for antecedent::analysis::discovered_transport_est
 impl<'a> core::marker::Freeze for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent::GraphRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent::PreflightInput<'a> [auto]
@@ -5859,6 +6095,7 @@ impl<'a> core::marker::Send for antecedent::analysis::discovered_transport_estim
 impl<'a> core::marker::Send for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
+impl<'a> core::marker::Send for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent::ScreenUnits<'a>
 impl<'a> core::marker::Sync for antecedent::GraphRef<'a> [auto]
@@ -5871,6 +6108,7 @@ impl<'a> core::marker::Sync for antecedent::analysis::discovered_transport_estim
 impl<'a> core::marker::Sync for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
+impl<'a> core::marker::Sync for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::GraphRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::PreflightInput<'a> [auto]
@@ -5882,6 +6120,7 @@ impl<'a> core::marker::Unpin for antecedent::analysis::discovered_transport_esti
 impl<'a> core::marker::Unpin for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::GraphRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::ScreenUnits<'a> [auto]
@@ -5891,6 +6130,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::close
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::GraphRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::SequenceEndpoints<'a> [auto]
@@ -5899,6 +6139,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_p
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::learned_joint_closed::LearnedJointRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::ConstituentRole
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::DeclaredExclusion
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::DerivedTreatmentDeclaration
@@ -5960,6 +6201,12 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::proposal_ar
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::proposal_arrival::ArrivalPoint
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::proposal_arrival::ArrivalRequest
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::proposal_arrival::ArrivalWork
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::repeated_measures_posterior_report::PriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire
 impl<E: core::clone::Clone> core::clone::Clone for antecedent::analysis::transported_constructors::TransportedConstruction<E>
 impl<E: core::cmp::PartialEq> core::cmp::PartialEq for antecedent::analysis::transported_constructors::TransportedConstruction<E>
 impl<E: core::fmt::Debug> core::fmt::Debug for antecedent::analysis::transported_constructors::TransportedConstruction<E>
@@ -6032,6 +6279,9 @@ pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_TREATMENT_CAL
 pub const antecedent::analysis::observational_policy::OBSERVATIONAL_POLICY_CALIBRATION: &str
 pub const antecedent::analysis::observational_survival::OBSERVATIONAL_SURVIVAL_CALIBRATION: &str
 pub const antecedent::analysis::proposal_arrival::MAX_ARRIVAL_BYTES: usize
+pub const antecedent::analysis::repeated_measures_posterior_report::REPEATED_MEASURES_POSTERIOR_ARTIFACT_FORMAT: &str
+pub const antecedent::analysis::repeated_measures_posterior_report::REPEATED_MEASURES_POSTERIOR_ARTIFACT_VERSION: u32
+pub const antecedent::analysis::repeated_measures_posterior_report::REPEATED_MEASURES_POSTERIOR_ESTIMATOR_ID: &str
 pub const antecedent::analysis::sample_split_analysis::WHOLE_METHOD_CALIBRATION: &str
 pub const antecedent::analysis::sensitivity_source::MAX_BYTES: usize
 pub const antecedent::analysis::temporal_counterfactual::STAGE_TEMPORAL_COUNTERFACTUAL: &str
@@ -6129,6 +6379,7 @@ pub enum antecedent::analysis::DagResponseOrigin
 pub enum antecedent::analysis::LinearDependence
 pub enum antecedent::analysis::TransportGridData
 pub enum antecedent::analysis::TransportGridPoint
+pub enum antecedent::analysis::array_fits::TemporalScoreModel
 pub enum antecedent::analysis::decision_claims::ClaimError
 pub enum antecedent::analysis::decision_claims::IntervalReading
 pub enum antecedent::analysis::design_ranking::ExternalLawDeclWire
@@ -6141,6 +6392,7 @@ pub enum antecedent::analysis::discovered_transport_trial::TrialLogicalBoundReas
 pub enum antecedent::analysis::discovered_transport_trial::TrialRandomization
 pub enum antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 pub enum antecedent::analysis::joint_law_composed_basis::Resolution
+pub enum antecedent::analysis::matching_posterior_refusal::MatchingSetting
 pub enum antecedent::analysis::multi_level_treatment::MultiLevelTargetWire
 pub enum antecedent::analysis::native_claims::NativeDecisionSource
 pub enum antecedent::analysis::recalc_adjusted::AdjustedContrast
@@ -6159,6 +6411,7 @@ pub enum antecedent::analysis::recalc_receipt::ReceiptError
 pub enum antecedent::analysis::recalc_temporal::TemporalRunError
 pub enum antecedent::analysis::repair::RepairFacadeError
 pub enum antecedent::gcm::NestedOutcomeMechanism
+pub enum antecedent::period_refresh::PeriodRefreshOutcome
 pub field antecedent::ActionConstraint::name: alloc::string::String
 pub field antecedent::ActionConstraint::satisfied: bool
 pub field antecedent::ActionOutcome::cost: f64
@@ -6226,6 +6479,7 @@ pub field antecedent::BatchRetargetRequest::claims: alloc::vec::Vec<antecedent::
 pub field antecedent::BatchRetargetRequest::contrasts: alloc::vec::Vec<antecedent::RetargetContrast>
 pub field antecedent::BatchRetargetRequest::expected_snapshot: core::option::Option<alloc::string::String>
 pub field antecedent::BayesianConfig::backend: antecedent_estimate::bayesian::gcomp::BayesianBackendKind
+pub field antecedent::BayesianConfig::design_model: core::option::Option<antecedent::DesignPosteriorModel>
 pub field antecedent::BayesianConfig::external_compose: core::option::Option<alloc::boxed::Box<antecedent::inference::ExternalComposeSpec>>
 pub field antecedent::BayesianConfig::likelihood: antecedent_prob::backend::BayesLikelihood
 pub field antecedent::BayesianConfig::n_draws: usize
@@ -6234,6 +6488,7 @@ pub field antecedent::BayesianConfig::prior: core::option::Option<antecedent_pro
 pub field antecedent::BayesianConfig::prior_artifact: core::option::Option<alloc::sync::Arc<[u8]>>
 pub field antecedent::BayesianConfig::prior_mapping: core::option::Option<antecedent_io_core::prior_bank::PriorMapping>
 pub field antecedent::BayesianConfig::prior_scale: f64
+pub field antecedent::BayesianConfig::white_innovation: core::option::Option<antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate>
 pub field antecedent::BorrowingRequest::label: alloc::string::String
 pub field antecedent::BorrowingRequest::likelihood: alloc::vec::Vec<antecedent::StudySummary>
 pub field antecedent::BorrowingRequest::mean_prior: antecedent_stats::synthesis::MeanPrior
@@ -6503,6 +6758,17 @@ pub field antecedent::ForwardInterval::level: f64
 pub field antecedent::ForwardInterval::lower: alloc::vec::Vec<f64>
 pub field antecedent::ForwardInterval::scope: antecedent::IntervalScope
 pub field antecedent::ForwardInterval::upper: alloc::vec::Vec<f64>
+pub field antecedent::HistoryMatchEstimate::caliper: core::option::Option<f64>
+pub field antecedent::HistoryMatchEstimate::contrast: f64
+pub field antecedent::HistoryMatchEstimate::differences: alloc::sync::Arc<[f64]>
+pub field antecedent::HistoryMatchEstimate::matched_donors: alloc::sync::Arc<[usize]>
+pub field antecedent::HistoryMatchEstimate::matched_queries: alloc::sync::Arc<[usize]>
+pub field antecedent::HistoryMatchEstimate::pair_weights: alloc::sync::Arc<[f64]>
+pub field antecedent::HistoryMatchEstimate::periods_matched: usize
+pub field antecedent::HistoryMatchEstimate::standard_error: core::option::Option<f64>
+pub field antecedent::HistoryMatchEstimate::uncertainty: alloc::sync::Arc<str>
+pub field antecedent::HistoryMatchEstimate::unmatched_treated: alloc::sync::Arc<[usize]>
+pub field antecedent::HistoryMatchEstimate::weight_total: f64
 pub field antecedent::InferenceDefault::bootstrap_replicates: u32
 pub field antecedent::InferenceDefault::mode: alloc::string::String
 pub field antecedent::InferenceDefault::refit_warning: core::option::Option<alloc::string::String>
@@ -6854,6 +7120,23 @@ pub field antecedent::ScreenSplitReceipt::unit_kind: &'static str
 pub field antecedent::SequenceEndpoints::sequence: &'a [antecedent_core::value::Value]
 pub field antecedent::SequenceEndpoints::source: &'a str
 pub field antecedent::SequenceEndpoints::target: &'a str
+pub field antecedent::SequentialContrastEstimate::active_mean: f64
+pub field antecedent::SequentialContrastEstimate::active_regime: [u8; 2]
+pub field antecedent::SequentialContrastEstimate::active_scores: alloc::sync::Arc<[f64]>
+pub field antecedent::SequentialContrastEstimate::contrast: f64
+pub field antecedent::SequentialContrastEstimate::contrast_scores: alloc::sync::Arc<[f64]>
+pub field antecedent::SequentialContrastEstimate::control_mean: f64
+pub field antecedent::SequentialContrastEstimate::control_regime: [u8; 2]
+pub field antecedent::SequentialContrastEstimate::control_scores: alloc::sync::Arc<[f64]>
+pub field antecedent::SequentialContrastEstimate::coverage: f64
+pub field antecedent::SequentialContrastEstimate::evaluated_rows: u64
+pub field antecedent::SequentialContrastEstimate::fits_computed: u64
+pub field antecedent::SequentialContrastEstimate::fits_reused: u64
+pub field antecedent::SequentialContrastEstimate::interval: core::option::Option<[f64; 2]>
+pub field antecedent::SequentialContrastEstimate::min_probability: f64
+pub field antecedent::SequentialContrastEstimate::minimum_action_probability: f64
+pub field antecedent::SequentialContrastEstimate::standard_error: core::option::Option<f64>
+pub field antecedent::SequentialContrastEstimate::uncertainty: alloc::sync::Arc<str>
 pub field antecedent::SharedBatchDesign::covariate: core::option::Option<antecedent::SharedCovariateDesign>
 pub field antecedent::SharedBatchDesign::fold_ids: alloc::sync::Arc<[u32]>
 pub field antecedent::SharedBatchDesign::fold_seed: u64
@@ -7328,6 +7611,13 @@ pub field antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresRepor
 pub field antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport::cell: antecedent_stats::adaptive_inference::procedure_repeated_measures::CellLabel
 pub field antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport::procedure_identity: alloc::string::String
 pub field antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport::route: &'static str
+pub field antecedent::analysis::array_fits::TemporalTreatmentScoreSpec::histories: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent::analysis::array_fits::TemporalTreatmentScoreSpec::model: antecedent::analysis::array_fits::TemporalScoreModel
+pub field antecedent::analysis::array_fits::TreatmentScoreSpec::clip: f64
+pub field antecedent::analysis::array_fits::TreatmentScoreSpec::draws: usize
+pub field antecedent::analysis::array_fits::TreatmentScoreSpec::prior_sd: f64
+pub field antecedent::analysis::array_fits::TreatmentScoreSpec::seed: u64
+pub field antecedent::analysis::array_fits::TreatmentScoreSpec::summary_rows: alloc::vec::Vec<usize>
 pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::code: &'static str
 pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::detail: alloc::string::String
 pub field antecedent::analysis::closed_pilots::ClosedPilotRefusal::message: alloc::string::String
@@ -7958,6 +8248,52 @@ pub field antecedent::analysis::recalc_static::StaticResponseRequest::utility: a
 pub field antecedent::analysis::recalc_temporal::TemporalOutcome::functional: antecedent_io_core::temporal_recalc_artifact::TemporalFunctionalWire
 pub field antecedent::analysis::recalc_temporal::TemporalOutcome::means: alloc::vec::Vec<f64>
 pub field antecedent::analysis::recalc_temporal::TemporalOutcome::recalc: antecedent::analysis::recalc_receipt::RecalcOutcome
+pub field antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire::mean: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire::standard_deviation: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire::units: u64
+pub field antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire::interval: [f64; 2]
+pub field antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire::mean: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire::probability_positive: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire::standard_deviation: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit::arm: usize
+pub field antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit::assignment_probability: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit::measurements: alloc::vec::Vec<f64>
+pub field antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire::arm: u64
+pub field antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire::assignment_probability: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire::measurements: alloc::vec::Vec<f64>
+pub field antecedent::analysis::repeated_measures_posterior_report::PriorWire::mean: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::PriorWire::variance: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::adaptive: bool
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::arms: alloc::vec::Vec<antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::assignment_probabilities: alloc::vec::Vec<f64>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::calibration: alloc::string::String
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::calibration_measured: bool
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::contrast: antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::credible_level: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::estimand: alloc::string::String
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::estimator_id: alloc::string::String
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::licensed: bool
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::likelihood: alloc::string::String
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::minus: u64
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::plus: u64
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::priors: alloc::vec::Vec<antecedent::analysis::repeated_measures_posterior_report::PriorWire>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::procedure_identity: alloc::string::String
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::route: alloc::string::String
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::selection: alloc::string::String
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::selection_premise: alloc::string::String
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::uncertainty: alloc::string::String
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::unit_arms: alloc::vec::Vec<u64>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::unit_measurements: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport::unit_summary_variance: f64
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire::credible_level: core::option::Option<f64>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire::priors: alloc::vec::Vec<antecedent::analysis::repeated_measures_posterior_report::PriorWire>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire::selection: core::option::Option<alloc::string::String>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire::units: alloc::vec::Vec<antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec::credible_level: core::option::Option<f64>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec::priors: alloc::vec::Vec<antecedent_stats::adaptive_inference::repeated_measures_posterior::NormalMeanPrior>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec::selection: core::option::Option<antecedent_stats::adaptive_inference::repeated_measures_posterior::SelectionMechanism>
+pub field antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec::units: alloc::vec::Vec<antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit>
 pub field antecedent::analysis::sample_split_analysis::AnalysisBinding::analysis_data_identity: [u8; 32]
 pub field antecedent::analysis::sample_split_analysis::AnalysisBinding::identity: [u8; 32]
 pub field antecedent::analysis::sample_split_analysis::AnalysisBinding::receipt_identity: [u8; 32]
@@ -8138,6 +8474,17 @@ pub field antecedent::inference::DecodedPriorHydrate::source_contrast: core::opt
 pub field antecedent::inference::ExternalComposeSpec::composed: antecedent_prob::external_prior::ComposedPrior
 pub field antecedent::inference::ExternalComposeSpec::conflict_policy: core::option::Option<antecedent_validate::conflict::ConflictPolicy>
 pub field antecedent::inference::ExternalComposeSpec::sources: alloc::sync::Arc<[antecedent_prob::external_prior::ExternalPriorSource]>
+pub field antecedent::period_refresh::PeriodRefreshSpec::cadence: antecedent_estimate::temporal_refresh::ObservationCadence
+pub field antecedent::period_refresh::PeriodRefreshSpec::initial_law: &'a str
+pub field antecedent::period_refresh::PeriodRefreshSpec::lags: usize
+pub field antecedent::period_refresh::PeriodRefreshSpec::series_id: &'a str
+pub field antecedent::period_refresh::PeriodRefreshSpec::standing: antecedent_estimate::temporal_refresh::MechanismStanding
+pub field antecedent::period_refresh::RefreshBlock::rows: alloc::vec::Vec<antecedent_state::ols_refresh::RefreshRow>
+pub field antecedent::period_refresh::RefreshBlock::snapshot_id: alloc::string::String
+pub field antecedent::period_refresh::RefreshEvent::cadence: antecedent_estimate::temporal_refresh::ObservationCadence
+pub field antecedent::period_refresh::RefreshEvent::initial_law: alloc::string::String
+pub field antecedent::period_refresh::RefreshEvent::outcome: core::option::Option<antecedent::period_refresh::PeriodRefreshOutcome>
+pub field antecedent::period_refresh::RefreshEvent::window: antecedent_estimate::temporal_refresh::TemporalWindowIdentity
 pub field antecedent::planner::LogicalAnalysisPlan::query: antecedent_core::query::CausalQuery
 pub field antecedent::planner::LogicalAnalysisPlan::record: antecedent_contract::plan::LogicalAnalysisPlanRecord
 pub field antecedent::planner::LogicalAnalysisPlan::row_count_hint: u64
@@ -8276,7 +8623,9 @@ pub fn <antecedent::BatchStudy>::fn prepare_cells(&self, queries: &[antecedent_c
 pub fn <antecedent::BatchStudy>::fn refute(self, suite: antecedent::RefuteSuite) -> Self
 pub fn <antecedent::BatchStudy>::fn tiered(data: antecedent_data::dataset::TabularData, background: antecedent_graph::tiered::TieredBackground) -> Self
 pub fn <antecedent::BayesianConfig>::const fn likelihood(self, likelihood: antecedent_prob::backend::BayesLikelihood) -> Self
+pub fn <antecedent::BayesianConfig>::const fn white_innovation(self, gate: antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate) -> Self
 pub fn <antecedent::BayesianConfig>::fn conjugate() -> Self
+pub fn <antecedent::BayesianConfig>::fn design_model(self, model: antecedent::DesignPosteriorModel) -> Self
 pub fn <antecedent::BayesianConfig>::fn hmc() -> Self
 pub fn <antecedent::BayesianConfig>::fn laplace() -> Self
 pub fn <antecedent::BayesianConfig>::fn n_draws(self, n: usize) -> Self
@@ -8364,6 +8713,7 @@ pub fn <antecedent::CounterfactualTransportResult>::fn cited_laws(&self) -> &[an
 pub fn <antecedent::CounterfactualTransportResult>::fn export_artifact(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::CounterfactualTransportResult>::fn identity(&self) -> core::result::Result<antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity, antecedent_io_core::error::IoError>
 pub fn <antecedent::DerivedTreatmentDeclaration>::fn validate(&self) -> core::result::Result<(), antecedent::CausalError>
+pub fn <antecedent::DesignPosteriorModel>::fn identity(&self) -> alloc::string::String
 pub fn <antecedent::EnumeratedStatus>::const fn as_str(self) -> &'static str
 pub fn <antecedent::EstimatorId>::const fn as_str(&self) -> &'static str
 pub fn <antecedent::EstimatorId>::const fn default_for_response(functional: &antecedent_core::query::response::ResponseFunctional) -> Self
@@ -8600,6 +8950,7 @@ pub fn <antecedent::PreparedSmoothedDose>::const fn query(&self) -> &antecedent_
 pub fn <antecedent::PreparedSmoothedDose>::fn estimate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SmoothedDoseResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedSmoothedDose>::fn estimator_menu(&self) -> antecedent_estimate::estimator_menu::EstimatorMenu
 pub fn <antecedent::PreparedSmoothedDose>::fn interval(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SmoothedDoseResult, antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedSmoothedDose>::fn posterior(&self, model: antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire) -> core::result::Result<antecedent::analysis::SmoothedDosePosteriorResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedSmoothedDose>::fn refresh(&self, input: antecedent_estimate::smoothed_dose::SmoothedDoseInput, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn consume(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(Self, antecedent::ExactStudyResult), antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn diagram(&self) -> &antecedent_graph::selection::SelectionDiagram
@@ -8653,6 +9004,7 @@ pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn statistical_options(&self) -> core::option::Option<antecedent_estimate::empirical_table::EmpiricalTableOptions>
 pub fn <antecedent::PreparedStudy>::const fn structure_source(&self) -> antecedent::StructureSource
 pub fn <antecedent::PreparedStudy>::const fn support_status(&self) -> core::option::Option<antecedent::CellStatus>
+pub fn <antecedent::PreparedStudy>::fn apply_period_refresh(&self, refresh: &mut antecedent::period_refresh::PeriodRefresh, data: &antecedent_data::dataset::TimeSeriesData, column: &str, window: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, cadence: antecedent_estimate::temporal_refresh::ObservationCadence, initial_law: &str) -> core::result::Result<antecedent::period_refresh::PeriodRefreshOutcome, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn apply_refresh(&mut self, preview: &antecedent_contract::transform::TransformationReport, data: antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn apply_retarget(&self, preview: &antecedent_contract::transform::TransformationReport, weights: &[f64], depends_on: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn batch_share_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>
@@ -8754,9 +9106,13 @@ pub fn <antecedent::PreparedStudy>::fn score_reuse_identity(&self) -> core::resu
 pub fn <antecedent::PreparedStudy>::fn score_table(&self) -> core::option::Option<&antecedent_estimate::scores::ScoreTable>
 pub fn <antecedent::PreparedStudy>::fn set_stage_sink(&mut self, sink: core::option::Option<alloc::sync::Arc<dyn antecedent::StageResultSink>>)
 pub fn <antecedent::PreparedStudy>::fn shared_design(&self) -> core::option::Option<&antecedent::SharedBatchDesign>
+pub fn <antecedent::PreparedStudy>::fn start_period_refresh(&self, data: &antecedent_data::dataset::TimeSeriesData, column: &str, spec: &antecedent::period_refresh::PeriodRefreshSpec<'_>, window: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, prior: &antecedent_state::conjugate_refresh::ConjugateOlsPrior) -> core::result::Result<antecedent::period_refresh::PeriodRefresh, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn streams_stages(&self) -> bool
 pub fn <antecedent::PreparedStudy>::fn temporal_identification(&self) -> core::option::Option<alloc::borrow::Cow<'_, antecedent::analysis::CachedTemporalIdentification>>
+pub fn <antecedent::PreparedStudy>::fn temporal_treatment_score(&self, spec: &antecedent::analysis::array_fits::TemporalTreatmentScoreSpec) -> core::result::Result<antecedent::analysis::array_fits::ArrayFit, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn transform_capability(&self, intent: antecedent_contract::transform::TransformIntent) -> core::result::Result<(), antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn treatment_score_posterior(&self, data: &antecedent_data::dataset::TabularData, spec: &antecedent::analysis::array_fits::TreatmentScoreSpec) -> core::result::Result<antecedent::analysis::array_fits::ArrayFit, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn treatment_score_posterior_retained(&self, spec: &antecedent::analysis::array_fits::TreatmentScoreSpec) -> core::result::Result<antecedent::analysis::array_fits::ArrayFit, antecedent::CausalError>
 pub fn <antecedent::PreparedTemporalTransport>::const fn prepared(&self) -> &antecedent_estimate::temporal_transport::PreparedTemporalSequence
 pub fn <antecedent::PreparedTemporalTransport>::fn estimate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_transport::TemporalSequenceReport, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedTemporalTransport>::fn export(&self, report: &antecedent_estimate::temporal_transport::TemporalSequenceReport) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
@@ -8794,6 +9150,7 @@ pub fn <antecedent::ResultPayload>::const fn continuous_dose_response(&self) -> 
 pub fn <antecedent::ResultPayload>::const fn counterfactual(&self) -> core::option::Option<&antecedent::gcm::IteResult>
 pub fn <antecedent::ResultPayload>::const fn distribution(&self) -> core::option::Option<&antecedent_estimate::functional_distribution::InterventionalDistributionEstimate>
 pub fn <antecedent::ResultPayload>::const fn has_dedicated_uncertainty_section(&self) -> bool
+pub fn <antecedent::ResultPayload>::const fn history_match(&self) -> core::option::Option<&antecedent::HistoryMatchEstimate>
 pub fn <antecedent::ResultPayload>::const fn interference_estimate(&self) -> core::option::Option<&antecedent_estimate::interference::InterferenceEstimate>
 pub fn <antecedent::ResultPayload>::const fn interference_inference(&self) -> core::option::Option<&antecedent::result::InterferenceInference>
 pub fn <antecedent::ResultPayload>::const fn local_polynomial_ratio(&self) -> core::option::Option<&antecedent::LocalPolynomialRatioEstimate>
@@ -8803,9 +9160,11 @@ pub fn <antecedent::ResultPayload>::const fn mediation_grid(&self) -> core::opti
 pub fn <antecedent::ResultPayload>::const fn mediation_mut(&mut self) -> core::option::Option<&mut antecedent_estimate::temporal_mediation::TemporalMediationEstimate>
 pub fn <antecedent::ResultPayload>::const fn panel_did(&self) -> core::option::Option<&antecedent::PanelDidEstimate>
 pub fn <antecedent::ResultPayload>::const fn policy_value(&self) -> core::option::Option<&antecedent::PolicyValueEstimate>
+pub fn <antecedent::ResultPayload>::const fn posterior_row(&self) -> core::option::Option<&antecedent::PosteriorRowEstimate>
 pub fn <antecedent::ResultPayload>::const fn randomized_effect(&self) -> core::option::Option<&antecedent::RandomizedEffectEstimate>
 pub fn <antecedent::ResultPayload>::const fn response(&self) -> core::option::Option<&antecedent_core::response::CausalResponse>
 pub fn <antecedent::ResultPayload>::const fn response_mut(&mut self) -> core::option::Option<&mut antecedent_core::response::CausalResponse>
+pub fn <antecedent::ResultPayload>::const fn sequential_contrast(&self) -> core::option::Option<&antecedent::SequentialContrastEstimate>
 pub fn <antecedent::ResultPayload>::const fn survival(&self) -> core::option::Option<&antecedent::SurvivalEstimate>
 pub fn <antecedent::ResultPayload>::const fn synthetic_control(&self) -> core::option::Option<&antecedent::SyntheticControlEstimate>
 pub fn <antecedent::ResultPayload>::const fn synthetic_did(&self) -> core::option::Option<&antecedent::SyntheticDidEstimate>
@@ -8818,14 +9177,17 @@ pub fn <antecedent::ResultPayload>::fn into_change_attribution(self) -> core::op
 pub fn <antecedent::ResultPayload>::fn into_continuous_dose_response(self) -> core::option::Option<antecedent::ContinuousDoseResponseEstimate>
 pub fn <antecedent::ResultPayload>::fn into_counterfactual(self) -> core::option::Option<antecedent::gcm::IteResult>
 pub fn <antecedent::ResultPayload>::fn into_distribution(self) -> core::option::Option<antecedent_estimate::functional_distribution::InterventionalDistributionEstimate>
+pub fn <antecedent::ResultPayload>::fn into_history_match(self) -> core::option::Option<antecedent::HistoryMatchEstimate>
 pub fn <antecedent::ResultPayload>::fn into_local_polynomial_ratio(self) -> core::option::Option<antecedent::LocalPolynomialRatioEstimate>
 pub fn <antecedent::ResultPayload>::fn into_longitudinal_regime(self) -> core::option::Option<antecedent::LongitudinalRegimeEstimate>
 pub fn <antecedent::ResultPayload>::fn into_mediation(self) -> core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationEstimate>
 pub fn <antecedent::ResultPayload>::fn into_mediation_grid(self) -> core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationGrid>
 pub fn <antecedent::ResultPayload>::fn into_panel_did(self) -> core::option::Option<antecedent::PanelDidEstimate>
 pub fn <antecedent::ResultPayload>::fn into_policy_value(self) -> core::option::Option<antecedent::PolicyValueEstimate>
+pub fn <antecedent::ResultPayload>::fn into_posterior_row(self) -> core::option::Option<antecedent::PosteriorRowEstimate>
 pub fn <antecedent::ResultPayload>::fn into_randomized_effect(self) -> core::option::Option<antecedent::RandomizedEffectEstimate>
 pub fn <antecedent::ResultPayload>::fn into_response(self) -> core::option::Option<antecedent_core::response::CausalResponse>
+pub fn <antecedent::ResultPayload>::fn into_sequential_contrast(self) -> core::option::Option<antecedent::SequentialContrastEstimate>
 pub fn <antecedent::ResultPayload>::fn into_survival(self) -> core::option::Option<antecedent::SurvivalEstimate>
 pub fn <antecedent::ResultPayload>::fn into_synthetic_control(self) -> core::option::Option<antecedent::SyntheticControlEstimate>
 pub fn <antecedent::ResultPayload>::fn into_synthetic_did(self) -> core::option::Option<antecedent::SyntheticDidEstimate>
@@ -8882,6 +9244,8 @@ pub fn <antecedent::Study>::fn series_multi(data: antecedent_data::multi_env::Mu
 pub fn <antecedent::Study>::fn tabular(data: antecedent_data::dataset::TabularData) -> antecedent::StudyBuilder
 pub fn <antecedent::StudyBuilder>::fn admg_conditional_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::conditional::BoundConditionalTransportFunctional, search: antecedent_core::search::SearchLimits, data: antecedent_expr::exact::ExactTransportData, requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedAdmgConditionalTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent::StudyBuilder>::fn average_effect(self, query: antecedent_core::query::average::AverageEffectQuery) -> Self
+pub fn <antecedent::StudyBuilder>::fn bayesian_design_model(self, model: antecedent::DesignPosteriorModel) -> Self
+pub fn <antecedent::StudyBuilder>::fn bayesian_white_innovation(self, gate: antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate) -> Self
 pub fn <antecedent::StudyBuilder>::fn bootstrap_replicates(self, n: u32) -> Self
 pub fn <antecedent::StudyBuilder>::fn build(self) -> core::result::Result<antecedent::Study, antecedent::CausalError>
 pub fn <antecedent::StudyBuilder>::fn capability(&self) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::CausalError>
@@ -8951,6 +9315,7 @@ pub fn <antecedent::StudyResult>::fn counterfactual(&self) -> core::option::Opti
 pub fn <antecedent::StudyResult>::fn distribution(&self) -> core::option::Option<&antecedent_estimate::functional_distribution::InterventionalDistributionEstimate>
 pub fn <antecedent::StudyResult>::fn effect(&self) -> f64
 pub fn <antecedent::StudyResult>::fn fill_analysis_result_payloads(&self, wire: &mut antecedent_io_core::analysis_result_artifact::AnalysisResultWire, artifact_id: &str) -> core::result::Result<(), antecedent::CausalError>
+pub fn <antecedent::StudyResult>::fn history_match(&self) -> core::option::Option<&antecedent::HistoryMatchEstimate>
 pub fn <antecedent::StudyResult>::fn identified_set_interval_binding(&self) -> core::option::Option<antecedent::result::IntervalBinding>
 pub fn <antecedent::StudyResult>::fn interference(&self) -> core::option::Option<&antecedent_estimate::interference::InterferenceEstimate>
 pub fn <antecedent::StudyResult>::fn interference_inference(&self) -> core::option::Option<&antecedent::result::InterferenceInference>
@@ -8958,14 +9323,17 @@ pub fn <antecedent::StudyResult>::fn into_change_attribution(self) -> core::opti
 pub fn <antecedent::StudyResult>::fn into_continuous_dose_response(self) -> core::option::Option<antecedent::ContinuousDoseResponseEstimate>
 pub fn <antecedent::StudyResult>::fn into_counterfactual(self) -> core::option::Option<antecedent::gcm::IteResult>
 pub fn <antecedent::StudyResult>::fn into_distribution(self) -> core::option::Option<antecedent_estimate::functional_distribution::InterventionalDistributionEstimate>
+pub fn <antecedent::StudyResult>::fn into_history_match(self) -> core::option::Option<antecedent::HistoryMatchEstimate>
 pub fn <antecedent::StudyResult>::fn into_local_polynomial_ratio(self) -> core::option::Option<antecedent::LocalPolynomialRatioEstimate>
 pub fn <antecedent::StudyResult>::fn into_longitudinal_regime(self) -> core::option::Option<antecedent::LongitudinalRegimeEstimate>
 pub fn <antecedent::StudyResult>::fn into_mediation(self) -> core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationEstimate>
 pub fn <antecedent::StudyResult>::fn into_mediation_grid(self) -> core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationGrid>
 pub fn <antecedent::StudyResult>::fn into_panel_did(self) -> core::option::Option<antecedent::PanelDidEstimate>
 pub fn <antecedent::StudyResult>::fn into_policy_value(self) -> core::option::Option<antecedent::PolicyValueEstimate>
+pub fn <antecedent::StudyResult>::fn into_posterior_row(self) -> core::option::Option<antecedent::PosteriorRowEstimate>
 pub fn <antecedent::StudyResult>::fn into_randomized_effect(self) -> core::option::Option<antecedent::RandomizedEffectEstimate>
 pub fn <antecedent::StudyResult>::fn into_response(self) -> core::option::Option<antecedent_core::response::CausalResponse>
+pub fn <antecedent::StudyResult>::fn into_sequential_contrast(self) -> core::option::Option<antecedent::SequentialContrastEstimate>
 pub fn <antecedent::StudyResult>::fn into_survival(self) -> core::option::Option<antecedent::SurvivalEstimate>
 pub fn <antecedent::StudyResult>::fn into_synthetic_control(self) -> core::option::Option<antecedent::SyntheticControlEstimate>
 pub fn <antecedent::StudyResult>::fn into_synthetic_did(self) -> core::option::Option<antecedent::SyntheticDidEstimate>
@@ -8980,11 +9348,13 @@ pub fn <antecedent::StudyResult>::fn mediation_grid(&self) -> core::option::Opti
 pub fn <antecedent::StudyResult>::fn panel_did(&self) -> core::option::Option<&antecedent::PanelDidEstimate>
 pub fn <antecedent::StudyResult>::fn physical_plan(&self) -> &antecedent_contract::plan::PhysicalExecutionPlanRecord
 pub fn <antecedent::StudyResult>::fn policy_value(&self) -> core::option::Option<&antecedent::PolicyValueEstimate>
+pub fn <antecedent::StudyResult>::fn posterior_row(&self) -> core::option::Option<&antecedent::PosteriorRowEstimate>
 pub fn <antecedent::StudyResult>::fn primary_interval_binding(&self, bayesian: bool) -> antecedent::result::IntervalBinding
 pub fn <antecedent::StudyResult>::fn randomized_effect(&self) -> core::option::Option<&antecedent::RandomizedEffectEstimate>
 pub fn <antecedent::StudyResult>::fn reported_interval_bindings(&self, bayesian: bool) -> alloc::vec::Vec<antecedent::result::IntervalBinding>
 pub fn <antecedent::StudyResult>::fn response(&self) -> core::option::Option<&antecedent_core::response::CausalResponse>
 pub fn <antecedent::StudyResult>::fn retarget_population(&self) -> core::option::Option<antecedent_core::query::target::TargetPopulation>
+pub fn <antecedent::StudyResult>::fn sequential_contrast(&self) -> core::option::Option<&antecedent::SequentialContrastEstimate>
 pub fn <antecedent::StudyResult>::fn simultaneous_band_binding(&self, bayesian: bool) -> core::option::Option<antecedent::result::IntervalBinding>
 pub fn <antecedent::StudyResult>::fn static_result_wire(&self, query: &antecedent_core::query::CausalQuery, registry: core::option::Option<&antecedent_core::query::population::PopulationRegistry>) -> core::result::Result<antecedent_io_core::causal_artifact::StaticResultWire, antecedent::CausalError>
 pub fn <antecedent::StudyResult>::fn support_diagnostics(&self) -> impl core::iter::traits::iterator::Iterator<Item = &antecedent_core::diagnostic::Diagnostic>
@@ -9141,6 +9511,9 @@ pub fn <antecedent::analysis::PropagationDraws>::fn with_evidence_source(self, s
 pub fn <antecedent::analysis::PropagationDraws>::fn with_role(self, role: antecedent_contract::joint_law_rule::InputRole) -> Self
 pub fn <antecedent::analysis::ResolvedLatencyBudget>::const fn from_mode(mode: antecedent::LatencyMode) -> Self
 pub fn <antecedent::analysis::ResolvedLatencyBudget>::const fn with_overrides(self, budget: antecedent::ComputeBudget) -> Self
+pub fn <antecedent::analysis::SmoothedDosePosteriorResult>::const fn result(&self) -> &antecedent_io_core::analysis_result_artifact::PosteriorRowWire
+pub fn <antecedent::analysis::SmoothedDosePosteriorResult>::const fn wire(&self) -> &antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire
+pub fn <antecedent::analysis::SmoothedDosePosteriorResult>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::TransportGridPoint>::fn distribution(&self) -> core::option::Option<&antecedent_expr::exact_plan::ExactDistribution>
 pub fn <antecedent::analysis::TransportGridPoint>::fn support_status(&self) -> antecedent_core::response::SupportStatus
 pub fn <antecedent::analysis::TransportGridResult>::fn contrast(&self, left: usize, right: usize, outcome: antecedent_core::ids::VariableId) -> core::result::Result<antecedent::StatisticalContrast, antecedent_io_core::error::IoError>
@@ -9153,7 +9526,26 @@ pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedu
 pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::fn cell(&self) -> antecedent_stats::adaptive_inference::procedure_repeated_measures::CellLabel
 pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::fn declare(declaration: antecedent_stats::adaptive_inference::procedure_repeated_measures::RepeatedMeasuresDeclaration) -> core::result::Result<Self, alloc::vec::Vec<antecedent::AdaptiveInferenceRefusal>>
 pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::fn identity(&self) -> &str
+pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::fn posterior(&self, spec: &antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec) -> core::result::Result<antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport, antecedent::AdaptiveInferenceRefusal>
 pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::fn report(&self, request: &antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport, antecedent::AdaptiveInferenceRefusal>
+pub fn <antecedent::analysis::array_fits::ArrayFit>::fn artifact(&self) -> &antecedent_io::array_fit_artifact::ArrayFitArtifactWire
+pub fn <antecedent::analysis::array_fits::ArrayFit>::fn consume(bytes: &[u8], limits: antecedent_io::array_fit_artifact::ArrayFitConsumeLimits) -> core::result::Result<Self, antecedent_io::array_fit_artifact::ArrayFitError>
+pub fn <antecedent::analysis::array_fits::ArrayFit>::fn digest(&self) -> &str
+pub fn <antecedent::analysis::array_fits::ArrayFit>::fn draws(&self) -> &[f64]
+pub fn <antecedent::analysis::array_fits::ArrayFit>::fn estimator_id(&self) -> &str
+pub fn <antecedent::analysis::array_fits::ArrayFit>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::array_fit_artifact::ArrayFitError>
+pub fn <antecedent::analysis::array_fits::ArrayFit>::fn fit(request: antecedent_io::array_fit_artifact::ArrayFitRequestWire) -> core::result::Result<Self, antecedent_io::array_fit_artifact::ArrayFitError>
+pub fn <antecedent::analysis::array_fits::ArrayFit>::fn request(&self) -> &antecedent_io::array_fit_artifact::ArrayFitRequestWire
+pub fn <antecedent::analysis::array_fits::ArrayFit>::fn result(&self) -> &antecedent_io::array_fit_artifact::ArrayFitResultWire
+pub fn <antecedent::analysis::array_fits::ArrayFit>::fn value(&self, name: &str) -> core::option::Option<f64>
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::const fn artifact(&self) -> &antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::const fn request(&self) -> &antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::const fn result(&self) -> &antecedent_io_core::analysis_result_artifact::PosteriorRowWire
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn consume(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn digests(&self) -> (&str, &str)
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn estimator(&self) -> &str
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn evaluate(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn artifact(&self) -> &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn consume(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn consume_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
@@ -9163,8 +9555,10 @@ pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn e
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn export_within(&self, artifact_id: &str, export_budget: usize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn fit(&self) -> &antecedent_estimate::categorical_treatment::CategoricalTreatmentFit
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn identity(&self) -> &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity
+pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn posterior(&self) -> core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire>
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn report(&self) -> antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn verify_data(&self, request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
+pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn with_posterior(self, declaration: &antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent::analysis::closed_pilots::ClosedPilotRefusal>::fn text(&self) -> alloc::string::String
 pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn decision_source(&self, cohort: &antecedent_io_core::cohort_decision::CohortBinding, outcome_units: &str, options: &antecedent_io_core::cohort_decision::CohortOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io_core::cohort_decision::CohortDecisionSource, antecedent_io_core::cohort_decision::CohortRefusal>
 pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn features(&self) -> alloc::vec::Vec<alloc::string::String>
@@ -9519,6 +9913,8 @@ pub fn <antecedent::analysis::recovery_chain::RecoveryChain>::fn variable_names(
 pub fn <antecedent::analysis::recovery_chain::RecoveryChain>::fn witness_check(&self) -> core::option::Option<&antecedent_identify::recovery_chain::ChainWitnessCheck>
 pub fn <antecedent::analysis::repair::RepairFacadeError>::const fn code(&self) -> &'static str
 pub fn <antecedent::analysis::repair::RepairFacadeError>::const fn detail(&self) -> &'static str
+pub fn <antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport>::fn validate(&self, procedure: &antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure) -> core::result::Result<(), antecedent::AdaptiveInferenceRefusal>
+pub fn <antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire>::fn into_spec(self) -> core::result::Result<antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec, antecedent::AdaptiveInferenceRefusal>
 pub fn <antecedent::analysis::sample_split_analysis::AnalysisBinding>::const fn conditional_on_selected_graph(&self) -> bool
 pub fn <antecedent::analysis::sample_split_analysis::AnalysisBinding>::const fn whole_method_calibration(&self) -> &'static str
 pub fn <antecedent::analysis::sample_split_analysis::SplitAnalysisEffect>::fn interval(&self, level: f64) -> core::result::Result<antecedent::analysis::sample_split_analysis::SplitEffectInterval, antecedent_estimate::error::EstimationError>
@@ -9698,6 +10094,23 @@ pub fn <antecedent::gcm::PreparedPolicy>::fn program_compilations(&self) -> u64
 pub fn <antecedent::gcm::PreparedPolicy>::fn rebind(&self, model: &antecedent_model::compile::CompiledCausalModel) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::gcm::PreparedPolicy>::fn support(&self) -> &antecedent_model::program::PolicySupport
 pub fn <antecedent::gcm::PreparedPolicy>::fn value(&self, model: &antecedent_model::compile::CompiledCausalModel, outcome: antecedent_core::ids::VariableId, n: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::gcm::PolicyValue, antecedent::CausalError>
+pub fn <antecedent::period_refresh::PeriodRefresh>::const fn fit(&self) -> &antecedent_state::ols_refresh::OlsRefresh
+pub fn <antecedent::period_refresh::PeriodRefresh>::const fn lags(&self) -> usize
+pub fn <antecedent::period_refresh::PeriodRefresh>::const fn prior(&self) -> &antecedent_state::conjugate_refresh::ConjugateOlsPrior
+pub fn <antecedent::period_refresh::PeriodRefresh>::const fn standing(&self) -> antecedent_estimate::temporal_refresh::MechanismStanding
+pub fn <antecedent::period_refresh::PeriodRefresh>::const fn window(&self) -> &antecedent_estimate::temporal_refresh::TemporalWindowIdentity
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn blocks(&self) -> &[antecedent::period_refresh::RefreshBlock]
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn check_against_fresh(&self) -> core::result::Result<(), antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn events(&self) -> &[antecedent::period_refresh::RefreshEvent]
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn evict_row(&mut self, id: u64) -> core::result::Result<antecedent_state::ols_refresh::RefreshOutcome, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn export_ledger(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn ledger_wire(&self) -> core::result::Result<antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn refresh(&mut self, window: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, cadence: antecedent_estimate::temporal_refresh::ObservationCadence, initial_law: &str, values: &[f64]) -> core::result::Result<antecedent::period_refresh::PeriodRefreshOutcome, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn reprior(&mut self, prior: &antecedent_state::conjugate_refresh::ConjugateOlsPrior) -> core::result::Result<(), antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn series_id(&self) -> &str
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn start(spec: &antecedent::period_refresh::PeriodRefreshSpec<'_>, window: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, prior: &antecedent_state::conjugate_refresh::ConjugateOlsPrior, values: &[f64]) -> core::result::Result<Self, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn summary(&self) -> core::result::Result<antecedent_state::conjugate_refresh::ConjugateOlsSummary, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn summary_under(&self, prior: &antecedent_state::conjugate_refresh::ConjugateOlsPrior) -> core::result::Result<antecedent_state::conjugate_refresh::ConjugateOlsSummary, antecedent_state::error::StateError>
 pub fn <antecedent::planner::LogicalAnalysisPlan>::fn compile_physical(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::planner::LogicalAnalysisPlan>::fn compile_physical_with_all_graphs(&self, ctx: &antecedent_core::execution::ExecutionContext, resolved_temporal_graph: core::option::Option<antecedent_graph::temporal::TemporalDag>, resolved_static_graph: core::option::Option<antecedent_graph::dag::Dag>, resolved_static_pag: core::option::Option<antecedent_graph::pag::Pag>) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::planner::LogicalAnalysisPlan>::fn compile_physical_with_graph(&self, ctx: &antecedent_core::execution::ExecutionContext, resolved_temporal_graph: core::option::Option<antecedent_graph::temporal::TemporalDag>) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
@@ -9735,6 +10148,7 @@ pub fn antecedent::analysis::api::consume_mechanism_composition_artifact(bytes: 
 pub fn antecedent::analysis::api::consume_mixed_source_artifact(bytes: &[u8], limits: antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::MixedSourceResult, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_mz_transport_artifact(bytes: &[u8], limits: antecedent_io::mz_transport_artifact::MzTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::MzTransportResult, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_observation_recovery_artifact(bytes: &[u8], limits: antecedent_io::recovery_artifact::RecoveryConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::ObservationRecoveryResult, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_period_refresh_artifact(bytes: &[u8]) -> core::result::Result<(antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire, antecedent_io::period_refresh_artifact::PeriodRefreshReplay), antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_predictive_assessment_artifact(bytes: &[u8], expected: core::option::Option<&antecedent_validate::predictive_assessment::identity::AssessmentIdentity>, limits: antecedent_io::predictive_assessment_artifact::PredictiveAssessmentConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedPredictiveAssessment, antecedent::PredictiveAssessmentRefusal>
 pub fn antecedent::analysis::api::consume_scenario_covariance_artifact(bytes: &[u8], limits: antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_scientific_bridge_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<antecedent::ConsumedScientificBridge, antecedent::ScientificBridgeRefusal>
@@ -9793,6 +10207,7 @@ pub fn antecedent::analysis::consume_callback_result(bytes: &[u8], expected_iden
 pub fn antecedent::analysis::consume_decision_reliability_artifact(bytes: &[u8], expected: &antecedent_design::decision_reliability::artifact::DecisionReliabilityExpectation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::PreparedDecisionReliability, antecedent::analysis::DecisionReliabilityRefusal>
 pub fn antecedent::analysis::consume_interface_contract_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<antecedent::analysis::ConsumedInterfaceContract, antecedent::analysis::InterfaceContractRefusal>
 pub fn antecedent::analysis::consume_joint_law_propagation_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io_core::joint_law_propagation_artifact::ConsumedJointLawPropagation, antecedent::analysis::JointLawPropagationRefusal>
+pub fn antecedent::analysis::consume_smoothed_dose_posterior_artifact(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits) -> core::result::Result<antecedent::analysis::SmoothedDosePosteriorResult, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::cross_world_interval::whole_path_interval(uncertainty: &antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty, level: f64) -> core::option::Option<(f64, (f64, f64), &'static str)>
 pub fn antecedent::analysis::cross_world_interval::whole_path_interval_basis(request: &antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest, unit_sampling: antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling) -> core::result::Result<antecedent_core::calibration_basis::CalibrationBasis, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionRefusalWire>
 pub fn antecedent::analysis::decision_claims::atom_leaders(decision: &antecedent_design::decision_adapters::AdaptedDecision) -> alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<alloc::string::String>)>
@@ -9863,6 +10278,7 @@ pub fn antecedent::analysis::joint_law_propagation::propagate_spread(operation: 
 pub fn antecedent::analysis::joint_law_propagation::propagate_transported_spread(pieces: &[antecedent::analysis::MomentInput], coefficients: &[f64], covariance: &[f64], covariance_id: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::PropagationClaim, antecedent::analysis::JointLawPropagationRefusal>
 pub fn antecedent::analysis::joint_law_propagation::propagate_transported_spread_aligned(source_sampling: &antecedent::analysis::PropagationDraws, target_sampling: &antecedent::analysis::PropagationDraws, transport_functional: &antecedent::analysis::PropagationDraws, coefficients: [f64; 3], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::PropagationClaim, antecedent::analysis::JointLawPropagationRefusal>
 pub fn antecedent::analysis::learned_joint_closed::learned_joint_transport_refusal(request: &antecedent::analysis::learned_joint_closed::LearnedJointRequest<'_>) -> antecedent::analysis::learned_joint_closed::LearnedJointRefusal
+pub fn antecedent::analysis::matching_posterior_refusal::matching_posterior_refusal(setting: antecedent::analysis::matching_posterior_refusal::MatchingSetting) -> antecedent::CausalError
 pub fn antecedent::analysis::mechanism_discrepancy::consume_mechanism_discrepancy(bytes: &[u8], expected: core::option::Option<&antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyIdentity>) -> core::result::Result<antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact, antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError>
 pub fn antecedent::analysis::mechanism_discrepancy::run_mechanism_discrepancy(request: &antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyRequestWire, source_ids: &[alloc::string::String], target_ids: &[alloc::string::String]) -> core::result::Result<antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact, antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError>
 pub fn antecedent::analysis::mechanism_discrepancy::summarize_sample(sample: &antecedent_estimate::mechanism_discrepancy::PopulationSample) -> core::result::Result<antecedent_estimate::mechanism_discrepancy::MechanismSummary, antecedent_estimate::error::EstimationError>
@@ -9881,6 +10297,10 @@ pub fn antecedent::analysis::observation_query::consume_observation_query_artifa
 pub fn antecedent::analysis::per_population_discovery::add_per_population_claims(graph: &mut antecedent_contract::composition_verification::graph::CompositionGraph, prefix: &str, driver: &antecedent_discovery::selective::populations::PerPopulationDiscovery) -> core::result::Result<alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent::analysis::selective_discovery::DiscoveryClaimKeys>, antecedent_contract::composition_verification::graph::GraphError>
 pub fn antecedent::analysis::per_population_discovery::discover_per_population(contract: &antecedent_discovery::selective::contract::StaticDiscoveryContract, populations: &[antecedent_discovery::selective::populations::PopulationRows<'_>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::selective::populations::PerPopulationDiscovery, antecedent_discovery::selective::refusal::SelectiveDiscoveryError>
 pub fn antecedent::analysis::per_population_discovery::request_selection_targets_from_differences(report: &antecedent_discovery::selective::populations::PerPopulationReport, _candidate_targets: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::convert::Infallible, antecedent_discovery::selective::transport::DiscoveredStructureRefusal>
+pub fn antecedent::analysis::posterior_boundaries::require_ordinary_temporal_curve_posterior(serial: antecedent_estimate::temporal_curve_posterior_meaning::SerialErrorModel) -> core::result::Result<(), antecedent::CausalError>
+pub fn antecedent::analysis::posterior_boundaries::trajectory_hazard_credible_interval(rows: &antecedent_estimate::trajectory_survival::TrajectoryRows<'_>, active: &[bool], control: &[bool]) -> core::result::Result<[f64; 2], antecedent::CausalError>
+pub fn antecedent::analysis::posterior_boundaries::trajectory_survival_bootstrap(rows: &antecedent_estimate::trajectory_survival::TrajectoryRows<'_>, active: &[bool], control: &[bool], replicates: u32, seed: u64) -> core::result::Result<antecedent_estimate::trajectory_survival::TrajectoryBootstrapIntervals, antecedent::CausalError>
+pub fn antecedent::analysis::posterior_boundaries::trajectory_survival_contrast(rows: &antecedent_estimate::trajectory_survival::TrajectoryRows<'_>, active: &[bool], control: &[bool]) -> core::result::Result<antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast, antecedent::CausalError>
 pub fn antecedent::analysis::predictive_law_source(declaration: &antecedent_contract::callback_protocol::declaration::CallbackDeclaration, verification_confirmed: bool) -> core::result::Result<antecedent_validate::predictive_assessment::law::LawSource, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::proposal_arrival::execute(r: &antecedent::analysis::proposal_arrival::ArrivalRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::proposal_arrival::ArrivalPoint, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::provider_callbacks::refuse_identification_licence() -> antecedent_contract::external_refusal::ExternalRefusal
@@ -9913,6 +10333,8 @@ pub fn antecedent::analysis::repair::consume_repair_artifact(bytes: &[u8], limit
 pub fn antecedent::analysis::repair::repair_contract(family: &dyn antecedent_design::repair::RepairFamily, candidates: &[antecedent_design::study_candidate::DurableStudyCandidate], objective: antecedent_design::repair::RepairObjective, limits: antecedent_design::repair::RepairLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::repair::RepairReport, antecedent_design::repair::RepairError>
 pub fn antecedent::analysis::repair::repair_with_artifact(family: antecedent_design::repair_artifact::RepairFamilyRef<'_>, candidates: &[antecedent_design::study_candidate::DurableStudyCandidate], objective: antecedent_design::repair::RepairObjective, limits: antecedent_design::repair::RepairLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_design::repair::RepairReport, antecedent_design::repair_artifact::RepairReportArtifact), antecedent::analysis::repair::RepairFacadeError>
 pub fn antecedent::analysis::repair::unresolved_obligations(family: &dyn antecedent_design::repair::RepairFamily) -> alloc::vec::Vec<antecedent_contract::evidence_obligation::EvidenceObligation>
+pub fn antecedent::analysis::repeated_measures_posterior_report::encode_repeated_measures_posterior_report(report: &antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport, procedure: &antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure) -> core::result::Result<alloc::string::String, antecedent::AdaptiveInferenceRefusal>
+pub fn antecedent::analysis::repeated_measures_posterior_report::load_repeated_measures_posterior_report(text: &str, procedure: &antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure) -> core::result::Result<antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport, antecedent::AdaptiveInferenceRefusal>
 pub fn antecedent::analysis::sample_split_analysis::discover_on_split(contract: &antecedent_discovery::selective::contract::StaticDiscoveryContract, data: &antecedent_data::dataset::TabularData, rule: antecedent_discovery::selective::reuse::SplitRule, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::sample_split_analysis::SplitDiscovery, antecedent_discovery::selective::refusal::SelectiveDiscoveryError>
 pub fn antecedent::analysis::sample_split_analysis::split_evidence_sources(receipt: &antecedent_discovery::selective::reuse::SampleSplitReceipt, snapshot_id: &[u8]) -> core::result::Result<(antecedent_contract::evidence_ledger::source::SourceDeclaration, antecedent_contract::evidence_ledger::source::SourceDeclaration), antecedent_discovery::selective::refusal::SelectiveDiscoveryError>
 pub fn antecedent::analysis::sample_split_effect::estimate_effect_on_split(data: &antecedent_data::dataset::TabularData, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, split_seed: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::sample_split_effect::SplitEffect, antecedent_io_core::error::IoError>
@@ -10100,6 +10522,8 @@ pub mod antecedent::analysis::adaptive_procedure_declaration
 pub mod antecedent::analysis::adaptive_procedure_report
 pub mod antecedent::analysis::api
 pub mod antecedent::analysis::api::tier_diagnostics
+pub mod antecedent::analysis::array_fits
+pub mod antecedent::analysis::bayesian_posterior_row
 pub mod antecedent::analysis::categorical_treatment
 pub mod antecedent::analysis::closed_pilots
 pub mod antecedent::analysis::cohort_decision
@@ -10129,6 +10553,7 @@ pub mod antecedent::analysis::joint_law_composed_basis
 pub mod antecedent::analysis::joint_law_propagation
 pub mod antecedent::analysis::latent_class_effects
 pub mod antecedent::analysis::learned_joint_closed
+pub mod antecedent::analysis::matching_posterior_refusal
 pub mod antecedent::analysis::measurement_model
 pub mod antecedent::analysis::mechanism_composition
 pub mod antecedent::analysis::mechanism_discrepancy
@@ -10142,6 +10567,7 @@ pub mod antecedent::analysis::observation_query
 pub mod antecedent::analysis::observational_policy
 pub mod antecedent::analysis::observational_survival
 pub mod antecedent::analysis::per_population_discovery
+pub mod antecedent::analysis::posterior_boundaries
 pub mod antecedent::analysis::predictive_assessment
 pub mod antecedent::analysis::proposal_arrival
 pub mod antecedent::analysis::provider_callbacks
@@ -10159,6 +10585,7 @@ pub mod antecedent::analysis::recalc_temporal
 pub mod antecedent::analysis::recalc_temporal_measured
 pub mod antecedent::analysis::recovery_chain
 pub mod antecedent::analysis::repair
+pub mod antecedent::analysis::repeated_measures_posterior_report
 pub mod antecedent::analysis::sample_split_analysis
 pub mod antecedent::analysis::sample_split_effect
 pub mod antecedent::analysis::sample_split_parent_set_effect
@@ -10184,6 +10611,7 @@ pub mod antecedent::class_prior
 pub mod antecedent::counterfactual_id
 pub mod antecedent::cross_world
 pub mod antecedent::design
+pub mod antecedent::design_posterior_model
 pub mod antecedent::discovery
 pub mod antecedent::discovery_defaults
 pub mod antecedent::error
@@ -10196,6 +10624,7 @@ pub mod antecedent::identify_api
 pub mod antecedent::inference
 pub mod antecedent::io
 pub mod antecedent::options
+pub mod antecedent::period_refresh
 pub mod antecedent::planner
 pub mod antecedent::prelude
 pub mod antecedent::query
@@ -10301,6 +10730,7 @@ pub struct antecedent::FamilyCovariance
 pub struct antecedent::FittedPropensity
 pub struct antecedent::ForwardEvaluation
 pub struct antecedent::ForwardInterval
+pub struct antecedent::HistoryMatchEstimate
 pub struct antecedent::InferenceDefault
 pub struct antecedent::InterferenceSpec
 pub struct antecedent::IntervalMeta
@@ -10405,6 +10835,7 @@ pub struct antecedent::ScientificBridgeResult has private fields
 pub struct antecedent::ScoreQuantile
 pub struct antecedent::ScreenSplitReceipt
 pub struct antecedent::SequenceEndpoints<'a>
+pub struct antecedent::SequentialContrastEstimate
 pub struct antecedent::SharedBatchDesign
 pub struct antecedent::SharedCovariateDesign
 pub struct antecedent::SimultaneousBand
@@ -10510,6 +10941,8 @@ pub struct antecedent::analysis::PropagationDraws
 pub struct antecedent::analysis::PropagationDraws has private fields
 pub struct antecedent::analysis::ResolvedLatencyBudget
 pub struct antecedent::analysis::Retention
+pub struct antecedent::analysis::SmoothedDosePosteriorResult
+pub struct antecedent::analysis::SmoothedDosePosteriorResult has private fields
 pub struct antecedent::analysis::TransportGridQuery
 pub struct antecedent::analysis::TransportGridResult
 pub struct antecedent::analysis::TransportGridResult has private fields
@@ -10519,6 +10952,12 @@ pub struct antecedent::analysis::TransportedDecisionInspection
 pub struct antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure
 pub struct antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure has private fields
 pub struct antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReport
+pub struct antecedent::analysis::array_fits::ArrayFit
+pub struct antecedent::analysis::array_fits::ArrayFit has private fields
+pub struct antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
+pub struct antecedent::analysis::array_fits::TreatmentScoreSpec
+pub struct antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
+pub struct antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow has private fields
 pub struct antecedent::analysis::categorical_treatment::CategoricalTreatment
 pub struct antecedent::analysis::categorical_treatment::CategoricalTreatment has private fields
 pub struct antecedent::analysis::closed_pilots::ClosedPilotRefusal
@@ -10714,6 +11153,14 @@ pub struct antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTempor
 pub struct antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal has private fields
 pub struct antecedent::analysis::recovery_chain::RecoveryChain
 pub struct antecedent::analysis::recovery_chain::RecoveryChain has private fields
+pub struct antecedent::analysis::repeated_measures_posterior_report::ArmPosteriorWire
+pub struct antecedent::analysis::repeated_measures_posterior_report::ContrastPosteriorWire
+pub struct antecedent::analysis::repeated_measures_posterior_report::PosteriorUnit
+pub struct antecedent::analysis::repeated_measures_posterior_report::PosteriorUnitWire
+pub struct antecedent::analysis::repeated_measures_posterior_report::PriorWire
+pub struct antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport
+pub struct antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire
+pub struct antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorSpec
 pub struct antecedent::analysis::sample_split_analysis::AnalysisBinding
 pub struct antecedent::analysis::sample_split_analysis::AnalysisEffectRequest
 pub struct antecedent::analysis::sample_split_analysis::SplitAnalysisEffect
@@ -10790,6 +11237,11 @@ pub struct antecedent::gcm::PreparedPolicy has private fields
 pub struct antecedent::gcm::UnitEffectIntervals
 pub struct antecedent::inference::DecodedPriorHydrate
 pub struct antecedent::inference::ExternalComposeSpec
+pub struct antecedent::period_refresh::PeriodRefresh
+pub struct antecedent::period_refresh::PeriodRefresh has private fields
+pub struct antecedent::period_refresh::PeriodRefreshSpec<'a>
+pub struct antecedent::period_refresh::RefreshBlock
+pub struct antecedent::period_refresh::RefreshEvent
 pub struct antecedent::planner::LogicalAnalysisPlan
 pub struct antecedent::planner::PhysicalExecutionPlan
 pub struct antecedent::result::InterferenceInference
@@ -10815,6 +11267,7 @@ pub trait fn fn antecedent::analysis::ProviderCallback::state_identity(&self) ->
 pub trait fn fn antecedent::analysis::recalc_external::ExternalMeanProvider::descriptor(&self) -> &antecedent::analysis::recalc_external::ProviderDescriptor
 pub trait fn fn antecedent::analysis::recalc_external::ExternalMeanProvider::invoke(&mut self, request: &antecedent::analysis::recalc_external::ExternalCallbackRequest, ctx: &antecedent::analysis::recalc_external::CallbackContext) -> core::result::Result<antecedent_contract::external_binding::ExternalResponse, antecedent::analysis::recalc_external::CallbackFailure>
 pub type antecedent::DecisionFacadeRefusal = antecedent_contract::external_refusal::ExternalRefusal
+pub type antecedent::PosteriorRowEstimate = antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub type antecedent::analysis::CheckedTemporalGraphPosteriorResponseInfo = antecedent::CheckedGraphPosteriorResponseInfo
 pub type antecedent::analysis::observation_query::PairedLaws = (alloc::vec::Vec<(alloc::string::String, f64)>, alloc::vec::Vec<(alloc::string::String, f64)>, f64)
 pub type antecedent::analysis::observation_query::ThresholdRows = (alloc::vec::Vec<(alloc::string::String, f64, f64, bool)>, f64)
@@ -10853,6 +11306,7 @@ pub use antecedent::ExposureMapping = query::ExposureMapping
 pub use antecedent::ExternalCallbackReceipt = super::ExternalCallbackReceipt
 pub use antecedent::ExternalTrustLimit = super::ExternalTrustLimit
 pub use antecedent::GridSpec = query::GridSpec
+pub use antecedent::HistoryMatchQuery = query::HistoryMatchQuery
 pub use antecedent::IdentifiedActionRange = super::IdentifiedActionRange
 pub use antecedent::IdentifiedSetDecision = super::IdentifiedSetDecision
 pub use antecedent::IdentifiedUtility = super::IdentifiedUtility
@@ -10888,6 +11342,7 @@ pub use antecedent::RobustResultArtifact = super::RobustResultArtifact
 pub use antecedent::RobustVerdict = super::RobustVerdict
 pub use antecedent::RobustnessError = super::RobustnessError
 pub use antecedent::SemanticApplicability = super::SemanticApplicability
+pub use antecedent::SequentialContrastQuery = query::SequentialContrastQuery
 pub use antecedent::SuppliedClaim = super::SuppliedClaim
 pub use antecedent::SupportShortfall = super::SupportShortfall
 pub use antecedent::SyntheticControlQuery = query::SyntheticControlQuery
@@ -11495,13 +11950,44 @@ pub use antecedent::analysis::api::tier_diagnostics::TierPointEvalue = anteceden
 pub use antecedent::analysis::api::tier_diagnostics::TierScenario = antecedent::TierScenario
 pub use antecedent::analysis::api::tier_diagnostics::tier_diagnostics = antecedent::analysis::api::tier_diagnostics
 pub use antecedent::analysis::api::utility_interval = super::utility_interval
+pub use antecedent::analysis::array_fits::ARRAY_FIT_ARTIFACT_FEATURE = antecedent_io::array_fit_artifact::ARRAY_FIT_ARTIFACT_FEATURE
+pub use antecedent::analysis::array_fits::ARRAY_FIT_ARTIFACT_VERSION = antecedent_io::array_fit_artifact::ARRAY_FIT_ARTIFACT_VERSION
+pub use antecedent::analysis::array_fits::ARRAY_FIT_CALIBRATION = antecedent_io::array_fit_artifact::ARRAY_FIT_CALIBRATION
+pub use antecedent::analysis::array_fits::ARRAY_FIT_LICENSING = antecedent_io::array_fit_artifact::ARRAY_FIT_LICENSING
+pub use antecedent::analysis::array_fits::ArrayFitArtifactWire = antecedent_io::array_fit_artifact::ArrayFitArtifactWire
+pub use antecedent::analysis::array_fits::ArrayFitConsumeLimits = antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
+pub use antecedent::analysis::array_fits::ArrayFitError = antecedent_io::array_fit_artifact::ArrayFitError
+pub use antecedent::analysis::array_fits::ArrayFitRequestWire = antecedent_io::array_fit_artifact::ArrayFitRequestWire
+pub use antecedent::analysis::array_fits::ArrayFitResultWire = antecedent_io::array_fit_artifact::ArrayFitResultWire
+pub use antecedent::analysis::array_fits::ID_BAYESIAN_PROPENSITY = antecedent_io::array_fit_artifact::ID_BAYESIAN_PROPENSITY
+pub use antecedent::analysis::array_fits::ID_BAYESIAN_TEMPORAL_PROPENSITY = antecedent_io::array_fit_artifact::ID_BAYESIAN_TEMPORAL_PROPENSITY
+pub use antecedent::analysis::array_fits::ID_TEMPORAL_PROPENSITY = antecedent_io::array_fit_artifact::ID_TEMPORAL_PROPENSITY
+pub use antecedent::analysis::array_fits::NamedValueWire = antecedent_io::array_fit_artifact::NamedValueWire
+pub use antecedent::analysis::array_fits::PenalizedScoreWire = antecedent_io::array_fit_artifact::PenalizedScoreWire
+pub use antecedent::analysis::array_fits::PropensityDesignWire = antecedent_io::array_fit_artifact::PropensityDesignWire
+pub use antecedent::analysis::array_fits::PropensityPosteriorWire = antecedent_io::array_fit_artifact::PropensityPosteriorWire
+pub use antecedent::analysis::array_fits::PropensityScorePosteriorWire = antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
 pub use antecedent::analysis::assess_robustness = decision_contract_facade::assess_robustness
+pub use antecedent::analysis::bayesian_posterior_row::DOSE_GRID_POSTERIOR_ESTIMATOR = antecedent_io::bayesian_posterior_row_artifact::DOSE_GRID_POSTERIOR_ESTIMATOR
+pub use antecedent::analysis::bayesian_posterior_row::DoseGridPosteriorWire = antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
+pub use antecedent::analysis::bayesian_posterior_row::POSTERIOR_ROW_ARTIFACT_FEATURE = antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_ARTIFACT_FEATURE
+pub use antecedent::analysis::bayesian_posterior_row::POSTERIOR_ROW_ARTIFACT_VERSION = antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_ARTIFACT_VERSION
+pub use antecedent::analysis::bayesian_posterior_row::POSTERIOR_ROW_CALIBRATION = antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_CALIBRATION
+pub use antecedent::analysis::bayesian_posterior_row::POSTERIOR_ROW_UNCERTAINTY = antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_UNCERTAINTY
+pub use antecedent::analysis::bayesian_posterior_row::PosteriorRowArtifactError = antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
+pub use antecedent::analysis::bayesian_posterior_row::PosteriorRowArtifactWire = antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
+pub use antecedent::analysis::bayesian_posterior_row::PosteriorRowConsumeLimits = antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
+pub use antecedent::analysis::bayesian_posterior_row::PosteriorRowRequestWire = antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+pub use antecedent::analysis::bayesian_posterior_row::PosteriorRowResultWire = antecedent_io::bayesian_posterior_row_artifact::PosteriorRowResultWire
+pub use antecedent::analysis::bayesian_posterior_row::ResidualPriorWire = antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 pub use antecedent::analysis::categorical_treatment::AdjacentStepWire = antecedent_io::categorical_treatment_artifact::AdjacentStepWire
 pub use antecedent::analysis::categorical_treatment::CATEGORICAL_HC_ROW_CAP = antecedent_io::categorical_treatment_artifact::CATEGORICAL_HC_ROW_CAP
 pub use antecedent::analysis::categorical_treatment::CATEGORICAL_OMNIBUS_NULL = antecedent_estimate::categorical_treatment::CATEGORICAL_OMNIBUS_NULL
 pub use antecedent::analysis::categorical_treatment::CATEGORICAL_TREATMENT_ARTIFACT_VERSION = antecedent_io::categorical_treatment_artifact::CATEGORICAL_TREATMENT_ARTIFACT_VERSION
 pub use antecedent::analysis::categorical_treatment::CATEGORICAL_TREATMENT_CALIBRATION = antecedent_io::categorical_treatment_artifact::CATEGORICAL_TREATMENT_CALIBRATION
 pub use antecedent::analysis::categorical_treatment::CalibrationStatus = antecedent_estimate::effect_constancy::CalibrationStatus
+pub use antecedent::analysis::categorical_treatment::CategoricalPosteriorDeclaration = antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
+pub use antecedent::analysis::categorical_treatment::CategoricalPosteriorWire = antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 pub use antecedent::analysis::categorical_treatment::CategoricalResultWire = antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 pub use antecedent::analysis::categorical_treatment::CategoricalSpecWire = antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 pub use antecedent::analysis::categorical_treatment::CategoricalTreatmentArtifact = antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
@@ -11517,6 +12003,8 @@ pub use antecedent::analysis::categorical_treatment::MONOTONICITY_NON_INCREASING
 pub use antecedent::analysis::categorical_treatment::MonotonicityDirection = antecedent_estimate::categorical_treatment::MonotonicityDirection
 pub use antecedent::analysis::categorical_treatment::MonotonicityWire = antecedent_io::categorical_treatment_artifact::MonotonicityWire
 pub use antecedent::analysis::categorical_treatment::PairContrastWire = antecedent_io::categorical_treatment_artifact::PairContrastWire
+pub use antecedent::analysis::categorical_treatment::PosteriorContrastWire = antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
+pub use antecedent::analysis::categorical_treatment::PosteriorMonotonicityWire = antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
 pub use antecedent::analysis::check_derived_treatment = antecedent::analysis::api::check_derived_treatment
 pub use antecedent::analysis::classify_inverse_outcome = antecedent::analysis::api::classify_inverse_outcome
 pub use antecedent::analysis::cohort_decision::CATE_FUNCTIONAL_ID = antecedent_io::cohort_decision::CATE_FUNCTIONAL_ID
@@ -11664,6 +12152,7 @@ pub use antecedent::analysis::consume_mechanism_composition_artifact = anteceden
 pub use antecedent::analysis::consume_mixed_source_artifact = antecedent::analysis::api::consume_mixed_source_artifact
 pub use antecedent::analysis::consume_mz_transport_artifact = antecedent::analysis::api::consume_mz_transport_artifact
 pub use antecedent::analysis::consume_observation_recovery_artifact = antecedent::analysis::api::consume_observation_recovery_artifact
+pub use antecedent::analysis::consume_period_refresh_artifact = antecedent::analysis::api::consume_period_refresh_artifact
 pub use antecedent::analysis::consume_predictive_assessment_artifact = antecedent::analysis::api::consume_predictive_assessment_artifact
 pub use antecedent::analysis::consume_scenario_covariance_artifact = antecedent::analysis::api::consume_scenario_covariance_artifact
 pub use antecedent::analysis::consume_scientific_bridge_artifact = antecedent::analysis::api::consume_scientific_bridge_artifact
@@ -12201,6 +12690,12 @@ pub use antecedent::analysis::per_population_discovery::PopulationDiscovery = an
 pub use antecedent::analysis::per_population_discovery::PopulationEdgeComparison = antecedent_discovery::selective::populations::PopulationEdgeComparison
 pub use antecedent::analysis::per_population_discovery::PopulationRows = antecedent_discovery::selective::populations::PopulationRows
 pub use antecedent::analysis::plan_rank_drop = antecedent::analysis::api::plan_rank_drop
+pub use antecedent::analysis::posterior_boundaries::SerialErrorModel = antecedent_estimate::temporal_curve_posterior_meaning::SerialErrorModel
+pub use antecedent::analysis::posterior_boundaries::TemporalCurvePosteriorMeaning = antecedent_estimate::temporal_curve_posterior_meaning::TemporalCurvePosteriorMeaning
+pub use antecedent::analysis::posterior_boundaries::TrajectoryBootstrapIntervals = antecedent_estimate::trajectory_survival::TrajectoryBootstrapIntervals
+pub use antecedent::analysis::posterior_boundaries::TrajectoryRows = antecedent_estimate::trajectory_survival::TrajectoryRows
+pub use antecedent::analysis::posterior_boundaries::TrajectorySurvivalContrast = antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast
+pub use antecedent::analysis::posterior_boundaries::temporal_curve_posterior_meaning = antecedent_estimate::temporal_curve_posterior_meaning::temporal_curve_posterior_meaning
 pub use antecedent::analysis::posterior_predictive_predictor = antecedent::analysis::api::posterior_predictive_predictor
 pub use antecedent::analysis::predictive_assessment::AssessmentIdentity = antecedent_validate::predictive_assessment::AssessmentIdentity
 pub use antecedent::analysis::predictive_assessment::DependenceDeclaration = antecedent_validate::predictive_assessment::DependenceDeclaration
@@ -12756,6 +13251,7 @@ pub use antecedent::consume_mechanism_composition_artifact = antecedent::analysi
 pub use antecedent::consume_mixed_source_artifact = antecedent::analysis::api::consume_mixed_source_artifact
 pub use antecedent::consume_mz_transport_artifact = antecedent::analysis::api::consume_mz_transport_artifact
 pub use antecedent::consume_observation_recovery_artifact = antecedent::analysis::api::consume_observation_recovery_artifact
+pub use antecedent::consume_period_refresh_artifact = antecedent::analysis::api::consume_period_refresh_artifact
 pub use antecedent::consume_predictive_assessment_artifact = antecedent::analysis::api::consume_predictive_assessment_artifact
 pub use antecedent::consume_scenario_covariance_artifact = antecedent::analysis::api::consume_scenario_covariance_artifact
 pub use antecedent::consume_scientific_bridge_artifact = antecedent::analysis::api::consume_scientific_bridge_artifact
@@ -12817,6 +13313,7 @@ pub use antecedent::design::StudySubsetOutcome = antecedent_design::StudySubsetO
 pub use antecedent::design::Utility = antecedent_design::Utility
 pub use antecedent::design::evaluate_decision = antecedent_design::evaluate_decision
 pub use antecedent::design::plan_studies = antecedent_design::plan_studies
+pub use antecedent::design_posterior_model::DesignPosteriorModel = antecedent::DesignPosteriorModel
 pub use antecedent::discovery::BackgroundKnowledge = antecedent_discovery::BackgroundKnowledge
 pub use antecedent::discovery::CiScreenedPosterior = antecedent_discovery::CiScreenedPosterior
 pub use antecedent::discovery::CiSoftWeight = antecedent_discovery::CiSoftWeight
@@ -12882,6 +13379,8 @@ pub use antecedent::estimate::ExactEvaluationLimits = antecedent_expr::ExactEval
 pub use antecedent::estimate::ExactSupportRecord = antecedent_expr::ExactSupportRecord
 pub use antecedent::estimate::ExactTransportData = antecedent_expr::ExactTransportData
 pub use antecedent::estimate::IdentifierId = antecedent::IdentifierId
+pub use antecedent::estimate::InnovationWhitenessGate = antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate
+pub use antecedent::estimate::InnovationWhitenessReport = antecedent_estimate::white_innovation_posterior::InnovationWhitenessReport
 pub use antecedent::estimate::InterferenceEstimate = antecedent_estimate::InterferenceEstimate
 pub use antecedent::estimate::LawTolerance = antecedent_expr::LawTolerance
 pub use antecedent::estimate::NetworkData = antecedent_data::NetworkData
@@ -13239,6 +13738,7 @@ pub use antecedent::query::DerivativeWeighting = antecedent_core::DerivativeWeig
 pub use antecedent::query::ExposureLevel = antecedent_core::ExposureLevel
 pub use antecedent::query::ExposureMapping = antecedent_core::ExposureMapping
 pub use antecedent::query::GridSpec = antecedent_core::GridSpec
+pub use antecedent::query::HistoryMatchQuery = antecedent_core::HistoryMatchQuery
 pub use antecedent::query::InterferenceFunctional = antecedent_core::InterferenceFunctional
 pub use antecedent::query::InterferenceQuery = antecedent_core::InterferenceQuery
 pub use antecedent::query::InterventionalDistributionQuery = antecedent_core::InterventionalDistributionQuery
@@ -13257,6 +13757,7 @@ pub use antecedent::query::ResponseIdentification = antecedent_core::ResponseIde
 pub use antecedent::query::ResponseQuery = antecedent_core::ResponseQuery
 pub use antecedent::query::ResponseUncertainty = antecedent_core::ResponseUncertainty
 pub use antecedent::query::ResponseValue = antecedent_core::ResponseValue
+pub use antecedent::query::SequentialContrastQuery = antecedent_core::SequentialContrastQuery
 pub use antecedent::query::SyntheticControlQuery = antecedent_core::SyntheticControlQuery
 pub use antecedent::query::SyntheticPanelMethod = antecedent_core::SyntheticPanelMethod
 pub use antecedent::query::TemporalEffectQuery = antecedent_core::TemporalEffectQuery
@@ -13267,16 +13768,19 @@ pub use antecedent::query::UnitChangeQuery = antecedent_core::UnitChangeQuery
 pub use antecedent::result::AnalysisIdentification = antecedent::AnalysisIdentification
 pub use antecedent::result::ContinuousDoseResponseEstimate = antecedent::ContinuousDoseResponseEstimate
 pub use antecedent::result::ExecutedContract = antecedent::ExecutedContract
+pub use antecedent::result::HistoryMatchEstimate = antecedent::HistoryMatchEstimate
 pub use antecedent::result::LocalPolynomialRatioEstimate = antecedent::LocalPolynomialRatioEstimate
 pub use antecedent::result::LongitudinalRegimeEstimate = antecedent::LongitudinalRegimeEstimate
 pub use antecedent::result::PERCENTILE_95_MIN_REPLICATES = antecedent::PERCENTILE_95_MIN_REPLICATES
 pub use antecedent::result::PanelDidEstimate = antecedent::PanelDidEstimate
 pub use antecedent::result::PolicyValueEstimate = antecedent::PolicyValueEstimate
+pub use antecedent::result::PosteriorRowEstimate = antecedent::PosteriorRowEstimate
 pub use antecedent::result::PrimaryEstimate = antecedent::PrimaryEstimate
 pub use antecedent::result::PublishedScalarUncertainty = antecedent::PublishedScalarUncertainty
 pub use antecedent::result::RandomizedEffectEstimate = antecedent::RandomizedEffectEstimate
 pub use antecedent::result::ResultPayload = antecedent::ResultPayload
 pub use antecedent::result::RowWeightsBinding = antecedent::RowWeightsBinding
+pub use antecedent::result::SequentialContrastEstimate = antecedent::SequentialContrastEstimate
 pub use antecedent::result::StructuralAggregationPolicy = antecedent::StructuralAggregationPolicy
 pub use antecedent::result::StructuralWeightBasis = antecedent::StructuralWeightBasis
 pub use antecedent::result::StudyResult = antecedent::StudyResult
@@ -13324,6 +13828,9 @@ pub use antecedent::simultaneous_band_unpublished = antecedent::analysis::simult
 pub use antecedent::state::CachedResult = antecedent_state::CachedResult
 pub use antecedent::state::CausalState = antecedent_state::CausalState
 pub use antecedent::state::ChangedInput = antecedent_state::ChangedInput
+pub use antecedent::state::ConjugateOlsPosterior = antecedent_state::ConjugateOlsPosterior
+pub use antecedent::state::ConjugateOlsPrior = antecedent_state::ConjugateOlsPrior
+pub use antecedent::state::ConjugateOlsSummary = antecedent_state::ConjugateOlsSummary
 pub use antecedent::state::ConstraintId = antecedent_state::ConstraintId
 pub use antecedent::state::DataBatchRef = antecedent_state::DataBatchRef
 pub use antecedent::state::DataCatalog = antecedent_state::DataCatalog
@@ -13345,10 +13852,18 @@ pub use antecedent::state::LinearOlsSuffStats = antecedent_state::LinearOlsSuffS
 pub use antecedent::state::LocalScoreCache = antecedent_state::LocalScoreCache
 pub use antecedent::state::ModelRecord = antecedent_state::ModelRecord
 pub use antecedent::state::ModelStore = antecedent_state::ModelStore
+pub use antecedent::state::OlsLedgerState = antecedent_state::OlsLedgerState
+pub use antecedent::state::OlsRefresh = antecedent_state::OlsRefresh
+pub use antecedent::state::OlsSnapshot = antecedent_state::OlsSnapshot
 pub use antecedent::state::ParentSetOp = antecedent_state::ParentSetOp
 pub use antecedent::state::ParticleFilterState = antecedent_state::ParticleFilterState
 pub use antecedent::state::QueryRecord = antecedent_state::QueryRecord
 pub use antecedent::state::QueryStore = antecedent_state::QueryStore
+pub use antecedent::state::RefreshChange = antecedent_state::RefreshChange
+pub use antecedent::state::RefreshDisposition = antecedent_state::RefreshDisposition
+pub use antecedent::state::RefreshOutcome = antecedent_state::RefreshOutcome
+pub use antecedent::state::RefreshRoute = antecedent_state::RefreshRoute
+pub use antecedent::state::RefreshRow = antecedent_state::RefreshRow
 pub use antecedent::state::ResultPublication = antecedent_state::ResultPublication
 pub use antecedent::state::ResultStore = antecedent_state::ResultStore
 pub use antecedent::state::RetentionPolicy = antecedent_state::RetentionPolicy
@@ -13360,6 +13875,7 @@ pub use antecedent::state::SuffStatStore = antecedent_state::SuffStatStore
 pub use antecedent::state::evict_mechanism_diag = antecedent_state::evict_mechanism_diag
 pub use antecedent::state::full_graph_score = antecedent_state::full_graph_score
 pub use antecedent::state::insert_mechanism_diag = antecedent_state::insert_mechanism_diag
+pub use antecedent::state::route_contract = antecedent_state::route_contract
 pub use antecedent::strategy_table::DEFAULT_ADMG_ESTIMATOR_ID = antecedent::estimate::DEFAULT_ADMG_ESTIMATOR_ID
 pub use antecedent::strategy_table::DEFAULT_ADMG_IDENTIFIER_ID = antecedent::estimate::DEFAULT_ADMG_IDENTIFIER_ID
 pub use antecedent::strategy_table::DEFAULT_CONDITIONAL_ESTIMATOR_ID = antecedent::estimate::DEFAULT_CONDITIONAL_ESTIMATOR_ID
@@ -13503,18 +14019,38 @@ pub variant antecedent::DependenceInput::AlignedJointLaw { law_id: alloc::string
 pub variant antecedent::DependenceInput::CrossCovariance { blocks: alloc::vec::Vec<antecedent_model::compose::descriptor::CrossCovarianceBlock> }
 pub variant antecedent::DependenceInput::IndependentByDesign { justification: alloc::string::String }
 pub variant antecedent::DependenceInput::Unknown
+pub variant antecedent::DesignPosteriorModel::ArmOutcome { model: antecedent_estimate::randomized_posterior::ArmOutcomeModel }
+pub variant antecedent::DesignPosteriorModel::DosePolynomial { support: (f64, f64), coefficient_scales: alloc::sync::Arc<[f64]>, residual: antecedent_estimate::dose_basis_regression::ResidualPrior }
+pub variant antecedent::DesignPosteriorModel::PiecewiseHazard { cuts: alloc::sync::Arc<[f64]>, prior_shape: f64, prior_rate: f64 }
+pub variant antecedent::DesignPosteriorModel::QuantileGrid { thresholds: alloc::sync::Arc<[f64]>, bin_concentration: f64 }
+pub variant antecedent::DesignPosteriorModel::Switchback { model: antecedent_estimate::switchback_posterior::SwitchbackModel }
 pub variant antecedent::EnumeratedStatus::Reachable
 pub variant antecedent::EnumeratedStatus::Undetermined
 pub variant antecedent::EnumeratedStatus::UnreachableWithinSet
 pub variant antecedent::EstimatorId::Aipw
 pub variant antecedent::EstimatorId::BayesianBasisGcomp
+pub variant antecedent::EstimatorId::BayesianBinaryPolicyValue
 pub variant antecedent::EstimatorId::BayesianConditional
+pub variant antecedent::EstimatorId::BayesianDosePolicy
 pub variant antecedent::EstimatorId::BayesianGcomp
 pub variant antecedent::EstimatorId::BayesianIvJointLinear
+pub variant antecedent::EstimatorId::BayesianLocalRatio
+pub variant antecedent::EstimatorId::BayesianPanelDid
+pub variant antecedent::EstimatorId::BayesianPiecewiseSurvival
+pub variant antecedent::EstimatorId::BayesianRandomizedFinitePopulation
+pub variant antecedent::EstimatorId::BayesianRandomizedQuantile
+pub variant antecedent::EstimatorId::BayesianRandomizedSuperpopulation
 pub variant antecedent::EstimatorId::BayesianRdLocalLinear
 pub variant antecedent::EstimatorId::BayesianRobustAte
+pub variant antecedent::EstimatorId::BayesianSequentialCrossfitContrast
+pub variant antecedent::EstimatorId::BayesianSequentialRegimeValue
+pub variant antecedent::EstimatorId::BayesianSwitchback
+pub variant antecedent::EstimatorId::BayesianSyntheticControl
 pub variant antecedent::EstimatorId::BayesianTemporalGcomp
+pub variant antecedent::EstimatorId::BayesianTemporalGlmLinkContrast
+pub variant antecedent::EstimatorId::BayesianTemporalLaggedInstrument
 pub variant antecedent::EstimatorId::BayesianTemporalMediation
+pub variant antecedent::EstimatorId::BayesianTemporalWhiteInnovation
 pub variant antecedent::EstimatorId::CausalForest
 pub variant antecedent::EstimatorId::CellAipw
 pub variant antecedent::EstimatorId::ConditionalLinearAdjustment
@@ -13542,6 +14078,7 @@ pub variant antecedent::EstimatorId::LongitudinalGFormulaRegime
 pub variant antecedent::EstimatorId::LongitudinalIpwRegime
 pub variant antecedent::EstimatorId::LongitudinalMarginalStructuralModel
 pub variant antecedent::EstimatorId::LongitudinalSequentialDrRegime
+pub variant antecedent::EstimatorId::PeriodHistoryMatching
 pub variant antecedent::EstimatorId::PropensityMatching
 pub variant antecedent::EstimatorId::PropensityStratification
 pub variant antecedent::EstimatorId::PropensityWeighting
@@ -13561,7 +14098,10 @@ pub variant antecedent::EstimatorId::ResponseGamDerivative
 pub variant antecedent::EstimatorId::ResponseInterventionGcomp
 pub variant antecedent::EstimatorId::ResponseKennedyDr
 pub variant antecedent::EstimatorId::ResponseRieszAde
+pub variant antecedent::EstimatorId::SequentialCrossfitContrastWald
 pub variant antecedent::EstimatorId::StaticMediationLinear
+pub variant antecedent::EstimatorId::TemporalGlmLinkContrast
+pub variant antecedent::EstimatorId::TemporalLaggedInstrument
 pub variant antecedent::EstimatorId::TemporalLinearAdjustment
 pub variant antecedent::EstimatorId::TemporalMediation
 pub variant antecedent::EstimatorId::TemporalResponseBayesian
@@ -13626,6 +14166,7 @@ pub variant antecedent::IdentifierId::RandomizedDesign
 pub variant antecedent::IdentifierId::RdSharp
 pub variant antecedent::IdentifierId::ResponseBackdoor
 pub variant antecedent::IdentifierId::TemporalBackdoorUnfolded
+pub variant antecedent::IdentifierId::TemporalIvUnfolded
 pub variant antecedent::IdentifierId::TransportSid
 pub variant antecedent::InferenceMode::Bayesian(antecedent::BayesianConfig)
 pub variant antecedent::InferenceMode::Frequentist
@@ -13673,6 +14214,7 @@ pub variant antecedent::ResultPayload::ChangeAttribution(antecedent_attribution:
 pub variant antecedent::ResultPayload::ContinuousDoseResponse(antecedent::ContinuousDoseResponseEstimate)
 pub variant antecedent::ResultPayload::Counterfactual(antecedent::gcm::IteResult)
 pub variant antecedent::ResultPayload::Distribution(antecedent_estimate::functional_distribution::InterventionalDistributionEstimate)
+pub variant antecedent::ResultPayload::HistoryMatch(antecedent::HistoryMatchEstimate)
 pub variant antecedent::ResultPayload::Interference { estimate: core::option::Option<antecedent_estimate::interference::InterferenceEstimate>, inference: core::option::Option<antecedent::result::InterferenceInference> }
 pub variant antecedent::ResultPayload::LocalPolynomialRatio(antecedent::LocalPolynomialRatioEstimate)
 pub variant antecedent::ResultPayload::LongitudinalRegime(antecedent::LongitudinalRegimeEstimate)
@@ -13680,9 +14222,11 @@ pub variant antecedent::ResultPayload::MechanismChange(alloc::vec::Vec<anteceden
 pub variant antecedent::ResultPayload::Mediation { decomposition: core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationEstimate>, grid: core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationGrid> }
 pub variant antecedent::ResultPayload::PanelDid(antecedent::PanelDidEstimate)
 pub variant antecedent::ResultPayload::PolicyValue(antecedent::PolicyValueEstimate)
+pub variant antecedent::ResultPayload::PosteriorRow(antecedent::PosteriorRowEstimate)
 pub variant antecedent::ResultPayload::RandomizedEffect(antecedent::RandomizedEffectEstimate)
 pub variant antecedent::ResultPayload::Response(antecedent_core::response::CausalResponse)
 pub variant antecedent::ResultPayload::Scalar
+pub variant antecedent::ResultPayload::SequentialContrast(antecedent::SequentialContrastEstimate)
 pub variant antecedent::ResultPayload::Survival(antecedent::SurvivalEstimate)
 pub variant antecedent::ResultPayload::SyntheticControl(antecedent::SyntheticControlEstimate)
 pub variant antecedent::ResultPayload::SyntheticDid(antecedent::SyntheticDidEstimate)
@@ -13821,6 +14365,8 @@ pub variant antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresRep
 pub variant antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest::ClosedForm { arm_means: alloc::vec::Vec<f64> }
 pub variant antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest::Derived { arm_means: alloc::vec::Vec<f64>, simulation: antecedent_stats::adaptive_inference::procedure_repeated_measures::RepeatedMeasuresRequest, z: f64 }
 pub variant antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresReportRequest::Paradigm { paradigm: antecedent_stats::adaptive_inference::procedure_uncertainty::UncertaintyParadigm, arm_means: alloc::vec::Vec<f64>, simulation: antecedent_stats::adaptive_inference::procedure_repeated_measures::RepeatedMeasuresRequest, z: f64 }
+pub variant antecedent::analysis::array_fits::TemporalScoreModel::Penalized { penalty: f64 }
+pub variant antecedent::analysis::array_fits::TemporalScoreModel::Posterior { intercept_sd: f64, slope_sd: f64, draws: usize, seed: u64 }
 pub variant antecedent::analysis::decision_claims::ClaimError::Adapter(antecedent_design::decision_adapters::AdapterError)
 pub variant antecedent::analysis::decision_claims::ClaimError::IdentityMismatch(alloc::string::String)
 pub variant antecedent::analysis::decision_claims::ClaimError::MissingScenarioUtility { action: alloc::string::String, input: usize }
@@ -13864,6 +14410,8 @@ pub variant antecedent::analysis::inverse_sources::ComposedSourceRefusal::Source
 pub variant antecedent::analysis::joint_law_composed_basis::Resolution::Calibrated { record_id: alloc::string::String }
 pub variant antecedent::analysis::joint_law_composed_basis::Resolution::NoRecord
 pub variant antecedent::analysis::joint_law_composed_basis::Resolution::NotAttesting { record_id: alloc::string::String, reason: alloc::string::String }
+pub variant antecedent::analysis::matching_posterior_refusal::MatchingSetting::Static
+pub variant antecedent::analysis::matching_posterior_refusal::MatchingSetting::WithinPeriodHistory
 pub variant antecedent::analysis::multi_level_treatment::MultiLevelTargetWire::FullPopulation
 pub variant antecedent::analysis::multi_level_treatment::MultiLevelTargetWire::PairwiseSubpopulation
 pub variant antecedent::analysis::native_claims::NativeDecisionSource::JointLaw(alloc::boxed::Box<antecedent_io_core::distribution_artifact::DistributionArtifact>)
@@ -13950,3 +14498,5 @@ pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEnt
 pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal::RouteUndeclared
 pub variant antecedent::gcm::NestedOutcomeMechanism::LinearGaussian
 pub variant antecedent::gcm::NestedOutcomeMechanism::NonSeparableBasis
+pub variant antecedent::period_refresh::PeriodRefreshOutcome::Extended { contiguous: bool }
+pub variant antecedent::period_refresh::PeriodRefreshOutcome::Restarted { invalidated: alloc::vec::Vec<antecedent_estimate::temporal_refresh::WindowProduct> }

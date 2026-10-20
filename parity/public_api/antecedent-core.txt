@@ -207,6 +207,7 @@ impl core::clone::Clone for antecedent_core::FrozenFitReuse
 impl core::clone::Clone for antecedent_core::GeneralizedBayes
 impl core::clone::Clone for antecedent_core::GraphFamily
 impl core::clone::Clone for antecedent_core::GridSpec
+impl core::clone::Clone for antecedent_core::HistoryMatchQuery
 impl core::clone::Clone for antecedent_core::HistoryWindow
 impl core::clone::Clone for antecedent_core::HorizonIdentification
 impl core::clone::Clone for antecedent_core::IdentificationStatus
@@ -351,6 +352,7 @@ impl core::clone::Clone for antecedent_core::SearchStop
 impl core::clone::Clone for antecedent_core::SemanticDigest
 impl core::clone::Clone for antecedent_core::SemanticOperation
 impl core::clone::Clone for antecedent_core::SequencedIntervention
+impl core::clone::Clone for antecedent_core::SequentialContrastQuery
 impl core::clone::Clone for antecedent_core::ShapleyConfig
 impl core::clone::Clone for antecedent_core::ShapleyMode
 impl core::clone::Clone for antecedent_core::SharedData
@@ -1050,6 +1052,7 @@ impl core::cmp::PartialEq for antecedent_core::FrozenFitReuse
 impl core::cmp::PartialEq for antecedent_core::GeneralizedBayes
 impl core::cmp::PartialEq for antecedent_core::GraphFamily
 impl core::cmp::PartialEq for antecedent_core::GridSpec
+impl core::cmp::PartialEq for antecedent_core::HistoryMatchQuery
 impl core::cmp::PartialEq for antecedent_core::HistoryWindow
 impl core::cmp::PartialEq for antecedent_core::HorizonIdentification
 impl core::cmp::PartialEq for antecedent_core::IdentificationStatus
@@ -1192,6 +1195,7 @@ impl core::cmp::PartialEq for antecedent_core::SearchStop
 impl core::cmp::PartialEq for antecedent_core::SemanticDigest
 impl core::cmp::PartialEq for antecedent_core::SemanticOperation
 impl core::cmp::PartialEq for antecedent_core::SequencedIntervention
+impl core::cmp::PartialEq for antecedent_core::SequentialContrastQuery
 impl core::cmp::PartialEq for antecedent_core::ShapleyConfig
 impl core::cmp::PartialEq for antecedent_core::ShapleyMode
 impl core::cmp::PartialEq for antecedent_core::SharedData
@@ -1406,6 +1410,7 @@ impl core::convert::From<antecedent_core::AverageEffectQuery> for antecedent_cor
 impl core::convert::From<antecedent_core::ChangeAttributionQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::ConditionalEffectQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::CounterfactualQuery> for antecedent_core::CausalQuery
+impl core::convert::From<antecedent_core::HistoryMatchQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::InterferenceQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::InterventionalDistributionQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::LocalPolynomialRatioQuery> for antecedent_core::CausalQuery
@@ -1417,6 +1422,7 @@ impl core::convert::From<antecedent_core::PanelDidQuery> for antecedent_core::Ca
 impl core::convert::From<antecedent_core::PathSpecificEffectQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::RandomizedEffectQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::ResponseQuery> for antecedent_core::CausalQuery
+impl core::convert::From<antecedent_core::SequentialContrastQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::SurvivalQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::SyntheticControlQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::TemporalEffectQuery> for antecedent_core::CausalQuery
@@ -1607,6 +1613,7 @@ impl core::fmt::Debug for antecedent_core::FrozenFitReuse
 impl core::fmt::Debug for antecedent_core::GeneralizedBayes
 impl core::fmt::Debug for antecedent_core::GraphFamily
 impl core::fmt::Debug for antecedent_core::GridSpec
+impl core::fmt::Debug for antecedent_core::HistoryMatchQuery
 impl core::fmt::Debug for antecedent_core::HistoryWindow
 impl core::fmt::Debug for antecedent_core::HorizonIdentification
 impl core::fmt::Debug for antecedent_core::IdentificationStatus
@@ -1751,6 +1758,7 @@ impl core::fmt::Debug for antecedent_core::SearchStop
 impl core::fmt::Debug for antecedent_core::SemanticDigest
 impl core::fmt::Debug for antecedent_core::SemanticOperation
 impl core::fmt::Debug for antecedent_core::SequencedIntervention
+impl core::fmt::Debug for antecedent_core::SequentialContrastQuery
 impl core::fmt::Debug for antecedent_core::ShapleyConfig
 impl core::fmt::Debug for antecedent_core::ShapleyMode
 impl core::fmt::Debug for antecedent_core::SharedData
@@ -2686,6 +2694,7 @@ impl core::marker::Freeze for antecedent_core::FrozenFitReuse [auto]
 impl core::marker::Freeze for antecedent_core::GeneralizedBayes [auto]
 impl core::marker::Freeze for antecedent_core::GraphFamily [auto]
 impl core::marker::Freeze for antecedent_core::GridSpec [auto]
+impl core::marker::Freeze for antecedent_core::HistoryMatchQuery [auto]
 impl core::marker::Freeze for antecedent_core::HistoryWindow [auto]
 impl core::marker::Freeze for antecedent_core::HorizonIdentification [auto]
 impl core::marker::Freeze for antecedent_core::IdentificationStatus [auto]
@@ -2830,6 +2839,7 @@ impl core::marker::Freeze for antecedent_core::SearchStop [auto]
 impl core::marker::Freeze for antecedent_core::SemanticDigest [auto]
 impl core::marker::Freeze for antecedent_core::SemanticOperation [auto]
 impl core::marker::Freeze for antecedent_core::SequencedIntervention [auto]
+impl core::marker::Freeze for antecedent_core::SequentialContrastQuery [auto]
 impl core::marker::Freeze for antecedent_core::ShapleyConfig [auto]
 impl core::marker::Freeze for antecedent_core::ShapleyMode [auto]
 impl core::marker::Freeze for antecedent_core::SharedData [auto]
@@ -3134,6 +3144,7 @@ impl core::marker::Send for antecedent_core::FrozenFitReuse [auto]
 impl core::marker::Send for antecedent_core::GeneralizedBayes [auto]
 impl core::marker::Send for antecedent_core::GraphFamily [auto]
 impl core::marker::Send for antecedent_core::GridSpec [auto]
+impl core::marker::Send for antecedent_core::HistoryMatchQuery [auto]
 impl core::marker::Send for antecedent_core::HistoryWindow [auto]
 impl core::marker::Send for antecedent_core::HorizonIdentification [auto]
 impl core::marker::Send for antecedent_core::IdentificationStatus [auto]
@@ -3278,6 +3289,7 @@ impl core::marker::Send for antecedent_core::SearchStop [auto]
 impl core::marker::Send for antecedent_core::SemanticDigest [auto]
 impl core::marker::Send for antecedent_core::SemanticOperation [auto]
 impl core::marker::Send for antecedent_core::SequencedIntervention [auto]
+impl core::marker::Send for antecedent_core::SequentialContrastQuery [auto]
 impl core::marker::Send for antecedent_core::ShapleyConfig [auto]
 impl core::marker::Send for antecedent_core::ShapleyMode [auto]
 impl core::marker::Send for antecedent_core::SharedData [auto]
@@ -3577,6 +3589,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::FrozenFitReuse
 impl core::marker::StructuralPartialEq for antecedent_core::GeneralizedBayes
 impl core::marker::StructuralPartialEq for antecedent_core::GraphFamily
 impl core::marker::StructuralPartialEq for antecedent_core::GridSpec
+impl core::marker::StructuralPartialEq for antecedent_core::HistoryMatchQuery
 impl core::marker::StructuralPartialEq for antecedent_core::HistoryWindow
 impl core::marker::StructuralPartialEq for antecedent_core::HorizonIdentification
 impl core::marker::StructuralPartialEq for antecedent_core::IdentificationStatus
@@ -3717,6 +3730,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::SearchStop
 impl core::marker::StructuralPartialEq for antecedent_core::SemanticDigest
 impl core::marker::StructuralPartialEq for antecedent_core::SemanticOperation
 impl core::marker::StructuralPartialEq for antecedent_core::SequencedIntervention
+impl core::marker::StructuralPartialEq for antecedent_core::SequentialContrastQuery
 impl core::marker::StructuralPartialEq for antecedent_core::ShapleyConfig
 impl core::marker::StructuralPartialEq for antecedent_core::ShapleyMode
 impl core::marker::StructuralPartialEq for antecedent_core::SharedData
@@ -4011,6 +4025,7 @@ impl core::marker::Sync for antecedent_core::FrozenFitReuse [auto]
 impl core::marker::Sync for antecedent_core::GeneralizedBayes [auto]
 impl core::marker::Sync for antecedent_core::GraphFamily [auto]
 impl core::marker::Sync for antecedent_core::GridSpec [auto]
+impl core::marker::Sync for antecedent_core::HistoryMatchQuery [auto]
 impl core::marker::Sync for antecedent_core::HistoryWindow [auto]
 impl core::marker::Sync for antecedent_core::HorizonIdentification [auto]
 impl core::marker::Sync for antecedent_core::IdentificationStatus [auto]
@@ -4155,6 +4170,7 @@ impl core::marker::Sync for antecedent_core::SearchStop [auto]
 impl core::marker::Sync for antecedent_core::SemanticDigest [auto]
 impl core::marker::Sync for antecedent_core::SemanticOperation [auto]
 impl core::marker::Sync for antecedent_core::SequencedIntervention [auto]
+impl core::marker::Sync for antecedent_core::SequentialContrastQuery [auto]
 impl core::marker::Sync for antecedent_core::ShapleyConfig [auto]
 impl core::marker::Sync for antecedent_core::ShapleyMode [auto]
 impl core::marker::Sync for antecedent_core::SharedData [auto]
@@ -4461,6 +4477,7 @@ impl core::marker::Unpin for antecedent_core::FrozenFitReuse [auto]
 impl core::marker::Unpin for antecedent_core::GeneralizedBayes [auto]
 impl core::marker::Unpin for antecedent_core::GraphFamily [auto]
 impl core::marker::Unpin for antecedent_core::GridSpec [auto]
+impl core::marker::Unpin for antecedent_core::HistoryMatchQuery [auto]
 impl core::marker::Unpin for antecedent_core::HistoryWindow [auto]
 impl core::marker::Unpin for antecedent_core::HorizonIdentification [auto]
 impl core::marker::Unpin for antecedent_core::IdentificationStatus [auto]
@@ -4605,6 +4622,7 @@ impl core::marker::Unpin for antecedent_core::SearchStop [auto]
 impl core::marker::Unpin for antecedent_core::SemanticDigest [auto]
 impl core::marker::Unpin for antecedent_core::SemanticOperation [auto]
 impl core::marker::Unpin for antecedent_core::SequencedIntervention [auto]
+impl core::marker::Unpin for antecedent_core::SequentialContrastQuery [auto]
 impl core::marker::Unpin for antecedent_core::ShapleyConfig [auto]
 impl core::marker::Unpin for antecedent_core::ShapleyMode [auto]
 impl core::marker::Unpin for antecedent_core::SharedData [auto]
@@ -4914,6 +4932,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FrozenFitReuse
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::GeneralizedBayes [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::GraphFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::GridSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::HistoryMatchQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::HistoryWindow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::HorizonIdentification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::IdentificationStatus [auto]
@@ -5058,6 +5077,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SearchStop [au
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SemanticDigest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SemanticOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SequencedIntervention [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SequentialContrastQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ShapleyConfig [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ShapleyMode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SharedData [auto]
@@ -5363,6 +5383,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FrozenFitReuse [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::GeneralizedBayes [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::GraphFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::GridSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::HistoryMatchQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::HistoryWindow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::HorizonIdentification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::IdentificationStatus [auto]
@@ -5507,6 +5528,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SearchStop [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SemanticDigest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SemanticOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SequencedIntervention [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SequentialContrastQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ShapleyConfig [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ShapleyMode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SharedData [auto]
@@ -6086,6 +6108,12 @@ pub field antecedent_core::FixedCandidateRegretInputs::selected_index: usize
 pub field antecedent_core::FixedCandidateRegretInputs::training_subject_ids: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_core::FixedGroupDosePolicy::policy_doses: alloc::sync::Arc<[(alloc::sync::Arc<str>, f64)]>
 pub field antecedent_core::FixedGroupDosePolicy::reference_doses: alloc::sync::Arc<[(alloc::sync::Arc<str>, f64)]>
+pub field antecedent_core::HistoryMatchQuery::caliper: core::option::Option<f64>
+pub field antecedent_core::HistoryMatchQuery::history: alloc::sync::Arc<[antecedent_core::VariableId]>
+pub field antecedent_core::HistoryMatchQuery::outcome: antecedent_core::VariableId
+pub field antecedent_core::HistoryMatchQuery::period: core::option::Option<antecedent_core::VariableId>
+pub field antecedent_core::HistoryMatchQuery::treated: antecedent_core::VariableId
+pub field antecedent_core::HistoryMatchQuery::weight: core::option::Option<antecedent_core::VariableId>
 pub field antecedent_core::HorizonIdentification::adjustment: alloc::sync::Arc<[antecedent_core::TemporalNodeKey]>
 pub field antecedent_core::HorizonIdentification::horizon: u32
 pub field antecedent_core::HorizonIdentification::method: alloc::sync::Arc<str>
@@ -6279,6 +6307,16 @@ pub field antecedent_core::SearchReceipt::stop: antecedent_core::SearchStop
 pub field antecedent_core::SearchReceipt::unevaluated: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_core::SequencedIntervention::intervention: antecedent_core::Intervention
 pub field antecedent_core::SequencedIntervention::temporal: antecedent_core::TemporalPolicy
+pub field antecedent_core::SequentialContrastQuery::active: [u8; 2]
+pub field antecedent_core::SequentialContrastQuery::baseline: alloc::sync::Arc<[antecedent_core::VariableId]>
+pub field antecedent_core::SequentialContrastQuery::control: [u8; 2]
+pub field antecedent_core::SequentialContrastQuery::first_treatment: antecedent_core::VariableId
+pub field antecedent_core::SequentialContrastQuery::fold_count: u32
+pub field antecedent_core::SequentialContrastQuery::fold_of_row: alloc::sync::Arc<[u32]>
+pub field antecedent_core::SequentialContrastQuery::intermediate: alloc::sync::Arc<[antecedent_core::VariableId]>
+pub field antecedent_core::SequentialContrastQuery::min_probability: f64
+pub field antecedent_core::SequentialContrastQuery::outcome: antecedent_core::VariableId
+pub field antecedent_core::SequentialContrastQuery::second_treatment: antecedent_core::VariableId
 pub field antecedent_core::ShapleyConfig::allow_exact_override: bool
 pub field antecedent_core::ShapleyConfig::max_exact_components: usize
 pub field antecedent_core::ShapleyConfig::mode: antecedent_core::ShapleyMode
@@ -6580,6 +6618,7 @@ pub fn <antecedent_core::CausalQuery>::fn change_attribution(query: antecedent_c
 pub fn <antecedent_core::CausalQuery>::fn conditional_effect(query: antecedent_core::ConditionalEffectQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn counterfactual(query: antecedent_core::CounterfactualQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn distribution(query: antecedent_core::InterventionalDistributionQuery) -> Self
+pub fn <antecedent_core::CausalQuery>::fn history_match(query: antecedent_core::HistoryMatchQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn interference(query: antecedent_core::InterferenceQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn local_polynomial_ratio(query: antecedent_core::LocalPolynomialRatioQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn longitudinal_regime(query: antecedent_core::LongitudinalRegimeQuery) -> Self
@@ -6591,6 +6630,7 @@ pub fn <antecedent_core::CausalQuery>::fn path_specific(query: antecedent_core::
 pub fn <antecedent_core::CausalQuery>::fn policy_value(query: antecedent_core::PolicyValueQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn randomized_effect(query: antecedent_core::RandomizedEffectQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn response(query: antecedent_core::ResponseQuery) -> Self
+pub fn <antecedent_core::CausalQuery>::fn sequential_contrast(query: antecedent_core::SequentialContrastQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn survival(query: antecedent_core::SurvivalQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn synthetic_control(query: antecedent_core::SyntheticControlQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn target_population_mut(&mut self) -> core::option::Option<&mut antecedent_core::TargetPopulation>
@@ -6800,6 +6840,7 @@ pub fn <antecedent_core::GeneralizedBayes>::fn identity(&self) -> antecedent_cor
 pub fn <antecedent_core::GeneralizedBayes>::fn try_new(loss: antecedent_core::LossModel, prior: antecedent_core::Prior, learning_rate: core::option::Option<antecedent_core::LearningRate>) -> core::result::Result<Self, antecedent_core::MissingLearningRate>
 pub fn <antecedent_core::GridSpec>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::GridSpec>::fn values(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_core::QueryError>
+pub fn <antecedent_core::HistoryMatchQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::HistoryWindow>::const fn max_lag(steps: u32) -> Self
 pub fn <antecedent_core::HistoryWindow>::const fn max_lag_steps(self) -> core::option::Option<u32>
 pub fn <antecedent_core::HistoryWindow>::const fn planner_default() -> Self
@@ -7164,6 +7205,7 @@ pub fn <antecedent_core::SemanticDigest>::fn to_hex(&self) -> alloc::string::Str
 pub fn <antecedent_core::SemanticOperation>::const fn get(self) -> u64
 pub fn <antecedent_core::SemanticOperation>::const fn new(raw: u64) -> Self
 pub fn <antecedent_core::SequencedIntervention>::fn new(intervention: antecedent_core::Intervention, temporal: antecedent_core::TemporalPolicy) -> Self
+pub fn <antecedent_core::SequentialContrastQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::ShapleyConfig>::const fn exact() -> Self
 pub fn <antecedent_core::ShapleyConfig>::const fn monte_carlo(n_samples: usize) -> Self
 pub fn <antecedent_core::ShapleyConfig>::const fn permutation(n_permutations: usize) -> Self
@@ -7870,6 +7912,7 @@ pub struct antecedent_core::FoldId
 pub struct antecedent_core::FoldId has private fields
 pub struct antecedent_core::GeneralizedBayes
 pub struct antecedent_core::GeneralizedBayes has private fields
+pub struct antecedent_core::HistoryMatchQuery
 pub struct antecedent_core::HistoryWindow
 pub struct antecedent_core::HistoryWindow has private fields
 pub struct antecedent_core::HorizonIdentification
@@ -8014,6 +8057,7 @@ pub struct antecedent_core::SemanticDigest has private fields
 pub struct antecedent_core::SemanticOperation
 pub struct antecedent_core::SemanticOperation has private fields
 pub struct antecedent_core::SequencedIntervention
+pub struct antecedent_core::SequentialContrastQuery
 pub struct antecedent_core::ShapleyConfig
 pub struct antecedent_core::SmallRoleSet
 pub struct antecedent_core::SmallRoleSet has private fields
@@ -8381,6 +8425,7 @@ pub use antecedent_core::query::FactorNeed = antecedent_core::FactorNeed
 pub use antecedent_core::query::FixedCandidateRegretInputs = antecedent_core::FixedCandidateRegretInputs
 pub use antecedent_core::query::FixedGroupDosePolicy = antecedent_core::FixedGroupDosePolicy
 pub use antecedent_core::query::GridSpec = antecedent_core::GridSpec
+pub use antecedent_core::query::HistoryMatchQuery = antecedent_core::HistoryMatchQuery
 pub use antecedent_core::query::InterferenceFunctional = antecedent_core::InterferenceFunctional
 pub use antecedent_core::query::InterferenceQuery = antecedent_core::InterferenceQuery
 pub use antecedent_core::query::InterventionAssignment = antecedent_core::InterventionAssignment
@@ -8421,6 +8466,7 @@ pub use antecedent_core::query::ResponseFunctional = antecedent_core::ResponseFu
 pub use antecedent_core::query::ResponseQuery = antecedent_core::ResponseQuery
 pub use antecedent_core::query::SamplingDesign = antecedent_core::SamplingDesign
 pub use antecedent_core::query::SamplingSelection = antecedent_core::SamplingSelection
+pub use antecedent_core::query::SequentialContrastQuery = antecedent_core::SequentialContrastQuery
 pub use antecedent_core::query::ShapleyConfig = antecedent_core::ShapleyConfig
 pub use antecedent_core::query::ShapleyMode = antecedent_core::ShapleyMode
 pub use antecedent_core::query::SharedData = antecedent_core::SharedData
@@ -8647,6 +8693,7 @@ pub variant antecedent_core::CausalQuery::ConditionalEffect(antecedent_core::Con
 pub variant antecedent_core::CausalQuery::ContinuousDoseResponse(antecedent_core::ContinuousDoseResponseQuery)
 pub variant antecedent_core::CausalQuery::Counterfactual(antecedent_core::CounterfactualQuery)
 pub variant antecedent_core::CausalQuery::Distribution(antecedent_core::InterventionalDistributionQuery)
+pub variant antecedent_core::CausalQuery::HistoryMatch(antecedent_core::HistoryMatchQuery)
 pub variant antecedent_core::CausalQuery::Interference(antecedent_core::InterferenceQuery)
 pub variant antecedent_core::CausalQuery::LocalPolynomialRatio(antecedent_core::LocalPolynomialRatioQuery)
 pub variant antecedent_core::CausalQuery::LongitudinalRegime(antecedent_core::LongitudinalRegimeQuery)
@@ -8658,6 +8705,7 @@ pub variant antecedent_core::CausalQuery::PathSpecific(antecedent_core::PathSpec
 pub variant antecedent_core::CausalQuery::PolicyValue(antecedent_core::PolicyValueQuery)
 pub variant antecedent_core::CausalQuery::RandomizedEffect(antecedent_core::RandomizedEffectQuery)
 pub variant antecedent_core::CausalQuery::Response(antecedent_core::ResponseQuery)
+pub variant antecedent_core::CausalQuery::SequentialContrast(antecedent_core::SequentialContrastQuery)
 pub variant antecedent_core::CausalQuery::Survival(antecedent_core::SurvivalQuery)
 pub variant antecedent_core::CausalQuery::SyntheticControl(antecedent_core::SyntheticControlQuery)
 pub variant antecedent_core::CausalQuery::TemporalEffect(antecedent_core::TemporalEffectQuery)
@@ -8670,6 +8718,7 @@ pub variant antecedent_core::CausalQueryKind::ConditionalEffect
 pub variant antecedent_core::CausalQueryKind::ContinuousDoseResponse
 pub variant antecedent_core::CausalQueryKind::Counterfactual
 pub variant antecedent_core::CausalQueryKind::Distribution
+pub variant antecedent_core::CausalQueryKind::HistoryMatch
 pub variant antecedent_core::CausalQueryKind::Interference
 pub variant antecedent_core::CausalQueryKind::LocalPolynomialRatio
 pub variant antecedent_core::CausalQueryKind::LongitudinalRegime
@@ -8681,6 +8730,7 @@ pub variant antecedent_core::CausalQueryKind::PathSpecific
 pub variant antecedent_core::CausalQueryKind::PolicyValue
 pub variant antecedent_core::CausalQueryKind::RandomizedEffect
 pub variant antecedent_core::CausalQueryKind::Response
+pub variant antecedent_core::CausalQueryKind::SequentialContrast
 pub variant antecedent_core::CausalQueryKind::Survival
 pub variant antecedent_core::CausalQueryKind::SyntheticControl
 pub variant antecedent_core::CausalQueryKind::TemporalEffect
@@ -8948,6 +8998,7 @@ pub variant antecedent_core::QueryError::EmptyPopulationRows
 pub variant antecedent_core::QueryError::EmptyPredicateName
 pub variant antecedent_core::QueryError::InterventionVariableMismatch { expected: antecedent_core::VariableId, got: antecedent_core::VariableId }
 pub variant antecedent_core::QueryError::InvalidAnomalyReference
+pub variant antecedent_core::QueryError::InvalidHistoryMatch(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidInterference(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidIntervention(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidLocalPolynomialRatio(alloc::string::String)
@@ -8958,6 +9009,7 @@ pub variant antecedent_core::QueryError::InvalidPopulationTimeRange { start: usi
 pub variant antecedent_core::QueryError::InvalidPopulationWeights
 pub variant antecedent_core::QueryError::InvalidRandomizedEffect(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidResponse(alloc::string::String)
+pub variant antecedent_core::QueryError::InvalidSequentialContrast(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidSignificanceLevel
 pub variant antecedent_core::QueryError::InvalidSurvival(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidTemporalWindow { from: i32, until: i32 }

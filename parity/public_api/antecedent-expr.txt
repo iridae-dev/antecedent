@@ -957,6 +957,7 @@ pub variant antecedent_expr::EstimandMethod::RandomizedItt
 pub variant antecedent_expr::EstimandMethod::RandomizedPolicyValue
 pub variant antecedent_expr::EstimandMethod::RdSharp
 pub variant antecedent_expr::EstimandMethod::TemporalBackdoorUnfolded
+pub variant antecedent_expr::EstimandMethod::TemporalIvUnfolded
 pub variant antecedent_expr::EstimandMethod::TemporalMediationDirect
 pub variant antecedent_expr::EstimandMethod::TemporalMediationMediated
 pub variant antecedent_expr::EstimandMethod::TemporalMediationTotal

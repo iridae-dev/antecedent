@@ -212,6 +212,8 @@ impl core::clone::Clone for antecedent_identify::TemporalBackdoorIdentifier
 impl core::clone::Clone for antecedent_identify::TemporalClassEnvelope
 impl core::clone::Clone for antecedent_identify::TemporalCompletionGraph
 impl core::clone::Clone for antecedent_identify::TemporalIdentificationResult
+impl core::clone::Clone for antecedent_identify::TemporalIvIdentifier
+impl core::clone::Clone for antecedent_identify::TemporalIvResult
 impl core::clone::Clone for antecedent_identify::TemporalMediationIdentifier
 impl core::clone::Clone for antecedent_identify::TransportCertificate
 impl core::clone::Clone for antecedent_identify::TransportFormula
@@ -813,6 +815,7 @@ impl core::default::Default for antecedent_identify::ResponseIdentifier
 impl core::default::Default for antecedent_identify::SidLimits
 impl core::default::Default for antecedent_identify::StudyPlanLimits
 impl core::default::Default for antecedent_identify::TemporalBackdoorIdentifier
+impl core::default::Default for antecedent_identify::TemporalIvIdentifier
 impl core::default::Default for antecedent_identify::TemporalMediationIdentifier
 impl core::default::Default for antecedent_identify::TransportIdentifier
 impl core::default::Default for antecedent_identify::UnitMask
@@ -1014,6 +1017,8 @@ impl core::fmt::Debug for antecedent_identify::TemporalBackdoorIdentifier
 impl core::fmt::Debug for antecedent_identify::TemporalClassEnvelope
 impl core::fmt::Debug for antecedent_identify::TemporalCompletionGraph
 impl core::fmt::Debug for antecedent_identify::TemporalIdentificationResult
+impl core::fmt::Debug for antecedent_identify::TemporalIvIdentifier
+impl core::fmt::Debug for antecedent_identify::TemporalIvResult
 impl core::fmt::Debug for antecedent_identify::TemporalMediationIdentifier
 impl core::fmt::Debug for antecedent_identify::TransportCertificate
 impl core::fmt::Debug for antecedent_identify::TransportFormula
@@ -1455,6 +1460,8 @@ impl core::marker::Freeze for antecedent_identify::TemporalBackdoorIdentifier [a
 impl core::marker::Freeze for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::marker::Freeze for antecedent_identify::TemporalCompletionGraph [auto]
 impl core::marker::Freeze for antecedent_identify::TemporalIdentificationResult [auto]
+impl core::marker::Freeze for antecedent_identify::TemporalIvIdentifier [auto]
+impl core::marker::Freeze for antecedent_identify::TemporalIvResult [auto]
 impl core::marker::Freeze for antecedent_identify::TemporalMediationIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::TransportCertificate [auto]
 impl core::marker::Freeze for antecedent_identify::TransportFormula [auto]
@@ -1773,6 +1780,8 @@ impl core::marker::Send for antecedent_identify::TemporalBackdoorIdentifier [aut
 impl core::marker::Send for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::marker::Send for antecedent_identify::TemporalCompletionGraph [auto]
 impl core::marker::Send for antecedent_identify::TemporalIdentificationResult [auto]
+impl core::marker::Send for antecedent_identify::TemporalIvIdentifier [auto]
+impl core::marker::Send for antecedent_identify::TemporalIvResult [auto]
 impl core::marker::Send for antecedent_identify::TemporalMediationIdentifier [auto]
 impl core::marker::Send for antecedent_identify::TransportCertificate [auto]
 impl core::marker::Send for antecedent_identify::TransportFormula [auto]
@@ -2315,6 +2324,8 @@ impl core::marker::Sync for antecedent_identify::TemporalBackdoorIdentifier [aut
 impl core::marker::Sync for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::marker::Sync for antecedent_identify::TemporalCompletionGraph [auto]
 impl core::marker::Sync for antecedent_identify::TemporalIdentificationResult [auto]
+impl core::marker::Sync for antecedent_identify::TemporalIvIdentifier [auto]
+impl core::marker::Sync for antecedent_identify::TemporalIvResult [auto]
 impl core::marker::Sync for antecedent_identify::TemporalMediationIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::TransportCertificate [auto]
 impl core::marker::Sync for antecedent_identify::TransportFormula [auto]
@@ -2633,6 +2644,8 @@ impl core::marker::Unpin for antecedent_identify::TemporalBackdoorIdentifier [au
 impl core::marker::Unpin for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::marker::Unpin for antecedent_identify::TemporalCompletionGraph [auto]
 impl core::marker::Unpin for antecedent_identify::TemporalIdentificationResult [auto]
+impl core::marker::Unpin for antecedent_identify::TemporalIvIdentifier [auto]
+impl core::marker::Unpin for antecedent_identify::TemporalIvResult [auto]
 impl core::marker::Unpin for antecedent_identify::TemporalMediationIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::TransportCertificate [auto]
 impl core::marker::Unpin for antecedent_identify::TransportFormula [auto]
@@ -2951,6 +2964,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalBa
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalCompletionGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalIdentificationResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalIvIdentifier [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalIvResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TemporalMediationIdentifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TransportCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TransportFormula [auto]
@@ -3269,6 +3284,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalBackd
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalClassEnvelope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalCompletionGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalIdentificationResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalIvIdentifier [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalIvResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TemporalMediationIdentifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TransportCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TransportFormula [auto]
@@ -3674,6 +3691,7 @@ pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MAX_HISTORY_STAT
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MAX_OBSERVED: usize
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MISSING_EVIDENCE: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_SEARCH_INCOMPLETE: &str
+pub const antecedent_identify::temporal_iv::TEMPORAL_IV_METHOD: &str
 pub const fn antecedent_identify::carries_identified_mass(status: antecedent_core::identification::IdentificationStatus) -> bool
 pub const fn antecedent_identify::history_identification::is_feedback_certified(identification: &antecedent_identify::history_identification::HistoryIdentification) -> bool
 pub const fn antecedent_identify::history_identification::search_bound(identification: &antecedent_identify::history_identification::HistoryIdentification) -> core::option::Option<antecedent_identify::history_identification::HistorySearchBound>
@@ -4237,6 +4255,14 @@ pub field antecedent_identify::TemporalIdentificationResult::outcome_key: antece
 pub field antecedent_identify::TemporalIdentificationResult::result: antecedent_identify::IdentificationResult
 pub field antecedent_identify::TemporalIdentificationResult::treatment_key: antecedent_core::temporal::TemporalNodeKey
 pub field antecedent_identify::TemporalIdentificationResult::unfolded: antecedent_graph::unfold::UnfoldedTemporalGraph
+pub field antecedent_identify::TemporalIvIdentifier::config: antecedent_identify::InstrumentSearchConfig
+pub field antecedent_identify::TemporalIvResult::indexer: antecedent_core::temporal::TemporalIndexer
+pub field antecedent_identify::TemporalIvResult::instruments: alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>
+pub field antecedent_identify::TemporalIvResult::outcome_key: antecedent_core::temporal::TemporalNodeKey
+pub field antecedent_identify::TemporalIvResult::result: antecedent_identify::IdentificationResult
+pub field antecedent_identify::TemporalIvResult::treatment_key: antecedent_core::temporal::TemporalNodeKey
+pub field antecedent_identify::TemporalIvResult::uncertified: alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>
+pub field antecedent_identify::TemporalIvResult::unfolded: antecedent_graph::unfold::UnfoldedTemporalGraph
 pub field antecedent_identify::TemporalMediationIdentifier::allow_natural_controlled_alias: bool
 pub field antecedent_identify::TemporalMediationIdentifier::temporal: antecedent_identify::TemporalBackdoorIdentifier
 pub field antecedent_identify::TransportCertificate::premises: alloc::sync::Arc<[alloc::sync::Arc<str>]>
@@ -4761,6 +4787,7 @@ pub fn <antecedent_identify::IdIdentifier>::fn prepare_dag(&self, graph: &antece
 pub fn <antecedent_identify::IdIdentifier>::fn prepare_with_assumptions(&self, graph: &antecedent_graph::admg::Admg, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdcIdentifier>::fn identify(&self, prepared: &antecedent_identify::PreparedAdmg, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdcIdentifier>::fn identify_conditional(&self, prepared: &antecedent_identify::PreparedAdmg, outcomes: &[antecedent_core::ids::VariableId], interventions: &[antecedent_core::intervention::Intervention], conditioning: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::IdcIdentifier>::fn identify_conditional_at_levels(&self, prepared: &antecedent_identify::PreparedAdmg, outcomes: &[antecedent_core::ids::VariableId], interventions: &[antecedent_core::intervention::Intervention], conditioning: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdcIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::IdcIdentifier>::fn prepare(&self, graph: &antecedent_graph::admg::Admg) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::IdcIdentifier>::fn prepare_dag(&self, graph: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
@@ -4915,6 +4942,8 @@ pub fn <antecedent_identify::TemporalCompletionGraph>::fn digest(&self) -> [u8; 
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn fingerprint(&self) -> u64
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn has_bidirected(&self) -> bool
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn sequential_dag(&self) -> core::option::Option<antecedent_graph::temporal::TemporalDag>
+pub fn <antecedent_identify::TemporalIvIdentifier>::fn identify_temporal_iv(&self, template: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::TemporalIvResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::TemporalIvIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::TemporalMediationIdentifier>::fn adjustment_nodes(template: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::mediation::MediationQuery) -> core::result::Result<alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::TemporalMediationIdentifier>::fn identify(&self, template: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::mediation::MediationQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::TemporalMediationIdentifier>::fn identify_with_horizon(&self, template: &antecedent_graph::temporal::TemporalDag, mediation: &antecedent_core::query::mediation::MediationQuery, horizon_steps: u32) -> core::result::Result<(antecedent_identify::IdentificationResult, antecedent_identify::TemporalIdentificationResult), antecedent_identify::IdentificationError>
@@ -5188,6 +5217,7 @@ pub mod antecedent_identify::sid::temporal_initial_shift
 pub mod antecedent_identify::sid::temporal_sequence
 pub mod antecedent_identify::temporal_backdoor
 pub mod antecedent_identify::temporal_generalized
+pub mod antecedent_identify::temporal_iv
 pub mod antecedent_identify::temporal_mediation
 pub mod antecedent_identify::tiered
 pub mod antecedent_identify::transport
@@ -5360,6 +5390,8 @@ pub struct antecedent_identify::StudySubsetRecord
 pub struct antecedent_identify::TemporalBackdoorIdentifier
 pub struct antecedent_identify::TemporalClassEnvelope
 pub struct antecedent_identify::TemporalIdentificationResult
+pub struct antecedent_identify::TemporalIvIdentifier
+pub struct antecedent_identify::TemporalIvResult
 pub struct antecedent_identify::TemporalMediationIdentifier
 pub struct antecedent_identify::TransportCertificate
 pub struct antecedent_identify::TransportIdentifier
@@ -5798,6 +5830,8 @@ pub use antecedent_identify::temporal_backdoor::TemporalBackdoorIdentifier = ant
 pub use antecedent_identify::temporal_backdoor::TemporalIdentificationResult = antecedent_identify::TemporalIdentificationResult
 pub use antecedent_identify::temporal_generalized::TemporalClassEnvelope = antecedent_identify::TemporalClassEnvelope
 pub use antecedent_identify::temporal_generalized::TemporalCompletionGraph = antecedent_identify::TemporalCompletionGraph
+pub use antecedent_identify::temporal_iv::TemporalIvIdentifier = antecedent_identify::TemporalIvIdentifier
+pub use antecedent_identify::temporal_iv::TemporalIvResult = antecedent_identify::TemporalIvResult
 pub use antecedent_identify::temporal_mediation::TemporalMediationIdentifier = antecedent_identify::TemporalMediationIdentifier
 pub use antecedent_identify::tiered::NO_LATENT_TO_OUTCOME = antecedent_identify::NO_LATENT_TO_OUTCOME
 pub use antecedent_identify::tiered::TIERED_JOINT_ADJUSTMENT_REFUSE = antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE

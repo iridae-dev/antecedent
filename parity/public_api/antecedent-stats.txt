@@ -14,6 +14,7 @@
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::FinalSelection
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::OutcomeKernel
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::OutcomeStructure
+#[non_exhaustive] pub enum antecedent_stats::adaptive_inference::SelectionMechanism
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::Sidedness
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::SpendingFunction
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::StoppingRule
@@ -159,6 +160,7 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::AnytimeCellBou
 impl core::clone::Clone for antecedent_stats::adaptive_inference::AnytimeReport
 impl core::clone::Clone for antecedent_stats::adaptive_inference::AnytimeSettings
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ArmBorrowing
+impl core::clone::Clone for antecedent_stats::adaptive_inference::ArmMeanPosterior
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ArmPrior
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ArmReading
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ArmSequence
@@ -173,6 +175,7 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::CapacityError
 impl core::clone::Clone for antecedent_stats::adaptive_inference::CellLabel
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ComparisonReading
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ContractGap
+impl core::clone::Clone for antecedent_stats::adaptive_inference::ContrastPosterior
 impl core::clone::Clone for antecedent_stats::adaptive_inference::CorrelationModel
 impl core::clone::Clone for antecedent_stats::adaptive_inference::CorrelationPrior
 impl core::clone::Clone for antecedent_stats::adaptive_inference::DecisionReport
@@ -195,6 +198,7 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::InversionInter
 impl core::clone::Clone for antecedent_stats::adaptive_inference::LookDecision
 impl core::clone::Clone for antecedent_stats::adaptive_inference::LookReading
 impl core::clone::Clone for antecedent_stats::adaptive_inference::MixtureComponent
+impl core::clone::Clone for antecedent_stats::adaptive_inference::NormalMeanPrior
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ObservedTerminal
 impl core::clone::Clone for antecedent_stats::adaptive_inference::OrderingPValues
 impl core::clone::Clone for antecedent_stats::adaptive_inference::OutcomeKernel
@@ -219,6 +223,7 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::ProcedureSpec
 impl core::clone::Clone for antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration
 impl core::clone::Clone for antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation
 impl core::clone::Clone for antecedent_stats::adaptive_inference::RepeatedMeasuresLaw
+impl core::clone::Clone for antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior
 impl core::clone::Clone for antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate
 impl core::clone::Clone for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest
 impl core::clone::Clone for antecedent_stats::adaptive_inference::RepeatedMeasuresSpec
@@ -226,6 +231,8 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::RepeatedMeasur
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ResolvedArmPrior
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::clone::Clone for antecedent_stats::adaptive_inference::SelectionEvidence
+impl core::clone::Clone for antecedent_stats::adaptive_inference::SelectionMechanism
 impl core::clone::Clone for antecedent_stats::adaptive_inference::SequenceKind
 impl core::clone::Clone for antecedent_stats::adaptive_inference::SequenceState
 impl core::clone::Clone for antecedent_stats::adaptive_inference::Sidedness
@@ -318,6 +325,7 @@ impl core::cmp::Eq for antecedent_stats::adaptive_inference::ProcedureContractEr
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::cmp::Eq for antecedent_stats::adaptive_inference::SelectionMechanism
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::SequenceKind
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::Sidedness
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::SpendingFunction
@@ -409,6 +417,7 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::AnytimeCellB
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::AnytimeReport
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::AnytimeSettings
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ArmBorrowing
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ArmMeanPosterior
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ArmPrior
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ArmReading
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ArmSequence
@@ -423,6 +432,7 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::CapacityErro
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::CellLabel
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ComparisonReading
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ContractGap
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ContrastPosterior
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::CorrelationModel
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::CorrelationPrior
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::DecisionReport
@@ -445,6 +455,7 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::InversionInt
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::LookDecision
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::LookReading
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::MixtureComponent
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::NormalMeanPrior
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ObservedTerminal
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::OrderingPValues
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::OutcomeKernel
@@ -469,6 +480,7 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ProcedureSpe
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresLaw
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresSpec
@@ -476,6 +488,8 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::RepeatedMeas
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ResolvedArmPrior
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::SelectionEvidence
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::SelectionMechanism
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::SequenceKind
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::SequenceState
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::Sidedness
@@ -693,6 +707,7 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::AnytimeCellBound
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::AnytimeReport
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::AnytimeSettings
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ArmBorrowing
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::ArmMeanPosterior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ArmPrior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ArmReading
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ArmSequence
@@ -707,6 +722,7 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::CapacityError
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::CellLabel
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ComparisonReading
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ContractGap
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::ContrastPosterior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::CorrelationModel
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::CorrelationPrior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::DecisionReport
@@ -729,6 +745,7 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::InversionInterva
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::LookDecision
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::LookReading
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::MixtureComponent
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::NormalMeanPrior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ObservedTerminal
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::OrderingPValues
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::OutcomeKernel
@@ -753,6 +770,7 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::ProcedureSpec
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::RepeatedMeasuresLaw
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::RepeatedMeasuresSpec
@@ -760,6 +778,8 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::RepeatedMeasures
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ResolvedArmPrior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::SelectionEvidence
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::SelectionMechanism
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::SequenceKind
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::SequenceState
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::Sidedness
@@ -901,6 +921,7 @@ impl core::marker::Copy for antecedent_stats::adaptive_inference::AdaptiveEstima
 impl core::marker::Copy for antecedent_stats::adaptive_inference::AnalysisEstimator
 impl core::marker::Copy for antecedent_stats::adaptive_inference::AnytimeCellBound
 impl core::marker::Copy for antecedent_stats::adaptive_inference::AnytimeSettings
+impl core::marker::Copy for antecedent_stats::adaptive_inference::ArmMeanPosterior
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ArmReading
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ArmSequence
 impl core::marker::Copy for antecedent_stats::adaptive_inference::Attribution
@@ -910,6 +931,7 @@ impl core::marker::Copy for antecedent_stats::adaptive_inference::CapacityError
 impl core::marker::Copy for antecedent_stats::adaptive_inference::CellLabel
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ComparisonReading
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ContractGap
+impl core::marker::Copy for antecedent_stats::adaptive_inference::ContrastPosterior
 impl core::marker::Copy for antecedent_stats::adaptive_inference::CorrelationModel
 impl core::marker::Copy for antecedent_stats::adaptive_inference::CorrelationPrior
 impl core::marker::Copy for antecedent_stats::adaptive_inference::DecisionRules
@@ -922,6 +944,7 @@ impl core::marker::Copy for antecedent_stats::adaptive_inference::Functional
 impl core::marker::Copy for antecedent_stats::adaptive_inference::FutilityRule
 impl core::marker::Copy for antecedent_stats::adaptive_inference::LookDecision
 impl core::marker::Copy for antecedent_stats::adaptive_inference::MixtureComponent
+impl core::marker::Copy for antecedent_stats::adaptive_inference::NormalMeanPrior
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ObservedTerminal
 impl core::marker::Copy for antecedent_stats::adaptive_inference::OrderingPValues
 impl core::marker::Copy for antecedent_stats::adaptive_inference::OutcomeModelPrior
@@ -934,6 +957,7 @@ impl core::marker::Copy for antecedent_stats::adaptive_inference::RepeatedMeasur
 impl core::marker::Copy for antecedent_stats::adaptive_inference::RepeatedMeasuresSummary
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::marker::Copy for antecedent_stats::adaptive_inference::SelectionMechanism
 impl core::marker::Copy for antecedent_stats::adaptive_inference::SequenceKind
 impl core::marker::Copy for antecedent_stats::adaptive_inference::SequenceState
 impl core::marker::Copy for antecedent_stats::adaptive_inference::Sidedness
@@ -1078,6 +1102,7 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::AnytimeCellB
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::AnytimeReport [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::AnytimeSettings [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ArmBorrowing [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::ArmMeanPosterior [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ArmPrior [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ArmReading [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ArmSequence [auto]
@@ -1092,6 +1117,7 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::CapacityErro
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::CellLabel [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ContractGap [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::CorrelationModel [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::CorrelationPrior [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::DecisionReport [auto]
@@ -1114,6 +1140,7 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::InversionInt
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::LookDecision [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::LookReading [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::MixtureComponent [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::NormalMeanPrior [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ObservedTerminal [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::OrderingPValues [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::OutcomeKernel [auto]
@@ -1138,6 +1165,7 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::ProcedureSpe
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeasuresLaw [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeasuresSpec [auto]
@@ -1145,6 +1173,8 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeas
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::SelectionEvidence [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::SelectionMechanism [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::Sidedness [auto]
@@ -1321,6 +1351,7 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::AnytimeCellBou
 impl core::marker::Send for antecedent_stats::adaptive_inference::AnytimeReport [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::AnytimeSettings [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ArmBorrowing [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::ArmMeanPosterior [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ArmPrior [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ArmReading [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ArmSequence [auto]
@@ -1335,6 +1366,7 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::CapacityError 
 impl core::marker::Send for antecedent_stats::adaptive_inference::CellLabel [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ContractGap [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::CorrelationModel [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::CorrelationPrior [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::DecisionReport [auto]
@@ -1357,6 +1389,7 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::InversionInter
 impl core::marker::Send for antecedent_stats::adaptive_inference::LookDecision [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::LookReading [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::MixtureComponent [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::NormalMeanPrior [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ObservedTerminal [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::OrderingPValues [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::OutcomeKernel [auto]
@@ -1381,6 +1414,7 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::ProcedureSpec 
 impl core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasuresLaw [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasuresSpec [auto]
@@ -1388,6 +1422,8 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasur
 impl core::marker::Send for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::SelectionEvidence [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::SelectionMechanism [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::Sidedness [auto]
@@ -1525,6 +1561,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::AnytimeReport
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::AnytimeSettings
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ArmBorrowing
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ArmMeanPosterior
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ArmPrior
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ArmReading
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ArmSequence
@@ -1539,6 +1576,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::CellLabel
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ComparisonReading
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ContractGap
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ContrastPosterior
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::CorrelationModel
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::CorrelationPrior
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::DecisionReport
@@ -1561,6 +1599,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::LookDecision
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::LookReading
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::MixtureComponent
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::NormalMeanPrior
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ObservedTerminal
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::OrderingPValues
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::OutcomeKernel
@@ -1585,6 +1624,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresLaw
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::RepeatedMeasuresSpec
@@ -1592,6 +1632,8 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ResolvedArmPrior
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::SelectionEvidence
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::SelectionMechanism
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::SequenceKind
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::SequenceState
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::Sidedness
@@ -1759,6 +1801,7 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::AnytimeCellBou
 impl core::marker::Sync for antecedent_stats::adaptive_inference::AnytimeReport [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::AnytimeSettings [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ArmBorrowing [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::ArmMeanPosterior [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ArmPrior [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ArmReading [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ArmSequence [auto]
@@ -1773,6 +1816,7 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::CapacityError 
 impl core::marker::Sync for antecedent_stats::adaptive_inference::CellLabel [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ContractGap [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::CorrelationModel [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::CorrelationPrior [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::DecisionReport [auto]
@@ -1795,6 +1839,7 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::InversionInter
 impl core::marker::Sync for antecedent_stats::adaptive_inference::LookDecision [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::LookReading [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::MixtureComponent [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::NormalMeanPrior [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ObservedTerminal [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::OrderingPValues [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::OutcomeKernel [auto]
@@ -1819,6 +1864,7 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::ProcedureSpec 
 impl core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasuresLaw [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasuresSpec [auto]
@@ -1826,6 +1872,8 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasur
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::SelectionEvidence [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::SelectionMechanism [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::Sidedness [auto]
@@ -2002,6 +2050,7 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::AnytimeCellBo
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::AnytimeReport [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::AnytimeSettings [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ArmBorrowing [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::ArmMeanPosterior [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ArmPrior [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ArmReading [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ArmSequence [auto]
@@ -2016,6 +2065,7 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::CapacityError
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::CellLabel [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ContractGap [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::CorrelationModel [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::CorrelationPrior [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::DecisionReport [auto]
@@ -2038,6 +2088,7 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::InversionInte
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::LookDecision [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::LookReading [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::MixtureComponent [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::NormalMeanPrior [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ObservedTerminal [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::OrderingPValues [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::OutcomeKernel [auto]
@@ -2062,6 +2113,7 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::ProcedureSpec
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasuresLaw [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasuresSpec [auto]
@@ -2069,6 +2121,8 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasu
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::SelectionEvidence [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::SelectionMechanism [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::Sidedness [auto]
@@ -2245,6 +2299,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::AnytimeReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::AnytimeSettings [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ArmBorrowing [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ArmMeanPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ArmPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ArmReading [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ArmSequence [auto]
@@ -2259,6 +2314,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::CellLabel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ContractGap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::CorrelationModel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::CorrelationPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::DecisionReport [auto]
@@ -2281,6 +2337,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::LookDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::LookReading [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::MixtureComponent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::NormalMeanPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ObservedTerminal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::OrderingPValues [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::OutcomeKernel [auto]
@@ -2305,6 +2362,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresSpec [auto]
@@ -2312,6 +2370,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::SelectionEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::SelectionMechanism [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::Sidedness [auto]
@@ -2488,6 +2548,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::AnytimeReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::AnytimeSettings [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ArmBorrowing [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ArmMeanPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ArmPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ArmReading [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ArmSequence [auto]
@@ -2502,6 +2563,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::CellLabel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ContractGap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::CorrelationModel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::CorrelationPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::DecisionReport [auto]
@@ -2524,6 +2586,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::LookDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::LookReading [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::MixtureComponent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::NormalMeanPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ObservedTerminal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::OrderingPValues [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::OutcomeKernel [auto]
@@ -2548,6 +2611,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresSpec [auto]
@@ -2555,6 +2619,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::SelectionEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::SelectionMechanism [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::Sidedness [auto]
@@ -2626,6 +2692,8 @@ impl<'a> core::clone::Clone for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::clone::Clone for antecedent_stats::SandwichKind<'a>
 impl<'a> core::clone::Clone for antecedent_stats::adaptive_inference::ArmEvidence<'a>
 impl<'a> core::clone::Clone for antecedent_stats::adaptive_inference::PosteriorRequest<'a>
+impl<'a> core::clone::Clone for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a>
+impl<'a> core::clone::Clone for antecedent_stats::adaptive_inference::UnitRecord<'a>
 impl<'a> core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherBatch<'a>
 impl<'a> core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherSample<'a>
 impl<'a> core::clone::Clone for antecedent_stats::gram::ColumnMajorDesign<'a>
@@ -2634,6 +2702,7 @@ impl<'a> core::clone::Clone for antecedent_stats::longitudinal_regime::Sequentia
 impl<'a> core::clone::Clone for antecedent_stats::longitudinal_regime::SubjectHistories<'a>
 impl<'a> core::clone::Clone for antecedent_stats::measurement_error::LinearErrorData<'a>
 impl<'a> core::clone::Clone for antecedent_stats::retained_factor::SelectedDesign<'a>
+impl<'a> core::cmp::PartialEq for antecedent_stats::adaptive_inference::UnitRecord<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::BlockTest<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::CiBatchRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::GlmDesignRef<'a>
@@ -2643,6 +2712,8 @@ impl<'a> core::fmt::Debug for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::SandwichKind<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::adaptive_inference::ArmEvidence<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::adaptive_inference::PosteriorRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::adaptive_inference::UnitRecord<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherBatch<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherSample<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::gram::ColumnMajorDesign<'a>
@@ -2659,6 +2730,8 @@ impl<'a> core::marker::Copy for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::marker::Copy for antecedent_stats::SandwichKind<'a>
 impl<'a> core::marker::Copy for antecedent_stats::adaptive_inference::ArmEvidence<'a>
 impl<'a> core::marker::Copy for antecedent_stats::adaptive_inference::PosteriorRequest<'a>
+impl<'a> core::marker::Copy for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a>
+impl<'a> core::marker::Copy for antecedent_stats::adaptive_inference::UnitRecord<'a>
 impl<'a> core::marker::Copy for antecedent_stats::ci::fisher_batch::FisherBatch<'a>
 impl<'a> core::marker::Copy for antecedent_stats::ci::fisher_batch::FisherSample<'a>
 impl<'a> core::marker::Copy for antecedent_stats::gram::ColumnMajorDesign<'a>
@@ -2676,6 +2749,8 @@ impl<'a> core::marker::Freeze for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::dcor::DistanceY<'a> [auto]
@@ -2694,6 +2769,8 @@ impl<'a> core::marker::Send for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::dcor::DistanceY<'a> [auto]
@@ -2703,6 +2780,7 @@ impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::Sequentia
 impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::retained_factor::SelectedDesign<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::UnitRecord<'a>
 impl<'a> core::marker::Sync for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -2712,6 +2790,8 @@ impl<'a> core::marker::Sync for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::dcor::DistanceY<'a> [auto]
@@ -2730,6 +2810,8 @@ impl<'a> core::marker::Unpin for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::dcor::DistanceY<'a> [auto]
@@ -2748,6 +2830,8 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::Predictor
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::dcor::DistanceY<'a> [auto]
@@ -2766,6 +2850,8 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::PredictorMat
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::dcor::DistanceY<'a> [auto]
@@ -2806,6 +2892,7 @@ pub const antecedent_stats::adaptive_inference::MAX_MEASUREMENTS_PER_UNIT: u32
 pub const antecedent_stats::adaptive_inference::MAX_OUTCOME_LAG: usize
 pub const antecedent_stats::adaptive_inference::MAX_PARTICIPANT_LOOKS: usize
 pub const antecedent_stats::adaptive_inference::MAX_PARTICIPANT_RESPONSES: u32
+pub const antecedent_stats::adaptive_inference::MAX_POSTERIOR_UNITS: usize
 pub const antecedent_stats::adaptive_inference::MAX_PROCEDURE_ARMS: usize
 pub const antecedent_stats::adaptive_inference::MAX_PROCEDURE_CELLS: usize
 pub const antecedent_stats::adaptive_inference::MAX_PROCEDURE_CONTEXTS: usize
@@ -2822,7 +2909,9 @@ pub const antecedent_stats::adaptive_inference::MAX_UNIT_LAG: usize
 pub const antecedent_stats::adaptive_inference::MAX_WEIGHTED_ARMS: usize
 pub const antecedent_stats::adaptive_inference::PARTICIPANT_PROCEDURE_VERSION: u64
 pub const antecedent_stats::adaptive_inference::PLUG_IN_LAMBDA_CAP: f64
+pub const antecedent_stats::adaptive_inference::REPEATED_MEASURES_POSTERIOR_LIKELIHOOD: &str
 pub const antecedent_stats::adaptive_inference::REPLAY_TOLERANCE: f64
+pub const antecedent_stats::adaptive_inference::SELECTION_IGNORABILITY_PREMISE: &str
 pub const antecedent_stats::adaptive_inference::participant_posterior::MAX_ARMS: usize
 pub const antecedent_stats::adaptive_inference::participant_posterior::MAX_RESPONSES: u32
 pub const antecedent_stats::joint_law::MAX_COMPONENTS: usize
@@ -3227,6 +3316,9 @@ pub field antecedent_stats::adaptive_inference::ArmBorrowing::sources: alloc::ve
 pub field antecedent_stats::adaptive_inference::ArmEvidence::counts: &'a [u64]
 pub field antecedent_stats::adaptive_inference::ArmEvidence::prior_alpha: f64
 pub field antecedent_stats::adaptive_inference::ArmEvidence::prior_beta: f64
+pub field antecedent_stats::adaptive_inference::ArmMeanPosterior::mean: f64
+pub field antecedent_stats::adaptive_inference::ArmMeanPosterior::standard_deviation: f64
+pub field antecedent_stats::adaptive_inference::ArmMeanPosterior::units: usize
 pub field antecedent_stats::adaptive_inference::ArmPrior::historical: alloc::vec::Vec<antecedent_stats::adaptive_inference::HistoricalPrior>
 pub field antecedent_stats::adaptive_inference::ArmPrior::initial: antecedent_stats::adaptive_inference::BetaPrior
 pub field antecedent_stats::adaptive_inference::ArmReading::count: u64
@@ -3256,6 +3348,10 @@ pub field antecedent_stats::adaptive_inference::CellLabel::stopping: &'static st
 pub field antecedent_stats::adaptive_inference::ComparisonReading::arm: usize
 pub field antecedent_stats::adaptive_inference::ComparisonReading::lower: f64
 pub field antecedent_stats::adaptive_inference::ComparisonReading::upper: f64
+pub field antecedent_stats::adaptive_inference::ContrastPosterior::interval: [f64; 2]
+pub field antecedent_stats::adaptive_inference::ContrastPosterior::mean: f64
+pub field antecedent_stats::adaptive_inference::ContrastPosterior::probability_positive: f64
+pub field antecedent_stats::adaptive_inference::ContrastPosterior::standard_deviation: f64
 pub field antecedent_stats::adaptive_inference::CorrelationPrior::alpha: f64
 pub field antecedent_stats::adaptive_inference::CorrelationPrior::beta: f64
 pub field antecedent_stats::adaptive_inference::DecisionReport::calibration: &'static str
@@ -3322,6 +3418,8 @@ pub field antecedent_stats::adaptive_inference::LookReading::posterior: antecede
 pub field antecedent_stats::adaptive_inference::MixtureComponent::mean: f64
 pub field antecedent_stats::adaptive_inference::MixtureComponent::variance: f64
 pub field antecedent_stats::adaptive_inference::MixtureComponent::weight: f64
+pub field antecedent_stats::adaptive_inference::NormalMeanPrior::mean: f64
+pub field antecedent_stats::adaptive_inference::NormalMeanPrior::variance: f64
 pub field antecedent_stats::adaptive_inference::ObservedTerminal::decision: core::option::Option<usize>
 pub field antecedent_stats::adaptive_inference::ObservedTerminal::estimate: f64
 pub field antecedent_stats::adaptive_inference::ObservedTerminal::look: usize
@@ -3432,6 +3530,19 @@ pub field antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation::simu
 pub field antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation::unit_summary_variance: f64
 pub field antecedent_stats::adaptive_inference::RepeatedMeasuresLaw::receipt: antecedent_stats::adaptive_inference::ResourceReceipt
 pub field antecedent_stats::adaptive_inference::RepeatedMeasuresLaw::replicates: alloc::vec::Vec<antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate>
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior::arms: alloc::vec::Vec<antecedent_stats::adaptive_inference::ArmMeanPosterior>
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior::contrast: antecedent_stats::adaptive_inference::ContrastPosterior
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior::credible_level: f64
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior::evidence: antecedent_stats::adaptive_inference::SelectionEvidence
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior::likelihood: &'static str
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior::unit_summary_variance: f64
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest::credible_level: f64
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest::minus: usize
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest::plus: usize
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest::priors: &'a [antecedent_stats::adaptive_inference::NormalMeanPrior]
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest::selection: antecedent_stats::adaptive_inference::SelectionMechanism
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest::structure: &'a antecedent_stats::adaptive_inference::OutcomeStructure
+pub field antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest::units: &'a [antecedent_stats::adaptive_inference::UnitRecord<'a>]
 pub field antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate::analysed_units: usize
 pub field antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate::enrolled: u32
 pub field antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate::estimate: core::option::Option<f64>
@@ -3461,6 +3572,10 @@ pub field antecedent_stats::adaptive_inference::ResourceReceipt::replications: u
 pub field antecedent_stats::adaptive_inference::ResourceReceipt::states: u64
 pub field antecedent_stats::adaptive_inference::ResourceReceipt::work_done: u64
 pub field antecedent_stats::adaptive_inference::ResourceReceipt::work_planned: u64
+pub field antecedent_stats::adaptive_inference::SelectionEvidence::adaptive: bool
+pub field antecedent_stats::adaptive_inference::SelectionEvidence::assignment_probabilities: alloc::vec::Vec<f64>
+pub field antecedent_stats::adaptive_inference::SelectionEvidence::premise: &'static str
+pub field antecedent_stats::adaptive_inference::SelectionEvidence::selection: antecedent_stats::adaptive_inference::SelectionMechanism
 pub field antecedent_stats::adaptive_inference::SimulatedLaw::receipt: antecedent_stats::adaptive_inference::ResourceReceipt
 pub field antecedent_stats::adaptive_inference::SimulatedLaw::replicates: alloc::vec::Vec<antecedent_stats::adaptive_inference::SimulatedReplicate>
 pub field antecedent_stats::adaptive_inference::SimulatedReplicate::analysed_units: usize
@@ -3499,6 +3614,9 @@ pub field antecedent_stats::adaptive_inference::TerminalAtom::look: usize
 pub field antecedent_stats::adaptive_inference::TerminalAtom::observed: alloc::vec::Vec<u16>
 pub field antecedent_stats::adaptive_inference::TerminalAtom::probability: f64
 pub field antecedent_stats::adaptive_inference::TerminalAtom::rule_stopped: bool
+pub field antecedent_stats::adaptive_inference::UnitRecord::arm: usize
+pub field antecedent_stats::adaptive_inference::UnitRecord::assignment_probability: f64
+pub field antecedent_stats::adaptive_inference::UnitRecord::measurements: &'a [f64]
 pub field antecedent_stats::ci::fisher_batch::FisherBatch::sample: antecedent_stats::ci::fisher_batch::FisherSample<'a>
 pub field antecedent_stats::ci::fisher_batch::FisherBatch::tests: &'a [antecedent_stats::ci::fisher_batch::FisherTestSpec]
 pub field antecedent_stats::ci::fisher_batch::FisherBatchResult::covariance_passes: usize
@@ -4029,6 +4147,7 @@ pub fn antecedent_stats::adaptive_inference::procedure_repeated_measures::simula
 pub fn antecedent_stats::adaptive_inference::procedure_simulation::simulate_procedure(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, truth: &[f64], request: &antecedent_stats::adaptive_inference::SimulationRequest, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::SimulatedLaw, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::procedure_simulation::simulate_procedure_within(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, truth: &[f64], request: &antecedent_stats::adaptive_inference::SimulationRequest, budget: &antecedent_stats::adaptive_inference::ResourceBudget, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::SimulatedLaw, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::procedure_uncertainty::premise_reason_code() -> &'static str
+pub fn antecedent_stats::adaptive_inference::repeated_measures_posterior(request: &antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'_>) -> core::result::Result<antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::weighted_estimate(arms: usize, probabilities: &[f64], scores: &[f64], estimand: antecedent_stats::adaptive_inference::Estimand, scheme: antecedent_stats::adaptive_inference::WeightScheme, unit_multiplier: core::option::Option<&[f64]>, probability_floor: f64) -> core::result::Result<antecedent_stats::adaptive_inference::AdaptiveEstimate, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adjust_pvalues(p_values: &[f64], method: antecedent_stats::MultipleTestingMethod) -> alloc::vec::Vec<f64>
 pub fn antecedent_stats::aligned_functional_draws(x: &[f64], y: &[f64], functional: antecedent_stats::ValueFunctional, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::JointLawError>
@@ -4204,6 +4323,7 @@ pub mod antecedent_stats::adaptive_inference::procedure_law
 pub mod antecedent_stats::adaptive_inference::procedure_repeated_measures
 pub mod antecedent_stats::adaptive_inference::procedure_simulation
 pub mod antecedent_stats::adaptive_inference::procedure_uncertainty
+pub mod antecedent_stats::adaptive_inference::repeated_measures_posterior
 pub mod antecedent_stats::adaptive_inference::weighting
 pub mod antecedent_stats::ci
 pub mod antecedent_stats::ci::fisher_batch
@@ -4350,6 +4470,7 @@ pub struct antecedent_stats::adaptive_inference::AnytimeReport
 pub struct antecedent_stats::adaptive_inference::AnytimeSettings
 pub struct antecedent_stats::adaptive_inference::ArmBorrowing
 pub struct antecedent_stats::adaptive_inference::ArmEvidence<'a>
+pub struct antecedent_stats::adaptive_inference::ArmMeanPosterior
 pub struct antecedent_stats::adaptive_inference::ArmPrior
 pub struct antecedent_stats::adaptive_inference::ArmReading
 pub struct antecedent_stats::adaptive_inference::ArmSequence
@@ -4361,6 +4482,7 @@ pub struct antecedent_stats::adaptive_inference::BorrowingPlan
 pub struct antecedent_stats::adaptive_inference::Boundaries
 pub struct antecedent_stats::adaptive_inference::CellLabel
 pub struct antecedent_stats::adaptive_inference::ComparisonReading
+pub struct antecedent_stats::adaptive_inference::ContrastPosterior
 pub struct antecedent_stats::adaptive_inference::CorrelationPrior
 pub struct antecedent_stats::adaptive_inference::DecisionReport
 pub struct antecedent_stats::adaptive_inference::DecisionRules
@@ -4376,6 +4498,7 @@ pub struct antecedent_stats::adaptive_inference::InversionGrid
 pub struct antecedent_stats::adaptive_inference::InversionInterval
 pub struct antecedent_stats::adaptive_inference::LookReading
 pub struct antecedent_stats::adaptive_inference::MixtureComponent
+pub struct antecedent_stats::adaptive_inference::NormalMeanPrior
 pub struct antecedent_stats::adaptive_inference::ObservedTerminal
 pub struct antecedent_stats::adaptive_inference::OrderingPValues
 pub struct antecedent_stats::adaptive_inference::OutcomeModelPrior
@@ -4401,6 +4524,8 @@ pub struct antecedent_stats::adaptive_inference::ProcedureSpec has private field
 pub struct antecedent_stats::adaptive_inference::RepeatedMeasuresDeclaration
 pub struct antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation
 pub struct antecedent_stats::adaptive_inference::RepeatedMeasuresLaw
+pub struct antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior
+pub struct antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a>
 pub struct antecedent_stats::adaptive_inference::RepeatedMeasuresReplicate
 pub struct antecedent_stats::adaptive_inference::RepeatedMeasuresRequest
 pub struct antecedent_stats::adaptive_inference::RepeatedMeasuresSpec
@@ -4409,6 +4534,7 @@ pub struct antecedent_stats::adaptive_inference::RepeatedMeasuresSummary
 pub struct antecedent_stats::adaptive_inference::ResolvedArmPrior
 pub struct antecedent_stats::adaptive_inference::ResourceBudget
 pub struct antecedent_stats::adaptive_inference::ResourceReceipt
+pub struct antecedent_stats::adaptive_inference::SelectionEvidence
 pub struct antecedent_stats::adaptive_inference::SequenceState
 pub struct antecedent_stats::adaptive_inference::SequenceState has private fields
 pub struct antecedent_stats::adaptive_inference::SimulatedLaw
@@ -4419,6 +4545,7 @@ pub struct antecedent_stats::adaptive_inference::StagewiseInference
 pub struct antecedent_stats::adaptive_inference::StagewiseLook
 pub struct antecedent_stats::adaptive_inference::StopFractions
 pub struct antecedent_stats::adaptive_inference::TerminalAtom
+pub struct antecedent_stats::adaptive_inference::UnitRecord<'a>
 pub struct antecedent_stats::ci::fisher_batch::FisherBatch<'a>
 pub struct antecedent_stats::ci::fisher_batch::FisherBatchResult
 pub struct antecedent_stats::ci::fisher_batch::FisherCacheEntry
@@ -4636,6 +4763,18 @@ pub use antecedent_stats::adaptive_inference::procedure_uncertainty::inversion_i
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::ordering_p_values = antecedent_stats::adaptive_inference::ordering_p_values
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::posterior_mean_gaps = antecedent_stats::adaptive_inference::posterior_mean_gaps
 pub use antecedent_stats::adaptive_inference::regularized_incomplete_beta = antecedent_stats::adaptive_inference::beta_bernoulli::regularized_incomplete_beta
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::ArmMeanPosterior = antecedent_stats::adaptive_inference::ArmMeanPosterior
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::ContrastPosterior = antecedent_stats::adaptive_inference::ContrastPosterior
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::MAX_POSTERIOR_UNITS = antecedent_stats::adaptive_inference::MAX_POSTERIOR_UNITS
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::NormalMeanPrior = antecedent_stats::adaptive_inference::NormalMeanPrior
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::REPEATED_MEASURES_POSTERIOR_LIKELIHOOD = antecedent_stats::adaptive_inference::REPEATED_MEASURES_POSTERIOR_LIKELIHOOD
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::RepeatedMeasuresPosterior = antecedent_stats::adaptive_inference::RepeatedMeasuresPosterior
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::RepeatedMeasuresPosteriorRequest = antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::SELECTION_IGNORABILITY_PREMISE = antecedent_stats::adaptive_inference::SELECTION_IGNORABILITY_PREMISE
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::SelectionEvidence = antecedent_stats::adaptive_inference::SelectionEvidence
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::SelectionMechanism = antecedent_stats::adaptive_inference::SelectionMechanism
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::UnitRecord = antecedent_stats::adaptive_inference::UnitRecord
+pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::repeated_measures_posterior = antecedent_stats::adaptive_inference::repeated_measures_posterior
 pub use antecedent_stats::adaptive_inference::run_participant_procedure_within = antecedent_stats::adaptive_inference::participant_procedure::run_participant_procedure_within
 pub use antecedent_stats::adaptive_inference::simulate_participant_history = antecedent_stats::adaptive_inference::participant_procedure::simulate_participant_history
 pub use antecedent_stats::adaptive_inference::simulate_participant_procedure = antecedent_stats::adaptive_inference::participant_procedure::simulate_participant_procedure
@@ -5084,6 +5223,9 @@ pub variant antecedent_stats::adaptive_inference::OutcomeKernel::Fixed { success
 pub variant antecedent_stats::adaptive_inference::OutcomeKernel::PriorPredictive { priors: alloc::vec::Vec<antecedent_stats::adaptive_inference::BetaPrior> }
 pub variant antecedent_stats::adaptive_inference::OutcomeStructure::Hierarchical { members: u32, between_variance: core::option::Option<f64>, within_variance: core::option::Option<f64> }
 pub variant antecedent_stats::adaptive_inference::OutcomeStructure::RepeatedMeasures { measurements: u32, variance: f64, correlation: core::option::Option<antecedent_stats::adaptive_inference::WithinUnitCorrelation> }
+pub variant antecedent_stats::adaptive_inference::SelectionMechanism::DependsOnObservedHistory
+pub variant antecedent_stats::adaptive_inference::SelectionMechanism::DependsOnUnobserved
+pub variant antecedent_stats::adaptive_inference::SelectionMechanism::Fixed
 pub variant antecedent_stats::adaptive_inference::SequenceKind::MixtureHoeffding
 pub variant antecedent_stats::adaptive_inference::SequenceKind::PredictablePlugInBernstein
 pub variant antecedent_stats::adaptive_inference::Sidedness::OneSidedUpper

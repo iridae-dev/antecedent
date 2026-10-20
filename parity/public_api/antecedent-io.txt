@@ -17,6 +17,8 @@
 #[doc(hidden)] pub fn antecedent_io::transport_scenario_artifact::scenario_refusal(refusal: antecedent_identify::sid::scenarios::ScenarioSetRefusal) -> antecedent_io_core::error::IoError
 #[non_exhaustive] pub enum antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 #[non_exhaustive] pub enum antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec
+#[non_exhaustive] pub enum antecedent_io::array_fit_artifact::ArrayFitError
+#[non_exhaustive] pub enum antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
 #[non_exhaustive] pub enum antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
 #[non_exhaustive] pub enum antecedent_io::cpdag_completion_artifact::CpdagArtifactError
 #[non_exhaustive] pub enum antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
@@ -62,9 +64,27 @@ impl core::clone::Clone for antecedent_io::admg_conditional_transport_artifact::
 impl core::clone::Clone for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
 impl core::clone::Clone for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire
 impl core::clone::Clone for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl core::clone::Clone for antecedent_io::array_fit_artifact::ArrayFitArtifactWire
+impl core::clone::Clone for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
+impl core::clone::Clone for antecedent_io::array_fit_artifact::ArrayFitError
+impl core::clone::Clone for antecedent_io::array_fit_artifact::ArrayFitRequestWire
+impl core::clone::Clone for antecedent_io::array_fit_artifact::ArrayFitResultWire
+impl core::clone::Clone for antecedent_io::array_fit_artifact::NamedValueWire
+impl core::clone::Clone for antecedent_io::array_fit_artifact::PenalizedScoreWire
+impl core::clone::Clone for antecedent_io::array_fit_artifact::PropensityDesignWire
+impl core::clone::Clone for antecedent_io::array_fit_artifact::PropensityPosteriorWire
+impl core::clone::Clone for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
+impl core::clone::Clone for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
+impl core::clone::Clone for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
+impl core::clone::Clone for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
+impl core::clone::Clone for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
+impl core::clone::Clone for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+impl core::clone::Clone for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 impl core::clone::Clone for antecedent_io::bridge_interval::BridgedClaimInterval
 impl core::clone::Clone for antecedent_io::bridge_interval::ConstructedBridgeInterval
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::AdjacentStepWire
+impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
+impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
@@ -77,6 +97,8 @@ impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::Level
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::MonotonicityWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::PairContrastWire
+impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
+impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
 impl core::clone::Clone for antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits
 impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::CompletionEvidenceWire
@@ -225,6 +247,14 @@ impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::Nonline
 impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity
 impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta
 impl core::clone::Clone for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire
+impl core::clone::Clone for antecedent_io::period_refresh_artifact::BlockWire
+impl core::clone::Clone for antecedent_io::period_refresh_artifact::LeastSquaresWire
+impl core::clone::Clone for antecedent_io::period_refresh_artifact::PeriodEventWire
+impl core::clone::Clone for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
+impl core::clone::Clone for antecedent_io::period_refresh_artifact::PeriodRefreshReplay
+impl core::clone::Clone for antecedent_io::period_refresh_artifact::PosteriorWire
+impl core::clone::Clone for antecedent_io::period_refresh_artifact::PriorWire
+impl core::clone::Clone for antecedent_io::period_refresh_artifact::RowWire
 impl core::clone::Clone for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl core::clone::Clone for antecedent_io::predictive_assessment_artifact::DesignWire
 impl core::clone::Clone for antecedent_io::predictive_assessment_artifact::FitWire
@@ -298,6 +328,8 @@ impl core::clone::Clone for antecedent_io::scenario_covariance_artifact::ScoreTe
 impl core::clone::Clone for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire
 impl core::clone::Clone for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits
 impl core::clone::Clone for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+impl core::clone::Clone for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire
+impl core::clone::Clone for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 impl core::clone::Clone for antecedent_io::stream_artifact::DevicePayload
 impl core::clone::Clone for antecedent_io::stream_artifact::Producer
 impl core::clone::Clone for antecedent_io::stream_artifact::StreamArtifactError
@@ -375,6 +407,10 @@ impl core::cmp::Eq for antecedent_io::adaptive_inference_result_artifact::Adapti
 impl core::cmp::Eq for antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta
 impl core::cmp::Eq for antecedent_io::adaptive_inference_result_artifact::SpecWire
 impl core::cmp::Eq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl core::cmp::Eq for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
+impl core::cmp::Eq for antecedent_io::array_fit_artifact::ArrayFitError
+impl core::cmp::Eq for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
+impl core::cmp::Eq for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
 impl core::cmp::Eq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity
 impl core::cmp::Eq for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl core::cmp::Eq for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
@@ -492,9 +528,27 @@ impl core::cmp::PartialEq for antecedent_io::adaptive_inference_result_artifact:
 impl core::cmp::PartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
 impl core::cmp::PartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire
 impl core::cmp::PartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl core::cmp::PartialEq for antecedent_io::array_fit_artifact::ArrayFitArtifactWire
+impl core::cmp::PartialEq for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
+impl core::cmp::PartialEq for antecedent_io::array_fit_artifact::ArrayFitError
+impl core::cmp::PartialEq for antecedent_io::array_fit_artifact::ArrayFitRequestWire
+impl core::cmp::PartialEq for antecedent_io::array_fit_artifact::ArrayFitResultWire
+impl core::cmp::PartialEq for antecedent_io::array_fit_artifact::NamedValueWire
+impl core::cmp::PartialEq for antecedent_io::array_fit_artifact::PenalizedScoreWire
+impl core::cmp::PartialEq for antecedent_io::array_fit_artifact::PropensityDesignWire
+impl core::cmp::PartialEq for antecedent_io::array_fit_artifact::PropensityPosteriorWire
+impl core::cmp::PartialEq for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
+impl core::cmp::PartialEq for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
+impl core::cmp::PartialEq for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
+impl core::cmp::PartialEq for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
+impl core::cmp::PartialEq for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
+impl core::cmp::PartialEq for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+impl core::cmp::PartialEq for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 impl core::cmp::PartialEq for antecedent_io::bridge_interval::BridgedClaimInterval
 impl core::cmp::PartialEq for antecedent_io::bridge_interval::ConstructedBridgeInterval
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::AdjacentStepWire
+impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
+impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
@@ -507,6 +561,8 @@ impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::Lev
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::MonotonicityWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::PairContrastWire
+impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
+impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
 impl core::cmp::PartialEq for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl core::cmp::PartialEq for antecedent_io::cpdag_completion_artifact::CompletionEvidenceWire
 impl core::cmp::PartialEq for antecedent_io::cpdag_completion_artifact::CompletionResultWire
@@ -633,6 +689,14 @@ impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::Nonli
 impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity
 impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta
 impl core::cmp::PartialEq for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire
+impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::BlockWire
+impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::LeastSquaresWire
+impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PeriodEventWire
+impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
+impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PeriodRefreshReplay
+impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PosteriorWire
+impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PriorWire
+impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::RowWire
 impl core::cmp::PartialEq for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl core::cmp::PartialEq for antecedent_io::predictive_assessment_artifact::DesignWire
 impl core::cmp::PartialEq for antecedent_io::predictive_assessment_artifact::FitWire
@@ -694,6 +758,7 @@ impl core::cmp::PartialEq for antecedent_io::scenario_covariance_artifact::RowTa
 impl core::cmp::PartialEq for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
 impl core::cmp::PartialEq for antecedent_io::scenario_covariance_artifact::ScoreTermWire
 impl core::cmp::PartialEq for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+impl core::cmp::PartialEq for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 impl core::cmp::PartialEq for antecedent_io::stream_artifact::DevicePayload
 impl core::cmp::PartialEq for antecedent_io::stream_artifact::Producer
 impl core::cmp::PartialEq for antecedent_io::stream_artifact::StreamArtifact<'_>
@@ -755,6 +820,7 @@ impl core::cmp::PartialEq for antecedent_io::vector_treatment_artifact::WaldWire
 impl core::cmp::PartialEq for antecedent_io::z_transport_artifact::ZTransportPointWire
 impl core::convert::From<antecedent_estimate::adaptive_inference::AdaptiveInferenceError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
+impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::array_fit_artifact::ArrayFitError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
@@ -775,6 +841,8 @@ impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
 impl core::default::Default for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits
+impl core::default::Default for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
+impl core::default::Default for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
 impl core::default::Default for antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits
 impl core::default::Default for antecedent_io::cpdag_completion_artifact::CpdagConsumeLimits
 impl core::default::Default for antecedent_io::dose_grid_functional_artifact::DoseGridConsumeLimits
@@ -804,6 +872,8 @@ impl core::default::Default for antecedent_io::temporal_transport_artifact::Temp
 impl core::default::Default for antecedent_io::transport_scenario_artifact::TransportScenarioConsumeLimits
 impl core::error::Error for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl core::error::Error for antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError
+impl core::error::Error for antecedent_io::array_fit_artifact::ArrayFitError
+impl core::error::Error for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
 impl core::error::Error for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
 impl core::error::Error for antecedent_io::cpdag_completion_artifact::CpdagArtifactError
 impl core::error::Error for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
@@ -848,9 +918,27 @@ impl core::fmt::Debug for antecedent_io::admg_conditional_transport_artifact::Ad
 impl core::fmt::Debug for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
 impl core::fmt::Debug for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire
 impl core::fmt::Debug for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl core::fmt::Debug for antecedent_io::array_fit_artifact::ArrayFitArtifactWire
+impl core::fmt::Debug for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
+impl core::fmt::Debug for antecedent_io::array_fit_artifact::ArrayFitError
+impl core::fmt::Debug for antecedent_io::array_fit_artifact::ArrayFitRequestWire
+impl core::fmt::Debug for antecedent_io::array_fit_artifact::ArrayFitResultWire
+impl core::fmt::Debug for antecedent_io::array_fit_artifact::NamedValueWire
+impl core::fmt::Debug for antecedent_io::array_fit_artifact::PenalizedScoreWire
+impl core::fmt::Debug for antecedent_io::array_fit_artifact::PropensityDesignWire
+impl core::fmt::Debug for antecedent_io::array_fit_artifact::PropensityPosteriorWire
+impl core::fmt::Debug for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
+impl core::fmt::Debug for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
+impl core::fmt::Debug for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
+impl core::fmt::Debug for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
+impl core::fmt::Debug for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
+impl core::fmt::Debug for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+impl core::fmt::Debug for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 impl core::fmt::Debug for antecedent_io::bridge_interval::BridgedClaimInterval
 impl core::fmt::Debug for antecedent_io::bridge_interval::ConstructedBridgeInterval
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::AdjacentStepWire
+impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
+impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
@@ -863,6 +951,8 @@ impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::LevelCo
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::MonotonicityWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::PairContrastWire
+impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
+impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
 impl core::fmt::Debug for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport
 impl core::fmt::Debug for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome
 impl core::fmt::Debug for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport
@@ -1015,6 +1105,14 @@ impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::Nonlinear
 impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity
 impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta
 impl core::fmt::Debug for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire
+impl core::fmt::Debug for antecedent_io::period_refresh_artifact::BlockWire
+impl core::fmt::Debug for antecedent_io::period_refresh_artifact::LeastSquaresWire
+impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PeriodEventWire
+impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
+impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PeriodRefreshReplay
+impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PosteriorWire
+impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PriorWire
+impl core::fmt::Debug for antecedent_io::period_refresh_artifact::RowWire
 impl core::fmt::Debug for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl core::fmt::Debug for antecedent_io::predictive_assessment_artifact::DesignWire
 impl core::fmt::Debug for antecedent_io::predictive_assessment_artifact::FitWire
@@ -1090,6 +1188,8 @@ impl core::fmt::Debug for antecedent_io::scenario_covariance_artifact::ScoreTerm
 impl core::fmt::Debug for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire
 impl core::fmt::Debug for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits
 impl core::fmt::Debug for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+impl core::fmt::Debug for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire
+impl core::fmt::Debug for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 impl core::fmt::Debug for antecedent_io::stream_artifact::DevicePayload
 impl core::fmt::Debug for antecedent_io::stream_artifact::Producer
 impl core::fmt::Debug for antecedent_io::stream_artifact::StreamArtifactError
@@ -1162,6 +1262,8 @@ impl core::fmt::Debug for antecedent_io::z_transport_artifact::ZTransportArtifac
 impl core::fmt::Debug for antecedent_io::z_transport_artifact::ZTransportPointWire
 impl core::fmt::Display for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl core::fmt::Display for antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError
+impl core::fmt::Display for antecedent_io::array_fit_artifact::ArrayFitError
+impl core::fmt::Display for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
 impl core::fmt::Display for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
 impl core::fmt::Display for antecedent_io::cpdag_completion_artifact::CpdagArtifactError
 impl core::fmt::Display for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
@@ -1188,6 +1290,10 @@ impl core::hash::Hash for antecedent_io::release_migration::RouteAxis
 impl core::hash::Hash for antecedent_io::release_migration::TargetShape
 impl core::marker::Copy for antecedent_io::PosteriorPayload
 impl core::marker::Copy for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits
+impl core::marker::Copy for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
+impl core::marker::Copy for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
+impl core::marker::Copy for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
+impl core::marker::Copy for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
 impl core::marker::Copy for antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits
 impl core::marker::Copy for antecedent_io::cpdag_completion_artifact::CpdagConsumeLimits
 impl core::marker::Copy for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
@@ -1259,9 +1365,27 @@ impl core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact
 impl core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::marker::Freeze for antecedent_io::array_fit_artifact::ArrayFitArtifactWire [auto]
+impl core::marker::Freeze for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits [auto]
+impl core::marker::Freeze for antecedent_io::array_fit_artifact::ArrayFitError [auto]
+impl core::marker::Freeze for antecedent_io::array_fit_artifact::ArrayFitRequestWire [auto]
+impl core::marker::Freeze for antecedent_io::array_fit_artifact::ArrayFitResultWire [auto]
+impl core::marker::Freeze for antecedent_io::array_fit_artifact::NamedValueWire [auto]
+impl core::marker::Freeze for antecedent_io::array_fit_artifact::PenalizedScoreWire [auto]
+impl core::marker::Freeze for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
+impl core::marker::Freeze for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
+impl core::marker::Freeze for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::marker::Freeze for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
+impl core::marker::Freeze for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
+impl core::marker::Freeze for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
+impl core::marker::Freeze for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits [auto]
+impl core::marker::Freeze for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire [auto]
+impl core::marker::Freeze for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire [auto]
 impl core::marker::Freeze for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
 impl core::marker::Freeze for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
+impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
+impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
@@ -1274,6 +1398,8 @@ impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::Lev
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::MonotonicityWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
+impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
+impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
 impl core::marker::Freeze for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::marker::Freeze for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::marker::Freeze for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -1431,6 +1557,14 @@ impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::Nonli
 impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity [auto]
 impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta [auto]
 impl core::marker::Freeze for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire [auto]
+impl core::marker::Freeze for antecedent_io::period_refresh_artifact::BlockWire [auto]
+impl core::marker::Freeze for antecedent_io::period_refresh_artifact::LeastSquaresWire [auto]
+impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
+impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
+impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
+impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PriorWire [auto]
+impl core::marker::Freeze for antecedent_io::period_refresh_artifact::RowWire [auto]
 impl core::marker::Freeze for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::marker::Freeze for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::marker::Freeze for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -1508,6 +1642,8 @@ impl core::marker::Freeze for antecedent_io::smoothed_dose_artifact::ConsumedSmo
 impl core::marker::Freeze for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::marker::Freeze for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::marker::Freeze for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
+impl core::marker::Freeze for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::marker::Freeze for antecedent_io::stream_artifact::DevicePayload [auto]
 impl core::marker::Freeze for antecedent_io::stream_artifact::Producer [auto]
 impl core::marker::Freeze for antecedent_io::stream_artifact::StreamArtifactError [auto]
@@ -1606,9 +1742,27 @@ impl core::marker::Send for antecedent_io::admg_conditional_transport_artifact::
 impl core::marker::Send for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::marker::Send for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::marker::Send for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::marker::Send for antecedent_io::array_fit_artifact::ArrayFitArtifactWire [auto]
+impl core::marker::Send for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits [auto]
+impl core::marker::Send for antecedent_io::array_fit_artifact::ArrayFitError [auto]
+impl core::marker::Send for antecedent_io::array_fit_artifact::ArrayFitRequestWire [auto]
+impl core::marker::Send for antecedent_io::array_fit_artifact::ArrayFitResultWire [auto]
+impl core::marker::Send for antecedent_io::array_fit_artifact::NamedValueWire [auto]
+impl core::marker::Send for antecedent_io::array_fit_artifact::PenalizedScoreWire [auto]
+impl core::marker::Send for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
+impl core::marker::Send for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
+impl core::marker::Send for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::marker::Send for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
+impl core::marker::Send for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
+impl core::marker::Send for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
+impl core::marker::Send for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits [auto]
+impl core::marker::Send for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire [auto]
+impl core::marker::Send for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire [auto]
 impl core::marker::Send for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
 impl core::marker::Send for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
+impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
+impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
@@ -1621,6 +1775,8 @@ impl core::marker::Send for antecedent_io::categorical_treatment_artifact::Level
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::MonotonicityWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
+impl core::marker::Send for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
+impl core::marker::Send for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
 impl core::marker::Send for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::marker::Send for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::marker::Send for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -1778,6 +1934,14 @@ impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::Nonline
 impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity [auto]
 impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta [auto]
 impl core::marker::Send for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire [auto]
+impl core::marker::Send for antecedent_io::period_refresh_artifact::BlockWire [auto]
+impl core::marker::Send for antecedent_io::period_refresh_artifact::LeastSquaresWire [auto]
+impl core::marker::Send for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
+impl core::marker::Send for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
+impl core::marker::Send for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::marker::Send for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
+impl core::marker::Send for antecedent_io::period_refresh_artifact::PriorWire [auto]
+impl core::marker::Send for antecedent_io::period_refresh_artifact::RowWire [auto]
 impl core::marker::Send for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::marker::Send for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::marker::Send for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -1855,6 +2019,8 @@ impl core::marker::Send for antecedent_io::smoothed_dose_artifact::ConsumedSmoot
 impl core::marker::Send for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::marker::Send for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::marker::Send for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::marker::Send for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
+impl core::marker::Send for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::marker::Send for antecedent_io::stream_artifact::DevicePayload [auto]
 impl core::marker::Send for antecedent_io::stream_artifact::Producer [auto]
 impl core::marker::Send for antecedent_io::stream_artifact::StreamArtifactError [auto]
@@ -1947,9 +2113,27 @@ impl core::marker::StructuralPartialEq for antecedent_io::adaptive_inference_res
 impl core::marker::StructuralPartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
 impl core::marker::StructuralPartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire
 impl core::marker::StructuralPartialEq for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl core::marker::StructuralPartialEq for antecedent_io::array_fit_artifact::ArrayFitArtifactWire
+impl core::marker::StructuralPartialEq for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
+impl core::marker::StructuralPartialEq for antecedent_io::array_fit_artifact::ArrayFitError
+impl core::marker::StructuralPartialEq for antecedent_io::array_fit_artifact::ArrayFitRequestWire
+impl core::marker::StructuralPartialEq for antecedent_io::array_fit_artifact::ArrayFitResultWire
+impl core::marker::StructuralPartialEq for antecedent_io::array_fit_artifact::NamedValueWire
+impl core::marker::StructuralPartialEq for antecedent_io::array_fit_artifact::PenalizedScoreWire
+impl core::marker::StructuralPartialEq for antecedent_io::array_fit_artifact::PropensityDesignWire
+impl core::marker::StructuralPartialEq for antecedent_io::array_fit_artifact::PropensityPosteriorWire
+impl core::marker::StructuralPartialEq for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
+impl core::marker::StructuralPartialEq for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
+impl core::marker::StructuralPartialEq for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
+impl core::marker::StructuralPartialEq for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
+impl core::marker::StructuralPartialEq for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
+impl core::marker::StructuralPartialEq for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+impl core::marker::StructuralPartialEq for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 impl core::marker::StructuralPartialEq for antecedent_io::bridge_interval::BridgedClaimInterval
 impl core::marker::StructuralPartialEq for antecedent_io::bridge_interval::ConstructedBridgeInterval
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::AdjacentStepWire
+impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
+impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
@@ -1962,6 +2146,8 @@ impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::MonotonicityWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::PairContrastWire
+impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
+impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
 impl core::marker::StructuralPartialEq for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl core::marker::StructuralPartialEq for antecedent_io::cpdag_completion_artifact::CompletionEvidenceWire
 impl core::marker::StructuralPartialEq for antecedent_io::cpdag_completion_artifact::CompletionResultWire
@@ -2088,6 +2274,14 @@ impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_ar
 impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity
 impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta
 impl core::marker::StructuralPartialEq for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire
+impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::BlockWire
+impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::LeastSquaresWire
+impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PeriodEventWire
+impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
+impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PeriodRefreshReplay
+impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PosteriorWire
+impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PriorWire
+impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::RowWire
 impl core::marker::StructuralPartialEq for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl core::marker::StructuralPartialEq for antecedent_io::predictive_assessment_artifact::DesignWire
 impl core::marker::StructuralPartialEq for antecedent_io::predictive_assessment_artifact::FitWire
@@ -2149,6 +2343,7 @@ impl core::marker::StructuralPartialEq for antecedent_io::scenario_covariance_ar
 impl core::marker::StructuralPartialEq for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io::scenario_covariance_artifact::ScoreTermWire
 impl core::marker::StructuralPartialEq for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+impl core::marker::StructuralPartialEq for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::DevicePayload
 impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::Producer
 impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::StreamArtifactError
@@ -2234,9 +2429,27 @@ impl core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::
 impl core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::marker::Sync for antecedent_io::array_fit_artifact::ArrayFitArtifactWire [auto]
+impl core::marker::Sync for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits [auto]
+impl core::marker::Sync for antecedent_io::array_fit_artifact::ArrayFitError [auto]
+impl core::marker::Sync for antecedent_io::array_fit_artifact::ArrayFitRequestWire [auto]
+impl core::marker::Sync for antecedent_io::array_fit_artifact::ArrayFitResultWire [auto]
+impl core::marker::Sync for antecedent_io::array_fit_artifact::NamedValueWire [auto]
+impl core::marker::Sync for antecedent_io::array_fit_artifact::PenalizedScoreWire [auto]
+impl core::marker::Sync for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
+impl core::marker::Sync for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
+impl core::marker::Sync for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::marker::Sync for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
+impl core::marker::Sync for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
+impl core::marker::Sync for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
+impl core::marker::Sync for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits [auto]
+impl core::marker::Sync for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire [auto]
+impl core::marker::Sync for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire [auto]
 impl core::marker::Sync for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
 impl core::marker::Sync for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
+impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
+impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
@@ -2249,6 +2462,8 @@ impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::Level
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::MonotonicityWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
+impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
+impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
 impl core::marker::Sync for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::marker::Sync for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::marker::Sync for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -2406,6 +2621,14 @@ impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::Nonline
 impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity [auto]
 impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta [auto]
 impl core::marker::Sync for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire [auto]
+impl core::marker::Sync for antecedent_io::period_refresh_artifact::BlockWire [auto]
+impl core::marker::Sync for antecedent_io::period_refresh_artifact::LeastSquaresWire [auto]
+impl core::marker::Sync for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
+impl core::marker::Sync for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
+impl core::marker::Sync for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::marker::Sync for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
+impl core::marker::Sync for antecedent_io::period_refresh_artifact::PriorWire [auto]
+impl core::marker::Sync for antecedent_io::period_refresh_artifact::RowWire [auto]
 impl core::marker::Sync for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::marker::Sync for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::marker::Sync for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -2483,6 +2706,8 @@ impl core::marker::Sync for antecedent_io::smoothed_dose_artifact::ConsumedSmoot
 impl core::marker::Sync for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::marker::Sync for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::marker::Sync for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::marker::Sync for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
+impl core::marker::Sync for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::marker::Sync for antecedent_io::stream_artifact::DevicePayload [auto]
 impl core::marker::Sync for antecedent_io::stream_artifact::Producer [auto]
 impl core::marker::Sync for antecedent_io::stream_artifact::StreamArtifactError [auto]
@@ -2581,9 +2806,27 @@ impl core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact:
 impl core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::marker::Unpin for antecedent_io::array_fit_artifact::ArrayFitArtifactWire [auto]
+impl core::marker::Unpin for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits [auto]
+impl core::marker::Unpin for antecedent_io::array_fit_artifact::ArrayFitError [auto]
+impl core::marker::Unpin for antecedent_io::array_fit_artifact::ArrayFitRequestWire [auto]
+impl core::marker::Unpin for antecedent_io::array_fit_artifact::ArrayFitResultWire [auto]
+impl core::marker::Unpin for antecedent_io::array_fit_artifact::NamedValueWire [auto]
+impl core::marker::Unpin for antecedent_io::array_fit_artifact::PenalizedScoreWire [auto]
+impl core::marker::Unpin for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
+impl core::marker::Unpin for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
+impl core::marker::Unpin for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::marker::Unpin for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
+impl core::marker::Unpin for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
+impl core::marker::Unpin for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
+impl core::marker::Unpin for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits [auto]
+impl core::marker::Unpin for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire [auto]
+impl core::marker::Unpin for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire [auto]
 impl core::marker::Unpin for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
 impl core::marker::Unpin for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
+impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
+impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
@@ -2596,6 +2839,8 @@ impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::Leve
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::MonotonicityWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
+impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
+impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
 impl core::marker::Unpin for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::marker::Unpin for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::marker::Unpin for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -2753,6 +2998,14 @@ impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::Nonlin
 impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity [auto]
 impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta [auto]
 impl core::marker::Unpin for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire [auto]
+impl core::marker::Unpin for antecedent_io::period_refresh_artifact::BlockWire [auto]
+impl core::marker::Unpin for antecedent_io::period_refresh_artifact::LeastSquaresWire [auto]
+impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
+impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
+impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
+impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PriorWire [auto]
+impl core::marker::Unpin for antecedent_io::period_refresh_artifact::RowWire [auto]
 impl core::marker::Unpin for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::marker::Unpin for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::marker::Unpin for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -2830,6 +3083,8 @@ impl core::marker::Unpin for antecedent_io::smoothed_dose_artifact::ConsumedSmoo
 impl core::marker::Unpin for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::marker::Unpin for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::marker::Unpin for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
+impl core::marker::Unpin for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::marker::Unpin for antecedent_io::stream_artifact::DevicePayload [auto]
 impl core::marker::Unpin for antecedent_io::stream_artifact::Producer [auto]
 impl core::marker::Unpin for antecedent_io::stream_artifact::StreamArtifactError [auto]
@@ -2927,9 +3182,27 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::ArrayFitArtifactWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::ArrayFitError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::ArrayFitRequestWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::ArrayFitResultWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::NamedValueWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::PenalizedScoreWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
@@ -2942,6 +3215,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_trea
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::MonotonicityWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -3099,6 +3374,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediat
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::BlockWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::LeastSquaresWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::RowWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -3176,6 +3459,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_ar
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::DevicePayload [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::Producer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::StreamArtifactError [auto]
@@ -3273,9 +3558,27 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_tr
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::ArrayFitArtifactWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::ArrayFitError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::ArrayFitRequestWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::ArrayFitResultWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::NamedValueWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::PenalizedScoreWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bridge_interval::BridgedClaimInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bridge_interval::ConstructedBridgeInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::AdjacentStepWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalResultWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact [auto]
@@ -3288,6 +3591,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatme
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::LevelCountWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::MonotonicityWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -3445,6 +3750,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::BlockWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::LeastSquaresWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::RowWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -3522,6 +3835,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artif
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::DevicePayload [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::Producer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::StreamArtifactError [auto]
@@ -3610,7 +3925,21 @@ impl serde_core::ser::Serialize for antecedent_io::admg_conditional_transport_ar
 impl serde_core::ser::Serialize for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
 impl serde_core::ser::Serialize for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire
 impl serde_core::ser::Serialize for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl serde_core::ser::Serialize for antecedent_io::array_fit_artifact::ArrayFitArtifactWire
+impl serde_core::ser::Serialize for antecedent_io::array_fit_artifact::ArrayFitRequestWire
+impl serde_core::ser::Serialize for antecedent_io::array_fit_artifact::ArrayFitResultWire
+impl serde_core::ser::Serialize for antecedent_io::array_fit_artifact::NamedValueWire
+impl serde_core::ser::Serialize for antecedent_io::array_fit_artifact::PenalizedScoreWire
+impl serde_core::ser::Serialize for antecedent_io::array_fit_artifact::PropensityDesignWire
+impl serde_core::ser::Serialize for antecedent_io::array_fit_artifact::PropensityPosteriorWire
+impl serde_core::ser::Serialize for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
+impl serde_core::ser::Serialize for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
+impl serde_core::ser::Serialize for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
+impl serde_core::ser::Serialize for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+impl serde_core::ser::Serialize for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::AdjacentStepWire
+impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
+impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity
@@ -3620,6 +3949,8 @@ impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifac
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::MonotonicityWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::PairContrastWire
+impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
+impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
 impl serde_core::ser::Serialize for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl serde_core::ser::Serialize for antecedent_io::cpdag_completion_artifact::CompletionEvidenceWire
 impl serde_core::ser::Serialize for antecedent_io::cpdag_completion_artifact::CompletionResultWire
@@ -3734,6 +4065,13 @@ impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact:
 impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity
 impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta
 impl serde_core::ser::Serialize for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire
+impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::BlockWire
+impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::LeastSquaresWire
+impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::PeriodEventWire
+impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
+impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::PosteriorWire
+impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::PriorWire
+impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::RowWire
 impl serde_core::ser::Serialize for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl serde_core::ser::Serialize for antecedent_io::predictive_assessment_artifact::DesignWire
 impl serde_core::ser::Serialize for antecedent_io::predictive_assessment_artifact::FitWire
@@ -3786,6 +4124,8 @@ impl serde_core::ser::Serialize for antecedent_io::scenario_covariance_artifact:
 impl serde_core::ser::Serialize for antecedent_io::scenario_covariance_artifact::ScoreTermWire
 impl serde_core::ser::Serialize for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire
 impl serde_core::ser::Serialize for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+impl serde_core::ser::Serialize for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire
+impl serde_core::ser::Serialize for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 impl serde_core::ser::Serialize for antecedent_io::temporal_initial_state_artifact::ContributionWire
 impl serde_core::ser::Serialize for antecedent_io::temporal_initial_state_artifact::FixedResultWire
 impl serde_core::ser::Serialize for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire
@@ -3871,6 +4211,7 @@ impl<'a> core::marker::Freeze for antecedent_io::mz_transport_artifact::MzTransp
 impl<'a> core::marker::Freeze for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
@@ -3884,6 +4225,7 @@ impl<'a> core::marker::Send for antecedent_io::mz_transport_artifact::MzTranspor
 impl<'a> core::marker::Send for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
@@ -3898,6 +4240,7 @@ impl<'a> core::marker::Sync for antecedent_io::mz_transport_artifact::MzTranspor
 impl<'a> core::marker::Sync for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
@@ -3911,6 +4254,7 @@ impl<'a> core::marker::Unpin for antecedent_io::mz_transport_artifact::MzTranspo
 impl<'a> core::marker::Unpin for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
@@ -3922,6 +4266,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
@@ -3933,6 +4278,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_ar
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
@@ -3954,7 +4300,21 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::admg_conditional_t
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::array_fit_artifact::ArrayFitArtifactWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::array_fit_artifact::ArrayFitRequestWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::array_fit_artifact::ArrayFitResultWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::array_fit_artifact::NamedValueWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::array_fit_artifact::PenalizedScoreWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::array_fit_artifact::PropensityDesignWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::array_fit_artifact::PropensityPosteriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::AdjacentStepWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity
@@ -3964,6 +4324,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatm
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::MonotonicityWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::PairContrastWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cpdag_completion_artifact::CompletionEvidenceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cpdag_completion_artifact::CompletionResultWire
@@ -4078,6 +4440,13 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediatio
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::BlockWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::LeastSquaresWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::PeriodEventWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::PosteriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::PriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::RowWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::predictive_assessment_artifact::DesignWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::predictive_assessment_artifact::FitWire
@@ -4130,6 +4499,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::scenario_covarianc
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::scenario_covariance_artifact::ScoreTermWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::temporal_initial_state_artifact::ContributionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::temporal_initial_state_artifact::FixedResultWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire
@@ -4200,6 +4571,19 @@ pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_A
 pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_OBSTRUCTION_FEATURE: &str
 pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_OBSTRUCTION_VERSION: u32
 pub const antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_POINT_ONLY: &str
+pub const antecedent_io::array_fit_artifact::ARRAY_FIT_ARTIFACT_FEATURE: &str
+pub const antecedent_io::array_fit_artifact::ARRAY_FIT_ARTIFACT_VERSION: u32
+pub const antecedent_io::array_fit_artifact::ARRAY_FIT_CALIBRATION: &str
+pub const antecedent_io::array_fit_artifact::ARRAY_FIT_LICENSING: &str
+pub const antecedent_io::array_fit_artifact::ID_BAYESIAN_PROPENSITY: &str
+pub const antecedent_io::array_fit_artifact::ID_BAYESIAN_TEMPORAL_PROPENSITY: &str
+pub const antecedent_io::array_fit_artifact::ID_TEMPORAL_PROPENSITY: &str
+pub const antecedent_io::bayesian_posterior_row_artifact::CONTINUOUS_DOSE_POLICY_POSTERIOR_ESTIMATOR: &str
+pub const antecedent_io::bayesian_posterior_row_artifact::DOSE_GRID_POSTERIOR_ESTIMATOR: &str
+pub const antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_ARTIFACT_FEATURE: &str
+pub const antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_ARTIFACT_VERSION: u32
+pub const antecedent_io::bayesian_posterior_row_artifact::QUANTILE_POSTERIOR_ESTIMATOR: &str
+pub const antecedent_io::bayesian_posterior_row_artifact::SURVIVAL_POSTERIOR_ESTIMATOR: &str
 pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_ASSUMPTIONS: &str
 pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MAX_LEVEL: f64
 pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MAX_RATE_SD: f64
@@ -4308,6 +4692,12 @@ pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIF
 pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_COVARIATES: usize
 pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS: usize
 pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_VERSION: u16
+pub const antecedent_io::period_refresh_artifact::PERIOD_EXTENDED: &str
+pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_FEATURE: &str
+pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_KIND: &str
+pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_VERSION: u32
+pub const antecedent_io::period_refresh_artifact::PERIOD_RESTARTED: &str
+pub const antecedent_io::period_refresh_artifact::PERIOD_START: &str
 pub const antecedent_io::predictive_assessment_artifact::MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES: usize
 pub const antecedent_io::predictive_assessment_artifact::MAX_PREDICTIVE_ASSESSMENT_NUMBERS: usize
 pub const antecedent_io::predictive_assessment_artifact::PREDICTIVE_ASSESSMENT_ARTIFACT_FEATURE: &str
@@ -4333,6 +4723,9 @@ pub const antecedent_io::scenario_covariance_artifact::SCENARIO_COVARIANCE_ARTIF
 pub const antecedent_io::scenario_covariance_artifact::SCENARIO_COVARIANCE_ARTIFACT_VERSION: u32
 pub const antecedent_io::smoothed_dose_artifact::SMOOTHED_DOSE_ARTIFACT_FEATURE: &str
 pub const antecedent_io::smoothed_dose_artifact::SMOOTHED_DOSE_ARTIFACT_VERSION: u32
+pub const antecedent_io::smoothed_dose_posterior_artifact::SMOOTHED_DOSE_POSTERIOR_ARTIFACT_FEATURE: &str
+pub const antecedent_io::smoothed_dose_posterior_artifact::SMOOTHED_DOSE_POSTERIOR_ARTIFACT_VERSION: u32
+pub const antecedent_io::smoothed_dose_posterior_artifact::SMOOTHED_DOSE_POSTERIOR_ESTIMATOR: &str
 pub const antecedent_io::stream_artifact::STREAM_ARTIFACT_MAGIC: [u8; 8]
 pub const antecedent_io::stream_artifact::STREAM_ARTIFACT_VERSION: u16
 pub const antecedent_io::temporal_initial_state_artifact::TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE: &str
@@ -4361,6 +4754,8 @@ pub const antecedent_io::vector_treatment_artifact::VECTOR_TREATMENT_MAX_ADJUSTM
 pub const antecedent_io::z_transport_artifact::Z_TRANSPORT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::z_transport_artifact::Z_TRANSPORT_ARTIFACT_VERSION: u32
 pub const antecedent_io::z_transport_artifact::Z_TRANSPORT_NO_INTERVAL: &str
+pub const fn antecedent_io::period_refresh_artifact::product_label(product: antecedent_estimate::temporal_refresh::WindowProduct) -> &'static str
+pub const fn antecedent_io::period_refresh_artifact::standing_label(standing: antecedent_estimate::temporal_refresh::MechanismStanding) -> &'static str
 pub const fn antecedent_io::recovery_chain_artifact::nonrecoverable_detail() -> (&'static str, &'static str)
 pub const fn antecedent_io::release_migration::axis_standing(axis: antecedent_io::release_migration::RouteAxis) -> antecedent_io::release_migration::AxisStanding
 pub const fn antecedent_io::release_migration::caller_world_id_and_reference_flag_enter_identity(shape: antecedent_io::release_migration::TargetShape) -> bool
@@ -4368,6 +4763,9 @@ pub const fn antecedent_io::release_migration::keep_refusal_reason(reason: &str)
 pub const fn antecedent_io::release_migration::migrate_axis(axis: antecedent_io::release_migration::RouteAxis) -> core::result::Result<(), antecedent_io::release_migration::MigrationError>
 pub const fn antecedent_io::release_migration::route_contract_standing(status: antecedent_io::release_migration::ManifestRouteStatus) -> antecedent_io::release_migration::AxisStanding
 pub enum antecedent_io::PosteriorPayload
+pub enum antecedent_io::array_fit_artifact::ArrayFitRequestWire
+pub enum antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+pub enum antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 pub enum antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome
 pub enum antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
 pub enum antecedent_io::measured_inference::split_parent_set_effect::Transformation
@@ -4611,6 +5009,62 @@ pub field antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgCondit
 pub field antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction::diagram: antecedent_graph::selection::SelectionDiagram
 pub field antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction::proof: antecedent_identify::sid::conditional::ConditionalNonTransportabilityProof
 pub field antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction::wire: antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire
+pub field antecedent_io::array_fit_artifact::ArrayFitArtifactWire::request: antecedent_io::array_fit_artifact::ArrayFitRequestWire
+pub field antecedent_io::array_fit_artifact::ArrayFitArtifactWire::request_digest: alloc::string::String
+pub field antecedent_io::array_fit_artifact::ArrayFitArtifactWire::required_features: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::array_fit_artifact::ArrayFitArtifactWire::result: antecedent_io::array_fit_artifact::ArrayFitResultWire
+pub field antecedent_io::array_fit_artifact::ArrayFitArtifactWire::version: u32
+pub field antecedent_io::array_fit_artifact::ArrayFitConsumeLimits::max_columns: usize
+pub field antecedent_io::array_fit_artifact::ArrayFitConsumeLimits::max_draws: usize
+pub field antecedent_io::array_fit_artifact::ArrayFitConsumeLimits::max_numbers: usize
+pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::assumptions: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::calibration: alloc::string::String
+pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::diagnostics: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::draws: alloc::vec::Vec<f64>
+pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::estimator_id: alloc::string::String
+pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::licensing: alloc::string::String
+pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::target: alloc::string::String
+pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::uncertainty: alloc::string::String
+pub field antecedent_io::array_fit_artifact::ArrayFitResultWire::values: alloc::vec::Vec<antecedent_io::array_fit_artifact::NamedValueWire>
+pub field antecedent_io::array_fit_artifact::NamedValueWire::name: alloc::string::String
+pub field antecedent_io::array_fit_artifact::NamedValueWire::value: f64
+pub field antecedent_io::array_fit_artifact::PenalizedScoreWire::design: antecedent_io::array_fit_artifact::PropensityDesignWire
+pub field antecedent_io::array_fit_artifact::PenalizedScoreWire::penalty: f64
+pub field antecedent_io::array_fit_artifact::PropensityDesignWire::histories: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_io::array_fit_artifact::PropensityDesignWire::nrows: usize
+pub field antecedent_io::array_fit_artifact::PropensityDesignWire::treatment: alloc::vec::Vec<f64>
+pub field antecedent_io::array_fit_artifact::PropensityDesignWire::x_colmajor: alloc::vec::Vec<f64>
+pub field antecedent_io::array_fit_artifact::PropensityPosteriorWire::clip: f64
+pub field antecedent_io::array_fit_artifact::PropensityPosteriorWire::draws: usize
+pub field antecedent_io::array_fit_artifact::PropensityPosteriorWire::nrows: usize
+pub field antecedent_io::array_fit_artifact::PropensityPosteriorWire::prior_sd: f64
+pub field antecedent_io::array_fit_artifact::PropensityPosteriorWire::rows: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_io::array_fit_artifact::PropensityPosteriorWire::seed: u64
+pub field antecedent_io::array_fit_artifact::PropensityPosteriorWire::treatment: alloc::vec::Vec<f64>
+pub field antecedent_io::array_fit_artifact::PropensityPosteriorWire::x_colmajor: alloc::vec::Vec<f64>
+pub field antecedent_io::array_fit_artifact::PropensityScorePosteriorWire::design: antecedent_io::array_fit_artifact::PropensityDesignWire
+pub field antecedent_io::array_fit_artifact::PropensityScorePosteriorWire::draws: usize
+pub field antecedent_io::array_fit_artifact::PropensityScorePosteriorWire::intercept_sd: f64
+pub field antecedent_io::array_fit_artifact::PropensityScorePosteriorWire::seed: u64
+pub field antecedent_io::array_fit_artifact::PropensityScorePosteriorWire::slope_sd: f64
+pub field antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire::coefficient_scales: alloc::vec::Vec<f64>
+pub field antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire::design: alloc::string::String
+pub field antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire::dose: alloc::vec::Vec<f64>
+pub field antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire::draws: usize
+pub field antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire::functional: antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
+pub field antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire::grid: alloc::vec::Vec<f64>
+pub field antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire::outcome: alloc::vec::Vec<f64>
+pub field antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire::residual: antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
+pub field antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire::seed: u64
+pub field antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire::support: (f64, f64)
+pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::data_digest: alloc::string::String
+pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::premises_digest: alloc::string::String
+pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::required_features: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::result: antecedent_io_core::analysis_result_artifact::PosteriorRowWire
+pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::version: u32
+pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits::max_points: usize
+pub field antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits::max_rows: usize
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::assumptions: &'static str
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::calibration_sha: alloc::string::String
 pub field antecedent_io::bridge_interval::BridgedClaimInterval::construction: &'static str
@@ -4632,6 +5086,22 @@ pub field antecedent_io::categorical_treatment_artifact::AdjacentStepWire::from:
 pub field antecedent_io::categorical_treatment_artifact::AdjacentStepWire::standard_error: f64
 pub field antecedent_io::categorical_treatment_artifact::AdjacentStepWire::to: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::AdjacentStepWire::z: f64
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration::credible_level: f64
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration::level_precision: f64
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration::nuisance_precision: f64
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration::variance_scale: f64
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration::variance_shape: f64
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::calibration: alloc::string::String
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::coefficient_means: alloc::vec::Vec<f64>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::declaration: antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::estimand: alloc::string::String
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::level_contrasts: alloc::vec::Vec<antecedent_io::categorical_treatment_artifact::PosteriorContrastWire>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::licensed: bool
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::likelihood: alloc::string::String
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::monotonicity: core::option::Option<antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::pairwise: alloc::vec::Vec<antecedent_io::categorical_treatment_artifact::PosteriorContrastWire>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::variance_scale: f64
+pub field antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire::variance_shape: f64
 pub field antecedent_io::categorical_treatment_artifact::CategoricalResultWire::calibration: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalResultWire::coefficients: alloc::vec::Vec<antecedent_io::vector_treatment_artifact::CoefficientWire>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalResultWire::counts: alloc::vec::Vec<antecedent_io::categorical_treatment_artifact::LevelCountWire>
@@ -4673,6 +5143,7 @@ pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMet
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::monotonicity_null: core::option::Option<alloc::string::String>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::n_rows: u64
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::null: alloc::string::String
+pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::posterior: core::option::Option<antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::replay: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::result: antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::row_levels: alloc::vec::Vec<alloc::string::String>
@@ -4688,6 +5159,7 @@ pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRep
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::inference_claim: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::monotonicity_null: core::option::Option<alloc::string::String>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::null: alloc::string::String
+pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::posterior: core::option::Option<antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::replay: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::result: antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::row_snapshot: alloc::string::String
@@ -4721,6 +5193,19 @@ pub field antecedent_io::categorical_treatment_artifact::PairContrastWire::p_val
 pub field antecedent_io::categorical_treatment_artifact::PairContrastWire::standard_error: f64
 pub field antecedent_io::categorical_treatment_artifact::PairContrastWire::to: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::PairContrastWire::z: f64
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::degrees_of_freedom: f64
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::from: alloc::string::String
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::interval: [f64; 2]
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::location: f64
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::mean: f64
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::probability_positive: f64
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::scale: f64
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::standard_deviation: core::option::Option<f64>
+pub field antecedent_io::categorical_treatment_artifact::PosteriorContrastWire::to: alloc::string::String
+pub field antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire::direction: alloc::string::String
+pub field antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire::lower_bound: f64
+pub field antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire::step_probabilities: alloc::vec::Vec<f64>
+pub field antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire::upper_bound: f64
 pub field antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport::outcome: antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome
 pub field antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport::wire: antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire
 pub field antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport::data: antecedent_expr::exact::ExactTransportData
@@ -5665,6 +6150,47 @@ pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta::v
 pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire::config: antecedent_io::nonlinear_mediation_artifact::MediationConfigWire
 pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire::data: antecedent_io::nonlinear_mediation_artifact::MediationDataWire
 pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire::premises: antecedent_io::nonlinear_mediation_artifact::MediationPremisesWire
+pub field antecedent_io::period_refresh_artifact::BlockWire::digest: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::BlockWire::rows: alloc::vec::Vec<antecedent_io::period_refresh_artifact::RowWire>
+pub field antecedent_io::period_refresh_artifact::BlockWire::snapshot_id: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::LeastSquaresWire::beta: alloc::vec::Vec<f64>
+pub field antecedent_io::period_refresh_artifact::LeastSquaresWire::n: u64
+pub field antecedent_io::period_refresh_artifact::LeastSquaresWire::residual_variance: core::option::Option<f64>
+pub field antecedent_io::period_refresh_artifact::PeriodEventWire::cadence_tick: u64
+pub field antecedent_io::period_refresh_artifact::PeriodEventWire::contiguous: bool
+pub field antecedent_io::period_refresh_artifact::PeriodEventWire::initial_law: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodEventWire::invalidated: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::period_refresh_artifact::PeriodEventWire::outcome: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodEventWire::window: antecedent_io::temporal_refresh_artifact::WindowIdentityWire
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::blocks: alloc::vec::Vec<antecedent_io::period_refresh_artifact::BlockWire>
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::events: alloc::vec::Vec<antecedent_io::period_refresh_artifact::PeriodEventWire>
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::kind: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::lags: u32
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::least_squares: antecedent_io::period_refresh_artifact::LeastSquaresWire
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::posterior: antecedent_io::period_refresh_artifact::PosteriorWire
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::prior: antecedent_io::period_refresh_artifact::PriorWire
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::prior_digest: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::required_features: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::rows_used: u64
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::seal: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::series_id: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::standing: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::version: u32
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshReplay::least_squares: antecedent_io::period_refresh_artifact::LeastSquaresWire
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshReplay::live_snapshots: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshReplay::posterior: antecedent_io::period_refresh_artifact::PosteriorWire
+pub field antecedent_io::period_refresh_artifact::PosteriorWire::mean: alloc::vec::Vec<f64>
+pub field antecedent_io::period_refresh_artifact::PosteriorWire::n: u64
+pub field antecedent_io::period_refresh_artifact::PosteriorWire::precision: alloc::vec::Vec<f64>
+pub field antecedent_io::period_refresh_artifact::PosteriorWire::rate: f64
+pub field antecedent_io::period_refresh_artifact::PosteriorWire::shape: f64
+pub field antecedent_io::period_refresh_artifact::PriorWire::mean: alloc::vec::Vec<f64>
+pub field antecedent_io::period_refresh_artifact::PriorWire::precision: alloc::vec::Vec<f64>
+pub field antecedent_io::period_refresh_artifact::PriorWire::rate: f64
+pub field antecedent_io::period_refresh_artifact::PriorWire::shape: f64
+pub field antecedent_io::period_refresh_artifact::RowWire::id: u64
+pub field antecedent_io::period_refresh_artifact::RowWire::x: alloc::vec::Vec<f64>
+pub field antecedent_io::period_refresh_artifact::RowWire::y: f64
 pub field antecedent_io::predictive_assessment_artifact::DependenceWire::kind: alloc::string::String
 pub field antecedent_io::predictive_assessment_artifact::DependenceWire::labels: alloc::vec::Vec<u32>
 pub field antecedent_io::predictive_assessment_artifact::DependenceWire::time_index: alloc::vec::Vec<u64>
@@ -6075,6 +6601,32 @@ pub field antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire::kernel: 
 pub field antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire::outcome: u32
 pub field antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire::source_population: alloc::string::String
 pub field antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire::target_population: alloc::string::String
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput::graph: &'a antecedent_graph::admg::Admg
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput::identification: &'a antecedent_identify::transport::TransportIdentification
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput::input: &'a antecedent_estimate::smoothed_dose::SmoothedDoseInput
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput::model: antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput::query: &'a antecedent_core::query::smoothed_dose::SmoothedDoseTransportQuery
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput::selections: alloc::vec::Vec<u32>
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput::variable_names: &'a [alloc::string::String]
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::certificate: antecedent_io::learned_continuous_artifact::CertificateRecord
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::data_digest: alloc::string::String
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::graph: antecedent_io_core::wire::AdmgWire
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::input: antecedent_estimate::smoothed_dose::SmoothedDoseInput
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::model: antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::premises_digest: alloc::string::String
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::query: antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::required_features: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::result: antecedent_io_core::analysis_result_artifact::PosteriorRowWire
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::selections: alloc::vec::Vec<u32>
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::variable_names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire::version: u32
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire::basis: antecedent_estimate::smoothed_dose::DoseBasis
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire::coefficient_scale: f64
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire::draws: usize
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire::intercept_scale: f64
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire::min_local_rows: usize
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire::residual: antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
+pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire::seed: u64
 pub field antecedent_io::stream_artifact::StreamBounds::max_decompressed_bytes: u64
 pub field antecedent_io::stream_artifact::StreamBounds::max_retained_bytes: u64
 pub field antecedent_io::stream_artifact::StreamBounds::max_section_bytes: u64
@@ -6555,17 +7107,36 @@ pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstr
 pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPointWire>::fn from_distribution(distribution: &antecedent_expr::exact_plan::ExactDistribution) -> Self
 pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire>::fn from_query(query: &antecedent_identify::sid::conditional::ConditionalTransportQuery) -> Self
 pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire>::fn to_query(&self) -> antecedent_identify::sid::conditional::ConditionalTransportQuery
+pub fn <antecedent_io::array_fit_artifact::ArrayFitArtifactWire>::fn consume_typed(bytes: &[u8], limits: antecedent_io::array_fit_artifact::ArrayFitConsumeLimits) -> core::result::Result<Self, antecedent_io::array_fit_artifact::ArrayFitError>
+pub fn <antecedent_io::array_fit_artifact::ArrayFitArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::array_fit_artifact::ArrayFitConsumeLimits) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::array_fit_artifact::ArrayFitArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::array_fit_artifact::ArrayFitArtifactWire>::fn expected_request_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::array_fit_artifact::ArrayFitArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::array_fit_artifact::ArrayFitArtifactWire>::fn seal(request: antecedent_io::array_fit_artifact::ArrayFitRequestWire) -> core::result::Result<Self, antecedent_io::array_fit_artifact::ArrayFitError>
+pub fn <antecedent_io::array_fit_artifact::ArrayFitError>::fn refusal(&self) -> (&'static str, alloc::string::String)
+pub fn <antecedent_io::array_fit_artifact::ArrayFitRequestWire>::const fn estimator_id(&self) -> &'static str
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>::fn refusal(&self) -> (&'static str, alloc::string::String)
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn consume_typed(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn seal(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire>::const fn estimator(&self) -> &'static str
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn fit(&self) -> &antecedent_estimate::categorical_treatment::CategoricalTreatmentFit
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn from_bytes_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn identity(&self) -> &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn meta(&self) -> &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta
+pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn posterior(&self) -> core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn report(&self) -> antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn seal(request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn seal_with(request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn to_bytes_within(&self, artifact_id: &str, export_budget: usize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn verify_data(&self, request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
+pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn with_posterior(self, declaration: &antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
 pub fn <antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits>::const fn replay(&self) -> antecedent_io_core::artifact_codec::ConsumeLimits
 pub fn <antecedent_io::cpdag_completion_artifact::CompletionCpdagWire>::fn from_cpdag(cpdag: &antecedent_graph::cpdag::Cpdag) -> core::result::Result<Self, antecedent_io_core::error::IoError>
@@ -6745,6 +7316,15 @@ pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn to_bytes_digest_bound(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn to_bytes_within(&self, artifact_id: &str, export_budget: usize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
+pub fn <antecedent_io::period_refresh_artifact::BlockWire>::fn new(snapshot_id: alloc::string::String, rows: alloc::vec::Vec<antecedent_io::period_refresh_artifact::RowWire>) -> Self
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn checked(self) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn compute_seal(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn consume(bytes: &[u8]) -> core::result::Result<(Self, antecedent_io::period_refresh_artifact::PeriodRefreshReplay), antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn require_prior(&self, prior: &antecedent_io::period_refresh_artifact::PriorWire) -> core::result::Result<(), antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn verify(&self) -> core::result::Result<antecedent_io::period_refresh_artifact::PeriodRefreshReplay, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PriorWire>::fn digest(&self) -> alloc::string::String
 pub fn <antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_validate::predictive_assessment::identity::AssessmentIdentity>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifactError>
 pub fn <antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifact>::fn from_bytes_with_limits(bytes: &[u8], expected: core::option::Option<&antecedent_validate::predictive_assessment::identity::AssessmentIdentity>, limits: antecedent_io::predictive_assessment_artifact::PredictiveAssessmentConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifactError>
 pub fn <antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifact>::fn identity(&self) -> &antecedent_validate::predictive_assessment::identity::AssessmentIdentity
@@ -6837,6 +7417,12 @@ pub fn <antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire>::fn rep
 pub fn <antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire>::fn verify(&self, limits: antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::transport::TransportIdentification, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire>::fn from_query(query: &antecedent_core::query::smoothed_dose::SmoothedDoseTransportQuery) -> Self
 pub fn <antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire>::fn to_query(&self) -> core::result::Result<antecedent_core::query::smoothed_dose::SmoothedDoseTransportQuery, antecedent_estimate::error::EstimationError>
+pub fn <antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire>::fn checked(input: antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'_>) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire>::fn consume_typed(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn borrowed_payload(&self) -> core::option::Option<&'a [u8]>
 pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn consume_on_cpu(&self) -> core::result::Result<antecedent_io::stream_artifact::CpuPayload<'_>, antecedent_io::stream_artifact::StreamArtifactError>
 pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn encode(metadata: &antecedent_io::stream_artifact::StreamMetadata, payload: antecedent_io::stream_artifact::PayloadSource<'_>, bounds: &antecedent_io::stream_artifact::StreamBounds) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::stream_artifact::StreamArtifactError>
@@ -6932,6 +7518,10 @@ pub fn antecedent_io::analysis_wire::effect_estimate_from_wire(w: &antecedent_io
 pub fn antecedent_io::analysis_wire::effect_estimate_to_wire(e: &antecedent_estimate::effect_estimate::EffectEstimate) -> antecedent_io::EffectEstimateWire
 pub fn antecedent_io::analysis_wire::refutation_from_wire(w: &antecedent_io_core::analysis_wire::RefutationReportWire) -> antecedent_validate::common::RefutationReport
 pub fn antecedent_io::analysis_wire::refutation_to_wire(r: &antecedent_validate::common::RefutationReport) -> antecedent_io_core::analysis_wire::RefutationReportWire
+pub fn antecedent_io::bayesian_posterior_row_artifact::dose_grid_row(kind: &str, functional: antecedent_estimate::dose_grid_functional::DoseFunctional, posterior: &antecedent_estimate::dose_grid_posterior::DoseGridPosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
+pub fn antecedent_io::bayesian_posterior_row_artifact::policy_row(posterior: &antecedent_estimate::continuous_dose_posterior::DosePolicyPosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
+pub fn antecedent_io::bayesian_posterior_row_artifact::quantile_row(posterior: &antecedent_estimate::quantile_posterior::QuantilePosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
+pub fn antecedent_io::bayesian_posterior_row_artifact::survival_row(posterior: &antecedent_estimate::survival_posterior::PiecewiseSurvivalPosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub fn antecedent_io::bridge_interval::bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::bridge_interval::construct_bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::ConstructedBridgeInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::counterfactual_transport_artifact::consume_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity, limits: antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
@@ -6985,6 +7575,8 @@ pub fn antecedent_io::z_transport_artifact::program_variable_name(variable: ante
 pub mod antecedent_io::adaptive_inference_result_artifact
 pub mod antecedent_io::admg_conditional_transport_artifact
 pub mod antecedent_io::analysis_wire
+pub mod antecedent_io::array_fit_artifact
+pub mod antecedent_io::bayesian_posterior_row_artifact
 pub mod antecedent_io::bridge_interval
 pub mod antecedent_io::categorical_treatment_artifact
 pub mod antecedent_io::counterfactual_transport_artifact
@@ -7010,6 +7602,7 @@ pub mod antecedent_io::mz_transport_artifact
 pub mod antecedent_io::nested_markov_artifact
 pub mod antecedent_io::nested_markov_bayesian_artifact
 pub mod antecedent_io::nonlinear_mediation_artifact
+pub mod antecedent_io::period_refresh_artifact
 pub mod antecedent_io::posterior_convert
 pub mod antecedent_io::predictive_assessment_artifact
 pub mod antecedent_io::recovery_artifact
@@ -7020,6 +7613,7 @@ pub mod antecedent_io::sampled_recovery_artifact
 pub mod antecedent_io::scenario_covariance_artifact
 pub mod antecedent_io::sensitivity_artifact
 pub mod antecedent_io::smoothed_dose_artifact
+pub mod antecedent_io::smoothed_dose_posterior_artifact
 pub mod antecedent_io::stream_artifact
 pub mod antecedent_io::temporal_initial_state_artifact
 pub mod antecedent_io::temporal_interval_artifact
@@ -7057,9 +7651,22 @@ pub struct antecedent_io::admg_conditional_transport_artifact::AdmgConditionalPo
 pub struct antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire
 pub struct antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditional
 pub struct antecedent_io::admg_conditional_transport_artifact::ConsumedAdmgConditionalObstruction
+pub struct antecedent_io::array_fit_artifact::ArrayFitArtifactWire
+pub struct antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
+pub struct antecedent_io::array_fit_artifact::ArrayFitResultWire
+pub struct antecedent_io::array_fit_artifact::NamedValueWire
+pub struct antecedent_io::array_fit_artifact::PenalizedScoreWire
+pub struct antecedent_io::array_fit_artifact::PropensityDesignWire
+pub struct antecedent_io::array_fit_artifact::PropensityPosteriorWire
+pub struct antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
+pub struct antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
+pub struct antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
+pub struct antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
 pub struct antecedent_io::bridge_interval::BridgedClaimInterval
 pub struct antecedent_io::bridge_interval::ConstructedBridgeInterval
 pub struct antecedent_io::categorical_treatment_artifact::AdjacentStepWire
+pub struct antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration
+pub struct antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalResultWire
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalSpecWire
 pub struct antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
@@ -7072,6 +7679,8 @@ pub struct antecedent_io::categorical_treatment_artifact::LevelContrastWire
 pub struct antecedent_io::categorical_treatment_artifact::LevelCountWire
 pub struct antecedent_io::categorical_treatment_artifact::MonotonicityWire
 pub struct antecedent_io::categorical_treatment_artifact::PairContrastWire
+pub struct antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
+pub struct antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
 pub struct antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport
 pub struct antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport
 pub struct antecedent_io::counterfactual_transport_artifact::ConsumedObstructedCounterfactualTransport
@@ -7221,6 +7830,14 @@ pub struct antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifa
 pub struct antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity
 pub struct antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta
 pub struct antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire
+pub struct antecedent_io::period_refresh_artifact::BlockWire
+pub struct antecedent_io::period_refresh_artifact::LeastSquaresWire
+pub struct antecedent_io::period_refresh_artifact::PeriodEventWire
+pub struct antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
+pub struct antecedent_io::period_refresh_artifact::PeriodRefreshReplay
+pub struct antecedent_io::period_refresh_artifact::PosteriorWire
+pub struct antecedent_io::period_refresh_artifact::PriorWire
+pub struct antecedent_io::period_refresh_artifact::RowWire
 pub struct antecedent_io::predictive_assessment_artifact::DependenceWire
 pub struct antecedent_io::predictive_assessment_artifact::DesignWire
 pub struct antecedent_io::predictive_assessment_artifact::FitWire
@@ -7289,6 +7906,9 @@ pub struct antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a>
 pub struct antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire
 pub struct antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits
 pub struct antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+pub struct antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactInput<'a>
+pub struct antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorArtifactWire
+pub struct antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire
 pub struct antecedent_io::stream_artifact::StreamArtifact has private fields
 pub struct antecedent_io::stream_artifact::StreamArtifact<'a>
 pub struct antecedent_io::stream_artifact::StreamBounds
@@ -7460,6 +8080,7 @@ pub use antecedent_io::GlmOptionsWire = antecedent_io_core::GlmOptionsWire
 pub use antecedent_io::GraphIdentityWire = antecedent_io_core::GraphIdentityWire
 pub use antecedent_io::GridSpecWire = antecedent_io_core::GridSpecWire
 pub use antecedent_io::HedgeCertificateWire = antecedent_io_core::HedgeCertificateWire
+pub use antecedent_io::HistoryMatchWire = antecedent_io_core::HistoryMatchWire
 pub use antecedent_io::HorizonAdjustmentNodeWire = antecedent_io_core::HorizonAdjustmentNodeWire
 pub use antecedent_io::IdentificationEnvelopeWire = antecedent_io_core::IdentificationEnvelopeWire
 pub use antecedent_io::IdentificationIdentityWire = antecedent_io_core::IdentificationIdentityWire
@@ -7510,6 +8131,8 @@ pub use antecedent_io::ObservationOptionsWire = antecedent_io_core::ObservationO
 pub use antecedent_io::ObservationSpecWire = antecedent_io_core::ObservationSpecWire
 pub use antecedent_io::OutSection = antecedent_io_core::OutSection
 pub use antecedent_io::OverlapPolicyWire = antecedent_io_core::OverlapPolicyWire
+pub use antecedent_io::POSTERIOR_ROW_CALIBRATION = antecedent_io_core::POSTERIOR_ROW_CALIBRATION
+pub use antecedent_io::POSTERIOR_ROW_UNCERTAINTY = antecedent_io_core::POSTERIOR_ROW_UNCERTAINTY
 pub use antecedent_io::PRIOR_SOURCE_META_SECTION = antecedent_io_core::PRIOR_SOURCE_META_SECTION
 pub use antecedent_io::PagJson = antecedent_io_core::PagJson
 pub use antecedent_io::PagWire = antecedent_io_core::PagWire
@@ -7523,6 +8146,7 @@ pub use antecedent_io::PopulationFactorWire = transport_interference_wire::Popul
 pub use antecedent_io::PosteriorAtomGraphWire = antecedent_io_core::PosteriorAtomGraphWire
 pub use antecedent_io::PosteriorAtomIdentityWire = antecedent_io_core::PosteriorAtomIdentityWire
 pub use antecedent_io::PosteriorQuantityWire = antecedent_io_core::PosteriorQuantityWire
+pub use antecedent_io::PosteriorRowWire = antecedent_io_core::PosteriorRowWire
 pub use antecedent_io::PriorArtifactBody = antecedent_io_core::PriorArtifactBody
 pub use antecedent_io::PriorCatalog = antecedent_io_core::PriorCatalog
 pub use antecedent_io::PriorMapping = antecedent_io_core::PriorMapping
@@ -7565,6 +8189,7 @@ pub use antecedent_io::SectionDescriptor = antecedent_io_core::SectionDescriptor
 pub use antecedent_io::SectionIndexEntry = antecedent_io_core::SectionIndexEntry
 pub use antecedent_io::SectionLoadStats = antecedent_io_core::SectionLoadStats
 pub use antecedent_io::SemanticVersion = antecedent_io_core::SemanticVersion
+pub use antecedent_io::SequentialContrastWire = antecedent_io_core::SequentialContrastWire
 pub use antecedent_io::SetInterventionWire = antecedent_io_core::SetInterventionWire
 pub use antecedent_io::SlotSectionWire = antecedent_io_core::SlotSectionWire
 pub use antecedent_io::SplitIdentityWire = antecedent_io_core::SplitIdentityWire
@@ -7656,6 +8281,9 @@ pub use antecedent_io::artifact_codec = antecedent_io_core::artifact_codec
 pub use antecedent_io::assumptions_to_wire = antecedent_io_core::assumptions_to_wire
 pub use antecedent_io::attach_prior_source_meta = antecedent_io_core::attach_prior_source_meta
 pub use antecedent_io::attested_external_estimate = antecedent_io_core::attested_external_estimate
+pub use antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_CALIBRATION = antecedent_io_core::POSTERIOR_ROW_CALIBRATION
+pub use antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_UNCERTAINTY = antecedent_io_core::POSTERIOR_ROW_UNCERTAINTY
+pub use antecedent_io::bayesian_posterior_row_artifact::PosteriorRowResultWire = antecedent_io_core::PosteriorRowWire
 pub use antecedent_io::bayesian_prior_recalc_artifact = antecedent_io_core::bayesian_prior_recalc_artifact
 pub use antecedent_io::bridge_artifact = antecedent_io_core::bridge_artifact
 pub use antecedent_io::calibration = antecedent_io_core::calibration
@@ -8012,6 +8640,25 @@ pub variant antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpe
 pub variant antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec::ConfidenceSequence { look: u32, alpha: f64, tuning_samples: f64, contrast: core::option::Option<(u32, u32)> }
 pub variant antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec::GroupSequential { look: u32, control_arm: u32, treatment_arm: u32 }
 pub variant antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec::PosteriorStopping { look: u32, prior_alpha: f64, prior_beta: f64 }
+pub variant antecedent_io::array_fit_artifact::ArrayFitError::LimitsExceeded(&'static str)
+pub variant antecedent_io::array_fit_artifact::ArrayFitError::Refused { code: &'static str, detail: alloc::string::String, message: alloc::string::String }
+pub variant antecedent_io::array_fit_artifact::ArrayFitError::RequestMismatch
+pub variant antecedent_io::array_fit_artifact::ArrayFitError::ResultMismatch
+pub variant antecedent_io::array_fit_artifact::ArrayFitError::Undecodable(alloc::string::String)
+pub variant antecedent_io::array_fit_artifact::ArrayFitError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io::array_fit_artifact::ArrayFitRequestWire::PropensityPosterior(antecedent_io::array_fit_artifact::PropensityPosteriorWire)
+pub variant antecedent_io::array_fit_artifact::ArrayFitRequestWire::TemporalPropensity(antecedent_io::array_fit_artifact::PenalizedScoreWire)
+pub variant antecedent_io::array_fit_artifact::ArrayFitRequestWire::TemporalPropensityPosterior(antecedent_io::array_fit_artifact::PropensityScorePosteriorWire)
+pub variant antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError::DataMismatch
+pub variant antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError::LimitsExceeded(&'static str)
+pub variant antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError::PremisesMismatch
+pub variant antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError::Refused { code: &'static str, detail: alloc::string::String, message: alloc::string::String }
+pub variant antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError::ResultMismatch
+pub variant antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError::Undecodable(alloc::string::String)
+pub variant antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire::DoseGrid(antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire)
+pub variant antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire::InverseGamma { shape: f64, scale: f64 }
+pub variant antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire::KnownVariance(f64)
 pub variant antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError::Decode(alloc::string::String)
 pub variant antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError::Encode(alloc::string::String)
 pub variant antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError::IdentityMismatch { field: &'static str }
