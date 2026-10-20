@@ -374,6 +374,10 @@ name = "identity_contract"
 path = "tests/identity_contract.rs"
 
 [[test]]
+name = "horizon_one_static"
+path = "tests/horizon_one_static.rs"
+
+[[test]]
 name = "joint_law_composed_interval_calibration"
 path = "tests/joint_law_composed_interval_calibration.rs"
 
