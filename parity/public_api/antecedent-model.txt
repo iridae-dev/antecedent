@@ -163,10 +163,10 @@ impl core::clone::Clone for antecedent_model::history_operators::Transition
 impl core::clone::Clone for antecedent_model::history_operators::WeightRole
 impl core::clone::Clone for antecedent_model::information_time::AvailableOutcome
 impl core::clone::Clone for antecedent_model::information_time::CadenceTick
-impl core::clone::Clone for antecedent_model::information_time::DeclaredCadence
 impl core::clone::Clone for antecedent_model::information_time::ForwardOnly
 impl core::clone::Clone for antecedent_model::information_time::InformationRefusal
 impl core::clone::Clone for antecedent_model::information_time::InformationUse
+impl core::clone::Clone for antecedent_model::information_time::ObservedCadence
 impl core::clone::Clone for antecedent_model::information_time::RetrospectivePermission
 impl core::clone::Clone for antecedent_model::intervention_request::ClampTarget
 impl core::clone::Clone for antecedent_model::intervention_request::HardClampIdentity
@@ -277,10 +277,10 @@ impl core::cmp::Eq for antecedent_model::history_operators::Transition
 impl core::cmp::Eq for antecedent_model::history_operators::WeightRole
 impl core::cmp::Eq for antecedent_model::information_time::AvailableOutcome
 impl core::cmp::Eq for antecedent_model::information_time::CadenceTick
-impl core::cmp::Eq for antecedent_model::information_time::DeclaredCadence
 impl core::cmp::Eq for antecedent_model::information_time::ForwardOnly
 impl core::cmp::Eq for antecedent_model::information_time::InformationRefusal
 impl core::cmp::Eq for antecedent_model::information_time::InformationUse
+impl core::cmp::Eq for antecedent_model::information_time::ObservedCadence
 impl core::cmp::Eq for antecedent_model::information_time::RetrospectivePermission
 impl core::cmp::Eq for antecedent_model::intervention_request::ClampTarget
 impl core::cmp::Eq for antecedent_model::intervention_request::HardClampIdentity
@@ -424,10 +424,10 @@ impl core::cmp::PartialEq for antecedent_model::history_operators::Transition
 impl core::cmp::PartialEq for antecedent_model::history_operators::WeightRole
 impl core::cmp::PartialEq for antecedent_model::information_time::AvailableOutcome
 impl core::cmp::PartialEq for antecedent_model::information_time::CadenceTick
-impl core::cmp::PartialEq for antecedent_model::information_time::DeclaredCadence
 impl core::cmp::PartialEq for antecedent_model::information_time::ForwardOnly
 impl core::cmp::PartialEq for antecedent_model::information_time::InformationRefusal
 impl core::cmp::PartialEq for antecedent_model::information_time::InformationUse
+impl core::cmp::PartialEq for antecedent_model::information_time::ObservedCadence
 impl core::cmp::PartialEq for antecedent_model::information_time::RetrospectivePermission
 impl core::cmp::PartialEq for antecedent_model::intervention_request::ClampTarget
 impl core::cmp::PartialEq for antecedent_model::intervention_request::HardClampIdentity
@@ -648,10 +648,10 @@ impl core::fmt::Debug for antecedent_model::history_operators::Transition
 impl core::fmt::Debug for antecedent_model::history_operators::WeightRole
 impl core::fmt::Debug for antecedent_model::information_time::AvailableOutcome
 impl core::fmt::Debug for antecedent_model::information_time::CadenceTick
-impl core::fmt::Debug for antecedent_model::information_time::DeclaredCadence
 impl core::fmt::Debug for antecedent_model::information_time::ForwardOnly
 impl core::fmt::Debug for antecedent_model::information_time::InformationRefusal
 impl core::fmt::Debug for antecedent_model::information_time::InformationUse
+impl core::fmt::Debug for antecedent_model::information_time::ObservedCadence
 impl core::fmt::Debug for antecedent_model::information_time::RetrospectivePermission
 impl core::fmt::Debug for antecedent_model::intervention_request::ClampTarget
 impl core::fmt::Debug for antecedent_model::intervention_request::HardClampIdentity
@@ -732,10 +732,10 @@ impl core::hash::Hash for antecedent_model::history_operators::Horizon
 impl core::hash::Hash for antecedent_model::history_operators::WeightRole
 impl core::hash::Hash for antecedent_model::information_time::AvailableOutcome
 impl core::hash::Hash for antecedent_model::information_time::CadenceTick
-impl core::hash::Hash for antecedent_model::information_time::DeclaredCadence
 impl core::hash::Hash for antecedent_model::information_time::ForwardOnly
 impl core::hash::Hash for antecedent_model::information_time::InformationRefusal
 impl core::hash::Hash for antecedent_model::information_time::InformationUse
+impl core::hash::Hash for antecedent_model::information_time::ObservedCadence
 impl core::hash::Hash for antecedent_model::information_time::RetrospectivePermission
 impl core::hash::Hash for antecedent_model::intervention_request::ClampTarget
 impl core::hash::Hash for antecedent_model::intervention_request::HardClampIdentity
@@ -784,10 +784,10 @@ impl core::marker::Copy for antecedent_model::history_operators::Horizon
 impl core::marker::Copy for antecedent_model::history_operators::WeightRole
 impl core::marker::Copy for antecedent_model::information_time::AvailableOutcome
 impl core::marker::Copy for antecedent_model::information_time::CadenceTick
-impl core::marker::Copy for antecedent_model::information_time::DeclaredCadence
 impl core::marker::Copy for antecedent_model::information_time::ForwardOnly
 impl core::marker::Copy for antecedent_model::information_time::InformationRefusal
 impl core::marker::Copy for antecedent_model::information_time::InformationUse
+impl core::marker::Copy for antecedent_model::information_time::ObservedCadence
 impl core::marker::Copy for antecedent_model::information_time::RetrospectivePermission
 impl core::marker::Copy for antecedent_model::intervention_request::InterventionKind
 impl core::marker::Copy for antecedent_model::intervention_request::PulseIdentity
@@ -937,10 +937,10 @@ impl core::marker::Freeze for antecedent_model::history_operators::Transition [a
 impl core::marker::Freeze for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Freeze for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::marker::Freeze for antecedent_model::information_time::CadenceTick [auto]
-impl core::marker::Freeze for antecedent_model::information_time::DeclaredCadence [auto]
 impl core::marker::Freeze for antecedent_model::information_time::ForwardOnly [auto]
 impl core::marker::Freeze for antecedent_model::information_time::InformationRefusal [auto]
 impl core::marker::Freeze for antecedent_model::information_time::InformationUse [auto]
+impl core::marker::Freeze for antecedent_model::information_time::ObservedCadence [auto]
 impl core::marker::Freeze for antecedent_model::information_time::RetrospectivePermission [auto]
 impl core::marker::Freeze for antecedent_model::intervention_request::ClampTarget [auto]
 impl core::marker::Freeze for antecedent_model::intervention_request::HardClampIdentity [auto]
@@ -1122,10 +1122,10 @@ impl core::marker::Send for antecedent_model::history_operators::Transition [aut
 impl core::marker::Send for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Send for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::marker::Send for antecedent_model::information_time::CadenceTick [auto]
-impl core::marker::Send for antecedent_model::information_time::DeclaredCadence [auto]
 impl core::marker::Send for antecedent_model::information_time::ForwardOnly [auto]
 impl core::marker::Send for antecedent_model::information_time::InformationRefusal [auto]
 impl core::marker::Send for antecedent_model::information_time::InformationUse [auto]
+impl core::marker::Send for antecedent_model::information_time::ObservedCadence [auto]
 impl core::marker::Send for antecedent_model::information_time::RetrospectivePermission [auto]
 impl core::marker::Send for antecedent_model::intervention_request::ClampTarget [auto]
 impl core::marker::Send for antecedent_model::intervention_request::HardClampIdentity [auto]
@@ -1274,10 +1274,10 @@ impl core::marker::StructuralPartialEq for antecedent_model::history_operators::
 impl core::marker::StructuralPartialEq for antecedent_model::history_operators::WeightRole
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::AvailableOutcome
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::CadenceTick
-impl core::marker::StructuralPartialEq for antecedent_model::information_time::DeclaredCadence
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::ForwardOnly
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::InformationRefusal
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::InformationUse
+impl core::marker::StructuralPartialEq for antecedent_model::information_time::ObservedCadence
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::RetrospectivePermission
 impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::ClampTarget
 impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::HardClampIdentity
@@ -1458,10 +1458,10 @@ impl core::marker::Sync for antecedent_model::history_operators::Transition [aut
 impl core::marker::Sync for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Sync for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::marker::Sync for antecedent_model::information_time::CadenceTick [auto]
-impl core::marker::Sync for antecedent_model::information_time::DeclaredCadence [auto]
 impl core::marker::Sync for antecedent_model::information_time::ForwardOnly [auto]
 impl core::marker::Sync for antecedent_model::information_time::InformationRefusal [auto]
 impl core::marker::Sync for antecedent_model::information_time::InformationUse [auto]
+impl core::marker::Sync for antecedent_model::information_time::ObservedCadence [auto]
 impl core::marker::Sync for antecedent_model::information_time::RetrospectivePermission [auto]
 impl core::marker::Sync for antecedent_model::intervention_request::ClampTarget [auto]
 impl core::marker::Sync for antecedent_model::intervention_request::HardClampIdentity [auto]
@@ -1643,10 +1643,10 @@ impl core::marker::Unpin for antecedent_model::history_operators::Transition [au
 impl core::marker::Unpin for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Unpin for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::marker::Unpin for antecedent_model::information_time::CadenceTick [auto]
-impl core::marker::Unpin for antecedent_model::information_time::DeclaredCadence [auto]
 impl core::marker::Unpin for antecedent_model::information_time::ForwardOnly [auto]
 impl core::marker::Unpin for antecedent_model::information_time::InformationRefusal [auto]
 impl core::marker::Unpin for antecedent_model::information_time::InformationUse [auto]
+impl core::marker::Unpin for antecedent_model::information_time::ObservedCadence [auto]
 impl core::marker::Unpin for antecedent_model::information_time::RetrospectivePermission [auto]
 impl core::marker::Unpin for antecedent_model::intervention_request::ClampTarget [auto]
 impl core::marker::Unpin for antecedent_model::intervention_request::HardClampIdentity [auto]
@@ -1820,10 +1820,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_opera
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::WeightRole [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::CadenceTick [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::DeclaredCadence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::ForwardOnly [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::InformationRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::InformationUse [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::ObservedCadence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::RetrospectivePermission [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::ClampTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::HardClampIdentity [auto]
@@ -1997,10 +1997,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operator
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::WeightRole [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::AvailableOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::CadenceTick [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::DeclaredCadence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::ForwardOnly [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::InformationRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::InformationUse [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::ObservedCadence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::RetrospectivePermission [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::ClampTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::HardClampIdentity [auto]
@@ -2201,7 +2201,6 @@ pub const antecedent_model::observation_query::MAX_BAYES_OBSERVATION_LEVELS: usi
 pub const antecedent_model::observation_query::MAX_BAYES_SEQUENCE: usize
 pub const antecedent_model::observation_query::MAX_REQUIRED_OBSERVATIONS: u64
 pub const antecedent_model::observation_query::SIMPLEX_TOLERANCE: f64
-pub const fn antecedent_model::information_time::admit_outcome(cadence: antecedent_model::information_time::DeclaredCadence, decision: antecedent_model::information_time::CadenceTick, outcome: antecedent_model::information_time::CadenceTick, information_use: antecedent_model::information_time::InformationUse, permission: antecedent_model::information_time::RetrospectivePermission, forward_only: antecedent_model::information_time::ForwardOnly) -> core::result::Result<antecedent_model::information_time::AvailableOutcome, antecedent_model::information_time::InformationRefusal>
 pub const fn antecedent_model::mechanism::reference_noise(slot: &antecedent_model::MechanismSlot) -> f64
 pub enum antecedent_model::BasisTerm
 pub enum antecedent_model::Conditioning
@@ -2870,9 +2869,9 @@ pub fn <antecedent_model::information_time::AvailableOutcome>::const fn informat
 pub fn <antecedent_model::information_time::AvailableOutcome>::const fn outcome(self) -> antecedent_model::information_time::CadenceTick
 pub fn <antecedent_model::information_time::CadenceTick>::const fn get(self) -> u32
 pub fn <antecedent_model::information_time::CadenceTick>::const fn new(tick: u32) -> Self
-pub fn <antecedent_model::information_time::DeclaredCadence>::const fn interval_ns(self) -> u64
-pub fn <antecedent_model::information_time::DeclaredCadence>::const fn tick_count(self) -> u32
-pub fn <antecedent_model::information_time::DeclaredCadence>::const fn try_new(interval_ns: u64, tick_count: u32) -> core::result::Result<Self, antecedent_model::information_time::InformationRefusal>
+pub fn <antecedent_model::information_time::ObservedCadence>::const fn interval_ns(self) -> u64
+pub fn <antecedent_model::information_time::ObservedCadence>::const fn tick_count(self) -> u32
+pub fn <antecedent_model::information_time::ObservedCadence>::fn from_observed(cadence: &antecedent_data::temporal::TimeIndex) -> core::result::Result<Self, antecedent_model::information_time::InformationRefusal>
 pub fn <antecedent_model::intervention_request::HardClampIdentity>::fn levels(&self) -> alloc::vec::Vec<f64>
 pub fn <antecedent_model::intervention_request::InterventionKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::intervention_request::InterventionKind>::const fn clamp_refusal(self) -> core::option::Option<&'static str>
@@ -2951,6 +2950,7 @@ pub fn antecedent_model::falsify::falsify_graph(dag: &antecedent_graph::dag::Dag
 pub fn antecedent_model::history_slot(n_nodes: usize, dense: usize, lag: u32) -> usize
 pub fn antecedent_model::infer_noise_column(slot: &antecedent_model::MechanismSlot, value: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::infer_noise_column_rng(slot: &antecedent_model::MechanismSlot, value: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64], rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_model::NoiseInferenceMode, antecedent_model::ModelError>
+pub fn antecedent_model::information_time::admit_outcome(cadence: &antecedent_data::temporal::TimeIndex, decision: antecedent_model::information_time::CadenceTick, outcome: antecedent_model::information_time::CadenceTick, information_use: antecedent_model::information_time::InformationUse, permission: antecedent_model::information_time::RetrospectivePermission, forward_only: antecedent_model::information_time::ForwardOnly) -> core::result::Result<antecedent_model::information_time::AvailableOutcome, antecedent_model::information_time::InformationRefusal>
 pub fn antecedent_model::intervention_request::compile_under_request(component: &antecedent_model::CyclicComponent, model: &antecedent_model::LinearStructuralMap, disturbance: &antecedent_model::scc_compile::GaussianDisturbance, request: &antecedent_model::intervention_request::InterventionRequest, budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::scc_compile::CompiledEquilibrium, antecedent_model::intervention_request::InterventionRequestError>
 pub fn antecedent_model::intervention_request::hard_clamp_of(request: &antecedent_model::intervention_request::InterventionRequest) -> core::result::Result<(&antecedent_model::HardClamp, alloc::vec::Vec<f64>), antecedent_model::intervention_request::InterventionRequestError>
 pub fn antecedent_model::intervention_request::revalidate_solvability(model: &antecedent_model::LinearStructuralMap, request: &antecedent_model::intervention_request::InterventionRequest) -> core::result::Result<antecedent_model::intervention_request::RevalidatedFreeBlock, antecedent_model::intervention_request::InterventionRequestError>
@@ -3145,8 +3145,8 @@ pub struct antecedent_model::information_time::AvailableOutcome
 pub struct antecedent_model::information_time::AvailableOutcome has private fields
 pub struct antecedent_model::information_time::CadenceTick
 pub struct antecedent_model::information_time::CadenceTick has private fields
-pub struct antecedent_model::information_time::DeclaredCadence
-pub struct antecedent_model::information_time::DeclaredCadence has private fields
+pub struct antecedent_model::information_time::ObservedCadence
+pub struct antecedent_model::information_time::ObservedCadence has private fields
 pub struct antecedent_model::intervention_request::ClampTarget
 pub struct antecedent_model::intervention_request::HardClampIdentity
 pub struct antecedent_model::intervention_request::HardClampRequest
@@ -3570,10 +3570,12 @@ pub variant antecedent_model::history_operators::WeightRole::Censoring
 pub variant antecedent_model::information_time::ForwardOnly::Enforced
 pub variant antecedent_model::information_time::ForwardOnly::NotEnforced
 pub variant antecedent_model::information_time::InformationRefusal::CadenceSpanOverflow { interval_ns: u64, tick_count: u32 }
+pub variant antecedent_model::information_time::InformationRefusal::CadenceUncountable
 pub variant antecedent_model::information_time::InformationRefusal::DecisionOffCadence { tick: u32, tick_count: u32 }
 pub variant antecedent_model::information_time::InformationRefusal::EmptyCadence
 pub variant antecedent_model::information_time::InformationRefusal::ForwardOnlyDeployment { decision: u32, outcome: u32 }
 pub variant antecedent_model::information_time::InformationRefusal::HeldOutFuture { decision: u32, outcome: u32 }
+pub variant antecedent_model::information_time::InformationRefusal::IrregularCadence
 pub variant antecedent_model::information_time::InformationRefusal::OutcomeOffCadence { tick: u32, tick_count: u32 }
 pub variant antecedent_model::information_time::InformationRefusal::ProspectiveFuture { decision: u32, outcome: u32 }
 pub variant antecedent_model::information_time::InformationRefusal::RetrospectiveDenied { decision: u32, outcome: u32 }

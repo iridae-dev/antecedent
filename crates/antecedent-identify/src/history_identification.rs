@@ -1,28 +1,31 @@
 //! History and initial-state identification for temporal routes.
 //!
-//! [`HistoryIdentification::Certified`] is a finite feedback ancestry together
-//! with a declared [`InitialLaw`] and a declaration that the search frontier is
-//! closed ([`AncestryFrontier::Closed`]). This module does not search a graph.
-//! It checks that the declared ancestry is consistent with the declared bound
-//! and that the caller declared the search finished; the ancestry list and the
-//! frontier are the caller's. Each ancestor's lag is derived from the temporal
-//! offset of its node, not taken from the caller.
+//! [`HistoryIdentification::Certified`] is the feedback ancestry a search walked
+//! on a [`TemporalDag`], together with a declared [`InitialLaw`], and only when
+//! that search closed: every reached node's parents lie inside
+//! [`HistorySearchBound`]. A caller-supplied ancestor list is not an input and
+//! does not certify. Each ancestor's lag is the temporal offset of its node on
+//! the graph.
 //!
-//! Ancestry past the declared search bound, or a frontier left open, is
-//! [`HistoryIdentification::Uncertified`]: the product keeps that bound and
-//! returns a bounded-search diagnostic. Nothing here increases the cap or
-//! treats that history as identified.
+//! An ancestor that is not a node of the graph, a node whose lag is past the
+//! bound, or a frontier left open because a parent lies past the bound, is
+//! [`HistoryIdentification::Uncertified`]. The product keeps the bound that was
+//! given. Nothing here increases that bound or treats the partial history as
+//! identified.
 //!
 //! [`HistoryIdentification::PulseFallback`] is only the existing narrow pulse
 //! route `identify_pulse_by_parent_adjustment`
 //! ([`PARENT_ADJUSTMENT_RULE`](crate::temporal_backdoor::PARENT_ADJUSTMENT_RULE)).
-//! It does not certify feedback ancestry.
+//! It does not read the graph and does not certify feedback ancestry.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::collections::VecDeque;
 
 use antecedent_core::{
     Diagnostic, DiagnosticKind, DiagnosticSeverity, InitialLaw, TemporalNodeKey,
 };
+use antecedent_graph::{DenseNodeId, TemporalDag};
 use thiserror::Error;
 
 /// Diagnostic code when feedback ancestry stops at the declared search bound.
@@ -43,40 +46,27 @@ pub enum HistoryIdentificationTarget {
     PulseParentAdjustment,
 }
 
-/// Declared bound on feedback-ancestry search.
+/// Bound on feedback-ancestry search, in lags.
 ///
-/// The stored step count is the caller's bound. No method returns a larger one.
+/// The stored step count is the caller's bound. The search does not return a
+/// larger one, and a larger ancestry is not certified by widening it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct HistorySearchBound {
     steps: u32,
 }
 
 impl HistorySearchBound {
-    /// Bound of `steps` lags, as already declared by the caller.
+    /// Bound of `steps` lags.
     #[must_use]
     pub const fn declared(steps: u32) -> Self {
         Self { steps }
     }
 
-    /// Declared step count. This is the bound that was given, not a wider one.
+    /// Step count. This is the bound that was given, not a wider one.
     #[must_use]
     pub const fn steps(self) -> u32 {
         self.steps
     }
-}
-
-/// Whether the bounded ancestry search ran to exhaustion.
-///
-/// This is the caller's declaration about its own search. It is not checked
-/// here, and it is the one fact that separates a finished ancestry from a list
-/// that merely stopped at the bound.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum AncestryFrontier {
-    /// No unexpanded ancestor remains: the search finished inside the bound.
-    Closed,
-    /// The search stopped with ancestors still to expand. Ancestry may continue
-    /// past the bound.
-    Open,
 }
 
 /// One node of a feedback ancestry, with the depth the search bound compares.
@@ -116,11 +106,10 @@ impl FeedbackAncestor {
     }
 }
 
-/// Finite ancestry, the declared initial law, and the declared closed frontier.
+/// Finite ancestry the graph search closed, and the declared initial law.
 ///
-/// All three are present: the ancestry list is non-empty with every lag inside
-/// the bound, the law was declared, and the caller declared the frontier closed.
-/// This is a consistency check on those declarations, not a graph search.
+/// The ancestry is non-empty, every lag is inside the bound, the law was
+/// declared, and the parent walk found no further parent past the bound.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CertifiedHistory {
     ancestry: Vec<FeedbackAncestor>,
@@ -129,7 +118,8 @@ pub struct CertifiedHistory {
 }
 
 impl CertifiedHistory {
-    /// Finite ancestry. Non-empty, and every lag is within [`Self::search_bound`].
+    /// Ancestors the search reached, breadth-first from the focus, parents in
+    /// graph order. The focus is first.
     #[must_use]
     pub fn ancestry(&self) -> &[FeedbackAncestor] {
         &self.ancestry
@@ -165,16 +155,18 @@ impl PulseFallbackHistory {
 /// Why a feedback ancestry is not finitely certified.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UncertifiedReason {
-    /// A declared ancestor lies past the bound.
+    /// The node under search lies past the bound.
     AncestorPastBound(FeedbackAncestor),
-    /// Every declared ancestor is inside the bound, but the search frontier was
-    /// left open, so ancestry may continue past the bound.
+    /// The walk reached a node inside the bound that still has a parent past
+    /// the bound, so the frontier did not close.
     FrontierOpen,
+    /// The node under search is not a node of the graph.
+    AncestorAbsent(FeedbackAncestor),
 }
 
-/// Feedback ancestry that the declared bound does not finitely certify.
+/// Feedback ancestry that the search did not finitely certify.
 ///
-/// `bound` is the bound the caller declared. This is not
+/// `bound` is the bound that was given. This is not
 /// [`HistoryIdentification::Certified`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UncertifiedHistory {
@@ -184,7 +176,7 @@ pub struct UncertifiedHistory {
 }
 
 impl UncertifiedHistory {
-    /// Declared search bound, unchanged.
+    /// Search bound, unchanged.
     #[must_use]
     pub const fn search_bound(&self) -> HistorySearchBound {
         self.bound
@@ -196,12 +188,15 @@ impl UncertifiedHistory {
         self.reason
     }
 
-    /// Declared ancestor whose lag is past [`Self::search_bound`], when that is
-    /// the reason. [`None`] when the frontier was left open.
+    /// Ancestor the search could not certify, when one is known.
+    ///
+    /// [`Some`] for an ancestor past the bound or absent from the graph.
+    /// [`None`] when the frontier stayed open.
     #[must_use]
     pub const fn missing_ancestor(&self) -> Option<FeedbackAncestor> {
         match self.reason {
-            UncertifiedReason::AncestorPastBound(ancestor) => Some(ancestor),
+            UncertifiedReason::AncestorPastBound(ancestor)
+            | UncertifiedReason::AncestorAbsent(ancestor) => Some(ancestor),
             UncertifiedReason::FrontierOpen => None,
         }
     }
@@ -216,11 +211,11 @@ impl UncertifiedHistory {
 /// History-identification product for a temporal route.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HistoryIdentification {
-    /// Finite ancestry and a declared initial law.
+    /// Finite ancestry the graph search closed, and a declared initial law.
     Certified(CertifiedHistory),
     /// Existing narrow pulse route. Not a feedback-ancestry certificate.
     PulseFallback(PulseFallbackHistory),
-    /// Declared bound reached before feedback ancestry was finite.
+    /// The graph search did not close inside the given bound.
     Uncertified(UncertifiedHistory),
 }
 
@@ -230,9 +225,6 @@ pub enum HistoryIdentificationRefusal {
     /// Feedback ancestry was requested without an initial law.
     #[error("initial law is missing; next attempt: declare the initial law")]
     MissingInitialLaw,
-    /// Feedback ancestry was requested with an empty ancestor list.
-    #[error("feedback ancestry is empty; next attempt: supply the finite ancestor list")]
-    EmptyAncestry,
     /// An ancestor had a positive temporal offset, which is a later time.
     #[error("ancestor offset {offset} is in the future; next attempt: supply a lagged node")]
     FutureAncestor {
@@ -241,37 +233,36 @@ pub enum HistoryIdentificationRefusal {
     },
 }
 
-/// Identify history for `target` under the already declared `bound`.
+/// Identify history for `target` by searching `graph` from `focus`.
 ///
 /// [`HistoryIdentificationTarget::PulseParentAdjustment`] returns
-/// [`HistoryIdentification::PulseFallback`] and does not certify `ancestry`.
-/// [`HistoryIdentificationTarget::FeedbackAncestry`] returns
-/// [`HistoryIdentification::Certified`] only when `ancestry` is non-empty,
-/// every lag is within `bound`, `initial_law` is present, and `frontier` is
-/// [`AncestryFrontier::Closed`]. A lag past `bound`, or an
-/// [`AncestryFrontier::Open`] frontier, returns
-/// [`HistoryIdentification::Uncertified`] carrying that same bound. The
-/// ancestry and the frontier are the caller's declarations; no graph is
-/// searched here.
+/// [`HistoryIdentification::PulseFallback`] and does not read `graph` or
+/// certify ancestry. [`HistoryIdentificationTarget::FeedbackAncestry`] walks
+/// parents on `graph` from `focus`. It returns
+/// [`HistoryIdentification::Certified`] only when `focus` is a node of
+/// `graph`, every reached lag is within `bound`, `initial_law` is present, and
+/// no reached node still has a parent past `bound`. A `focus` absent from
+/// `graph`, a `focus` whose lag is past `bound`, or a parent past `bound`
+/// returns [`HistoryIdentification::Uncertified`] carrying that same bound.
 ///
 /// # Errors
 ///
 /// [`HistoryIdentificationRefusal::MissingInitialLaw`] when feedback ancestry
 /// is requested and `initial_law` is absent.
-/// [`HistoryIdentificationRefusal::EmptyAncestry`] when feedback ancestry is
-/// requested and `ancestry` is empty.
+/// [`HistoryIdentificationRefusal::FutureAncestor`] when `focus` has a positive
+/// offset.
 #[must_use = "a refusal is not a history identification"]
 pub fn identify_history(
     target: HistoryIdentificationTarget,
-    ancestry: &[FeedbackAncestor],
+    graph: &TemporalDag,
+    focus: TemporalNodeKey,
     initial_law: Option<&InitialLaw>,
     bound: HistorySearchBound,
-    frontier: AncestryFrontier,
 ) -> Result<HistoryIdentification, HistoryIdentificationRefusal> {
     match target {
         HistoryIdentificationTarget::PulseParentAdjustment => Ok(pulse_fallback()),
         HistoryIdentificationTarget::FeedbackAncestry => {
-            identify_feedback(ancestry, initial_law, bound, frontier)
+            identify_feedback(graph, focus, initial_law, bound)
         }
     }
 }
@@ -285,7 +276,7 @@ pub const fn is_feedback_certified(identification: &HistoryIdentification) -> bo
     matches!(identification, HistoryIdentification::Certified(_))
 }
 
-/// Declared search bound carried by `identification`, when it has one.
+/// Search bound carried by `identification`, when it has one.
 ///
 /// The step count is the bound given to [`identify_history`], never a larger
 /// one. The pulse fallback has no feedback-ancestry bound.
@@ -299,29 +290,90 @@ pub const fn search_bound(identification: &HistoryIdentification) -> Option<Hist
 }
 
 fn identify_feedback(
-    ancestry: &[FeedbackAncestor],
+    graph: &TemporalDag,
+    focus: TemporalNodeKey,
     initial_law: Option<&InitialLaw>,
     bound: HistorySearchBound,
-    frontier: AncestryFrontier,
 ) -> Result<HistoryIdentification, HistoryIdentificationRefusal> {
     let Some(initial_law) = initial_law else {
         return Err(HistoryIdentificationRefusal::MissingInitialLaw);
     };
-    if ancestry.is_empty() {
-        return Err(HistoryIdentificationRefusal::EmptyAncestry);
+    let focus_ancestor = FeedbackAncestor::new(focus)?;
+    let Some(start) = find_node(graph, focus) else {
+        return Ok(HistoryIdentification::Uncertified(absent_history(bound, focus_ancestor)));
+    };
+    match walk_ancestry(graph, start, bound) {
+        Ok(ancestry) => Ok(HistoryIdentification::Certified(CertifiedHistory {
+            ancestry,
+            initial_law: initial_law.clone(),
+            bound,
+        })),
+        Err(WalkFailure::PastBound(missing)) => {
+            Ok(HistoryIdentification::Uncertified(past_bound_history(bound, missing)))
+        }
+        Err(WalkFailure::Open) => {
+            Ok(HistoryIdentification::Uncertified(open_frontier_history(bound)))
+        }
     }
-    let missing = ancestry.iter().copied().find(|ancestor| ancestor.lag() > bound.steps());
-    if let Some(missing_ancestor) = missing {
-        return Ok(HistoryIdentification::Uncertified(past_bound_history(bound, missing_ancestor)));
+}
+
+/// Why the parent walk did not close.
+enum WalkFailure {
+    PastBound(FeedbackAncestor),
+    Open,
+}
+
+fn find_node(graph: &TemporalDag, key: TemporalNodeKey) -> Option<DenseNodeId> {
+    (0..graph.node_count()).find_map(|index| {
+        let id = DenseNodeId::try_from_usize(index).ok()?;
+        graph.temporal_key(id).is_some_and(|found| found == key).then_some(id)
+    })
+}
+
+fn named_ancestor(graph: &TemporalDag, id: DenseNodeId) -> Option<FeedbackAncestor> {
+    FeedbackAncestor::new(graph.temporal_key(id)?).ok()
+}
+
+/// Walk parents from `start`. A parent past `bound` leaves the frontier open
+/// and drops the nodes already reached: that partial list is not a certificate.
+fn walk_ancestry(
+    graph: &TemporalDag,
+    start: DenseNodeId,
+    bound: HistorySearchBound,
+) -> Result<Vec<FeedbackAncestor>, WalkFailure> {
+    let mut ancestry = Vec::new();
+    let mut seen = vec![false; graph.node_count()];
+    let mut queue = VecDeque::new();
+    seen[start.as_usize()] = true;
+    queue.push_back(start);
+    let limit = bound.steps();
+    while let Some(id) = queue.pop_front() {
+        let Some(ancestor) = named_ancestor(graph, id) else {
+            return Err(WalkFailure::Open);
+        };
+        if ancestor.lag() > limit {
+            return Err(WalkFailure::PastBound(ancestor));
+        }
+        let mut frontier_open = false;
+        for &parent in graph.parents(id) {
+            let within_bound = named_ancestor(graph, parent)
+                .is_some_and(|parent_ancestor| parent_ancestor.lag() <= limit);
+            if within_bound {
+                let index = parent.as_usize();
+                if !seen[index] {
+                    seen[index] = true;
+                    queue.push_back(parent);
+                }
+            } else {
+                frontier_open = true;
+            }
+        }
+        if frontier_open {
+            return Err(WalkFailure::Open);
+        }
+        ancestry.push(ancestor);
     }
-    if frontier == AncestryFrontier::Open {
-        return Ok(HistoryIdentification::Uncertified(open_frontier_history(bound)));
-    }
-    Ok(HistoryIdentification::Certified(CertifiedHistory {
-        ancestry: ancestry.to_vec(),
-        initial_law: initial_law.clone(),
-        bound,
-    }))
+    Ok(ancestry)
 }
 
 fn pulse_fallback() -> HistoryIdentification {
@@ -370,99 +422,245 @@ fn past_bound_history(bound: HistorySearchBound, missing: FeedbackAncestor) -> U
     UncertifiedHistory { bound, reason: UncertifiedReason::AncestorPastBound(missing), diagnostic }
 }
 
+fn absent_history(bound: HistorySearchBound, missing: FeedbackAncestor) -> UncertifiedHistory {
+    let steps = bound.steps();
+    let lag = missing.lag();
+    let variable = missing.node().variable.raw();
+    let diagnostic = crate::result::search_bounded_diagnostic(
+        HISTORY_SEARCH_BOUNDED_CODE,
+        format!(
+            "uncertified history: ancestor variable {variable} at lag {lag} is absent from the \
+             graph; the search did not close"
+        ),
+    )
+    .with_fields([
+        ("bound", steps.to_string()),
+        ("missing_ancestor_variable", variable.to_string()),
+        ("missing_ancestor_lag", lag.to_string()),
+        ("frontier", "absent".to_owned()),
+    ]);
+    UncertifiedHistory { bound, reason: UncertifiedReason::AncestorAbsent(missing), diagnostic }
+}
+
 #[cfg(test)]
 mod tests {
-    use antecedent_core::{InitialLaw, TemporalNodeKey, VariableId};
+    use antecedent_core::{InitialLaw, Lag, TemporalNodeKey, VariableId};
+    use antecedent_graph::{DenseNodeId, TemporalDag};
 
     use super::{
-        AncestryFrontier, FeedbackAncestor, HistoryIdentification, HistoryIdentificationRefusal,
+        FeedbackAncestor, HistoryIdentification, HistoryIdentificationRefusal,
         HistoryIdentificationTarget, HistorySearchBound, UncertifiedReason, identify_history,
         is_feedback_certified, search_bound,
     };
 
-    fn ancestor(variable: u32, lag: u32) -> FeedbackAncestor {
+    fn add(graph: &mut TemporalDag, variable: u32, lag: u32) -> DenseNodeId {
+        graph.add_lagged(VariableId::from_raw(variable), Lag::from_raw(lag)).unwrap()
+    }
+
+    fn key(variable: u32, lag: u32) -> TemporalNodeKey {
         let offset = -i32::try_from(lag).unwrap();
-        FeedbackAncestor::new(TemporalNodeKey { variable: VariableId::from_raw(variable), offset })
-            .unwrap()
+        TemporalNodeKey { variable: VariableId::from_raw(variable), offset }
+    }
+
+    fn ancestor(variable: u32, lag: u32) -> FeedbackAncestor {
+        FeedbackAncestor::new(key(variable, lag)).unwrap()
+    }
+
+    /// Focus at lag 0, parents at lags 1 and 2, and a non-ancestor child.
+    /// `deep_lag` adds a parent of the lag-2 node.
+    fn ancestry_graph(deep_lag: Option<u32>) -> TemporalDag {
+        let mut graph = TemporalDag::empty();
+        let past = add(&mut graph, 1, 2);
+        let mid = add(&mut graph, 2, 1);
+        let focus = add(&mut graph, 0, 0);
+        let child = add(&mut graph, 3, 0);
+        graph.insert_directed(past, focus).unwrap();
+        graph.insert_directed(mid, focus).unwrap();
+        graph.insert_directed(past, mid).unwrap();
+        graph.insert_directed(focus, child).unwrap();
+        if let Some(lag) = deep_lag {
+            let deep = add(&mut graph, 7, lag);
+            graph.insert_directed(deep, past).unwrap();
+        }
+        graph
+    }
+
+    fn identify(
+        target: HistoryIdentificationTarget,
+        graph: &TemporalDag,
+        variable: u32,
+        lag: u32,
+        law: Option<&InitialLaw>,
+        bound: HistorySearchBound,
+    ) -> Result<HistoryIdentification, HistoryIdentificationRefusal> {
+        identify_history(target, graph, key(variable, lag), law, bound)
     }
 
     fn bound_field(product: &HistoryIdentification) -> Option<u32> {
         let HistoryIdentification::Uncertified(uncertified) = product else {
             return None;
         };
-        uncertified.diagnostic().fields.iter().find_map(|(key, value)| {
-            (key.as_ref() == "bound").then(|| value.as_ref().parse().unwrap())
+        uncertified.diagnostic().fields.iter().find_map(|(field, value)| {
+            (field.as_ref() == "bound").then(|| value.as_ref().parse().unwrap())
         })
     }
 
     #[test]
-    fn finite_ancestry_and_initial_law_is_certified() {
-        let bound = HistorySearchBound::declared(3);
+    fn a_search_that_closes_on_the_graph_is_certified() {
+        let bound = HistorySearchBound::declared(2);
         let law = InitialLaw::named("origin").unwrap();
-        let ancestry = [ancestor(0, 0), ancestor(1, 3)];
-        let product = identify_history(
+        let graph = ancestry_graph(None);
+        let product = identify(
             HistoryIdentificationTarget::FeedbackAncestry,
-            &ancestry,
+            &graph,
+            0,
+            0,
             Some(&law),
             bound,
-            AncestryFrontier::Closed,
         )
         .unwrap();
         assert!(is_feedback_certified(&product));
         let HistoryIdentification::Certified(certified) = product else {
-            panic!("finite ancestry and an initial law are certified");
+            panic!("a search that closes on the graph is certified");
         };
-        assert_eq!(certified.ancestry(), &ancestry);
+        let found: Vec<(u32, u32)> = certified
+            .ancestry()
+            .iter()
+            .map(|node| (node.node().variable.raw(), node.lag()))
+            .collect();
+        assert_eq!(found, vec![(0, 0), (1, 2), (2, 1)]);
+        assert!(certified.ancestry().iter().all(|node| node.node().variable.raw() != 3));
         assert_eq!(certified.initial_law(), &law);
         assert_eq!(certified.search_bound(), bound);
     }
 
     #[test]
-    fn missing_initial_law_is_refused() {
-        let error = identify_history(
+    fn an_ancestor_absent_from_the_graph_is_uncertified() {
+        let bound = HistorySearchBound::declared(2);
+        let law = InitialLaw::named("origin").unwrap();
+        let graph = ancestry_graph(None);
+        let present = identify(
             HistoryIdentificationTarget::FeedbackAncestry,
-            &[ancestor(0, 1)],
+            &graph,
+            0,
+            0,
+            Some(&law),
+            bound,
+        )
+        .unwrap();
+        assert!(is_feedback_certified(&present));
+
+        let absent = identify(
+            HistoryIdentificationTarget::FeedbackAncestry,
+            &graph,
+            9,
+            1,
+            Some(&law),
+            bound,
+        )
+        .unwrap();
+        assert!(!is_feedback_certified(&absent));
+        let HistoryIdentification::Uncertified(uncertified) = &absent else {
+            panic!("an ancestor absent from the graph is uncertified");
+        };
+        assert_eq!(uncertified.reason(), UncertifiedReason::AncestorAbsent(ancestor(9, 1)));
+        assert_eq!(uncertified.missing_ancestor(), Some(ancestor(9, 1)));
+        assert_eq!(uncertified.search_bound(), bound);
+        assert!(uncertified.diagnostic().message.contains("absent"));
+        assert!(uncertified.diagnostic().code.ends_with(".search_bounded"));
+        assert_eq!(bound_field(&absent), Some(bound.steps()));
+
+        // Variable 1 is on the graph at lag 2. Naming it at lag 1 is a different node.
+        let wrong_lag = identify(
+            HistoryIdentificationTarget::FeedbackAncestry,
+            &graph,
+            1,
+            1,
+            Some(&law),
+            bound,
+        )
+        .unwrap();
+        assert!(!is_feedback_certified(&wrong_lag));
+        let HistoryIdentification::Uncertified(uncertified) = wrong_lag else {
+            panic!("a lag the graph does not contain is uncertified");
+        };
+        assert_eq!(uncertified.reason(), UncertifiedReason::AncestorAbsent(ancestor(1, 1)));
+    }
+
+    #[test]
+    fn an_open_frontier_is_uncertified() {
+        let bound = HistorySearchBound::declared(2);
+        let law = InitialLaw::contemporaneous_observed();
+        let open_graph = ancestry_graph(Some(5));
+        let open = identify(
+            HistoryIdentificationTarget::FeedbackAncestry,
+            &open_graph,
+            0,
+            0,
+            Some(&law),
+            bound,
+        )
+        .unwrap();
+        assert!(!is_feedback_certified(&open));
+        let HistoryIdentification::Uncertified(uncertified) = &open else {
+            panic!("an open frontier is uncertified");
+        };
+        assert_eq!(uncertified.reason(), UncertifiedReason::FrontierOpen);
+        assert!(uncertified.missing_ancestor().is_none());
+        assert_eq!(uncertified.search_bound(), bound);
+        assert!(uncertified.diagnostic().code.ends_with(".search_bounded"));
+        assert_eq!(bound_field(&open), Some(bound.steps()));
+
+        let closed = identify(
+            HistoryIdentificationTarget::FeedbackAncestry,
+            &ancestry_graph(None),
+            0,
+            0,
+            Some(&law),
+            bound,
+        )
+        .unwrap();
+        assert!(is_feedback_certified(&closed));
+    }
+
+    #[test]
+    fn missing_initial_law_is_refused() {
+        let error = identify(
+            HistoryIdentificationTarget::FeedbackAncestry,
+            &ancestry_graph(None),
+            0,
+            0,
             None,
             HistorySearchBound::declared(4),
-            AncestryFrontier::Closed,
         )
         .unwrap_err();
         assert_eq!(error, HistoryIdentificationRefusal::MissingInitialLaw);
     }
 
     #[test]
-    fn empty_ancestry_is_refused() {
-        let law = InitialLaw::contemporaneous_observed();
-        let error = identify_history(
-            HistoryIdentificationTarget::FeedbackAncestry,
-            &[],
-            Some(&law),
-            HistorySearchBound::declared(4),
-            AncestryFrontier::Closed,
-        )
-        .unwrap_err();
-        assert_eq!(error, HistoryIdentificationRefusal::EmptyAncestry);
-    }
-
-    #[test]
-    fn ancestry_past_the_declared_bound_is_uncertified_and_the_bound_is_unchanged() {
+    fn an_ancestor_past_the_bound_is_uncertified_and_the_bound_is_unchanged() {
         let bound = HistorySearchBound::declared(2);
-        let missing = ancestor(7, 5);
-        let product = identify_history(
+        let mut graph = TemporalDag::empty();
+        let deep = add(&mut graph, 7, 5);
+        let nearer = add(&mut graph, 1, 2);
+        graph.insert_directed(deep, nearer).unwrap();
+        let product = identify(
             HistoryIdentificationTarget::FeedbackAncestry,
-            &[ancestor(1, 2), missing],
+            &graph,
+            7,
+            5,
             Some(&InitialLaw::contemporaneous_observed()),
             bound,
-            AncestryFrontier::Closed,
         )
         .unwrap();
         assert!(!is_feedback_certified(&product));
         let HistoryIdentification::Uncertified(uncertified) = &product else {
-            panic!("ancestry past the bound is uncertified");
+            panic!("an ancestor past the bound is uncertified");
         };
         assert_eq!(uncertified.search_bound(), bound);
         assert_eq!(uncertified.search_bound().steps(), bound.steps());
-        assert_eq!(uncertified.missing_ancestor(), Some(missing));
+        assert_eq!(uncertified.missing_ancestor(), Some(ancestor(7, 5)));
+        assert_eq!(uncertified.reason(), UncertifiedReason::AncestorPastBound(ancestor(7, 5)));
         let diagnostic = uncertified.diagnostic();
         assert!(diagnostic.code.ends_with(".search_bounded"));
         assert!(diagnostic.message.contains("uncertified history"));
@@ -471,12 +669,26 @@ mod tests {
 
     #[test]
     fn pulse_fallback_is_not_feedback_certified() {
-        let product = identify_history(
+        let graph = ancestry_graph(None);
+        let law = InitialLaw::contemporaneous_observed();
+        let bound = HistorySearchBound::declared(2);
+        let feedback = identify(
+            HistoryIdentificationTarget::FeedbackAncestry,
+            &graph,
+            0,
+            0,
+            Some(&law),
+            bound,
+        )
+        .unwrap();
+        assert!(is_feedback_certified(&feedback));
+        let product = identify(
             HistoryIdentificationTarget::PulseParentAdjustment,
-            &[ancestor(0, 9)],
+            &graph,
+            0,
+            9,
             None,
-            HistorySearchBound::declared(1),
-            AncestryFrontier::Closed,
+            bound,
         )
         .unwrap();
         assert!(!is_feedback_certified(&product));
@@ -490,21 +702,24 @@ mod tests {
     #[test]
     fn pulse_fallback_is_only_the_narrow_pulse_route() {
         let law = InitialLaw::contemporaneous_observed();
-        let feedback = identify_history(
+        let graph = ancestry_graph(None);
+        let feedback = identify(
             HistoryIdentificationTarget::FeedbackAncestry,
-            &[ancestor(0, 1)],
+            &graph,
+            0,
+            0,
             Some(&law),
-            HistorySearchBound::declared(1),
-            AncestryFrontier::Closed,
+            HistorySearchBound::declared(2),
         )
         .unwrap();
         assert!(!matches!(feedback, HistoryIdentification::PulseFallback(_)));
-        let pulse = identify_history(
+        let pulse = identify(
             HistoryIdentificationTarget::PulseParentAdjustment,
-            &[],
+            &TemporalDag::empty(),
+            0,
+            0,
             None,
             HistorySearchBound::declared(1),
-            AncestryFrontier::Closed,
         )
         .unwrap();
         assert!(matches!(pulse, HistoryIdentification::PulseFallback(_)));
@@ -514,28 +729,39 @@ mod tests {
     fn no_api_returns_a_bound_greater_than_the_one_given() {
         let declared = HistorySearchBound::declared(4);
         let law = InitialLaw::contemporaneous_observed();
-        let within = identify_history(
+        let mut within_graph = TemporalDag::empty();
+        let parent = add(&mut within_graph, 1, 4);
+        let focus = add(&mut within_graph, 0, 0);
+        within_graph.insert_directed(parent, focus).unwrap();
+        let within = identify(
             HistoryIdentificationTarget::FeedbackAncestry,
-            &[ancestor(0, 4)],
+            &within_graph,
+            0,
+            0,
             Some(&law),
             declared,
-            AncestryFrontier::Closed,
         )
         .unwrap();
-        let past = identify_history(
+        let mut past_graph = TemporalDag::empty();
+        let deep = add(&mut past_graph, 1, 9);
+        let later = add(&mut past_graph, 0, 1);
+        past_graph.insert_directed(deep, later).unwrap();
+        let past = identify(
             HistoryIdentificationTarget::FeedbackAncestry,
-            &[ancestor(0, 1), ancestor(1, 9)],
+            &past_graph,
+            1,
+            9,
             Some(&law),
             declared,
-            AncestryFrontier::Closed,
         )
         .unwrap();
-        let pulse = identify_history(
+        let pulse = identify(
             HistoryIdentificationTarget::PulseParentAdjustment,
-            &[ancestor(1, 9)],
+            &past_graph,
+            1,
+            9,
             None,
             declared,
-            AncestryFrontier::Closed,
         )
         .unwrap();
 
@@ -566,56 +792,31 @@ mod tests {
             FeedbackAncestor::new(future).unwrap_err(),
             HistoryIdentificationRefusal::FutureAncestor { offset: 1 }
         );
-        // A declared lag of 0 cannot hide an offset of -7: the only lag is the offset's.
-        let deep = TemporalNodeKey { variable: VariableId::from_raw(4), offset: -7 };
-        let bound = HistorySearchBound::declared(3);
-        let product = identify_history(
+        let refused = identify_history(
             HistoryIdentificationTarget::FeedbackAncestry,
-            &[ancestor(0, 0), FeedbackAncestor::new(deep).unwrap()],
+            &TemporalDag::empty(),
+            future,
+            Some(&InitialLaw::contemporaneous_observed()),
+            HistorySearchBound::declared(3),
+        )
+        .unwrap_err();
+        assert_eq!(refused, HistoryIdentificationRefusal::FutureAncestor { offset: 1 });
+
+        let mut graph = TemporalDag::empty();
+        add(&mut graph, 4, 7);
+        let bound = HistorySearchBound::declared(3);
+        let product = identify(
+            HistoryIdentificationTarget::FeedbackAncestry,
+            &graph,
+            4,
+            7,
             Some(&InitialLaw::contemporaneous_observed()),
             bound,
-            AncestryFrontier::Closed,
         )
         .unwrap();
         let HistoryIdentification::Uncertified(uncertified) = product else {
             panic!("a lag of 7 is past a bound of 3");
         };
         assert_eq!(uncertified.missing_ancestor().map(FeedbackAncestor::lag), Some(7));
-    }
-
-    #[test]
-    fn an_open_frontier_is_uncertified_even_when_every_listed_lag_fits() {
-        // The caller listed ancestors at lags 0 and 3 under a bound of 3, but the search
-        // stopped there: true ancestry continues to lag 7.
-        let bound = HistorySearchBound::declared(3);
-        let law = InitialLaw::named("origin").unwrap();
-        let listed = [ancestor(0, 0), ancestor(1, 3)];
-        let open = identify_history(
-            HistoryIdentificationTarget::FeedbackAncestry,
-            &listed,
-            Some(&law),
-            bound,
-            AncestryFrontier::Open,
-        )
-        .unwrap();
-        assert!(!is_feedback_certified(&open));
-        let HistoryIdentification::Uncertified(uncertified) = &open else {
-            panic!("an open frontier is uncertified");
-        };
-        assert_eq!(uncertified.reason(), UncertifiedReason::FrontierOpen);
-        assert!(uncertified.missing_ancestor().is_none());
-        assert_eq!(uncertified.search_bound(), bound);
-        assert!(uncertified.diagnostic().code.ends_with(".search_bounded"));
-        assert_eq!(bound_field(&open), Some(3));
-
-        let closed = identify_history(
-            HistoryIdentificationTarget::FeedbackAncestry,
-            &listed,
-            Some(&law),
-            bound,
-            AncestryFrontier::Closed,
-        )
-        .unwrap();
-        assert!(is_feedback_certified(&closed));
     }
 }
