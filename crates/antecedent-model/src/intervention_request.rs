@@ -15,7 +15,10 @@
 //! After a hard clamp, [`revalidate_solvability`] decides the free block again.
 //! A singular or non-finite block is a refusal and is not marked unidentified.
 //! Numerically singular and ill-conditioned stay different statuses. An
-//! ill-conditioned block is not reported unique.
+//! ill-conditioned block is not reported unique. A unique free block is not a
+//! stability certificate: physical stability stays unclaimed, including when
+//! the free update has spectral radius above one. A refused request is not
+//! compiled and is not replaced by another clamp.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -782,8 +785,9 @@ mod tests {
     };
     use crate::cyclic_component::CyclicComponent;
     use crate::linear_solution::{
-        FamilyCertificate, HardClamp, IdentificationStatus, LinearStructuralMap, PhysicalStability,
-        SolvabilityRefusal, SolverConvergence, Uniqueness, assess,
+        Conditioning, ConsistencyWitness, FamilyCertificate, HardClamp, IdentificationStatus,
+        LinearStructuralMap, NextAttempt, PhysicalStability, SolvabilityRefusal, SolverConvergence,
+        Uniqueness, assess,
     };
     use crate::scc_compile::{CompileBudget, GaussianDisturbance};
 
@@ -802,6 +806,38 @@ mod tests {
         assert!(matches!(family, FamilyCertificate::Admitted { .. }));
         CyclicComponent::try_new("feedback", "source-measurements", &["solve-note"], model, &family)
             .expect("component")
+    }
+
+    fn identity_noise(dimension: usize) -> GaussianDisturbance {
+        let mut covariance = vec![0.0; dimension * dimension];
+        for node in 0..dimension {
+            covariance[node * dimension + node] = 1.0;
+        }
+        GaussianDisturbance::try_new(vec![0.0; dimension], covariance).expect("disturbance")
+    }
+
+    /// Eigenvalues of a 2×2 update `K_FF`, roots of `λ² - tr(K_FF) λ + det(K_FF)`.
+    fn pair_eigenvalues(k_ff: &[f64]) -> (f64, f64) {
+        assert_eq!(k_ff.len(), 4, "a 2×2 free update is four entries");
+        let trace = k_ff[0] + k_ff[3];
+        let determinant = k_ff[0] * k_ff[3] - k_ff[1] * k_ff[2];
+        let half_trace = trace / 2.0;
+        let root = (half_trace * half_trace - determinant).sqrt();
+        (half_trace + root, half_trace - root)
+    }
+
+    fn matmul3(left: &[f64], right: &[f64]) -> [f64; 9] {
+        let mut product = [0.0; 9];
+        for row in 0..3 {
+            for col in 0..3 {
+                let mut sum = 0.0;
+                for index in 0..3 {
+                    sum += left[row * 3 + index] * right[index * 3 + col];
+                }
+                product[row * 3 + col] = sum;
+            }
+        }
+        product
     }
 
     #[test]
@@ -990,6 +1026,22 @@ mod tests {
             }
         );
 
+        let near_noise = identity_noise(2);
+        let near_err = compile_under_request(
+            &component_for(&map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0])),
+            &near,
+            &near_noise,
+            &request,
+            CompileBudget::unlimited(),
+        )
+        .expect_err("near-singular clamp stays failed");
+        assert_eq!(
+            near_err,
+            InterventionRequestError::NotSolvable {
+                refusal: SolvabilityRefusal::NumericallySingular { members: vec![0, 1] },
+            }
+        );
+
         let ill = map(vec![0.0, 1.0, 1.0 - 1.0e-9, 0.0], vec![0.0, 0.0]);
         let rechecked = revalidate_solvability(&ill, &request).expect("ill conditioned");
         match &rechecked.block().uniqueness {
@@ -999,6 +1051,21 @@ mod tests {
             other => panic!("uniqueness {other:?}"),
         }
         assert_eq!(rechecked.identification(), IdentificationStatus::NotMarkedUnidentified);
+        assert!(!matches!(
+            rechecked.block().uniqueness,
+            Uniqueness::Singular(_) | Uniqueness::NumericallySingular { .. } | Uniqueness::Unique
+        ));
+        let law = compile_under_request(
+            &component_for(&ill),
+            &ill,
+            &identity_noise(2),
+            &request,
+            CompileBudget::unlimited(),
+        )
+        .expect("ill conditioning is not a refusal");
+        assert!(close(law.mean()[0], 0.0));
+        assert!(close(law.mean()[1], 0.0));
+        assert_eq!(law.physical_stability(), PhysicalStability::Unclaimed);
     }
 
     #[test]
@@ -1024,5 +1091,165 @@ mod tests {
         assert!(matches!(rechecked.block().uniqueness, Uniqueness::Undetermined { .. }));
         assert_eq!(rechecked.identification(), IdentificationStatus::NotMarkedUnidentified);
         assert_eq!(rechecked.solver(), SolverConvergence::NotRun);
+    }
+
+    #[test]
+    fn overlapping_loops_are_uniquely_solvable_until_c_is_clamped() {
+        // A = B + C, B = A, C = A. The full system is uniquely solvable.
+        // do(C = 1) leaves (I - K_FF) singular and inconsistent, so the solution fails.
+        let model = map(vec![0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0], vec![0.0, 0.0, 0.0]);
+        let open = InterventionRequest::hard_clamp(3, &[], &[]).expect("no clamp");
+        let full = revalidate_solvability(&model, &open).expect("full system");
+        assert!(matches!(full.block().uniqueness, Uniqueness::Unique));
+        assert_eq!(full.block().factor.free, vec![0, 1, 2]);
+        assert_eq!(full.physical_stability(), PhysicalStability::Unclaimed);
+
+        let request = InterventionRequest::hard_clamp(3, &[2], &[1.0]).expect("clamp C");
+        let (clamp, values) = hard_clamp_of(&request).expect("clamp");
+        let report = assess(&model, clamp).expect("assessment");
+        assert!(matches!(report.original.uniqueness, Uniqueness::Unique));
+        assert!(matches!(report.original.conditioning, Conditioning::NotEstimated { .. }));
+        match &report.intervened.uniqueness {
+            Uniqueness::Singular(block) => match &block.witness {
+                ConsistencyWitness::LeftNull(weights) => {
+                    let coupling = &report.intervened.factor.k_fh;
+                    let intercept = &report.intervened.factor.intercept_f;
+                    assert_eq!(weights.len(), coupling.len());
+                    let mut residual = 0.0;
+                    for (index, weight) in weights.iter().enumerate() {
+                        residual += weight * (coupling[index] * values[0] + intercept[index]);
+                    }
+                    assert!(close(residual, 1.0));
+                }
+                ConsistencyWitness::NotFormed => panic!("2×2 left null should be formed"),
+            },
+            other => panic!("intervened uniqueness {other:?}"),
+        }
+        assert!(matches!(report.intervened.conditioning, Conditioning::Undefined));
+        match &report.family {
+            FamilyCertificate::Insufficient { rho_abs_upper, next_attempt, identification } => {
+                assert!(*rho_abs_upper >= 1.0);
+                assert_eq!(
+                    next_attempt,
+                    &NextAttempt::QuerySpecificFreeBlock { free: vec![0, 1] }
+                );
+                assert_eq!(*identification, IdentificationStatus::NotMarkedUnidentified);
+            }
+            FamilyCertificate::Admitted { .. } => {
+                panic!("overlapping loops are not a contraction")
+            }
+        }
+        assert_eq!(report.physical_stability, PhysicalStability::Unclaimed);
+        assert_eq!(
+            revalidate_solvability(&model, &request).expect_err("singular"),
+            InterventionRequestError::NotSolvable {
+                refusal: SolvabilityRefusal::Singular { members: vec![0, 1] },
+            }
+        );
+
+        // The recheck refuses before compilation. A stand-in component is not
+        // allowed to turn this failed clamp into an equilibrium.
+        let stand_in = component_for(&map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0]));
+        let err = compile_under_request(
+            &stand_in,
+            &model,
+            &identity_noise(3),
+            &request,
+            CompileBudget::unlimited(),
+        )
+        .expect_err("singular clamp stays failed");
+        assert_eq!(
+            err,
+            InterventionRequestError::NotSolvable {
+                refusal: SolvabilityRefusal::Singular { members: vec![0, 1] },
+            }
+        );
+        let shift = InterventionRequest::mechanism_shift(3, 0, 1, 0.0).expect("shift");
+        let shift_err = compile_under_request(
+            &stand_in,
+            &model,
+            &identity_noise(3),
+            &shift,
+            CompileBudget::unlimited(),
+        )
+        .expect_err("shift stays failed");
+        assert!(matches!(
+            shift_err,
+            InterventionRequestError::UnsupportedSemantic {
+                kind: InterventionKind::MechanismShift,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn unique_unstable_equilibrium_is_not_reported_as_stable() {
+        // K = [[0, 2], [2, 0]]. det(I - K) = -3, so the equilibrium is unique.
+        // The update eigenvalues are ±2, outside the unit circle.
+        let model = map(vec![0.0, 2.0, 2.0, 0.0], vec![0.0, 0.0]);
+        let request = InterventionRequest::hard_clamp(2, &[], &[]).expect("full update");
+        let rechecked = revalidate_solvability(&model, &request).expect("unique");
+        let (larger, smaller) = pair_eigenvalues(&rechecked.block().factor.k_ff);
+        assert!(close(larger, 2.0));
+        assert!(close(smaller, -2.0));
+        assert!(larger.abs() > 1.0);
+        assert!(smaller.abs() > 1.0);
+        assert!(matches!(rechecked.block().uniqueness, Uniqueness::Unique));
+        assert_eq!(rechecked.physical_stability(), PhysicalStability::Unclaimed);
+        assert_eq!(rechecked.identification(), IdentificationStatus::NotMarkedUnidentified);
+        assert_eq!(rechecked.solver(), SolverConvergence::NotRun);
+
+        let report = assess(&model, &HardClamp::none(2).expect("no clamp")).expect("assessment");
+        assert!(matches!(report.original.uniqueness, Uniqueness::Unique));
+        assert!(!report.family.is_admitted());
+        assert!(report.family.rho_abs_upper() > 1.0);
+        assert_eq!(report.physical_stability, PhysicalStability::Unclaimed);
+        assert_eq!(report.solver, SolverConvergence::NotRun);
+    }
+
+    #[test]
+    fn nilpotent_full_update_cubes_to_zero_and_third_clamp_leaves_pm_two() {
+        // K = [[0, 2, 2], [2, 0, 0], [-2, 0, 0]]. K³ = 0 on the full update.
+        // Clamping variable three leaves K_FF = [[0, 2], [2, 0]], eigenvalues ±2.
+        let coefficients = vec![0.0, 2.0, 2.0, 2.0, 0.0, 0.0, -2.0, 0.0, 0.0];
+        let square = matmul3(&coefficients, &coefficients);
+        let cube = matmul3(&square, &coefficients);
+        assert!(cube.iter().all(|entry| close(*entry, 0.0)));
+
+        let model = map(coefficients, vec![0.0, 0.0, 0.0]);
+        let full = InterventionRequest::hard_clamp(3, &[], &[]).expect("full update");
+        let full_block = revalidate_solvability(&model, &full).expect("nilpotent update");
+        assert_eq!(full_block.block().factor.k_ff.len(), model.coefficients().len());
+        assert!(
+            full_block
+                .block()
+                .factor
+                .k_ff
+                .iter()
+                .zip(model.coefficients())
+                .all(|(left, right)| close(*left, *right))
+        );
+        assert!(matches!(full_block.block().uniqueness, Uniqueness::Unique));
+        assert_eq!(full_block.physical_stability(), PhysicalStability::Unclaimed);
+
+        let clamped = InterventionRequest::hard_clamp(3, &[2], &[0.0]).expect("clamp third");
+        let free = revalidate_solvability(&model, &clamped).expect("free block");
+        assert_eq!(free.block().factor.free, vec![0, 1]);
+        assert_eq!(free.block().factor.clamped, vec![2]);
+        let k_ff = &free.block().factor.k_ff;
+        assert!(close(k_ff[0], 0.0));
+        assert!(close(k_ff[1], 2.0));
+        assert!(close(k_ff[2], 2.0));
+        assert!(close(k_ff[3], 0.0));
+        let (larger, smaller) = pair_eigenvalues(k_ff);
+        assert!(close(larger, 2.0));
+        assert!(close(smaller, -2.0));
+        assert!(matches!(free.block().uniqueness, Uniqueness::Unique));
+        assert_eq!(free.physical_stability(), PhysicalStability::Unclaimed);
+        assert_eq!(free.identification(), IdentificationStatus::NotMarkedUnidentified);
+        let report =
+            assess(&model, &HardClamp::try_new(3, &[2]).expect("clamp")).expect("report");
+        assert!(!report.family.is_admitted());
+        assert_eq!(report.physical_stability, PhysicalStability::Unclaimed);
     }
 }
