@@ -63,7 +63,9 @@ def test_rewrite_that_changes_the_frame_is_refused():
     with pytest.raises(CausalValueError) as caught:
         identity.check()
     assert caught.value.axis == "population"
-    _native.FrameRewrite.column_filter_pushdown(frame, frame, "declared").check()
+    _native.FrameRewrite.column_filter_pushdown(frame, frame, "declared").with_matching_frame(
+        ["row-1"], ["fold-1"], "population", "history"
+    ).check()
     with pytest.raises(CausalValueError, match="unknown pushdown effect"):
         _native.FrameRewrite.column_filter_pushdown(frame, frame, "not_an_effect")
 
@@ -73,25 +75,33 @@ def test_rewrite_that_changes_the_frame_is_refused():
     with pytest.raises(CausalValueError) as caught:
         mixes.check()
     assert caught.value.axis == "population"
-    _native.FrameRewrite.shared_row_design_preparation(frame, frame, frame, "shared").check()
+    _native.FrameRewrite.shared_row_design_preparation(
+        frame, frame, frame, "shared"
+    ).with_matching_frame(["row-1"], ["fold-1"], "population", "history").check()
 
     other_history = _native.FrameRewrite.nuisance_reuse(frame, frame, "fit_on_other_history")
     with pytest.raises(CausalValueError) as caught:
         other_history.check()
     assert caught.value.axis == "history"
-    _native.FrameRewrite.nuisance_reuse(frame, frame, "certified").check()
+    _native.FrameRewrite.nuisance_reuse(frame, frame, "certified").with_matching_frame(
+        ["row-1"], ["fold-1"], "population", "history"
+    ).check()
 
     dropped = _native.FrameRewrite.sufficient_statistics(frame, frame, "drops_sampling_law")
     with pytest.raises(CausalValueError) as caught:
         dropped.check()
     assert caught.value.axis == "uncertainty"
-    _native.FrameRewrite.sufficient_statistics(frame, frame, "sufficient").check()
+    _native.FrameRewrite.sufficient_statistics(frame, frame, "sufficient").with_matching_frame(
+        ["row-1"], ["fold-1"], "population", "history"
+    ).check()
 
     draws = _native.FrameRewrite.tiled_evaluation(frame, frame, "drops_failed_draws")
     with pytest.raises(CausalValueError) as caught:
         draws.check()
     assert caught.value.axis == "uncertainty"
-    _native.FrameRewrite.tiled_evaluation(frame, frame, "faithful").check()
+    _native.FrameRewrite.tiled_evaluation(frame, frame, "faithful").with_matching_frame(
+        ["row-1"], ["fold-1"], "population", "history"
+    ).check()
 
 
 def test_interval_is_not_a_bayesian_law_and_covariance_needs_the_four_fields():
@@ -112,8 +122,8 @@ def test_interval_is_not_a_bayesian_law_and_covariance_needs_the_four_fields():
         interval.as_bayesian_likelihood()
 
     with pytest.raises(CausalValueError):
-        _native.FrequentistSummary.estimate_covariance(" ")
-    summary = _native.FrequentistSummary.estimate_covariance("ate")
+        _native.FrequentistSummary.estimate_covariance(" ", 1.0, 1.0)
+    summary = _native.FrequentistSummary.estimate_covariance("ate", 1.5, 0.04)
     with pytest.raises(CausalValueError):
         _native.SummaryObservationModel.try_adapt(
             summary,

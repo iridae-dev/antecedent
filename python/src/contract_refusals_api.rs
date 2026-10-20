@@ -12,9 +12,9 @@ use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
 use antecedent_contract::rewrite_legality::{
-    ColumnFilterPushdown, NuisanceEffect, NuisanceReuse, PreparationEffect, PreservationAxis,
-    PreservedIdentities, PushdownEffect, RewriteKind, RewriteRefusal, SharedRowDesignPreparation,
-    SufficientStatistics, SummaryEffect, TileEffect, TiledEvaluation,
+    ColumnFilterPushdown, FrameContents, NuisanceEffect, NuisanceReuse, PreparationEffect,
+    PreservationAxis, PreservedIdentities, PushdownEffect, RewriteKind, RewriteRefusal,
+    SharedRowDesignPreparation, SufficientStatistics, SummaryEffect, TileEffect, TiledEvaluation,
 };
 use antecedent_contract::summary_observation::{
     Dependence, FrequentistSummary, LikelihoodUpdateAdmission, Origin, SamplingApproximation,
@@ -559,6 +559,40 @@ impl PyFrameRewrite {
         self.inner.name()
     }
 
+    /// Bind one frame's selected rows, folds, population, and history to every side.
+    ///
+    /// `check` compares those contents. Matching identity strings are not enough.
+    fn with_matching_frame(
+        &self,
+        row_ids: Vec<String>,
+        fold_ids: Vec<String>,
+        population: &str,
+        history: &str,
+    ) -> PyResult<Self> {
+        let rows: Vec<&str> = row_ids.iter().map(String::as_str).collect();
+        let folds: Vec<&str> = fold_ids.iter().map(String::as_str).collect();
+        let frame =
+            FrameContents::try_new(&rows, &folds, population, history).map_err(rewrite_err)?;
+        let inner = match &self.inner {
+            HeldRewrite::Pushdown(rewrite) => {
+                HeldRewrite::Pushdown(Box::new(rewrite.clone().with_frames(&frame, &frame)))
+            }
+            HeldRewrite::Preparation(rewrite) => HeldRewrite::Preparation(Box::new(
+                rewrite.clone().with_frames(&frame, &frame, &frame),
+            )),
+            HeldRewrite::Nuisance(rewrite) => {
+                HeldRewrite::Nuisance(Box::new(rewrite.clone().with_frames(&frame, &frame)))
+            }
+            HeldRewrite::Statistics(rewrite) => {
+                HeldRewrite::Statistics(Box::new(rewrite.clone().with_frames(&frame, &frame)))
+            }
+            HeldRewrite::Tile(rewrite) => {
+                HeldRewrite::Tile(Box::new(rewrite.clone().with_frames(&frame, &frame)))
+            }
+        };
+        Ok(Self { inner })
+    }
+
     /// Admit this rewrite, or raise. Does not execute the rewrite.
     fn check(&self) -> PyResult<()> {
         self.inner.check().map_err(rewrite_err)
@@ -573,8 +607,13 @@ struct PyFrequentistSummary {
 #[pymethods]
 impl PyFrequentistSummary {
     #[classmethod]
-    fn estimate_covariance(_cls: &Bound<'_, PyType>, name: &str) -> PyResult<Self> {
-        FrequentistSummary::estimate_covariance(name)
+    fn estimate_covariance(
+        _cls: &Bound<'_, PyType>,
+        name: &str,
+        estimate: f64,
+        covariance: f64,
+    ) -> PyResult<Self> {
+        FrequentistSummary::estimate_covariance(name, estimate, covariance)
             .map(|inner| Self { inner })
             .map_err(summary_err)
     }
@@ -811,7 +850,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use antecedent_contract::rewrite_legality::PreservationAxis;
+    use antecedent_contract::rewrite_legality::{FrameContents, PreservationAxis};
     use antecedent_contract::summary_observation::{
         FrequentistSummary, FrequentistSummaryKind, SummaryNextAttempt, SummaryUse,
     };
@@ -825,6 +864,10 @@ mod tests {
         preparation_effect, pushdown_effect, read_feature, read_package, statistics_effect,
         tile_effect,
     };
+
+    fn frame_contents() -> FrameContents {
+        FrameContents::try_new(&["row-1"], &["fold-1"], "population", "history").expect("contents")
+    }
 
     fn frame() -> super::PreservedIdentities {
         super::PreservedIdentities::try_new(
@@ -889,7 +932,13 @@ mod tests {
             .check()
             .expect_err("identity");
         assert_eq!(refusal.axis(), PreservationAxis::Population);
-        assert!(ColumnFilterPushdown::new(frame.clone(), frame.clone(), declared).check().is_ok());
+        let same = frame_contents();
+        assert!(
+            ColumnFilterPushdown::new(frame.clone(), frame.clone(), declared)
+                .with_frames(&same, &same)
+                .check()
+                .is_ok()
+        );
         assert!(pushdown_effect("not_an_effect").is_none());
 
         let population = preparation_effect("mixes_populations").expect("preparation");
@@ -906,8 +955,10 @@ mod tests {
             PreservationAxis::Population,
         );
         let shared = preparation_effect("shared").expect("shared");
+        let same = frame_contents();
         assert!(
             SharedRowDesignPreparation::new(frame.clone(), frame.clone(), frame.clone(), shared)
+                .with_frames(&same, &same, &same)
                 .check()
                 .is_ok()
         );
@@ -921,7 +972,13 @@ mod tests {
             PreservationAxis::History,
         );
         let certified = nuisance_effect("certified").expect("certified");
-        assert!(NuisanceReuse::new(frame.clone(), frame.clone(), certified).check().is_ok());
+        let same = frame_contents();
+        assert!(
+            NuisanceReuse::new(frame.clone(), frame.clone(), certified)
+                .with_frames(&same, &same)
+                .check()
+                .is_ok()
+        );
 
         let uncertainty = statistics_effect("drops_sampling_law").expect("statistics");
         assert_eq!(
@@ -932,8 +989,12 @@ mod tests {
             PreservationAxis::Uncertainty,
         );
         let sufficient = statistics_effect("sufficient").expect("sufficient");
+        let same = frame_contents();
         assert!(
-            SufficientStatistics::new(frame.clone(), frame.clone(), sufficient).check().is_ok()
+            SufficientStatistics::new(frame.clone(), frame.clone(), sufficient)
+                .with_frames(&same, &same)
+                .check()
+                .is_ok()
         );
 
         let draws = tile_effect("drops_failed_draws").expect("tile");
@@ -945,7 +1006,13 @@ mod tests {
             PreservationAxis::Uncertainty,
         );
         let faithful = tile_effect("faithful").expect("faithful");
-        assert!(TiledEvaluation::new(frame.clone(), frame, faithful).check().is_ok());
+        let same = frame_contents();
+        assert!(
+            TiledEvaluation::new(frame.clone(), frame, faithful)
+                .with_frames(&same, &same)
+                .check()
+                .is_ok()
+        );
     }
 
     #[test]
@@ -965,8 +1032,9 @@ mod tests {
         assert_eq!(refusal.next_attempt(), Some(SummaryNextAttempt::ReportAsFrequentistInterval),);
         assert!(interval.as_bayesian_likelihood().message().contains("not a Bayesian law"));
 
-        assert!(FrequentistSummary::estimate_covariance(" ").is_err());
-        let summary = FrequentistSummary::estimate_covariance("ate").expect("estimate");
+        assert!(FrequentistSummary::estimate_covariance(" ", 1.0_f64, 1.0_f64).is_err());
+        let summary =
+            FrequentistSummary::estimate_covariance("ate", 1.5_f64, 0.04_f64).expect("estimate");
         assert!(
             adapt_summary(
                 summary.clone(),
