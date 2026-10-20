@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::standard_normal;
 
@@ -229,10 +230,27 @@ pub fn fit_laplace_glm(
     }
 
     let hess = workspace.neg_hessian[..ncols * ncols].to_vec();
+    // Separation is a model restriction. It is reported before a singular Hessian
+    // so that restriction is not relabeled as a computational failure.
+    if sep_map {
+        let mass = RouteMass::zero();
+        let mut route = vec![RouteNativeDiagnostic::model_restriction(mass)];
+        if !converged {
+            route.push(RouteNativeDiagnostic::convergence(RouteCheck::new(true, mass)));
+        }
+        return Err(ProbError::Route {
+            summary: "Laplace posterior refused: at least one observation is fitted within \
+                      1e-8 of certainty at the mode (possible separation), so the Gaussian \
+                      approximation is not a publication-grade posterior"
+                .into(),
+            diagnostics: route,
+        });
+    }
     // A Hessian that is not positive definite at the reported mode is not a
     // Laplace posterior: an indefinite "covariance" has no Gaussian to draw from.
-    let chol = cholesky_spd(&hess, ncols).map_err(|_| ProbError::MissingDiagnostics {
-        message: "negative Hessian not positive definite at mode".into(),
+    let chol = cholesky_spd(&hess, ncols).map_err(|_| ProbError::Route {
+        summary: "negative Hessian not positive definite at mode".into(),
+        diagnostics: vec![RouteNativeDiagnostic::computational_failure(RouteMass::zero())],
     })?;
     let condition = condition_from_chol(&chol, ncols);
     workspace.factor[..ncols * ncols].copy_from_slice(&chol);
@@ -249,7 +267,9 @@ pub fn fit_laplace_glm(
     );
 
     if let Some(message) = diagnostics.curvature_refusal() {
-        return Err(ProbError::MissingDiagnostics { message });
+        if let Some(error) = diagnostics.publication_error(message) {
+            return Err(error);
+        }
     }
 
     let map = workspace.beta[..ncols].to_vec();
@@ -401,7 +421,9 @@ fn fit_gaussian_laplace_known(
         vec![Arc::from("gaussian_laplace_known_sigma2")],
     );
     if let Some(message) = diagnostics.curvature_refusal() {
-        return Err(ProbError::MissingDiagnostics { message });
+        if let Some(error) = diagnostics.publication_error(message) {
+            return Err(error);
+        }
     }
     let draws_vals = sample_gaussian_mvn(&map, &cov, options.n_draws, options.seed, workspace)?;
     let draws = PosteriorDraws::from_column_major(
@@ -678,9 +700,18 @@ mod tests {
         let opts = BayesFitOptions { n_draws: 50, seed: 2, ..BayesFitOptions::default() };
         let err = fit_laplace_glm(BayesLikelihood::BernoulliLogit, design, &prior, &opts, &mut ws)
             .unwrap_err();
+        let records = err.route_diagnostics();
         assert!(
-            matches!(err, ProbError::MissingDiagnostics { .. }),
-            "separated logistic Laplace must not publish: {err:?}"
+            records.iter().any(|record| record.is_model_restriction()),
+            "separated logistic Laplace is a model restriction: {err:?}"
+        );
+        assert!(
+            records.iter().all(|record| !record.is_computational_failure()),
+            "separation is not a computational failure: {err:?}"
+        );
+        assert!(
+            records.iter().all(|record| !record.is_unsupported_inference()),
+            "separation is not unsupported inference: {err:?}"
         );
     }
 

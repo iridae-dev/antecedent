@@ -4,6 +4,77 @@
 //! are inputs, not nuisance models fitted or verified by this kernel.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
+
+/// A regime-kernel refusal.
+///
+/// Positivity and censoring failures carry a route record. Another message does
+/// not, so it is not relabeled as one of those checks.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegimeKernelError {
+    message: &'static str,
+    route: Option<RouteNativeDiagnostic>,
+}
+
+impl RegimeKernelError {
+    /// Classify `message`.
+    ///
+    /// The positivity and censoring refusals are matched in full. Any other
+    /// message stays unclassified.
+    #[must_use = "an unclassified message is dropped if the error is discarded"]
+    pub fn from_message(message: &'static str) -> Self {
+        let failed = RouteCheck::new(true, RouteMass::zero());
+        let route = match message {
+            "sequential treatment positivity is violated at the declared probability floor"
+            | "sequential treatment positivity fails at the declared floor"
+            | "sequential treatment positivity is violated" => {
+                Some(RouteNativeDiagnostic::positivity(failed))
+            }
+            "sequential censoring positivity is violated at the declared probability floor"
+            | "sequential censoring positivity fails at the declared floor"
+            | "sequential censoring positivity is violated" => {
+                Some(RouteNativeDiagnostic::censoring(failed))
+            }
+            _ => None,
+        };
+        Self { message, route }
+    }
+
+    /// Refusal text.
+    #[must_use]
+    pub const fn message(self) -> &'static str {
+        self.message
+    }
+
+    /// Route record, when this refusal is a positivity or censoring check.
+    #[must_use = "a failed positivity or censoring check is dropped if the record is discarded"]
+    pub const fn route(self) -> Option<RouteNativeDiagnostic> {
+        self.route
+    }
+}
+
+impl std::fmt::Display for RegimeKernelError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.message)
+    }
+}
+
+impl std::error::Error for RegimeKernelError {}
+
+impl AsRef<str> for RegimeKernelError {
+    fn as_ref(&self) -> &str {
+        self.message
+    }
+}
+
+impl std::ops::Deref for RegimeKernelError {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        self.message
+    }
+}
+
 /// Subject-major longitudinal design shared by the regime-value kernels and the marginal
 /// structural model: the realized treatment and observation history with the supplied
 /// sequential probabilities and the positivity floor they are checked against.
@@ -77,7 +148,7 @@ pub fn evaluate_sequential_dr_value(
     outcomes: &[f64],
     histories: &SubjectHistories<'_>,
     sequential: &SequentialDrInputs<'_>,
-) -> Result<RegimeValueSummary, &'static str> {
+) -> Result<RegimeValueSummary, RegimeKernelError> {
     evaluate_sequential_dr_value_with_subject_scores(outcomes, histories, sequential)
         .map(|(summary, _)| summary)
 }
@@ -105,7 +176,8 @@ pub fn evaluate_sequential_dr_value_with_subject_scores(
     outcomes: &[f64],
     histories: &SubjectHistories<'_>,
     sequential: &SequentialDrInputs<'_>,
-) -> Result<(RegimeValueSummary, Vec<f64>), &'static str> {
+) -> Result<(RegimeValueSummary, Vec<f64>), RegimeKernelError> {
+    (|| -> Result<(RegimeValueSummary, Vec<f64>), &'static str> {
     let SubjectHistories {
         treatment,
         treatment_probability,
@@ -223,6 +295,8 @@ pub fn evaluate_sequential_dr_value_with_subject_scores(
         },
         scores,
     ))
+    })()
+    .map_err(RegimeKernelError::from_message)
 }
 
 /// Calibrated two- or three-period pointwise interval for a prespecified regime under
@@ -281,7 +355,8 @@ pub fn evaluate_g_formula_value(
     subjects: usize,
     periods: usize,
     minimum_probability: f64,
-) -> Result<RegimeValueSummary, &'static str> {
+) -> Result<RegimeValueSummary, RegimeKernelError> {
+    (|| -> Result<RegimeValueSummary, &'static str> {
     let cells = subjects.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
     if subjects == 0
         || periods == 0
@@ -329,6 +404,8 @@ pub fn evaluate_g_formula_value(
         minimum_censoring_probability,
         score_standard_error: None,
     })
+    })()
+    .map_err(RegimeKernelError::from_message)
 }
 
 /// Conditional-on-fixed-known-Q pointwise interval for a two-period g-formula
@@ -387,7 +464,8 @@ pub fn evaluate_regime_value(
     outcomes: &[f64],
     histories: &SubjectHistories<'_>,
     actions: &[bool],
-) -> Result<RegimeValueSummary, &'static str> {
+) -> Result<RegimeValueSummary, RegimeKernelError> {
+    (|| -> Result<RegimeValueSummary, &'static str> {
     let SubjectHistories {
         treatment,
         treatment_probability,
@@ -483,6 +561,8 @@ pub fn evaluate_regime_value(
         minimum_censoring_probability,
         score_standard_error,
     })
+    })()
+    .map_err(RegimeKernelError::from_message)
 }
 
 #[cfg(test)]
@@ -988,5 +1068,45 @@ mod tests {
             .unwrap_err()
             .contains("positivity")
         );
+    }
+
+    #[test]
+    fn treatment_and_censoring_floor_failures_are_different_checks() {
+        fn histories<'a>(
+            treatment_probability: &'a [f64],
+            censoring_probability: &'a [f64],
+        ) -> SubjectHistories<'a> {
+            SubjectHistories {
+                treatment: &[true, true],
+                treatment_probability,
+                outcome_observed: &[true],
+                censoring_probability,
+                periods: 2,
+                minimum_probability: 0.1,
+            }
+        }
+        let actions = [true, true];
+        let positivity = evaluate_regime_value(
+            &[1.0],
+            &histories(&[0.01, 0.5], &[1.0, 1.0]),
+            &actions,
+        )
+        .expect_err("treatment probability is below the floor");
+        let censoring = evaluate_regime_value(
+            &[1.0],
+            &histories(&[0.5, 0.5], &[0.01, 1.0]),
+            &actions,
+        )
+        .expect_err("censoring probability is below the floor");
+        let positivity = positivity.route().expect("positivity record");
+        let censoring = censoring.route().expect("censoring record");
+        assert!(positivity.failed());
+        assert!(censoring.failed());
+        assert_eq!(positivity.route_name(), "positivity");
+        assert_eq!(censoring.route_name(), "censoring");
+        assert_ne!(positivity, censoring);
+        assert!(!positivity.is_unsupported_inference());
+        assert!(!censoring.is_model_restriction());
+        assert!(!censoring.is_unsupported_inference());
     }
 }

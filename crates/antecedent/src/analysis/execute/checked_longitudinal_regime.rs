@@ -15,7 +15,7 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 use antecedent_estimate::longitudinal_regime::{
-    RegimeValueSummary, evaluate_g_formula_value, evaluate_regime_value,
+    RegimeKernelError, RegimeValueSummary, evaluate_g_formula_value, evaluate_regime_value,
     evaluate_sequential_dr_value_with_subject_scores, g_formula_fixed_q_pointwise_interval_95,
     sequential_dr_pointwise_interval_95,
 };
@@ -27,6 +27,18 @@ pub(crate) type CheckedLongitudinalRegimeOperation = RandomizedTrialOperation<
 >;
 
 mod bayesian_regime;
+
+fn kernel_refusal(error: RegimeKernelError) -> CausalError {
+    match error.route() {
+        Some(record) => CausalError::Estimate(antecedent_estimate::EstimationError::Prob(
+            antecedent_prob::ProbError::Route {
+                summary: error.message().to_owned(),
+                diagnostics: vec![record],
+            },
+        )),
+        None => CausalError::Unsupported { message: error.message() },
+    }
+}
 
 impl RandomizedTrialQuery for antecedent_core::LongitudinalRegimeQuery {
     const OPERATION: &'static str = "CheckedLongitudinalRegimeOperation";
@@ -175,13 +187,14 @@ impl CheckedLongitudinalRegimeOperation {
     fn sequential_dr_value(
         &self,
         outcome: &[f64],
-    ) -> Result<(RegimeValueSummary, Vec<f64>), &'static str> {
+    ) -> Result<(RegimeValueSummary, Vec<f64>), RegimeKernelError> {
         let (Some(observation_history), Some(q_predictions)) =
             (self.query.observation_history.as_deref(), self.query.q_predictions.as_deref())
         else {
-            return Err(
-                "sequential doubly robust regime value requires observation history and Q predictions",
-            );
+            return Err(RegimeKernelError::from_message(
+                "sequential doubly robust regime value requires observation history and Q \
+                 predictions",
+            ));
         };
         evaluate_sequential_dr_value_with_subject_scores(
             outcome,
@@ -269,7 +282,7 @@ impl CheckedLongitudinalRegimeOperation {
                     },
                 )?;
                 let fit = fit_binary_msm(outcome, &self.subject_histories(), numerators)
-                    .map_err(|message| CausalError::Unsupported { message })?;
+                    .map_err(kernel_refusal)?;
                 let (min_action, min_censor) = self.probability_floors();
                 let summary = RegimeValueSummary {
                     value: fit.intercept,
@@ -290,7 +303,7 @@ impl CheckedLongitudinalRegimeOperation {
                 )
             }
         };
-        let summary = summary.map_err(|message| CausalError::Unsupported { message })?;
+        let summary = summary.map_err(kernel_refusal)?;
         Ok(RegimeEstimation {
             summary,
             estimator_id,

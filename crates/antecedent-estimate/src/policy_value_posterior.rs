@@ -103,8 +103,15 @@ pub fn bayesian_sequential_regime_value(
     ctx: &ExecutionContext,
 ) -> Result<SequentialRegimeValuePosterior, EstimationError> {
     let (summary, scores) =
-        evaluate_sequential_dr_value_with_subject_scores(outcomes, histories, sequential)
-            .map_err(EstimationError::data_msg)?;
+        evaluate_sequential_dr_value_with_subject_scores(outcomes, histories, sequential).map_err(
+            |error| match error.route() {
+                Some(record) => EstimationError::Prob(antecedent_prob::ProbError::Route {
+                    summary: error.message().to_owned(),
+                    diagnostics: vec![record],
+                }),
+                None => EstimationError::data_msg(error.message()),
+            },
+        )?;
     let value =
         bayesian_bootstrap_score_posteriors(&[&scores], options, ctx)?
             .into_iter()
@@ -297,9 +304,54 @@ mod tests {
             q_predictions: &q,
         };
         let ctx = ExecutionContext::for_tests(25);
-        assert!(
+        let error =
             bayesian_sequential_regime_value(&[1.0], &histories, &sequential, options(), &ctx)
-                .is_err()
-        );
+                .expect_err("positivity is refused");
+        let EstimationError::Prob(antecedent_prob::ProbError::Route { diagnostics, .. }) = error
+        else {
+            panic!("positivity is a route record, not another error: {error}");
+        };
+        assert!(diagnostics.iter().any(|record| {
+            record.failed() && record.route_name() == "positivity"
+        }));
+        assert!(diagnostics.iter().all(|record| record.route_name() != "censoring"));
+        assert!(diagnostics.iter().all(|record| !record.is_unsupported_inference()));
+    }
+
+    #[test]
+    fn a_censoring_violation_is_not_relabeled_as_positivity() {
+        let treatment = [true, true];
+        let probability = [0.5; 2];
+        let censoring = [0.01; 2];
+        let observed = [true];
+        let actions = [true; 2];
+        let q = [1.0; 2];
+        let histories = SubjectHistories {
+            treatment: &treatment,
+            treatment_probability: &probability,
+            outcome_observed: &observed,
+            censoring_probability: &censoring,
+            periods: 2,
+            minimum_probability: 0.1,
+        };
+        let sequential = SequentialDrInputs {
+            actions: &actions,
+            observation_history: &[true; 2],
+            q_predictions: &q,
+        };
+        let ctx = ExecutionContext::for_tests(26);
+        let error =
+            bayesian_sequential_regime_value(&[1.0], &histories, &sequential, options(), &ctx)
+                .expect_err("censoring is refused");
+        let EstimationError::Prob(antecedent_prob::ProbError::Route { diagnostics, .. }) = error
+        else {
+            panic!("censoring is a route record, not another error: {error}");
+        };
+        assert!(diagnostics.iter().any(|record| {
+            record.failed() && record.route_name() == "censoring"
+        }));
+        assert!(diagnostics.iter().all(|record| record.route_name() != "positivity"));
+        assert!(diagnostics.iter().all(|record| !record.is_model_restriction()));
+        assert!(diagnostics.iter().all(|record| !record.is_unsupported_inference()));
     }
 }

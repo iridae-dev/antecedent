@@ -298,8 +298,14 @@ pub(super) fn envelope_mass_diagnostic(
     if posterior.subsampled_out_mass > 0.0 {
         message.push_str(&format!(", subsampled_out_mass={}", posterior.subsampled_out_mass));
     }
+    let mut fields = mass_fields(None, posterior.unidentified_mass);
+    if posterior.unevaluable_mass > 0.0 {
+        if let Ok(mass) = antecedent_core::diagnostic::RouteMass::new(posterior.unevaluable_mass) {
+            fields.push((Arc::from("unevaluable_mass_bits"), Arc::from(mass.bits().to_string())));
+        }
+    }
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
-        .with_fields(mass_fields(None, posterior.unidentified_mass))
+        .with_fields(fields)
 }
 
 /// Resolve the shared envelope prior from a prepared Bayesian problem.

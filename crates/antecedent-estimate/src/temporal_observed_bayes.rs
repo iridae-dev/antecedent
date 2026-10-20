@@ -791,11 +791,11 @@ pub fn estimate_observed_temporal_response(
     diagnostics.all_chains_moved =
         Some(antecedent_prob::all_chains_moved(&parameters, chains, per_chain, n_parameters));
     diagnostics.converged = diagnostics.mcmc_publication_ok();
-    if !diagnostics.allows_posterior() {
-        return Err(EstimationError::stats_msg(format!(
-            "observed temporal Gibbs publication gate: R-hat={}, bulk ESS={}, tail ESS={}",
-            summary.max_rhat, summary.min_bulk_ess, summary.min_tail_ess
-        )));
+    if let Some(error) = diagnostics.publication_error(format!(
+        "observed temporal Gibbs publication gate: R-hat={}, bulk ESS={}, tail ESS={}",
+        summary.max_rhat, summary.min_bulk_ess, summary.min_tail_ess
+    )) {
+        return Err(error.into());
     }
     let observation_independence = if matches!(query.observation, ObservationSpec::Selected { .. })
     {

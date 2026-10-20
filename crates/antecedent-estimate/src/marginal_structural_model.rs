@@ -1,7 +1,7 @@
 //! Additive binary marginal structural model with subject-level stabilized IPTW.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::longitudinal_regime::SubjectHistories;
+use crate::longitudinal_regime::{RegimeKernelError, SubjectHistories};
 use crate::util::dot;
 
 /// Point coefficients and pointwise subject-clustered CR1 sandwich errors.
@@ -74,7 +74,8 @@ pub fn fit_binary_msm(
     y: &[f64],
     histories: &SubjectHistories<'_>,
     numerator: &[f64],
-) -> Result<MsmSummary, &'static str> {
+) -> Result<MsmSummary, RegimeKernelError> {
+    (|| -> Result<MsmSummary, &'static str> {
     let SubjectHistories {
         treatment: a,
         treatment_probability: p,
@@ -205,6 +206,8 @@ pub fn fit_binary_msm(
         maximum_weight: max_weight,
         observed_subjects: included,
     })
+    })()
+    .map_err(RegimeKernelError::from_message)
 }
 
 fn matvec(a: &[Vec<f64>], b: &[f64]) -> Vec<f64> {

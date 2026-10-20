@@ -13,6 +13,7 @@
 
 use std::sync::Arc;
 
+use antecedent_core::diagnostic::{RouteMass, RouteNativeDiagnostic};
 use antecedent_core::{CausalRng, ExecutionContext};
 
 use crate::streams::chain_rng;
@@ -870,17 +871,20 @@ fn pack_and_gate_hmc(
         } else {
             String::new()
         };
-        return Err(ProbError::MissingDiagnostics {
-            message: format!(
-                "HMC posterior refused: rhat={:?} ess_bulk={:?} ess_tail={:?} postwarmup_div={:?} moved={:?} accept={:?}{scale_hint}",
-                diagnostics.rhat_max,
-                diagnostics.ess_bulk_min,
-                diagnostics.ess_tail_min,
-                diagnostics.n_postwarmup_divergences,
-                diagnostics.all_chains_moved,
-                diagnostics.mean_accept_prob
-            ),
-        });
+        let summary = format!(
+            "HMC posterior refused: rhat={:?} ess_bulk={:?} ess_tail={:?} \
+             postwarmup_div={:?} moved={:?} accept={:?}{scale_hint}",
+            diagnostics.rhat_max,
+            diagnostics.ess_bulk_min,
+            diagnostics.ess_tail_min,
+            diagnostics.n_postwarmup_divergences,
+            diagnostics.all_chains_moved,
+            diagnostics.mean_accept_prob
+        );
+        return Err(diagnostics.publication_error(summary.clone()).unwrap_or(ProbError::Route {
+            summary,
+            diagnostics: vec![RouteNativeDiagnostic::computational_failure(RouteMass::zero())],
+        }));
     }
 
     let schema = if include_sigma2 {

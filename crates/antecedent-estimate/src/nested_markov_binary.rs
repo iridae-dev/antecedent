@@ -89,6 +89,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::{EstimationError, ExactF64, RefusalFields};
+use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
 use antecedent_core::ExecutionContext;
 
 /// Observed-variable limit of the pilot.
@@ -602,16 +603,31 @@ pub struct NestedMarkovRefusal {
     pub error: EstimationError,
     /// Diagnostics retained from the failing fit, when any were measured.
     pub diagnostics: Option<FitDiagnostics>,
+    /// Route record for the check this refusal is, when it is one.
+    ///
+    /// A zero cell is positivity. A constraint residual above the caller limit
+    /// is constrained draws. Non-convergence is convergence. A boundary fit is
+    /// a model restriction. A law that is not normalized is a computational
+    /// failure. These are not substitutes for one another.
+    pub route: Option<RouteNativeDiagnostic>,
 }
 
 type Refusal = Box<NestedMarkovRefusal>;
 
 fn plain(error: EstimationError) -> Refusal {
-    Box::new(NestedMarkovRefusal { error, diagnostics: None })
+    Box::new(NestedMarkovRefusal { error, diagnostics: None, route: None })
 }
 
 fn with(error: EstimationError, diagnostics: &FitDiagnostics) -> Refusal {
-    Box::new(NestedMarkovRefusal { error, diagnostics: Some(diagnostics.clone()) })
+    Box::new(NestedMarkovRefusal { error, diagnostics: Some(diagnostics.clone()), route: None })
+}
+
+fn routed(
+    error: EstimationError,
+    diagnostics: Option<&FitDiagnostics>,
+    route: RouteNativeDiagnostic,
+) -> Refusal {
+    Box::new(NestedMarkovRefusal { error, diagnostics: diagnostics.cloned(), route: Some(route) })
 }
 
 /// A fitted nested-Markov model.
@@ -805,7 +821,15 @@ pub fn fit_nested_markov(
     }
     let n = counts.counts();
     if n.iter().any(|v| *v <= 0.0) {
-        return Err(plain(positivity("every regime cell count must be strictly positive")));
+        let nonpositive = n.iter().filter(|value| **value <= 0.0).count();
+        let fraction = f64::from(u16::try_from(nonpositive).unwrap_or(u16::MAX))
+            / f64::from(u16::try_from(n.len()).unwrap_or(u16::MAX));
+        let mass = RouteMass::new(fraction).unwrap_or(RouteMass::zero());
+        return Err(routed(
+            positivity("every regime cell count must be strictly positive"),
+            None,
+            RouteNativeDiagnostic::positivity(RouteCheck::new(true, mass)),
+        ));
     }
     let law = counts.empirical_law();
     let residuals = constraint_residuals(&law).map_err(plain)?;
@@ -831,7 +855,7 @@ pub fn fit_nested_markov(
     };
     if let Some(limit) = options.refuse_constraint_residual_above {
         if residuals.max_abs > limit {
-            return Err(with(
+            return Err(routed(
                 numerical(
                     "constraint_violated",
                     "the empirical law violates the nested-Markov equality constraints",
@@ -841,7 +865,8 @@ pub fn fit_nested_markov(
                         ..RefusalFields::default()
                     },
                 ),
-                &diag,
+                Some(&diag),
+                RouteNativeDiagnostic::constrained_draws(RouteCheck::new(true, RouteMass::zero())),
             ));
         }
     }
@@ -891,7 +916,7 @@ fn ascend(
         }
     }
     if !diag.converged {
-        return Err(with(
+        return Err(routed(
             numerical(
                 "fit_not_converged",
                 "the constrained fit did not converge within the iteration bound",
@@ -901,7 +926,8 @@ fn ascend(
                     ..RefusalFields::default()
                 },
             ),
-            diag,
+            Some(diag),
+            RouteNativeDiagnostic::convergence(RouteCheck::new(true, RouteMass::zero())),
         ));
     }
     let (a, c) = closed_form_blocks(counts.counts(), counts.total());
@@ -926,7 +952,7 @@ fn finish(
     diag.model_log_likelihood = Some(ll);
     diag.deviance = Some(2.0 * (diag.saturated_log_likelihood - ll));
     if !check.normalized || !check.positive || !ll.is_finite() {
-        return Err(with(
+        return Err(routed(
             numerical(
                 "not_normalized",
                 "the fitted likelihood is not a normalized positive law",
@@ -936,14 +962,15 @@ fn finish(
                     ..RefusalFields::default()
                 },
             ),
-            &diag,
+            Some(&diag),
+            RouteNativeDiagnostic::computational_failure(RouteMass::zero()),
         ));
     }
     let (margin, count) = boundary_stats(&parameters, &cells);
     diag.boundary_margin = Some(margin);
     diag.boundary_count = Some(count);
     if count > 0 {
-        return Err(with(
+        return Err(routed(
             numerical(
                 "fitted_boundary",
                 "a fitted probability is within 1e-9 of 0 or 1",
@@ -955,7 +982,8 @@ fn finish(
                     ..RefusalFields::default()
                 },
             ),
-            &diag,
+            Some(&diag),
+            RouteNativeDiagnostic::model_restriction(RouteMass::zero()),
         ));
     }
     Ok(NestedMarkovFit { parameters, cells, log_likelihood: ll, diagnostics: diag })

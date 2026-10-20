@@ -7,6 +7,7 @@
     reason = "binary levels and tiny fixed enumerations"
 )]
 
+use antecedent_core::diagnostic::RouteNativeDiagnostic;
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::nested_markov_binary::{
@@ -210,6 +211,12 @@ fn nested_likelihood_truth_model_and_plugin_are_distinct_when_constraint_fails()
     assert_eq!(code, "transport_numerical_failure");
     assert!(message.contains("nested_markov.constraint_violated"));
     assert!(refusal.diagnostics.is_some());
+    let route = refusal.route.expect("constrained-draw record");
+    assert!(route.failed());
+    assert_eq!(route.route_name(), "constrained_draws");
+    assert!(!matches!(route, RouteNativeDiagnostic::Convergence(_)));
+    assert!(!route.is_computational_failure());
+    assert!(!route.is_model_restriction());
 }
 
 #[test]
@@ -285,6 +292,12 @@ fn nested_fit_diagnostics_boundary_refuses_with_retained_diagnostics() {
     assert!(d.normalization.is_some_and(|n| n.normalized));
     let fields = refusal.error.refusal_fields().expect("structured fields");
     assert!(fields.boundary_count.is_some_and(|c| c > 0));
+    let route = refusal.route.expect("model restriction");
+    assert!(route.is_model_restriction());
+    assert!(!route.failed());
+    assert!(!matches!(route, RouteNativeDiagnostic::Convergence(_)));
+    assert!(!route.is_computational_failure());
+    assert!(!route.is_unsupported_inference());
 }
 
 #[test]
@@ -302,6 +315,11 @@ fn nested_fit_diagnostics_non_convergence_is_typed_and_keeps_state() {
     assert_eq!(d.method, FitMethod::CoordinateAscent);
     assert!(d.final_change.is_some_and(|c| c > options.tolerance));
     assert_eq!(d.constraint_status, ConstraintStatus::ViolatedByData);
+    let route = refusal.route.expect("convergence record");
+    assert!(route.failed());
+    assert_eq!(route.route_name(), "convergence");
+    assert!(!matches!(route, RouteNativeDiagnostic::ConstrainedDraws(_)));
+    assert!(!route.is_computational_failure());
 }
 
 #[test]
@@ -331,6 +349,12 @@ fn nested_fit_diagnostics_bounds_cancellation_and_positivity() {
     let (code, message) = coded(&refusal.error);
     assert_eq!(code, "transport_support_failure");
     assert!(message.contains("nested_markov.positivity"));
+    let route = refusal.route.expect("positivity record");
+    assert!(route.failed());
+    assert_eq!(route.route_name(), "positivity");
+    assert!(!route.is_computational_failure());
+    assert!(!route.is_unsupported_inference());
+    assert!(route.unevaluable_mass().get() > 0.0);
 
     let negative = BinaryCells::new(&[-1.0; 16]).expect_err("negative counts");
     assert_eq!(coded(&negative).0, "invalid_argument");

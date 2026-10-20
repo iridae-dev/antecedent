@@ -490,6 +490,26 @@ pub enum SamplingDesignError {
     },
 }
 
+impl SamplingDesignError {
+    /// Route record when a dependent series was resampled by a rule that drops
+    /// its dependence.
+    ///
+    /// Another failed attempt is not this check.
+    #[must_use = "a failed dependent-resampling check is dropped if the record is discarded"]
+    pub const fn route_diagnostic(self) -> Option<crate::diagnostic::RouteNativeDiagnostic> {
+        match self {
+            Self::FailedAttempt {
+                design: SamplingDesign::DependentTimeSeries,
+                attempted: AttemptedRule::Resampling(_),
+                ..
+            } => Some(crate::diagnostic::RouteNativeDiagnostic::dependent_resampling(
+                crate::diagnostic::RouteCheck::new(true, crate::diagnostic::RouteMass::zero()),
+            )),
+            _ => None,
+        }
+    }
+}
+
 /// Checked resampling for one design.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct BoundResampling {
@@ -809,6 +829,18 @@ mod tests {
         assert_eq!(rules.variance(), VarianceRule::DependencePreserving);
         assert_eq!(rules.effective_sample_size(), &[EffectiveSampleSizeRule::DeclaredSeriesAware]);
 
+        let refused = design.apply_resampling(ResamplingRule::RowSubjectIid).expect_err(
+            "a dependent series does not resample subjects independently",
+        );
+        let record = refused.route_diagnostic().expect("dependent resampling record");
+        assert!(record.failed());
+        assert_eq!(record.route_name(), "dependent_resampling");
+        assert!(!record.is_unsupported_inference());
+        assert!(!record.is_computational_failure());
+        let cluster_split = design.apply_splitting(SplittingRule::WholeCluster).expect_err(
+            "a dependent series does not split by cluster",
+        );
+        assert!(cluster_split.route_diagnostic().is_none());
         let resampled = design
             .apply_resampling(ResamplingRule::ContiguousBlock)
             .expect("a series resamples contiguous blocks");

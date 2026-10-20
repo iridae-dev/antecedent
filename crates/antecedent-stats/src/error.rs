@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::diagnostic::RouteNativeDiagnostic;
 use thiserror::Error;
 
 /// Why a GLM fit was refused by an estimation path ([`crate::GlmFit::require_ok`]).
@@ -97,6 +98,14 @@ pub enum StatsError {
         /// Full rendered message.
         rendered: &'static str,
     },
+    /// A route check failed. `message` is the refusal text; `diagnostic` is the record.
+    #[error("{message}")]
+    Route {
+        /// Refusal text.
+        message: &'static str,
+        /// The route record. A failed check is not an unsupported option.
+        diagnostic: RouteNativeDiagnostic,
+    },
 }
 
 impl StatsError {
@@ -107,6 +116,15 @@ impl StatsError {
             Self::GlmRefused { boundary_margin_bits, .. } => {
                 boundary_margin_bits.map(f64::from_bits)
             }
+            _ => None,
+        }
+    }
+
+    /// Route record on this error, when it is a route outcome.
+    #[must_use = "a failed route check is dropped if the record is discarded"]
+    pub const fn route_diagnostic(&self) -> Option<RouteNativeDiagnostic> {
+        match self {
+            Self::Route { diagnostic, .. } => Some(*diagnostic),
             _ => None,
         }
     }

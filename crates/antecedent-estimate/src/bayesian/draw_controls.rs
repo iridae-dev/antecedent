@@ -14,6 +14,7 @@
 
 use std::sync::Arc;
 
+use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
 use antecedent_prob::HessianFactorization;
 
 use super::{BayesianBackendKind, CausalPosterior, HMC_MIN_DRAWS};
@@ -64,6 +65,20 @@ impl EndpointMonteCarloError {
     #[must_use]
     pub fn exceeds_tolerance(&self) -> bool {
         self.width_fraction.is_nan() || self.width_fraction > MAX_ENDPOINT_MCSE_FRACTION
+    }
+
+    /// Route record when this error is above the tolerance.
+    ///
+    /// `None` when the endpoints are within tolerance. A failure is a Monte
+    /// Carlo error check, not a convergence check. `unevaluable_mass` is kept
+    /// when it is a finite mass in `[0, 1]`.
+    #[must_use = "a failed Monte Carlo check is dropped if the record is discarded"]
+    pub fn route_record(&self, unevaluable_mass: f64) -> Option<RouteNativeDiagnostic> {
+        if !self.exceeds_tolerance() {
+            return None;
+        }
+        let mass = RouteMass::new(unevaluable_mass).unwrap_or_else(|_| RouteMass::zero());
+        Some(RouteNativeDiagnostic::monte_carlo_error(RouteCheck::new(true, mass)))
     }
 
     /// The inference-diagnostics note that records these errors with the posterior.
@@ -142,4 +157,67 @@ pub fn endpoint_monte_carlo_error(
         upper_mcse,
         width_fraction: endpoint_mcse_width_fraction(lower_mcse, upper_mcse, upper - lower),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{AssumptionSet, IdentificationStatus};
+    use antecedent_prob::{
+        InferenceDiagnostics, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema,
+    };
+
+    use super::{EndpointMonteCarloError, endpoint_monte_carlo_error};
+    use crate::CausalPosterior;
+    use antecedent_core::diagnostic::RouteNativeDiagnostic;
+
+    #[test]
+    fn an_endpoint_error_above_tolerance_is_monte_carlo_error_not_convergence() {
+        let error = EndpointMonteCarloError {
+            draws: 4,
+            effective_draws: 4.0,
+            lower_mcse: 1.0,
+            upper_mcse: 1.0,
+            width_fraction: 1.0,
+        };
+        let record = error.route_record(0.25).expect("the check failed");
+        assert!(record.failed());
+        assert_eq!(record.route_name(), "monte_carlo_error");
+        assert_eq!(record.unevaluable_mass().get().to_bits(), 0.25_f64.to_bits());
+        assert!(!matches!(record, RouteNativeDiagnostic::Convergence(_)));
+        assert!(!record.is_model_restriction());
+        assert!(!record.is_unsupported_inference());
+        assert!(error.route_record(f64::NAN).is_some_and(|record| record.failed()));
+    }
+
+    #[test]
+    fn a_posterior_whose_endpoints_are_not_set_by_the_posterior_fails_monte_carlo_error() {
+        let schema = PosteriorSchema {
+            quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("effect") }]),
+        };
+        let draws =
+            PosteriorDraws::from_column_major(schema, 2, vec![0.0, 1.0]).expect("two draws");
+        let summaries = draws.summarize();
+        let posterior = CausalPosterior {
+            subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.25,
+            draws,
+            summaries,
+            identification: IdentificationStatus::NonparametricallyIdentified,
+            prior_sensitivity: None,
+            conflict_summary: None,
+            diagnostics: InferenceDiagnostics::analytic("endpoint"),
+            assumptions: AssumptionSet::new(),
+            unidentified_mass: 0.0,
+            early_stopped: false,
+            treatment_contrast: None,
+        };
+        let error = endpoint_monte_carlo_error(&posterior).expect("endpoint error");
+        let record = error.route_record(posterior.unevaluable_mass).expect("failed check");
+        assert_eq!(record.route_name(), "monte_carlo_error");
+        assert!(record.failed());
+        assert_eq!(record.unevaluable_mass().get().to_bits(), 0.25_f64.to_bits());
+        assert!(!matches!(record, RouteNativeDiagnostic::Convergence(_)));
+    }
 }

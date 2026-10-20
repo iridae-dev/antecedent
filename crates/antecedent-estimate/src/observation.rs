@@ -12,6 +12,7 @@
 
 use std::sync::Arc;
 
+use antecedent_core::diagnostic::{RouteMass, RouteNativeDiagnostic};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticScope,
@@ -523,14 +524,17 @@ impl ObservationMechanismEstimator {
             ));
         }
         if let Some(tau) = adjusted.tail_restriction {
-            response.support.warnings.push(Diagnostic::new(
-                "response.observation_censoring_tail_unidentified",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                format!(
-                    "the censoring survival reaches the positivity floor at {tau}; every unit still at risk there was censored, so no event beyond that boundary is observable and the published mean is the restricted mean of the outcome up to it, not the unrestricted mean"
-                ),
-            ));
+            response.support.warnings.push(
+                Diagnostic::new(
+                    "response.observation_censoring_tail_unidentified",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    format!(
+                        "the censoring survival reaches the positivity floor at {tau}; every unit still at risk there was censored, so no event beyond that boundary is observable and the published mean is the restricted mean of the outcome up to it, not the unrestricted mean"
+                    ),
+                )
+                .with_route(RouteNativeDiagnostic::model_restriction(RouteMass::zero())),
+            );
         }
         Ok(response)
     }

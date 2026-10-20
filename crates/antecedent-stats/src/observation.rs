@@ -10,6 +10,7 @@
     )
 )]
 
+use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
 use antecedent_kernels::{log_norm_pdf, log_norm_sf, norm_cdf};
 
 use crate::{
@@ -234,13 +235,21 @@ pub fn kaplan_meier_ipcw(
             // IPCW is G(L−)/G(T−). Without entry, G(L−)=1 and this collapses to 1/G(T−).
             let at_entry = entry.map_or(1.0, |values| survival_before(values[i]));
             if at_event < survival_floor || at_entry < survival_floor {
-                return Err(StatsError::Unsupported {
+                return Err(StatsError::Route {
                     message: "censoring survival is below the configured positivity floor",
+                    diagnostic: RouteNativeDiagnostic::censoring(RouteCheck::new(
+                        true,
+                        RouteMass::zero(),
+                    )),
                 });
             }
             if at_event <= 0.0 {
-                return Err(StatsError::Unsupported {
+                return Err(StatsError::Route {
                     message: "censoring survival at the event time is non-positive",
+                    diagnostic: RouteNativeDiagnostic::censoring(RouteCheck::new(
+                        true,
+                        RouteMass::zero(),
+                    )),
                 });
             }
             Ok(at_entry / at_event)
@@ -535,6 +544,23 @@ mod tests {
         let fit =
             kaplan_meier_ipcw(&[1.0, 2.0, 3.0, 4.0], &[0.0, 1.0, 0.0, 1.0], None, 0.1).unwrap();
         assert_eq!(fit.tail_restriction, None);
+    }
+
+    #[test]
+    fn censoring_survival_below_the_floor_is_a_failed_censoring_check() {
+        let err = kaplan_meier_ipcw(&[1.0, 2.0, 3.0], &[0.0, 1.0, 1.0], None, 0.9).unwrap_err();
+        let record = err.route_diagnostic().expect("censoring record");
+        assert!(record.failed());
+        assert_eq!(record.route_name(), "censoring");
+        assert!(!record.is_model_restriction());
+        assert!(!record.is_unsupported_inference());
+        assert!(!matches!(err, StatsError::Unsupported { .. }));
+    }
+
+    #[test]
+    fn an_administrative_censoring_boundary_is_not_a_failed_censoring_check() {
+        let fit = kaplan_meier_ipcw(&[1.0, 2.0, 3.0], &[1.0, 1.0, 0.0], None, 0.1).unwrap();
+        assert_eq!(fit.tail_restriction, Some(3.0));
     }
 
     #[test]

@@ -235,6 +235,7 @@ impl BayesianGComputationAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
+        let data = crate::prepare::admit_estimator_columns(data, &ids)?;
         let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
@@ -292,6 +293,7 @@ impl BayesianGComputationAte {
         let mut ids = vec![q.treatment, q.outcome];
         ids.extend_from_slice(&q.effect_modifiers);
         ids.extend_from_slice(&estimand.adjustment_set);
+        let data = crate::prepare::admit_estimator_columns(data, &ids)?;
         let mask = data.complete_case_mask(&ids)?;
         let t = data.float64_masked(q.treatment, &mask)?;
         let y = data.float64_masked(q.outcome, &mask)?;
@@ -449,8 +451,10 @@ impl BayesianGComputationAte {
             BackendInputs { likelihood, design: design_ref, prior: &prior, opts, max_draws }
                 .fit(self.backend, workspace, ctx)
                 .map_err(prob_err)?;
-        if !fit.diagnostics.allows_posterior() {
-            return Err(EstimationError::stats_msg("Bayesian fit refused without diagnostics"));
+        if let Some(error) = fit.diagnostics.publication_error(
+            "Bayesian fit refused without diagnostics",
+        ) {
+            return Err(error.into());
         }
         fit.diagnostics.notes.extend(extra_notes);
 

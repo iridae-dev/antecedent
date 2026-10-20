@@ -20,6 +20,7 @@ use antecedent::{
     BayesianConfig, CausalError, InferenceMode, PosteriorDrawControls, RefuteSuite, Study,
     StudyResult,
 };
+use antecedent_core::diagnostic::RouteNativeDiagnostic;
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION;
@@ -248,10 +249,25 @@ fn a_sampler_that_mixes_poorly_is_refused_naming_the_chain_diagnostics() {
     // sizes it measured rather than publishing an interval the draws, not the posterior, set.
     let hmc =
         build(data.clone(), graph(), controlled(BayesianConfig::hmc().n_draws(3000))).unwrap();
-    let message = hmc.run(&ctx).expect_err("poor mixing is refused").to_string();
-    assert!(message.contains("reason=posterior_draws_not_converged"), "{message}");
+    let error = hmc.run(&ctx).expect_err("poor mixing is refused");
+    let message = error.to_string();
     assert!(message.contains("rhat="), "{message}");
     assert!(message.contains("ess_bulk=") && message.contains("ess_tail="), "{message}");
+    let records = error.route_diagnostics();
+    assert!(
+        records.iter().any(|record| record.failed() && record.route_name() == "r_hat"),
+        "{records:?} {message}"
+    );
+    assert!(
+        records.iter().any(|record| record.failed() && record.route_name() == "posterior_ess"),
+        "{records:?} {message}"
+    );
+    assert!(
+        records.iter().any(|record| !matches!(record, RouteNativeDiagnostic::Convergence(_))),
+        "poor mixing is not only a convergence failure: {records:?}"
+    );
+    assert!(records.iter().all(|record| !record.is_model_restriction()), "{records:?}");
+    assert!(records.iter().all(|record| !record.is_unsupported_inference()), "{records:?}");
 
     // The same data are no obstacle to an exact sampler, whose independent draws pass the
     // control: the refusal is about mixing, not the design.

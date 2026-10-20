@@ -698,6 +698,24 @@ impl CausalError {
         antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
     }
 
+    /// Route records carried by this error.
+    ///
+    /// A failed check is included. Model restriction, computational failure, and
+    /// unsupported inference stay the records they are. Empty when this error
+    /// is not a route outcome.
+    #[must_use = "a failed route check is dropped if the records are discarded"]
+    pub fn route_diagnostics(&self) -> Vec<antecedent_core::diagnostic::RouteNativeDiagnostic> {
+        match self.peeled() {
+            Self::Estimate(EstimationError::Prob(ProbError::Route { diagnostics, .. })) => {
+                diagnostics.clone()
+            }
+            Self::Estimate(EstimationError::Stats(StatsError::Route { diagnostic, .. })) => {
+                vec![*diagnostic]
+            }
+            _ => Vec::new(),
+        }
+    }
+
     /// Structured diagnostics (failing treatment or cell, stage, arm ESS, rank, implicated
     /// columns, remedy) of a refusal built with them. Additive: `None` for every other
     /// error, and absent entries inside stay absent rather than being derived.

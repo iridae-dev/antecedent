@@ -1024,21 +1024,18 @@ fn dbn_bayesian_diagnostics(
     diagnostics
 }
 
-/// Under draw controls the MCMC publication gate refusing a fit is the convergence control
-/// failing, so it carries that reason code; every other fit error is unchanged.
+/// A fit refused under draw controls keeps the route records the sampler measured.
+///
+/// R-hat, posterior effective sample size, convergence, and a computational
+/// failure stay the records they are. This does not rewrite them as one
+/// convergence reason.
 pub(super) fn chain_refusal_under_draw_controls(
     controlled: bool,
     cfg: &crate::BayesianConfig,
     error: antecedent_estimate::EstimationError,
 ) -> CausalError {
-    match error {
-        antecedent_estimate::EstimationError::Prob(
-            antecedent_prob::ProbError::MissingDiagnostics { message },
-        ) if controlled && cfg.backend == antecedent_estimate::BayesianBackendKind::Hmc => {
-            crate::compile_reason!("posterior_draws_not_converged", "{message}")
-        }
-        other => CausalError::from(other),
-    }
+    let _ = (controlled, cfg.backend);
+    CausalError::from(error)
 }
 
 /// Refuse a posterior whose interval endpoints are not set by the posterior: the Monte Carlo
@@ -1046,19 +1043,24 @@ pub(super) fn chain_refusal_under_draw_controls(
 /// The endpoint errors are recorded with the posterior's inference diagnostics.
 pub(super) fn enforce_draw_controls(posterior: &mut CausalPosterior) -> Result<(), CausalError> {
     let error = antecedent_estimate::endpoint_monte_carlo_error(posterior)?;
-    if error.exceeds_tolerance() {
-        return Err(crate::compile_reason!(
-            "posterior_draws_not_converged",
-            "the Monte Carlo standard error of an interval endpoint ({:.3e} lower, {:.3e} upper) \
-             is {:.3} of the interval width from {:.0} effective draws of {}, above the {} \
-             tolerance; use more posterior draws or a sampler that mixes better",
-            error.lower_mcse,
-            error.upper_mcse,
-            error.width_fraction,
-            error.effective_draws,
-            error.draws,
-            antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION
-        ));
+    if let Some(record) = error.route_record(posterior.unevaluable_mass) {
+        return Err(CausalError::Estimate(antecedent_estimate::EstimationError::Prob(
+            antecedent_prob::ProbError::Route {
+                summary: format!(
+                    "the Monte Carlo standard error of an interval endpoint ({:.3e} lower, \
+                     {:.3e} upper) is {:.3} of the interval width from {:.0} effective draws \
+                     of {}, above the {} tolerance; use more posterior draws or a sampler that \
+                     mixes better",
+                    error.lower_mcse,
+                    error.upper_mcse,
+                    error.width_fraction,
+                    error.effective_draws,
+                    error.draws,
+                    antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION
+                ),
+                diagnostics: vec![record],
+            },
+        )));
     }
     posterior.diagnostics.notes.push(error.note());
     Ok(())
@@ -1096,10 +1098,17 @@ impl super::Study {
         let cfg = match inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
-                return Err(CausalError::Unsupported {
-                    message: "execute_bayesian requires inference=Bayesian; \
-                              estimator bayesian.gcomp cannot run under Frequentist",
-                });
+                let unsupported =
+                    antecedent_core::diagnostic::RouteNativeDiagnostic::unsupported_inference;
+                let record = unsupported(antecedent_core::diagnostic::RouteMass::zero());
+                return Err(CausalError::Estimate(antecedent_estimate::EstimationError::Prob(
+                    antecedent_prob::ProbError::Route {
+                        summary: "execute_bayesian requires inference=Bayesian; \
+                                  estimator bayesian.gcomp cannot run under Frequentist"
+                            .into(),
+                        diagnostics: vec![record],
+                    },
+                )));
             }
         };
         let BayesianGcompPoint { est, prep, mut ws, posterior, estimate } = self

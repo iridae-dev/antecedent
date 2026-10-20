@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::diagnostic::RouteNativeDiagnostic;
 use thiserror::Error;
 
 /// Errors from prior construction, posterior storage, or inference backends.
@@ -48,4 +49,29 @@ pub enum ProbError {
         /// Human-readable context, led by the code.
         message: String,
     },
+    /// A route check failed, or the route reported model restriction,
+    /// computational failure, or unsupported inference.
+    ///
+    /// `diagnostics` is the record. `summary` is prose and is not parsed.
+    #[error("{summary}")]
+    Route {
+        /// What the route measured, for a human reader.
+        summary: String,
+        /// Route records, including a failed check when one failed.
+        diagnostics: Vec<RouteNativeDiagnostic>,
+    },
+}
+
+impl ProbError {
+    /// Route records on this error.
+    ///
+    /// Empty when this error is not a route outcome. A failed check in
+    /// [`Self::Route`] is included.
+    #[must_use = "a failed route check is dropped if the records are discarded"]
+    pub fn route_diagnostics(&self) -> &[RouteNativeDiagnostic] {
+        match self {
+            Self::Route { diagnostics, .. } => diagnostics,
+            _ => &[],
+        }
+    }
 }

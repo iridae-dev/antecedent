@@ -1,5 +1,7 @@
 //! Conditional censoring survival with a Cox model and Breslow ties.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
+
 use crate::{StatsError, chol_solve, cholesky_spd};
 
 /// Executed censoring-model fit. No outcome-regression uncertainty is implied.
@@ -249,9 +251,13 @@ pub fn cox_ipcw(
         let hazard = if before == 0 { 0.0 } else { cumulative_baseline[before - 1] };
         let survival = (-hazard * eta.exp()).exp();
         if !survival.is_finite() || (event[i] == 1.0 && survival < survival_floor) {
-            return Err(invalid(
-                "conditional censoring survival is below the configured positivity floor",
-            ));
+            return Err(StatsError::Route {
+                message: "conditional censoring survival is below the configured positivity floor",
+                diagnostic: RouteNativeDiagnostic::censoring(RouteCheck::new(
+                    true,
+                    RouteMass::zero(),
+                )),
+            });
         }
         survival_before.push(survival);
         weights.push(if event[i] == 1.0 { 1.0 / survival } else { 0.0 });
@@ -482,5 +488,23 @@ mod tests {
         assert!(cox_ipcw(&[1., 2., 3.], &[1., 0., 1.], &[1., 1., 1.], 1, 0.01).is_err());
         assert!(cox_ipcw(&[1., 2., 3.], &[1., 1., 1.], &[1., 2., 3.], 1, 0.01).is_err());
         assert!(cox_ipcw(&[1., 2., 3.], &[1., 2., 1.], &[1., 2., 3.], 1, 0.01).is_err());
+    }
+
+    #[test]
+    fn conditional_censoring_survival_below_the_floor_is_a_censoring_check() {
+        let err = cox_ipcw(
+            &[1.0, 2.0, 3.0, 4.0],
+            &[1.0, 0.0, 1.0, 1.0],
+            &[0.0, 1.0, 2.0, 3.0],
+            1,
+            0.99,
+        )
+        .unwrap_err();
+        let record = err.route_diagnostic().expect("censoring record");
+        assert!(record.failed());
+        assert_eq!(record.route_name(), "censoring");
+        assert!(!record.is_unsupported_inference());
+        assert!(!record.is_model_restriction());
+        assert!(!matches!(err, StatsError::Unsupported { .. }));
     }
 }
