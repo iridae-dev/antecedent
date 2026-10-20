@@ -56,6 +56,10 @@ use antecedent_estimate::categorical_treatment::{
     fit_categorical_from_robust_summary, fit_categorical_from_summary, fit_categorical_treatment,
     summarize_categorical_design, summarize_categorical_design_robust,
 };
+use antecedent_estimate::categorical_treatment_posterior::{
+    CATEGORICAL_POSTERIOR_ESTIMAND, CATEGORICAL_POSTERIOR_LIKELIHOOD, CategoricalPosteriorPrior,
+    CategoricalTreatmentPosterior, ContrastPosterior, posterior_categorical_from_summary,
+};
 use antecedent_estimate::vector_treatment::{
     DesignSummary, NamedColumn, RobustDesignSummary, VectorCovariance,
 };
@@ -403,6 +407,130 @@ impl CategoricalResultWire {
     }
 }
 
+/// The declared prior and credible level of the optional posterior section.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CategoricalPosteriorDeclaration {
+    /// Prior precision (relative to the error variance) of each level coefficient.
+    pub level_precision: f64,
+    /// Prior precision of the intercept and every adjustment coefficient.
+    pub nuisance_precision: f64,
+    /// Inverse-Gamma shape of the error variance.
+    pub variance_shape: f64,
+    /// Inverse-Gamma scale of the error variance.
+    pub variance_scale: f64,
+    /// Credible level in `(0, 1)` of every interval.
+    pub credible_level: f64,
+}
+
+/// Student-t posterior of one level or pairwise contrast, on the wire.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PosteriorContrastWire {
+    /// Baseline level.
+    pub from: String,
+    /// Compared level.
+    pub to: String,
+    /// Student-t location (the posterior mean).
+    pub location: f64,
+    /// Student-t scale.
+    pub scale: f64,
+    /// Student-t degrees of freedom.
+    pub degrees_of_freedom: f64,
+    /// Posterior mean.
+    pub mean: f64,
+    /// Posterior standard deviation; absent when the degrees of freedom are at most two.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub standard_deviation: Option<f64>,
+    /// Equal-tailed credible interval at the declared level.
+    pub interval: [f64; 2],
+    /// Posterior probability that the contrast is positive.
+    pub probability_positive: f64,
+}
+
+/// Posterior probability that every adjacent step moves in the declared direction, on the wire.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PosteriorMonotonicityWire {
+    /// `non_decreasing` or `non_increasing`.
+    pub direction: String,
+    /// Per-step marginal posterior probability of lying in the declared direction.
+    pub step_probabilities: Vec<f64>,
+    /// Lower (Bonferroni) bound of the joint probability.
+    pub lower_bound: f64,
+    /// Upper (Frechet) bound of the joint probability.
+    pub upper_bound: f64,
+}
+
+/// The optional posterior section: a Bayesian counterpart of the stored fit under a declared
+/// prior, recomputed from the stored design on consumption. Its estimand is the superpopulation
+/// dummy coefficient contrast of the stated linear model; it is unlicensed and its calibration is
+/// unmeasured.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CategoricalPosteriorWire {
+    /// The declared prior and level.
+    pub declaration: CategoricalPosteriorDeclaration,
+    /// The likelihood the posterior is exact under.
+    pub likelihood: String,
+    /// What the contrasts are the contrasts of.
+    pub estimand: String,
+    /// Always `unmeasured`.
+    pub calibration: String,
+    /// Always `false`: no support license covers the posterior.
+    pub licensed: bool,
+    /// Posterior Inverse-Gamma shape of the error variance.
+    pub variance_shape: f64,
+    /// Posterior Inverse-Gamma scale of the error variance.
+    pub variance_scale: f64,
+    /// Posterior mean of the dummy coefficients, non-reference levels in canonical order.
+    pub coefficient_means: Vec<f64>,
+    /// Per-level contrasts against the reference.
+    pub level_contrasts: Vec<PosteriorContrastWire>,
+    /// Requested pairwise contrasts, in request order.
+    pub pairwise: Vec<PosteriorContrastWire>,
+    /// Declared monotonicity statement, when requested.
+    pub monotonicity: Option<PosteriorMonotonicityWire>,
+}
+
+fn contrast_wire(c: &ContrastPosterior) -> PosteriorContrastWire {
+    PosteriorContrastWire {
+        from: c.from.clone(),
+        to: c.to.clone(),
+        location: c.posterior.location,
+        scale: c.posterior.scale,
+        degrees_of_freedom: c.posterior.degrees_of_freedom,
+        mean: c.mean,
+        standard_deviation: c.standard_deviation.is_finite().then_some(c.standard_deviation),
+        interval: c.interval,
+        probability_positive: c.probability_positive,
+    }
+}
+
+fn posterior_section(
+    declaration: &CategoricalPosteriorDeclaration,
+    posterior: &CategoricalTreatmentPosterior,
+) -> CategoricalPosteriorWire {
+    CategoricalPosteriorWire {
+        declaration: *declaration,
+        likelihood: CATEGORICAL_POSTERIOR_LIKELIHOOD.to_owned(),
+        estimand: CATEGORICAL_POSTERIOR_ESTIMAND.to_owned(),
+        calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
+        licensed: false,
+        variance_shape: posterior.variance_shape_and_scale.0,
+        variance_scale: posterior.variance_shape_and_scale.1,
+        coefficient_means: posterior.coefficient_means.clone(),
+        level_contrasts: posterior.level_contrasts.iter().map(contrast_wire).collect(),
+        pairwise: posterior.pairwise.iter().map(contrast_wire).collect(),
+        monotonicity: posterior.monotonicity.as_ref().map(|m| PosteriorMonotonicityWire {
+            direction: direction_tag(m.direction).to_owned(),
+            step_probabilities: m.step_probabilities.clone(),
+            lower_bound: m.lower_bound,
+            upper_bound: m.upper_bound,
+        }),
+    }
+}
+
 /// The CBOR metadata section.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -443,6 +571,9 @@ pub struct CategoricalTreatmentMeta {
     pub result: CategoricalResultWire,
     /// Standing caveats.
     pub caveats: Vec<String>,
+    /// The optional posterior section; absent for an artifact sealed without one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posterior: Option<CategoricalPosteriorWire>,
 }
 
 /// The full, self-describing report handed to host languages.
@@ -478,6 +609,9 @@ pub struct CategoricalTreatmentReportWire {
     pub caveats: Vec<String>,
     /// Identity digests.
     pub identity: CategoricalTreatmentIdentity,
+    /// The optional posterior section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posterior: Option<CategoricalPosteriorWire>,
 }
 
 fn covariance_of(tag: &str) -> Result<VectorCovariance, CategoricalTreatmentArtifactError> {
@@ -884,6 +1018,48 @@ fn check_decl(decl: &Decl) -> Result<(), CategoricalTreatmentArtifactError> {
     Ok(())
 }
 
+/// The posterior section of the design a replay holds.
+fn posterior_wire(
+    decl: &Decl,
+    replay: &Replay,
+    declaration: &CategoricalPosteriorDeclaration,
+) -> Result<CategoricalPosteriorWire, CategoricalTreatmentArtifactError> {
+    let spec = spec_of(&decl.spec)?;
+    let summary = match replay {
+        Replay::Summary(summary) => summary.clone(),
+        Replay::RobustSummary(summary) => CategoricalSummary {
+            counts: summary.counts.clone(),
+            design: summary.design.design.clone(),
+        },
+        Replay::Rows { outcome, adjustment, levels } => {
+            let input = CategoricalTreatmentInput {
+                outcome: outcome.clone(),
+                row_snapshot: decl.row_snapshot.clone(),
+                adjustment: decl
+                    .adjustment
+                    .iter()
+                    .zip(adjustment)
+                    .map(|(name, values)| NamedColumn {
+                        name: name.clone(),
+                        values: values.clone(),
+                    })
+                    .collect(),
+                levels: levels.clone(),
+            };
+            summarize_categorical_design(&input, &spec)?
+        }
+    };
+    let prior = CategoricalPosteriorPrior {
+        level_precision: declaration.level_precision,
+        nuisance_precision: declaration.nuisance_precision,
+        variance_shape: declaration.variance_shape,
+        variance_scale: declaration.variance_scale,
+    };
+    let posterior =
+        posterior_categorical_from_summary(&summary, &spec, &prior, declaration.credible_level)?;
+    Ok(posterior_section(declaration, &posterior))
+}
+
 fn compute(
     decl: &Decl,
     replay: &Replay,
@@ -1133,8 +1309,34 @@ impl CategoricalTreatmentArtifact {
             identity: computed.identity,
             result: computed.result,
             caveats: standing_caveats(),
+            posterior: None,
         };
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
+    }
+
+    /// Attach the Bayesian counterpart of the stored fit under a declared prior.
+    ///
+    /// The posterior is computed from the stored sufficient statistics of the design, not from
+    /// rows, and is recomputed bit for bit when the artifact is consumed. There is no default
+    /// prior: a prior alone never identifies a level contrast.
+    ///
+    /// # Errors
+    /// `invalid_argument` for a prior or credible level outside its range, and the stored
+    /// design's refusals.
+    pub fn with_posterior(
+        mut self,
+        declaration: &CategoricalPosteriorDeclaration,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        let decl = Decl::from_meta(&self.meta)?;
+        let replay = Replay::from_parts(&decl, &self.meta, &self.numbers)?;
+        self.meta.posterior = Some(posterior_wire(&decl, &replay, declaration)?);
+        Ok(self)
+    }
+
+    /// The posterior section, when one was attached.
+    #[must_use]
+    pub fn posterior(&self) -> Option<&CategoricalPosteriorWire> {
+        self.meta.posterior.as_ref()
     }
 
     /// The metadata section.
@@ -1173,6 +1375,7 @@ impl CategoricalTreatmentArtifact {
             result: self.meta.result.clone(),
             caveats: self.meta.caveats.clone(),
             identity: self.meta.identity.clone(),
+            posterior: self.meta.posterior.clone(),
         }
     }
 
@@ -1299,6 +1502,14 @@ impl CategoricalTreatmentArtifact {
                 return Err(CategoricalTreatmentArtifactError::IdentityMismatch { field });
             }
         }
+        if let Some(stored) = &meta.posterior {
+            let replayed = posterior_wire(&decl, &replay, &stored.declaration)?;
+            if *stored != replayed {
+                return Err(CategoricalTreatmentArtifactError::ResultMismatch(
+                    "posterior contrasts, moments or monotonicity bounds",
+                ));
+            }
+        }
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
     }
 }
@@ -1374,6 +1585,7 @@ mod number_section_tests {
                 calibration: String::new(),
             },
             caveats: Vec::new(),
+            posterior: None,
         }
     }
 

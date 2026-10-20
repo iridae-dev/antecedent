@@ -1404,6 +1404,57 @@ pub enum CausalQueryWire {
     Survival(SurvivalQueryWire),
     /// Prespecified longitudinal treatment regime value.
     LongitudinalRegime(LongitudinalRegimeQueryWire),
+    /// Observational two-decision contrast of two static regimes.
+    SequentialContrast(SequentialContrastQueryWire),
+    /// Nearest-neighbor contrast on histories, matched within calendar periods.
+    HistoryMatch(HistoryMatchQueryWire),
+}
+
+/// Declared columns and caliper of a within-period history match.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryMatchQueryWire {
+    /// Outcome column.
+    pub outcome: u32,
+    /// Treatment indicator column.
+    pub treated: u32,
+    /// Time-ordered history columns.
+    pub history: Vec<u32>,
+    /// Calendar period column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period: Option<u32>,
+    /// Sampling-weight column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u32>,
+    /// Maximum absolute score distance of a match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caliper: Option<f64>,
+}
+
+/// Declared columns, regimes and cross-fit folds of an observational sequential contrast.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SequentialContrastQueryWire {
+    /// Terminal outcome column.
+    pub outcome: u32,
+    /// First-decision action column.
+    pub first_treatment: u32,
+    /// Second-decision action column.
+    pub second_treatment: u32,
+    /// Baseline covariate columns.
+    pub baseline: Vec<u32>,
+    /// Covariates measured between the two decisions.
+    pub intermediate: Vec<u32>,
+    /// Active regime actions.
+    pub active: [u8; 2],
+    /// Control regime actions.
+    pub control: [u8; 2],
+    /// Cross-fit fold of each row.
+    pub fold_of_row: Vec<u32>,
+    /// Number of folds.
+    pub fold_count: u32,
+    /// Positivity floor.
+    pub min_probability: f64,
 }
 
 /// Subject-owned longitudinal histories and supplied sequential probabilities.
@@ -1901,7 +1952,9 @@ impl CausalQueryWire {
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
-            | Self::LongitudinalRegime(_) => None,
+            | Self::LongitudinalRegime(_)
+            | Self::SequentialContrast(_)
+            | Self::HistoryMatch(_) => None,
         }
     }
 
@@ -1936,7 +1989,9 @@ impl CausalQueryWire {
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
-            | Self::LongitudinalRegime(_) => None,
+            | Self::LongitudinalRegime(_)
+            | Self::SequentialContrast(_)
+            | Self::HistoryMatch(_) => None,
         }
     }
 }
@@ -2728,6 +2783,28 @@ pub fn causal_query_to_wire_with_registry(
                 rule_provenance: q.rule_provenance.as_ref().map(ToString::to_string),
             })
         }
+        CausalQuery::SequentialContrast(q) => {
+            CausalQueryWire::SequentialContrast(SequentialContrastQueryWire {
+                outcome: q.outcome.raw(),
+                first_treatment: q.first_treatment.raw(),
+                second_treatment: q.second_treatment.raw(),
+                baseline: q.baseline.iter().map(|id| id.raw()).collect(),
+                intermediate: q.intermediate.iter().map(|id| id.raw()).collect(),
+                active: q.active,
+                control: q.control,
+                fold_of_row: q.fold_of_row.to_vec(),
+                fold_count: q.fold_count,
+                min_probability: q.min_probability,
+            })
+        }
+        CausalQuery::HistoryMatch(q) => CausalQueryWire::HistoryMatch(HistoryMatchQueryWire {
+            outcome: q.outcome.raw(),
+            treated: q.treated.raw(),
+            history: q.history.iter().map(|id| id.raw()).collect(),
+            period: q.period.map(antecedent_core::VariableId::raw),
+            weight: q.weight.map(antecedent_core::VariableId::raw),
+            caliper: q.caliper,
+        }),
         _ => return Err(IoError::Convert("unsupported CausalQuery variant".into())),
     })
 }
@@ -3334,6 +3411,34 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::LongitudinalRegime(q)
+        }
+        CausalQueryWire::SequentialContrast(w) => {
+            let q = antecedent_core::SequentialContrastQuery {
+                outcome: VariableId::from_raw(w.outcome),
+                first_treatment: VariableId::from_raw(w.first_treatment),
+                second_treatment: VariableId::from_raw(w.second_treatment),
+                baseline: w.baseline.iter().map(|id| VariableId::from_raw(*id)).collect(),
+                intermediate: w.intermediate.iter().map(|id| VariableId::from_raw(*id)).collect(),
+                active: w.active,
+                control: w.control,
+                fold_of_row: w.fold_of_row.clone().into(),
+                fold_count: w.fold_count,
+                min_probability: w.min_probability,
+            };
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::SequentialContrast(q)
+        }
+        CausalQueryWire::HistoryMatch(w) => {
+            let q = antecedent_core::HistoryMatchQuery {
+                outcome: VariableId::from_raw(w.outcome),
+                treated: VariableId::from_raw(w.treated),
+                history: w.history.iter().map(|id| VariableId::from_raw(*id)).collect(),
+                period: w.period.map(VariableId::from_raw),
+                weight: w.weight.map(VariableId::from_raw),
+                caliper: w.caliper,
+            };
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::HistoryMatch(q)
         }
     })
 }

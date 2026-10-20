@@ -74,6 +74,20 @@ pub enum ContractReason {
     DependenciesCheckedBayesianIvOperation,
     /// `dependencies.checked_bayesian_mediation_operation`.
     DependenciesCheckedBayesianMediationOperation,
+    /// `dependencies.checked_bayesian_local_ratio_operation`.
+    DependenciesCheckedBayesianLocalRatioOperation,
+    /// `dependencies.checked_bayesian_survival_operation`.
+    DependenciesCheckedBayesianSurvivalOperation,
+    /// `dependencies.checked_bayesian_quantile_operation`.
+    DependenciesCheckedBayesianQuantileOperation,
+    /// `dependencies.checked_bayesian_dose_policy_operation`.
+    DependenciesCheckedBayesianDosePolicyOperation,
+    /// `dependencies.checked_bayesian_randomized_operation`.
+    DependenciesCheckedBayesianRandomizedOperation,
+    /// `dependencies.checked_bayesian_panel_did_operation`.
+    DependenciesCheckedBayesianPanelDidOperation,
+    /// `dependencies.checked_bayesian_synthetic_control_operation`.
+    DependenciesCheckedBayesianSyntheticControlOperation,
     /// `dependencies.checked_bayesian_rd_operation`.
     DependenciesCheckedBayesianRdOperation,
     /// `dependencies.checked_bayesian_robust_ate_operation`.
@@ -465,6 +479,21 @@ impl ContractReason {
             Self::DependenciesCheckedBayesianMediationOperation => {
                 "dependencies.checked_bayesian_mediation_operation"
             }
+            Self::DependenciesCheckedBayesianLocalRatioOperation => "dependencies.checked_bayesian_local_ratio_operation",
+            Self::DependenciesCheckedBayesianSurvivalOperation => {
+                "dependencies.checked_bayesian_survival_operation"
+            }
+            Self::DependenciesCheckedBayesianQuantileOperation => {
+                "dependencies.checked_bayesian_quantile_operation"
+            }
+            Self::DependenciesCheckedBayesianDosePolicyOperation => {
+                "dependencies.checked_bayesian_dose_policy_operation"
+            }
+            Self::DependenciesCheckedBayesianRandomizedOperation => {
+                "dependencies.checked_bayesian_randomized_operation"
+            }
+            Self::DependenciesCheckedBayesianPanelDidOperation => "dependencies.checked_bayesian_panel_did_operation",
+            Self::DependenciesCheckedBayesianSyntheticControlOperation => "dependencies.checked_bayesian_synthetic_control_operation",
             Self::DependenciesCheckedBayesianRdOperation => {
                 "dependencies.checked_bayesian_rd_operation"
             }
@@ -793,6 +822,13 @@ impl ContractReason {
                 | Self::DependenciesCheckedStaticClassResponseOperation
                 | Self::DependenciesCheckedGraphPosteriorResponseOperation
                 | Self::DependenciesCheckedBayesianIvOperation
+                | Self::DependenciesCheckedBayesianLocalRatioOperation
+                | Self::DependenciesCheckedBayesianSurvivalOperation
+                | Self::DependenciesCheckedBayesianQuantileOperation
+                | Self::DependenciesCheckedBayesianDosePolicyOperation
+                | Self::DependenciesCheckedBayesianRandomizedOperation
+                | Self::DependenciesCheckedBayesianPanelDidOperation
+                | Self::DependenciesCheckedBayesianSyntheticControlOperation
                 | Self::DependenciesCheckedBayesianRdOperation
                 | Self::DependenciesCheckedTransportTrialOperation
         )
@@ -868,6 +904,13 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedBayesianGraphPosteriorAteOperation,
     ContractReason::DependenciesCheckedBayesianIvOperation,
     ContractReason::DependenciesCheckedBayesianMediationOperation,
+    ContractReason::DependenciesCheckedBayesianLocalRatioOperation,
+    ContractReason::DependenciesCheckedBayesianSurvivalOperation,
+    ContractReason::DependenciesCheckedBayesianQuantileOperation,
+    ContractReason::DependenciesCheckedBayesianDosePolicyOperation,
+    ContractReason::DependenciesCheckedBayesianRandomizedOperation,
+    ContractReason::DependenciesCheckedBayesianPanelDidOperation,
+    ContractReason::DependenciesCheckedBayesianSyntheticControlOperation,
     ContractReason::DependenciesCheckedBayesianRdOperation,
     ContractReason::DependenciesCheckedBayesianRobustAteOperation,
     ContractReason::DependenciesCheckedBayesianTemporalClassEffectOperation,
@@ -1065,11 +1108,14 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.checked_bayesian_class_conditional_operation",
     "dependencies.checked_bayesian_conditional_operation",
     "dependencies.checked_bayesian_dag_ate_operation",
+    "dependencies.checked_bayesian_dose_policy_operation",
     "dependencies.checked_bayesian_graph_posterior_ate_operation",
     "dependencies.checked_bayesian_iv_operation",
     "dependencies.checked_bayesian_mediation_operation",
+    "dependencies.checked_bayesian_quantile_operation",
     "dependencies.checked_bayesian_rd_operation",
     "dependencies.checked_bayesian_robust_ate_operation",
+    "dependencies.checked_bayesian_survival_operation",
     "dependencies.checked_bayesian_temporal_class_effect_operation",
     "dependencies.checked_bayesian_temporal_dag_effect_operation",
     "dependencies.checked_class_graph_posterior_effect_operation",

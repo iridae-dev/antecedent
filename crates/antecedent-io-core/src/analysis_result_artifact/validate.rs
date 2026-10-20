@@ -5,7 +5,8 @@
 use super::graphless::{
     graphless_status_ok, validate_continuous_dose_graphless, validate_did_graphless,
     validate_longitudinal_graphless, validate_policy_graphless, validate_randomized_graphless,
-    validate_ratio_graphless, validate_survival_graphless,
+    validate_history_match_graphless, validate_ratio_graphless,
+    validate_sequential_contrast_graphless, validate_survival_graphless,
 };
 use super::{
     AnalysisResultWire, StructuralResponseMixtureWire, TemporalMediationGridWire,
@@ -122,19 +123,31 @@ pub(super) fn validate_result(
     if matches!(&result.query, crate::CausalQueryWire::RandomizedEffect(query)
         if matches!(query.design, crate::RandomizationDesignWire::Switchback))
         && result.randomized_effect.is_none()
+        && result.posterior_artifact.is_none()
     {
         return Err(IoError::Convert(
             "switchback artifact is missing its randomized result section".into(),
         ));
     }
     validate_randomized_graphless(result, allow_legacy_graphless_missing)?;
-    if matches!(result.query, crate::CausalQueryWire::PanelDid(_)) && result.panel_did.is_none() {
+    // A Bayesian design result carries its posterior in place of the design-specific frequentist
+    // section; exactly one of the two must be present.
+    let design_posterior = result.posterior_artifact.is_some();
+    if matches!(result.query, crate::CausalQueryWire::PanelDid(_))
+        && result.panel_did.is_some() == design_posterior
+    {
         return Err(IoError::Convert(
             "panel DiD artifact is missing its design-specific result section".into(),
         ));
     }
     if let crate::CausalQueryWire::SyntheticControl(query) = &result.query {
-        if query.difference_in_differences {
+        if design_posterior {
+            if result.synthetic_did.is_some() || result.synthetic_control.is_some() {
+                return Err(IoError::Convert(
+                    "a synthetic-control posterior replaces the frequentist weight sections".into(),
+                ));
+            }
+        } else if query.difference_in_differences {
             if result.synthetic_did.is_none() || result.synthetic_control.is_some() {
                 return Err(IoError::Convert(
                     "synthetic DiD artifact requires its distinct weight result section".into(),
@@ -147,14 +160,39 @@ pub(super) fn validate_result(
         }
     }
     if matches!(result.query, crate::CausalQueryWire::LocalPolynomialRatio(_))
-        && result.local_polynomial_ratio.is_none()
+        && result.local_polynomial_ratio.is_some() == design_posterior
     {
         return Err(IoError::Convert(
             "local ratio artifact is missing its design-specific result section".into(),
         ));
     }
     validate_ratio_graphless(result)?;
-    if matches!(result.query, crate::CausalQueryWire::Survival(_)) && result.survival.is_none() {
+    if let Some(row) = &result.posterior_row {
+        // A posterior row replaces the frequentist section of exactly the queries that have a
+        // Bayesian counterpart on the same coordinate, and rides with its posterior artifact.
+        let attached = match &result.query {
+            crate::CausalQueryWire::Survival(_) => result.survival.is_none(),
+            crate::CausalQueryWire::ContinuousDoseResponse(query) => {
+                query.fixed_policy.is_some() && result.continuous_dose_response.is_none()
+            }
+            // The randomized quantile posterior rides beside the ordinary scalar posterior of
+            // the quantile treatment effect.
+            crate::CausalQueryWire::AverageEffect { .. } => {
+                row.estimator == "bayesian.randomized_quantile"
+            }
+            _ => false,
+        };
+        if !attached || result.posterior_artifact.is_none() {
+            return Err(IoError::Convert(
+                "a posterior row is attached to a query without its Bayesian counterpart, beside a frequentist section or without its posterior artifact".into(),
+            ));
+        }
+        row.validate()?;
+    }
+    if matches!(result.query, crate::CausalQueryWire::Survival(_))
+        && result.survival.is_none()
+        && result.posterior_row.is_none()
+    {
         return Err(IoError::Convert(
             "survival artifact is missing its curve result section".into(),
         ));
@@ -167,6 +205,8 @@ pub(super) fn validate_result(
         ));
     }
     validate_longitudinal_graphless(result, allow_legacy_graphless_missing)?;
+    validate_sequential_contrast_graphless(result)?;
+    validate_history_match_graphless(result)?;
     crate::causal_query_from_wire(&result.query)?;
     let identification_count = match &result.identification_variables {
         Some(variables) => {
@@ -209,7 +249,7 @@ pub(super) fn validate_result(
         ));
     }
     if matches!(result.query, crate::CausalQueryWire::ContinuousDoseResponse(_))
-        != result.continuous_dose_response.is_some()
+        != (result.continuous_dose_response.is_some() || result.posterior_row.is_some())
     {
         return Err(IoError::Convert(
             "continuous-dose query and result section must appear together".into(),

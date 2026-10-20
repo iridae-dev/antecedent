@@ -461,6 +461,28 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ("subjects".into(), query.subject_ids.len().to_string()),
             ("temporal_coordinates".into(), "subject_history".into()),
         ],
+        CausalQueryWire::HistoryMatch(query) => vec![
+            ("query_kind".into(), "history_match".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("treated".into(), query.treated.to_string()),
+            ("history".into(), join_ids(&query.history)),
+            ("period".into(), query.period.map_or_else(|| "none".into(), |id| id.to_string())),
+            ("weight".into(), query.weight.map_or_else(|| "none".into(), |id| id.to_string())),
+            ("caliper".into(), query.caliper.map_or_else(|| "none".into(), |c| c.to_string())),
+            ("temporal_coordinates".into(), "history_period".into()),
+        ],
+        CausalQueryWire::SequentialContrast(query) => vec![
+            ("query_kind".into(), "sequential_contrast".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("first_treatment".into(), query.first_treatment.to_string()),
+            ("second_treatment".into(), query.second_treatment.to_string()),
+            ("baseline".into(), join_ids(&query.baseline)),
+            ("intermediate".into(), join_ids(&query.intermediate)),
+            ("active".into(), format!("{}{}", query.active[0], query.active[1])),
+            ("control".into(), format!("{}{}", query.control[0], query.control[1])),
+            ("subjects".into(), query.fold_of_row.len().to_string()),
+            ("temporal_coordinates".into(), "two_decisions".into()),
+        ],
         CausalQueryWire::AnomalyAttribution { targets, .. } => {
             named_outcomes("anomaly_attribution", targets)
         }
@@ -2269,6 +2291,16 @@ pub struct BayesianBindingWire {
     /// were, so a configuration without them keeps its identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub draw_controls: Option<String>,
+    /// Canonical text of the declared randomized-design model (hazard partition and prior, or
+    /// dose curve and prior); absent when none was declared, so a configuration without one
+    /// keeps its identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub design_model: Option<String>,
+    /// Declared white-innovation premise and its Ljung-Box gate, as
+    /// `ljung_box:max_lag=<n>:level_bits=<hex>`; absent when none was declared, so a
+    /// configuration without it keeps its identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub white_innovation: Option<String>,
 }
 
 /// Discovery / estimation window split.
@@ -3274,6 +3306,8 @@ mod tests {
                 prior_mapping: None,
                 external_compose: None,
                 draw_controls: None,
+                design_model: None,
+                white_innovation: None,
             }),
             validation_suite: None,
             overlap_policy: None,

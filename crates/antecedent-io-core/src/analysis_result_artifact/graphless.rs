@@ -885,6 +885,15 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
     } else {
         "point_only_no_interval"
     };
+    // The Bayesian sequential regime result carries its posterior and reports no interval.
+    let bayesian_regime = result.posterior_artifact.is_some() && query.method == "sequential_dr";
+    let expected_reason =
+        if bayesian_regime { Some("bayesian_posterior_reports_no_interval") } else { expected_reason };
+    let expected_uncertainty = if bayesian_regime {
+        "bayesian_bootstrap_posterior_known_sequential_randomization_no_interval"
+    } else {
+        expected_uncertainty
+    };
     #[allow(
         clippy::float_cmp,
         reason = "wire interval bounds must equal the recomputed values exactly; drift is a real mismatch"
@@ -1247,6 +1256,9 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
         return Ok(());
     };
     let expected_uncertainty = match &result.query {
+        crate::CausalQueryWire::PolicyValue(_) if result.posterior_artifact.is_some() => {
+            "bayesian_bootstrap_posterior_known_randomization_no_interval"
+        }
         crate::CausalQueryWire::PolicyValue(query) if query.multi_action.is_some() => {
             "multi_action_ipw_row_score_standard_error_independent_subjects"
         }
@@ -2257,4 +2269,184 @@ fn sampling_weighted_uncertainty(
             crate::RandomizationDesignWire::Bernoulli
                 | crate::RandomizationDesignWire::Complete { .. }
         )
+}
+
+/// Uncertainty label of the normal interval of a sequential contrast.
+const SEQUENTIAL_CONTRAST_INTERVAL: &str = "normal_interval_calibration_unmeasured";
+/// Uncertainty label of the modular posterior of a sequential contrast.
+const SEQUENTIAL_CONTRAST_POSTERIOR: &str = "modular_bayesian_bootstrap_posterior_no_interval";
+
+/// Recompute an observational sequential contrast from its retained scores.
+///
+/// The result is unlicensed: there is no support coordinate to compare, so the check is that it
+/// claims none and that every reported summary is the summary of the retained scores.
+#[allow(
+    clippy::float_cmp,
+    reason = "the declared floor is carried through the artifact unchanged, so equality is the check"
+)]
+pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphless(
+    result: &AnalysisResultWire,
+) -> Result<(), IoError> {
+    let query = match &result.query {
+        crate::CausalQueryWire::SequentialContrast(query) => Some(query),
+        _ => None,
+    };
+    let fail = |message: &str| Err(IoError::Convert(message.into()));
+    let (Some(query), Some(fit)) = (query, &result.sequential_contrast) else {
+        return if query.is_some() || result.sequential_contrast.is_some() {
+            fail("a sequential contrast section needs its query, and its query its section")
+        } else {
+            Ok(())
+        };
+    };
+    let rows = fit.contrast_scores.len();
+    let n = rows as f64;
+    let mean = |values: &[f64]| values.iter().sum::<f64>() / values.len() as f64;
+    let near = |a: f64, b: f64| (a - b).abs() <= 1e-9 * (1.0 + b.abs());
+    let scores_ok = rows >= 2
+        && fit.active_scores.len() == rows
+        && fit.control_scores.len() == rows
+        && fit.evaluated_rows == rows as u64
+        && rows == query.fold_of_row.len()
+        && fit
+            .active_scores
+            .iter()
+            .chain(&fit.control_scores)
+            .chain(&fit.contrast_scores)
+            .all(|value| value.is_finite())
+        && fit
+            .active_scores
+            .iter()
+            .zip(&fit.control_scores)
+            .zip(&fit.contrast_scores)
+            .all(|((a, c), d)| near(*d, a - c));
+    if !scores_ok
+        || fit.active_regime != query.active
+        || fit.control_regime != query.control
+        || fit.min_probability != query.min_probability
+        || !near(fit.contrast, mean(&fit.contrast_scores))
+        || !near(fit.active_mean, mean(&fit.active_scores))
+        || !near(fit.control_mean, mean(&fit.control_scores))
+        || !fit.minimum_action_probability.is_finite()
+        || fit.minimum_action_probability < fit.min_probability
+        || fit.licensed
+        || fit.calibration != "unmeasured"
+        || result.estimate.is_some()
+        || result.standard_error.is_some()
+        || result.interval_lower.is_some()
+        || result.interval_upper.is_some()
+    {
+        return fail("invalid sequential contrast payload or fabricated summary");
+    }
+    if result.posterior_artifact.is_some() {
+        if fit.uncertainty != SEQUENTIAL_CONTRAST_POSTERIOR
+            || fit.standard_error.is_some()
+            || fit.interval.is_some()
+        {
+            return fail("a sequential contrast posterior reports no frequentist interval");
+        }
+        return Ok(());
+    }
+    let (Some(se), Some(bounds)) = (fit.standard_error, fit.interval) else {
+        return fail("a sequential contrast interval needs its standard error and bounds");
+    };
+    if fit.uncertainty != SEQUENTIAL_CONTRAST_INTERVAL
+        || !(fit.coverage > 0.0 && fit.coverage < 1.0)
+    {
+        return fail("invalid sequential contrast interval label or coverage");
+    }
+    let centre = mean(&fit.contrast_scores);
+    let squares: f64 = fit.contrast_scores.iter().map(|s| (s - centre) * (s - centre)).sum();
+    let expected_se = (squares / ((n - 1.0) * n)).sqrt();
+    let span = antecedent_stats::normal_ppf(0.5 + fit.coverage / 2.0) * expected_se;
+    let tolerance = 1e-9 * (1.0 + centre.abs() + span.abs());
+    if expected_se.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater)
+        || !near(se, expected_se)
+        || (bounds[0] - (centre - span)).abs() > tolerance
+        || (bounds[1] - (centre + span)).abs() > tolerance
+    {
+        return fail("sequential contrast interval is not the normal interval of its scores");
+    }
+    Ok(())
+}
+
+/// Uncertainty label of the history-matched contrast.
+const HISTORY_MATCH_UNCERTAINTY: &str =
+    "abadie_imbens_standard_error_calibration_unmeasured_no_interval";
+
+/// Recompute a within-period history-matched contrast from its retained pairs.
+///
+/// The result is unlicensed and reports no interval, so the check is that it claims neither and
+/// that the contrast, the weight total and the Abadie-Imbens standard error are those of the
+/// retained pairs.
+pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
+    result: &AnalysisResultWire,
+) -> Result<(), IoError> {
+    let is_query = matches!(result.query, crate::CausalQueryWire::HistoryMatch(_));
+    let Some(fit) = &result.history_match else {
+        return if is_query {
+            Err(IoError::Convert("history match artifact is missing its result section".into()))
+        } else {
+            Ok(())
+        };
+    };
+    let fail = |message: &str| Err(IoError::Convert(message.into()));
+    if !is_query {
+        return fail("a history match section needs its query");
+    }
+    let near = |a: f64, b: f64| (a - b).abs() <= 1e-9 * (1.0 + b.abs());
+    let pairs = fit.matched_queries.len();
+    let total: f64 = fit.pair_weights.iter().sum();
+    let weighted: f64 = fit.pair_weights.iter().zip(&fit.differences).map(|(w, d)| w * d).sum();
+    let structure_ok = pairs > 0
+        && fit.matched_donors.len() == pairs
+        && fit.differences.len() == pairs
+        && fit.pair_weights.len() == pairs
+        && fit.matched_queries.windows(2).all(|w| w.first() < w.get(1))
+        && fit.pair_weights.iter().chain(&fit.differences).all(|v| v.is_finite())
+        && total > 0.0
+        && near(fit.weight_total, total)
+        && near(fit.contrast, weighted / total);
+    if !structure_ok
+        || fit.licensed
+        || fit.calibration != "unmeasured"
+        || fit.uncertainty != HISTORY_MATCH_UNCERTAINTY
+        || result.estimate.is_some()
+        || result.standard_error.is_some()
+        || result.interval_lower.is_some()
+        || result.interval_upper.is_some()
+    {
+        return fail("invalid history match payload or fabricated summary");
+    }
+    // Abadie-Imbens variance of a weighted mean of one-match differences, with replacement.
+    let expected = if pairs < 2 || fit.pair_weights.iter().any(|w| *w <= 0.0) {
+        None
+    } else {
+        let shares: Vec<f64> = fit.pair_weights.iter().map(|w| w / total).collect();
+        let concentration: f64 = shares.iter().map(|s| s * s).sum();
+        let denominator = 1.0 - concentration;
+        let spread: f64 = shares
+            .iter()
+            .zip(&fit.differences)
+            .map(|(share, d)| share * (d - fit.contrast).powi(2))
+            .sum();
+        let mut donated: std::collections::BTreeMap<usize, f64> =
+            std::collections::BTreeMap::new();
+        for (share, donor) in shares.iter().zip(&fit.matched_donors) {
+            *donated.entry(*donor).or_insert(0.0) += share;
+        }
+        let reuse: f64 = donated.values().map(|s| s * s).sum();
+        let variance = 0.5 * spread / denominator * (concentration + reuse);
+        (denominator > 0.0 && variance.is_finite() && variance >= 0.0).then_some(variance.sqrt())
+    };
+    let consistent = match (fit.standard_error, expected) {
+        (None, None) => true,
+        (Some(reported), Some(recomputed)) => near(reported, recomputed),
+        _ => false,
+    };
+    if consistent {
+        Ok(())
+    } else {
+        fail("history match standard error is not the Abadie-Imbens form of its pairs")
+    }
 }

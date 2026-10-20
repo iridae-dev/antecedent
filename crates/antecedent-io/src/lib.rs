@@ -43,7 +43,7 @@ pub use antecedent_io_core::{
     InterferenceSnapshotWire, IntervalInterpretationWire, InterventionWire,
     InterventionalDistributionQueryWire, InterventionalDistributionWire, IoError, KernelPolicyWire,
     LaggedLinkWire, LinearFitMomentsWire, LocalPolynomialRatioWire, LogicalAnalysisPlanWire,
-    LongitudinalRegimeWire, MAGIC, MappedArtifactReader, MappedSection, MarkedEdgeWire,
+    HistoryMatchWire, LongitudinalRegimeWire, SequentialContrastWire, MAGIC, MappedArtifactReader, MappedSection, MarkedEdgeWire,
     MeasurementSpecWire, MechanismSlotWire, MechanismStoreWire, MediationPosteriorSummaryWire,
     MissingPolicyWire, ModelKindWire, NestedCounterfactualFitWire, NetworkXAdjacency,
     NetworkXNodeLink, ObligationSectionWire, ObservationAssumptionWire, ObservationIdentityWire,
@@ -63,6 +63,7 @@ pub use antecedent_io_core::{
     SemanticVersion, SetInterventionWire, SlotSectionWire, SplitIdentityWire, StaticResultWire,
     StructuralResponseAtomWire, StructuralResponseMixtureWire, StructuralWeightBasisWire,
     SupportDiagnosticWire, SupportRegionWire, SupportReportWire, SupportSlotWire,
+    POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY, PosteriorRowWire,
     SupportStatusWire, SurvivalDifferenceBandWire, SurvivalWire, SyntheticControlWire,
     SyntheticDidWire, TargetDesign, TargetIdentityWire, TargetPopulationWire,
     TargetWeightsIdentityWire, TargetWeightsSectionWire, TemporalClassIdentityWire,
@@ -165,6 +166,7 @@ pub mod model_codes;
 pub mod mz_transport_artifact;
 pub mod nested_markov_artifact;
 pub mod nested_markov_bayesian_artifact;
+pub mod period_refresh_artifact;
 pub mod posterior_convert;
 pub mod recovery_artifact;
 pub mod release_migration;
@@ -338,6 +340,14 @@ mod tests {
 /// Transport grid artifact records and encoding.
 pub mod transport_grid_wire;
 
+/// Array-fit replay artifact (`array_fit_replay_v1`) and its refitting consumer.
+pub mod array_fit_artifact;
+/// Unlicensed Bayesian posterior rows of randomized designs (`bayesian_posterior_row_v1`) and
+/// their recomputing consumer.
+pub mod bayesian_posterior_row_artifact;
+/// Unlicensed Bayesian smoothed dose-response transport posterior (`bayesian_smoothed_dose_v1`)
+/// and its recomputing consumer.
+pub mod smoothed_dose_posterior_artifact;
 /// Categorical-treatment artifact (`categorical_treatment_v1`) and its recomputing consumer.
 pub mod categorical_treatment_artifact;
 /// Dose-grid functional artifact (`dose_grid_functional_row_v1`) and its recomputing consumer.

@@ -13,6 +13,8 @@ mod artifact_compat_inherited;
 mod artifact_compat_predictive_adaptive_golden;
 #[path = "artifact_compat_recalc_receipt.rs"]
 mod artifact_compat_recalc_receipt;
+#[path = "bayesian_posterior_row_artifact.rs"]
+mod bayesian_posterior_row_artifact;
 #[path = "categorical_treatment_artifact.rs"]
 mod categorical_treatment_artifact;
 #[path = "cohort_interval_artifact.rs"]

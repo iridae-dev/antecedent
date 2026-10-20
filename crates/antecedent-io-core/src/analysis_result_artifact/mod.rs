@@ -800,6 +800,213 @@ pub struct SurvivalDifferenceBandWire {
     pub graphless_support_status: Option<String>,
 }
 
+/// The retained posterior of an unlicensed Bayesian randomized-design row.
+///
+/// Every coordinate has a posterior mean and an equal-tailed 95% credible interval; the
+/// covariance across coordinates is the covariance of the retained joint draws, so draw `k` of
+/// every coordinate comes from one posterior sample. The calibration is always `unmeasured`
+/// and the row is never licensed.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PosteriorRowWire {
+    /// Estimator id of the row, for example `bayesian.piecewise_survival`.
+    pub estimator: String,
+    /// The target the posterior answers.
+    pub target: String,
+    /// Always `posterior`.
+    pub uncertainty: String,
+    /// Calibration status of every interval (`unmeasured`).
+    pub calibration: String,
+    /// Always `false`: these rows are not licensed.
+    pub licensed: bool,
+    /// Name of every coordinate, in order.
+    pub coordinates: Vec<String>,
+    /// Posterior mean of each coordinate.
+    pub mean: Vec<f64>,
+    /// Lower endpoint of each coordinate's equal-tailed 95% credible interval.
+    pub lower: Vec<f64>,
+    /// Upper endpoint of each coordinate's equal-tailed 95% credible interval.
+    pub upper: Vec<f64>,
+    /// Joint covariance across the coordinates, row-major, from the retained draws.
+    pub covariance: Option<Vec<f64>>,
+    /// Exact posterior mean (known residual variance only).
+    pub exact_mean: Option<Vec<f64>>,
+    /// Exact posterior covariance, row-major (known residual variance only).
+    pub exact_covariance: Option<Vec<f64>>,
+    /// Posterior draws behind the intervals.
+    pub draws: usize,
+    /// Named scalar summaries.
+    pub extras: std::collections::BTreeMap<String, f64>,
+    /// Named vector summaries.
+    pub vectors: std::collections::BTreeMap<String, Vec<f64>>,
+}
+
+/// What every stored posterior row's uncertainty is.
+pub const POSTERIOR_ROW_UNCERTAINTY: &str = "posterior";
+/// Calibration status of every posterior row.
+pub const POSTERIOR_ROW_CALIBRATION: &str = "unmeasured";
+
+impl PosteriorRowWire {
+    /// An empty posterior of `estimator` over `coordinates`, unlicensed and uncalibrated.
+    #[must_use]
+    pub fn new(estimator: &str, target: String, coordinates: Vec<String>, draws: usize) -> Self {
+        Self {
+            estimator: estimator.to_owned(),
+            target,
+            uncertainty: POSTERIOR_ROW_UNCERTAINTY.to_owned(),
+            calibration: POSTERIOR_ROW_CALIBRATION.to_owned(),
+            licensed: false,
+            coordinates,
+            mean: Vec::new(),
+            lower: Vec::new(),
+            upper: Vec::new(),
+            covariance: None,
+            exact_mean: None,
+            exact_covariance: None,
+            draws,
+            extras: std::collections::BTreeMap::new(),
+            vectors: std::collections::BTreeMap::new(),
+        }
+    }
+
+    /// Set the means and the credible intervals.
+    #[must_use]
+    pub fn with_intervals(mut self, mean: Vec<f64>, intervals: &[[f64; 2]]) -> Self {
+        self.mean = mean;
+        self.lower = intervals.iter().map(|&[lower, _]| lower).collect();
+        self.upper = intervals.iter().map(|&[_, upper]| upper).collect();
+        self
+    }
+
+    /// Whether every stored number is finite.
+    #[must_use]
+    pub fn all_finite(&self) -> bool {
+        let optional = |values: &Option<Vec<f64>>| {
+            values.as_ref().is_none_or(|v| v.iter().all(|x| x.is_finite()))
+        };
+        self.mean.iter().chain(&self.lower).chain(&self.upper).all(|v| v.is_finite())
+            && optional(&self.covariance)
+            && optional(&self.exact_mean)
+            && optional(&self.exact_covariance)
+            && self.extras.values().all(|v| v.is_finite())
+            && self.vectors.values().flatten().all(|v| v.is_finite())
+    }
+
+    /// The shape and marker checks every consumer applies before trusting the row.
+    ///
+    /// # Errors
+    /// A licensed row, a changed uncertainty or calibration marker, misaligned arrays or a
+    /// non-finite value.
+    pub fn validate(&self) -> Result<(), crate::IoError> {
+        let width = self.coordinates.len();
+        let square = |values: &Option<Vec<f64>>| {
+            values.as_ref().is_none_or(|v| v.len() == width * width)
+        };
+        if self.uncertainty != POSTERIOR_ROW_UNCERTAINTY
+            || self.calibration != POSTERIOR_ROW_CALIBRATION
+            || self.licensed
+            || self.estimator.is_empty()
+            || width == 0
+            || self.mean.len() != width
+            || self.lower.len() != width
+            || self.upper.len() != width
+            || !square(&self.covariance)
+            || !square(&self.exact_covariance)
+            || self.exact_mean.as_ref().is_some_and(|v| v.len() != width)
+            || self.draws < 2
+            || !self.all_finite()
+            || self.lower.iter().zip(&self.upper).any(|(lower, upper)| lower > upper)
+        {
+            return Err(crate::IoError::Convert(
+                "a posterior row must be an unlicensed, unmeasured-calibration posterior with aligned finite arrays".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Retained observational two-decision regime contrast and its uncertainty.
+///
+/// The cross-fit scores are kept so a loader recomputes the means, the standard error and the
+/// interval. The result is unlicensed and its repeated-sampling calibration is unmeasured.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SequentialContrastWire {
+    /// Active regime actions.
+    pub active_regime: [u8; 2],
+    /// Control regime actions.
+    pub control_regime: [u8; 2],
+    /// Cross-fit active minus control.
+    pub contrast: f64,
+    /// Cross-fit active-regime mean.
+    pub active_mean: f64,
+    /// Cross-fit control-regime mean.
+    pub control_mean: f64,
+    /// Subjects scored.
+    pub evaluated_rows: u64,
+    /// Smallest regime-action probability used in a score.
+    pub minimum_action_probability: f64,
+    /// Declared positivity floor.
+    pub min_probability: f64,
+    /// Standard error of the mean contrast score (normal-interval report).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub standard_error: Option<f64>,
+    /// Normal interval at `coverage` (normal-interval report).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval: Option<[f64; 2]>,
+    /// Nominal central coverage of the interval.
+    pub coverage: f64,
+    /// Cross-fit active score of each subject.
+    pub active_scores: Vec<f64>,
+    /// Cross-fit control score of each subject.
+    pub control_scores: Vec<f64>,
+    /// Active minus control score of each subject.
+    pub contrast_scores: Vec<f64>,
+    /// `normal_interval_calibration_unmeasured` or the modular posterior label.
+    pub uncertainty: String,
+    /// Always `unmeasured`.
+    pub calibration: String,
+    /// Always `false`.
+    pub licensed: bool,
+}
+
+/// Retained within-period history-matched contrast, its matched pairs and standard error.
+///
+/// The pairs are kept so a loader recomputes the contrast, the weight total and the
+/// Abadie-Imbens standard error. No interval is reported and the result is unlicensed.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryMatchWire {
+    /// Sampling-weighted mean of treated-minus-matched-control outcomes.
+    pub contrast: f64,
+    /// Abadie-Imbens standard error; absent with fewer than two matched units.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub standard_error: Option<f64>,
+    /// Sum of sampling weights on the matched treated units.
+    pub weight_total: f64,
+    /// Row indices of matched treated units.
+    pub matched_queries: Vec<usize>,
+    /// Row index of the control each matched query used.
+    pub matched_donors: Vec<usize>,
+    /// Outcome difference of each matched pair.
+    pub differences: Vec<f64>,
+    /// Sampling weight of each matched treated unit.
+    pub pair_weights: Vec<f64>,
+    /// Treated rows with no control inside their period and the caliper.
+    pub unmatched_treated: Vec<usize>,
+    /// Periods in which at least one treated unit matched.
+    pub periods_matched: usize,
+    /// The caliper, when one was declared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caliper: Option<f64>,
+    /// Always `abadie_imbens_standard_error_calibration_unmeasured_no_interval`.
+    pub uncertainty: String,
+    /// Always `unmeasured`.
+    pub calibration: String,
+    /// Always `false`.
+    pub licensed: bool,
+}
+
 /// Retained randomized survival or competing-risk curve and uncertainty.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -1004,9 +1211,19 @@ pub struct AnalysisResultWire {
     /// Randomized survival or competing-risk curve.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub survival: Option<SurvivalWire>,
+    /// Posterior of an unlicensed Bayesian randomized-design row, in place of the
+    /// frequentist section of the same query.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posterior_row: Option<PosteriorRowWire>,
     /// Subject-owned prespecified longitudinal regime point value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub longitudinal_regime: Option<LongitudinalRegimeWire>,
+    /// Observational two-decision regime contrast, unlicensed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequential_contrast: Option<SequentialContrastWire>,
+    /// Within-period history-matched contrast, unlicensed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_match: Option<HistoryMatchWire>,
     /// Independent-cluster exposure support and pointwise inference.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interference_inference: Option<InterferenceInferenceWire>,

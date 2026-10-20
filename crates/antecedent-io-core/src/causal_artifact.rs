@@ -952,6 +952,61 @@ pub(crate) fn validate_query_ids(
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))
         }
+        Q::HistoryMatch(wire) => {
+            validate_ids(
+                [wire.outcome, wire.treated]
+                    .into_iter()
+                    .chain(wire.history.iter().copied())
+                    .chain(wire.period)
+                    .chain(wire.weight),
+                variable_count,
+            )?;
+            antecedent_core::HistoryMatchQuery {
+                outcome: antecedent_core::VariableId::from_raw(wire.outcome),
+                treated: antecedent_core::VariableId::from_raw(wire.treated),
+                history: wire
+                    .history
+                    .iter()
+                    .map(|id| antecedent_core::VariableId::from_raw(*id))
+                    .collect(),
+                period: wire.period.map(antecedent_core::VariableId::from_raw),
+                weight: wire.weight.map(antecedent_core::VariableId::from_raw),
+                caliper: wire.caliper,
+            }
+            .validate()
+            .map_err(|e| IoError::Convert(e.to_string()))
+        }
+        Q::SequentialContrast(wire) => {
+            validate_ids(
+                [wire.outcome, wire.first_treatment, wire.second_treatment]
+                    .into_iter()
+                    .chain(wire.baseline.iter().copied())
+                    .chain(wire.intermediate.iter().copied()),
+                variable_count,
+            )?;
+            antecedent_core::SequentialContrastQuery {
+                outcome: antecedent_core::VariableId::from_raw(wire.outcome),
+                first_treatment: antecedent_core::VariableId::from_raw(wire.first_treatment),
+                second_treatment: antecedent_core::VariableId::from_raw(wire.second_treatment),
+                baseline: wire
+                    .baseline
+                    .iter()
+                    .map(|id| antecedent_core::VariableId::from_raw(*id))
+                    .collect(),
+                intermediate: wire
+                    .intermediate
+                    .iter()
+                    .map(|id| antecedent_core::VariableId::from_raw(*id))
+                    .collect(),
+                active: wire.active,
+                control: wire.control,
+                fold_of_row: wire.fold_of_row.clone().into(),
+                fold_count: wire.fold_count,
+                min_probability: wire.min_probability,
+            }
+            .validate()
+            .map_err(|e| IoError::Convert(e.to_string()))
+        }
     }
 }
 

@@ -257,6 +257,45 @@ pub(in crate::contract_section) fn note_replay_dependencies(
         {
             unresolved.push(ContractReason::DependenciesCheckedBayesianRdOperation);
         }
+        Some("bayesian.panel_did")
+            if matches!(contract.target.query, CausalQueryWire::PanelDid(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianPanelDidOperation);
+        }
+        Some("bayesian.synthetic_control")
+            if matches!(contract.target.query, CausalQueryWire::SyntheticControl(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianSyntheticControlOperation);
+        }
+        Some("bayesian.randomized_quantile")
+            if matches!(contract.target.query, CausalQueryWire::AverageEffect { .. }) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianQuantileOperation);
+        }
+        Some("bayesian.piecewise_survival")
+            if matches!(contract.target.query, CausalQueryWire::Survival(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianSurvivalOperation);
+        }
+        Some("bayesian.continuous_dose_policy")
+            if matches!(contract.target.query, CausalQueryWire::ContinuousDoseResponse(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianDosePolicyOperation);
+        }
+        Some("bayesian.local_ratio")
+            if matches!(contract.target.query, CausalQueryWire::LocalPolynomialRatio(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianLocalRatioOperation);
+        }
+        Some(
+            "bayesian.randomized_finite_population"
+            | "bayesian.randomized_superpopulation"
+            | "bayesian.switchback_effect",
+        )
+            if matches!(contract.target.query, CausalQueryWire::RandomizedEffect(_)) =>
+        {
+            unresolved.push(ContractReason::DependenciesCheckedBayesianRandomizedOperation);
+        }
         Some("transport.trial_ipw" | "transport.trial_bayesian_bootstrap")
             if matches!(contract.target.query, CausalQueryWire::Transport(_)) =>
         {
