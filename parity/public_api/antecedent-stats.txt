@@ -272,6 +272,12 @@ impl core::clone::Clone for antecedent_stats::measurement_error::ObservedClassSu
 impl core::clone::Clone for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::clone::Clone for antecedent_stats::measurement_error::ValidationSummary
 impl core::clone::Clone for antecedent_stats::measurement_error::VarianceComponents
+impl core::clone::Clone for antecedent_stats::retained_factor::FactorCondition
+impl core::clone::Clone for antecedent_stats::retained_factor::GaussianEstimate
+impl core::clone::Clone for antecedent_stats::retained_factor::HmcState
+impl core::clone::Clone for antecedent_stats::retained_factor::HmcStep
+impl core::clone::Clone for antecedent_stats::retained_factor::LaplaceStep
+impl core::clone::Clone for antecedent_stats::retained_factor::RepeatedQuery
 impl core::clone::Clone for antecedent_stats::solver_workspace::QrScopeDurations
 impl core::clone::Clone for antecedent_stats::synthesis::GaussianStudyEstimate
 impl core::clone::Clone for antecedent_stats::synthesis_transport::SummaryOrigin
@@ -514,6 +520,8 @@ impl core::cmp::PartialEq for antecedent_stats::measurement_error::ObservedClass
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::ValidationSummary
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::VarianceComponents
+impl core::cmp::PartialEq for antecedent_stats::retained_factor::FactorCondition
+impl core::cmp::PartialEq for antecedent_stats::retained_factor::RepeatedQuery
 impl core::cmp::PartialEq for antecedent_stats::synthesis::GaussianStudyEstimate
 impl core::cmp::PartialEq for antecedent_stats::synthesis_transport::SummaryOrigin
 impl core::cmp::PartialEq for antecedent_stats::synthesis_transport::TransportAwareSummary
@@ -798,6 +806,13 @@ impl core::fmt::Debug for antecedent_stats::measurement_error::ObservedClassSumm
 impl core::fmt::Debug for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::fmt::Debug for antecedent_stats::measurement_error::ValidationSummary
 impl core::fmt::Debug for antecedent_stats::measurement_error::VarianceComponents
+impl core::fmt::Debug for antecedent_stats::retained_factor::FactorCondition
+impl core::fmt::Debug for antecedent_stats::retained_factor::GaussianEstimate
+impl core::fmt::Debug for antecedent_stats::retained_factor::HmcState
+impl core::fmt::Debug for antecedent_stats::retained_factor::HmcStep
+impl core::fmt::Debug for antecedent_stats::retained_factor::LaplaceStep
+impl core::fmt::Debug for antecedent_stats::retained_factor::RepeatedQuery
+impl core::fmt::Debug for antecedent_stats::retained_factor::RetainedFactor
 impl core::fmt::Debug for antecedent_stats::solver_workspace::QrScopeDurations
 impl core::fmt::Debug for antecedent_stats::synthesis::GaussianStudyEstimate
 impl core::fmt::Debug for antecedent_stats::synthesis_transport::SummaryOrigin
@@ -946,6 +961,8 @@ impl core::marker::Copy for antecedent_stats::measurement_error::CorrectedPropor
 impl core::marker::Copy for antecedent_stats::measurement_error::CorrectedRiskDifference
 impl core::marker::Copy for antecedent_stats::measurement_error::ObservedClassSummary
 impl core::marker::Copy for antecedent_stats::measurement_error::TwoByTwoCounts
+impl core::marker::Copy for antecedent_stats::retained_factor::FactorCondition
+impl core::marker::Copy for antecedent_stats::retained_factor::RepeatedQuery
 impl core::marker::Copy for antecedent_stats::solver_workspace::QrScopeDurations
 impl core::marker::Freeze for antecedent_stats::AdditiveDesign [auto]
 impl core::marker::Freeze for antecedent_stats::BasisKind [auto]
@@ -1174,6 +1191,13 @@ impl core::marker::Freeze for antecedent_stats::measurement_error::ObservedClass
 impl core::marker::Freeze for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Freeze for antecedent_stats::retained_factor::FactorCondition [auto]
+impl core::marker::Freeze for antecedent_stats::retained_factor::GaussianEstimate [auto]
+impl core::marker::Freeze for antecedent_stats::retained_factor::HmcState [auto]
+impl core::marker::Freeze for antecedent_stats::retained_factor::HmcStep [auto]
+impl core::marker::Freeze for antecedent_stats::retained_factor::LaplaceStep [auto]
+impl core::marker::Freeze for antecedent_stats::retained_factor::RepeatedQuery [auto]
+impl core::marker::Freeze for antecedent_stats::retained_factor::RetainedFactor [auto]
 impl core::marker::Freeze for antecedent_stats::solver_workspace::QrScopeDurations [auto]
 impl core::marker::Freeze for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::marker::Freeze for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
@@ -1410,6 +1434,13 @@ impl core::marker::Send for antecedent_stats::measurement_error::ObservedClassSu
 impl core::marker::Send for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Send for antecedent_stats::retained_factor::FactorCondition [auto]
+impl core::marker::Send for antecedent_stats::retained_factor::GaussianEstimate [auto]
+impl core::marker::Send for antecedent_stats::retained_factor::HmcState [auto]
+impl core::marker::Send for antecedent_stats::retained_factor::HmcStep [auto]
+impl core::marker::Send for antecedent_stats::retained_factor::LaplaceStep [auto]
+impl core::marker::Send for antecedent_stats::retained_factor::RepeatedQuery [auto]
+impl core::marker::Send for antecedent_stats::retained_factor::RetainedFactor [auto]
 impl core::marker::Send for antecedent_stats::solver_workspace::QrScopeDurations [auto]
 impl core::marker::Send for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::marker::Send for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
@@ -1605,6 +1636,8 @@ impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::ValidationSummary
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::VarianceComponents
+impl core::marker::StructuralPartialEq for antecedent_stats::retained_factor::FactorCondition
+impl core::marker::StructuralPartialEq for antecedent_stats::retained_factor::RepeatedQuery
 impl core::marker::StructuralPartialEq for antecedent_stats::synthesis::GaussianStudyEstimate
 impl core::marker::StructuralPartialEq for antecedent_stats::synthesis_transport::SummaryOrigin
 impl core::marker::StructuralPartialEq for antecedent_stats::synthesis_transport::TransportAwareSummary
@@ -1839,6 +1872,13 @@ impl core::marker::Sync for antecedent_stats::measurement_error::ObservedClassSu
 impl core::marker::Sync for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Sync for antecedent_stats::retained_factor::FactorCondition [auto]
+impl core::marker::Sync for antecedent_stats::retained_factor::GaussianEstimate [auto]
+impl core::marker::Sync for antecedent_stats::retained_factor::HmcState [auto]
+impl core::marker::Sync for antecedent_stats::retained_factor::HmcStep [auto]
+impl core::marker::Sync for antecedent_stats::retained_factor::LaplaceStep [auto]
+impl core::marker::Sync for antecedent_stats::retained_factor::RepeatedQuery [auto]
+impl core::marker::Sync for antecedent_stats::retained_factor::RetainedFactor [auto]
 impl core::marker::Sync for antecedent_stats::solver_workspace::QrScopeDurations [auto]
 impl core::marker::Sync for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::marker::Sync for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
@@ -2075,6 +2115,13 @@ impl core::marker::Unpin for antecedent_stats::measurement_error::ObservedClassS
 impl core::marker::Unpin for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Unpin for antecedent_stats::retained_factor::FactorCondition [auto]
+impl core::marker::Unpin for antecedent_stats::retained_factor::GaussianEstimate [auto]
+impl core::marker::Unpin for antecedent_stats::retained_factor::HmcState [auto]
+impl core::marker::Unpin for antecedent_stats::retained_factor::HmcStep [auto]
+impl core::marker::Unpin for antecedent_stats::retained_factor::LaplaceStep [auto]
+impl core::marker::Unpin for antecedent_stats::retained_factor::RepeatedQuery [auto]
+impl core::marker::Unpin for antecedent_stats::retained_factor::RetainedFactor [auto]
 impl core::marker::Unpin for antecedent_stats::solver_workspace::QrScopeDurations [auto]
 impl core::marker::Unpin for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::marker::Unpin for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
@@ -2311,6 +2358,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_e
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::retained_factor::FactorCondition [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::retained_factor::GaussianEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::retained_factor::HmcState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::retained_factor::HmcStep [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::retained_factor::LaplaceStep [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::retained_factor::RepeatedQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::retained_factor::RetainedFactor [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::solver_workspace::QrScopeDurations [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
@@ -2547,6 +2601,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_erro
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::retained_factor::FactorCondition [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::retained_factor::GaussianEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::retained_factor::HmcState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::retained_factor::HmcStep [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::retained_factor::LaplaceStep [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::retained_factor::RepeatedQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::retained_factor::RetainedFactor [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::solver_workspace::QrScopeDurations [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
@@ -2572,6 +2633,7 @@ impl<'a> core::clone::Clone for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::clone::Clone for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 impl<'a> core::clone::Clone for antecedent_stats::longitudinal_regime::SubjectHistories<'a>
 impl<'a> core::clone::Clone for antecedent_stats::measurement_error::LinearErrorData<'a>
+impl<'a> core::clone::Clone for antecedent_stats::retained_factor::SelectedDesign<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::BlockTest<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::CiBatchRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::GlmDesignRef<'a>
@@ -2588,6 +2650,7 @@ impl<'a> core::fmt::Debug for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::longitudinal_regime::SubjectHistories<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::LinearErrorData<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::retained_factor::SelectedDesign<'a>
 impl<'a> core::marker::Copy for antecedent_stats::BlockTest<'a>
 impl<'a> core::marker::Copy for antecedent_stats::GlmDesignRef<'a>
 impl<'a> core::marker::Copy for antecedent_stats::IvBlocks<'a>
@@ -2603,6 +2666,7 @@ impl<'a> core::marker::Copy for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::marker::Copy for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 impl<'a> core::marker::Copy for antecedent_stats::longitudinal_regime::SubjectHistories<'a>
 impl<'a> core::marker::Copy for antecedent_stats::measurement_error::LinearErrorData<'a>
+impl<'a> core::marker::Copy for antecedent_stats::retained_factor::SelectedDesign<'a>
 impl<'a> core::marker::Freeze for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -2620,6 +2684,7 @@ impl<'a> core::marker::Freeze for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::retained_factor::SelectedDesign<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -2637,6 +2702,7 @@ impl<'a> core::marker::Send for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::retained_factor::SelectedDesign<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -2654,6 +2720,7 @@ impl<'a> core::marker::Sync for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::retained_factor::SelectedDesign<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -2671,6 +2738,7 @@ impl<'a> core::marker::Unpin for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::retained_factor::SelectedDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -2688,6 +2756,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::Des
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::retained_factor::SelectedDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -2705,6 +2774,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::Design
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::retained_factor::SelectedDesign<'a> [auto]
 pub const <antecedent_stats::IdentifiedSetIntervalMethod>::ALL: [Self; 2]
 pub const <antecedent_stats::adaptive_inference::BetaPrior>::UNIFORM: Self
 pub const <antecedent_stats::adaptive_inference::OutcomeObservation>::COMPLETE: Self
@@ -2761,6 +2831,7 @@ pub const antecedent_stats::joint_law::MAX_MARGINAL_ATOMS: usize
 pub const antecedent_stats::measurement_error::MAX_MEASUREMENT_CATEGORIES: usize
 pub const antecedent_stats::measurement_error::MAX_MEASUREMENT_COVARIATES: usize
 pub const antecedent_stats::measurement_error::MAX_MEASUREMENT_ROWS: usize
+pub const antecedent_stats::retained_factor::ILL_CONDITIONED_RCOND: f64
 pub const antecedent_stats::synthesis::MAX_STUDIES: usize
 pub const antecedent_stats::synthesis::MAX_TAU_SUPPORT: usize
 pub const antecedent_stats::synthesis_transport::MAX_TRANSPORTED_SUMMARIES: usize
@@ -2793,6 +2864,7 @@ pub enum antecedent_stats::adaptive_inference::LookDecision
 pub enum antecedent_stats::adaptive_inference::SequenceKind
 pub enum antecedent_stats::adaptive_inference::StopReason
 pub enum antecedent_stats::ci::fisher_batch::CovarianceOrigin
+pub enum antecedent_stats::retained_factor::FactorCondition
 pub enum antecedent_stats::synthesis_transport::SummaryOrigin
 pub field antecedent_stats::BlockTest::x_cols: &'a [usize]
 pub field antecedent_stats::BlockTest::y_cols: &'a [usize]
@@ -3562,6 +3634,24 @@ pub field antecedent_stats::measurement_error::VarianceComponents::units: usize
 pub field antecedent_stats::measurement_error::VarianceComponents::within_df: f64
 pub field antecedent_stats::measurement_error::VarianceComponents::within_variance: f64
 pub field antecedent_stats::measurement_error::VarianceComponents::within_variance_estimate_variance: f64
+pub field antecedent_stats::retained_factor::GaussianEstimate::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_stats::retained_factor::GaussianEstimate::condition: antecedent_stats::retained_factor::FactorCondition
+pub field antecedent_stats::retained_factor::GaussianEstimate::rank: usize
+pub field antecedent_stats::retained_factor::GaussianEstimate::reference_rss: f64
+pub field antecedent_stats::retained_factor::HmcState::momentum: alloc::vec::Vec<f64>
+pub field antecedent_stats::retained_factor::HmcState::position: alloc::vec::Vec<f64>
+pub field antecedent_stats::retained_factor::HmcStep::condition: antecedent_stats::retained_factor::FactorCondition
+pub field antecedent_stats::retained_factor::HmcStep::state: antecedent_stats::retained_factor::HmcState
+pub field antecedent_stats::retained_factor::LaplaceStep::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_stats::retained_factor::LaplaceStep::condition: antecedent_stats::retained_factor::FactorCondition
+pub field antecedent_stats::retained_factor::RepeatedQuery::condition: antecedent_stats::retained_factor::FactorCondition
+pub field antecedent_stats::retained_factor::RepeatedQuery::value: f64
+pub field antecedent_stats::retained_factor::SelectedDesign::ncols: usize
+pub field antecedent_stats::retained_factor::SelectedDesign::outcome: &'a [f64]
+pub field antecedent_stats::retained_factor::SelectedDesign::selected: &'a [usize]
+pub field antecedent_stats::retained_factor::SelectedDesign::source_rows: usize
+pub field antecedent_stats::retained_factor::SelectedDesign::weights: core::option::Option<&'a [f64]>
+pub field antecedent_stats::retained_factor::SelectedDesign::x_colmajor: &'a [f64]
 pub field antecedent_stats::solver_workspace::QrScopeDurations::parallel: core::time::Duration
 pub field antecedent_stats::solver_workspace::QrScopeDurations::serial: core::time::Duration
 pub field antecedent_stats::synthesis::GaussianStudyEstimate::degrees_of_freedom: usize
@@ -3863,6 +3953,22 @@ pub fn <antecedent_stats::measurement_error::ErrorVariance>::fn from_validation(
 pub fn <antecedent_stats::measurement_error::ErrorVariance>::fn known(variance: f64, standard_error: f64) -> core::result::Result<Self, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::measurement_error::LinearMoments>::fn accumulate(data: &antecedent_stats::measurement_error::LinearErrorData<'_>, error: &antecedent_stats::measurement_error::ErrorVariance, reliability_floor: f64) -> core::result::Result<Self, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::measurement_error::LinearMoments>::fn solve(&self) -> core::result::Result<antecedent_stats::measurement_error::CorrectedLinear, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::const fn condition(&self) -> antecedent_stats::retained_factor::FactorCondition
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::const fn factor_builds(&self) -> u64
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::const fn gather_writes(&self) -> u64
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::const fn gram_factor_retained(&self) -> bool
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::const fn layout_copies(&self) -> u64
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::const fn scratch_allocations(&self) -> u64
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::const fn used_min_norm_fallback(&self) -> bool
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::fn gaussian_estimate(&self) -> antecedent_stats::retained_factor::GaussianEstimate
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::fn hmc_step(&self, state: &antecedent_stats::retained_factor::HmcState, step_size: f64, sigma_squared: f64) -> core::result::Result<antecedent_stats::retained_factor::HmcStep, antecedent_stats::StatsError>
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::fn influence_pass(&self, design: antecedent_stats::retained_factor::SelectedDesign<'_>) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::fn laplace_step(&self, beta: &[f64], sigma_squared: f64) -> core::result::Result<antecedent_stats::retained_factor::LaplaceStep, antecedent_stats::StatsError>
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::fn leverage_pass(&self, design: antecedent_stats::retained_factor::SelectedDesign<'_>) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::fn repeated_query(&self, contrast: &[f64]) -> core::result::Result<antecedent_stats::retained_factor::RepeatedQuery, antecedent_stats::StatsError>
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::fn residual_pass(&self, design: antecedent_stats::retained_factor::SelectedDesign<'_>) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::fn residual_sum_of_squares(&self, beta: &[f64]) -> core::result::Result<f64, antecedent_stats::StatsError>
+pub fn <antecedent_stats::retained_factor::RetainedFactor>::fn retain(design: antecedent_stats::retained_factor::SelectedDesign<'_>) -> core::result::Result<Self, antecedent_stats::StatsError>
 pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::const fn gather_writes(&self) -> u64
 pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::const fn layout_copies(&self) -> u64
 pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::const fn new(scope: antecedent_stats::faer_scope::FaerScope) -> Self
@@ -4128,6 +4234,7 @@ pub mod antecedent_stats::propensity
 pub mod antecedent_stats::quantile
 pub mod antecedent_stats::regularized
 pub mod antecedent_stats::response
+pub mod antecedent_stats::retained_factor
 pub mod antecedent_stats::solver_workspace
 pub mod antecedent_stats::special
 pub mod antecedent_stats::synthesis
@@ -4350,6 +4457,14 @@ pub struct antecedent_stats::measurement_error::ObservedClassSummary
 pub struct antecedent_stats::measurement_error::TwoByTwoCounts
 pub struct antecedent_stats::measurement_error::ValidationSummary
 pub struct antecedent_stats::measurement_error::VarianceComponents
+pub struct antecedent_stats::retained_factor::GaussianEstimate
+pub struct antecedent_stats::retained_factor::HmcState
+pub struct antecedent_stats::retained_factor::HmcStep
+pub struct antecedent_stats::retained_factor::LaplaceStep
+pub struct antecedent_stats::retained_factor::RepeatedQuery
+pub struct antecedent_stats::retained_factor::RetainedFactor
+pub struct antecedent_stats::retained_factor::RetainedFactor has private fields
+pub struct antecedent_stats::retained_factor::SelectedDesign<'a>
 pub struct antecedent_stats::solver_workspace::QrScopeDurations
 pub struct antecedent_stats::solver_workspace::SolverWorkspace
 pub struct antecedent_stats::solver_workspace::SolverWorkspace has private fields
@@ -5019,6 +5134,9 @@ pub variant antecedent_stats::measurement_error::MeasurementErrorError::Shape(&'
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::SingularDesign
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::TooFewRows { rows: usize, minimum: usize }
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::YoudenTooSmall { youden: f64, minimum: f64 }
+pub variant antecedent_stats::retained_factor::FactorCondition::IllConditioned { rcond: f64 }
+pub variant antecedent_stats::retained_factor::FactorCondition::NumericallySingular { rank: usize, ncols: usize }
+pub variant antecedent_stats::retained_factor::FactorCondition::Stable { rcond: f64 }
 pub variant antecedent_stats::synthesis_transport::SummaryOrigin::Native
 pub variant antecedent_stats::synthesis_transport::SummaryOrigin::Transported { transport_key: alloc::string::String, transport_variance: f64 }
 pub variant antecedent_stats::synthesis_transport::TransportedSynthesisError::InconsistentTransportVariance { key: alloc::string::String }
