@@ -76,6 +76,7 @@ pub mod effect_constancy_consumers;
 pub mod evidence_ledger;
 mod exact;
 mod execute;
+mod finite_discrete;
 pub(crate) mod four_way;
 pub mod interface_contract;
 mod inverse_outcome;
