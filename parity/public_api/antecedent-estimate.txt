@@ -360,6 +360,9 @@ impl core::clone::Clone for antecedent_estimate::count_fitted_posterior::CountNo
 impl core::clone::Clone for antecedent_estimate::count_fitted_posterior::NodeTable
 impl core::clone::Clone for antecedent_estimate::count_fitted_posterior::PosteriorInterval
 impl core::clone::Clone for antecedent_estimate::count_fitted_posterior::PosteriorQuery
+impl core::clone::Clone for antecedent_estimate::count_weight_lowering::GaussianCountFit
+impl core::clone::Clone for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator
+impl core::clone::Clone for antecedent_estimate::count_weight_lowering::ResamplePath
 impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
 impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::OverlapPair
@@ -411,6 +414,12 @@ impl core::clone::Clone for antecedent_estimate::factorial_bernoulli::BernoulliF
 impl core::clone::Clone for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::clone::Clone for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
 impl core::clone::Clone for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance
+impl core::clone::Clone for antecedent_estimate::history_match::BayesianHistoryContrast
+impl core::clone::Clone for antecedent_estimate::history_match::BayesianHistoryEstimate
+impl core::clone::Clone for antecedent_estimate::history_match::ContrastPrior
+impl core::clone::Clone for antecedent_estimate::history_match::FrequentistHistoryContrast
+impl core::clone::Clone for antecedent_estimate::history_match::FrequentistHistoryEstimate
+impl core::clone::Clone for antecedent_estimate::history_match::HistoryUnit
 impl core::clone::Clone for antecedent_estimate::interference_observational::ObservationalExposureInterval
 impl core::clone::Clone for antecedent_estimate::interference_saturation::SaturationClusterInterval
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::DataIdentity
@@ -436,6 +445,8 @@ impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::clone::Clone for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast
+impl core::clone::Clone for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior
 impl core::clone::Clone for antecedent_estimate::latent_class_effects::LatentClassBootstrap
 impl core::clone::Clone for antecedent_estimate::latent_class_effects::LatentClassConfig
 impl core::clone::Clone for antecedent_estimate::latent_class_effects::LatentClassEffect
@@ -627,6 +638,20 @@ impl core::clone::Clone for antecedent_estimate::temporal_initial_state::Initial
 impl core::clone::Clone for antecedent_estimate::temporal_initial_state::MarginalizedEffect
 impl core::clone::Clone for antecedent_estimate::temporal_initial_state::MarginalizedQuery
 impl core::clone::Clone for antecedent_estimate::temporal_initial_state::StateContribution
+impl core::clone::Clone for antecedent_estimate::temporal_link::BayesianLinkPosterior
+impl core::clone::Clone for antecedent_estimate::temporal_link::BayesianTemporalLink
+impl core::clone::Clone for antecedent_estimate::temporal_link::FrequentistLinkContrast
+impl core::clone::Clone for antecedent_estimate::temporal_link::FrequentistTemporalLink
+impl core::clone::Clone for antecedent_estimate::temporal_link::RegimeColumn
+impl core::clone::Clone for antecedent_estimate::temporal_link::TemporalContrastDesign
+impl core::clone::Clone for antecedent_estimate::temporal_link::TemporalOutcomeLink
+impl core::clone::Clone for antecedent_estimate::temporal_link::TrajectoryDependence
+impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity
+impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity
+impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore
+impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::PosteriorPropensity
+impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign
+impl core::clone::Clone for antecedent_estimate::temporal_penalized_score::TrajectoryDependence
 impl core::clone::Clone for antecedent_estimate::temporal_refresh::FactorChange
 impl core::clone::Clone for antecedent_estimate::temporal_refresh::MechanismStanding
 impl core::clone::Clone for antecedent_estimate::temporal_refresh::ObservationCadence
@@ -653,6 +678,10 @@ impl core::clone::Clone for antecedent_estimate::tiled_prediction::Reduction
 impl core::clone::Clone for antecedent_estimate::tiled_prediction::StreamSummary
 impl core::clone::Clone for antecedent_estimate::tiled_prediction::StreamedValue
 impl core::clone::Clone for antecedent_estimate::tiled_prediction::TileError
+impl core::clone::Clone for antecedent_estimate::trajectory_survival::HazardPrior
+impl core::clone::Clone for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior
+impl core::clone::Clone for antecedent_estimate::trajectory_survival::TrajectorySurvival
+impl core::clone::Clone for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast
 impl core::clone::Clone for antecedent_estimate::transport_scenarios::MeanEnvelope
 impl core::clone::Clone for antecedent_estimate::transport_scenarios::PreparedScenarioSet
 impl core::clone::Clone for antecedent_estimate::transport_scenarios::ScenarioResult
@@ -736,6 +765,8 @@ impl core::cmp::Eq for antecedent_estimate::categorical_treatment::LevelScale
 impl core::cmp::Eq for antecedent_estimate::categorical_treatment::MonotonicityDirection
 impl core::cmp::Eq for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal
 impl core::cmp::Eq for antecedent_estimate::cohort_linear_effect::NativeFitSize
+impl core::cmp::Eq for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator
+impl core::cmp::Eq for antecedent_estimate::count_weight_lowering::ResamplePath
 impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
 impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::OverlapPair
@@ -832,6 +863,9 @@ impl core::cmp::Eq for antecedent_estimate::temporal_dependent_interval::Interva
 impl core::cmp::Eq for antecedent_estimate::temporal_dependent_interval::ObservedStateSequence
 impl core::cmp::Eq for antecedent_estimate::temporal_initial_state::FixedStateQuery
 impl core::cmp::Eq for antecedent_estimate::temporal_initial_state::InitialStatePopulation
+impl core::cmp::Eq for antecedent_estimate::temporal_link::TemporalOutcomeLink
+impl core::cmp::Eq for antecedent_estimate::temporal_link::TrajectoryDependence
+impl core::cmp::Eq for antecedent_estimate::temporal_penalized_score::TrajectoryDependence
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::FactorChange
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::MechanismStanding
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::ObservationCadence
@@ -1082,6 +1116,8 @@ impl core::cmp::PartialEq for antecedent_estimate::count_fitted_posterior::Count
 impl core::cmp::PartialEq for antecedent_estimate::count_fitted_posterior::NodeTable
 impl core::cmp::PartialEq for antecedent_estimate::count_fitted_posterior::PosteriorInterval
 impl core::cmp::PartialEq for antecedent_estimate::count_fitted_posterior::PosteriorQuery
+impl core::cmp::PartialEq for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator
+impl core::cmp::PartialEq for antecedent_estimate::count_weight_lowering::ResamplePath
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::OverlapPair
@@ -1153,6 +1189,8 @@ impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::Sou
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::cmp::PartialEq for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast
+impl core::cmp::PartialEq for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior
 impl core::cmp::PartialEq for antecedent_estimate::latent_class_effects::LatentClassBootstrap
 impl core::cmp::PartialEq for antecedent_estimate::latent_class_effects::LatentClassConfig
 impl core::cmp::PartialEq for antecedent_estimate::latent_class_effects::LatentClassEffect
@@ -1333,6 +1371,9 @@ impl core::cmp::PartialEq for antecedent_estimate::temporal_initial_state::Initi
 impl core::cmp::PartialEq for antecedent_estimate::temporal_initial_state::MarginalizedEffect
 impl core::cmp::PartialEq for antecedent_estimate::temporal_initial_state::MarginalizedQuery
 impl core::cmp::PartialEq for antecedent_estimate::temporal_initial_state::StateContribution
+impl core::cmp::PartialEq for antecedent_estimate::temporal_link::TemporalOutcomeLink
+impl core::cmp::PartialEq for antecedent_estimate::temporal_link::TrajectoryDependence
+impl core::cmp::PartialEq for antecedent_estimate::temporal_penalized_score::TrajectoryDependence
 impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::FactorChange
 impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::MechanismStanding
 impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::ObservationCadence
@@ -1356,6 +1397,10 @@ impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::Reduction
 impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::StreamSummary
 impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::StreamedValue
 impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::TileError
+impl core::cmp::PartialEq for antecedent_estimate::trajectory_survival::HazardPrior
+impl core::cmp::PartialEq for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior
+impl core::cmp::PartialEq for antecedent_estimate::trajectory_survival::TrajectorySurvival
+impl core::cmp::PartialEq for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast
 impl core::cmp::PartialEq for antecedent_estimate::transport_scenarios::MeanEnvelope
 impl core::cmp::PartialEq for antecedent_estimate::transport_scenarios::StatusMass
 impl core::cmp::PartialEq for antecedent_estimate::transport_scenarios::StructuralEnvelope
@@ -1477,6 +1522,7 @@ impl core::default::Default for antecedent_estimate::counterfactual_transport_sa
 impl core::default::Default for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
 impl core::default::Default for antecedent_estimate::dose_grid_functional::ClaimSet
 impl core::default::Default for antecedent_estimate::functional_distribution::EmpiricalFactorCache
+impl core::default::Default for antecedent_estimate::history_match::FrequentistHistoryContrast
 impl core::default::Default for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics
 impl core::default::Default for antecedent_estimate::nested_markov_binary::FitOptions
 impl core::default::Default for antecedent_estimate::nonlinear_mediation::NonlinearMediationConfig
@@ -1484,6 +1530,7 @@ impl core::default::Default for antecedent_estimate::nuisance_cache::NuisanceCac
 impl core::default::Default for antecedent_estimate::nuisance_cache::SubplanReceipt
 impl core::default::Default for antecedent_estimate::policy_value::BinaryPolicyLimits
 impl core::default::Default for antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig
+impl core::default::Default for antecedent_estimate::temporal_link::FrequentistTemporalLink
 impl core::default::Default for antecedent_estimate::vector_treatment::VectorCovariance
 impl core::default::Default for antecedent_estimate::vector_treatment::VectorTreatmentOptions
 impl core::error::Error for antecedent_estimate::EstimationError
@@ -1793,6 +1840,9 @@ impl core::fmt::Debug for antecedent_estimate::count_fitted_posterior::CountNode
 impl core::fmt::Debug for antecedent_estimate::count_fitted_posterior::NodeTable
 impl core::fmt::Debug for antecedent_estimate::count_fitted_posterior::PosteriorInterval
 impl core::fmt::Debug for antecedent_estimate::count_fitted_posterior::PosteriorQuery
+impl core::fmt::Debug for antecedent_estimate::count_weight_lowering::GaussianCountFit
+impl core::fmt::Debug for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator
+impl core::fmt::Debug for antecedent_estimate::count_weight_lowering::ResamplePath
 impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
 impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::OverlapPair
@@ -1845,6 +1895,12 @@ impl core::fmt::Debug for antecedent_estimate::frontdoor::CheckedFrontDoorProced
 impl core::fmt::Debug for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
 impl core::fmt::Debug for antecedent_estimate::functional_distribution::EmpiricalFactorCache
 impl core::fmt::Debug for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance
+impl core::fmt::Debug for antecedent_estimate::history_match::BayesianHistoryContrast
+impl core::fmt::Debug for antecedent_estimate::history_match::BayesianHistoryEstimate
+impl core::fmt::Debug for antecedent_estimate::history_match::ContrastPrior
+impl core::fmt::Debug for antecedent_estimate::history_match::FrequentistHistoryContrast
+impl core::fmt::Debug for antecedent_estimate::history_match::FrequentistHistoryEstimate
+impl core::fmt::Debug for antecedent_estimate::history_match::HistoryUnit
 impl core::fmt::Debug for antecedent_estimate::interference_observational::ObservationalExposureInterval
 impl core::fmt::Debug for antecedent_estimate::interference_saturation::SaturationClusterInterval
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::DataIdentity
@@ -1870,6 +1926,8 @@ impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::SourceS
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::fmt::Debug for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast
+impl core::fmt::Debug for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior
 impl core::fmt::Debug for antecedent_estimate::latent_class_effects::LatentClassBootstrap
 impl core::fmt::Debug for antecedent_estimate::latent_class_effects::LatentClassConfig
 impl core::fmt::Debug for antecedent_estimate::latent_class_effects::LatentClassEffect
@@ -2063,6 +2121,20 @@ impl core::fmt::Debug for antecedent_estimate::temporal_initial_state::InitialSt
 impl core::fmt::Debug for antecedent_estimate::temporal_initial_state::MarginalizedEffect
 impl core::fmt::Debug for antecedent_estimate::temporal_initial_state::MarginalizedQuery
 impl core::fmt::Debug for antecedent_estimate::temporal_initial_state::StateContribution
+impl core::fmt::Debug for antecedent_estimate::temporal_link::BayesianLinkPosterior
+impl core::fmt::Debug for antecedent_estimate::temporal_link::BayesianTemporalLink
+impl core::fmt::Debug for antecedent_estimate::temporal_link::FrequentistLinkContrast
+impl core::fmt::Debug for antecedent_estimate::temporal_link::FrequentistTemporalLink
+impl core::fmt::Debug for antecedent_estimate::temporal_link::RegimeColumn
+impl core::fmt::Debug for antecedent_estimate::temporal_link::TemporalContrastDesign
+impl core::fmt::Debug for antecedent_estimate::temporal_link::TemporalOutcomeLink
+impl core::fmt::Debug for antecedent_estimate::temporal_link::TrajectoryDependence
+impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity
+impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity
+impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore
+impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::PosteriorPropensity
+impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign
+impl core::fmt::Debug for antecedent_estimate::temporal_penalized_score::TrajectoryDependence
 impl core::fmt::Debug for antecedent_estimate::temporal_refresh::FactorChange
 impl core::fmt::Debug for antecedent_estimate::temporal_refresh::MechanismStanding
 impl core::fmt::Debug for antecedent_estimate::temporal_refresh::ObservationCadence
@@ -2089,6 +2161,10 @@ impl core::fmt::Debug for antecedent_estimate::tiled_prediction::Reduction
 impl core::fmt::Debug for antecedent_estimate::tiled_prediction::StreamSummary
 impl core::fmt::Debug for antecedent_estimate::tiled_prediction::StreamedValue
 impl core::fmt::Debug for antecedent_estimate::tiled_prediction::TileError
+impl core::fmt::Debug for antecedent_estimate::trajectory_survival::HazardPrior
+impl core::fmt::Debug for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior
+impl core::fmt::Debug for antecedent_estimate::trajectory_survival::TrajectorySurvival
+impl core::fmt::Debug for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast
 impl core::fmt::Debug for antecedent_estimate::transport_scenarios::MeanEnvelope
 impl core::fmt::Debug for antecedent_estimate::transport_scenarios::PreparedScenarioSet
 impl core::fmt::Debug for antecedent_estimate::transport_scenarios::ScenarioResult
@@ -2127,6 +2203,8 @@ impl core::hash::Hash for antecedent_estimate::ObservationPattern
 impl core::hash::Hash for antecedent_estimate::PropensityNuisance
 impl core::hash::Hash for antecedent_estimate::SampledRecoveryDetail
 impl core::hash::Hash for antecedent_estimate::SelectedOutcomeCorrection
+impl core::hash::Hash for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator
+impl core::hash::Hash for antecedent_estimate::count_weight_lowering::ResamplePath
 impl core::hash::Hash for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::CertifiedSource
@@ -2242,6 +2320,8 @@ impl core::marker::Copy for antecedent_estimate::categorical_treatment::LevelSca
 impl core::marker::Copy for antecedent_estimate::categorical_treatment::MonotonicityDirection
 impl core::marker::Copy for antecedent_estimate::cohort_linear_effect::NativeFitSize
 impl core::marker::Copy for antecedent_estimate::continuous_dose::DoseWindow
+impl core::marker::Copy for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator
+impl core::marker::Copy for antecedent_estimate::count_weight_lowering::ResamplePath
 impl core::marker::Copy for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 impl core::marker::Copy for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
 impl core::marker::Copy for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
@@ -2260,6 +2340,7 @@ impl core::marker::Copy for antecedent_estimate::effect_constancy::Heterogeneity
 impl core::marker::Copy for antecedent_estimate::effect_constancy::HeterogeneityTest
 impl core::marker::Copy for antecedent_estimate::effect_constancy::PartitionSupport
 impl core::marker::Copy for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
+impl core::marker::Copy for antecedent_estimate::history_match::ContrastPrior
 impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::JointTransportCalibration
 impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::JointTransportOptions
 impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::SourceDependence
@@ -2350,6 +2431,13 @@ impl core::marker::Copy for antecedent_estimate::temporal_dependent_interval::Se
 impl core::marker::Copy for antecedent_estimate::temporal_initial_state::FixedStateQuery
 impl core::marker::Copy for antecedent_estimate::temporal_initial_state::InitialStatePopulation
 impl core::marker::Copy for antecedent_estimate::temporal_initial_state::StateContribution
+impl core::marker::Copy for antecedent_estimate::temporal_link::BayesianTemporalLink
+impl core::marker::Copy for antecedent_estimate::temporal_link::FrequentistTemporalLink
+impl core::marker::Copy for antecedent_estimate::temporal_link::TemporalOutcomeLink
+impl core::marker::Copy for antecedent_estimate::temporal_link::TrajectoryDependence
+impl core::marker::Copy for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity
+impl core::marker::Copy for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity
+impl core::marker::Copy for antecedent_estimate::temporal_penalized_score::TrajectoryDependence
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::FactorChange
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::MechanismStanding
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::ObservationCadence
@@ -2366,6 +2454,10 @@ impl core::marker::Copy for antecedent_estimate::tiled_prediction::Reduction
 impl core::marker::Copy for antecedent_estimate::tiled_prediction::StreamSummary
 impl core::marker::Copy for antecedent_estimate::tiled_prediction::StreamedValue
 impl core::marker::Copy for antecedent_estimate::tiled_prediction::TileError
+impl core::marker::Copy for antecedent_estimate::trajectory_survival::HazardPrior
+impl core::marker::Copy for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior
+impl core::marker::Copy for antecedent_estimate::trajectory_survival::TrajectorySurvival
+impl core::marker::Copy for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast
 impl core::marker::Copy for antecedent_estimate::vector_treatment::JointWald
 impl core::marker::Copy for antecedent_estimate::vector_treatment::VectorCovariance
 impl core::marker::Freeze for antecedent_estimate::AdjustedEstimate [auto]
@@ -2666,6 +2758,9 @@ impl core::marker::Freeze for antecedent_estimate::count_fitted_posterior::Count
 impl core::marker::Freeze for antecedent_estimate::count_fitted_posterior::NodeTable [auto]
 impl core::marker::Freeze for antecedent_estimate::count_fitted_posterior::PosteriorInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::count_fitted_posterior::PosteriorQuery [auto]
+impl core::marker::Freeze for antecedent_estimate::count_weight_lowering::GaussianCountFit [auto]
+impl core::marker::Freeze for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator [auto]
+impl core::marker::Freeze for antecedent_estimate::count_weight_lowering::ResamplePath [auto]
 impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
 impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
 impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
@@ -2717,6 +2812,12 @@ impl core::marker::Freeze for antecedent_estimate::factorial_bernoulli::Bernoull
 impl core::marker::Freeze for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Freeze for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::marker::Freeze for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance [auto]
+impl core::marker::Freeze for antecedent_estimate::history_match::BayesianHistoryContrast [auto]
+impl core::marker::Freeze for antecedent_estimate::history_match::BayesianHistoryEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::history_match::ContrastPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::history_match::FrequentistHistoryContrast [auto]
+impl core::marker::Freeze for antecedent_estimate::history_match::FrequentistHistoryEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Freeze for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -2742,6 +2843,8 @@ impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::Sou
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Freeze for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
+impl core::marker::Freeze for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
 impl core::marker::Freeze for antecedent_estimate::latent_class_effects::LatentClassConfig [auto]
 impl core::marker::Freeze for antecedent_estimate::latent_class_effects::LatentClassEffect [auto]
@@ -2934,6 +3037,20 @@ impl core::marker::Freeze for antecedent_estimate::temporal_initial_state::Initi
 impl core::marker::Freeze for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_link::BayesianLinkPosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_link::BayesianTemporalLink [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_link::FrequentistLinkContrast [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_link::FrequentistTemporalLink [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_link::RegimeColumn [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_link::TemporalContrastDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_link::TemporalOutcomeLink [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_link::TrajectoryDependence [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_refresh::FactorChange [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
@@ -2960,6 +3077,10 @@ impl core::marker::Freeze for antecedent_estimate::tiled_prediction::Reduction [
 impl core::marker::Freeze for antecedent_estimate::tiled_prediction::StreamSummary [auto]
 impl core::marker::Freeze for antecedent_estimate::tiled_prediction::StreamedValue [auto]
 impl core::marker::Freeze for antecedent_estimate::tiled_prediction::TileError [auto]
+impl core::marker::Freeze for antecedent_estimate::trajectory_survival::HazardPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::trajectory_survival::TrajectorySurvival [auto]
+impl core::marker::Freeze for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::marker::Freeze for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::marker::Freeze for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -3280,6 +3401,9 @@ impl core::marker::Send for antecedent_estimate::count_fitted_posterior::CountNo
 impl core::marker::Send for antecedent_estimate::count_fitted_posterior::NodeTable [auto]
 impl core::marker::Send for antecedent_estimate::count_fitted_posterior::PosteriorInterval [auto]
 impl core::marker::Send for antecedent_estimate::count_fitted_posterior::PosteriorQuery [auto]
+impl core::marker::Send for antecedent_estimate::count_weight_lowering::GaussianCountFit [auto]
+impl core::marker::Send for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator [auto]
+impl core::marker::Send for antecedent_estimate::count_weight_lowering::ResamplePath [auto]
 impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
 impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
 impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
@@ -3332,6 +3456,12 @@ impl core::marker::Send for antecedent_estimate::frontdoor::CheckedFrontDoorProc
 impl core::marker::Send for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::marker::Send for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
 impl core::marker::Send for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance [auto]
+impl core::marker::Send for antecedent_estimate::history_match::BayesianHistoryContrast [auto]
+impl core::marker::Send for antecedent_estimate::history_match::BayesianHistoryEstimate [auto]
+impl core::marker::Send for antecedent_estimate::history_match::ContrastPrior [auto]
+impl core::marker::Send for antecedent_estimate::history_match::FrequentistHistoryContrast [auto]
+impl core::marker::Send for antecedent_estimate::history_match::FrequentistHistoryEstimate [auto]
+impl core::marker::Send for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Send for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::marker::Send for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -3357,6 +3487,8 @@ impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Send for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
+impl core::marker::Send for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::marker::Send for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
 impl core::marker::Send for antecedent_estimate::latent_class_effects::LatentClassConfig [auto]
 impl core::marker::Send for antecedent_estimate::latent_class_effects::LatentClassEffect [auto]
@@ -3549,6 +3681,20 @@ impl core::marker::Send for antecedent_estimate::temporal_initial_state::Initial
 impl core::marker::Send for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::marker::Send for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::marker::Send for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::marker::Send for antecedent_estimate::temporal_link::BayesianLinkPosterior [auto]
+impl core::marker::Send for antecedent_estimate::temporal_link::BayesianTemporalLink [auto]
+impl core::marker::Send for antecedent_estimate::temporal_link::FrequentistLinkContrast [auto]
+impl core::marker::Send for antecedent_estimate::temporal_link::FrequentistTemporalLink [auto]
+impl core::marker::Send for antecedent_estimate::temporal_link::RegimeColumn [auto]
+impl core::marker::Send for antecedent_estimate::temporal_link::TemporalContrastDesign [auto]
+impl core::marker::Send for antecedent_estimate::temporal_link::TemporalOutcomeLink [auto]
+impl core::marker::Send for antecedent_estimate::temporal_link::TrajectoryDependence [auto]
+impl core::marker::Send for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
+impl core::marker::Send for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
+impl core::marker::Send for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::marker::Send for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
+impl core::marker::Send for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
+impl core::marker::Send for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
 impl core::marker::Send for antecedent_estimate::temporal_refresh::FactorChange [auto]
 impl core::marker::Send for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
 impl core::marker::Send for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
@@ -3575,6 +3721,10 @@ impl core::marker::Send for antecedent_estimate::tiled_prediction::Reduction [au
 impl core::marker::Send for antecedent_estimate::tiled_prediction::StreamSummary [auto]
 impl core::marker::Send for antecedent_estimate::tiled_prediction::StreamedValue [auto]
 impl core::marker::Send for antecedent_estimate::tiled_prediction::TileError [auto]
+impl core::marker::Send for antecedent_estimate::trajectory_survival::HazardPrior [auto]
+impl core::marker::Send for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior [auto]
+impl core::marker::Send for antecedent_estimate::trajectory_survival::TrajectorySurvival [auto]
+impl core::marker::Send for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast [auto]
 impl core::marker::Send for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::marker::Send for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::marker::Send for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -3801,6 +3951,8 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::count_fitted_pos
 impl core::marker::StructuralPartialEq for antecedent_estimate::count_fitted_posterior::NodeTable
 impl core::marker::StructuralPartialEq for antecedent_estimate::count_fitted_posterior::PosteriorInterval
 impl core::marker::StructuralPartialEq for antecedent_estimate::count_fitted_posterior::PosteriorQuery
+impl core::marker::StructuralPartialEq for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator
+impl core::marker::StructuralPartialEq for antecedent_estimate::count_weight_lowering::ResamplePath
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::OverlapPair
@@ -3872,6 +4024,8 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_t
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::marker::StructuralPartialEq for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast
+impl core::marker::StructuralPartialEq for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::latent_class_effects::LatentClassBootstrap
 impl core::marker::StructuralPartialEq for antecedent_estimate::latent_class_effects::LatentClassConfig
 impl core::marker::StructuralPartialEq for antecedent_estimate::latent_class_effects::LatentClassEffect
@@ -4052,6 +4206,9 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_initial
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_initial_state::MarginalizedEffect
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_initial_state::MarginalizedQuery
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_initial_state::StateContribution
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_link::TemporalOutcomeLink
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_link::TrajectoryDependence
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_penalized_score::TrajectoryDependence
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::FactorChange
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::MechanismStanding
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::ObservationCadence
@@ -4075,6 +4232,10 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction
 impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::StreamSummary
 impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::StreamedValue
 impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::TileError
+impl core::marker::StructuralPartialEq for antecedent_estimate::trajectory_survival::HazardPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::trajectory_survival::TrajectorySurvival
+impl core::marker::StructuralPartialEq for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::transport_scenarios::MeanEnvelope
 impl core::marker::StructuralPartialEq for antecedent_estimate::transport_scenarios::StatusMass
 impl core::marker::StructuralPartialEq for antecedent_estimate::transport_scenarios::StructuralEnvelope
@@ -4392,6 +4553,9 @@ impl core::marker::Sync for antecedent_estimate::count_fitted_posterior::CountNo
 impl core::marker::Sync for antecedent_estimate::count_fitted_posterior::NodeTable [auto]
 impl core::marker::Sync for antecedent_estimate::count_fitted_posterior::PosteriorInterval [auto]
 impl core::marker::Sync for antecedent_estimate::count_fitted_posterior::PosteriorQuery [auto]
+impl core::marker::Sync for antecedent_estimate::count_weight_lowering::GaussianCountFit [auto]
+impl core::marker::Sync for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator [auto]
+impl core::marker::Sync for antecedent_estimate::count_weight_lowering::ResamplePath [auto]
 impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
 impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
 impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
@@ -4444,6 +4608,12 @@ impl core::marker::Sync for antecedent_estimate::frontdoor::CheckedFrontDoorProc
 impl core::marker::Sync for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::marker::Sync for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
 impl core::marker::Sync for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance [auto]
+impl core::marker::Sync for antecedent_estimate::history_match::BayesianHistoryContrast [auto]
+impl core::marker::Sync for antecedent_estimate::history_match::BayesianHistoryEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::history_match::ContrastPrior [auto]
+impl core::marker::Sync for antecedent_estimate::history_match::FrequentistHistoryContrast [auto]
+impl core::marker::Sync for antecedent_estimate::history_match::FrequentistHistoryEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Sync for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::marker::Sync for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -4469,6 +4639,8 @@ impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Sync for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
+impl core::marker::Sync for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
 impl core::marker::Sync for antecedent_estimate::latent_class_effects::LatentClassConfig [auto]
 impl core::marker::Sync for antecedent_estimate::latent_class_effects::LatentClassEffect [auto]
@@ -4661,6 +4833,20 @@ impl core::marker::Sync for antecedent_estimate::temporal_initial_state::Initial
 impl core::marker::Sync for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_link::BayesianLinkPosterior [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_link::BayesianTemporalLink [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_link::FrequentistLinkContrast [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_link::FrequentistTemporalLink [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_link::RegimeColumn [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_link::TemporalContrastDesign [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_link::TemporalOutcomeLink [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_link::TrajectoryDependence [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_refresh::FactorChange [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
@@ -4687,6 +4873,10 @@ impl core::marker::Sync for antecedent_estimate::tiled_prediction::Reduction [au
 impl core::marker::Sync for antecedent_estimate::tiled_prediction::StreamSummary [auto]
 impl core::marker::Sync for antecedent_estimate::tiled_prediction::StreamedValue [auto]
 impl core::marker::Sync for antecedent_estimate::tiled_prediction::TileError [auto]
+impl core::marker::Sync for antecedent_estimate::trajectory_survival::HazardPrior [auto]
+impl core::marker::Sync for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior [auto]
+impl core::marker::Sync for antecedent_estimate::trajectory_survival::TrajectorySurvival [auto]
+impl core::marker::Sync for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast [auto]
 impl core::marker::Sync for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::marker::Sync for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::marker::Sync for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -5007,6 +5197,9 @@ impl core::marker::Unpin for antecedent_estimate::count_fitted_posterior::CountN
 impl core::marker::Unpin for antecedent_estimate::count_fitted_posterior::NodeTable [auto]
 impl core::marker::Unpin for antecedent_estimate::count_fitted_posterior::PosteriorInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::count_fitted_posterior::PosteriorQuery [auto]
+impl core::marker::Unpin for antecedent_estimate::count_weight_lowering::GaussianCountFit [auto]
+impl core::marker::Unpin for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator [auto]
+impl core::marker::Unpin for antecedent_estimate::count_weight_lowering::ResamplePath [auto]
 impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
 impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
 impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
@@ -5059,6 +5252,12 @@ impl core::marker::Unpin for antecedent_estimate::frontdoor::CheckedFrontDoorPro
 impl core::marker::Unpin for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::marker::Unpin for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
 impl core::marker::Unpin for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance [auto]
+impl core::marker::Unpin for antecedent_estimate::history_match::BayesianHistoryContrast [auto]
+impl core::marker::Unpin for antecedent_estimate::history_match::BayesianHistoryEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::history_match::ContrastPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::history_match::FrequentistHistoryContrast [auto]
+impl core::marker::Unpin for antecedent_estimate::history_match::FrequentistHistoryEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Unpin for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -5084,6 +5283,8 @@ impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::Sour
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Unpin for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
+impl core::marker::Unpin for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
 impl core::marker::Unpin for antecedent_estimate::latent_class_effects::LatentClassConfig [auto]
 impl core::marker::Unpin for antecedent_estimate::latent_class_effects::LatentClassEffect [auto]
@@ -5276,6 +5477,20 @@ impl core::marker::Unpin for antecedent_estimate::temporal_initial_state::Initia
 impl core::marker::Unpin for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_link::BayesianLinkPosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_link::BayesianTemporalLink [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_link::FrequentistLinkContrast [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_link::FrequentistTemporalLink [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_link::RegimeColumn [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_link::TemporalContrastDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_link::TemporalOutcomeLink [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_link::TrajectoryDependence [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_refresh::FactorChange [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
@@ -5302,6 +5517,10 @@ impl core::marker::Unpin for antecedent_estimate::tiled_prediction::Reduction [a
 impl core::marker::Unpin for antecedent_estimate::tiled_prediction::StreamSummary [auto]
 impl core::marker::Unpin for antecedent_estimate::tiled_prediction::StreamedValue [auto]
 impl core::marker::Unpin for antecedent_estimate::tiled_prediction::TileError [auto]
+impl core::marker::Unpin for antecedent_estimate::trajectory_survival::HazardPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::trajectory_survival::TrajectorySurvival [auto]
+impl core::marker::Unpin for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::marker::Unpin for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::marker::Unpin for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -5622,6 +5841,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::count_fitt
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::count_fitted_posterior::NodeTable [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::count_fitted_posterior::PosteriorInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::count_fitted_posterior::PosteriorQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::count_weight_lowering::GaussianCountFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::count_weight_lowering::ResamplePath [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
@@ -5674,6 +5896,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::frontdoor:
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::BayesianHistoryContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::BayesianHistoryEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::ContrastPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::FrequentistHistoryContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::FrequentistHistoryEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -5699,6 +5927,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_baye
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::latent_class_effects::LatentClassConfig [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::latent_class_effects::LatentClassEffect [auto]
@@ -5890,6 +6120,20 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_i
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_link::BayesianLinkPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_link::BayesianTemporalLink [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_link::FrequentistLinkContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_link::FrequentistTemporalLink [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_link::RegimeColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_link::TemporalContrastDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_link::TemporalOutcomeLink [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_link::TrajectoryDependence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::FactorChange [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
@@ -5916,6 +6160,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_pred
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::StreamSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::StreamedValue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::TileError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::trajectory_survival::HazardPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::trajectory_survival::TrajectorySurvival [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -6236,6 +6484,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::count_fitted_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::count_fitted_posterior::NodeTable [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::count_fitted_posterior::PosteriorInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::count_fitted_posterior::PosteriorQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::count_weight_lowering::GaussianCountFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::count_weight_lowering::RepeatedRowEstimator [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::count_weight_lowering::ResamplePath [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::OverlapPair [auto]
@@ -6288,6 +6539,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::frontdoor::Ch
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::BayesianHistoryContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::BayesianHistoryEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::ContrastPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::FrequentistHistoryContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::FrequentistHistoryEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -6313,6 +6570,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesia
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::latent_class_effects::LatentClassConfig [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::latent_class_effects::LatentClassEffect [auto]
@@ -6504,6 +6763,20 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_init
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_link::BayesianLinkPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_link::BayesianTemporalLink [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_link::FrequentistLinkContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_link::FrequentistTemporalLink [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_link::RegimeColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_link::TemporalContrastDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_link::TemporalOutcomeLink [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_link::TrajectoryDependence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::PosteriorPropensity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_penalized_score::TrajectoryDependence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::FactorChange [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
@@ -6530,6 +6803,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_predict
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::StreamSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::StreamedValue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::TileError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::trajectory_survival::HazardPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::trajectory_survival::TrajectorySurvival [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -6612,6 +6889,7 @@ impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose::DoseRows<'
 impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose::DoseRules<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::gcomp::GcompContrast<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::latent_class_effects::LatentClassData<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::measurement::LinearMeasuredData<'a>
@@ -6628,6 +6906,7 @@ impl<'a> core::clone::Clone for antecedent_estimate::survival::KnownCensoring<'a
 impl<'a> core::clone::Clone for antecedent_estimate::survival::SurvivalRows<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::tiled_prediction::TileRequest<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::trajectory_survival::TrajectoryRows<'a>
 impl<'a> core::cmp::Eq for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::cmp::Eq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::measurement::CategoricalFunctional<'a>
@@ -6655,6 +6934,7 @@ impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose::DoseRows<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose::DoseRules<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::gcomp::GcompContrast<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::latent_class_effects::LatentClassData<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::measurement::LinearMeasuredData<'a>
@@ -6672,6 +6952,7 @@ impl<'a> core::fmt::Debug for antecedent_estimate::survival::KnownCensoring<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::survival::SurvivalRows<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::tiled_prediction::TileRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::trajectory_survival::TrajectoryRows<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::CellScoreSpec<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::ContinuousCellSpec<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::HydrateSource<'a>
@@ -6691,6 +6972,7 @@ impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose::DoseRows<'
 impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose::DoseRules<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::gcomp::GcompContrast<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::latent_class_effects::LatentClassData<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::measurement::LinearMeasuredData<'a>
@@ -6707,6 +6989,7 @@ impl<'a> core::marker::Copy for antecedent_estimate::survival::KnownCensoring<'a
 impl<'a> core::marker::Copy for antecedent_estimate::survival::SurvivalRows<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::tiled_prediction::TileRequest<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::trajectory_survival::TrajectoryRows<'a>
 impl<'a> core::marker::Freeze for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6729,6 +7012,7 @@ impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose::DoseRows
 impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
@@ -6746,6 +7030,7 @@ impl<'a> core::marker::Freeze for antecedent_estimate::survival::KnownCensoring<
 impl<'a> core::marker::Freeze for antecedent_estimate::survival::SurvivalRows<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6768,6 +7053,7 @@ impl<'a> core::marker::Send for antecedent_estimate::continuous_dose::DoseRows<'
 impl<'a> core::marker::Send for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
@@ -6785,6 +7071,7 @@ impl<'a> core::marker::Send for antecedent_estimate::survival::KnownCensoring<'a
 impl<'a> core::marker::Send for antecedent_estimate::survival::SurvivalRows<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::policy_value::MultiActionLimits<'a>
@@ -6811,6 +7098,7 @@ impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose::DoseRows<'
 impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
@@ -6828,6 +7116,7 @@ impl<'a> core::marker::Sync for antecedent_estimate::survival::KnownCensoring<'a
 impl<'a> core::marker::Sync for antecedent_estimate::survival::SurvivalRows<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6850,6 +7139,7 @@ impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose::DoseRows<
 impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
@@ -6867,6 +7157,7 @@ impl<'a> core::marker::Unpin for antecedent_estimate::survival::KnownCensoring<'
 impl<'a> core::marker::Unpin for antecedent_estimate::survival::SurvivalRows<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6886,6 +7177,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::contin
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
@@ -6903,6 +7195,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::surviv
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::survival::SurvivalRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6922,6 +7215,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuou
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::latent_class_effects::LatentClassData<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::CategoricalFunctional<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::measurement::LinearMeasuredData<'a> [auto]
@@ -6939,6 +7233,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::survival:
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::survival::SurvivalRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::trajectory_survival::TrajectoryRows<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::DoseBasis
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::EstimatorMenu
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::EstimatorMenuEntry
@@ -7238,6 +7533,7 @@ pub const antecedent_estimate::vector_treatment::VECTOR_TREATMENT_INFERENCE_CLAI
 pub const antecedent_estimate::vector_treatment::VECTOR_TREATMENT_MAX_TREATMENTS: usize
 pub const antecedent_estimate::vector_treatment::VECTOR_TREATMENT_NULL: &str
 pub const fn antecedent_estimate::bayesian::supported_min_draws(backend: antecedent_estimate::BayesianBackendKind) -> usize
+pub const fn antecedent_estimate::count_weight_lowering::resample_path(estimator: antecedent_estimate::count_weight_lowering::RepeatedRowEstimator) -> antecedent_estimate::count_weight_lowering::ResamplePath
 pub const fn antecedent_estimate::default_propensity_overlap() -> antecedent_estimate::OverlapPolicy
 pub const fn antecedent_estimate::functional_cell_unevaluable(err: &antecedent_expr::provider::EvalError) -> bool
 pub const fn antecedent_estimate::interference::own_treatment_level(treated: bool) -> antecedent_core::query::interference::ExposureLevel
@@ -7279,6 +7575,8 @@ pub enum antecedent_estimate::TrialSampling
 pub enum antecedent_estimate::categorical_treatment::LevelScale
 pub enum antecedent_estimate::categorical_treatment::MonotonicityDirection
 pub enum antecedent_estimate::count_fitted_posterior::NodeTable
+pub enum antecedent_estimate::count_weight_lowering::RepeatedRowEstimator
+pub enum antecedent_estimate::count_weight_lowering::ResamplePath
 pub enum antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 pub enum antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
 pub enum antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
@@ -7333,6 +7631,9 @@ pub enum antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstim
 pub enum antecedent_estimate::temporal_dependent_interval::IntervalMethod
 pub enum antecedent_estimate::temporal_initial_state::InitialStatePopulation
 pub enum antecedent_estimate::temporal_initial_state::InitialStateSpec
+pub enum antecedent_estimate::temporal_link::TemporalOutcomeLink
+pub enum antecedent_estimate::temporal_link::TrajectoryDependence
+pub enum antecedent_estimate::temporal_penalized_score::TrajectoryDependence
 pub enum antecedent_estimate::temporal_refresh::FactorChange
 pub enum antecedent_estimate::temporal_refresh::MechanismStanding
 pub enum antecedent_estimate::temporal_refresh::RefreshDecision
@@ -8722,6 +9023,14 @@ pub field antecedent_estimate::count_fitted_posterior::PosteriorInterval::upper_
 pub field antecedent_estimate::count_fitted_posterior::PosteriorQuery::evidence: alloc::vec::Vec<(usize, usize)>
 pub field antecedent_estimate::count_fitted_posterior::PosteriorQuery::level: usize
 pub field antecedent_estimate::count_fitted_posterior::PosteriorQuery::target: usize
+pub field antecedent_estimate::count_weight_lowering::GaussianCountFit::backend: &'static str
+pub field antecedent_estimate::count_weight_lowering::GaussianCountFit::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_estimate::count_weight_lowering::GaussianCountFit::grow_count: u32
+pub field antecedent_estimate::count_weight_lowering::GaussianCountFit::penalized: bool
+pub field antecedent_estimate::count_weight_lowering::GaussianCountFit::rank: usize
+pub field antecedent_estimate::count_weight_lowering::GaussianCountFit::rcond: core::option::Option<f64>
+pub field antecedent_estimate::count_weight_lowering::GaussianCountFit::repeated_row_sample_size: usize
+pub field antecedent_estimate::count_weight_lowering::GaussianCountFit::rss: f64
 pub field antecedent_estimate::counterfactual_transport_sampled::OverlapPair::a: antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 pub field antecedent_estimate::counterfactual_transport_sampled::OverlapPair::b: antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 pub field antecedent_estimate::counterfactual_transport_sampled::OverlapPair::relation: antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
@@ -8933,6 +9242,17 @@ pub field antecedent_estimate::gcomp::GcompContrast::ncols: usize
 pub field antecedent_estimate::gcomp::GcompContrast::nrows: usize
 pub field antecedent_estimate::gcomp::GcompContrast::t_col: usize
 pub field antecedent_estimate::gcomp::GcompContrast::x_colmajor: &'a [f64]
+pub field antecedent_estimate::history_match::BayesianHistoryEstimate::collapsed_donors: usize
+pub field antecedent_estimate::history_match::BayesianHistoryEstimate::contrast: f64
+pub field antecedent_estimate::history_match::BayesianHistoryEstimate::matched_donors: alloc::vec::Vec<usize>
+pub field antecedent_estimate::history_match::BayesianHistoryEstimate::matched_queries: alloc::vec::Vec<usize>
+pub field antecedent_estimate::history_match::BayesianHistoryEstimate::prior: antecedent_estimate::history_match::ContrastPrior
+pub field antecedent_estimate::history_match::BayesianHistoryEstimate::weight_total: f64
+pub field antecedent_estimate::history_match::FrequentistHistoryEstimate::collapsed_donors: usize
+pub field antecedent_estimate::history_match::FrequentistHistoryEstimate::contrast: f64
+pub field antecedent_estimate::history_match::FrequentistHistoryEstimate::matched_donors: alloc::vec::Vec<usize>
+pub field antecedent_estimate::history_match::FrequentistHistoryEstimate::matched_queries: alloc::vec::Vec<usize>
+pub field antecedent_estimate::history_match::FrequentistHistoryEstimate::weight_total: f64
 pub field antecedent_estimate::interference_observational::ObservationalExposureInterval::bounds: [f64; 2]
 pub field antecedent_estimate::interference_observational::ObservationalExposureInterval::degrees_of_freedom: f64
 pub field antecedent_estimate::interference_observational::ObservationalExposureInterval::standard_error: f64
@@ -9016,6 +9336,30 @@ pub field antecedent_estimate::joint_bayesian_transport::SourceEffectSummary::va
 pub field antecedent_estimate::joint_bayesian_transport::TargetData::covariates: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_estimate::joint_bayesian_transport::TargetData::identity: antecedent_estimate::joint_bayesian_transport::DataIdentity
 pub field antecedent_estimate::joint_bayesian_transport::TargetData::rows: usize
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::aligned_rows: usize
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::effect: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::first_stage_f: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::first_stage_intercept: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::first_stage_slope: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::homoskedastic_se: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::intercept: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::lag: usize
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::model: &'static str
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::reduced_form_outcome_slope: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior::aligned_rows: usize
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior::effect_draws: alloc::vec::Vec<f64>
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior::first_stage_f: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior::first_stage_slope: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior::lag: usize
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior::lower: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior::mean: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior::model: &'static str
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior::prior_sd: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior::upper: f64
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentSample::instrument: &'a [f64]
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentSample::lag: usize
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentSample::outcome: &'a [f64]
+pub field antecedent_estimate::lagged_instrument::LaggedInstrumentSample::treatment: &'a [f64]
 pub field antecedent_estimate::latent_class_effects::LatentClassBootstrap::failed: usize
 pub field antecedent_estimate::latent_class_effects::LatentClassBootstrap::requested: usize
 pub field antecedent_estimate::latent_class_effects::LatentClassBootstrap::succeeded: usize
@@ -9789,6 +10133,31 @@ pub field antecedent_estimate::temporal_initial_state::MarginalizedEffect::value
 pub field antecedent_estimate::temporal_initial_state::StateContribution::mass: f64
 pub field antecedent_estimate::temporal_initial_state::StateContribution::response: f64
 pub field antecedent_estimate::temporal_initial_state::StateContribution::s0: u32
+pub field antecedent_estimate::temporal_link::BayesianLinkPosterior::draws: alloc::vec::Vec<f64>
+pub field antecedent_estimate::temporal_link::BayesianLinkPosterior::functional_at_mode: f64
+pub field antecedent_estimate::temporal_link::BayesianLinkPosterior::lags: usize
+pub field antecedent_estimate::temporal_link::BayesianLinkPosterior::link: antecedent_estimate::temporal_link::TemporalOutcomeLink
+pub field antecedent_estimate::temporal_link::BayesianLinkPosterior::posterior_mean: f64
+pub field antecedent_estimate::temporal_link::BayesianLinkPosterior::prior_sd: f64
+pub field antecedent_estimate::temporal_link::BayesianLinkPosterior::trajectories: usize
+pub field antecedent_estimate::temporal_link::FrequentistLinkContrast::estimate: f64
+pub field antecedent_estimate::temporal_link::FrequentistLinkContrast::iterations: u32
+pub field antecedent_estimate::temporal_link::FrequentistLinkContrast::lags: usize
+pub field antecedent_estimate::temporal_link::FrequentistLinkContrast::link: antecedent_estimate::temporal_link::TemporalOutcomeLink
+pub field antecedent_estimate::temporal_link::FrequentistLinkContrast::regime_coefficients: alloc::vec::Vec<f64>
+pub field antecedent_estimate::temporal_link::FrequentistLinkContrast::standard_error: f64
+pub field antecedent_estimate::temporal_link::FrequentistLinkContrast::trajectories: usize
+pub field antecedent_estimate::temporal_link::RegimeColumn::active: alloc::vec::Vec<f64>
+pub field antecedent_estimate::temporal_link::RegimeColumn::column: usize
+pub field antecedent_estimate::temporal_link::RegimeColumn::control: alloc::vec::Vec<f64>
+pub field antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore::penalty: f64
+pub field antecedent_estimate::temporal_penalized_score::PosteriorPropensity::draws: alloc::vec::Vec<f64>
+pub field antecedent_estimate::temporal_penalized_score::PosteriorPropensity::intercept_sd: f64
+pub field antecedent_estimate::temporal_penalized_score::PosteriorPropensity::mode: alloc::vec::Vec<f64>
+pub field antecedent_estimate::temporal_penalized_score::PosteriorPropensity::n_draws: usize
+pub field antecedent_estimate::temporal_penalized_score::PosteriorPropensity::ncols: usize
+pub field antecedent_estimate::temporal_penalized_score::PosteriorPropensity::slope_sd: f64
 pub field antecedent_estimate::temporal_refresh::HeldTemporalResult::identity: antecedent_estimate::temporal_refresh::TemporalWindowIdentity
 pub field antecedent_estimate::temporal_refresh::HeldTemporalResult::interval_present: bool
 pub field antecedent_estimate::temporal_refresh::HeldTemporalResult::value: T
@@ -9856,6 +10225,30 @@ pub field antecedent_estimate::tiled_prediction::TileRequest::row_count: u64
 pub field antecedent_estimate::tiled_prediction::TileRequest::row_features: &'a [f64]
 pub field antecedent_estimate::tiled_prediction::TileRequest::row_start: u64
 pub field antecedent_estimate::tiled_prediction::TileRequest::row_width: u64
+pub field antecedent_estimate::trajectory_survival::HazardPrior::events: f64
+pub field antecedent_estimate::trajectory_survival::HazardPrior::nonevents: f64
+pub field antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior::active_restricted_mean: f64
+pub field antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior::active_survival_mean: f64
+pub field antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior::control_restricted_mean: f64
+pub field antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior::control_survival_mean: f64
+pub field antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior::restricted_mean_difference_mean: f64
+pub field antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior::survival_difference_mean: f64
+pub field antecedent_estimate::trajectory_survival::TrajectoryRows::at_risk: &'a [bool]
+pub field antecedent_estimate::trajectory_survival::TrajectoryRows::censoring_weight: &'a [f64]
+pub field antecedent_estimate::trajectory_survival::TrajectoryRows::event: &'a [bool]
+pub field antecedent_estimate::trajectory_survival::TrajectoryRows::minimum_probability: f64
+pub field antecedent_estimate::trajectory_survival::TrajectoryRows::periods: usize
+pub field antecedent_estimate::trajectory_survival::TrajectoryRows::subjects: usize
+pub field antecedent_estimate::trajectory_survival::TrajectoryRows::treatment: &'a [bool]
+pub field antecedent_estimate::trajectory_survival::TrajectoryRows::treatment_probability: &'a [f64]
+pub field antecedent_estimate::trajectory_survival::TrajectorySurvival::maximum_weight: f64
+pub field antecedent_estimate::trajectory_survival::TrajectorySurvival::minimum_risk_weight: f64
+pub field antecedent_estimate::trajectory_survival::TrajectorySurvival::restricted_mean: f64
+pub field antecedent_estimate::trajectory_survival::TrajectorySurvival::survival: f64
+pub field antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast::active: antecedent_estimate::trajectory_survival::TrajectorySurvival
+pub field antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast::control: antecedent_estimate::trajectory_survival::TrajectorySurvival
+pub field antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast::restricted_mean_difference: f64
+pub field antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast::survival_difference: f64
 pub field antecedent_estimate::transport_scenarios::MeanEnvelope::lower: f64
 pub field antecedent_estimate::transport_scenarios::MeanEnvelope::lower_scenario: alloc::sync::Arc<str>
 pub field antecedent_estimate::transport_scenarios::MeanEnvelope::outcome: antecedent_core::ids::VariableId
@@ -10590,6 +10983,17 @@ pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn 
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn scope<R>(self: &alloc::sync::Arc<Self>, work: impl core::ops::function::FnOnce() -> R) -> R
 pub fn <antecedent_estimate::gcomp::GcompContrast<'_>>::fn diffs(&self, coefficients: &[f64]) -> alloc::vec::Vec<f64>
 pub fn <antecedent_estimate::gcomp::GcompContrast<'_>>::fn mean_contrast(&self, beta: &[f64]) -> f64
+pub fn <antecedent_estimate::history_match::BayesianHistoryContrast>::fn contrast(&self, units: &[antecedent_estimate::history_match::HistoryUnit]) -> core::result::Result<antecedent_estimate::history_match::BayesianHistoryEstimate, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::history_match::BayesianHistoryContrast>::fn refuse_posterior(&self, units: &[antecedent_estimate::history_match::HistoryUnit]) -> antecedent_estimate::EstimationError
+pub fn <antecedent_estimate::history_match::BayesianHistoryContrast>::fn try_new(prior: antecedent_estimate::history_match::ContrastPrior, caliper: core::option::Option<f64>) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::history_match::ContrastPrior>::const fn mean(self) -> f64
+pub fn <antecedent_estimate::history_match::ContrastPrior>::const fn variance(self) -> f64
+pub fn <antecedent_estimate::history_match::ContrastPrior>::fn try_new(mean: f64, variance: f64) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::history_match::FrequentistHistoryContrast>::const fn new() -> Self
+pub fn <antecedent_estimate::history_match::FrequentistHistoryContrast>::fn contrast(&self, units: &[antecedent_estimate::history_match::HistoryUnit]) -> core::result::Result<antecedent_estimate::history_match::FrequentistHistoryEstimate, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::history_match::FrequentistHistoryContrast>::fn try_with_caliper(caliper: f64) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::history_match::HistoryUnit>::fn score(&self) -> f64
+pub fn <antecedent_estimate::history_match::HistoryUnit>::fn try_new(history: &[f64], outcome: f64, treated: bool, weight: f64) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::joint_bayesian_transport::GaussianPrior>::fn isotropic(dim: usize, mean: f64, variance: f64, provenance: antecedent_estimate::joint_bayesian_transport::PriorProvenance) -> Self
 pub fn <antecedent_estimate::joint_bayesian_transport::JointDraws>::fn column(&self, name: &str) -> core::option::Option<usize>
 pub fn <antecedent_estimate::joint_bayesian_transport::JointDraws>::fn coordinate(&self, column: usize) -> alloc::vec::Vec<f64>
@@ -10738,6 +11142,20 @@ pub fn <antecedent_estimate::temporal_initial_state::MarginalizedEffect>::const 
 pub fn <antecedent_estimate::temporal_initial_state::MarginalizedQuery>::const fn law(&self) -> &antecedent_estimate::temporal_initial_state::InitialStateLaw
 pub fn <antecedent_estimate::temporal_initial_state::MarginalizedQuery>::fn effect(&self, panel: &antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel) -> core::result::Result<antecedent_estimate::temporal_initial_state::MarginalizedEffect, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_initial_state::MarginalizedQuery>::fn new(sequence: [u32; 2], spec: antecedent_estimate::temporal_initial_state::InitialStateSpec) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_link::BayesianTemporalLink>::fn fit(&self, design: &antecedent_estimate::temporal_link::TemporalContrastDesign, link: antecedent_estimate::temporal_link::TemporalOutcomeLink) -> core::result::Result<antecedent_estimate::temporal_link::BayesianLinkPosterior, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_link::BayesianTemporalLink>::fn new(prior_sd: f64, n_draws: usize, seed: u64) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_link::FrequentistTemporalLink>::const fn new() -> Self
+pub fn <antecedent_estimate::temporal_link::FrequentistTemporalLink>::fn fit(&self, design: &antecedent_estimate::temporal_link::TemporalContrastDesign, link: antecedent_estimate::temporal_link::TemporalOutcomeLink) -> core::result::Result<antecedent_estimate::temporal_link::FrequentistLinkContrast, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_link::TemporalContrastDesign>::fn try_new(x_colmajor: alloc::vec::Vec<f64>, y: alloc::vec::Vec<f64>, nrows: usize, regimes: alloc::vec::Vec<antecedent_estimate::temporal_link::RegimeColumn>, dependence: antecedent_estimate::temporal_link::TrajectoryDependence) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_link::TemporalOutcomeLink>::const fn from_family(family: antecedent_stats::glm::GlmFamily) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity>::fn fit(&self, design: &antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign) -> core::result::Result<antecedent_estimate::temporal_penalized_score::PosteriorPropensity, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity>::fn new(intercept_sd: f64, slope_sd: f64, n_draws: usize, seed: u64) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity>::fn fit(&self, design: &antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign) -> core::result::Result<antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity>::fn new(penalty: f64) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore>::fn at(&self, lags: &[f64]) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_penalized_score::PosteriorPropensity>::fn at(&self, lags: &[f64]) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_penalized_score::PosteriorPropensity>::fn at_mode(&self, lags: &[f64]) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign>::fn try_new(x_colmajor: alloc::vec::Vec<f64>, y: alloc::vec::Vec<f64>, nrows: usize, dependence: antecedent_estimate::temporal_penalized_score::TrajectoryDependence) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_refresh::ObservationCadence>::const fn new(tick: u64) -> core::option::Option<Self>
 pub fn <antecedent_estimate::temporal_refresh::ObservationCadence>::const fn tick(self) -> u64
 pub fn <antecedent_estimate::temporal_refresh::ProductDisposition>::fn invalidates(&self, product: antecedent_estimate::temporal_refresh::WindowProduct) -> bool
@@ -10773,6 +11191,7 @@ pub fn <antecedent_estimate::tiled_prediction::AxisOrder>::const fn axes(self) -
 pub fn <antecedent_estimate::tiled_prediction::AxisOrder>::const fn row_major() -> Self
 pub fn <antecedent_estimate::tiled_prediction::AxisOrder>::fn try_new(axes: [antecedent_estimate::tiled_prediction::EvalAxis; 4]) -> core::result::Result<Self, antecedent_estimate::tiled_prediction::TileError>
 pub fn <antecedent_estimate::tiled_prediction::Encoding>::const fn width(self) -> core::result::Result<u64, antecedent_estimate::tiled_prediction::TileError>
+pub fn <antecedent_estimate::trajectory_survival::HazardPrior>::const fn uniform() -> Self
 pub fn <antecedent_estimate::transport_scenarios::PreparedScenarioSet>::const fn data(&self) -> &antecedent_expr::exact::ExactTransportData
 pub fn <antecedent_estimate::transport_scenarios::PreparedScenarioSet>::const fn decision(&self) -> &antecedent_identify::sid::scenarios::ScenarioSetDecision
 pub fn <antecedent_estimate::transport_scenarios::PreparedScenarioSet>::const fn limits(&self) -> antecedent_expr::exact_plan::ExactEvaluationLimits
@@ -10875,6 +11294,9 @@ pub fn antecedent_estimate::count_fitted_posterior::calibration_basis(rows: u64,
 pub fn antecedent_estimate::count_fitted_posterior::draw_class(draws: u32) -> u32
 pub fn antecedent_estimate::count_fitted_posterior::endpoint_mcse_width_fraction(lower_mcse: f64, upper_mcse: f64, width: f64) -> f64
 pub fn antecedent_estimate::count_fitted_posterior::quantile_mcse(sorted: &[f64], p: f64) -> f64
+pub fn antecedent_estimate::count_weight_lowering::fit_gaussian_count_weights(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], counts: &[u64]) -> core::result::Result<antecedent_estimate::count_weight_lowering::GaussianCountFit, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::count_weight_lowering::integer_multiplicity(weight: f64) -> core::option::Option<u64>
+pub fn antecedent_estimate::count_weight_lowering::multiplicity_counts(n_rows: usize, indexes: &[usize]) -> core::result::Result<alloc::vec::Vec<u64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::counterfactual_transport::evaluate_counterfactual_transport(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, data: &antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::CounterfactualTransportPoint, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::counterfactual_transport::lower_counterfactual_transport_items(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation) -> alloc::vec::Vec<antecedent_estimate::LoweredCounterfactualItem>
 pub fn antecedent_estimate::counterfactual_transport_sampled::cited_identities(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation) -> alloc::vec::Vec<(alloc::sync::Arc<str>, antecedent_core::ids::RegimeId)>
@@ -10966,6 +11388,8 @@ pub fn antecedent_estimate::joint_if::max_t_critical_with_df_polled(cov: &antece
 pub fn antecedent_estimate::joint_if::monotone_increasing(values: &[f64]) -> alloc::vec::Vec<f64>
 pub fn antecedent_estimate::joint_if::weighted_mean(scores: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::kernel_bias_scale(scores: &[&[f64]], block_length: usize) -> f64
+pub fn antecedent_estimate::lagged_instrument::fit_lagged_instrument(sample: &antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'_>, weak_f_threshold: f64) -> core::result::Result<antecedent_estimate::lagged_instrument::LaggedInstrumentContrast, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::lagged_instrument::fit_lagged_instrument_posterior(sample: &antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'_>, prior_sd: f64, sampling: antecedent_estimate::DrawSpec, weak_f_threshold: f64) -> core::result::Result<antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::latent_class_effects::fit_latent_class_effects(data: &antecedent_estimate::latent_class_effects::LatentClassData<'_>, config: &antecedent_estimate::latent_class_effects::LatentClassConfig) -> core::result::Result<antecedent_estimate::latent_class_effects::LatentClassResult, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::learned_continuous::estimate_learned_continuous_analytic_interval(id: &antecedent_identify::transport::TransportIdentification, input: &antecedent_estimate::TrialAipwInput, options: &antecedent_estimate::LearnedContinuousOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::LearnedContinuousEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::learned_continuous::learned_continuous_analytic_interval(input: &antecedent_estimate::TrialAipwInput, run: &antecedent_estimate::LearnedContinuousEstimate, coverage_level: f64) -> core::result::Result<(f64, (f64, f64)), antecedent_estimate::EstimationError>
@@ -11154,6 +11578,8 @@ pub fn antecedent_estimate::temporal_refresh::refresh_survival(old_window: &ante
 pub fn antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(problem: &antecedent_estimate::SequentialProblem<'_>, query: &antecedent_core::query::temporal::TemporalEffectQuery, inference: antecedent_estimate::SequentialInference<'_>, ctx: &antecedent_core::execution::ExecutionContext, validation: core::option::Option<&mut alloc::vec::Vec<antecedent_estimate::temporal_sequential::SequentialBayesianMechanism>>) -> core::result::Result<(antecedent_estimate::EffectEstimate, core::option::Option<antecedent_estimate::CausalPosterior>), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_transport::prepare_temporal_sequence(decision: antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision, data: antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_transport::PreparedTemporalSequence, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::tiled_prediction::stream_tile(request: &antecedent_estimate::tiled_prediction::TileRequest<'_>, emit: impl core::ops::function::FnMut(antecedent_estimate::tiled_prediction::StreamedValue)) -> core::result::Result<antecedent_estimate::tiled_prediction::StreamSummary, antecedent_estimate::tiled_prediction::TileError>
+pub fn antecedent_estimate::trajectory_survival::trajectory_hazard_posterior(rows: &antecedent_estimate::trajectory_survival::TrajectoryRows<'_>, active: &[bool], control: &[bool], prior: antecedent_estimate::trajectory_survival::HazardPrior) -> core::result::Result<antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior, &'static str>
+pub fn antecedent_estimate::trajectory_survival::trajectory_survival_contrast(rows: &antecedent_estimate::trajectory_survival::TrajectoryRows<'_>, active: &[bool], control: &[bool]) -> core::result::Result<antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast, &'static str>
 pub fn antecedent_estimate::transport::transport_augmented_response_grid(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], trial: &[bool], selection_probability: &[f64], inputs: &antecedent_estimate::ResponseGridInputs<'_>) -> core::result::Result<antecedent_estimate::TransportResponseGridEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_aipw_row_scores(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], outcome_regressions: core::option::Option<(&[f64], &[f64])>) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_to_target_bayesian_bootstrap(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], sampling: antecedent_estimate::DrawSpec) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
@@ -11191,6 +11617,7 @@ pub mod antecedent_estimate::cohort_linear_effect
 pub mod antecedent_estimate::conditional
 pub mod antecedent_estimate::continuous_dose
 pub mod antecedent_estimate::count_fitted_posterior
+pub mod antecedent_estimate::count_weight_lowering
 pub mod antecedent_estimate::counterfactual_transport
 pub mod antecedent_estimate::counterfactual_transport_sampled
 pub mod antecedent_estimate::cpdag_scenarios
@@ -11215,6 +11642,7 @@ pub mod antecedent_estimate::frontdoor_functional
 pub mod antecedent_estimate::functional_distribution
 pub mod antecedent_estimate::gcomp
 pub mod antecedent_estimate::glm_adjustment
+pub mod antecedent_estimate::history_match
 pub mod antecedent_estimate::interference
 pub mod antecedent_estimate::interference_observational
 pub mod antecedent_estimate::interference_saturation
@@ -11222,6 +11650,7 @@ pub mod antecedent_estimate::iv
 pub mod antecedent_estimate::joint_bayesian_transport
 pub mod antecedent_estimate::joint_cell_factorized
 pub mod antecedent_estimate::joint_if
+pub mod antecedent_estimate::lagged_instrument
 pub mod antecedent_estimate::latent_class_effects
 pub mod antecedent_estimate::learned_continuous
 pub mod antecedent_estimate::learned_joint_transport
@@ -11281,8 +11710,10 @@ pub mod antecedent_estimate::temporal_block
 pub mod antecedent_estimate::temporal_dependent_interval
 pub mod antecedent_estimate::temporal_history_fit
 pub mod antecedent_estimate::temporal_initial_state
+pub mod antecedent_estimate::temporal_link
 pub mod antecedent_estimate::temporal_mediation
 pub mod antecedent_estimate::temporal_observed_bayes
+pub mod antecedent_estimate::temporal_penalized_score
 pub mod antecedent_estimate::temporal_refresh
 pub mod antecedent_estimate::temporal_response
 pub mod antecedent_estimate::temporal_response_dispersion
@@ -11290,6 +11721,7 @@ pub mod antecedent_estimate::temporal_sequential
 pub mod antecedent_estimate::temporal_sequential_tuples
 pub mod antecedent_estimate::temporal_transport
 pub mod antecedent_estimate::tiled_prediction
+pub mod antecedent_estimate::trajectory_survival
 pub mod antecedent_estimate::transport
 pub mod antecedent_estimate::transport_scenarios
 pub mod antecedent_estimate::util
@@ -11586,6 +12018,7 @@ pub struct antecedent_estimate::count_fitted_posterior::CountFittedModel has pri
 pub struct antecedent_estimate::count_fitted_posterior::CountNode
 pub struct antecedent_estimate::count_fitted_posterior::PosteriorInterval
 pub struct antecedent_estimate::count_fitted_posterior::PosteriorQuery
+pub struct antecedent_estimate::count_weight_lowering::GaussianCountFit
 pub struct antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration
 pub struct antecedent_estimate::counterfactual_transport_sampled::OverlapDeclaration has private fields
 pub struct antecedent_estimate::counterfactual_transport_sampled::OverlapPair
@@ -11631,6 +12064,16 @@ pub struct antecedent_estimate::functional_distribution::EmpiricalFactorCache
 pub struct antecedent_estimate::functional_distribution::EmpiricalFactorCache has private fields
 pub struct antecedent_estimate::functional_distribution::EmpiricalProviderProvenance
 pub struct antecedent_estimate::gcomp::GcompContrast<'a>
+pub struct antecedent_estimate::history_match::BayesianHistoryContrast
+pub struct antecedent_estimate::history_match::BayesianHistoryContrast has private fields
+pub struct antecedent_estimate::history_match::BayesianHistoryEstimate
+pub struct antecedent_estimate::history_match::ContrastPrior
+pub struct antecedent_estimate::history_match::ContrastPrior has private fields
+pub struct antecedent_estimate::history_match::FrequentistHistoryContrast
+pub struct antecedent_estimate::history_match::FrequentistHistoryContrast has private fields
+pub struct antecedent_estimate::history_match::FrequentistHistoryEstimate
+pub struct antecedent_estimate::history_match::HistoryUnit
+pub struct antecedent_estimate::history_match::HistoryUnit has private fields
 pub struct antecedent_estimate::interference_observational::ObservationalExposureInterval
 pub struct antecedent_estimate::interference_saturation::SaturationClusterInterval
 pub struct antecedent_estimate::joint_bayesian_transport::DataIdentity
@@ -11651,6 +12094,9 @@ pub struct antecedent_estimate::joint_bayesian_transport::SourceData
 pub struct antecedent_estimate::joint_bayesian_transport::SourceDisagreement
 pub struct antecedent_estimate::joint_bayesian_transport::SourceEffectSummary
 pub struct antecedent_estimate::joint_bayesian_transport::TargetData
+pub struct antecedent_estimate::lagged_instrument::LaggedInstrumentContrast
+pub struct antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior
+pub struct antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a>
 pub struct antecedent_estimate::latent_class_effects::LatentClassBootstrap
 pub struct antecedent_estimate::latent_class_effects::LatentClassConfig
 pub struct antecedent_estimate::latent_class_effects::LatentClassData<'a>
@@ -11847,6 +12293,23 @@ pub struct antecedent_estimate::temporal_initial_state::MarginalizedEffect
 pub struct antecedent_estimate::temporal_initial_state::MarginalizedQuery
 pub struct antecedent_estimate::temporal_initial_state::MarginalizedQuery has private fields
 pub struct antecedent_estimate::temporal_initial_state::StateContribution
+pub struct antecedent_estimate::temporal_link::BayesianLinkPosterior
+pub struct antecedent_estimate::temporal_link::BayesianTemporalLink
+pub struct antecedent_estimate::temporal_link::BayesianTemporalLink has private fields
+pub struct antecedent_estimate::temporal_link::FrequentistLinkContrast
+pub struct antecedent_estimate::temporal_link::FrequentistTemporalLink
+pub struct antecedent_estimate::temporal_link::FrequentistTemporalLink has private fields
+pub struct antecedent_estimate::temporal_link::RegimeColumn
+pub struct antecedent_estimate::temporal_link::TemporalContrastDesign
+pub struct antecedent_estimate::temporal_link::TemporalContrastDesign has private fields
+pub struct antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity
+pub struct antecedent_estimate::temporal_penalized_score::BayesianTemporalPropensity has private fields
+pub struct antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity
+pub struct antecedent_estimate::temporal_penalized_score::FrequentistTemporalPropensity has private fields
+pub struct antecedent_estimate::temporal_penalized_score::PenalizedPropensityScore
+pub struct antecedent_estimate::temporal_penalized_score::PosteriorPropensity
+pub struct antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign
+pub struct antecedent_estimate::temporal_penalized_score::TemporalPropensityDesign has private fields
 pub struct antecedent_estimate::temporal_refresh::HeldTemporalResult<T>
 pub struct antecedent_estimate::temporal_refresh::ObservationCadence
 pub struct antecedent_estimate::temporal_refresh::ObservationCadence has private fields
@@ -11873,6 +12336,11 @@ pub struct antecedent_estimate::tiled_prediction::GridPoint
 pub struct antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
 pub struct antecedent_estimate::tiled_prediction::StreamSummary
 pub struct antecedent_estimate::tiled_prediction::TileRequest<'a>
+pub struct antecedent_estimate::trajectory_survival::HazardPrior
+pub struct antecedent_estimate::trajectory_survival::TrajectoryHazardPosterior
+pub struct antecedent_estimate::trajectory_survival::TrajectoryRows<'a>
+pub struct antecedent_estimate::trajectory_survival::TrajectorySurvival
+pub struct antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast
 pub struct antecedent_estimate::transport_scenarios::MeanEnvelope
 pub struct antecedent_estimate::transport_scenarios::PreparedScenarioSet
 pub struct antecedent_estimate::transport_scenarios::PreparedScenarioSet has private fields
@@ -12581,6 +13049,22 @@ pub variant antecedent_estimate::categorical_treatment::MonotonicityDirection::N
 pub variant antecedent_estimate::categorical_treatment::MonotonicityDirection::NonIncreasing
 pub variant antecedent_estimate::count_fitted_posterior::NodeTable::Counts(alloc::vec::Vec<u64>)
 pub variant antecedent_estimate::count_fitted_posterior::NodeTable::Declared(alloc::vec::Vec<f64>)
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::BinomialLogit
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::BinomialProbit
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::CrossFitAipw
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::CrossFitDml
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::DrLearner
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::GaussianLeastSquares
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::Huber
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::Lasso
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::Matching
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::NegativeBinomial
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::PenalizedBinomial
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::Poisson
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::PriorWeighted
+pub variant antecedent_estimate::count_weight_lowering::RepeatedRowEstimator::Ridge
+pub variant antecedent_estimate::count_weight_lowering::ResamplePath::CountWeights
+pub variant antecedent_estimate::count_weight_lowering::ResamplePath::Indexed
 pub variant antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap::Independent
 pub variant antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap::SharedUnits
 pub variant antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap::Unknown
@@ -12751,6 +13235,12 @@ pub variant antecedent_estimate::temporal_initial_state::InitialStatePopulation:
 pub variant antecedent_estimate::temporal_initial_state::InitialStatePopulation::Target
 pub variant antecedent_estimate::temporal_initial_state::InitialStateSpec::Law(antecedent_estimate::temporal_initial_state::InitialStateLaw)
 pub variant antecedent_estimate::temporal_initial_state::InitialStateSpec::Point(u32)
+pub variant antecedent_estimate::temporal_link::TemporalOutcomeLink::BernoulliLogit
+pub variant antecedent_estimate::temporal_link::TemporalOutcomeLink::BernoulliProbit
+pub variant antecedent_estimate::temporal_link::TrajectoryDependence::IndependentSubjects
+pub variant antecedent_estimate::temporal_link::TrajectoryDependence::OneDependentSeries
+pub variant antecedent_estimate::temporal_penalized_score::TrajectoryDependence::IndependentSubjects
+pub variant antecedent_estimate::temporal_penalized_score::TrajectoryDependence::OneDependentSeries
 pub variant antecedent_estimate::temporal_refresh::FactorChange::Cadence
 pub variant antecedent_estimate::temporal_refresh::FactorChange::Horizon
 pub variant antecedent_estimate::temporal_refresh::FactorChange::InitialLaw

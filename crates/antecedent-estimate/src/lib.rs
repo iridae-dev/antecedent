@@ -107,6 +107,7 @@ pub mod serial_dependence;
 pub mod staggered_event_study;
 pub mod statistical_transport;
 pub mod survival;
+pub mod trajectory_survival;
 pub mod switchback;
 pub mod synthetic_control;
 pub mod temporal_adjustment;
