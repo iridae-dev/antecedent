@@ -2,8 +2,8 @@
 //!
 //! Lowers the existing static `linear.adjustment.ate` contrast through the six
 //! compiler layers and executes the checked program that lowering retains.
-//! [`super::super::Study::compile`] returns this route's physical record when
-//! the study is the intervention this module admits.
+//! [`super::super::Study::compile`] builds the physical plan this route keeps.
+//! Admission, identification, and preparation stay here.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -13,15 +13,21 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use antecedent_contract::ExecutionPerformanceRecord;
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionSet, AssumptionStatus, AverageEffectQuery, CausalQuery,
-    ExecutionContext, Operator, ScientificTarget,
+    EncodedWidth, ExecutionContext, Operator, RouteBudget, RouteMemoryDeclaration, ScientificTarget,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{design_layout::DesignLayout, GlobalId, TableView, TabularData};
 use antecedent_estimate::{
     CheckedLinearAdjustmentAte, EffectEstimate, EstimationWorkspace, LinearAdjustmentAte,
-    LinearFitKind,
+    LinearFitKind, PreparedEstimationProblem,
 };
+use antecedent_io::{
+    AnalysisResultWire, CausalQueryWire, IdentificationResultWire, causal_query_to_wire,
+    encode_analysis_result_artifact, identification_to_wire,
+};
+use antecedent_stats::CompiledDesign;
 use antecedent_graph::Dag;
 use antecedent_identify::{
     AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
@@ -104,6 +110,10 @@ pub(crate) struct LinearGaussianClaim {
 pub(crate) struct LoweredLinearGaussianRoute {
     scientific: ScientificTarget,
     identification: CompiledIdentificationProduct,
+    /// Identification the artifact consumer reloads. The compiled product does not encode it.
+    identified: IdentificationResult,
+    /// Source table. Execute reads it through column views.
+    data: TabularData,
     program: CheckedLinearAdjustmentAte,
     fitter: LinearAdjustmentAte,
     /// The id-selected route fits the point, then bootstraps. A configured OLS
@@ -142,16 +152,10 @@ impl LoweredLinearGaussianRoute {
         &self.evidence
     }
 
-    /// Layer 5 record. The same record [`Study::compile`] returns for this route.
+    /// Layer 5 record. The same record [`Study::compile`] builds for this study.
     #[must_use]
     pub(crate) const fn physical(&self) -> &PhysicalExecutionPlan {
         &self.physical
-    }
-
-    /// Physical record [`Study::compile`] returns after building this program.
-    #[must_use = "the physical plan is the compile result"]
-    pub(crate) fn into_physical(self) -> PhysicalExecutionPlan {
-        self.physical
     }
 
     /// Layer 5 operators.
@@ -164,48 +168,43 @@ impl LoweredLinearGaussianRoute {
     ///
     /// A later call reuses the retained causal fit while that product is still
     /// valid. Utility and action changes leave it valid, so they perform no
-    /// new causal fit. The numeric fit, when it does run, is the ordinary
-    /// least-squares program this route already retained.
+    /// new causal fit. A fresh fit reads treatment and outcome through column
+    /// views and the design layout, then runs the ordinary least-squares
+    /// program this route already retained.
+    ///
+    /// Admission runs before that read. A cancelled context or a declaration
+    /// that exceeds the route budget returns without a fit.
     ///
     /// # Errors
     ///
-    /// The context is already cancelled, or the retained fit fails.
+    /// The context is already cancelled, the route budget cannot hold the
+    /// declared bytes, or the retained fit fails.
     pub(crate) fn execute(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<LinearGaussianClaim, CausalError> {
         if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::super::stage::STAGE_ESTIMATE_POINT,
-            });
+            return Err(cancelled());
         }
+        let _lease = admit_gaussian(self, ctx)?;
         if self.recompile.borrow().reuses_causal_fit() {
             if let Some(claim) = self.cached_claim.borrow().clone() {
                 self.recompile.borrow_mut().retain_decision();
                 return Ok(claim);
             }
         }
+        let problem = self.seam_problem()?;
         let mut workspace = EstimationWorkspace::default();
+        let assumptions = self.program.required_assumptions().clone();
         let estimate = if self.point_then_bootstrap {
-            let point = self
-                .fitter
-                .fit_point(
-                    self.program.problem(),
-                    &mut workspace,
-                    self.program.required_assumptions().clone(),
-                )
-                .map_err(CausalError::from)?;
+            let point = self.fitter.fit_point(&problem, &mut workspace, assumptions)?;
             if self.fitter.bootstrap_replicates == 0 || ctx.cancellation.is_cancelled() {
                 point
             } else {
-                self.fitter
-                    .attach_bootstrap(self.program.problem(), &mut workspace, ctx, point)
-                    .map_err(CausalError::from)?
+                self.fitter.attach_bootstrap(&problem, &mut workspace, ctx, point)?
             }
         } else {
-            self.fitter
-                .fit_checked(&self.program, &mut workspace, ctx)
-                .map_err(CausalError::from)?
+            self.fitter.fit(&problem, &mut workspace, ctx, assumptions)?
         };
         let claim = LinearGaussianClaim {
             receipt: receipt(&estimate, self.fitter.bootstrap_replicates),
@@ -215,6 +214,34 @@ impl LoweredLinearGaussianRoute {
         *self.cached_claim.borrow_mut() = Some(claim.clone());
         self.recompile.borrow_mut().retain_causal_fit();
         Ok(claim)
+    }
+
+    /// Bytes of the executed contrast as an analysis-result artifact.
+    ///
+    /// A later consumer reads those bytes with no handle to this route.
+    ///
+    /// # Errors
+    ///
+    /// Execute has not yet produced a claim, or the artifact encoder refuses.
+    pub(crate) fn claim_artifact(&self) -> Result<Vec<u8>, CausalError> {
+        let claim = self
+            .cached_claim
+            .borrow()
+            .clone()
+            .ok_or_else(|| compile_error("linear/Gaussian route has no executed claim"))?;
+        let query = causal_query_to_wire(&self.identified.query)?;
+        let identification = identification_to_wire(&self.identified)?;
+        let standard_error = claim.estimate.se_analytic();
+        let wire = analysis_wire(query, identification, claim.estimate.ate, standard_error);
+        let names = TableView::schema(&self.data)
+            .variables()
+            .iter()
+            .map(|variable| variable.name.to_string())
+            .collect();
+        let artifact = encode_analysis_result_artifact(&wire, names, "gaussian-contrast")?;
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes)?;
+        Ok(bytes)
     }
 
     /// Apply one lifecycle change and drop a cached claim whose fit it invalidates.
@@ -254,6 +281,174 @@ fn receipt(estimate: &EffectEstimate, requested: u32) -> ExecutionPerformanceRec
     }
 }
 
+fn admit_gaussian(
+    route: &LoweredLinearGaussianRoute,
+    ctx: &ExecutionContext,
+) -> Result<AdmissionLease, CausalError> {
+    let rows = u64::try_from(route.data.row_count())
+        .map_err(|_| compile_error("row count does not fit in u64"))?;
+    let lowering = route.program.lowering();
+    let columns = lowering.adjustment.len().saturating_add(2);
+    let mut declaration = RouteMemoryDeclaration::new().rows(rows);
+    for _ in 0..columns {
+        declaration = declaration.encoded_column(EncodedWidth::float64());
+    }
+    let mask_bytes = u64::try_from(route.data.row_count().div_ceil(8))
+        .map_err(|_| compile_error("mask bytes do not fit in u64"))?;
+    let workspace = route.physical.record.workspace_bytes.ok_or_else(|| CausalError::Resource {
+        message: "linear/Gaussian physical plan omitted workspace bytes".into(),
+    })?;
+    let width = u64::try_from(columns)
+        .map_err(|_| compile_error("column count does not fit in u64"))?;
+    let design_bytes = rows.checked_mul(width).and_then(|cells| cells.checked_mul(8)).ok_or_else(
+        || CausalError::Resource { message: "linear/Gaussian design bytes overflow u64".into() },
+    )?;
+    let admitted = declaration
+        .masks(mask_bytes)
+        .design_expansion(design_bytes)
+        .learner_fold_copies(0, 0)
+        .solver_scratch(workspace)
+        .retained_scores_draws(0)
+        .output(8)
+        .workers(1)
+        .admit(RouteBudget::new(execution_byte_budget(ctx)))
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    ctx.acquire_admission(1, admitted.total()).map_err(admission_error)
+}
+
+fn execution_byte_budget(ctx: &ExecutionContext) -> u64 {
+    let pool = ctx.admission().byte_budget();
+    match ctx.memory.hard_limit_bytes {
+        Some(limit) => limit.min(pool),
+        None => pool,
+    }
+}
+
+fn admission_error(error: AdmissionError) -> CausalError {
+    match error {
+        AdmissionError::Cancelled => cancelled(),
+        other => CausalError::Resource { message: other.to_string() },
+    }
+}
+
+fn cancelled() -> CausalError {
+    CausalError::Cancelled { stage: super::super::super::stage::STAGE_ESTIMATE_POINT }
+}
+
+fn compile_error(message: &str) -> CausalError {
+    CausalError::Compile { message: message.to_owned() }
+}
+
+impl LoweredLinearGaussianRoute {
+    /// Treatment, outcome, and adjustment columns, read through the design layout.
+    ///
+    /// A weighted problem keeps the weighted design prepared with the program.
+    /// The layout is still built, so the source columns are on this path.
+    fn seam_problem(&self) -> Result<PreparedEstimationProblem, CausalError> {
+        let lowering = self.program.lowering();
+        let treatment = lowering.treatment;
+        let outcome = lowering.outcome;
+        let adjustment = Arc::clone(&lowering.adjustment);
+        let mut ids = Vec::with_capacity(adjustment.len().saturating_add(2));
+        ids.push(treatment);
+        ids.push(outcome);
+        ids.extend_from_slice(&adjustment);
+        let mask = self.data.complete_case_mask(&ids)?;
+        let mut rows = Vec::new();
+        let mut selected = Vec::new();
+        for (index, keep) in mask.into_iter().enumerate() {
+            if !keep {
+                continue;
+            }
+            let raw = u64::try_from(index)
+                .map_err(|_| compile_error("row index does not fit in u64"))?;
+            rows.push(GlobalId::new(raw));
+            selected.push(index);
+        }
+        let mut views = Vec::with_capacity(ids.len());
+        for id in &ids {
+            views.push(self.data.column(*id)?);
+        }
+        let layout = DesignLayout::from_views(&views, &rows)
+            .map_err(|error| compile_error(&error.to_string()))?;
+        if self.program.problem().sampling_weights.is_some() {
+            return Ok(self.program.problem().clone());
+        }
+        let treatment_column =
+            layout.column(0).ok_or_else(|| compile_error("design layout omitted treatment"))?;
+        let outcome_column =
+            layout.column(1).ok_or_else(|| compile_error("design layout omitted the outcome"))?;
+        let mut covariates = Vec::with_capacity(adjustment.len());
+        for (offset, id) in adjustment.iter().enumerate() {
+            let column = layout
+                .column(offset.saturating_add(2))
+                .ok_or_else(|| compile_error("design layout omitted an adjustment column"))?;
+            covariates.push((*id, column));
+        }
+        let design = CompiledDesign::linear_adjustment(
+            treatment_column,
+            &covariates,
+            outcome_column,
+            &selected,
+        )?;
+        let mut problem = self.program.problem().clone();
+        problem.design = design;
+        problem.treatment = Arc::from(treatment_column);
+        Ok(problem)
+    }
+}
+
+fn analysis_wire(
+    query: CausalQueryWire,
+    identification: IdentificationResultWire,
+    estimate: f64,
+    standard_error: f64,
+) -> AnalysisResultWire {
+    let published_error =
+        (standard_error.is_finite() && standard_error >= 0.0).then_some(standard_error);
+    AnalysisResultWire {
+        query,
+        identification,
+        identification_variables: None,
+        temporal_identification: Vec::new(),
+        estimate: Some(estimate),
+        policy_value: None,
+        continuous_dose_response: None,
+        panel_did: None,
+        synthetic_control: None,
+        synthetic_did: None,
+        local_polynomial_ratio: None,
+        randomized_effect: None,
+        survival: None,
+        posterior_row: None,
+        longitudinal_regime: None,
+        sequential_contrast: None,
+        history_match: None,
+        interference_inference: None,
+        interventional_distribution: None,
+        standard_error: published_error,
+        interval_lower: None,
+        interval_upper: None,
+        assumptions: Vec::new(),
+        diagnostics: Vec::new(),
+        refutations: Vec::new(),
+        response: None,
+        posterior_artifact: None,
+        mediation_grid: None,
+        structural_response: None,
+        unit_effects: None,
+        cate: None,
+        fitted_effect: None,
+        cate_se: None,
+        cate_leaf_dispersion: None,
+        outcome_oof_r2: None,
+        treatment_oof_logloss: None,
+        crossfit_folds: None,
+        crossfit_seed: None,
+        learner_provenance: Vec::new(),
+    }
+}
+
 struct Admitted<'a> {
     data: &'a TabularData,
     query: &'a AverageEffectQuery,
@@ -266,9 +461,9 @@ impl Study {
     ///
     /// The study must resolve to `linear.adjustment.ate` on a static DAG average
     /// contrast with an empty modifier list. Population, pair, and identification
-    /// refusals are the ones [`Self::compile`] and the checked estimator already
-    /// return. The retained program is what [`LoweredLinearGaussianRoute::execute`]
-    /// fits.
+    /// refusals are the ones the checked estimator already returns.
+    /// [`Self::compile`] builds the physical plan and does not identify again.
+    /// The retained program is what [`LoweredLinearGaussianRoute::execute`] fits.
     ///
     /// # Errors
     ///
@@ -287,12 +482,15 @@ impl Study {
             prepare_linear_gaussian(self, admitted.data, &identification)?;
         let product = retain_linear_gaussian(&identification, &program)?;
         let resample = fitter.bootstrap_replicates > 0;
+        let data = admitted.data.clone();
         Ok(LoweredLinearGaussianRoute {
             scientific: linear_gaussian_scientific_problem(
                 admitted.query,
                 self.inference.is_bayesian(),
             )?,
             identification: product,
+            identified: identification,
+            data,
             program,
             fitter,
             point_then_bootstrap,
@@ -306,14 +504,6 @@ impl Study {
             recompile: RefCell::new(PreparedRecompile::after_lower()),
             cached_claim: RefCell::new(None),
         })
-    }
-
-    /// Whether this study is the static ordinary-least-squares intervention.
-    ///
-    /// A refusal from identification or the fit is not a mismatch: [`Self::compile`]
-    /// returns that error instead of another route.
-    pub(super) fn admits_linear_gaussian(&self) -> bool {
-        self.admit_linear_gaussian().is_ok()
     }
 
     fn admit_linear_gaussian(&self) -> Result<Admitted<'_>, CausalError> {

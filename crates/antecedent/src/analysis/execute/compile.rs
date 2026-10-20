@@ -1304,9 +1304,8 @@ impl super::Study {
 
     /// Compile logical → physical plan.
     ///
-    /// A static ordinary-least-squares intervention returns the physical record
-    /// retained by the lowered linear/Gaussian program. Other routes keep their
-    /// existing compile path.
+    /// An admitted linear/Gaussian study keeps admission, identification, and
+    /// preparation on the lowered route. This function does not repeat them.
     ///
     /// # Errors
     ///
@@ -1320,11 +1319,6 @@ impl super::Study {
     pub fn compile(&self, ctx: &ExecutionContext) -> Result<PhysicalExecutionPlan, CausalError> {
         if self.graph_posterior.is_some() {
             return self.compile_graph_posterior(ctx);
-        }
-        if self.admits_linear_gaussian() {
-            return self
-                .lower_linear_gaussian_intervention(ctx)
-                .map(lowered_route::LoweredLinearGaussianRoute::into_physical);
         }
         let input = self.route_input()?;
         self.compile_with_route(&input, ctx)

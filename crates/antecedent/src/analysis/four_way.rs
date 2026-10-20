@@ -300,6 +300,7 @@ pub(crate) struct FourWaySlice {
     coverage: [FrequentistCoverage; 2],
     posterior: [PosteriorQuality; 2],
     static_fits: u64,
+    static_artifact: Vec<u8>,
     utility_only: Box<dyn UtilityOnly>,
 }
 
@@ -334,6 +335,12 @@ impl FourWaySlice {
         self.static_fits
     }
 
+    /// Analysis-result bytes of the executed static frequentist contrast.
+    #[must_use = "the artifact bytes are the claim a later consumer loads"]
+    pub(crate) fn static_claim_artifact(&self) -> &[u8] {
+        &self.static_artifact
+    }
+
     /// Apply a utility change on the static frequentist cell and execute again.
     ///
     /// The route reuses the causal fit. [`UtilityReplay::least_squares_solves`]
@@ -355,8 +362,8 @@ pub(crate) fn confidence_interval_as_posterior() -> Result<EvidencePort, Evidenc
 ///
 /// # Errors
 ///
-/// A study or the lowered route refuses, or a Bayesian cell publishes no
-/// effect posterior.
+/// A study or the lowered route refuses, the route budget or cancellation
+/// stops the static fit, or a Bayesian cell publishes no effect posterior.
 pub(crate) fn same_target_slice(
     ctx: &ExecutionContext,
 ) -> Result<FourWaySlice, crate::CausalError> {
@@ -370,6 +377,7 @@ pub(crate) fn same_target_slice(
     }
     let analytic_truth = line_effect();
     let claim = route.execute(ctx)?;
+    let static_artifact = route.claim_artifact()?;
     let static_target = route.scientific().clone();
     let static_fits = route.causal_fit_count();
     let static_cell = frequentist_cell(FourWayCell::StaticFrequentist, &claim.estimate)?;
@@ -410,8 +418,22 @@ pub(crate) fn same_target_slice(
         coverage,
         posterior,
         static_fits,
+        static_artifact,
         utility_only,
     })
+}
+
+/// Contrast stored in an analysis-result artifact.
+///
+/// `bytes` is the whole artifact. This function has no handle to the route
+/// that wrote it.
+///
+/// # Errors
+///
+/// `bytes` is not that artifact, or it carries no scalar contrast.
+pub(crate) fn contrast_of_loaded_artifact(bytes: &[u8]) -> Result<f64, crate::CausalError> {
+    let consumed = antecedent_io::consume_analysis_result(bytes)?;
+    consumed.body.estimate.ok_or_else(|| compile("loaded analysis result has no contrast"))
 }
 
 struct BayesianFit {
@@ -765,10 +787,13 @@ mod tests {
     use antecedent_core::{ContrastForm, ExecutionContext, IntervalMethod, ScientificWorldId};
     use antecedent_stats::fit_counts::count_least_squares_solves;
 
+    use super::super::finite_discrete::{
+        DiscreteCell, effect_of_exported_law, finite_discrete_slice,
+    };
     use super::{
         DecisionDemand, FourWayCell, MissingCarrier, PublishedScalarUncertainty, bayesian_fit,
-        confidence_interval_as_posterior, effect_of, finish_study, frequentist_cell,
-        same_target_slice, static_builder,
+        confidence_interval_as_posterior, contrast_of_loaded_artifact, effect_of, finish_study,
+        frequentist_cell, linear_study, same_target_slice, static_builder,
     };
 
     #[test]
@@ -977,5 +1002,51 @@ mod tests {
             MissingCarrier::OutcomeLaw
         );
         assert_eq!(bayesian.decide(DecisionDemand::Risk).unwrap_err(), MissingCarrier::OutcomeLaw);
+    }
+
+    #[test]
+    fn both_slices_execute_and_loaded_artifacts_keep_the_claims() {
+        let ctx = ExecutionContext::for_tests(1);
+        let gaussian = same_target_slice(&ctx).unwrap();
+        let discrete = finite_discrete_slice(&ctx).unwrap();
+        let gaussian_effect = gaussian.cell(FourWayCell::StaticFrequentist).effect();
+        let discrete_effect = discrete.cell(DiscreteCell::StaticFrequentist).effect();
+        let gaussian_bytes = gaussian.static_claim_artifact().to_vec();
+        let discrete_bytes = discrete.export_static_frequentist().unwrap();
+        drop(gaussian);
+        drop(discrete);
+        let loaded_gaussian = contrast_of_loaded_artifact(&gaussian_bytes).unwrap();
+        let loaded_discrete =
+            effect_of_exported_law(&discrete_bytes, &ExecutionContext::for_tests(2)).unwrap();
+        assert_eq!(loaded_gaussian.to_bits(), gaussian_effect.to_bits());
+        assert_eq!(loaded_discrete.to_bits(), discrete_effect.to_bits());
+    }
+
+    #[test]
+    fn cancelled_slice_execution_returns_no_claim() {
+        let ctx = ExecutionContext::for_tests(1);
+        let study = linear_study(FourWayCell::StaticFrequentist).unwrap();
+        let route = study.lower_linear_gaussian_intervention(&ctx).unwrap();
+        ctx.cancellation.cancel();
+        let gaussian = route.execute(&ctx).unwrap_err();
+        assert!(matches!(gaussian, crate::CausalError::Cancelled { .. }), "{gaussian}");
+        let Err(discrete) = finite_discrete_slice(&ctx) else {
+            panic!("a cancelled discrete slice must refuse");
+        };
+        assert!(matches!(discrete, crate::CausalError::Cancelled { .. }), "{discrete}");
+    }
+
+    #[test]
+    fn over_budget_slice_execution_is_refused() {
+        let mut ctx = ExecutionContext::for_tests(1);
+        let study = linear_study(FourWayCell::StaticFrequentist).unwrap();
+        let route = study.lower_linear_gaussian_intervention(&ctx).unwrap();
+        ctx.memory.hard_limit_bytes = Some(1);
+        let gaussian = route.execute(&ctx).unwrap_err();
+        assert!(matches!(gaussian, crate::CausalError::Resource { .. }), "{gaussian}");
+        let Err(discrete) = finite_discrete_slice(&ctx) else {
+            panic!("an over-budget discrete slice must refuse");
+        };
+        assert!(matches!(discrete, crate::CausalError::Resource { .. }), "{discrete}");
     }
 }

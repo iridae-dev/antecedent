@@ -20,7 +20,14 @@
 use std::sync::Arc;
 
 use antecedent_contract::{DecisionRequest, EvidencePort, EvidencePortError};
-use antecedent_core::{ExecutionContext, RegimeId, Value, VariableId};
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
+use antecedent_core::{
+    CausalSchemaBuilder, EncodedWidth, ExecutionContext, RegimeId, RouteBudget,
+    RouteMemoryDeclaration, Value, VariableId,
+};
+use antecedent_data::{
+    DiscreteColumn, Int64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
 use antecedent_expr::{
     Assignment, CausalExprArena, DiscreteAxis, DomainRef, ExactDiscreteLaw, ExactEvaluationLimits,
     ExactEvaluationPlan, ExactEvaluationSpec, ExactTransportData, ExprId, ExprNode,
@@ -505,7 +512,8 @@ pub(crate) fn load_exported(bytes: &[u8]) -> Result<ExportedDiscreteResult, crat
 ///
 /// # Errors
 ///
-/// The export, the law, or the exact plan is refused.
+/// The export, the law, or the exact plan is refused, or the route budget
+/// or cancellation stops evaluation.
 pub(crate) fn effect_of_exported_law(
     bytes: &[u8],
     ctx: &ExecutionContext,
@@ -523,7 +531,8 @@ pub(crate) fn effect_of_exported_law(
 ///
 /// # Errors
 ///
-/// The exact plan refuses the budgets or the frequency law.
+/// The exact plan refuses the budgets or the frequency law, or the route
+/// budget or cancellation stops evaluation.
 pub(crate) fn enumerated_atoms(
     limits: ExactEvaluationLimits,
     support_rows: usize,
@@ -540,7 +549,8 @@ pub(crate) fn enumerated_atoms(
 ///
 /// # Errors
 ///
-/// A law or the exact plan refuses.
+/// A law or the exact plan refuses, or the route budget or cancellation
+/// stops evaluation.
 pub(crate) fn finite_discrete_slice(
     ctx: &ExecutionContext,
 ) -> Result<FiniteDiscreteSlice, crate::CausalError> {
@@ -745,6 +755,10 @@ fn plan_world(
     ctx: &ExecutionContext,
     compilations: &mut u64,
 ) -> Result<AtomLaw, crate::CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
+    }
+    let _lease = admit_discrete(ctx)?;
     let plan = ExactEvaluationPlan::compile(
         ExactEvaluationSpec {
             arena,
@@ -841,17 +855,18 @@ fn expression_kinds(program: &FunctionalProgram) -> Result<Vec<String>, crate::C
 }
 
 fn frequency_law(regime: RegimeId) -> Result<ExactDiscreteLaw, crate::CausalError> {
+    let observed = histogram(&counted_table(&FREQUENCY_COUNTS)?)?;
     ExactDiscreteLaw::try_empirical(
         POPULATION,
         regime,
         no_intervention(),
         axes(),
-        probability_table(&FREQUENCY_COUNTS)?,
+        probability_table(&observed)?,
         "frequency",
         LawTolerance::default(),
     )
     .map_err(|err| compile(err.to_string()))?
-    .with_empirical_counts(FREQUENCY_COUNTS.to_vec())
+    .with_empirical_counts(observed.to_vec())
     .map_err(|err| compile(err.to_string()))
 }
 
@@ -860,16 +875,140 @@ fn posterior_law(
     counts: &[u64; 8],
     snapshot: &str,
 ) -> Result<ExactDiscreteLaw, crate::CausalError> {
+    let observed = histogram(&counted_table(counts)?)?;
     ExactDiscreteLaw::try_bayesian_posterior(
         POPULATION,
         regime,
         no_intervention(),
         axes(),
-        probability_table(counts)?,
+        probability_table(&observed)?,
         snapshot,
         LawTolerance::default(),
     )
     .map_err(|err| compile(err.to_string()))
+}
+
+/// Expand `counts` into binary columns and read them back as the joint.
+///
+/// The exact plan consumes this histogram. The count array is only the row source.
+fn counted_table(counts: &[u64; 8]) -> Result<TabularData, crate::CausalError> {
+    let mut treatment = Vec::new();
+    let mut confounder = Vec::new();
+    let mut outcome = Vec::new();
+    for index in 0..counts.len() {
+        let (treatment_level, confounder_level, outcome_level) = cell_levels(index)?;
+        let copies = usize::try_from(counts[index])
+            .map_err(|_| compile("a finite-discrete cell count does not fit in usize"))?;
+        for _ in 0..copies {
+            treatment.push(treatment_level);
+            confounder.push(confounder_level);
+            outcome.push(outcome_level);
+        }
+    }
+    let rows = treatment.len();
+    let schema = CausalSchemaBuilder::new()
+        .binary("treatment")
+        .treatment()
+        .binary("confounder")
+        .context()
+        .binary("outcome")
+        .outcome()
+        .build()
+        .map_err(|err| compile(err.to_string()))?;
+    let validity = ValidityBitmap::all_valid(rows);
+    let column = |raw, values: Vec<i64>| {
+        Int64Column::new(variable(raw), values, validity.clone())
+            .map(OwnedColumn::Int64)
+            .map_err(|err| compile(err.to_string()))
+    };
+    let storage = OwnedColumnarStorage::try_new(
+        schema,
+        vec![
+            column(TREATMENT, treatment)?,
+            column(CONFOUNDER, confounder)?,
+            column(OUTCOME, outcome)?,
+        ],
+        None,
+        None,
+    )
+    .map_err(|err| compile(err.to_string()))?;
+    Ok(TabularData::new(storage))
+}
+
+fn histogram(table: &TabularData) -> Result<[u64; 8], crate::CausalError> {
+    let treatment = table
+        .discrete_column(variable(TREATMENT))
+        .map_err(|err| compile(err.to_string()))?;
+    let confounder = table
+        .discrete_column(variable(CONFOUNDER))
+        .map_err(|err| compile(err.to_string()))?;
+    let outcome =
+        table.discrete_column(variable(OUTCOME)).map_err(|err| compile(err.to_string()))?;
+    let mut counts = [0_u64; 8];
+    for row in 0..treatment.codes.len() {
+        let index = binary_level(&treatment, row)? * 4
+            + binary_level(&confounder, row)? * 2
+            + binary_level(&outcome, row)?;
+        let cell = counts
+            .get_mut(index)
+            .ok_or_else(|| compile("discrete cell is outside the joint"))?;
+        *cell += 1;
+    }
+    Ok(counts)
+}
+
+fn cell_levels(index: usize) -> Result<(i64, i64, i64), crate::CausalError> {
+    let level = |value: usize| {
+        u8::try_from(value)
+            .map(i64::from)
+            .map_err(|_| compile("a finite-discrete axis level does not fit in u8"))
+    };
+    Ok((level(index / 4)?, level((index / 2) % 2)?, level(index % 2)?))
+}
+
+fn binary_level(column: &DiscreteColumn, row: usize) -> Result<usize, crate::CausalError> {
+    match column.value(row) {
+        Some(Value::Int64(0)) => Ok(0),
+        Some(Value::Int64(1)) => Ok(1),
+        _ => Err(compile("discrete seam row is not a binary level")),
+    }
+}
+
+fn admit_discrete(ctx: &ExecutionContext) -> Result<AdmissionLease, crate::CausalError> {
+    let admitted = RouteMemoryDeclaration::new()
+        .rows(8)
+        .encoded_column(EncodedWidth::int64())
+        .encoded_column(EncodedWidth::int64())
+        .encoded_column(EncodedWidth::int64())
+        .masks(1)
+        .design_expansion(0)
+        .learner_fold_copies(0, 0)
+        .solver_scratch(64)
+        .retained_scores_draws(0)
+        .output(8)
+        .workers(1)
+        .admit(RouteBudget::new(execution_byte_budget(ctx)))
+        .map_err(|error| crate::CausalError::Resource { message: error.to_string() })?;
+    ctx.acquire_admission(1, admitted.total()).map_err(admission_error)
+}
+
+fn execution_byte_budget(ctx: &ExecutionContext) -> u64 {
+    let pool = ctx.admission().byte_budget();
+    match ctx.memory.hard_limit_bytes {
+        Some(limit) => limit.min(pool),
+        None => pool,
+    }
+}
+
+fn admission_error(error: AdmissionError) -> crate::CausalError {
+    match error {
+        AdmissionError::Cancelled => cancelled(),
+        other => crate::CausalError::Resource { message: other.to_string() },
+    }
+}
+
+fn cancelled() -> crate::CausalError {
+    crate::CausalError::Cancelled { stage: super::stage::STAGE_ESTIMATE_POINT }
 }
 
 fn probability_table(counts: &[u64; 8]) -> Result<Vec<f64>, crate::CausalError> {
