@@ -4,7 +4,8 @@
 
 use core::fmt;
 
-use antecedent_core::{SchemaError, VariableId};
+use antecedent_core::diagnostic::RouteNativeDiagnostic;
+use antecedent_core::{SamplingDesignError, SchemaError, VariableId};
 
 /// Errors from data construction, lookup, or materialization.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -62,8 +63,22 @@ pub enum DataError {
     },
     /// A cooperative cancellation was observed before the operation finished.
     Cancelled,
+    /// The declared sampling design refused the requested resampling or splitting rule.
+    SamplingDesign(SamplingDesignError),
     /// Underlying schema error.
     Schema(String),
+}
+
+impl DataError {
+    /// Route record when this error is a dependent series resampled by a rule that
+    /// drops its dependence.
+    #[must_use = "a failed dependent-resampling check is dropped if the record is discarded"]
+    pub const fn route_diagnostic(&self) -> Option<RouteNativeDiagnostic> {
+        match self {
+            Self::SamplingDesign(error) => error.route_diagnostic(),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for DataError {
@@ -88,6 +103,7 @@ impl fmt::Display for DataError {
             }
             Self::InvalidWeights { index: None, reason } => write!(f, "invalid weights: {reason}"),
             Self::Cancelled => write!(f, "cancelled"),
+            Self::SamplingDesign(error) => write!(f, "invalid argument: {error}"),
             Self::Schema(msg) => write!(f, "schema error: {msg}"),
         }
     }

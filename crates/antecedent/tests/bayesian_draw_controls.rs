@@ -20,7 +20,7 @@ use antecedent::{
     BayesianConfig, CausalError, InferenceMode, PosteriorDrawControls, RefuteSuite, Study,
     StudyResult,
 };
-use antecedent_core::diagnostic::RouteNativeDiagnostic;
+use antecedent_core::diagnostic::RouteKind;
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION;
@@ -263,7 +263,7 @@ fn a_sampler_that_mixes_poorly_is_refused_naming_the_chain_diagnostics() {
         "{records:?} {message}"
     );
     assert!(
-        records.iter().any(|record| !matches!(record, RouteNativeDiagnostic::Convergence(_))),
+        records.iter().any(|record| record.kind() != Some(RouteKind::Convergence)),
         "poor mixing is not only a convergence failure: {records:?}"
     );
     assert!(records.iter().all(|record| !record.is_model_restriction()), "{records:?}");

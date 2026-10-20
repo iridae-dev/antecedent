@@ -97,7 +97,13 @@ pub(super) fn shared_identification_from_cache_or(
     }
     report_identify_compute(ctx);
     let (identification, estimand) = live()?;
-    Ok((Arc::new(crate::analysis::prepared::CachedStaticIdentification { identification, estimand }), false))
+    Ok((
+        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+            identification,
+            estimand,
+        }),
+        false,
+    ))
 }
 
 /// Tell the progress sink that identification is being computed rather than
@@ -158,9 +164,7 @@ pub(super) fn interactive_subsample_graphs_accounted(
         return Ok((graphs, InteractiveSubsampleDrop::default()));
     }
     let mut rng = ctx.rng.stream_for(StreamDomain::Execute, 0xE11E_u64);
-    let sub = graphs
-        .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
-        ?;
+    let sub = graphs.stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)?;
     let keys: Vec<u64> = graphs
         .identified
         .iter()
@@ -301,7 +305,9 @@ pub(super) fn envelope_mass_diagnostic(
     let mut fields = mass_fields(None, posterior.unidentified_mass);
     if posterior.unevaluable_mass > 0.0 {
         if let Ok(mass) = antecedent_core::diagnostic::RouteMass::new(posterior.unevaluable_mass) {
-            fields.push((Arc::from("unevaluable_mass_bits"), Arc::from(mass.bits().to_string())));
+            if let Some(bits) = mass.bits() {
+                fields.push((Arc::from("unevaluable_mass_bits"), Arc::from(bits.to_string())));
+            }
         }
     }
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
@@ -360,8 +366,7 @@ pub(crate) fn functional_bayesian_draws(
     let InferenceMode::Bayesian(config) = inference else {
         return Ok(None);
     };
-    if config.has_transfer()
-    {
+    if config.has_transfer() {
         return Err(CausalError::Unsupported { message: FUNCTIONAL_BAYESIAN_PRIOR_REFUSAL });
     }
     Ok(Some(bayesian_draw_count(inference)?))
@@ -433,9 +438,10 @@ pub(crate) fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyRes
         estimand: finish.estimand.clone(),
         estimate: finish.estimate,
         posterior: finish.posterior,
-        payload: finish
-            .distribution
-            .map_or(crate::result::ResultPayload::Scalar, crate::result::ResultPayload::Distribution),
+        payload: finish.distribution.map_or(
+            crate::result::ResultPayload::Scalar,
+            crate::result::ResultPayload::Distribution,
+        ),
         refutations: finish.refutations,
         diagnostics: finish.diagnostics,
         provenance,

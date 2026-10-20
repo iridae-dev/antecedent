@@ -1038,6 +1038,23 @@ pub(super) fn chain_refusal_under_draw_controls(
     CausalError::from(error)
 }
 
+/// Refusal for an inference mode this route does not perform.
+///
+/// The record is unsupported inference, not a failed check or a computational
+/// failure. The refusal reports no mass, so the mass is unreported.
+pub(super) fn unsupported_inference_error(summary: &str) -> CausalError {
+    CausalError::Estimate(antecedent_estimate::EstimationError::Prob(
+        antecedent_prob::ProbError::Route {
+            summary: summary.into(),
+            diagnostics: vec![
+                antecedent_core::diagnostic::RouteNativeDiagnostic::unsupported_inference(
+                    antecedent_core::diagnostic::RouteMass::unreported(),
+                ),
+            ],
+        },
+    ))
+}
+
 /// Refuse a posterior whose interval endpoints are not set by the posterior: the Monte Carlo
 /// standard error of the larger endpoint must be within the accepted fraction of the width.
 /// The endpoint errors are recorded with the posterior's inference diagnostics.
@@ -1098,17 +1115,10 @@ impl super::Study {
         let cfg = match inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
-                let unsupported =
-                    antecedent_core::diagnostic::RouteNativeDiagnostic::unsupported_inference;
-                let record = unsupported(antecedent_core::diagnostic::RouteMass::zero());
-                return Err(CausalError::Estimate(antecedent_estimate::EstimationError::Prob(
-                    antecedent_prob::ProbError::Route {
-                        summary: "execute_bayesian requires inference=Bayesian; \
-                                  estimator bayesian.gcomp cannot run under Frequentist"
-                            .into(),
-                        diagnostics: vec![record],
-                    },
-                )));
+                return Err(unsupported_inference_error(
+                    "execute_bayesian requires inference=Bayesian; \
+                     estimator bayesian.gcomp cannot run under Frequentist",
+                ));
             }
         };
         let BayesianGcompPoint { est, prep, mut ws, posterior, estimate } = self
@@ -1227,7 +1237,8 @@ impl super::Study {
             })?;
         let unknown = background.within_tier == antecedent_graph::WithinTier::Unknown;
         let mut clock = super::super::stage::StageClock::new();
-        let mut fits = self.fit_tiered_scenarios(data, query, cfg, &identification, &mut clock, ctx)?;
+        let mut fits =
+            self.fit_tiered_scenarios(data, query, cfg, &identification, &mut clock, ctx)?;
         let Some(first_estimand) = fits.first().map(|(estimand, _, _)| estimand.clone()) else {
             return Err(CausalError::Compile {
                 message: "tiered identification returned no estimand".into(),
@@ -4518,5 +4529,21 @@ fn dbn_frequentist_structural_mixture(
         conditional_on_identified: Some(ResponseValue::Scalar(point)),
         full_mass_scope: true,
         truncated_atoms: 0,
+    }
+}
+
+#[cfg(test)]
+mod unsupported_inference_tests {
+    use super::unsupported_inference_error;
+
+    #[test]
+    fn an_unsupported_inference_refusal_is_not_a_failed_check_or_a_computational_failure() {
+        let error = unsupported_inference_error("inference mode is not performed by this route");
+        let records = error.route_diagnostics();
+        assert_eq!(records.len(), 1, "{records:?}");
+        assert!(records[0].is_unsupported_inference());
+        assert!(!records[0].failed());
+        assert!(!records[0].is_computational_failure());
+        assert!(records[0].unevaluable_mass().is_unreported());
     }
 }

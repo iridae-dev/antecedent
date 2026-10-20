@@ -502,8 +502,12 @@ impl SamplingDesignError {
                 design: SamplingDesign::DependentTimeSeries,
                 attempted: AttemptedRule::Resampling(_),
                 ..
-            } => Some(crate::diagnostic::RouteNativeDiagnostic::dependent_resampling(
-                crate::diagnostic::RouteCheck::new(true, crate::diagnostic::RouteMass::zero()),
+            } => Some(crate::diagnostic::RouteNativeDiagnostic::check(
+                crate::diagnostic::RouteKind::DependentResampling,
+                crate::diagnostic::RouteCheck::new(
+                    true,
+                    crate::diagnostic::RouteMass::unreported(),
+                ),
             )),
             _ => None,
         }
@@ -829,17 +833,17 @@ mod tests {
         assert_eq!(rules.variance(), VarianceRule::DependencePreserving);
         assert_eq!(rules.effective_sample_size(), &[EffectiveSampleSizeRule::DeclaredSeriesAware]);
 
-        let refused = design.apply_resampling(ResamplingRule::RowSubjectIid).expect_err(
-            "a dependent series does not resample subjects independently",
-        );
+        let refused = design
+            .apply_resampling(ResamplingRule::RowSubjectIid)
+            .expect_err("a dependent series does not resample subjects independently");
         let record = refused.route_diagnostic().expect("dependent resampling record");
         assert!(record.failed());
         assert_eq!(record.route_name(), "dependent_resampling");
         assert!(!record.is_unsupported_inference());
         assert!(!record.is_computational_failure());
-        let cluster_split = design.apply_splitting(SplittingRule::WholeCluster).expect_err(
-            "a dependent series does not split by cluster",
-        );
+        let cluster_split = design
+            .apply_splitting(SplittingRule::WholeCluster)
+            .expect_err("a dependent series does not split by cluster");
         assert!(cluster_split.route_diagnostic().is_none());
         let resampled = design
             .apply_resampling(ResamplingRule::ContiguousBlock)

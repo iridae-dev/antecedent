@@ -10,7 +10,7 @@
     )
 )]
 
-use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 use antecedent_kernels::{log_norm_pdf, log_norm_sf, norm_cdf};
 
 use crate::{
@@ -237,19 +237,19 @@ pub fn kaplan_meier_ipcw(
             if at_event < survival_floor || at_entry < survival_floor {
                 return Err(StatsError::Route {
                     message: "censoring survival is below the configured positivity floor",
-                    diagnostic: RouteNativeDiagnostic::censoring(RouteCheck::new(
-                        true,
-                        RouteMass::zero(),
-                    )),
+                    diagnostic: RouteNativeDiagnostic::check(
+                        RouteKind::Censoring,
+                        RouteCheck::new(true, RouteMass::unreported()),
+                    ),
                 });
             }
             if at_event <= 0.0 {
                 return Err(StatsError::Route {
                     message: "censoring survival at the event time is non-positive",
-                    diagnostic: RouteNativeDiagnostic::censoring(RouteCheck::new(
-                        true,
-                        RouteMass::zero(),
-                    )),
+                    diagnostic: RouteNativeDiagnostic::check(
+                        RouteKind::Censoring,
+                        RouteCheck::new(true, RouteMass::unreported()),
+                    ),
                 });
             }
             Ok(at_entry / at_event)

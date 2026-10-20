@@ -72,6 +72,7 @@ pub mod route_memory;
 pub mod sampling_design;
 pub mod schema;
 pub mod scientific_target;
+pub mod scratch_admission;
 pub mod scratch_pool;
 pub mod search;
 pub use search::{
@@ -185,6 +186,7 @@ pub use rng_key::{
     BatchSize, ChainId, DeclaredTolerance, FailedRngAttempt, FoldId, ReductionPolicy, ReplicateId,
     RngKey, SemanticOperation, StreamRequest, ToleranceError, WorkerId,
 };
+pub use scratch_admission::{ScratchLease, ScratchRefusal};
 pub use route_memory::{
     AdmittedRouteMemory, EncodedWidth, RouteBudget, RouteMemoryComponent, RouteMemoryDeclaration,
     RouteMemoryError, RouteMemoryEstimate,

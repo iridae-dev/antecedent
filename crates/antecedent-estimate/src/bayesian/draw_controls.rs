@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 use antecedent_prob::HessianFactorization;
 
 use super::{BayesianBackendKind, CausalPosterior, HMC_MIN_DRAWS};
@@ -71,14 +71,15 @@ impl EndpointMonteCarloError {
     ///
     /// `None` when the endpoints are within tolerance. A failure is a Monte
     /// Carlo error check, not a convergence check. `unevaluable_mass` is kept
-    /// when it is a finite mass in `[0, 1]`.
+    /// when it is a finite mass in `[0, 1]`; otherwise the record carries an
+    /// unreported mass, never a measured zero.
     #[must_use = "a failed Monte Carlo check is dropped if the record is discarded"]
     pub fn route_record(&self, unevaluable_mass: f64) -> Option<RouteNativeDiagnostic> {
         if !self.exceeds_tolerance() {
             return None;
         }
-        let mass = RouteMass::new(unevaluable_mass).unwrap_or_else(|_| RouteMass::zero());
-        Some(RouteNativeDiagnostic::monte_carlo_error(RouteCheck::new(true, mass)))
+        let mass = RouteMass::new(unevaluable_mass).unwrap_or_else(|_| RouteMass::unreported());
+        Some(RouteNativeDiagnostic::check(RouteKind::MonteCarloError, RouteCheck::new(true, mass)))
     }
 
     /// The inference-diagnostics note that records these errors with the posterior.
@@ -170,7 +171,7 @@ mod tests {
 
     use super::{EndpointMonteCarloError, endpoint_monte_carlo_error};
     use crate::CausalPosterior;
-    use antecedent_core::diagnostic::RouteNativeDiagnostic;
+    use antecedent_core::diagnostic::RouteKind;
 
     #[test]
     fn an_endpoint_error_above_tolerance_is_monte_carlo_error_not_convergence() {
@@ -184,11 +185,13 @@ mod tests {
         let record = error.route_record(0.25).expect("the check failed");
         assert!(record.failed());
         assert_eq!(record.route_name(), "monte_carlo_error");
-        assert_eq!(record.unevaluable_mass().get().to_bits(), 0.25_f64.to_bits());
-        assert!(!matches!(record, RouteNativeDiagnostic::Convergence(_)));
+        assert_eq!(record.unevaluable_mass().bits(), Some(0.25_f64.to_bits()));
+        assert_ne!(record.kind(), Some(RouteKind::Convergence));
         assert!(!record.is_model_restriction());
         assert!(!record.is_unsupported_inference());
-        assert!(error.route_record(f64::NAN).is_some_and(|record| record.failed()));
+        let unmeasured = error.route_record(f64::NAN).expect("the check failed");
+        assert!(unmeasured.failed());
+        assert!(unmeasured.unevaluable_mass().is_unreported());
     }
 
     #[test]
@@ -217,7 +220,7 @@ mod tests {
         let record = error.route_record(posterior.unevaluable_mass).expect("failed check");
         assert_eq!(record.route_name(), "monte_carlo_error");
         assert!(record.failed());
-        assert_eq!(record.unevaluable_mass().get().to_bits(), 0.25_f64.to_bits());
-        assert!(!matches!(record, RouteNativeDiagnostic::Convergence(_)));
+        assert_eq!(record.unevaluable_mass().bits(), Some(0.25_f64.to_bits()));
+        assert_ne!(record.kind(), Some(RouteKind::Convergence));
     }
 }

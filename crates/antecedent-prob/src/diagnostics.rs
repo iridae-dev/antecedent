@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 
 use crate::error::ProbError;
 
@@ -272,7 +272,7 @@ impl InferenceDiagnostics {
     /// `summary` is prose. The records are the outcome.
     #[must_use = "a publication refusal is dropped if the error is discarded"]
     pub fn publication_error(&self, summary: impl Into<String>) -> Option<ProbError> {
-        let diagnostics = self.route_records(RouteMass::zero());
+        let diagnostics = self.route_records(RouteMass::unreported());
         if diagnostics.is_empty() {
             None
         } else {
@@ -290,7 +290,7 @@ impl InferenceDiagnostics {
         let mut records = Vec::new();
         let failed = RouteCheck::new(true, mass);
         if !self.converged {
-            records.push(RouteNativeDiagnostic::convergence(failed));
+            records.push(RouteNativeDiagnostic::check(RouteKind::Convergence, failed));
         }
         if self.separation_warning {
             records.push(RouteNativeDiagnostic::model_restriction(mass));
@@ -306,16 +306,16 @@ impl InferenceDiagnostics {
         let failed = RouteCheck::new(true, mass);
         let rhat_ok = self.rhat_max.is_some_and(|r| r.is_finite() && r <= 1.01);
         if !rhat_ok {
-            records.push(RouteNativeDiagnostic::r_hat(failed));
+            records.push(RouteNativeDiagnostic::check(RouteKind::RHat, failed));
         }
         let ess_floor = 100.0 * f64::from(self.n_chains.unwrap_or(1));
         let ess_bulk_ok = self.ess_bulk_min.is_some_and(|ess| ess.is_finite() && ess >= ess_floor);
         let ess_tail_ok = self.ess_tail_min.is_some_and(|ess| ess.is_finite() && ess >= ess_floor);
         if !ess_bulk_ok || !ess_tail_ok {
-            records.push(RouteNativeDiagnostic::posterior_ess(failed));
+            records.push(RouteNativeDiagnostic::check(RouteKind::PosteriorEss, failed));
         }
         if self.all_chains_moved == Some(false) {
-            records.push(RouteNativeDiagnostic::convergence(failed));
+            records.push(RouteNativeDiagnostic::check(RouteKind::Convergence, failed));
         }
         let measured = self.n_postwarmup_divergences.is_some_and(|n| n == 0)
             && self.all_chains_moved.is_some()

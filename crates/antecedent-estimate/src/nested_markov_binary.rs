@@ -89,8 +89,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::{EstimationError, ExactF64, RefusalFields};
-use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
 use antecedent_core::ExecutionContext;
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 
 /// Observed-variable limit of the pilot.
 pub const MAX_OBSERVED: usize = 6;
@@ -822,13 +822,12 @@ pub fn fit_nested_markov(
     let n = counts.counts();
     if n.iter().any(|v| *v <= 0.0) {
         let nonpositive = n.iter().filter(|value| **value <= 0.0).count();
-        let fraction = f64::from(u16::try_from(nonpositive).unwrap_or(u16::MAX))
-            / f64::from(u16::try_from(n.len()).unwrap_or(u16::MAX));
-        let mass = RouteMass::new(fraction).unwrap_or(RouteMass::zero());
+        let fraction = nonpositive as f64 / n.len() as f64;
+        let mass = RouteMass::new(fraction).unwrap_or_else(|_| RouteMass::unreported());
         return Err(routed(
             positivity("every regime cell count must be strictly positive"),
             None,
-            RouteNativeDiagnostic::positivity(RouteCheck::new(true, mass)),
+            RouteNativeDiagnostic::check(RouteKind::Positivity, RouteCheck::new(true, mass)),
         ));
     }
     let law = counts.empirical_law();
@@ -866,7 +865,10 @@ pub fn fit_nested_markov(
                     },
                 ),
                 Some(&diag),
-                RouteNativeDiagnostic::constrained_draws(RouteCheck::new(true, RouteMass::zero())),
+                RouteNativeDiagnostic::check(
+                    RouteKind::ConstrainedDraws,
+                    RouteCheck::new(true, RouteMass::unreported()),
+                ),
             ));
         }
     }
@@ -927,7 +929,10 @@ fn ascend(
                 },
             ),
             Some(diag),
-            RouteNativeDiagnostic::convergence(RouteCheck::new(true, RouteMass::zero())),
+            RouteNativeDiagnostic::check(
+                RouteKind::Convergence,
+                RouteCheck::new(true, RouteMass::unreported()),
+            ),
         ));
     }
     let (a, c) = closed_form_blocks(counts.counts(), counts.total());
@@ -963,7 +968,7 @@ fn finish(
                 },
             ),
             Some(&diag),
-            RouteNativeDiagnostic::computational_failure(RouteMass::zero()),
+            RouteNativeDiagnostic::computational_failure(RouteMass::unreported()),
         ));
     }
     let (margin, count) = boundary_stats(&parameters, &cells);
@@ -983,7 +988,7 @@ fn finish(
                 },
             ),
             Some(&diag),
-            RouteNativeDiagnostic::model_restriction(RouteMass::zero()),
+            RouteNativeDiagnostic::model_restriction(RouteMass::unreported()),
         ));
     }
     Ok(NestedMarkovFit { parameters, cells, log_likelihood: ll, diagnostics: diag })

@@ -883,7 +883,9 @@ fn pack_and_gate_hmc(
         );
         return Err(diagnostics.publication_error(summary.clone()).unwrap_or(ProbError::Route {
             summary,
-            diagnostics: vec![RouteNativeDiagnostic::computational_failure(RouteMass::zero())],
+            diagnostics: vec![
+                RouteNativeDiagnostic::computational_failure(RouteMass::unreported()),
+            ],
         }));
     }
 

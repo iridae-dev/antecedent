@@ -4,7 +4,7 @@
 //! are inputs, not nuisance models fitted or verified by this kernel.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 
 /// A regime-kernel refusal.
 ///
@@ -23,17 +23,17 @@ impl RegimeKernelError {
     /// message stays unclassified.
     #[must_use = "an unclassified message is dropped if the error is discarded"]
     pub fn from_message(message: &'static str) -> Self {
-        let failed = RouteCheck::new(true, RouteMass::zero());
+        let failed = RouteCheck::new(true, RouteMass::unreported());
         let route = match message {
             "sequential treatment positivity is violated at the declared probability floor"
             | "sequential treatment positivity fails at the declared floor"
             | "sequential treatment positivity is violated" => {
-                Some(RouteNativeDiagnostic::positivity(failed))
+                Some(RouteNativeDiagnostic::check(RouteKind::Positivity, failed))
             }
             "sequential censoring positivity is violated at the declared probability floor"
             | "sequential censoring positivity fails at the declared floor"
             | "sequential censoring positivity is violated" => {
-                Some(RouteNativeDiagnostic::censoring(failed))
+                Some(RouteNativeDiagnostic::check(RouteKind::Censoring, failed))
             }
             _ => None,
         };
@@ -357,53 +357,55 @@ pub fn evaluate_g_formula_value(
     minimum_probability: f64,
 ) -> Result<RegimeValueSummary, RegimeKernelError> {
     (|| -> Result<RegimeValueSummary, &'static str> {
-    let cells = subjects.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
-    if subjects == 0
-        || periods == 0
-        || predictions.len() != cells
-        || actions.len() != cells
-        || treatment_probability.len() != cells
-        || censoring_probability.len() != cells
-    {
-        return Err("g-formula arrays must align by subject and period");
-    }
-    if !(minimum_probability.is_finite() && 0.0 < minimum_probability && minimum_probability <= 0.5)
-    {
-        return Err("minimum probability must be finite and in (0, 0.5]");
-    }
-    let mut total = 0.0;
-    let mut minimum_action_probability: f64 = 1.0;
-    let mut minimum_censoring_probability: f64 = 1.0;
-    for j in 0..cells {
-        let q = predictions[j];
-        let p = treatment_probability[j];
-        let c = censoring_probability[j];
-        if !q.is_finite() {
-            return Err("period outcome predictions must be finite");
+        let cells = subjects.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
+        if subjects == 0
+            || periods == 0
+            || predictions.len() != cells
+            || actions.len() != cells
+            || treatment_probability.len() != cells
+            || censoring_probability.len() != cells
+        {
+            return Err("g-formula arrays must align by subject and period");
         }
-        if !p.is_finite() || p < minimum_probability || p > 1.0 - minimum_probability {
-            return Err("sequential treatment positivity fails at the declared floor");
+        if !(minimum_probability.is_finite()
+            && 0.0 < minimum_probability
+            && minimum_probability <= 0.5)
+        {
+            return Err("minimum probability must be finite and in (0, 0.5]");
         }
-        if !c.is_finite() || c < minimum_probability || c > 1.0 {
-            return Err("sequential censoring positivity fails at the declared floor");
+        let mut total = 0.0;
+        let mut minimum_action_probability: f64 = 1.0;
+        let mut minimum_censoring_probability: f64 = 1.0;
+        for j in 0..cells {
+            let q = predictions[j];
+            let p = treatment_probability[j];
+            let c = censoring_probability[j];
+            if !q.is_finite() {
+                return Err("period outcome predictions must be finite");
+            }
+            if !p.is_finite() || p < minimum_probability || p > 1.0 - minimum_probability {
+                return Err("sequential treatment positivity fails at the declared floor");
+            }
+            if !c.is_finite() || c < minimum_probability || c > 1.0 {
+                return Err("sequential censoring positivity fails at the declared floor");
+            }
+            minimum_action_probability =
+                minimum_action_probability.min(if actions[j] { p } else { 1.0 - p });
+            minimum_censoring_probability = minimum_censoring_probability.min(c);
+            total += q;
+            if !total.is_finite() {
+                return Err("summed outcome predictions overflowed");
+            }
         }
-        minimum_action_probability =
-            minimum_action_probability.min(if actions[j] { p } else { 1.0 - p });
-        minimum_censoring_probability = minimum_censoring_probability.min(c);
-        total += q;
-        if !total.is_finite() {
-            return Err("summed outcome predictions overflowed");
-        }
-    }
-    Ok(RegimeValueSummary {
-        value: total / subjects as f64,
-        effective_sample_size: subjects as f64,
-        matched_observed_fraction: 1.0,
-        maximum_weight: 1.0,
-        minimum_action_probability,
-        minimum_censoring_probability,
-        score_standard_error: None,
-    })
+        Ok(RegimeValueSummary {
+            value: total / subjects as f64,
+            effective_sample_size: subjects as f64,
+            matched_observed_fraction: 1.0,
+            maximum_weight: 1.0,
+            minimum_action_probability,
+            minimum_censoring_probability,
+            score_standard_error: None,
+        })
     })()
     .map_err(RegimeKernelError::from_message)
 }
@@ -466,101 +468,103 @@ pub fn evaluate_regime_value(
     actions: &[bool],
 ) -> Result<RegimeValueSummary, RegimeKernelError> {
     (|| -> Result<RegimeValueSummary, &'static str> {
-    let SubjectHistories {
-        treatment,
-        treatment_probability,
-        outcome_observed,
-        censoring_probability,
-        periods,
-        minimum_probability,
-    } = *histories;
-    let n = outcomes.len();
-    let cells = n.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
-    if n == 0
-        || periods == 0
-        || treatment.len() != cells
-        || actions.len() != cells
-        || treatment_probability.len() != cells
-        || censoring_probability.len() != cells
-        || outcome_observed.len() != n
-    {
-        return Err("regime arrays must align by subject and period");
-    }
-    if !(minimum_probability.is_finite() && 0.0 < minimum_probability && minimum_probability <= 0.5)
-    {
-        return Err("minimum probability must be finite and in (0, 0.5]");
-    }
-    let mut total = 0.0;
-    let mut matched_weights = Vec::new();
-    let mut maximum_weight: f64 = 0.0;
-    let mut minimum_action_probability: f64 = 1.0;
-    let mut minimum_censoring_probability: f64 = 1.0;
-    let mut matched = 0usize;
-    let mut scores = Vec::with_capacity(n);
-    for i in 0..n {
-        if !outcomes[i].is_finite() {
-            return Err("longitudinal outcomes must be finite");
+        let SubjectHistories {
+            treatment,
+            treatment_probability,
+            outcome_observed,
+            censoring_probability,
+            periods,
+            minimum_probability,
+        } = *histories;
+        let n = outcomes.len();
+        let cells = n.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
+        if n == 0
+            || periods == 0
+            || treatment.len() != cells
+            || actions.len() != cells
+            || treatment_probability.len() != cells
+            || censoring_probability.len() != cells
+            || outcome_observed.len() != n
+        {
+            return Err("regime arrays must align by subject and period");
         }
-        let mut follows = true;
-        let mut weight = 1.0;
-        for t in 0..periods {
-            let j = i * periods + t;
-            let p = treatment_probability[j];
-            let c = censoring_probability[j];
-            if !p.is_finite() || p < minimum_probability || p > 1.0 - minimum_probability {
-                return Err("sequential treatment positivity fails at the declared floor");
+        if !(minimum_probability.is_finite()
+            && 0.0 < minimum_probability
+            && minimum_probability <= 0.5)
+        {
+            return Err("minimum probability must be finite and in (0, 0.5]");
+        }
+        let mut total = 0.0;
+        let mut matched_weights = Vec::new();
+        let mut maximum_weight: f64 = 0.0;
+        let mut minimum_action_probability: f64 = 1.0;
+        let mut minimum_censoring_probability: f64 = 1.0;
+        let mut matched = 0usize;
+        let mut scores = Vec::with_capacity(n);
+        for i in 0..n {
+            if !outcomes[i].is_finite() {
+                return Err("longitudinal outcomes must be finite");
             }
-            if !c.is_finite() || c < minimum_probability || c > 1.0 {
-                return Err("sequential censoring positivity fails at the declared floor");
-            }
-            let action_probability = if actions[j] { p } else { 1.0 - p };
-            minimum_action_probability = minimum_action_probability.min(action_probability);
-            minimum_censoring_probability = minimum_censoring_probability.min(c);
-            follows &= treatment[j] == actions[j];
-            if follows {
-                weight /= action_probability * c;
-                if !weight.is_finite() {
-                    return Err("sequential weight overflowed");
+            let mut follows = true;
+            let mut weight = 1.0;
+            for t in 0..periods {
+                let j = i * periods + t;
+                let p = treatment_probability[j];
+                let c = censoring_probability[j];
+                if !p.is_finite() || p < minimum_probability || p > 1.0 - minimum_probability {
+                    return Err("sequential treatment positivity fails at the declared floor");
+                }
+                if !c.is_finite() || c < minimum_probability || c > 1.0 {
+                    return Err("sequential censoring positivity fails at the declared floor");
+                }
+                let action_probability = if actions[j] { p } else { 1.0 - p };
+                minimum_action_probability = minimum_action_probability.min(action_probability);
+                minimum_censoring_probability = minimum_censoring_probability.min(c);
+                follows &= treatment[j] == actions[j];
+                if follows {
+                    weight /= action_probability * c;
+                    if !weight.is_finite() {
+                        return Err("sequential weight overflowed");
+                    }
                 }
             }
+            if follows && outcome_observed[i] {
+                matched += 1;
+                total += weight * outcomes[i];
+                matched_weights.push(weight);
+                maximum_weight = maximum_weight.max(weight);
+                scores.push(weight * outcomes[i]);
+            } else {
+                scores.push(0.0);
+            }
         }
-        if follows && outcome_observed[i] {
-            matched += 1;
-            total += weight * outcomes[i];
-            matched_weights.push(weight);
-            maximum_weight = maximum_weight.max(weight);
-            scores.push(weight * outcomes[i]);
+        if matched == 0 {
+            return Err("no observed subjects followed the requested regime");
+        }
+        if !total.is_finite() {
+            return Err("longitudinal weighted score overflowed");
+        }
+        let value = total / n as f64;
+        let score_standard_error = if n > 1 {
+            let se = (scores.iter().map(|score| (score - value).powi(2)).sum::<f64>()
+                / (n * (n - 1)) as f64)
+                .sqrt();
+            if !se.is_finite() {
+                return Err("longitudinal subject-score variance overflowed");
+            }
+            Some(se)
         } else {
-            scores.push(0.0);
-        }
-    }
-    if matched == 0 {
-        return Err("no observed subjects followed the requested regime");
-    }
-    if !total.is_finite() {
-        return Err("longitudinal weighted score overflowed");
-    }
-    let value = total / n as f64;
-    let score_standard_error = if n > 1 {
-        let se = (scores.iter().map(|score| (score - value).powi(2)).sum::<f64>()
-            / (n * (n - 1)) as f64)
-            .sqrt();
-        if !se.is_finite() {
-            return Err("longitudinal subject-score variance overflowed");
-        }
-        Some(se)
-    } else {
-        None
-    };
-    Ok(RegimeValueSummary {
-        value,
-        effective_sample_size: antecedent_kernels::kish_ess(&matched_weights),
-        matched_observed_fraction: matched as f64 / n as f64,
-        maximum_weight,
-        minimum_action_probability,
-        minimum_censoring_probability,
-        score_standard_error,
-    })
+            None
+        };
+        Ok(RegimeValueSummary {
+            value,
+            effective_sample_size: antecedent_kernels::kish_ess(&matched_weights),
+            matched_observed_fraction: matched as f64 / n as f64,
+            maximum_weight,
+            minimum_action_probability,
+            minimum_censoring_probability,
+            score_standard_error,
+        })
     })()
     .map_err(RegimeKernelError::from_message)
 }
@@ -1086,18 +1090,12 @@ mod tests {
             }
         }
         let actions = [true, true];
-        let positivity = evaluate_regime_value(
-            &[1.0],
-            &histories(&[0.01, 0.5], &[1.0, 1.0]),
-            &actions,
-        )
-        .expect_err("treatment probability is below the floor");
-        let censoring = evaluate_regime_value(
-            &[1.0],
-            &histories(&[0.5, 0.5], &[0.01, 1.0]),
-            &actions,
-        )
-        .expect_err("censoring probability is below the floor");
+        let positivity =
+            evaluate_regime_value(&[1.0], &histories(&[0.01, 0.5], &[1.0, 1.0]), &actions)
+                .expect_err("treatment probability is below the floor");
+        let censoring =
+            evaluate_regime_value(&[1.0], &histories(&[0.5, 0.5], &[0.01, 1.0]), &actions)
+                .expect_err("censoring probability is below the floor");
         let positivity = positivity.route().expect("positivity record");
         let censoring = censoring.route().expect("censoring record");
         assert!(positivity.failed());

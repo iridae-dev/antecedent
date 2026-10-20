@@ -7,8 +7,8 @@
 
 use std::sync::Arc;
 
-use antecedent_core::diagnostic::{RouteCheck, RouteMass, RouteNativeDiagnostic};
 use antecedent_core::ExecutionContext;
+use antecedent_core::diagnostic::{RouteCheck, RouteKind, RouteMass, RouteNativeDiagnostic};
 use antecedent_kernels::standard_normal;
 
 use crate::backend::{
@@ -233,10 +233,13 @@ pub fn fit_laplace_glm(
     // Separation is a model restriction. It is reported before a singular Hessian
     // so that restriction is not relabeled as a computational failure.
     if sep_map {
-        let mass = RouteMass::zero();
+        let mass = RouteMass::unreported();
         let mut route = vec![RouteNativeDiagnostic::model_restriction(mass)];
         if !converged {
-            route.push(RouteNativeDiagnostic::convergence(RouteCheck::new(true, mass)));
+            route.push(RouteNativeDiagnostic::check(
+                RouteKind::Convergence,
+                RouteCheck::new(true, mass),
+            ));
         }
         return Err(ProbError::Route {
             summary: "Laplace posterior refused: at least one observation is fitted within \
@@ -250,7 +253,7 @@ pub fn fit_laplace_glm(
     // Laplace posterior: an indefinite "covariance" has no Gaussian to draw from.
     let chol = cholesky_spd(&hess, ncols).map_err(|_| ProbError::Route {
         summary: "negative Hessian not positive definite at mode".into(),
-        diagnostics: vec![RouteNativeDiagnostic::computational_failure(RouteMass::zero())],
+        diagnostics: vec![RouteNativeDiagnostic::computational_failure(RouteMass::unreported())],
     })?;
     let condition = condition_from_chol(&chol, ncols);
     workspace.factor[..ncols * ncols].copy_from_slice(&chol);

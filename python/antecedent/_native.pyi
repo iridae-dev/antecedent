@@ -28,6 +28,10 @@ class CausalError(Exception):
     # Structured refusal fields (stage, subject, counts, implicated columns, remedy)
     # when the refusal carries them; ``None`` otherwise.
     refusal_fields: dict[str, object] | None
+    # Route-native diagnostics the refusal carries: one dict per record with ``route``,
+    # ``outcome``, ``failed`` and ``unevaluable_mass`` (``None`` when the route did not
+    # report a mass); an empty sequence otherwise.
+    route_diagnostics: Sequence[dict[str, object]]
 
 class CausalIdentifyError(CausalError): ...
 class CausalEstimateError(CausalError): ...

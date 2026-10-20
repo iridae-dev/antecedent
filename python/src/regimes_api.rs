@@ -121,10 +121,10 @@ fn evaluate_longitudinal_regime_value(
             &d,
         )
         .map_err(|message| {
-            crate::value_err(if message.contains("no observed subjects") {
+            crate::value_err(if message.as_ref().contains("no observed subjects") {
                 "no observed trajectories followed the requested regime"
             } else {
-                message
+                message.as_ref()
             })
         })
     })?;

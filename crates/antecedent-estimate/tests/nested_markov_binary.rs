@@ -7,8 +7,8 @@
     reason = "binary levels and tiny fixed enumerations"
 )]
 
-use antecedent_core::diagnostic::RouteNativeDiagnostic;
 use antecedent_core::ExecutionContext;
+use antecedent_core::diagnostic::RouteKind;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::nested_markov_binary::{
     AdmgDeclaration, BinaryCells, ConstraintStatus, FitMethod, FitOptions, IdentificationStanding,
@@ -214,7 +214,7 @@ fn nested_likelihood_truth_model_and_plugin_are_distinct_when_constraint_fails()
     let route = refusal.route.expect("constrained-draw record");
     assert!(route.failed());
     assert_eq!(route.route_name(), "constrained_draws");
-    assert!(!matches!(route, RouteNativeDiagnostic::Convergence(_)));
+    assert_ne!(route.kind(), Some(RouteKind::Convergence));
     assert!(!route.is_computational_failure());
     assert!(!route.is_model_restriction());
 }
@@ -295,7 +295,7 @@ fn nested_fit_diagnostics_boundary_refuses_with_retained_diagnostics() {
     let route = refusal.route.expect("model restriction");
     assert!(route.is_model_restriction());
     assert!(!route.failed());
-    assert!(!matches!(route, RouteNativeDiagnostic::Convergence(_)));
+    assert_ne!(route.kind(), Some(RouteKind::Convergence));
     assert!(!route.is_computational_failure());
     assert!(!route.is_unsupported_inference());
 }
@@ -318,7 +318,7 @@ fn nested_fit_diagnostics_non_convergence_is_typed_and_keeps_state() {
     let route = refusal.route.expect("convergence record");
     assert!(route.failed());
     assert_eq!(route.route_name(), "convergence");
-    assert!(!matches!(route, RouteNativeDiagnostic::ConstrainedDraws(_)));
+    assert_ne!(route.kind(), Some(RouteKind::ConstrainedDraws));
     assert!(!route.is_computational_failure());
 }
 
@@ -354,7 +354,7 @@ fn nested_fit_diagnostics_bounds_cancellation_and_positivity() {
     assert_eq!(route.route_name(), "positivity");
     assert!(!route.is_computational_failure());
     assert!(!route.is_unsupported_inference());
-    assert!(route.unevaluable_mass().get() > 0.0);
+    assert!(route.unevaluable_mass().get().is_some_and(|mass| mass > 0.0));
 
     let negative = BinaryCells::new(&[-1.0; 16]).expect_err("negative counts");
     assert_eq!(coded(&negative).0, "invalid_argument");

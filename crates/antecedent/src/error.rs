@@ -712,6 +712,9 @@ impl CausalError {
             Self::Estimate(EstimationError::Stats(StatsError::Route { diagnostic, .. })) => {
                 vec![*diagnostic]
             }
+            Self::Data(error) | Self::Estimate(EstimationError::Data(error)) => {
+                error.route_diagnostic().into_iter().collect()
+            }
             _ => Vec::new(),
         }
     }

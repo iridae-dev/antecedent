@@ -278,6 +278,9 @@ pub struct ObservationAdjustedOutcome {
     /// for the selected-outcome mechanism (no such boundary applies) and for a censoring
     /// correction whose censoring survival never reached the floor.
     pub tail_restriction: Option<f64>,
+    /// Share of rows at or past [`Self::tail_restriction`] (before it for left censoring):
+    /// the mass whose events cannot be observed. `Some` exactly when `tail_restriction` is.
+    pub tail_mass: Option<f64>,
 }
 
 /// Explicit observation-mechanism estimator.
@@ -533,7 +536,12 @@ impl ObservationMechanismEstimator {
                         "the censoring survival reaches the positivity floor at {tau}; every unit still at risk there was censored, so no event beyond that boundary is observable and the published mean is the restricted mean of the outcome up to it, not the unrestricted mean"
                     ),
                 )
-                .with_route(RouteNativeDiagnostic::model_restriction(RouteMass::zero())),
+                .with_route(RouteNativeDiagnostic::model_restriction(
+                    adjusted
+                        .tail_mass
+                        .and_then(|mass| RouteMass::new(mass).ok())
+                        .unwrap_or_else(RouteMass::unreported),
+                )),
             );
         }
         Ok(response)
@@ -633,6 +641,7 @@ impl ObservationMechanismEstimator {
             weights,
             method: subset.method,
             tail_restriction: subset.tail_restriction,
+            tail_mass: subset.tail_mass,
         };
         let series = data.with_replaced_float(outcome, Arc::from(values))?;
         Ok((series, adjusted))
@@ -953,6 +962,7 @@ impl ObservationMechanismEstimator {
                 weights: vec![1.0; observed.len()],
                 method: Arc::from("observation.selected.complete_collapse.v1"),
                 tail_restriction: None,
+                tail_mass: None,
             });
         }
         let (probabilities, outcome_predictions) = match self.options.selected_correction {
@@ -996,6 +1006,7 @@ impl ObservationMechanismEstimator {
                 SelectedOutcomeCorrection::Aipw => "observation.selected.crossfit_logistic_aipw.v1",
             }),
             tail_restriction: None,
+            tail_mass: None,
         })
     }
 
@@ -1223,6 +1234,10 @@ impl ObservationMechanismEstimator {
         // tau`) is the original-scale boundary `-tau` (unidentified for `observed <= -tau`).
         let tail_restriction =
             tail_restriction_transformed.map(|tau| if reverse { -tau } else { tau });
+        let tail_mass = tail_restriction_transformed.map(|tau| {
+            let beyond = transformed.iter().filter(|&&value| value >= tau).count();
+            beyond as f64 / transformed.len().max(1) as f64
+        });
         // Horvitz–Thompson transform: Y* = Y · (δ / G). Censored rows contribute
         // exactly 0; uncensored rows are upweighted by 1/G. The unweighted mean
         // of Y* is the IPCW mean. Dropping the zeros would be complete-case
@@ -1232,6 +1247,7 @@ impl ObservationMechanismEstimator {
             values,
             weights,
             tail_restriction,
+            tail_mass,
             method: Arc::from(if n_cov > 0 {
                 if reverse {
                     "observation.left_censored.cox_ipcw_sign_reversal.v1"

@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     CausalRng, DeclaredSamplingDesign, ExecutionContext, ResamplingRule, SamplingDesignDeclaration,
-    SamplingDesignError, SplittingRule, StreamDomain, VariableId,
+    SamplingDesignError, ScratchLease, ScratchRefusal, SplittingRule, StreamDomain, VariableId,
 };
 use antecedent_kernels::unbiased_index;
 
@@ -100,6 +100,20 @@ impl ResamplingPlan {
         matches!(self, Self::BayesianBootstrap)
     }
 
+    /// Resampling rule this plan applies, for a declared design to accept or refuse.
+    #[must_use]
+    pub const fn resampling_rule(self) -> ResamplingRule {
+        match self {
+            Self::IidBootstrap | Self::BayesianBootstrap | Self::Permutation(_) => {
+                ResamplingRule::RowSubjectIid
+            }
+            Self::MovingBlock { .. }
+            | Self::CircularBlock { .. }
+            | Self::StationaryBlock { .. } => ResamplingRule::ContiguousBlock,
+            Self::ClusterBootstrap { .. } => ResamplingRule::WholeCluster,
+        }
+    }
+
     /// Whether this plan requires per-row cluster labels.
     #[must_use]
     pub const fn needs_clusters(self) -> bool {
@@ -156,6 +170,31 @@ pub(crate) fn fill_resample_indexes_grouped(
 ) -> Result<(), DataError> {
     let clusters = prepare_clusters(plan, n, cluster_ids)?;
     fill_indexes_prepared(plan, n, clusters.as_ref(), rng, out)
+}
+
+/// Fill `out` with a row-index plan under `plan`, after the declared design accepts the
+/// plan's resampling rule.
+///
+/// A dependent series refuses a plan that drops its dependence. That refusal is
+/// [`DataError::SamplingDesign`], whose [`DataError::route_diagnostic`] is the failed
+/// dependent-resampling check.
+///
+/// # Errors
+///
+/// A plan whose resampling rule the declared design does not allow, then the errors of
+/// [`fill_resample_indexes_grouped`]'s plan and shape checks.
+pub fn fill_declared_plan(
+    declaration: SamplingDesignDeclaration,
+    plan: ResamplingPlan,
+    n: usize,
+    cluster_ids: Option<&[u32]>,
+    rng: &mut CausalRng,
+    out: &mut Vec<GlobalId>,
+) -> Result<(), DataError> {
+    design_independent_of_time_column(declaration)
+        .apply_resampling(plan.resampling_rule())
+        .map_err(declared_design_error)?;
+    fill_resample_indexes_grouped(plan, n, cluster_ids, rng, out)
 }
 
 /// Draw one replicate for a declared sampling design.
@@ -258,7 +297,7 @@ fn draw_contiguous_block(
 }
 
 fn declared_design_error(error: SamplingDesignError) -> DataError {
-    DataError::InvalidArgument { message: error.to_string() }
+    DataError::SamplingDesign(error)
 }
 
 fn fill_embargoed_contiguous_block(
@@ -805,8 +844,8 @@ fn fill_replicate_rows<T: Copy + Send>(
     out: &mut [T],
     fill: impl Fn(usize, &mut Vec<T>) -> Result<(), DataError> + Sync,
 ) -> Result<(), DataError> {
-    let workers = resample_workers(ctx, n_replicates);
-    admit_resample_scratch::<T>(ctx, n, workers)?;
+    let lease = admit_resample_scratch::<T>(ctx, n, n_replicates)?;
+    let workers = lease.workers();
     if workers == 1 {
         let mut scratch = Vec::with_capacity(n);
         for r in 0..n_replicates {
@@ -849,55 +888,38 @@ fn fill_replicate_rows<T: Copy + Send>(
     Ok(())
 }
 
-/// Workers for one batch: the context's thread count, the replicate count, and
-/// the admission pool's free slots, whichever is smallest. One stays on the caller.
-fn resample_workers(ctx: &ExecutionContext, n_replicates: usize) -> usize {
-    if n_replicates < 2 {
-        return 1;
-    }
-    let requested = usize::try_from(ctx.parallelism.max_threads.get()).unwrap_or(usize::MAX);
-    let requested = requested.clamp(1, n_replicates);
-    if requested <= 1 {
-        return 1;
-    }
-    let budget = usize::try_from(ctx.admission().thread_budget()).unwrap_or(usize::MAX);
-    let free = usize::try_from(ctx.admission().available().threads()).unwrap_or(usize::MAX);
-    let cap = budget.min(free);
-    if cap <= 1 { 1 } else { requested.min(cap) }
-}
-
-/// Bytes of `workers` length-`n` scratch buffers of `T`.
+/// Lease the workers and scratch for one batch.
+///
+/// `workers` length-`n` buffers of `T` are held on the admission pool until the
+/// returned lease drops, so concurrent batches share one remainder.
 ///
 /// # Errors
 ///
-/// The product does not fit in `u64`, the hard byte limit is lower, or the
-/// admission pool's free bytes cannot fund it. Nothing is allocated.
+/// The product does not fit in `u64`, the hard byte limit is lower, the
+/// admission pool cannot fund it, or the study is cancelled. Nothing is
+/// allocated.
 fn admit_resample_scratch<T>(
     ctx: &ExecutionContext,
     n: usize,
-    workers: usize,
-) -> Result<(), DataError> {
-    let width = size_of::<T>();
-    let bytes = n
-        .checked_mul(workers)
-        .and_then(|slots| slots.checked_mul(width))
-        .and_then(|bytes| u64::try_from(bytes).ok())
-        .ok_or_else(|| DataError::InvalidArgument {
-            message: "resample scratch size overflow".into(),
-        })?;
-    if let Some(limit) = ctx.memory.hard_limit_bytes {
-        if bytes > limit {
-            return Err(DataError::InvalidArgument {
-                message: "resample scratch exceeds the hard byte limit".into(),
-            });
+    n_replicates: usize,
+) -> Result<ScratchLease, DataError> {
+    let per_worker =
+        n.checked_mul(size_of::<T>()).and_then(|bytes| u64::try_from(bytes).ok()).ok_or_else(
+            || DataError::InvalidArgument { message: "resample scratch size overflow".into() },
+        )?;
+    ctx.admit_scratch(n_replicates, per_worker).map_err(|refusal| match refusal {
+        ScratchRefusal::Overflow => {
+            DataError::InvalidArgument { message: "resample scratch size overflow".into() }
         }
-    }
-    if bytes > ctx.admission().available().bytes() {
-        return Err(DataError::InvalidArgument {
+        ScratchRefusal::HardLimit { .. } => DataError::InvalidArgument {
+            message: "resample scratch exceeds the hard byte limit".into(),
+        },
+        ScratchRefusal::PoolShort { .. } => DataError::InvalidArgument {
             message: "admission pool cannot fund the resample scratch".into(),
-        });
-    }
-    Ok(())
+        },
+        ScratchRefusal::Cancelled => DataError::Cancelled,
+        _ => DataError::InvalidArgument { message: refusal.to_string() },
+    })
 }
 
 /// Smallest integer `k` with `k³ ≥ n` (`0` for `n = 0`), without floating-point rounding.
@@ -1609,6 +1631,77 @@ mod tests {
     }
 
     #[test]
+    fn resample_scratch_products_use_checked_arithmetic() {
+        let width = size_of::<u64>();
+        let calls = AtomicUsize::new(0);
+        let fill = |_: usize, _: &mut Vec<u64>| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        };
+        // One buffer fits in u64 but two workers' product does not.
+        let ctx = ExecutionContext::production(1, 2);
+        let n = usize::MAX / width;
+        let error = fill_replicate_rows(&ctx, n, 2, &mut [0u64; 0], fill).unwrap_err();
+        assert!(error.to_string().contains("overflow"), "{error}");
+        // A single buffer whose byte count overflows `usize`.
+        let serial = ExecutionContext::for_tests(1);
+        let error = fill_replicate_rows(&serial, usize::MAX, 1, &mut [0u64; 0], fill).unwrap_err();
+        assert!(error.to_string().contains("overflow"), "{error}");
+        // The index path refuses an `n` whose replicate matrix overflows.
+        let index_error = fill_resample_index_batch(
+            ResamplingPlan::IidBootstrap,
+            usize::MAX / 2 + 1,
+            2,
+            None,
+            &serial,
+            0,
+            &mut [],
+        )
+        .unwrap_err();
+        assert!(index_error.to_string().contains("overflow"), "{index_error}");
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn a_concurrent_resample_finds_the_pool_held_and_stays_on_its_caller() {
+        let n = 4usize;
+        let shared = AdmissionPool::fixed(2, 1 << 20);
+        let ctx = ExecutionContext::production(1, 8).with_admission(shared.clone());
+        let ready = Barrier::new(3);
+        let done = Barrier::new(3);
+        let second_threads = std::sync::Mutex::new(std::collections::HashSet::new());
+        std::thread::scope(|scope| {
+            let holder = scope.spawn(|| {
+                let mut out = vec![0u64; n * 2];
+                fill_replicate_rows(&ctx, n, 2, &mut out, |_, scratch| {
+                    ready.wait();
+                    done.wait();
+                    scratch.clear();
+                    scratch.resize(n, 0);
+                    Ok(())
+                })
+                .unwrap();
+            });
+            // Both holder workers are inside `fill`, so the pool's two slots are leased.
+            ready.wait();
+            assert_eq!(shared.available().threads(), 0);
+            let mut out = vec![0u64; n * 8];
+            fill_replicate_rows(&ctx, n, 8, &mut out, |_, scratch| {
+                second_threads.lock().unwrap().insert(std::thread::current().id());
+                scratch.clear();
+                scratch.resize(n, 0);
+                Ok(())
+            })
+            .unwrap();
+            done.wait();
+            holder.join().unwrap();
+        });
+        assert_eq!(second_threads.lock().unwrap().len(), 1);
+        assert_eq!(shared.available().threads(), 2);
+        assert_eq!(shared.available().bytes(), 1 << 20);
+    }
+
+    #[test]
     fn resample_refuses_when_the_pool_cannot_fund_scratch() {
         let n = 4usize;
         let replicates = 8usize;
@@ -1830,6 +1923,35 @@ mod tests {
 
     fn declaration(design: DeclaredSamplingDesign, time_column: bool) -> SamplingDesignDeclaration {
         SamplingDesignDeclaration::new(design, time_column)
+    }
+
+    #[test]
+    fn a_dependent_series_refuses_an_iid_plan_as_a_dependent_resampling_check() {
+        let mut out = Vec::new();
+        let error = fill_declared_plan(
+            declaration(DeclaredSamplingDesign::DependentTimeSeries, true),
+            ResamplingPlan::IidBootstrap,
+            8,
+            None,
+            &mut CausalRng::from_seed(3),
+            &mut out,
+        )
+        .expect_err("an iid plan drops the series dependence");
+        let record = error.route_diagnostic().expect("dependent resampling record");
+        assert!(record.failed());
+        assert_eq!(record.route_name(), "dependent_resampling");
+        assert!(record.unevaluable_mass().is_unreported());
+        assert!(out.is_empty());
+        fill_declared_plan(
+            declaration(DeclaredSamplingDesign::DependentTimeSeries, true),
+            ResamplingPlan::MovingBlock { length: 2 },
+            8,
+            None,
+            &mut CausalRng::from_seed(3),
+            &mut out,
+        )
+        .expect("a block plan keeps the dependence");
+        assert_eq!(out.len(), 8);
     }
 
     #[test]

@@ -527,6 +527,40 @@ fn with_remedy(err: PyErr, remedy: Option<&str>) -> PyErr {
     err
 }
 
+/// Attach the route-native diagnostics a refusal carries (`route_diagnostics`).
+///
+/// Each record is a dict with `route`, `outcome`, `failed`, and `unevaluable_mass`. An
+/// unreported mass is `None`, never `0.0`. Additive: set only when the refusal carries
+/// records, so every other exception reads the empty-tuple class default.
+fn with_route_diagnostics(
+    err: PyErr,
+    records: &[antecedent_core::diagnostic::RouteNativeDiagnostic],
+) -> PyErr {
+    if records.is_empty() {
+        return err;
+    }
+    Python::attach(|py| {
+        let rows: Vec<serde_json::Value> = records
+            .iter()
+            .map(|record| {
+                serde_json::json!({
+                    "route": record.route_name(),
+                    "outcome": record.outcome_name(),
+                    "failed": record.failed(),
+                    "unevaluable_mass": record.unevaluable_mass().get(),
+                })
+            })
+            .collect();
+        if let Ok(list) = py
+            .import("json")
+            .and_then(|json| json.call_method1("loads", (serde_json::Value::from(rows).to_string(),)))
+        {
+            let _ = err.value(py).setattr("route_diagnostics", list);
+        }
+    });
+    err
+}
+
 /// [`with_reason_code`] unless the exception already carries a finer code.
 fn with_default_reason_code(err: PyErr, code: &str) -> PyErr {
     Python::attach(|py| {
@@ -829,8 +863,10 @@ impl IntoCausalPyErr for RustCausalError {
         let code = reason_code_of(&self);
         let remedy = self.remedy();
         let fields = self.refusal_fields().map(std::borrow::Cow::into_owned);
+        let routes = self.route_diagnostics();
         let err = with_remedy(uncoded_py_err(self), remedy);
         let err = preflight_api::with_refusal_fields(err, fields.as_ref());
+        let err = with_route_diagnostics(err, &routes);
         match code {
             Some(code) => with_default_reason_code(err, &code),
             None => err,

@@ -37,16 +37,17 @@ use super::{
     mechanism_composition_api, mechanism_discrepancy_api, msm_sensitivity_api,
     multi_level_treatment_api, nested_bayesian_api, nested_fisher_api, nonlinear_mediation_api,
     observation_api, observation_query_api, observational_interference_api,
-    observational_policy_api, observational_survival_api, policy_api, predictive_assessment_api,
-    preflight_api, prepared_api, prior_bank, prior_signal_api, program_claims_api,
-    proposal_arrival_api, provider_api, provider_callbacks_api, quasi_api, recalc_adjusted_api,
-    recalc_api, recalc_bayesian_api, recalc_cell_api, recalc_composite_api, recalc_design_api,
-    recalc_dr_api, recalc_external_api, recalc_static_api, recalc_temporal_api, recovery_api,
-    recovery_chain_api, regimes_api, repair_api, response_api, scenario_invariance_api,
-    scientific_bridge_api, selective_discovery_api, sensitivity_decision_api,
-    sensitivity_source_api, set_not_identified_error_class, set_review_error_class,
-    set_unsupported_error_class, set_value_error_class, smoothed_dose_api, source_evidence_api,
-    source_projection_api, stability, state_api, study_planning_api, posterior_boundary_api, posterior_row_api, survival_api, temporal_api,
+    observational_policy_api, observational_survival_api, policy_api, posterior_boundary_api,
+    posterior_row_api, predictive_assessment_api, preflight_api, prepared_api, prior_bank,
+    prior_signal_api, program_claims_api, proposal_arrival_api, provider_api,
+    provider_callbacks_api, quasi_api, recalc_adjusted_api, recalc_api, recalc_bayesian_api,
+    recalc_cell_api, recalc_composite_api, recalc_design_api, recalc_dr_api, recalc_external_api,
+    recalc_static_api, recalc_temporal_api, recovery_api, recovery_chain_api, regimes_api,
+    repair_api, response_api, scenario_invariance_api, scientific_bridge_api,
+    selective_discovery_api, sensitivity_decision_api, sensitivity_source_api,
+    set_not_identified_error_class, set_review_error_class, set_unsupported_error_class,
+    set_value_error_class, smoothed_dose_api, source_evidence_api, source_projection_api,
+    stability, state_api, study_planning_api, survival_api, temporal_api,
     temporal_counterfactual_api, temporal_extension_api, temporal_license, temporal_transport_api,
     transport_admg_conditional_api, transport_counterfactual_api,
     transport_counterfactual_sampled_api, transport_exact_api, transport_grid_api,
@@ -191,6 +192,9 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // [`with_remedy`]), so a caller never needs `getattr(err, "remedy", None)`.
     m.py().get_type::<CausalError>().setattr("remedy", m.py().None())?;
     m.py().get_type::<CausalError>().setattr("refusal_fields", m.py().None())?;
+    m.py()
+        .get_type::<CausalError>()
+        .setattr("route_diagnostics", pyo3::types::PyTuple::empty(m.py()))?;
     m.add("CausalError", m.py().get_type::<CausalError>())?;
     m.add("CausalIdentifyError", m.py().get_type::<CausalIdentifyError>())?;
     m.add("CausalEstimateError", m.py().get_type::<CausalEstimateError>())?;

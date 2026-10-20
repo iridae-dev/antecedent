@@ -160,6 +160,8 @@ const ROUTE_FIELD: &str = "route";
 const OUTCOME_FIELD: &str = "outcome";
 const MASS_BITS_FIELD: &str = "unevaluable_mass_bits";
 
+const MASS_UNREPORTED: &str = "unreported";
+
 const OUTCOME_FAILED: &str = "failed";
 const OUTCOME_PASSED: &str = "passed";
 const OUTCOME_MODEL_RESTRICTION: &str = "model_restriction";
@@ -180,22 +182,24 @@ impl std::error::Error for RouteMassError {}
 
 /// Identified mass that was not evaluated.
 ///
-/// Compared by bits, so a stored mass round-trips exactly.
-#[derive(Clone, Copy, Debug)]
-pub struct RouteMass {
+/// Either a measured mass or an explicit [`Self::Unreported`]. A route that did
+/// not report a mass has not measured zero.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RouteMass {
+    /// A mass the route measured.
+    Measured(MeasuredMass),
+    /// The route did not report a mass.
+    Unreported,
+}
+
+/// A finite mass in `[0, 1]`, compared by bits so it round-trips exactly.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MeasuredMass {
     bits: u64,
 }
 
-impl PartialEq for RouteMass {
-    fn eq(&self, other: &Self) -> bool {
-        self.bits == other.bits
-    }
-}
-
-impl Eq for RouteMass {}
-
 impl RouteMass {
-    /// Mass `mass`.
+    /// Measured mass `mass`.
     ///
     /// # Errors
     ///
@@ -203,7 +207,7 @@ impl RouteMass {
     #[must_use = "a refused mass was not stored"]
     pub fn new(mass: f64) -> Result<Self, RouteMassError> {
         if mass.is_finite() && (0.0..=1.0).contains(&mass) {
-            Ok(Self { bits: mass.to_bits() })
+            Ok(Self::Measured(MeasuredMass { bits: mass.to_bits() }))
         } else {
             Err(RouteMassError)
         }
@@ -212,25 +216,46 @@ impl RouteMass {
     /// Measured zero. Not a stand-in for a mass the route did not report.
     #[must_use]
     pub const fn zero() -> Self {
-        Self { bits: 0 }
+        Self::Measured(MeasuredMass { bits: 0 })
     }
 
-    /// The mass.
+    /// A mass the route did not report.
     #[must_use]
-    pub const fn get(self) -> f64 {
-        f64::from_bits(self.bits)
+    pub const fn unreported() -> Self {
+        Self::Unreported
     }
 
-    /// Bit pattern of [`Self::get`].
+    /// The measured mass, or `None` when unreported.
+    #[must_use = "an unreported mass is not a measured zero"]
+    pub const fn get(self) -> Option<f64> {
+        match self {
+            Self::Measured(measured) => Some(f64::from_bits(measured.bits)),
+            Self::Unreported => None,
+        }
+    }
+
+    /// Bit pattern of [`Self::get`], or `None` when unreported.
     #[must_use]
-    pub const fn bits(self) -> u64 {
-        self.bits
+    pub const fn bits(self) -> Option<u64> {
+        match self {
+            Self::Measured(measured) => Some(measured.bits),
+            Self::Unreported => None,
+        }
+    }
+
+    /// Whether the route left the mass unreported.
+    #[must_use]
+    pub const fn is_unreported(self) -> bool {
+        matches!(self, Self::Unreported)
     }
 }
 
 impl std::fmt::Display for RouteMass {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{}", self.get())
+        match self.get() {
+            Some(mass) => write!(formatter, "{mass}"),
+            None => formatter.write_str(MASS_UNREPORTED),
+        }
     }
 }
 
@@ -264,6 +289,67 @@ impl RouteCheck {
     }
 }
 
+/// Which check a [`RouteNativeDiagnostic::Check`] records.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
+pub enum RouteKind {
+    /// Treatment or action probability fell below the route's floor.
+    Positivity,
+    /// Censoring survival or censoring probability fell below the route's floor.
+    Censoring,
+    /// A resampling rule ignored dependence the design declared.
+    DependentResampling,
+    /// An optimizer or chain-movement check failed.
+    Convergence,
+    /// Posterior effective sample size failed its floor.
+    PosteriorEss,
+    /// Split R-hat failed its ceiling.
+    RHat,
+    /// A constrained draw or constrained fit failed its constraint check.
+    ConstrainedDraws,
+    /// Monte Carlo error of a reported number failed its tolerance.
+    MonteCarloError,
+}
+
+impl RouteKind {
+    const ALL: [Self; 8] = [
+        Self::Positivity,
+        Self::Censoring,
+        Self::DependentResampling,
+        Self::Convergence,
+        Self::PosteriorEss,
+        Self::RHat,
+        Self::ConstrainedDraws,
+        Self::MonteCarloError,
+    ];
+
+    /// Stable route name.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Positivity => "positivity",
+            Self::Censoring => "censoring",
+            Self::DependentResampling => "dependent_resampling",
+            Self::Convergence => "convergence",
+            Self::PosteriorEss => "posterior_ess",
+            Self::RHat => "r_hat",
+            Self::ConstrainedDraws => "constrained_draws",
+            Self::MonteCarloError => "monte_carlo_error",
+        }
+    }
+
+    fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.name() == name)
+    }
+
+    const fn diagnostic_kind(self) -> DiagnosticKind {
+        match self {
+            Self::Positivity | Self::Censoring => DiagnosticKind::Support,
+            _ => DiagnosticKind::Scientific,
+        }
+    }
+}
+
 /// Diagnostic a route emits for a check it can fail, or for one of the three
 /// outcomes that are not that check.
 ///
@@ -273,22 +359,13 @@ impl RouteCheck {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum RouteNativeDiagnostic {
-    /// Treatment or action probability fell below the route's floor.
-    Positivity(RouteCheck),
-    /// Censoring survival or censoring probability fell below the route's floor.
-    Censoring(RouteCheck),
-    /// A resampling rule ignored dependence the design declared.
-    DependentResampling(RouteCheck),
-    /// An optimizer or chain-movement check failed.
-    Convergence(RouteCheck),
-    /// Posterior effective sample size failed its floor.
-    PosteriorEss(RouteCheck),
-    /// Split R-hat failed its ceiling.
-    RHat(RouteCheck),
-    /// A constrained draw or constrained fit failed its constraint check.
-    ConstrainedDraws(RouteCheck),
-    /// Monte Carlo error of a reported number failed its tolerance.
-    MonteCarloError(RouteCheck),
+    /// A check of `kind`, passed or failed.
+    Check {
+        /// Which check.
+        kind: RouteKind,
+        /// Outcome and unevaluable mass.
+        check: RouteCheck,
+    },
     /// The published functional is restricted by the model.
     ModelRestriction(RouteMass),
     /// A numerical step failed. Not an identification verdict.
@@ -298,52 +375,10 @@ pub enum RouteNativeDiagnostic {
 }
 
 impl RouteNativeDiagnostic {
-    /// Positivity check.
+    /// Check of `kind`.
     #[must_use]
-    pub const fn positivity(check: RouteCheck) -> Self {
-        Self::Positivity(check)
-    }
-
-    /// Censoring check.
-    #[must_use]
-    pub const fn censoring(check: RouteCheck) -> Self {
-        Self::Censoring(check)
-    }
-
-    /// Dependent-resampling check.
-    #[must_use]
-    pub const fn dependent_resampling(check: RouteCheck) -> Self {
-        Self::DependentResampling(check)
-    }
-
-    /// Convergence check.
-    #[must_use]
-    pub const fn convergence(check: RouteCheck) -> Self {
-        Self::Convergence(check)
-    }
-
-    /// Posterior effective-sample-size check.
-    #[must_use]
-    pub const fn posterior_ess(check: RouteCheck) -> Self {
-        Self::PosteriorEss(check)
-    }
-
-    /// R-hat check.
-    #[must_use]
-    pub const fn r_hat(check: RouteCheck) -> Self {
-        Self::RHat(check)
-    }
-
-    /// Constrained-draw check.
-    #[must_use]
-    pub const fn constrained_draws(check: RouteCheck) -> Self {
-        Self::ConstrainedDraws(check)
-    }
-
-    /// Monte Carlo error check.
-    #[must_use]
-    pub const fn monte_carlo_error(check: RouteCheck) -> Self {
-        Self::MonteCarloError(check)
+    pub const fn check(kind: RouteKind, check: RouteCheck) -> Self {
+        Self::Check { kind, check }
     }
 
     /// Model restriction carrying `unevaluable_mass`.
@@ -364,18 +399,22 @@ impl RouteNativeDiagnostic {
         Self::UnsupportedInference(unevaluable_mass)
     }
 
+    /// Which check this records, or `None` for the three non-check outcomes.
+    #[must_use]
+    pub const fn kind(self) -> Option<RouteKind> {
+        match self {
+            Self::Check { kind, .. } => Some(kind),
+            Self::ModelRestriction(_)
+            | Self::ComputationalFailure(_)
+            | Self::UnsupportedInference(_) => None,
+        }
+    }
+
     /// Stable route name.
     #[must_use]
     pub const fn route_name(self) -> &'static str {
         match self {
-            Self::Positivity(_) => "positivity",
-            Self::Censoring(_) => "censoring",
-            Self::DependentResampling(_) => "dependent_resampling",
-            Self::Convergence(_) => "convergence",
-            Self::PosteriorEss(_) => "posterior_ess",
-            Self::RHat(_) => "r_hat",
-            Self::ConstrainedDraws(_) => "constrained_draws",
-            Self::MonteCarloError(_) => "monte_carlo_error",
+            Self::Check { kind, .. } => kind.name(),
             Self::ModelRestriction(_) => OUTCOME_MODEL_RESTRICTION,
             Self::ComputationalFailure(_) => OUTCOME_COMPUTATIONAL_FAILURE,
             Self::UnsupportedInference(_) => OUTCOME_UNSUPPORTED_INFERENCE,
@@ -389,14 +428,7 @@ impl RouteNativeDiagnostic {
     #[must_use]
     pub const fn failed(self) -> bool {
         match self {
-            Self::Positivity(check)
-            | Self::Censoring(check)
-            | Self::DependentResampling(check)
-            | Self::Convergence(check)
-            | Self::PosteriorEss(check)
-            | Self::RHat(check)
-            | Self::ConstrainedDraws(check)
-            | Self::MonteCarloError(check) => check.failed(),
+            Self::Check { check, .. } => check.failed(),
             Self::ModelRestriction(_)
             | Self::ComputationalFailure(_)
             | Self::UnsupportedInference(_) => false,
@@ -407,14 +439,7 @@ impl RouteNativeDiagnostic {
     #[must_use]
     pub const fn unevaluable_mass(self) -> RouteMass {
         match self {
-            Self::Positivity(check)
-            | Self::Censoring(check)
-            | Self::DependentResampling(check)
-            | Self::Convergence(check)
-            | Self::PosteriorEss(check)
-            | Self::RHat(check)
-            | Self::ConstrainedDraws(check)
-            | Self::MonteCarloError(check) => check.unevaluable_mass(),
+            Self::Check { check, .. } => check.unevaluable_mass(),
             Self::ModelRestriction(mass)
             | Self::ComputationalFailure(mass)
             | Self::UnsupportedInference(mass) => mass,
@@ -445,19 +470,16 @@ impl RouteNativeDiagnostic {
     /// the fields, not from the message.
     #[must_use = "the diagnostic is the record on the result"]
     pub fn to_diagnostic(self) -> Diagnostic {
-        let failed = self.failed();
-        let severity = if failed
-            || self.is_computational_failure()
-            || self.is_unsupported_inference()
-        {
-            DiagnosticSeverity::Error
-        } else if self.is_model_restriction() {
-            DiagnosticSeverity::Warning
-        } else {
-            DiagnosticSeverity::Info
+        let severity = match self {
+            Self::Check { check, .. } if check.failed() => DiagnosticSeverity::Error,
+            Self::Check { .. } => DiagnosticSeverity::Info,
+            Self::ComputationalFailure(_) | Self::UnsupportedInference(_) => {
+                DiagnosticSeverity::Error
+            }
+            Self::ModelRestriction(_) => DiagnosticSeverity::Warning,
         };
         let kind = match self {
-            Self::Positivity(_) | Self::Censoring(_) => DiagnosticKind::Support,
+            Self::Check { kind, .. } => kind.diagnostic_kind(),
             _ => DiagnosticKind::Scientific,
         };
         Diagnostic::new(
@@ -477,22 +499,7 @@ impl RouteNativeDiagnostic {
         let route = field(&diagnostic.fields, ROUTE_FIELD)?;
         let outcome = field(&diagnostic.fields, OUTCOME_FIELD)?;
         let mass = mass_from_fields(&diagnostic.fields)?;
-        let check = RouteCheck::new(outcome == OUTCOME_FAILED, mass);
         match (route, outcome) {
-            ("positivity", OUTCOME_FAILED | OUTCOME_PASSED) => Some(Self::Positivity(check)),
-            ("censoring", OUTCOME_FAILED | OUTCOME_PASSED) => Some(Self::Censoring(check)),
-            ("dependent_resampling", OUTCOME_FAILED | OUTCOME_PASSED) => {
-                Some(Self::DependentResampling(check))
-            }
-            ("convergence", OUTCOME_FAILED | OUTCOME_PASSED) => Some(Self::Convergence(check)),
-            ("posterior_ess", OUTCOME_FAILED | OUTCOME_PASSED) => Some(Self::PosteriorEss(check)),
-            ("r_hat", OUTCOME_FAILED | OUTCOME_PASSED) => Some(Self::RHat(check)),
-            ("constrained_draws", OUTCOME_FAILED | OUTCOME_PASSED) => {
-                Some(Self::ConstrainedDraws(check))
-            }
-            ("monte_carlo_error", OUTCOME_FAILED | OUTCOME_PASSED) => {
-                Some(Self::MonteCarloError(check))
-            }
             (OUTCOME_MODEL_RESTRICTION, OUTCOME_MODEL_RESTRICTION) => {
                 Some(Self::ModelRestriction(mass))
             }
@@ -502,29 +509,40 @@ impl RouteNativeDiagnostic {
             (OUTCOME_UNSUPPORTED_INFERENCE, OUTCOME_UNSUPPORTED_INFERENCE) => {
                 Some(Self::UnsupportedInference(mass))
             }
+            (name, OUTCOME_FAILED | OUTCOME_PASSED) => Some(Self::Check {
+                kind: RouteKind::from_name(name)?,
+                check: RouteCheck::new(outcome == OUTCOME_FAILED, mass),
+            }),
             _ => None,
         }
     }
 
-    fn outcome_name(self) -> &'static str {
-        if self.is_model_restriction() {
-            OUTCOME_MODEL_RESTRICTION
-        } else if self.is_computational_failure() {
-            OUTCOME_COMPUTATIONAL_FAILURE
-        } else if self.is_unsupported_inference() {
-            OUTCOME_UNSUPPORTED_INFERENCE
-        } else if self.failed() {
-            OUTCOME_FAILED
-        } else {
-            OUTCOME_PASSED
+    /// Stable outcome name: `failed`, `passed`, or one of the three non-check outcomes.
+    #[must_use]
+    pub const fn outcome_name(self) -> &'static str {
+        match self {
+            Self::ModelRestriction(_) => OUTCOME_MODEL_RESTRICTION,
+            Self::ComputationalFailure(_) => OUTCOME_COMPUTATIONAL_FAILURE,
+            Self::UnsupportedInference(_) => OUTCOME_UNSUPPORTED_INFERENCE,
+            Self::Check { check, .. } => {
+                if check.failed() {
+                    OUTCOME_FAILED
+                } else {
+                    OUTCOME_PASSED
+                }
+            }
         }
     }
 
     fn fields(self) -> [(Arc<str>, Arc<str>); 3] {
+        let mass = match self.unevaluable_mass().bits() {
+            Some(bits) => bits.to_string(),
+            None => MASS_UNREPORTED.to_owned(),
+        };
         [
             (Arc::from(ROUTE_FIELD), Arc::from(self.route_name())),
             (Arc::from(OUTCOME_FIELD), Arc::from(self.outcome_name())),
-            (Arc::from(MASS_BITS_FIELD), Arc::from(self.unevaluable_mass().bits().to_string())),
+            (Arc::from(MASS_BITS_FIELD), Arc::from(mass)),
         ]
     }
 }
@@ -546,15 +564,19 @@ fn field<'a>(fields: &'a [(Arc<str>, Arc<str>)], key: &str) -> Option<&'a str> {
 }
 
 fn mass_from_fields(fields: &[(Arc<str>, Arc<str>)]) -> Option<RouteMass> {
-    let bits: u64 = field(fields, MASS_BITS_FIELD)?.parse().ok()?;
+    let stored = field(fields, MASS_BITS_FIELD)?;
+    if stored == MASS_UNREPORTED {
+        return Some(RouteMass::Unreported);
+    }
+    let bits: u64 = stored.parse().ok()?;
     RouteMass::new(f64::from_bits(bits)).ok()
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        Diagnostic, DiagnosticKind, DiagnosticSeverity, DiagnosticSet, RouteCheck, RouteMass,
-        RouteNativeDiagnostic,
+        Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity, RouteCheck, RouteKind,
+        RouteMass, RouteNativeDiagnostic,
     };
 
     fn quarter() -> RouteMass {
@@ -572,56 +594,70 @@ mod tests {
 
     #[test]
     fn positivity_failure_keeps_the_check_and_the_unevaluable_mass() {
-        let record = RouteNativeDiagnostic::positivity(RouteCheck::new(true, quarter()));
+        let record =
+            RouteNativeDiagnostic::check(RouteKind::Positivity, RouteCheck::new(true, quarter()));
         assert!(record.failed());
         assert_round_trip(record);
     }
 
     #[test]
     fn censoring_failure_keeps_the_check_and_the_unevaluable_mass() {
-        let record = RouteNativeDiagnostic::censoring(RouteCheck::new(true, quarter()));
+        let record =
+            RouteNativeDiagnostic::check(RouteKind::Censoring, RouteCheck::new(true, quarter()));
         assert!(record.failed());
         assert_round_trip(record);
     }
 
     #[test]
     fn dependent_resampling_failure_keeps_the_check_and_the_unevaluable_mass() {
-        let record = RouteNativeDiagnostic::dependent_resampling(RouteCheck::new(true, quarter()));
+        let record = RouteNativeDiagnostic::check(
+            RouteKind::DependentResampling,
+            RouteCheck::new(true, quarter()),
+        );
         assert!(record.failed());
         assert_round_trip(record);
     }
 
     #[test]
     fn convergence_failure_keeps_the_check_and_the_unevaluable_mass() {
-        let record = RouteNativeDiagnostic::convergence(RouteCheck::new(true, quarter()));
+        let record =
+            RouteNativeDiagnostic::check(RouteKind::Convergence, RouteCheck::new(true, quarter()));
         assert!(record.failed());
         assert_round_trip(record);
     }
 
     #[test]
     fn posterior_ess_failure_keeps_the_check_and_the_unevaluable_mass() {
-        let record = RouteNativeDiagnostic::posterior_ess(RouteCheck::new(true, quarter()));
+        let record =
+            RouteNativeDiagnostic::check(RouteKind::PosteriorEss, RouteCheck::new(true, quarter()));
         assert!(record.failed());
         assert_round_trip(record);
     }
 
     #[test]
     fn r_hat_failure_keeps_the_check_and_the_unevaluable_mass() {
-        let record = RouteNativeDiagnostic::r_hat(RouteCheck::new(true, quarter()));
+        let record =
+            RouteNativeDiagnostic::check(RouteKind::RHat, RouteCheck::new(true, quarter()));
         assert!(record.failed());
         assert_round_trip(record);
     }
 
     #[test]
     fn constrained_draws_failure_keeps_the_check_and_the_unevaluable_mass() {
-        let record = RouteNativeDiagnostic::constrained_draws(RouteCheck::new(true, quarter()));
+        let record = RouteNativeDiagnostic::check(
+            RouteKind::ConstrainedDraws,
+            RouteCheck::new(true, quarter()),
+        );
         assert!(record.failed());
         assert_round_trip(record);
     }
 
     #[test]
     fn monte_carlo_error_failure_keeps_the_check_and_the_unevaluable_mass() {
-        let record = RouteNativeDiagnostic::monte_carlo_error(RouteCheck::new(true, quarter()));
+        let record = RouteNativeDiagnostic::check(
+            RouteKind::MonteCarloError,
+            RouteCheck::new(true, quarter()),
+        );
         assert!(record.failed());
         assert_round_trip(record);
     }
@@ -632,7 +668,8 @@ mod tests {
         let restriction = RouteNativeDiagnostic::model_restriction(mass);
         let computational = RouteNativeDiagnostic::computational_failure(mass);
         let unsupported = RouteNativeDiagnostic::unsupported_inference(mass);
-        let failed = RouteNativeDiagnostic::positivity(RouteCheck::new(true, mass));
+        let failed =
+            RouteNativeDiagnostic::check(RouteKind::Positivity, RouteCheck::new(true, mass));
         assert_ne!(restriction, computational);
         assert_ne!(computational, unsupported);
         assert_ne!(restriction, unsupported);
@@ -660,6 +697,14 @@ mod tests {
         )
         .with_fields([("route", "positivity"), ("unevaluable_mass_bits", "0")]);
         assert!(RouteNativeDiagnostic::from_diagnostic(&diagnostic).is_none());
+    }
+
+    #[test]
+    fn an_unreported_mass_round_trips_and_is_not_zero() {
+        let record = RouteNativeDiagnostic::unsupported_inference(RouteMass::unreported());
+        assert!(record.unevaluable_mass().is_unreported());
+        assert_ne!(RouteMass::unreported(), RouteMass::zero());
+        assert_round_trip(record);
     }
 
     #[test]
