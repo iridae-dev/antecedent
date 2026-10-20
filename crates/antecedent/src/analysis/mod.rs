@@ -25,9 +25,11 @@ pub mod adaptive_participant_procedure;
 pub mod adaptive_procedure_declaration;
 pub mod adaptive_procedure_report;
 mod admg_conditional_transport;
+pub mod array_fits;
 mod batch;
 mod batch_export;
 mod batch_retarget;
+pub mod bayesian_posterior_row;
 mod builder;
 mod candidate_screen_units;
 pub mod categorical_treatment;
@@ -108,6 +110,9 @@ pub mod observation_posterior;
 pub mod observation_query;
 pub mod observational_policy;
 pub mod observational_survival;
+pub mod matching_posterior_refusal;
+pub mod posterior_boundaries;
+pub mod repeated_measures_posterior_report;
 pub mod per_population_discovery;
 pub mod predictive_assessment;
 mod preflight;
@@ -316,15 +321,18 @@ pub use scientific_bridge::{
     BridgeInspection, ConsumedScientificBridge, PreparedScientificBridge, ScientificBridgeExport,
     ScientificBridgeRefusal, ScientificBridgeResult, consume_scientific_bridge_artifact,
 };
-pub use smoothed_dose::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
+pub use smoothed_dose::{
+    PreparedSmoothedDose, SmoothedDosePosteriorResult, SmoothedDoseResult,
+    consume_smoothed_dose_artifact, consume_smoothed_dose_posterior_artifact,
+};
 pub use statistical::{
     StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
     StatisticalStudyInspection, StatisticalStudyResult,
 };
 pub use temporal_extensions::{
     IntervalEstimand, TemporalInitialState, TemporalWindow,
-    consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
-    temporal_dependent_interval,
+    consume_period_refresh_artifact, consume_temporal_initial_state_artifact,
+    consume_temporal_refresh_artifact, temporal_dependent_interval,
 };
 pub use temporal_transport::{
     PreparedTemporalTransport, SequenceEndpoints, consume_temporal_transport_artifact,
@@ -440,6 +448,8 @@ pub mod sensitivity_source;
 /// Independently retained original source diagnostics and contributor mappings.
 pub mod source_evidence;
 pub mod source_projection;
+mod temporal_iv_identification;
+mod white_innovation_window;
 
 #[doc(hidden)]
 pub use temporal_extensions::validate_temporal_dependent_interval;

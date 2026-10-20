@@ -29,6 +29,10 @@ use crate::error::CausalError;
 use crate::io::decode_causal_posterior_bytes;
 
 /// Frequentist vs Bayesian inference mode.
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the Bayesian configuration is declared once per study and moved by value; boxing would change every public pattern match"
+)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum InferenceMode {
     /// Classical point-estimate path (default).
@@ -96,6 +100,15 @@ pub struct BayesianConfig {
     pub prior_mapping: Option<PriorMapping>,
     /// External power-prior / mixture compose (optional conflict re-eval).
     pub external_compose: Option<Box<ExternalComposeSpec>>,
+    /// Declared premise that the outcome innovation of a single-step temporal linear effect is
+    /// serially independent, with the Ljung-Box gate that can refute it. Set with
+    /// [`Self::white_innovation`]. Only the temporal pulse and one-step sustained effect on a
+    /// fixed `TemporalDag` reads it; every other route refuses it rather than ignore it.
+    pub white_innovation: Option<antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate>,
+    /// Declared likelihood-side model of a randomized-design posterior (the hazard partition
+    /// and prior of the survival posterior, the dose curve and prior of the dose policy
+    /// posterior). Set with [`Self::design_model`]; only those routes read it.
+    pub design_model: Option<crate::design_posterior_model::DesignPosteriorModel>,
 }
 
 /// Numerical controls on the posterior draws behind a published interval.
@@ -156,6 +169,8 @@ impl BayesianConfig {
             prior_artifact: None,
             prior_mapping: None,
             external_compose: None,
+            white_innovation: None,
+            design_model: None,
         }
     }
 
@@ -172,6 +187,8 @@ impl BayesianConfig {
             prior_artifact: None,
             prior_mapping: None,
             external_compose: None,
+            white_innovation: None,
+            design_model: None,
         }
     }
 
@@ -191,7 +208,34 @@ impl BayesianConfig {
             prior_artifact: None,
             prior_mapping: None,
             external_compose: None,
+            white_innovation: None,
+            design_model: None,
         }
+    }
+
+    /// Declare serially independent innovations for a single-step temporal linear effect.
+    ///
+    /// The posterior is then the untempered full-likelihood posterior of that effect rather
+    /// than the generalized (tempered) posterior. The premise is declared here, never inferred;
+    /// the `gate` residual test can refute it and a pass does not prove it. A horizon of more
+    /// than one step, a rejecting test, a transferred prior and a non-Gaussian likelihood are
+    /// refused with the next attempt named.
+    #[must_use]
+    pub const fn white_innovation(
+        mut self,
+        gate: antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate,
+    ) -> Self {
+        self.white_innovation = Some(gate);
+        self
+    }
+
+    /// Declare the likelihood-side model of a randomized-design posterior: the hazard
+    /// partition and gamma prior of the survival posterior, or the dose support, coefficient
+    /// scales and residual prior of the dose-policy posterior.
+    #[must_use]
+    pub fn design_model(mut self, model: crate::design_posterior_model::DesignPosteriorModel) -> Self {
+        self.design_model = Some(model);
+        self
     }
 
     /// Weakly informative prior scale.

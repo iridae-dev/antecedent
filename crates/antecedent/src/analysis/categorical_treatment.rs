@@ -26,6 +26,8 @@ pub use antecedent_estimate::categorical_treatment::{
 };
 pub use antecedent_estimate::effect_constancy::CalibrationStatus;
 pub use antecedent_io::categorical_treatment_artifact::{
+    CategoricalPosteriorDeclaration, CategoricalPosteriorWire, PosteriorContrastWire,
+    PosteriorMonotonicityWire,
     AdjacentStepWire, CATEGORICAL_HC_ROW_CAP, CATEGORICAL_TREATMENT_ARTIFACT_VERSION,
     CATEGORICAL_TREATMENT_CALIBRATION, CategoricalResultWire, CategoricalSpecWire,
     CategoricalTreatmentArtifact, CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity,
@@ -68,6 +70,30 @@ impl CategoricalTreatment {
         ctx: &ExecutionContext,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
         Ok(Self { artifact: CategoricalTreatmentArtifact::seal_with(request, ctx)? })
+    }
+
+    /// Attach the Bayesian counterpart of the fit under a declared prior: the posterior of the
+    /// same dummy-coefficient contrasts under Gaussian homoskedastic errors, a Student-t
+    /// marginal for each level and requested pair, and the Bonferroni/Frechet bounds of the
+    /// declared monotonicity. The estimand is the superpopulation coefficient contrast of the
+    /// stated linear model, not the finite-population average of the rows' effects; the section
+    /// is unlicensed, its calibration is unmeasured, and it is recomputed from the stored design
+    /// when the artifact is consumed. The covariance kind of the declared design is not read:
+    /// the model-based likelihood is the posterior's.
+    ///
+    /// # Errors
+    /// `invalid_argument` for a prior or credible level outside its range.
+    pub fn with_posterior(
+        self,
+        declaration: &CategoricalPosteriorDeclaration,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Ok(Self { artifact: self.artifact.with_posterior(declaration)? })
+    }
+
+    /// The posterior section, when one was attached.
+    #[must_use]
+    pub fn posterior(&self) -> Option<&CategoricalPosteriorWire> {
+        self.artifact.posterior()
     }
 
     /// Consume an exported artifact by recomputing every coefficient, contrast, Holm value and

@@ -16,6 +16,10 @@ use crate::analysis::prepared::Inspect;
 use antecedent_data::LaggedColumn;
 use antecedent_graph::TemporalDag;
 
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the Bayesian configuration is declared once per study and moved by value; boxing would change every public pattern match"
+)]
 #[derive(Clone)]
 enum CheckedMediationInference {
     Frequentist { bootstrap_replicates: u32 },

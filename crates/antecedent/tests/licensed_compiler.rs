@@ -943,6 +943,7 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
                 cell.query.as_str(),
                 "AverageEffect" | "ResponseCurve" | "InterventionResponse"
             ) && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg"))
+            || (cell.query.as_str() == "ConditionalEffect" && cell.graph_class.as_str() == "Admg")
         {
             discrete_joint_table(&["t", "y", "z"][..n.min(3) as usize])
         } else if matches!(
@@ -1100,8 +1101,9 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
             .identifier(IdentifierId::GeneralId)
             .estimator(EstimatorId::FunctionalDistribution);
     }
-    if matches!(cell.query.as_str(), "AverageEffect" | "ResponseCurve" | "InterventionResponse")
-        && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg")
+    if (matches!(cell.query.as_str(), "AverageEffect" | "ResponseCurve" | "InterventionResponse")
+        && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg"))
+        || (cell.query.as_str() == "ConditionalEffect" && cell.graph_class.as_str() == "Admg")
     {
         builder =
             builder.identifier(IdentifierId::GeneralId).estimator(EstimatorId::FunctionalEffect);
@@ -1460,7 +1462,7 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 717, "licensed inventory drifted");
+    assert_eq!(n, 723, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells are not first-class on inspect:\n{}",
@@ -1495,7 +1497,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
             Err(err) => failures.push(err),
         }
     }
-    assert_eq!(n, 717, "licensed inventory drifted");
+    assert_eq!(n, 723, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",

@@ -53,7 +53,12 @@ pub(super) fn binding_agrees(
         }
         CheckedProgramBinding::FunctionalEffect(_) => {
             selected == Some(EstimatorId::FunctionalEffect)
-                && matches!(query, CausalQuery::AverageEffect(_) | CausalQuery::PathSpecific(_))
+                && matches!(
+                    query,
+                    CausalQuery::AverageEffect(_)
+                        | CausalQuery::PathSpecific(_)
+                        | CausalQuery::ConditionalEffect(_)
+                )
         }
         CheckedProgramBinding::FunctionalResponse(_) => {
             selected == Some(EstimatorId::FunctionalEffect)

@@ -47,14 +47,20 @@ mod batch_retarget;
 mod batch_retarget_known_truth;
 #[path = "bayesian.rs"]
 mod bayesian;
+#[path = "bayesian_design_posterior_routes.rs"]
+mod bayesian_design_posterior_routes;
 #[path = "bayesian_functional_routes.rs"]
 mod bayesian_functional_routes;
+#[path = "bayesian_design_routes.rs"]
+mod bayesian_design_routes;
 #[path = "bayesian_iv_rd_staged.rs"]
 mod bayesian_iv_rd_staged;
 #[path = "bayesian_likelihood.rs"]
 mod bayesian_likelihood;
 #[path = "bayesian_prior_in_force.rs"]
 mod bayesian_prior_in_force;
+#[path = "bayesian_randomized_routes.rs"]
+mod bayesian_randomized_routes;
 #[path = "bayesian_robust_ate.rs"]
 mod bayesian_robust_ate;
 #[path = "bayesian_trial_transport.rs"]
@@ -67,3 +73,5 @@ mod calibration_grid_binding;
 mod callback_nested_overlap_facade;
 #[path = "cancellation_expansion_cells.rs"]
 mod cancellation_expansion_cells;
+#[path = "categorical_treatment_posterior_facade.rs"]
+mod categorical_treatment_posterior_facade;

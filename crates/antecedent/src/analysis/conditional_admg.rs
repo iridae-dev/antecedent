@@ -1,10 +1,16 @@
 //! Compile arm for a conditional effect on a static ADMG.
 //!
 //! The effect is the mean contrast of two conditional interventional laws,
-//! `E[Y | do(active), Z] − E[Y | do(control), Z]`, identified by IDC. The
-//! frequentist object is the plug-in of that contrast. The Bayesian object is
-//! the Dirichlet row-law posterior of the same contrast. A temporal ADMG is
-//! refused while identification of a temporal contrast there is blocked.
+//! `E[Y | do(active), Z] − E[Y | do(control), Z]`, identified by IDC at the two
+//! hard-set levels. The modifiers are free variables of the contrast: the
+//! evaluator reports the contrast averaged over the observed modifier law
+//! (`Σ_z P(z) τ(z)` over the supported strata), the same quantity the
+//! Dag/Cpdag/Pag conditional routes report. The frequentist object is the
+//! plug-in of that contrast. The Bayesian object is the Dirichlet row-law
+//! posterior of the same contrast. A modifier that is a descendant of the
+//! treatment is refused: its observed law is not the law it has under the
+//! intervention. A temporal ADMG is refused while identification of a temporal
+//! contrast there is blocked.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -12,7 +18,7 @@
     not(test),
     allow(
         dead_code,
-        reason = "the parent wires this compile arm; until then the tests are the callers"
+        reason = "the compiled objects carry typed ids that the routes read selectively; tests read all of them"
     )
 )]
 
@@ -20,7 +26,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, CausalQuery, ConditionalEffectQuery, IdentificationStatus, Intervention,
-    InterventionalDistributionQuery, OutcomeFunctional, VariableId,
+    OutcomeFunctional, TargetPopulation, VariableId,
 };
 use antecedent_expr::{
     CausalExprArena, ContrastOp, DerivationMeta, EstimandMethod, ExprNode, IdentifiedEstimand,
@@ -28,15 +34,18 @@ use antecedent_expr::{
 };
 use antecedent_graph::{Admg, TemporalAdmg};
 use antecedent_identify::{
-    IdcIdentifier, IdentificationResult, IdentificationWorkspace, PreparedAdmg,
+    DerivationTrace, IdcIdentifier, IdentificationPerformanceRecord, IdentificationResult,
+    IdentificationWorkspace, PreparedAdmg,
 };
 
 use crate::{CausalError, EstimatorId, IdentifierId};
 
 /// Identification of this cell is blocked. The message is the refusal.
 const TEMPORAL_IDENTIFICATION_BLOCKED: &str = "Identification is blocked. A temporal contrast on \
-     TemporalAdmg is not identified. TemporalConditionalPulse and TemporalConditionalSustained \
-     remain the licensed temporal conditional targets on TemporalDag.";
+     TemporalAdmg is not identified, and the contemporaneous projection answers a different \
+     target. Next attempts: TemporalConditionalPulse or TemporalConditionalSustained on a \
+     TemporalDag when the lag structure has no latent confounding, or the static Admg for the \
+     contemporaneous conditional effect.";
 
 /// IDC contrast of the active and control conditional laws.
 #[derive(Clone, Debug)]
@@ -137,6 +146,35 @@ impl BayesianAdmgConditional {
     }
 }
 
+/// The IDC contrast of a conditional effect as the identification result the prepared and
+/// the one-shot routes read. The query on the result is the conditional effect itself.
+///
+/// # Errors
+///
+/// The query is not a conditional mean over the observed population, a modifier is repeated or
+/// is not pre-treatment, or IDC does not identify either conditional law.
+pub(crate) fn admg_conditional_identification(
+    graph: &Admg,
+    query: &ConditionalEffectQuery,
+) -> Result<IdentificationResult, CausalError> {
+    let identified = identify_admg_conditional(graph, query)?;
+    let mut derivation = DerivationTrace::default();
+    derivation.push(
+        "idc.conditional_contrast",
+        "difference of the active and control conditional interventional laws, each identified \
+         by IDC at its hard-set level; the modifiers stay free variables averaged over their \
+         observed law",
+    );
+    Ok(IdentificationResult::identified(
+        CausalQuery::ConditionalEffect(query.clone()),
+        vec![identified.estimand],
+        identified.arena,
+        derivation,
+        identified.assumptions,
+        IdentificationPerformanceRecord { candidates_examined: 2, sets_returned: 1 },
+    ))
+}
+
 /// Compile the frequentist plug-in of a conditional effect on `graph`.
 ///
 /// # Errors
@@ -212,7 +250,15 @@ fn identify_admg_conditional(
                 .into(),
         });
     }
+    if !matches!(query.inner.target_population, TargetPopulation::AllObserved) {
+        return Err(CausalError::Compile {
+            message: "the ADMG conditional compile arm answers for the observed population; \
+                      a reweighted or local target population is a different estimand"
+                .into(),
+        });
+    }
     let modifiers = unique_modifiers(query)?;
+    require_pre_treatment_modifiers(graph, query, &modifiers)?;
     let idc = IdcIdentifier::new();
     let prepared = idc.prepare(graph)?;
     let mut workspace = IdentificationWorkspace::default();
@@ -255,6 +301,38 @@ fn unique_modifiers(query: &ConditionalEffectQuery) -> Result<Vec<VariableId>, C
     Ok(modifiers)
 }
 
+/// The modifiers are averaged over their observed law, which is the law they have under
+/// the intervention only when the treatment cannot change them.
+fn require_pre_treatment_modifiers(
+    graph: &Admg,
+    query: &ConditionalEffectQuery,
+    modifiers: &[VariableId],
+) -> Result<(), CausalError> {
+    let treatment = graph.dense_of_static(query.inner.treatment);
+    for &modifier in modifiers {
+        let node = graph.dense_of_static(modifier);
+        let (Some(treatment), Some(node)) = (treatment, node) else {
+            return Err(CausalError::Compile {
+                message: "an effect modifier or the treatment is not a variable of the ADMG".into(),
+            });
+        };
+        if modifier == query.inner.treatment
+            || modifier == query.inner.outcome
+            || graph.reaches(treatment, node)
+        {
+            return Err(CausalError::Compile {
+                message:
+                    "an effect modifier of an ADMG conditional effect must be a pre-treatment \
+                          variable (not the treatment, the outcome, or a descendant of the \
+                          treatment). Condition on a post-treatment variable with an \
+                          InterventionalDistribution query that names the conditioning values"
+                        .into(),
+            });
+        }
+    }
+    Ok(())
+}
+
 fn conditional_law(
     idc: &IdcIdentifier,
     prepared: &PreparedAdmg,
@@ -264,13 +342,13 @@ fn conditional_law(
     arm: &str,
     workspace: &mut IdentificationWorkspace,
 ) -> Result<IdentificationResult, CausalError> {
-    let distribution = InterventionalDistributionQuery::new(
-        query.inner.outcome,
-        Arc::from([intervention.clone()]),
-    )
-    .with_conditioning(Arc::<[VariableId]>::from(modifiers))
-    .with_target_population(query.inner.target_population.clone());
-    let identified = idc.identify(prepared, &CausalQuery::Distribution(distribution), workspace)?;
+    let identified = idc.identify_conditional_at_levels(
+        prepared,
+        &[query.inner.outcome],
+        std::slice::from_ref(intervention),
+        modifiers,
+        workspace,
+    )?;
     require_one_law(&identified, arm)?;
     Ok(identified)
 }
@@ -346,8 +424,9 @@ mod tests {
 
     use super::{
         BayesianAdmgConditional, DirichletRowPosterior, FrequentistAdmgConditional,
-        compile_bayesian_admg_conditional, compile_frequentist_admg_conditional,
-        compile_temporal_admg_conditional_bayesian, compile_temporal_admg_conditional_frequentist,
+        admg_conditional_identification, compile_bayesian_admg_conditional,
+        compile_frequentist_admg_conditional, compile_temporal_admg_conditional_bayesian,
+        compile_temporal_admg_conditional_frequentist,
     };
 
     fn latent_parent_chain() -> (Admg, ConditionalEffectQuery) {
@@ -431,6 +510,46 @@ mod tests {
         let bayesian = compile_bayesian_admg_conditional(&graph, &query).unwrap_err();
         assert!(frequentist.to_string().contains("effect_not_identified"), "{frequentist}");
         assert!(bayesian.to_string().contains("effect_not_identified"), "{bayesian}");
+    }
+
+    #[test]
+    fn a_post_treatment_modifier_is_refused_with_its_next_attempt() {
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let query = ConditionalEffectQuery::try_new(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(2))
+                .with_effect_modifiers([VariableId::from_raw(1)]),
+        )
+        .unwrap();
+        let refusal = compile_frequentist_admg_conditional(&graph, &query).unwrap_err();
+        let text = refusal.to_string();
+        assert!(text.contains("pre-treatment"), "{text}");
+        assert!(text.contains("InterventionalDistribution"), "{text}");
+        assert!(compile_bayesian_admg_conditional(&graph, &query).is_err());
+    }
+
+    #[test]
+    fn an_identification_result_carries_the_conditional_query_and_one_estimand() {
+        let (graph, query) = latent_parent_chain();
+        let result = admg_conditional_identification(&graph, &query).unwrap();
+        assert_eq!(result.query, antecedent_core::CausalQuery::ConditionalEffect(query));
+        assert_eq!(
+            result.status,
+            antecedent_core::IdentificationStatus::NonparametricallyIdentified
+        );
+        assert_eq!(result.estimands.len(), 1);
+        assert_eq!(
+            result.estimands[0].method_kind(),
+            Ok(antecedent_expr::EstimandMethod::GeneralId)
+        );
+        // The two arms are two functionals: the baked levels differ.
+        let ExprNode::Contrast { left, right, .. } =
+            result.arena.node(result.estimands[0].functional)
+        else {
+            panic!("a conditional contrast");
+        };
+        assert_ne!(left, right);
     }
 
     #[test]

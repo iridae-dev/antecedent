@@ -21,8 +21,12 @@ use antecedent_estimate::longitudinal_regime::{
 };
 use antecedent_estimate::marginal_structural_model::{MsmIntervals95, MsmSummary, fit_binary_msm};
 
-pub(crate) type CheckedLongitudinalRegimeOperation =
-    RandomizedTrialOperation<antecedent_core::LongitudinalRegimeQuery, ()>;
+pub(crate) type CheckedLongitudinalRegimeOperation = RandomizedTrialOperation<
+    antecedent_core::LongitudinalRegimeQuery,
+    Option<super::BayesianConfig>,
+>;
+
+mod bayesian_regime;
 
 impl RandomizedTrialQuery for antecedent_core::LongitudinalRegimeQuery {
     const OPERATION: &'static str = "CheckedLongitudinalRegimeOperation";
@@ -51,7 +55,6 @@ impl CheckedLongitudinalRegimeOperation {
             || !query.probabilities_known_by_design
             || study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
@@ -59,18 +62,29 @@ impl CheckedLongitudinalRegimeOperation {
             || study.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
-                message: "retained longitudinal regime value requires known sequential randomization, one outcome row per subject, graphless trial, and point-only frequentist execution",
+                message: "retained longitudinal regime value requires known sequential randomization, one outcome row per subject, graphless trial, and point-only frequentist execution or the Bayesian sequential regime posterior",
             });
         }
-        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
-        let estimator_id = match query.method {
-            LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
-            LongitudinalRegimeMethod::GFormula => EstimatorId::LongitudinalGFormulaRegime,
-            LongitudinalRegimeMethod::SequentialDoublyRobust => {
-                EstimatorId::LongitudinalSequentialDrRegime
+        let bayesian = match &study.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                bayesian_regime::admit_bayesian_regime(query, config)?;
+                Some(config.clone())
             }
-            LongitudinalRegimeMethod::MarginalStructuralModel => {
-                EstimatorId::LongitudinalMarginalStructuralModel
+        };
+        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
+        let estimator_id = if bayesian.is_some() {
+            EstimatorId::BayesianSequentialRegimeValue
+        } else {
+            match query.method {
+                LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
+                LongitudinalRegimeMethod::GFormula => EstimatorId::LongitudinalGFormulaRegime,
+                LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                    EstimatorId::LongitudinalSequentialDrRegime
+                }
+                LongitudinalRegimeMethod::MarginalStructuralModel => {
+                    EstimatorId::LongitudinalMarginalStructuralModel
+                }
             }
         };
         if physical.logical.query != study.query
@@ -81,7 +95,7 @@ impl CheckedLongitudinalRegimeOperation {
             });
         }
         let (identification, estimand) = longitudinal_identification(query);
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
     pub(crate) fn execute(
@@ -100,6 +114,9 @@ impl CheckedLongitudinalRegimeOperation {
                 });
             }
         };
+        if let Some(config) = self.extra.as_ref() {
+            return self.execute_bayesian(data, outcome, config, ctx);
+        }
         let estimation = self.estimate_regime_value(outcome)?;
         let intervals = self.regime_intervals(&estimation);
         let (diagnostic, description) = published_diagnostic(&estimation, &intervals);

@@ -21,8 +21,15 @@ use antecedent_estimate::synthetic_control::{
     SyntheticUnitRandomizationTest, exact_synthetic_constant_effect_test,
 };
 
+mod bayesian;
+
+pub(super) use bayesian::bayesian_synthetic_panel_plan_ids;
+use super::BayesianConfig;
+
+/// The extra setting is the study's Bayesian configuration: with one, the retained operation
+/// reports a posterior instead of the frequentist point result.
 pub(crate) type CheckedSyntheticControlOperation =
-    RandomizedTrialOperation<antecedent_core::SyntheticControlQuery, ()>;
+    RandomizedTrialOperation<antecedent_core::SyntheticControlQuery, Option<BayesianConfig>>;
 
 impl RandomizedTrialQuery for antecedent_core::SyntheticControlQuery {
     const OPERATION: &'static str = "CheckedSyntheticControlOperation";
@@ -60,7 +67,6 @@ impl CheckedSyntheticControlOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
@@ -69,11 +75,26 @@ impl CheckedSyntheticControlOperation {
             || query.units.len() != data.row_count()
         {
             return Err(CausalError::Unsupported {
-                message: "synthetic control requires a graphless balanced panel, one treated unit, and point-only frequentist execution",
+                message: "synthetic control requires a graphless balanced panel, one treated unit, and point-only frequentist execution or the Bayesian posterior",
             });
         }
+        let bayesian = match &study.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                super::bayesian_quasi_common::require_built_in_model(
+                    config,
+                    "the Bayesian synthetic control",
+                )?;
+                bayesian::refuse_unread_options(query)?;
+                Some(config.clone())
+            }
+        };
         data.schema().get(query.outcome).map_err(CausalError::rejected)?;
-        let (plan_id, identifier, estimator) = synthetic_panel_plan_ids(query.method);
+        let (plan_id, identifier, estimator) = if bayesian.is_some() {
+            bayesian_synthetic_panel_plan_ids()
+        } else {
+            synthetic_panel_plan_ids(query.method)
+        };
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id
             || !physical.binding().names_wire(identifier, estimator)
@@ -83,7 +104,7 @@ impl CheckedSyntheticControlOperation {
             });
         }
         let (identification, estimand) = synthetic_control_identification(query);
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
     pub(crate) fn execute(
@@ -101,6 +122,9 @@ impl CheckedSyntheticControlOperation {
             }
         };
         let units: Vec<String> = self.query.units.iter().map(ToString::to_string).collect();
+        if self.extra.is_some() {
+            return self.execute_bayesian(data, y, &units, ctx);
+        }
         if self.query.method == SyntheticPanelMethod::DifferenceInDifferences {
             return self.execute_did(data, ctx, y, &units);
         }

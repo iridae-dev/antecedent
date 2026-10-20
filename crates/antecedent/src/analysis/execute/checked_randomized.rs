@@ -26,6 +26,10 @@ pub(crate) type CheckedRandomizedOperation = RandomizedTrialOperation<
     Option<antecedent_data::MissingDeclaration>,
 >;
 
+mod bayesian_arms;
+mod bayesian_switchback;
+pub(super) use bayesian_arms::bayesian_randomized_estimator;
+
 /// Uncertainty label of a fit that handled missing outcomes; no interval is published.
 fn responder_uncertainty(
     policy: antecedent_data::MissingPolicy,
@@ -108,7 +112,6 @@ impl CheckedRandomizedOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
@@ -119,6 +122,17 @@ impl CheckedRandomizedOperation {
                 message: "randomized ITT supports Bernoulli, complete, stratified, cluster, and switchback estimation only, without a graph, validation suite, or bootstrap",
             });
         }
+        let bayesian = match &study.inference {
+            InferenceMode::Frequentist => false,
+            InferenceMode::Bayesian(config) => {
+                if matches!(query.design, antecedent_core::RandomizationDesign::Switchback { .. }) {
+                    bayesian_switchback::admit(query, config)?;
+                } else {
+                    bayesian_arms::admit(query, config)?;
+                }
+                true
+            }
+        };
         if query.realized_assignment.len() != data.row_count() {
             return Err(CausalError::Compile {
                 message: "randomized assignment metadata must align with the table rows".into(),
@@ -131,10 +145,13 @@ impl CheckedRandomizedOperation {
         for &covariate in query.ancova_covariates.iter() {
             data.schema().get(covariate).map_err(CausalError::rejected)?;
         }
+        let planned_estimator = if bayesian {
+            bayesian_randomized_estimator(study.estimator, &query.design)
+        } else {
+            RandomizedMethod::of(query).estimator_id()
+        };
         if physical.logical.query != study.query
-            || !physical
-                .binding()
-                .names(IdentifierId::RandomizedDesign, RandomizedMethod::of(query).estimator_id())
+            || !physical.binding().names(IdentifierId::RandomizedDesign, planned_estimator)
         {
             return Err(CausalError::Compile {
                 message: "randomized target or design differs from its compiled plan".into(),
@@ -166,6 +183,9 @@ impl CheckedRandomizedOperation {
     ) -> Result<StudyResult, CausalError> {
         self.begin_execute(data, ctx)?;
         self.query.validate()?;
+        if matches!(self.result_context.inference, InferenceMode::Bayesian(_)) {
+            return self.execute_bayesian(data, ctx);
+        }
         let antecedent_data::ColumnView::Float64(column) =
             data.column(self.query.outcome).map_err(CausalError::from)?
         else {
@@ -594,12 +614,78 @@ impl Study {
 /// Frozen, held-out policy scoring operation. Prediction vectors and ownership
 /// declarations are part of the retained query identity.
 pub(crate) type CheckedPolicyValueOperation =
-    RandomizedTrialOperation<antecedent_core::PolicyValueQuery>;
+    RandomizedTrialOperation<antecedent_core::PolicyValueQuery, Option<super::BayesianConfig>>;
+
+mod bayesian_policy;
 
 impl RandomizedTrialQuery for antecedent_core::PolicyValueQuery {
     const OPERATION: &'static str = "CheckedPolicyValueOperation";
     const REFRESH_MISMATCH: &'static str =
         "policy value refresh requires the prepared schema and row order";
+}
+
+/// The Bernoulli intention-to-treat query whose identification a policy value reuses: the
+/// binary action is "any non-reference action", with its known probability.
+fn policy_binary_query(
+    query: &antecedent_core::PolicyValueQuery,
+    n: usize,
+) -> antecedent_core::RandomizedEffectQuery {
+    let (binary_assignment, binary_propensity) = if let Some(multi) = &query.multi_action {
+        let k = multi.action_labels.len();
+        (
+            multi.assignment.iter().map(|&a| a != 0).collect::<Vec<_>>(),
+            (0..n).map(|i| 1.0 - multi.propensities[i * k]).collect::<Vec<_>>(),
+        )
+    } else {
+        (
+            query.assignment.to_vec(),
+            (0..n)
+                .map(|i| query.propensity[if query.propensity.len() == 1 { 0 } else { i }])
+                .collect::<Vec<_>>(),
+        )
+    };
+    antecedent_core::RandomizedEffectQuery::bernoulli_itt(
+        query.outcome,
+        binary_assignment,
+        binary_propensity,
+        query.evaluation_subject_ids.clone(),
+        query.evaluation_subject_ids.clone(),
+        ("control", "treated"),
+    )
+}
+
+/// The estimator id a policy-value result records.
+fn policy_estimator_id(bayesian: bool, multi_action: bool, ipw: bool) -> EstimatorId {
+    if bayesian {
+        EstimatorId::BayesianBinaryPolicyValue
+    } else if multi_action {
+        EstimatorId::RandomizedMultiActionIpwPolicy
+    } else if ipw {
+        EstimatorId::RandomizedIpwPolicy
+    } else {
+        EstimatorId::RandomizedDrPolicy
+    }
+}
+
+/// The scientific diagnostic describing which policy-value estimator ran.
+fn policy_diagnostic(multi_action: bool, ipw: bool) -> Diagnostic {
+    let (code, text) = if multi_action {
+        (
+            "estimate.policy_value.multi_action_ipw",
+            "fixed randomized multi-action IPW policy value; row-score standard errors assume independent subjects",
+        )
+    } else if ipw {
+        (
+            "estimate.policy_value.ipw",
+            "fixed randomized IPW policy value; row-score standard errors assume independent subjects",
+        )
+    } else {
+        (
+            "estimate.policy_value.doubly_robust",
+            "held-out randomized AIPW policy value; row-score standard errors assume independent subjects",
+        )
+    };
+    Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, text)
 }
 
 impl CheckedPolicyValueOperation {
@@ -619,40 +705,25 @@ impl CheckedPolicyValueOperation {
             .as_ref()
             .map_or(query.assignment.len(), |multi| multi.assignment.len())
             != data.row_count()
-            || !matches!(study.inference, InferenceMode::Frequentist)
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
             || study.graph.class() != GraphClass::RandomizedTrial
         {
             return Err(CausalError::Unsupported {
-                message: "policy value requires aligned graphless randomized rows and does not accept refuters, bootstrap, or Bayesian inference",
+                message: "policy value requires aligned graphless randomized rows and does not accept refuters or bootstrap",
             });
         }
+        let bayesian = match &study.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                bayesian_policy::admit_bayesian_policy(query, config)?;
+                Some(config.clone())
+            }
+        };
         data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         let n = data.row_count();
-        let (binary_assignment, binary_propensity) = if let Some(multi) = &query.multi_action {
-            let k = multi.action_labels.len();
-            (
-                multi.assignment.iter().map(|&a| a != 0).collect::<Vec<_>>(),
-                (0..n).map(|i| 1.0 - multi.propensities[i * k]).collect::<Vec<_>>(),
-            )
-        } else {
-            (
-                query.assignment.to_vec(),
-                (0..n)
-                    .map(|i| query.propensity[if query.propensity.len() == 1 { 0 } else { i }])
-                    .collect::<Vec<_>>(),
-            )
-        };
-        let synthetic = antecedent_core::RandomizedEffectQuery::bernoulli_itt(
-            query.outcome,
-            binary_assignment,
-            binary_propensity,
-            query.evaluation_subject_ids.clone(),
-            query.evaluation_subject_ids.clone(),
-            ("control", "treated"),
-        );
+        let synthetic = policy_binary_query(query, n);
         let (mut identification, mut estimand) = randomized_identification(&synthetic);
         identification.query = CausalQuery::PolicyValue(query.clone());
         estimand.method = Arc::from(antecedent_expr::EstimandMethod::RandomizedPolicyValue);
@@ -702,7 +773,7 @@ impl CheckedPolicyValueOperation {
                 });
             }
         }
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
     pub(crate) fn execute(
@@ -725,7 +796,17 @@ impl CheckedPolicyValueOperation {
             evaluation.reference_matches,
             evaluation.independent_policy_rows,
         );
-        let mut result = self.policy_value_result(data, evaluation);
+        if let Some(config) = self.extra.as_ref() {
+            // The posterior route reports no interval and holds no support license.
+            let posterior = self.bayesian_policy_posterior(y, config, ctx)?;
+            let mut evaluation = evaluation;
+            evaluation.intervals = None;
+            let mut result = self.policy_value_result(data, evaluation, Some(posterior));
+            result.support_status = None;
+            result.diagnostics.push(bayesian_policy::unlicensed_diagnostic());
+            return Ok(result);
+        }
+        let mut result = self.policy_value_result(data, evaluation, None);
         self.license_policy_value(&mut result, y.len(), counts);
         Ok(result)
     }
@@ -879,7 +960,12 @@ impl CheckedPolicyValueOperation {
         &self,
         data: &TabularData,
         evaluation: PolicyValueEvaluation,
+        posterior: Option<antecedent_estimate::CausalPosterior>,
     ) -> StudyResult {
+        let bayesian = posterior.is_some();
+        let n_draws = posterior
+            .as_ref()
+            .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
         let PolicyValueEvaluation {
             multi_action_cate, regret, uplift_bins, score, intervals, ..
         } = evaluation;
@@ -899,34 +985,11 @@ impl CheckedPolicyValueOperation {
                     OverlapPolicy::ExplicitOverride,
                 ),
                 identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: if multi.is_some() {
-                    EstimatorId::RandomizedMultiActionIpwPolicy
-                } else if ipw {
-                    EstimatorId::RandomizedIpwPolicy
-                } else {
-                    EstimatorId::RandomizedDrPolicy
-                },
+                estimator_id: policy_estimator_id(bayesian, multi.is_some(), ipw),
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: true,
-                extra_diagnostics: vec![Diagnostic::new(
-                    if multi.is_some() {
-                        "estimate.policy_value.multi_action_ipw"
-                    } else if ipw {
-                        "estimate.policy_value.ipw"
-                    } else {
-                        "estimate.policy_value.doubly_robust"
-                    },
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    if multi.is_some() {
-                        "fixed randomized multi-action IPW policy value; row-score standard errors assume independent subjects"
-                    } else if ipw {
-                        "fixed randomized IPW policy value; row-score standard errors assume independent subjects"
-                    } else {
-                        "held-out randomized AIPW policy value; row-score standard errors assume independent subjects"
-                    },
-                )],
+                extra_diagnostics: vec![policy_diagnostic(multi.is_some(), ipw)],
                 refutations: Vec::new(),
                 distribution: None,
                 mediation: None,
@@ -934,7 +997,11 @@ impl CheckedPolicyValueOperation {
                 bootstrap_replicates_ok: None,
                 cancelled: false,
                 early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
+                extras: IdentifiedExecuteExtras {
+                    posterior,
+                    n_draws,
+                    ..IdentifiedExecuteExtras::default()
+                },
             },
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
@@ -960,7 +1027,9 @@ impl CheckedPolicyValueOperation {
             }),
             propensity_min: score.propensity_min,
             propensity_max: score.propensity_max,
-            uncertainty: Arc::from(if multi.is_some() {
+            uncertainty: Arc::from(if bayesian {
+                bayesian_policy::BAYESIAN_POLICY_UNCERTAINTY
+            } else if multi.is_some() {
                 "multi_action_ipw_row_score_standard_error_independent_subjects"
             } else if ipw {
                 "ipw_row_score_standard_error_independent_subjects"

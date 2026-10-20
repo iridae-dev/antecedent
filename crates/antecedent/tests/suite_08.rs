@@ -3,6 +3,10 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "period_refresh_contract.rs"]
+mod period_refresh_contract;
+#[path = "period_refresh_lifecycle.rs"]
+mod period_refresh_lifecycle;
 #[path = "temporal_class_point_queries.rs"]
 mod temporal_class_point_queries;
 #[path = "temporal_class_posterior.rs"]

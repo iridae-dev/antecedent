@@ -46,6 +46,20 @@ pub(crate) enum PlanId {
     LongitudinalSequentialDrRegime,
     /// Longitudinal marginal structural model.
     LongitudinalMarginalStructuralModel,
+    /// Bayesian posterior of a binary policy value.
+    BayesianPolicyValue,
+    /// Bayesian posterior of a sequential regime value.
+    BayesianSequentialRegimeValue,
+    /// Within-period history-matched contrast.
+    PeriodHistoryMatching,
+    /// Normal interval of the observational sequential contrast.
+    SequentialCrossfitContrastWald,
+    /// Modular posterior of the observational sequential contrast.
+    BayesianSequentialCrossfitContrast,
+    /// Bayesian piecewise-exponential survival posterior.
+    BayesianPiecewiseSurvival,
+    /// Bayesian group-polynomial dose policy posterior.
+    BayesianDosePolicy,
     /// GCM tabular query.
     GcmQuery,
     /// GCM temporal query.
@@ -74,6 +88,8 @@ pub(crate) enum PlanId {
     PanelClassResponse,
     /// Static ADMG response.
     StaticAdmgResponse,
+    /// Static ADMG conditional effect.
+    StaticAdmgConditional,
 }
 
 impl PlanId {
@@ -100,6 +116,13 @@ impl PlanId {
             Self::LongitudinalGFormulaRegime => "longitudinal.g_formula_regime",
             Self::LongitudinalSequentialDrRegime => "longitudinal.sequential_dr_regime",
             Self::LongitudinalMarginalStructuralModel => "longitudinal.marginal_structural_model",
+            Self::BayesianPolicyValue => "bayesian_policy_value",
+            Self::BayesianPiecewiseSurvival => "bayesian_piecewise_survival",
+            Self::BayesianDosePolicy => "bayesian_dose_policy",
+            Self::BayesianSequentialRegimeValue => "bayesian.sequential_regime_value",
+            Self::PeriodHistoryMatching => "matching.period_history_contrast",
+            Self::SequentialCrossfitContrastWald => "sequential.crossfit_contrast.wald",
+            Self::BayesianSequentialCrossfitContrast => "bayesian.sequential_crossfit_contrast",
             Self::GcmQuery => "gcm_query",
             Self::GcmTemporalQuery => "gcm_temporal_query",
             Self::TemporalCpdagCrossWorld => "temporal_cpdag_cross_world",
@@ -114,6 +137,7 @@ impl PlanId {
             Self::PanelPagResponse => "panel_pag_response",
             Self::PanelClassResponse => "panel_class_response",
             Self::StaticAdmgResponse => "static_admg_response",
+            Self::StaticAdmgConditional => "static_admg_conditional",
         }
     }
 }

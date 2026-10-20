@@ -82,6 +82,8 @@ pub enum IdentifierId {
     RdSharp,
     /// Temporal unfolded backdoor.
     TemporalBackdoorUnfolded,
+    /// Lagged instrument on the unfolded window graph.
+    TemporalIvUnfolded,
     /// Class-aware / generalized adjustment (PAG-safe).
     GeneralizedAdjustment,
     /// Shpitser–Pearl general ID (semi-Markovian).
@@ -152,6 +154,11 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
             name: "temporal.backdoor.unfolded",
             is_dag_only: true,
             provenance: ("identify.temporal_backdoor", "identify.temporal_backdoor_unfolded"),
+        },
+        IdentifierId::TemporalIvUnfolded => IdentifierData {
+            name: "temporal.iv.unfolded",
+            is_dag_only: true,
+            provenance: ("identify.temporal_iv", "identify.temporal_iv_unfolded"),
         },
         IdentifierId::GeneralizedAdjustment => IdentifierData {
             name: "generalized.adjustment",
@@ -284,6 +291,22 @@ pub enum EstimatorId {
     TemporalLinearAdjustment,
     /// Bayesian g-computation on the lag-aligned temporal adjustment design.
     BayesianTemporalGcomp,
+    /// Untempered Gaussian-likelihood posterior of a single-step temporal linear effect, under a
+    /// declared serially independent innovation. Unlicensed; calibration unmeasured.
+    BayesianTemporalWhiteInnovation,
+    /// Mean-scale contrast of a Bernoulli logit temporal model over independent panel subjects:
+    /// the unpenalized maximum-likelihood fit with a delta-method standard error. Unlicensed;
+    /// calibration unmeasured.
+    TemporalGlmLinkContrast,
+    /// Laplace posterior of the same mean-scale contrast under a Gaussian coefficient prior.
+    /// Unlicensed; calibration unmeasured.
+    BayesianTemporalGlmLinkContrast,
+    /// Wald contrast of a lagged instrument on the unfolded window graph: the effect of treatment
+    /// under the declared exclusion and exogeneity of the lag. Unlicensed; calibration unmeasured.
+    TemporalLaggedInstrument,
+    /// Reduced-form ratio posterior of the same lagged-instrument effect. Unlicensed; calibration
+    /// unmeasured.
+    BayesianTemporalLaggedInstrument,
     /// Sequential g-computation of a sustained treatment window.
     TemporalSequentialGcomp,
     /// Discrete plug-in evaluation of an identified interventional distribution.
@@ -370,6 +393,44 @@ pub enum EstimatorId {
     DrLearner,
     /// Native honest causal forest CATE.
     CausalForest,
+    /// Bayesian panel difference-in-differences posterior (unlicensed, uncalibrated).
+    BayesianPanelDid,
+    /// Bayesian simplex synthetic-control posterior (unlicensed, uncalibrated).
+    BayesianSyntheticControl,
+    /// Bayesian fuzzy-jump and kink local-ratio posterior (unlicensed, uncalibrated).
+    BayesianLocalRatio,
+    /// Piecewise-exponential posterior of the randomized survival and restricted-mean
+    /// contrast (unlicensed, uncalibrated).
+    BayesianPiecewiseSurvival,
+    /// Dirichlet-multinomial grid-distribution posterior of the randomized potential-outcome
+    /// quantiles and their difference (unlicensed, uncalibrated).
+    BayesianRandomizedQuantile,
+    /// Per-group polynomial dose-curve posterior of a fixed group-to-dose policy value
+    /// (unlicensed, uncalibrated).
+    BayesianDosePolicy,
+    /// Posterior of the arm contrasts of a randomized trial over the trial's own units, the same
+    /// target as the design-based row (unlicensed, uncalibrated).
+    BayesianRandomizedFinitePopulation,
+    /// Posterior of the arm contrasts of a randomized trial in the population the units are
+    /// sampled from (unlicensed, uncalibrated).
+    BayesianRandomizedSuperpopulation,
+    /// Posterior of the switchback direct effect under a declared carryover and within-sequence
+    /// dependence (unlicensed, uncalibrated).
+    BayesianSwitchback,
+    /// Posterior of a fixed binary policy's value under known randomization (unlicensed,
+    /// uncalibrated).
+    BayesianBinaryPolicyValue,
+    /// Posterior of a prespecified sequential regime's value under known sequential
+    /// randomization (unlicensed, uncalibrated).
+    BayesianSequentialRegimeValue,
+    /// Normal interval of the observational cross-fit sequential contrast (unlicensed,
+    /// uncalibrated).
+    SequentialCrossfitContrastWald,
+    /// Modular posterior of the observational cross-fit sequential contrast (unlicensed,
+    /// uncalibrated).
+    BayesianSequentialCrossfitContrast,
+    /// Frequentist within-period history-matched contrast (unlicensed, uncalibrated).
+    PeriodHistoryMatching,
 }
 all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
@@ -639,6 +700,56 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             parallel_task_dimension: "analysis",
             kernel_label: "ols.faer.temporal",
             provenance: ("estimate.bayesian_temporal_gcomp", "estimate.bayesian.temporal.gcomp"),
+        },
+        EstimatorId::TemporalGlmLinkContrast => EstimatorData {
+            compatible: NONE,
+            name: "temporal.glm_link_contrast",
+            parallel_task_dimension: "analysis",
+            kernel_label: "glm.faer.temporal.link_contrast",
+            provenance: (
+                "estimate.temporal_glm_link_contrast",
+                "estimate.temporal.glm_link_contrast",
+            ),
+        },
+        EstimatorId::TemporalLaggedInstrument => EstimatorData {
+            compatible: NONE,
+            name: "temporal.lagged_instrument",
+            parallel_task_dimension: "analysis",
+            kernel_label: "iv.wald.temporal",
+            provenance: (
+                "estimate.temporal_lagged_instrument",
+                "estimate.temporal.lagged_instrument",
+            ),
+        },
+        EstimatorId::BayesianTemporalLaggedInstrument => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.temporal.lagged_instrument",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.iv.reduced_form_ratio.temporal",
+            provenance: (
+                "estimate.bayesian_temporal_lagged_instrument",
+                "estimate.bayesian.temporal.lagged_instrument",
+            ),
+        },
+        EstimatorId::BayesianTemporalGlmLinkContrast => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.temporal.glm_link_contrast",
+            parallel_task_dimension: "analysis",
+            kernel_label: "laplace.temporal.link_contrast",
+            provenance: (
+                "estimate.bayesian_temporal_glm_link_contrast",
+                "estimate.bayesian.temporal.glm_link_contrast",
+            ),
+        },
+        EstimatorId::BayesianTemporalWhiteInnovation => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.temporal.white_innovation_linear",
+            parallel_task_dimension: "analysis",
+            kernel_label: "ols.faer.temporal.white_innovation",
+            provenance: (
+                "estimate.bayesian_temporal_white_innovation",
+                "estimate.bayesian.temporal.white_innovation_linear",
+            ),
         },
         EstimatorId::FunctionalDistribution => EstimatorData {
             compatible: NONE,
@@ -982,6 +1093,104 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "causal.forest",
             provenance: same_step("estimate.causal.forest"),
         },
+        EstimatorId::BayesianPanelDid => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.panel_did",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_did.normal_inverse_gamma",
+            provenance: same_step("estimate.bayesian_panel_did"),
+        },
+        EstimatorId::BayesianSyntheticControl => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.synthetic_control",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_synthetic_control.pairwise_metropolis",
+            provenance: same_step("estimate.bayesian_synthetic_control"),
+        },
+        EstimatorId::BayesianBinaryPolicyValue => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.binary_policy_value",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.binary_policy_value",
+            provenance: same_step("estimate.bayesian_binary_policy_value"),
+        },
+        EstimatorId::BayesianSequentialRegimeValue => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.sequential_regime_value",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.sequential_regime_value",
+            provenance: same_step("estimate.bayesian_sequential_regime_value"),
+        },
+        EstimatorId::BayesianPiecewiseSurvival => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.piecewise_survival",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_survival.piecewise_exponential_gamma",
+            provenance: same_step("estimate.bayesian_piecewise_survival"),
+        },
+        EstimatorId::BayesianRandomizedQuantile => EstimatorData {
+            compatible: BACKDOOR_AND_AUTO,
+            name: "bayesian.randomized_quantile",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_quantile.dirichlet_grid_inversion",
+            provenance: same_step("estimate.bayesian_randomized_quantile"),
+        },
+        EstimatorId::BayesianDosePolicy => EstimatorData {
+            compatible: DOSE,
+            name: "bayesian.continuous_dose_policy",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_dose_policy.group_polynomial_conjugate",
+            provenance: same_step("estimate.bayesian_continuous_dose_policy"),
+        },
+        EstimatorId::PeriodHistoryMatching => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "matching.period_history_contrast",
+            parallel_task_dimension: "analysis",
+            kernel_label: "matching.period_history_contrast",
+            provenance: same_step("estimate.period_history_matching"),
+        },
+        EstimatorId::SequentialCrossfitContrastWald => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "sequential.crossfit_contrast.wald",
+            parallel_task_dimension: "crossfit.fold",
+            kernel_label: "sequential.crossfit_contrast",
+            provenance: same_step("estimate.sequential_crossfit_contrast_wald"),
+        },
+        EstimatorId::BayesianSequentialCrossfitContrast => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.sequential_crossfit_contrast",
+            parallel_task_dimension: "crossfit.fold",
+            kernel_label: "sequential.crossfit_contrast",
+            provenance: same_step("estimate.bayesian_sequential_crossfit_contrast"),
+        },
+        EstimatorId::BayesianLocalRatio => EstimatorData {
+            compatible: NONE,
+            name: "bayesian.local_ratio",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_local_ratio.joint_local_linear",
+            provenance: same_step("estimate.bayesian_local_ratio"),
+        },
+        EstimatorId::BayesianRandomizedFinitePopulation => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.randomized_finite_population",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.randomized_arm_contrast",
+            provenance: same_step("estimate.bayesian_randomized_arm_contrast"),
+        },
+        EstimatorId::BayesianSwitchback => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.switchback_effect",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.switchback_effect",
+            provenance: same_step("estimate.bayesian_switchback_effect"),
+        },
+        EstimatorId::BayesianRandomizedSuperpopulation => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.randomized_superpopulation",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.randomized_arm_contrast",
+            provenance: same_step("estimate.bayesian_randomized_arm_contrast"),
+        },
     }
 }
 
@@ -1220,6 +1429,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::DrLearner
         | EstimatorId::CausalForest
         | EstimatorId::ResponseBayesian
+        | EstimatorId::BayesianRandomizedQuantile
         | EstimatorId::BayesianRobustAte => method.is_backdoor_family(),
         EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional => {
             matches!(method, EstimandMethod::FrontDoor)
@@ -1232,8 +1442,14 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         }
         EstimatorId::TemporalLinearAdjustment
         | EstimatorId::BayesianTemporalGcomp
+        | EstimatorId::BayesianTemporalWhiteInnovation
+        | EstimatorId::TemporalGlmLinkContrast
+        | EstimatorId::BayesianTemporalGlmLinkContrast
         | EstimatorId::TemporalSequentialGcomp => {
             matches!(method, EstimandMethod::TemporalBackdoorUnfolded)
+        }
+        EstimatorId::TemporalLaggedInstrument | EstimatorId::BayesianTemporalLaggedInstrument => {
+            matches!(method, EstimandMethod::TemporalIvUnfolded)
         }
         EstimatorId::TemporalResponseGcomp | EstimatorId::TemporalResponseBayesian => {
             matches!(
@@ -1264,16 +1480,29 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::LongitudinalIpwRegime
         | EstimatorId::LongitudinalGFormulaRegime
         | EstimatorId::LongitudinalSequentialDrRegime
-        | EstimatorId::LongitudinalMarginalStructuralModel => false,
+        | EstimatorId::LongitudinalMarginalStructuralModel
+        | EstimatorId::BayesianPanelDid
+        | EstimatorId::BayesianSyntheticControl
+        | EstimatorId::BayesianSequentialRegimeValue
+        | EstimatorId::SequentialCrossfitContrastWald
+        | EstimatorId::BayesianSequentialCrossfitContrast
+        | EstimatorId::PeriodHistoryMatching
+        | EstimatorId::BayesianPiecewiseSurvival
+        | EstimatorId::BayesianDosePolicy
+        | EstimatorId::BayesianLocalRatio => false,
         EstimatorId::RandomizedHt
         | EstimatorId::RandomizedFixedCupedHt
         | EstimatorId::RandomizedAncova
         | EstimatorId::RandomizedWaldCace
         | EstimatorId::RandomizedSwitchbackHt
+        | EstimatorId::BayesianRandomizedFinitePopulation
+        | EstimatorId::BayesianRandomizedSuperpopulation
+        | EstimatorId::BayesianSwitchback
         | EstimatorId::RandomizedNeyman => {
             matches!(method, EstimandMethod::RandomizedItt)
         }
         EstimatorId::RandomizedDrPolicy
+        | EstimatorId::BayesianBinaryPolicyValue
         | EstimatorId::RandomizedIpwPolicy
         | EstimatorId::RandomizedMultiActionIpwPolicy => {
             matches!(method, EstimandMethod::RandomizedPolicyValue)

@@ -255,3 +255,86 @@ impl PreparedSmoothedDose {
         &self.identification
     }
 }
+
+use antecedent_io::bayesian_posterior_row_artifact::{
+    PosteriorRowConsumeLimits, PosteriorRowResultWire,
+};
+use antecedent_io::smoothed_dose_posterior_artifact::{
+    SmoothedDosePosteriorArtifactInput, SmoothedDosePosteriorArtifactWire,
+    SmoothedDosePosteriorModelWire,
+};
+
+/// One posterior execution: the verified artifact wire that carries the joint posterior of
+/// `psi_h` over the grid and the evidence it replays from.
+///
+/// The posterior is the Bayesian counterpart of the point estimate of
+/// [`PreparedSmoothedDose::estimate`] on the same coordinate (the smoothed dose response at
+/// each grid dose under the same certificate). It is explicitly unlicensed with calibration
+/// `unmeasured`; the interval route of the point estimate stays closed.
+#[derive(Clone, Debug)]
+pub struct SmoothedDosePosteriorResult {
+    wire: SmoothedDosePosteriorArtifactWire,
+}
+
+impl SmoothedDosePosteriorResult {
+    /// The retained posterior: per-dose summaries, joint covariance across the grid and the
+    /// exact Gaussian moments when the residual variance is known.
+    #[must_use]
+    pub const fn result(&self) -> &PosteriorRowResultWire {
+        &self.wire.result
+    }
+
+    /// The verified artifact wire.
+    #[must_use]
+    pub const fn wire(&self) -> &SmoothedDosePosteriorArtifactWire {
+        &self.wire
+    }
+
+    /// Export the posterior with its certificate, rows and model; a consumer replays it.
+    ///
+    /// # Errors
+    /// Encoding failure.
+    pub fn export(&self) -> Result<Vec<u8>, IoError> {
+        self.wire.export()
+    }
+}
+
+/// Independently consume a smoothed-dose posterior artifact: re-derive the certificate from
+/// the stored graph and query, recompute the posterior from the stored rows and seed, and
+/// accept only a bit-identical result.
+///
+/// # Errors
+/// Any decoding or verification failure, with its typed reason.
+pub fn consume_smoothed_dose_posterior_artifact(
+    bytes: &[u8],
+    limits: PosteriorRowConsumeLimits,
+) -> Result<SmoothedDosePosteriorResult, IoError> {
+    let wire = SmoothedDosePosteriorArtifactWire::consume_typed(bytes, limits)?;
+    Ok(SmoothedDosePosteriorResult { wire })
+}
+
+impl PreparedSmoothedDose {
+    /// The unlicensed Bayesian posterior of the smoothed dose response over the grid, under
+    /// the declared outcome model, on the retained rows and certificate.
+    ///
+    /// # Errors
+    /// A typed refusal: an uncertified graph, a grid window outside the declared dose
+    /// support, fewer than `min_local_rows` source rows in a window, no target rows, or an
+    /// invalid prior or draw count.
+    pub fn posterior(
+        &self,
+        model: SmoothedDosePosteriorModelWire,
+    ) -> Result<SmoothedDosePosteriorResult, IoError> {
+        let wire =
+            SmoothedDosePosteriorArtifactWire::checked(SmoothedDosePosteriorArtifactInput {
+                graph: self.diagram.causal_graph(),
+                selections: self.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
+                query: &self.query,
+                variable_names: &self.variable_names,
+                identification: &self.identification,
+                input: &self.input,
+                model,
+            })?;
+        Ok(SmoothedDosePosteriorResult { wire })
+    }
+}

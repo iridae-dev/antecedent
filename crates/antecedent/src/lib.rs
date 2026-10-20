@@ -55,6 +55,7 @@ pub mod class_prior;
 pub mod counterfactual_id;
 pub mod cross_world;
 pub mod design;
+pub mod design_posterior_model;
 pub mod discovery;
 pub mod discovery_defaults;
 pub mod error;
@@ -63,6 +64,7 @@ pub mod gcm;
 mod graph_identity;
 pub mod inference;
 pub mod options;
+pub mod period_refresh;
 pub mod planner;
 pub mod prelude;
 pub mod result;
@@ -101,6 +103,7 @@ pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
 pub use estimator_spec::EstimatorSpec;
 pub use graph::{Dag, DenseNodeId, TemporalDag};
 pub use identify_api::{Identification, identify, identify_dag, identify_with};
+pub use design_posterior_model::DesignPosteriorModel;
 pub use inference::{BayesianConfig, InferenceMode, PosteriorDrawControls};
 pub use options::FdrControl;
 pub use query::{
@@ -109,6 +112,7 @@ pub use query::{
     DerivativeScale, DerivativeWeighting, ExposureLevel, ExposureMapping, GridSpec,
     InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
     LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MechanismChangeQuery, MediationContrast,
+    SequentialContrastQuery, HistoryMatchQuery,
     MediationQuery, OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, RandomizationDesign,
     RandomizedEffectQuery, ResponseFunctional, ResponseIdentification, ResponseQuery,
     ResponseUncertainty, ResponseValue, SyntheticControlQuery, SyntheticPanelMethod,
@@ -116,10 +120,12 @@ pub use query::{
 };
 pub use result::{
     AnalysisIdentification, ContinuousDoseResponseEstimate, ExecutedContract,
-    LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, PERCENTILE_95_MIN_REPLICATES,
+    LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, HistoryMatchEstimate, SequentialContrastEstimate,
+    PERCENTILE_95_MIN_REPLICATES,
     PanelDidEstimate, PolicyValueEstimate, PrimaryEstimate, PublishedScalarUncertainty,
     RandomizedEffectEstimate, ResultPayload, RowWeightsBinding, StructuralAggregationPolicy,
-    StructuralWeightBasis, StudyResult, SurvivalEstimate, SyntheticControlEstimate,
+    PosteriorRowEstimate, StructuralWeightBasis, StudyResult, SurvivalEstimate,
+    SyntheticControlEstimate,
     SyntheticDidEstimate,
 };
 pub use support::{

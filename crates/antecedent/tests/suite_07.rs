@@ -5,6 +5,8 @@
 
 #[path = "refute_validator_not_applicable.rs"]
 mod refute_validator_not_applicable;
+#[path = "repeated_measures_posterior_facade.rs"]
+mod repeated_measures_posterior_facade;
 #[path = "rollout_artifact.rs"]
 mod rollout_artifact;
 #[path = "route_evidence_joint_law_propagation.rs"]
@@ -35,6 +37,8 @@ mod sequential_evaluation_facade;
 mod short_series_measurement;
 #[path = "smoothed_dose_lifecycle.rs"]
 mod smoothed_dose_lifecycle;
+#[path = "smoothed_dose_posterior_facade.rs"]
+mod smoothed_dose_posterior_facade;
 #[path = "source_evidence.rs"]
 mod source_evidence;
 #[path = "source_projection.rs"]

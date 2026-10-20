@@ -45,6 +45,9 @@ pub(crate) struct CheckedDistributionOperation {
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedFunctionalEffectOperation {
     pub(super) query: AverageEffectQuery,
+    /// The conditional effect this operation answers when the target is the IDC contrast of a
+    /// conditional effect; `query` is then its inner average-effect query.
+    pub(super) conditional: Option<antecedent_core::ConditionalEffectQuery>,
     pub(super) cache: Arc<super::CachedStaticIdentification>,
     pub(super) fitter: antecedent_estimate::FunctionalEffect,
     pub(super) prepared: antecedent_estimate::PreparedFunctionalEffect,
@@ -194,6 +197,7 @@ impl CheckedFunctionalEffectOperation {
             && self.estimator == crate::strategy_table::EstimatorId::FunctionalEffect
             && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && (self.conditional.is_none() || self.refute == RefuteSuite::None)
             && self.custom_validator_names.is_empty()
     }
 
@@ -210,6 +214,7 @@ impl CheckedFunctionalEffectOperation {
             .map_err(CausalError::from)?;
         Ok(Self {
             query: self.query.clone(),
+            conditional: self.conditional.clone(),
             cache: Arc::clone(&self.cache),
             fitter: self.fitter.clone(),
             prepared,
@@ -296,7 +301,10 @@ impl CheckedFunctionalEffectOperation {
                 n_draws,
                 cancelled: false,
                 early_stopped: false,
-                certificate_query: CausalQuery::AverageEffect(self.query.clone()),
+                certificate_query: self.conditional.as_ref().map_or_else(
+                    || CausalQuery::AverageEffect(self.query.clone()),
+                    |conditional| CausalQuery::ConditionalEffect(conditional.clone()),
+                ),
                 certificate_graph_class: self.graph_class,
                 response: None,
                 mirror_refuted_evalue: true,

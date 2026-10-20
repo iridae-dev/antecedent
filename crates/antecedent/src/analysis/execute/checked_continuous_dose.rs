@@ -13,8 +13,14 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 
-pub(crate) type CheckedContinuousDoseOperation =
-    RandomizedTrialOperation<antecedent_core::ContinuousDoseResponseQuery, ()>;
+mod bayesian;
+
+/// The extra setting is the study's Bayesian configuration: with one, the retained operation
+/// reports the posterior of the fixed group-dose policy value instead of the kernel estimate.
+pub(crate) type CheckedContinuousDoseOperation = RandomizedTrialOperation<
+    antecedent_core::ContinuousDoseResponseQuery,
+    Option<super::BayesianConfig>,
+>;
 
 impl RandomizedTrialQuery for antecedent_core::ContinuousDoseResponseQuery {
     const OPERATION: &'static str = "CheckedContinuousDoseOperation";
@@ -36,7 +42,6 @@ impl CheckedContinuousDoseOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
@@ -45,24 +50,33 @@ impl CheckedContinuousDoseOperation {
             || query.baseline_groups.len() != data.row_count()
         {
             return Err(CausalError::Unsupported {
-                message: "continuous-dose response requires a graphless fixed baseline-group table and point-only frequentist execution",
+                message: "continuous-dose response requires a graphless fixed baseline-group table without refuters, bootstrap or custom validators",
             });
         }
+        let bayesian = match &study.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                bayesian::require_scope(query, config)?;
+                Some(config.clone())
+            }
+        };
         for id in [query.outcome, query.dose, query.dose_density] {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
+        let estimator = if bayesian.is_some() {
+            EstimatorId::BayesianDosePolicy
+        } else {
+            EstimatorId::ContinuousDoseKernel
+        };
         if physical.logical.query != study.query
-            || !physical.binding().names(
-                IdentifierId::ContinuousDoseExchangeability,
-                EstimatorId::ContinuousDoseKernel,
-            )
+            || !physical.binding().names(IdentifierId::ContinuousDoseExchangeability, estimator)
         {
             return Err(CausalError::Compile {
                 message: "continuous-dose design differs from compiled plan".into(),
             });
         }
         let (identification, estimand) = continuous_dose_identification(query);
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
     pub(crate) fn execute(
@@ -71,6 +85,9 @@ impl CheckedContinuousDoseOperation {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.begin_execute(data, ctx)?;
+        if let Some(config) = &self.extra {
+            return self.execute_bayesian(data, config, ctx);
+        }
         let numeric = |id| match data.column(id).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(column) => Ok(column.values.as_slice().to_vec()),
             _ => Err(CausalError::Unsupported {

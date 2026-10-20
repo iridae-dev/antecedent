@@ -11,8 +11,15 @@ use super::{
 };
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 
+mod bayesian;
+
+pub(super) use bayesian::bayesian_local_polynomial_ratio_plan_ids;
+use super::BayesianConfig;
+
+/// The extra setting is the study's Bayesian configuration: with one, the retained operation
+/// reports a posterior instead of the frequentist ratio.
 pub(crate) type CheckedLocalPolynomialRatioOperation =
-    RandomizedTrialOperation<antecedent_core::LocalPolynomialRatioQuery, ()>;
+    RandomizedTrialOperation<antecedent_core::LocalPolynomialRatioQuery, Option<BayesianConfig>>;
 
 impl RandomizedTrialQuery for antecedent_core::LocalPolynomialRatioQuery {
     const OPERATION: &'static str = "CheckedLocalPolynomialRatioOperation";
@@ -44,7 +51,6 @@ impl CheckedLocalPolynomialRatioOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
@@ -52,9 +58,19 @@ impl CheckedLocalPolynomialRatioOperation {
             || study.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
-                message: "local ratio requires a graphless, fixed-bandwidth frequentist design",
+                message: "local ratio requires a graphless, fixed-bandwidth design",
             });
         }
+        let bayesian = match &study.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                super::bayesian_quasi_common::require_built_in_model(
+                    config,
+                    "the Bayesian local ratio",
+                )?;
+                Some(config.clone())
+            }
+        };
         for variable in [query.outcome, query.treatment, query.running] {
             data.schema().get(variable).map_err(CausalError::rejected)?;
             if !matches!(
@@ -66,7 +82,11 @@ impl CheckedLocalPolynomialRatioOperation {
                 });
             }
         }
-        let (plan_id, identifier, estimator) = local_polynomial_ratio_plan_ids(query.kink);
+        let (plan_id, identifier, estimator) = if bayesian.is_some() {
+            bayesian_local_polynomial_ratio_plan_ids(query.kink)
+        } else {
+            local_polynomial_ratio_plan_ids(query.kink)
+        };
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id.as_str()
             || !physical.binding().names_wire(&identifier, &estimator)
@@ -76,7 +96,7 @@ impl CheckedLocalPolynomialRatioOperation {
             });
         }
         let (identification, estimand) = local_polynomial_ratio_identification(query);
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
     pub(crate) fn execute(
@@ -93,6 +113,14 @@ impl CheckedLocalPolynomialRatioOperation {
                 }),
             }
         };
+        if let Some(config) = &self.extra {
+            let sample = antecedent_estimate::bayesian_local_ratio::LocalRatioSample {
+                running: column(self.query.running)?,
+                treatment: column(self.query.treatment)?,
+                outcome: column(self.query.outcome)?,
+            };
+            return self.execute_bayesian(data, &sample, config, ctx);
+        }
         let fit = fit_local_polynomial_ratio(
             column(self.query.running)?,
             column(self.query.outcome)?,

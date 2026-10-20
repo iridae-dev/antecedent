@@ -1,6 +1,7 @@
 //! Builder independent execution for the model-scoped Bayesian IV and sharp-RD estimators.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::bayesian_quantile_path::check_bayesian_quantile_scope;
 use super::bayesian_specialist_path::{
     BayesianSpecialistInputs, check_bayesian_iv_scope, check_bayesian_rd_scope,
 };
@@ -22,6 +23,8 @@ pub(crate) enum BayesianSpecialistFamily {
     IvJointLinear,
     /// `rd.bayesian_local_linear`: fixed-bandwidth local-linear sharp design.
     RdLocalLinear(RdConfig),
+    /// `bayesian.randomized_quantile`: Dirichlet-multinomial grid distribution function.
+    RandomizedQuantile,
 }
 
 /// Complete target, identification proof, model configuration, and physical
@@ -86,7 +89,12 @@ impl CheckedBayesianSpecialistOperation {
             )
             || study.refute != RefuteSuite::None
             || !study.custom_validators.is_empty()
-            || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+            || !(matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                || (query.outcome_functional.quantile_level().is_some()
+                    && plan
+                        .binding()
+                        .estimator
+                        .is(EstimatorId::BayesianRandomizedQuantile)))
             || plan.logical.query != study.query
         {
             return Ok(None);
@@ -109,6 +117,14 @@ impl CheckedBayesianSpecialistOperation {
                         EstimatorId::BayesianRdLocalLinear,
                     )
                 }
+                (
+                    Some(EstimatorId::BayesianRandomizedQuantile),
+                    Some(IdentifierId::BackdoorAdjustment),
+                ) => (
+                    BayesianSpecialistFamily::RandomizedQuantile,
+                    IdentifierId::BackdoorAdjustment,
+                    EstimatorId::BayesianRandomizedQuantile,
+                ),
                 _ => return Ok(None),
             };
         // A sharp design binds its target to the cutoff population at build;
@@ -126,7 +142,7 @@ impl CheckedBayesianSpecialistOperation {
         }
         let target = CausalQuery::AverageEffect(query.clone());
         let cache = match family {
-            BayesianSpecialistFamily::IvJointLinear => match study.identification_cache.as_ref() {
+            BayesianSpecialistFamily::IvJointLinear | BayesianSpecialistFamily::RandomizedQuantile => match study.identification_cache.as_ref() {
                 Some(cache) if cache.identification.query == target => Arc::clone(cache),
                 _ => {
                     let identification = identify_static_query(identifier, graph, &target)?;
@@ -159,6 +175,9 @@ impl CheckedBayesianSpecialistOperation {
                 check_bayesian_iv_scope(&cache.estimand, config)?
             }
             BayesianSpecialistFamily::RdLocalLinear(_) => check_bayesian_rd_scope(query, config)?,
+            BayesianSpecialistFamily::RandomizedQuantile => {
+                check_bayesian_quantile_scope(query, &cache.estimand, config)?;
+            }
         }
         Ok(Some(Box::new(Self {
             query: query.clone(),
@@ -210,6 +229,8 @@ impl CheckedBayesianSpecialistOperation {
                 inputs,
                 ctx,
             ),
+            BayesianSpecialistFamily::RandomizedQuantile => study
+                .execute_bayesian_quantile_identified(data, &self.query, &self.physical, inputs, ctx),
         }
     }
 }
@@ -224,6 +245,9 @@ impl Inspect for CheckedBayesianSpecialistOperation {
             }
             BayesianSpecialistFamily::RdLocalLinear(rd) => {
                 (IdentifierId::RdSharp, EstimatorId::BayesianRdLocalLinear, Some(rd))
+            }
+            BayesianSpecialistFamily::RandomizedQuantile => {
+                (IdentifierId::BackdoorAdjustment, EstimatorId::BayesianRandomizedQuantile, None)
             }
         };
         CheckedBayesianSpecialistInfo {

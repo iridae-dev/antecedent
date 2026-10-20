@@ -88,7 +88,9 @@ fn bind_graphless_reasoning(
         || result.panel_did().is_some()
         || result.survival().is_some()
         || result.randomized_effect().is_some()
-        || result.longitudinal_regime().is_some();
+        || result.longitudinal_regime().is_some()
+        || result.sequential_contrast().is_some()
+        || result.history_match().is_some();
     if !graphless {
         return Ok(());
     }
@@ -1262,7 +1264,10 @@ impl StudyResult {
             || self.policy_value().is_some()
             || self.continuous_dose_response().is_some()
             || self.survival().is_some()
+            || self.posterior_row().is_some()
             || self.longitudinal_regime().is_some()
+            || self.sequential_contrast().is_some()
+            || self.history_match().is_some()
         {
             // These non-effect result families report no calibrated scalar
             // effect interval. Their uncertainty semantics live in their
@@ -3427,7 +3432,10 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         local_polynomial_ratio: result.local_polynomial_ratio().map(|v| v.to_wire(support)),
         randomized_effect: result.randomized_effect().map(|v| v.to_wire(support)),
         survival: result.survival().map(|v| v.to_wire(support)),
+        posterior_row: result.posterior_row().cloned(),
         longitudinal_regime: result.longitudinal_regime().map(Into::into),
+        sequential_contrast: result.sequential_contrast().map(Into::into),
+        history_match: result.history_match().map(Into::into),
         interference_inference: result.interference_inference().map(Into::into),
         interventional_distribution: result.distribution().map(distribution_wire),
         // A standard error describes the published scalar; none rides without it.

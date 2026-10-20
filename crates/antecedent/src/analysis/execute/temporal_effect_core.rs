@@ -461,6 +461,22 @@ fn fit_single_window_bayesian(
         )?;
         return Ok((fit.estimate, fit.posterior, (fit.estimator, fit.prepared)));
     }
+    if cfg.white_innovation.is_some() {
+        if gaps.is_some() {
+            return Err(CausalError::Unsupported {
+                message: "the untempered temporal posterior needs the contiguous lag windows of one \
+                          series; a gapped series is not accepted",
+            });
+        }
+        let fit = crate::analysis::white_innovation_window::fit_white_innovation_window(
+            cfg,
+            prep,
+            query.horizon_steps,
+            identification.status,
+            ctx,
+        )?;
+        return Ok((fit.estimate, fit.posterior, (fit.estimator, fit.prepared)));
+    }
     let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
     let names = antecedent_estimate::temporal_coefficient_names(data, estimand, query, indexer)
         .map_err(CausalError::from)?;
@@ -865,15 +881,27 @@ fn fit_single_window(
     };
     let estimate = estimate.with_n_obs(u64::try_from(prep.design.nrows).unwrap_or(u64::MAX));
 
-    let estimator_id = if posterior.is_some() {
+    let white_innovation = matches!(
+        inputs.inference,
+        InferenceMode::Bayesian(cfg) if cfg.white_innovation.is_some()
+    );
+    let estimator_id = if posterior.is_some() && white_innovation {
+        EstimatorId::BayesianTemporalWhiteInnovation
+    } else if posterior.is_some() {
         EstimatorId::BayesianTemporalGcomp
     } else {
         EstimatorId::TemporalLinearAdjustment
     };
+    // The refuters refit the tempered temporal posterior, so they run under its id.
+    let refutation_id = if white_innovation && posterior.is_some() {
+        EstimatorId::BayesianTemporalGcomp
+    } else {
+        estimator_id
+    };
     let (mut refutations, mut diagnostics) = single_window_refutations(
         inputs,
         &estimate,
-        estimator_id,
+        refutation_id,
         dependence_se.as_ref(),
         gap_selection.is_some(),
         ctx,

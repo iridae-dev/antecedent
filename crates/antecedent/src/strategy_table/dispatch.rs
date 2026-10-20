@@ -68,6 +68,10 @@ const fn static_identifier_refusal(identifier: IdentifierId) -> &'static str {
             "identifier \"temporal.backdoor.unfolded\" requires a temporal graph \
              and TemporalEffect query"
         }
+        IdentifierId::TemporalIvUnfolded => {
+            "identifier \"temporal.iv.unfolded\" requires a temporal graph \
+             and TemporalEffect query"
+        }
         IdentifierId::TransportSid => {
             "identifier \"transport.sid\" requires a TransportQuery, selection \
              diagram, and the staged transport path"
@@ -173,6 +177,7 @@ pub fn identify_static_query_with_rd(
         IdentifierId::GeneralizedAdjustment
         | IdentifierId::RdSharp
         | IdentifierId::TemporalBackdoorUnfolded
+        | IdentifierId::TemporalIvUnfolded
         | IdentifierId::TransportSid
         | IdentifierId::InterferenceDesign
         | IdentifierId::RandomizedDesign

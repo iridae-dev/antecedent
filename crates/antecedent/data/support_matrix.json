@@ -238,7 +238,9 @@
       "reason": "Tier-rule backgrounds are an explicit structure source."
     },
     {
-      "queries": null,
+      "queries": [
+        "InterventionResponse"
+      ],
       "graph_classes": [
         "CoDetermined",
         "Unknown"
@@ -248,7 +250,7 @@
         "Bayesian"
       ],
       "validations": null,
-      "reason": "Tier-rule cells are Frequentist (cell.aipw joint / two-scenario envelope)."
+      "reason": "Joint InterventionResponse on a tier background is Frequentist (cell.aipw joint); AverageEffect is the tier-rule query with a Bayesian posterior."
     },
     {
       "queries": [
@@ -591,13 +593,44 @@
         "ConditionalEffect"
       ],
       "graph_classes": [
-        "Admg",
         "TemporalAdmg"
       ],
       "structures": null,
       "inferences": null,
       "validations": null,
-      "reason": "ConditionalEffect on Admg or TemporalAdmg has no compile arm; Dag, Cpdag, and Pag are licensed."
+      "reason": "A contrast on a TemporalAdmg is not identified: the contemporaneous projection answers a different target than the Pulse/Sustained contrast, so ConditionalEffect on TemporalAdmg is refused. The typed refusal names the next attempts: TemporalConditionalPulse or TemporalConditionalSustained on a TemporalDag when the lag structure has no latent confounding, or the static Admg for the contemporaneous conditional effect."
+    },
+    {
+      "queries": [
+        "ConditionalEffect"
+      ],
+      "graph_classes": [
+        "Admg"
+      ],
+      "structures": [
+        "graph_posterior"
+      ],
+      "inferences": null,
+      "validations": null,
+      "reason": "ConditionalEffect on Admg is licensed for an explicit or accepted graph at validation none; graph-posterior mixing over Admg atoms is not staged."
+    },
+    {
+      "queries": [
+        "ConditionalEffect"
+      ],
+      "graph_classes": [
+        "Admg"
+      ],
+      "structures": [
+        "explicit",
+        "accepted"
+      ],
+      "inferences": null,
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "ConditionalEffect on Admg is licensed at validation none only; cheap and full are not licensed: no refuter suite is staged for the IDC contrast over a modifier law."
     },
     {
       "queries": [
@@ -2168,6 +2201,50 @@
       "route_estimator": "bayesian.gcomp",
       "estimators": [
         "bayesian.gcomp"
+      ]
+    },
+    {
+      "query": "ConditionalEffect",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": null,
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ConditionalEffect",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "none",
+      "route_estimator": null,
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ConditionalEffect",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": null,
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ConditionalEffect",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": null,
+      "estimators": [
+        "functional.effect"
       ]
     },
     {
@@ -4787,6 +4864,17 @@
     },
     {
       "query": "AverageEffect",
+      "graph_class": "CoDetermined",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": null,
+      "estimators": [
+        "bayesian.gcomp"
+      ]
+    },
+    {
+      "query": "AverageEffect",
       "graph_class": "Unknown",
       "structure": "explicit",
       "inference": "Frequentist",
@@ -4794,6 +4882,17 @@
       "route_estimator": "linear.adjustment.ate",
       "estimators": [
         "linear.adjustment.ate"
+      ]
+    },
+    {
+      "query": "AverageEffect",
+      "graph_class": "Unknown",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "none",
+      "route_estimator": null,
+      "estimators": [
+        "bayesian.gcomp"
       ]
     },
     {
@@ -6729,7 +6828,8 @@
       "validation": "none",
       "route_estimator": "temporal.linear.adjustment",
       "estimators": [
-        "temporal.linear.adjustment"
+        "temporal.linear.adjustment",
+        "bayesian.temporal.gcomp"
       ]
     },
     {
@@ -6751,7 +6851,8 @@
       "validation": "none",
       "route_estimator": "temporal.linear.adjustment",
       "estimators": [
-        "temporal.linear.adjustment"
+        "temporal.linear.adjustment",
+        "bayesian.temporal.gcomp"
       ]
     },
     {

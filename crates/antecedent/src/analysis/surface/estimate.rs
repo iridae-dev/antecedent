@@ -31,3 +31,7 @@ pub use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits,
     ExactSupportRecord, ExactTransportData, LawTolerance,
 };
+
+pub use antecedent_estimate::white_innovation_posterior::{
+    InnovationWhitenessGate, InnovationWhitenessReport,
+};

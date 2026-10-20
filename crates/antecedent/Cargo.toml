@@ -378,6 +378,10 @@ name = "horizon_one_static"
 path = "tests/horizon_one_static.rs"
 
 [[test]]
+name = "horizon_one_equivalence"
+path = "tests/horizon_one_equivalence.rs"
+
+[[test]]
 name = "joint_law_composed_interval_calibration"
 path = "tests/joint_law_composed_interval_calibration.rs"
 
@@ -592,3 +596,47 @@ path = "tests/suite_08.rs"
 [[test]]
 name = "suite_09"
 path = "tests/suite_09.rs"
+
+[[test]]
+name = "admg_conditional_effect"
+path = "tests/admg_conditional_effect.rs"
+
+[[test]]
+name = "temporal_counterfactual_posterior"
+path = "tests/temporal_counterfactual_posterior.rs"
+
+[[test]]
+name = "counterfactual_noise_posterior"
+path = "tests/counterfactual_noise_posterior.rs"
+
+[[test]]
+name = "tiered_bayesian"
+path = "tests/tiered_bayesian.rs"
+
+[[test]]
+name = "bayesian_policy_regime_routes"
+path = "tests/bayesian_policy_regime_routes.rs"
+
+[[test]]
+name = "white_innovation_route"
+path = "tests/white_innovation_route.rs"
+
+[[test]]
+name = "treatment_score_product"
+path = "tests/treatment_score_product.rs"
+
+[[test]]
+name = "unlicensed_design_routes"
+path = "tests/unlicensed_design_routes.rs"
+
+[[test]]
+name = "panel_link_contrast_route"
+path = "tests/panel_link_contrast_route.rs"
+
+[[test]]
+name = "temporal_treatment_score_product"
+path = "tests/temporal_treatment_score_product.rs"
+
+[[test]]
+name = "temporal_lagged_instrument_route"
+path = "tests/temporal_lagged_instrument_route.rs"

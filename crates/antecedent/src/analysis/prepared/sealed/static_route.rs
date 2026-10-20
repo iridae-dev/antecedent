@@ -10,6 +10,7 @@ use crate::analysis::execute::{
     CheckedCellAipwResponseOperation, CheckedContinuousDoseOperation, CheckedCounterfactualPlan,
     CheckedDerivativeResponseOperation, CheckedInterferenceOperation,
     CheckedLocalPolynomialRatioOperation, CheckedLongitudinalRegimeOperation,
+    CheckedSequentialContrastOperation, CheckedHistoryMatchOperation,
     CheckedPanelDidOperation, CheckedPolicyValueOperation, CheckedRandomizedOperation,
     CheckedStaticDagResponseOperation, CheckedStaticMediationOperation, CheckedSurvivalOperation,
     CheckedSyntheticControlOperation,
@@ -59,6 +60,8 @@ executes_as_prepared!(
     CheckedLocalPolynomialRatioOperation,
     CheckedSurvivalOperation,
     CheckedLongitudinalRegimeOperation,
+    CheckedSequentialContrastOperation,
+    CheckedHistoryMatchOperation,
 );
 
 impl SealedOperation for CheckedAttributionOperation {

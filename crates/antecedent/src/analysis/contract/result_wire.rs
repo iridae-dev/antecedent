@@ -14,6 +14,7 @@ use antecedent_io::analysis_result_artifact::{
 use antecedent_io::{
     DistributionAtomWire, InterferenceInferenceWire, InterferencePointwiseIntervalWire,
     InterventionalDistributionWire, LocalPolynomialRatioWire, LongitudinalRegimeWire, PanelDidWire,
+    SequentialContrastWire, HistoryMatchWire,
     PolicyValueWire, RandomizedEffectWire, SurvivalDifferenceBandWire, SurvivalWire,
     SyntheticControlWire, SyntheticDidWire, UpliftBinWire, ValueWire,
 };
@@ -23,6 +24,7 @@ use antecedent_estimate::InterventionalDistributionEstimate;
 use crate::result::{
     ContinuousDoseResponseEstimate, InterferenceInference, LocalPolynomialRatioEstimate,
     LongitudinalRegimeEstimate, PanelDidEstimate, PolicyValueEstimate, RandomizedEffectEstimate,
+    SequentialContrastEstimate, HistoryMatchEstimate,
     SurvivalEstimate, SyntheticControlEstimate, SyntheticDidEstimate,
 };
 use crate::support::CellStatus;
@@ -357,6 +359,50 @@ impl From<&LongitudinalRegimeEstimate> for LongitudinalRegimeWire {
                 &regime.stabilizing_numerator_probabilities,
             ),
             observed_subjects: regime.observed_subjects.unwrap_or(0),
+        }
+    }
+}
+
+impl From<&HistoryMatchEstimate> for HistoryMatchWire {
+    fn from(fit: &HistoryMatchEstimate) -> Self {
+        Self {
+            contrast: fit.contrast,
+            standard_error: fit.standard_error,
+            weight_total: fit.weight_total,
+            matched_queries: fit.matched_queries.to_vec(),
+            matched_donors: fit.matched_donors.to_vec(),
+            differences: fit.differences.to_vec(),
+            pair_weights: fit.pair_weights.to_vec(),
+            unmatched_treated: fit.unmatched_treated.to_vec(),
+            periods_matched: fit.periods_matched,
+            caliper: fit.caliper,
+            uncertainty: fit.uncertainty.to_string(),
+            calibration: "unmeasured".to_owned(),
+            licensed: false,
+        }
+    }
+}
+
+impl From<&SequentialContrastEstimate> for SequentialContrastWire {
+    fn from(fit: &SequentialContrastEstimate) -> Self {
+        Self {
+            active_regime: fit.active_regime,
+            control_regime: fit.control_regime,
+            contrast: fit.contrast,
+            active_mean: fit.active_mean,
+            control_mean: fit.control_mean,
+            evaluated_rows: fit.evaluated_rows,
+            minimum_action_probability: fit.minimum_action_probability,
+            min_probability: fit.min_probability,
+            standard_error: fit.standard_error,
+            interval: fit.interval,
+            coverage: fit.coverage,
+            active_scores: fit.active_scores.to_vec(),
+            control_scores: fit.control_scores.to_vec(),
+            contrast_scores: fit.contrast_scores.to_vec(),
+            uncertainty: fit.uncertainty.to_string(),
+            calibration: "unmeasured".to_owned(),
+            licensed: false,
         }
     }
 }

@@ -259,6 +259,76 @@ pub struct LocalPolynomialRatioEstimate {
     pub uncertainty: Arc<str>,
 }
 
+/// Within-period history-matched contrast (unlicensed, uncalibrated, no interval).
+///
+/// The matched pairs are retained so a loader recomputes every summary.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HistoryMatchEstimate {
+    /// Sampling-weighted mean of treated-minus-matched-control outcomes.
+    pub contrast: f64,
+    /// Abadie-Imbens standard error; absent with fewer than two matched units.
+    pub standard_error: Option<f64>,
+    /// Sum of sampling weights on the matched treated units.
+    pub weight_total: f64,
+    /// Row indices of matched treated units.
+    pub matched_queries: Arc<[usize]>,
+    /// Row index of the control each matched query used.
+    pub matched_donors: Arc<[usize]>,
+    /// Outcome difference of each matched pair.
+    pub differences: Arc<[f64]>,
+    /// Sampling weight of each matched treated unit.
+    pub pair_weights: Arc<[f64]>,
+    /// Treated rows with no control inside their period and the caliper.
+    pub unmatched_treated: Arc<[usize]>,
+    /// Periods in which at least one treated unit matched.
+    pub periods_matched: usize,
+    /// The caliper, when one was declared.
+    pub caliper: Option<f64>,
+    /// Uncertainty semantics.
+    pub uncertainty: Arc<str>,
+}
+
+/// Observational two-decision contrast of two static regimes (unlicensed, uncalibrated).
+///
+/// The cross-fit scores are retained so a loader recomputes every summary.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SequentialContrastEstimate {
+    /// Active regime actions.
+    pub active_regime: [u8; 2],
+    /// Control regime actions.
+    pub control_regime: [u8; 2],
+    /// Cross-fit active minus control.
+    pub contrast: f64,
+    /// Cross-fit active-regime mean.
+    pub active_mean: f64,
+    /// Cross-fit control-regime mean.
+    pub control_mean: f64,
+    /// Subjects scored.
+    pub evaluated_rows: u64,
+    /// Smallest regime-action probability used in a score.
+    pub minimum_action_probability: f64,
+    /// Declared positivity floor.
+    pub min_probability: f64,
+    /// Standard error of the mean contrast score (normal-interval report).
+    pub standard_error: Option<f64>,
+    /// Normal interval (normal-interval report).
+    pub interval: Option<[f64; 2]>,
+    /// Nominal central coverage of the interval.
+    pub coverage: f64,
+    /// Cross-fit active score of each subject.
+    pub active_scores: Arc<[f64]>,
+    /// Cross-fit control score of each subject.
+    pub control_scores: Arc<[f64]>,
+    /// Active minus control score of each subject.
+    pub contrast_scores: Arc<[f64]>,
+    /// Uncertainty semantics.
+    pub uncertainty: Arc<str>,
+    /// Nuisance fits computed.
+    pub fits_computed: u64,
+    /// Nuisance fits reused.
+    pub fits_reused: u64,
+}
+
 /// Longitudinal regime value or additive MSM summary over subject histories.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LongitudinalRegimeEstimate {
@@ -650,6 +720,11 @@ pub struct InterferenceInference {
     pub to_exposed_clusters: usize,
 }
 
+/// The retained posterior of an unlicensed Bayesian randomized-design row: coordinates, means,
+/// equal-tailed 95% credible intervals, the covariance of the joint draws and named summaries.
+/// Its uncertainty is `posterior` and its calibration `unmeasured`; it is never licensed.
+pub type PosteriorRowEstimate = antecedent_io::PosteriorRowWire;
+
 /// The typed answer of one query family, published beside a result's scalar
 /// estimate.
 ///
@@ -718,8 +793,16 @@ pub enum ResultPayload {
     ContinuousDoseResponse(ContinuousDoseResponseEstimate),
     /// Randomized right-censored survival or competing-risk curve.
     Survival(SurvivalEstimate),
+    /// Unlicensed Bayesian posterior of a randomized-design row (survival contrast, fixed
+    /// group-dose policy value): means, credible intervals and the joint covariance of the
+    /// retained draws, with calibration `unmeasured`.
+    PosteriorRow(PosteriorRowEstimate),
     /// Prespecified longitudinal regime value.
     LongitudinalRegime(LongitudinalRegimeEstimate),
+    /// Observational two-decision regime contrast.
+    SequentialContrast(SequentialContrastEstimate),
+    /// Within-period history-matched contrast.
+    HistoryMatch(HistoryMatchEstimate),
 }
 
 impl ResultPayload {
@@ -887,6 +970,15 @@ impl ResultPayload {
         }
     }
 
+    /// The `posterior_row` payload by value.
+    #[must_use]
+    pub fn into_posterior_row(self) -> Option<PosteriorRowEstimate> {
+        match self {
+            Self::PosteriorRow(value) => Some(value),
+            _ => None,
+        }
+    }
+
     /// The `survival` payload by value.
     #[must_use]
     pub fn into_survival(self) -> Option<SurvivalEstimate> {
@@ -901,6 +993,24 @@ impl ResultPayload {
     pub fn into_longitudinal_regime(self) -> Option<LongitudinalRegimeEstimate> {
         match self {
             Self::LongitudinalRegime(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `history_match` payload by value.
+    #[must_use]
+    pub fn into_history_match(self) -> Option<HistoryMatchEstimate> {
+        match self {
+            Self::HistoryMatch(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `sequential_contrast` payload by value.
+    #[must_use]
+    pub fn into_sequential_contrast(self) -> Option<SequentialContrastEstimate> {
+        match self {
+            Self::SequentialContrast(value) => Some(value),
             _ => None,
         }
     }
@@ -1101,6 +1211,15 @@ impl ResultPayload {
         }
     }
 
+    /// Posterior of an unlicensed Bayesian randomized-design row.
+    #[must_use]
+    pub const fn posterior_row(&self) -> Option<&PosteriorRowEstimate> {
+        match self {
+            Self::PosteriorRow(value) => Some(value),
+            _ => None,
+        }
+    }
+
     /// Survival or competing-risk curve.
     #[must_use]
     pub const fn survival(&self) -> Option<&SurvivalEstimate> {
@@ -1119,6 +1238,24 @@ impl ResultPayload {
         }
     }
 
+    /// Within-period history-matched contrast.
+    #[must_use]
+    pub const fn history_match(&self) -> Option<&HistoryMatchEstimate> {
+        match self {
+            Self::HistoryMatch(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Observational two-decision regime contrast.
+    #[must_use]
+    pub const fn sequential_contrast(&self) -> Option<&SequentialContrastEstimate> {
+        match self {
+            Self::SequentialContrast(value) => Some(value),
+            _ => None,
+        }
+    }
+
     /// Whether the family reports no calibrated scalar effect interval: its
     /// uncertainty lives in a dedicated result section.
     #[must_use]
@@ -1132,7 +1269,10 @@ impl ResultPayload {
                 | Self::PolicyValue(_)
                 | Self::ContinuousDoseResponse(_)
                 | Self::Survival(_)
+                | Self::PosteriorRow(_)
                 | Self::LongitudinalRegime(_)
+                | Self::SequentialContrast(_)
+                | Self::HistoryMatch(_)
         )
     }
 }
@@ -1251,7 +1391,10 @@ payload_accessors! {
     policy_value, into_policy_value: PolicyValueEstimate,
     continuous_dose_response, into_continuous_dose_response: ContinuousDoseResponseEstimate,
     survival, into_survival: SurvivalEstimate,
+    posterior_row, into_posterior_row: PosteriorRowEstimate,
     longitudinal_regime, into_longitudinal_regime: LongitudinalRegimeEstimate,
+    sequential_contrast, into_sequential_contrast: SequentialContrastEstimate,
+    history_match, into_history_match: HistoryMatchEstimate,
 }
 
 impl StudyResult {

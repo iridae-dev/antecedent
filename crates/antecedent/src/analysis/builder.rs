@@ -610,6 +610,40 @@ pub struct StudyBuilder {
     interference: Option<InterferenceSpec>,
 }
 
+// The refusal removes a wrong label, not a capability: the estimator stays
+// available under the inference mode it implements, and the message names
+// both ways forward.
+macro_rules! frequentist {
+    ($name:literal) => {
+        Err(CausalError::Unsupported {
+            message: concat!(
+                "reason",
+                "=estimator_inference_mismatch: estimator ",
+                $name,
+                " is Frequentist, so it does not run under inference=Bayesian (it would \
+                 report a sampling interval under a Bayesian label). Omit estimator= to use \
+                 the Bayesian estimator, or use inference=Frequentist to run ",
+                $name
+            ),
+        })
+    };
+}
+macro_rules! bayesian {
+    ($name:literal) => {
+        Err(CausalError::Unsupported {
+            message: concat!(
+                "reason",
+                "=estimator_inference_mismatch: estimator ",
+                $name,
+                " is Bayesian, so it does not run under inference=Frequentist. Omit \
+                 estimator= to use the Frequentist estimator, or use inference=Bayesian to \
+                 run ",
+                $name
+            ),
+        })
+    };
+}
+
 /// Whether an omitted replicate count is a real resampling budget for this route.
 ///
 /// Static response surfaces carry analytic or influence-function uncertainty,
@@ -636,98 +670,136 @@ pub(super) fn refuse_estimator_inference_mismatch(
         crate::error::is_runtime_refusal_code("estimator_inference_mismatch"),
         "`estimator_inference_mismatch` is not a runtime_refusal code"
     );
-    // The refusal removes a wrong label, not a capability: the estimator stays
-    // available under the inference mode it implements, and the message names
-    // both ways forward.
-    macro_rules! frequentist {
-        ($name:literal) => {
-            Err(CausalError::Unsupported {
-                message: concat!(
-                    "reason",
-                    "=estimator_inference_mismatch: estimator ",
-                    $name,
-                    " is Frequentist, so it does not run under inference=Bayesian (it would \
-                     report a sampling interval under a Bayesian label). Omit estimator= to use \
-                     the Bayesian estimator, or use inference=Frequentist to run ",
-                    $name
-                ),
-            })
-        };
-    }
-    macro_rules! bayesian {
-        ($name:literal) => {
-            Err(CausalError::Unsupported {
-                message: concat!(
-                    "reason",
-                    "=estimator_inference_mismatch: estimator ",
-                    $name,
-                    " is Bayesian, so it does not run under inference=Frequentist. Omit \
-                     estimator= to use the Frequentist estimator, or use inference=Bayesian to \
-                     run ",
-                    $name
-                ),
-            })
-        };
-    }
     match inference {
-        InferenceMode::Frequentist => match estimator {
-            EstimatorId::BayesianGcomp => bayesian!("bayesian.gcomp"),
-            EstimatorId::BayesianBasisGcomp => bayesian!("bayesian.basis.gcomp"),
-            EstimatorId::BayesianIvJointLinear => bayesian!("iv.bayesian_joint_linear"),
-            EstimatorId::BayesianRdLocalLinear => bayesian!("rd.bayesian_local_linear"),
-            EstimatorId::BayesianRobustAte => bayesian!("bayesian.robust_ate"),
-            EstimatorId::TransportTrialBayesianBootstrap => {
-                bayesian!("transport.trial_bayesian_bootstrap")
-            }
-            EstimatorId::BayesianConditional => bayesian!("conditional.bayesian"),
-            EstimatorId::BayesianTemporalGcomp => bayesian!("bayesian.temporal.gcomp"),
-            EstimatorId::TemporalResponseBayesian => bayesian!("response.temporal.bayesian"),
-            EstimatorId::ResponseBayesian => bayesian!("response.bayesian"),
-            EstimatorId::BayesianTemporalMediation => bayesian!("temporal.mediation.bayesian"),
-            _ => Ok(()),
-        },
-        InferenceMode::Bayesian(_) => {
-            let average = matches!(query, CausalQuery::AverageEffect(_));
-            match estimator {
-                EstimatorId::LinearAdjustmentAte if average => {
-                    frequentist!("linear.adjustment.ate")
-                }
-                EstimatorId::PropensityWeighting if average => frequentist!("propensity.weighting"),
-                EstimatorId::PropensityMatching if average => frequentist!("propensity.matching"),
-                EstimatorId::PropensityStratification if average => {
-                    frequentist!("propensity.stratification")
-                }
-                EstimatorId::DistanceMatching if average => frequentist!("distance.matching"),
-                EstimatorId::Aipw if average => frequentist!("aipw"),
-                EstimatorId::Dml if average => frequentist!("dml"),
-                EstimatorId::DrLearner if average => frequentist!("dr.learner"),
-                EstimatorId::CausalForest if average => frequentist!("causal.forest"),
-                EstimatorId::GlmAdjustment if average => frequentist!("glm.adjustment"),
-                EstimatorId::FrontDoorTwoStage if average => {
-                    frequentist!("frontdoor.linear_two_stage")
-                }
-                EstimatorId::FrontDoorFunctional if average => frequentist!("frontdoor.functional"),
-                EstimatorId::IvWald if average => frequentist!("iv.wald"),
-                EstimatorId::Iv2Sls if average => frequentist!("iv.2sls"),
-                EstimatorId::RdSharp if average => frequentist!("rd.sharp"),
-                EstimatorId::ConditionalLinearAdjustment => {
-                    frequentist!("conditional.linear.adjustment")
-                }
-                EstimatorId::CellAipw => frequentist!("cell.aipw"),
-                EstimatorId::TransportTrialIpw => frequentist!("transport.trial_ipw"),
-                EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
-                EstimatorId::InterferenceClusterNeyman => {
-                    frequentist!("interference.cluster_neyman")
-                }
-                EstimatorId::InterferenceSaturationExact => {
-                    frequentist!("interference.saturation_exact")
-                }
-                EstimatorId::InterferenceObservationalIpw => {
-                    frequentist!("interference.observational_ipw")
-                }
-                _ => Ok(()),
-            }
+        InferenceMode::Frequentist => refuse_bayesian_estimator_under_frequentist(estimator),
+        InferenceMode::Bayesian(_) => refuse_frequentist_estimator_under_bayesian(query, estimator),
+    }
+}
+
+/// Refuses a Bayesian-only estimator selected under Frequentist inference.
+fn refuse_bayesian_estimator_under_frequentist(estimator: EstimatorId) -> Result<(), CausalError> {
+    match estimator {
+        EstimatorId::BayesianGcomp => bayesian!("bayesian.gcomp"),
+        EstimatorId::BayesianBasisGcomp => bayesian!("bayesian.basis.gcomp"),
+        EstimatorId::BayesianIvJointLinear => bayesian!("iv.bayesian_joint_linear"),
+        EstimatorId::BayesianRdLocalLinear => bayesian!("rd.bayesian_local_linear"),
+        EstimatorId::BayesianRobustAte => bayesian!("bayesian.robust_ate"),
+        EstimatorId::BayesianPanelDid => bayesian!("bayesian.panel_did"),
+        EstimatorId::BayesianSyntheticControl => bayesian!("bayesian.synthetic_control"),
+        EstimatorId::BayesianLocalRatio => bayesian!("bayesian.local_ratio"),
+        EstimatorId::BayesianPiecewiseSurvival => bayesian!("bayesian.piecewise_survival"),
+        EstimatorId::BayesianRandomizedQuantile => bayesian!("bayesian.randomized_quantile"),
+        EstimatorId::BayesianDosePolicy => bayesian!("bayesian.continuous_dose_policy"),
+        EstimatorId::BayesianRandomizedFinitePopulation => {
+            bayesian!("bayesian.randomized_finite_population")
         }
+        EstimatorId::BayesianRandomizedSuperpopulation => {
+            bayesian!("bayesian.randomized_superpopulation")
+        }
+        EstimatorId::BayesianSwitchback => bayesian!("bayesian.switchback_effect"),
+        EstimatorId::BayesianBinaryPolicyValue => bayesian!("bayesian.binary_policy_value"),
+        EstimatorId::BayesianSequentialRegimeValue => {
+            bayesian!("bayesian.sequential_regime_value")
+        }
+        EstimatorId::BayesianSequentialCrossfitContrast => {
+            bayesian!("bayesian.sequential_crossfit_contrast")
+        }
+        EstimatorId::TransportTrialBayesianBootstrap => {
+            bayesian!("transport.trial_bayesian_bootstrap")
+        }
+        EstimatorId::BayesianConditional => bayesian!("conditional.bayesian"),
+        EstimatorId::BayesianTemporalGcomp => bayesian!("bayesian.temporal.gcomp"),
+        EstimatorId::BayesianTemporalWhiteInnovation => {
+            bayesian!("bayesian.temporal.white_innovation_linear")
+        }
+        EstimatorId::BayesianTemporalGlmLinkContrast => {
+            bayesian!("bayesian.temporal.glm_link_contrast")
+        }
+        EstimatorId::BayesianTemporalLaggedInstrument => {
+            bayesian!("bayesian.temporal.lagged_instrument")
+        }
+        EstimatorId::TemporalResponseBayesian => bayesian!("response.temporal.bayesian"),
+        EstimatorId::ResponseBayesian => bayesian!("response.bayesian"),
+        EstimatorId::BayesianTemporalMediation => bayesian!("temporal.mediation.bayesian"),
+        _ => Ok(()),
+    }
+}
+
+/// Refuses a Frequentist-only estimator selected under Bayesian inference.
+fn refuse_frequentist_estimator_under_bayesian(
+    query: &CausalQuery,
+    estimator: EstimatorId,
+) -> Result<(), CausalError> {
+    let average = matches!(query, CausalQuery::AverageEffect(_));
+    match estimator {
+        EstimatorId::LinearAdjustmentAte if average => {
+            frequentist!("linear.adjustment.ate")
+        }
+        // Propensity draws are ancillary for the weighting effect, so a Bayesian
+        // weighting estimator has no posterior to report: the typed boundary names
+        // the missing outcome law and the posteriors that answer the same effect.
+        EstimatorId::PropensityWeighting if average => Err(CausalError::Estimate(
+            antecedent_estimate::penalized_propensity_posterior::weighting_effect_posterior_refusal(
+            ),
+        )),
+        // A matching rule has no likelihood, so the mismatch is the typed boundary of a
+        // matching posterior (premise and next attempt), not a mislabelled interval.
+        EstimatorId::PropensityMatching | EstimatorId::DistanceMatching if average => {
+            Err(super::matching_posterior_refusal::matching_posterior_refusal(
+                super::matching_posterior_refusal::MatchingSetting::Static,
+            ))
+        }
+        EstimatorId::PeriodHistoryMatching => {
+            Err(super::matching_posterior_refusal::matching_posterior_refusal(
+                super::matching_posterior_refusal::MatchingSetting::WithinPeriodHistory,
+            ))
+        }
+        EstimatorId::PropensityStratification if average => {
+            frequentist!("propensity.stratification")
+        }
+        EstimatorId::Aipw if average => frequentist!("aipw"),
+        EstimatorId::Dml if average => frequentist!("dml"),
+        EstimatorId::DrLearner if average => frequentist!("dr.learner"),
+        EstimatorId::CausalForest if average => frequentist!("causal.forest"),
+        EstimatorId::GlmAdjustment if average => frequentist!("glm.adjustment"),
+        EstimatorId::FrontDoorTwoStage if average => {
+            frequentist!("frontdoor.linear_two_stage")
+        }
+        EstimatorId::FrontDoorFunctional if average => frequentist!("frontdoor.functional"),
+        EstimatorId::IvWald if average => frequentist!("iv.wald"),
+        EstimatorId::Iv2Sls if average => frequentist!("iv.2sls"),
+        EstimatorId::RdSharp if average => frequentist!("rd.sharp"),
+        EstimatorId::ConditionalLinearAdjustment => {
+            frequentist!("conditional.linear.adjustment")
+        }
+        EstimatorId::CellAipw => frequentist!("cell.aipw"),
+        EstimatorId::TemporalGlmLinkContrast => frequentist!("temporal.glm_link_contrast"),
+        EstimatorId::TemporalLaggedInstrument => frequentist!("temporal.lagged_instrument"),
+        EstimatorId::RandomizedSurvivalProductLimit => {
+            frequentist!("randomized.survival_product_limit")
+        }
+        EstimatorId::ContinuousDoseKernel => {
+            frequentist!("policy.triangular_kernel_inverse_density")
+        }
+        EstimatorId::TransportTrialIpw => frequentist!("transport.trial_ipw"),
+        EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
+        EstimatorId::InterferenceClusterNeyman => {
+            frequentist!("interference.cluster_neyman")
+        }
+        EstimatorId::InterferenceSaturationExact => {
+            frequentist!("interference.saturation_exact")
+        }
+        EstimatorId::InterferenceObservationalIpw => {
+            frequentist!("interference.observational_ipw")
+        }
+        EstimatorId::RandomizedHt
+        | EstimatorId::RandomizedNeyman
+        | EstimatorId::RandomizedSwitchbackHt
+            if matches!(query, CausalQuery::RandomizedEffect(_)) =>
+        {
+            frequentist!("the design-based randomized estimator")
+        }
+        _ => Ok(()),
     }
 }
 
@@ -815,6 +887,139 @@ pub(super) fn refuse_unsupported_draw_controls(
     })
 }
 
+/// Refuse a declared white-innovation premise where no executor reads it.
+///
+/// The untempered posterior is the full-likelihood posterior of one lag-aligned Gaussian
+/// regression, so it exists for the temporal pulse and one-step sustained effect on one fixed
+/// `TemporalDag` under the isotropic Gaussian prior only. Every other route would ignore the
+/// premise, so it refuses it instead of publish a posterior the premise did not shape.
+pub(super) fn refuse_unsupported_white_innovation(
+    query: &CausalQuery,
+    data: &DataInput,
+    class: GraphClass,
+    structure_fixed: bool,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    let InferenceMode::Bayesian(cfg) = inference else {
+        return Ok(());
+    };
+    if cfg.white_innovation.is_none() {
+        return Ok(());
+    }
+    let single_window = matches!(
+        query,
+        CausalQuery::TemporalEffect(q) if !q.is_multi_step_sustained() && q.effect_modifiers.is_empty()
+    );
+    let supported = single_window
+        && matches!(data, DataInput::Temporal(_))
+        && class == GraphClass::TemporalDag
+        && structure_fixed
+        && !cfg.has_transfer()
+        && cfg.likelihood == antecedent_prob::BayesLikelihood::GaussianIdentity;
+    if supported {
+        return Ok(());
+    }
+    Err(crate::unsupported_reason!(
+        "option_not_applicable",
+        "a declared white-innovation premise licenses the untempered Gaussian posterior of a \
+         single-step temporal pulse or one-step sustained effect on one fixed TemporalDag under \
+         the isotropic Gaussian prior; this route does not read it, so it refuses the premise \
+         rather than publish a posterior it did not shape. Next attempt: drop the declaration to \
+         use the tempered posterior, or compose per-mechanism posteriors for a longer horizon"
+    ))
+}
+
+/// Refuse a selected lagged-instrument estimator where its construction does not apply.
+///
+/// The instrument is certified on the unfolded window graph of a single-step pulse or one-step
+/// sustained effect over one series, so it needs the `temporal.iv.unfolded` identifier, one fixed
+/// `TemporalDag` and series data; every other route would not read the selection.
+pub(super) fn refuse_unsupported_temporal_instrument(
+    query: &CausalQuery,
+    data: &DataInput,
+    class: GraphClass,
+    structure_fixed: bool,
+    identifier: Option<IdentifierId>,
+    estimator: Option<EstimatorId>,
+) -> Result<(), CausalError> {
+    let selected = matches!(
+        estimator,
+        Some(EstimatorId::TemporalLaggedInstrument | EstimatorId::BayesianTemporalLaggedInstrument)
+    );
+    if !selected && identifier != Some(IdentifierId::TemporalIvUnfolded) {
+        return Ok(());
+    }
+    let single_window = matches!(
+        query,
+        CausalQuery::TemporalEffect(q) if !q.is_multi_step_sustained() && q.effect_modifiers.is_empty()
+    );
+    if selected
+        && identifier == Some(IdentifierId::TemporalIvUnfolded)
+        && single_window
+        && matches!(data, DataInput::Temporal(_))
+        && class == GraphClass::TemporalDag
+        && structure_fixed
+    {
+        return Ok(());
+    }
+    Err(crate::unsupported_reason!(
+        "option_not_applicable",
+        "the lagged-instrument estimators and the temporal.iv.unfolded identifier go together and \
+         identify a single-step pulse or one-step sustained effect over one series on one fixed \
+         TemporalDag; this route does not read the selection. Next attempt: select the temporal \
+         linear adjustment, or declare the instrument's graph and select both the identifier and a \
+         lagged-instrument estimator"
+    ))
+}
+
+/// Refuse a selected temporal GLM link contrast where its construction does not apply.
+///
+/// The contrast is a mean-scale difference of a Bernoulli temporal model whose rows must be
+/// independent subjects, so it exists for a single-step pulse or one-step sustained effect on one
+/// fixed `TemporalDag` over a panel. One dependent series has no independent-trajectory
+/// information matrix; every other route would not read the selection.
+pub(super) fn refuse_unsupported_temporal_link(
+    query: &CausalQuery,
+    data: &DataInput,
+    class: GraphClass,
+    structure_fixed: bool,
+    estimator: Option<EstimatorId>,
+) -> Result<(), CausalError> {
+    if !matches!(
+        estimator,
+        Some(EstimatorId::TemporalGlmLinkContrast | EstimatorId::BayesianTemporalGlmLinkContrast)
+    ) {
+        return Ok(());
+    }
+    if matches!(data, DataInput::Temporal(_)) {
+        return Err(crate::unsupported_reason!(
+            "route_not_supported",
+            "a single dependent series has no independent-trajectory information matrix, so the \
+             temporal GLM link contrast is not fitted as if its rows were iid. Next attempt: \
+             supply a panel of independent subjects (one trajectory per subject), or use the \
+             temporal linear adjustment, whose uncertainty accounts for serial dependence"
+        ));
+    }
+    let single_window = matches!(
+        query,
+        CausalQuery::TemporalEffect(q) if !q.is_multi_step_sustained() && q.effect_modifiers.is_empty()
+    );
+    if single_window
+        && matches!(data, DataInput::Panel(_))
+        && class == GraphClass::TemporalDag
+        && structure_fixed
+    {
+        return Ok(());
+    }
+    Err(crate::unsupported_reason!(
+        "option_not_applicable",
+        "the temporal GLM link contrast is the mean-scale contrast of a single-step pulse or \
+         one-step sustained effect on one fixed TemporalDag over a panel of independent \
+         subjects; this route does not read the selection. Next attempt: select the temporal \
+         linear adjustment or its Bayesian g-computation for other temporal effects"
+    ))
+}
+
 /// Refuse a non-Gaussian Bayesian likelihood where no executor fits it.
 ///
 /// The one owner of which routes honour [`crate::BayesianConfig::likelihood`].
@@ -834,11 +1039,16 @@ pub(super) fn refuse_unsupported_likelihood(
     data: &DataInput,
     class: GraphClass,
     structure_fixed: bool,
+    estimator: Option<EstimatorId>,
     inference: &InferenceMode,
 ) -> Result<(), CausalError> {
     let InferenceMode::Bayesian(cfg) = inference else {
         return Ok(());
     };
+    // The temporal link contrast reads the Bernoulli likelihood itself and checks it at fit.
+    if estimator == Some(EstimatorId::BayesianTemporalGlmLinkContrast) {
+        return Ok(());
+    }
     if cfg.likelihood == antecedent_prob::BayesLikelihood::GaussianIdentity {
         return Ok(());
     }
@@ -1353,6 +1563,34 @@ impl StudyBuilder {
             self.estimator = None;
         }
         self.inference = mode;
+        self
+    }
+
+    /// Declare serially independent innovations on the Bayesian inference already set.
+    ///
+    /// Equivalent to [`crate::BayesianConfig::white_innovation`]; it leaves a frequentist
+    /// study unchanged, and a route that does not read the premise refuses it at build.
+    #[must_use]
+    pub fn bayesian_white_innovation(
+        mut self,
+        gate: antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate,
+    ) -> Self {
+        if let InferenceMode::Bayesian(cfg) = &mut self.inference {
+            cfg.white_innovation = Some(gate);
+        }
+        self
+    }
+
+    /// Declare the likelihood and prior of a randomized-design Bayesian estimator.
+    ///
+    /// Equivalent to [`crate::BayesianConfig::design_model`]; it leaves a frequentist study
+    /// unchanged, and a route that does not read the declaration ignores nothing silently: the
+    /// estimators that need it refuse its absence.
+    #[must_use]
+    pub fn bayesian_design_model(mut self, model: crate::DesignPosteriorModel) -> Self {
+        if let InferenceMode::Bayesian(cfg) = &mut self.inference {
+            cfg.design_model = Some(model);
+        }
         self
     }
 

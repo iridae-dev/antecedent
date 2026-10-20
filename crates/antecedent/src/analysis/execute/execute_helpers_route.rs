@@ -79,6 +79,8 @@ pub(crate) enum AnalysisRoute {
     LocalPolynomialRatio,
     Survival,
     LongitudinalRegime,
+    SequentialContrast,
+    HistoryMatch,
 }
 
 #[derive(Clone, Copy)]
@@ -181,6 +183,10 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         (DataModality::Tabular, CausalQuery::Survival(_)) => AnalysisRoute::Survival,
         (DataModality::Tabular, CausalQuery::LongitudinalRegime(_)) => {
             AnalysisRoute::LongitudinalRegime
+        }
+        (DataModality::Tabular, CausalQuery::HistoryMatch(_)) => AnalysisRoute::HistoryMatch,
+        (DataModality::Tabular, CausalQuery::SequentialContrast(_)) => {
+            AnalysisRoute::SequentialContrast
         }
         _ => return None,
     })

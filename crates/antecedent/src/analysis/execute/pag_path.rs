@@ -325,6 +325,77 @@ impl super::Study {
         ))
     }
 
+    /// ADMG conditional effect via IDC at the two hard-set levels + functional plug-in
+    /// (bidirected case).
+    ///
+    /// The effect modifiers are free variables of the identified contrast. The evaluator
+    /// reports the contrast averaged over their observed law, the quantity the Dag
+    /// conditional routes report. Validation is `none`: the ATE refuters do not apply to
+    /// an IDC contrast.
+    pub(super) fn execute_admg_conditional(
+        &self,
+        data: &TabularData,
+        admg: &Admg,
+        query: &antecedent_core::ConditionalEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::ADMG)?;
+        if identifier_id != IdentifierId::GeneralId
+            || !matches!(estimator_id, EstimatorId::FunctionalEffect)
+        {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "ADMG ConditionalEffect requires general.id and functional.effect; got \
+                     {identifier_id} and {estimator_id}"
+                ),
+            });
+        }
+        if self.refute != RefuteSuite::None || !self.custom_validators.is_empty() {
+            return Err(CausalError::Unsupported {
+                message: "ADMG ConditionalEffect is licensed at validation none; the ATE \
+                          refuters and custom validators do not apply to an IDC contrast",
+            });
+        }
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                let identification =
+                    crate::analysis::conditional_admg::admg_conditional_identification(
+                        admg, query,
+                    )?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok((identification, estimand))
+            })?;
+        let (estimate, posterior) = self.estimate_functional_effect(
+            data,
+            &estimand,
+            &identification,
+            &[query.inner.treatment, query.inner.outcome],
+            ctx,
+        )?;
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, estimator_id),
+                query.inner.treatment,
+                query.inner.outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                ..Default::default()
+            }),
+        ))
+    }
+
     /// ADMG response via general ID + functional plug-in (bidirected case).
     ///
     /// Bidirected edges stay bidirected. Each grid / Set level is the identified

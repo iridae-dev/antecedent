@@ -7,7 +7,7 @@ use super::{
     IdentifiedResultContext, IdentifierId, InferenceMode, Instant, OverlapPolicy,
     PhysicalExecutionPlan, Strategy, StudyResult, TableView, TabularData, VariableId,
     anomaly_attribution_query_with, attribute_distribution_change, attribute_unit_change,
-    bayesian_draw_count, binary_cf_interventions, counterfactual_ite, elapsed_ns,
+    bayesian_draw_count, binary_cf_interventions, elapsed_ns,
     finish_identified_execute_with_context, fit_gcm, identification_from_cache_or,
     identify_static_query, map_mechanism_fit, mechanism_change_detection, nan_effect,
     parametric_scm_identification, provenance_ids, shared_identification_from_cache_or,
@@ -325,6 +325,9 @@ fn dirichlet_counterfactual_estimate(
     // the same summary that publishes the mean-ITE interval.
     let mut unit_draws = vec![0.0; n_units * n_draws];
     let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x0CF0);
+    // One stream through every draw: a categorical node's rank-preserving noise is drawn once
+    // per posterior draw of the mechanisms, independently across draws.
+    let mut noise_rng = ctx.rng.stream_for(StreamDomain::Counterfactual, 0x0CF1);
     let n = data.row_count();
     for draw in 0..n_draws {
         if ctx.cancellation.is_cancelled() {
@@ -342,8 +345,13 @@ fn dirichlet_counterfactual_estimate(
                 other => CausalError::rejected(other),
             })?;
         let draw_model = base_model.clone().with_mechanisms(store);
-        let draw_ite =
-            counterfactual_ite(draw_model, data, treatment, outcome, active, control, ctx)?;
+        let draw_ite = crate::gcm::counterfactual_ite_with_noise(
+            draw_model,
+            data,
+            (treatment, outcome, active, control),
+            ctx,
+            &mut noise_rng,
+        )?;
         if draw_ite.unit_effects.len() != n_units {
             return Err(CausalError::Compile {
                 message: "counterfactual Bayesian draw changed the unit set".into(),
@@ -393,7 +401,7 @@ fn counterfactual_uncertainty_diagnostic(bayesian: bool) -> Diagnostic {
             "gcm.counterfactual.bayesian",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "Dirichlet row-weight posterior of fitted GCM mechanisms, conditional on the selected families and empirical support; the family selection is made once on the unweighted data and is not revisited per draw. Each draw abducts–acts–predicts on the original units; published unit_effects are the posterior mean of those per-unit ITEs and unit_effect_intervals the equal-tailed posterior quantiles of each unit's ITE draws at the reported level. Both the mean_ite interval and the per-unit intervals carry mechanism-refit uncertainty only: abducted disturbances are recomputed from the observed rows, not drawn, so a per-unit interval is a credible interval for that observed unit's contrast under the fitted mechanism, not a predictive interval for a new unit, and the mean_ite interval is for the average over the observed units, not a population beyond them.",
+            "Dirichlet row-weight posterior of fitted GCM mechanisms, conditional on the selected families and empirical support; the family selection is made once on the unweighted data and is not revisited per draw. Each draw abducts–acts–predicts on the original units, with the factual and counterfactual worlds sharing that draw's abducted disturbances; published unit_effects are the posterior mean of those per-unit ITEs and unit_effect_intervals the equal-tailed posterior quantiles of each unit's ITE draws at the reported level. Disturbances of invertible mechanisms are recomputed from the observed rows under each draw's parameters, not drawn, so for them the intervals carry mechanism-refit uncertainty only. A categorical (many-to-one) node's rank-preserving disturbance is drawn once per posterior draw from one independent stream, so its noise posterior is integrated into the intervals of the units downstream of it, inseparably from the parameter uncertainty (noise_inference=PosteriorNoise in diagnostic gcm.counterfactual says when this applies). A per-unit interval is a credible interval for that observed unit's contrast under the fitted mechanism, not a predictive interval for a new unit, and the mean_ite interval is for the average over the observed units, not a population beyond them.",
         )
     } else {
         Diagnostic::new(
@@ -1292,7 +1300,7 @@ fn counterfactual_posterior(
     assumptions.push(antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
             id: Arc::from("counterfactual.weighted_mechanisms"),
-            description: Arc::from("Dirichlet row-weight posterior of standard mechanism fits, conditional on selected mechanism families and empirical support; abduction is repeated on the original units for every draw. This is not a parametric coefficient-prior posterior. The interval is for mean_ite over the observed units and reflects mechanism-refit uncertainty only; it is not a unit-level predictive interval."),
+            description: Arc::from("Dirichlet row-weight posterior of standard mechanism fits, conditional on selected mechanism families and empirical support; abduction is repeated on the original units for every draw, the factual and counterfactual worlds sharing that draw's disturbances (a categorical node's disturbance is drawn once per posterior draw). This is not a parametric coefficient-prior posterior. The interval is for mean_ite over the observed units and reflects mechanism-refit uncertainty, plus the rank-preserving noise posterior of categorical nodes where present; it is not a unit-level predictive interval."),
         }),
         source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("gcm.fit.bayesian") },
         scope: antecedent_core::AssumptionScope::Estimation,

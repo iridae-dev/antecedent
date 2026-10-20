@@ -9,6 +9,8 @@ mod per_population_discovery_facade;
 mod policy_python_parity;
 #[path = "policy_value_route.rs"]
 mod policy_value_route;
+#[path = "posterior_boundaries_facade.rs"]
+mod posterior_boundaries_facade;
 #[path = "population_license.rs"]
 mod population_license;
 #[path = "portable_predictor_resume.rs"]

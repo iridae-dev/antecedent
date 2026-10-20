@@ -13,7 +13,11 @@ use crate::analysis::missing_data::{self, MissingRoute};
 use antecedent_data::{MissingDeclaration, MissingPolicy};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod bayesian;
 mod weighted;
+
+pub(super) use bayesian::bayesian_panel_did_plan_ids;
+use super::BayesianConfig;
 
 /// Why `design` cannot execute `policy`, if it cannot.
 fn design_refusal(
@@ -51,6 +55,9 @@ pub(crate) struct PanelMissing {
     restricted: bool,
     /// Each contrast uses the units observed in its own periods (unbalanced panel).
     available_case: bool,
+    /// The study's Bayesian configuration: the retained operation reports a posterior, not a
+    /// sampling interval.
+    bayesian: Option<BayesianConfig>,
 }
 
 pub(crate) type CheckedPanelDidOperation =
@@ -171,7 +178,6 @@ impl CheckedPanelDidOperation {
         query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
-            || !matches!(study.inference, InferenceMode::Frequentist)
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
@@ -180,9 +186,16 @@ impl CheckedPanelDidOperation {
             || query.treated.len() != data.row_count()
         {
             return Err(CausalError::Unsupported {
-                message: "panel DiD currently accepts only the graphless two-period panel query with point estimate and cluster standard error",
+                message: "panel DiD currently accepts only the graphless two-period panel query with point estimate and cluster standard error, or its Bayesian posterior",
             });
         }
+        let bayesian = match &study.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                super::bayesian_quasi_common::require_built_in_model(config, "Bayesian panel DiD")?;
+                Some(config.clone())
+            }
+        };
         data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         if let Some(nuisance) = &query.augmented {
             for variable in
@@ -191,7 +204,11 @@ impl CheckedPanelDidOperation {
                 data.schema().get(variable).map_err(CausalError::rejected)?;
             }
         }
-        let (plan_id, identifier, estimator) = panel_did_plan_ids(query.design);
+        let (plan_id, identifier, estimator) = if bayesian.is_some() {
+            bayesian_panel_did_plan_ids(query.design)
+        } else {
+            panel_did_plan_ids(query.design)
+        };
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id
             || !physical.binding().names_wire(identifier, estimator)
@@ -206,7 +223,11 @@ impl CheckedPanelDidOperation {
                 return Err(panel_policy_refusal(declaration.policy, reason));
             }
         }
-        let extra = PanelMissing { declaration: study.missing.clone(), ..PanelMissing::default() };
+        let extra = PanelMissing {
+            declaration: study.missing.clone(),
+            bayesian,
+            ..PanelMissing::default()
+        };
         Ok(Self::freeze(study, query, data, physical, identification, estimand, extra))
     }
 
@@ -226,7 +247,7 @@ impl CheckedPanelDidOperation {
         let y = column.values.as_slice();
         let observed: Vec<bool> = (0..y.len()).map(|i| column.validity.is_valid(i)).collect();
         if observed.iter().all(|seen| *seen) {
-            let mut result = self.execute_rows(data, y)?;
+            let mut result = self.execute_rows(data, y, ctx)?;
             let keep = vec![true; y.len()];
             result.missing_data = Some(self.missing_report(data, &observed, &keep)?);
             return Ok(result);
@@ -247,7 +268,7 @@ impl CheckedPanelDidOperation {
             extra: PanelMissing { restricted: true, available_case, ..self.extra.clone() },
             ..self.clone()
         };
-        let mut result = restricted.execute_rows(data, &restricted_y)?;
+        let mut result = restricted.execute_rows(data, &restricted_y, ctx)?;
         result.missing_data = Some(self.missing_report(data, &observed, &keep)?);
         Ok(result)
     }
@@ -342,7 +363,15 @@ impl CheckedPanelDidOperation {
         Ok(missing_data::report(MissingRoute::Panel, declared, Arc::from([]), accounting))
     }
 
-    fn execute_rows(&self, data: &TabularData, y: &[f64]) -> Result<StudyResult, CausalError> {
+    fn execute_rows(
+        &self,
+        data: &TabularData,
+        y: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if self.extra.bayesian.is_some() {
+            return self.execute_bayesian(data, y, ctx);
+        }
         if data.storage().weights().is_some()
             && self.query.design != antecedent_core::DidSamplingDesign::BalancedPanel
         {

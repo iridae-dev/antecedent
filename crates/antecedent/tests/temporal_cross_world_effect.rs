@@ -115,8 +115,12 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                 drop(builder);
                 drop(study);
                 let result = prepared.estimate_retained(&ctx).unwrap();
+                // The Bayesian unit counterfactual is the posterior of the slope times the
+                // contrast; every other cell is the linear unfolded point.
+                let posterior_cell = bayesian && key == "counterfactual";
                 assert!(
-                    (result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance,
+                    (result.estimate.as_effect().unwrap().ate - truth).abs()
+                        < if posterior_cell { tolerance.max(0.25) } else { tolerance },
                     "{key} accepted={accepted} bayesian={bayesian} ate={}",
                     result.estimate.as_effect().unwrap().ate
                 );
@@ -126,12 +130,21 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                         .iter()
                         .any(|d| { d.code.as_ref() == "estimate.temporal.cross_world" })
                 );
-                assert!(result.posterior.is_none());
-                if let Some(binding) = &result.interval {
-                    assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
+                assert_eq!(result.posterior.is_some(), posterior_cell, "{key}");
+                if !posterior_cell {
+                    if let Some(binding) = &result.interval {
+                        assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
+                    }
                 }
                 let plan = &result.logical_plan;
-                assert_eq!(plan.estimator.as_deref(), Some("temporal.linear.adjustment"));
+                assert_eq!(
+                    plan.estimator.as_deref(),
+                    Some(if posterior_cell {
+                        "bayesian.temporal.gcomp"
+                    } else {
+                        "temporal.linear.adjustment"
+                    })
+                );
                 let rule = result
                     .identification
                     .arena

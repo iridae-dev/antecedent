@@ -52,8 +52,8 @@ pub(super) use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 pub(super) use crate::callback_plan::mark_python_callback_plan;
 pub(super) use crate::error::CausalError;
 pub(super) use crate::gcm::{
-    anomaly_attribution_query_with, attribute_distribution_change, attribute_unit_change,
-    counterfactual_ite, fit_gcm, map_mechanism_fit, mechanism_change_detection,
+    anomaly_attribution_query_with, attribute_distribution_change, attribute_unit_change, fit_gcm,
+    map_mechanism_fit, mechanism_change_detection,
 };
 pub(super) use crate::inference::{
     BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,
@@ -255,6 +255,7 @@ pub(crate) use checked_bayesian_dag_conditional::{
 };
 mod bayesian_path;
 mod bayesian_robust_ate_path;
+mod bayesian_quantile_path;
 mod bayesian_specialist_path;
 mod checked_bayesian_static_mediation;
 mod checked_continuous_dose;
@@ -285,6 +286,10 @@ pub(crate) use checked_local_polynomial_ratio::{
     CheckedLocalPolynomialRatioOperation, local_polynomial_ratio_identification,
 };
 pub(crate) use checked_longitudinal_regime::CheckedLongitudinalRegimeOperation;
+mod checked_sequential_contrast;
+pub(crate) use checked_sequential_contrast::CheckedSequentialContrastOperation;
+mod checked_history_match;
+pub(crate) use checked_history_match::CheckedHistoryMatchOperation;
 pub(crate) use checked_panel_did::CheckedPanelDidOperation;
 pub(crate) use checked_panel_did::panel_did_graphless_key;
 pub(crate) use checked_panel_did::panel_did_identification;
@@ -317,6 +322,8 @@ mod dispatch;
 mod identified_set_diagnostics;
 mod multi_env_path;
 mod pag_path;
+mod panel_link_path;
+mod temporal_iv_path;
 mod panel_path;
 mod response_path;
 pub(crate) use checked_static_response::{
@@ -325,6 +332,7 @@ pub(crate) use checked_static_response::{
 };
 pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectExecution;
 pub(crate) use temporal_path::checked_temporal_response::CheckedTemporalResponseExecution;
+mod bayesian_quasi_common;
 mod checked_bayesian_specialist;
 #[path = "exec_checked_bayesian_temporal_class_effect.rs"]
 mod checked_bayesian_temporal_class_effect;

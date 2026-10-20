@@ -46,10 +46,33 @@ pub(super) fn distribution(cx: &SealContext<'_>) -> SealOutcome {
     Ok(sealed.map(PreparedExecution::Distribution))
 }
 
+/// The mixed-graph target a retained functional effect answers: the data, the average-effect
+/// query the program is prepared against, and the conditional effect it stands for, if any.
+type FunctionalEffectTarget<'a> = (
+    &'a antecedent_data::TabularData,
+    antecedent_core::AverageEffectQuery,
+    Option<antecedent_core::ConditionalEffectQuery>,
+);
+
 pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
-    let sealed = match (cx.route, analysis.identification_cache.as_ref()) {
-        (Some(RouteInput::StaticAteMixed { data, query }), Some(cache))
+    let target: Option<FunctionalEffectTarget<'_>> = match cx.route {
+        Some(RouteInput::StaticAteMixed { data, query })
+            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved) =>
+        {
+            Some((data, query.clone(), None))
+        }
+        Some(RouteInput::ConditionalMixed { data, query })
+            if matches!(query.inner.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.inner.target_population, TargetPopulation::AllObserved) =>
+        {
+            Some((data, query.inner.clone(), Some(query.clone())))
+        }
+        _ => None,
+    };
+    let sealed = match (target, analysis.identification_cache.as_ref()) {
+        (Some((data, query, conditional)), Some(cache))
             if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
                 && cache.estimand.method_kind().ok()
@@ -58,9 +81,7 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
                     RouteDefaults::ADMG,
                     IdentifierId::GeneralId,
                     EstimatorId::FunctionalEffect,
-                )
-                && matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                && matches!(query.target_population, TargetPopulation::AllObserved) =>
+                ) =>
         {
             let mut fitter = antecedent_estimate::FunctionalEffect::new();
             fitter.bootstrap_replicates = analysis.bootstrap_replicates;
@@ -72,7 +93,8 @@ pub(super) fn functional_effect(cx: &SealContext<'_>) -> SealOutcome {
                 &[query.treatment, query.outcome],
             )?;
             Some(CheckedFunctionalEffectOperation {
-                query: query.clone(),
+                query,
+                conditional,
                 cache: Arc::clone(cache),
                 fitter,
                 prepared,

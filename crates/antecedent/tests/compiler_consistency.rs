@@ -122,13 +122,13 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
 
 /// Estimators that never run under the named inference mode on a static
 /// `AverageEffect`. Every other estimator either implements the requested
-/// mode or is refused for a different reason (identifier, query, data).
+/// mode or is refused for a different reason (identifier, query, data). The
+/// two matching estimators are refused under Bayesian inference with the typed
+/// matching-posterior boundary (`route_not_supported`), not as a mismatch.
 const REFUSED_UNDER_BAYESIAN: &[&str] = &[
     "linear.adjustment.ate",
     "propensity.weighting",
-    "propensity.matching",
     "propensity.stratification",
-    "distance.matching",
     "aipw",
     "glm.adjustment",
     "frontdoor.linear_two_stage",

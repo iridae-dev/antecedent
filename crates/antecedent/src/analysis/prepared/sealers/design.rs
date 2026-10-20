@@ -159,3 +159,39 @@ pub(super) fn longitudinal_regime(cx: &SealContext<'_>) -> SealOutcome {
     };
     Ok(sealed.map(PreparedExecution::LongitudinalRegime))
 }
+
+pub(super) fn history_match(cx: &SealContext<'_>) -> SealOutcome {
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match cx.route {
+        Some(RouteInput::HistoryMatch { data, .. })
+            if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none() =>
+        {
+            Some(crate::analysis::execute::CheckedHistoryMatchOperation::checked(
+                analysis, data, plan,
+            )?)
+        }
+        _ => None,
+    };
+    Ok(sealed.map(PreparedExecution::HistoryMatch))
+}
+
+pub(super) fn sequential_contrast(cx: &SealContext<'_>) -> SealOutcome {
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match cx.route {
+        Some(RouteInput::SequentialContrast { data, .. })
+            if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none() =>
+        {
+            Some(crate::analysis::execute::CheckedSequentialContrastOperation::checked(
+                analysis, data, plan,
+            )?)
+        }
+        _ => None,
+    };
+    Ok(sealed.map(PreparedExecution::SequentialContrast))
+}

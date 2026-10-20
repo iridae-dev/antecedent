@@ -120,6 +120,8 @@ sealed_executions! {
     LocalPolynomialRatio(crate::analysis::execute::CheckedLocalPolynomialRatioOperation),
     Survival(crate::analysis::execute::CheckedSurvivalOperation),
     LongitudinalRegime(crate::analysis::execute::CheckedLongitudinalRegimeOperation),
+    SequentialContrast(crate::analysis::execute::CheckedSequentialContrastOperation),
+    HistoryMatch(crate::analysis::execute::CheckedHistoryMatchOperation),
     TemporalClassEffect(crate::analysis::execute::CheckedTemporalClassEffectExecution),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(crate::analysis::execute::CheckedBayesianDagAteExecution),

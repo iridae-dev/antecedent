@@ -1063,6 +1063,43 @@ pub fn counterfactual_ite(
 ) -> Result<IteResult, CausalError> {
     let engine = CounterfactualEngine::new(model);
     let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
+    ite_from_abduction(&engine, exo, treatment, outcome, (active, control), ctx)
+}
+
+/// [`counterfactual_ite`] with the noise of many-to-one (categorical) nodes drawn from `rng`.
+///
+/// One posterior draw of the mechanisms owns one abduction: a categorical node's disturbance is
+/// uniform within the factual category's CDF bin given that draw's parameters, so a Bayesian
+/// refit loop passes one stream through every draw and the noise posterior varies with the
+/// parameters instead of repeating one seeded draw. Invertible mechanisms consume no randomness
+/// and give the same unit effects as [`counterfactual_ite`].
+///
+/// # Errors
+///
+/// Abduction / prediction failures.
+pub(crate) fn counterfactual_ite_with_noise(
+    model: CompiledCausalModel,
+    data: &TabularData,
+    contrast: (VariableId, VariableId, f64, f64),
+    ctx: &ExecutionContext,
+    rng: &mut CausalRng,
+) -> Result<IteResult, CausalError> {
+    let (treatment, outcome, active, control) = contrast;
+    let engine = CounterfactualEngine::new(model);
+    let exo = engine.abduct_with_rng(data, AbductionMissingPolicy::Error, rng)?;
+    ite_from_abduction(&engine, exo, treatment, outcome, (active, control), ctx)
+}
+
+/// Replay one abduced noise state under both interventions and summarize the unit effects.
+fn ite_from_abduction(
+    engine: &CounterfactualEngine,
+    exo: ExogenousPosterior,
+    treatment: VariableId,
+    outcome: VariableId,
+    levels: (f64, f64),
+    ctx: &ExecutionContext,
+) -> Result<IteResult, CausalError> {
+    let (active, control) = levels;
     let mut ws = MechanismWorkspace::default();
     let ite = engine.individual_treatment_effect(
         &exo,

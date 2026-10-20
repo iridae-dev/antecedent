@@ -482,6 +482,10 @@ pub(crate) fn bayesian_binding(
             )
         }),
         draw_controls: draw_controls.map(|controls| controls.as_str().into()),
+        design_model: cfg.design_model.as_ref().map(crate::DesignPosteriorModel::identity),
+        white_innovation: cfg.white_innovation.map(|gate| {
+            format!("ljung_box:max_lag={}:level_bits={:016x}", gate.max_lag, gate.level.to_bits())
+        }),
     }
 }
 

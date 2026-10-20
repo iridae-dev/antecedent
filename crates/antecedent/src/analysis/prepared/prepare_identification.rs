@@ -211,6 +211,25 @@ impl Study {
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::ConditionalEffect(query) => {
+                // A latent-confounded ADMG identifies the contrast by IDC at the two levels;
+                // `execute_admg_conditional` reads this cache. A latent-free ADMG runs the
+                // Dag route, which keeps no prepare-time cache.
+                if let GraphRef::Admg(admg) = self.graph.graph_ref() {
+                    if crate::analysis::execute::admg_has_bidirected(admg) {
+                        let identification =
+                            crate::analysis::conditional_admg::admg_conditional_identification(
+                                admg, query,
+                            )?;
+                        let estimand =
+                            identification.estimands.first().cloned().ok_or_else(|| {
+                                CausalError::Compile {
+                                    message: "ADMG conditional identification returned no estimand"
+                                        .into(),
+                                }
+                            })?;
+                        return Ok(Some(CachedStaticIdentification { identification, estimand }));
+                    }
+                }
                 // Mirrors execute_conditional / execute_bayesian: identifier is
                 // builder-selected or defaults to backdoor; estimator follows inference.
                 let Some(graph) = self.graph.as_dag().cloned() else {
@@ -564,6 +583,21 @@ impl Study {
                         dose: single_step_dose(query)?,
                     },
                 )?))
+            }
+            CausalQuery::TemporalEffect(query)
+                if self.identifier == Some(crate::strategy_table::IdentifierId::TemporalIvUnfolded) =>
+            {
+                let found = crate::analysis::temporal_iv_identification::identify_temporal_instrument(
+                    graph, query,
+                )?;
+                Ok(Some(CachedTemporalIdentification {
+                    by_horizon: Arc::from([CachedTemporalHorizonIdentification {
+                        horizon: query.horizon_steps,
+                        identification: found.identification,
+                        estimand: found.estimand,
+                        indexer: found.indexer,
+                    }]),
+                }))
             }
             CausalQuery::TemporalEffect(query) => {
                 let id_res = TemporalBackdoorIdentifier::new()

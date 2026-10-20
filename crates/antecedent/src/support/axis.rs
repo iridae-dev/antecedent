@@ -122,7 +122,7 @@ pub(super) fn naming_class(matrix: &str) -> Option<GraphClass> {
 /// `analysis/execute/compile.rs` wires it for — applying it more broadly would
 /// license cells the engine cannot actually run (see the `ResponseCurve` note).
 ///
-/// - **ADMG with no bidirected edges, under `AverageEffect`**: `compile.rs`'s
+/// - **ADMG with no bidirected edges, under `AverageEffect` or `ConditionalEffect`**: `compile.rs`'s
 ///   `(AverageEffect, GraphClass::Admg)` arm and `dispatch.rs`'s
 ///   `GraphClass::Admg` arm both branch on [`Admg::has_bidirected`](antecedent_graph::Admg::has_bidirected) and run the
 ///   *static DAG* path when it is false — the Dag cell's license is the
@@ -147,7 +147,10 @@ pub(super) fn naming_class(matrix: &str) -> Option<GraphClass> {
 #[must_use]
 pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) -> GraphClass {
     match (graph.graph_ref(), query) {
-        (GraphRef::Admg(admg), CausalQuery::AverageEffect(_)) => {
+        (
+            GraphRef::Admg(admg),
+            CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_),
+        ) => {
             if admg.has_bidirected() {
                 GraphClass::Admg
             } else {

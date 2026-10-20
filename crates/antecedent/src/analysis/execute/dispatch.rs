@@ -308,6 +308,14 @@ impl super::Study {
                     *id == IdentifierId::GeneralizedAdjustment
                 } else {
                     *id == IdentifierId::TemporalBackdoorUnfolded
+                        || (*id == IdentifierId::TemporalIvUnfolded
+                            && matches!(
+                                self.estimator,
+                                Some(
+                                    EstimatorId::TemporalLaggedInstrument
+                                        | EstimatorId::BayesianTemporalLaggedInstrument
+                                )
+                            ))
                 };
                 if !ok {
                     return Err(CausalError::Compile {
@@ -324,6 +332,13 @@ impl super::Study {
                 );
                 let bayesian = self.inference.is_bayesian();
                 let ok = *est == EstimatorId::TemporalLinearAdjustment
+                    || matches!(
+                        est,
+                        EstimatorId::TemporalGlmLinkContrast
+                            | EstimatorId::BayesianTemporalGlmLinkContrast
+                            | EstimatorId::TemporalLaggedInstrument
+                            | EstimatorId::BayesianTemporalLaggedInstrument
+                    )
                     || (multi_step && *est == EstimatorId::TemporalSequentialGcomp)
                     || (bayesian && !multi_step && *est == EstimatorId::BayesianTemporalGcomp);
                 if !ok {
@@ -407,7 +422,12 @@ impl super::Study {
             .as_ref()
             .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
         {
-            self.resolve_id_est_ids(IdentifierId::GeneralizedAdjustment, EstimatorId::Aipw)
+            let default = if self.inference.is_bayesian() {
+                EstimatorId::BayesianGcomp
+            } else {
+                EstimatorId::Aipw
+            };
+            self.resolve_id_est_ids(IdentifierId::GeneralizedAdjustment, default)
         } else {
             let identifier = self.identifier.unwrap_or(DEFAULT_ADMG_IDENTIFIER_ID);
             let estimator = self.caller_selected_estimator().unwrap_or(DEFAULT_ADMG_ESTIMATOR_ID);
@@ -737,6 +757,12 @@ impl super::Study {
         let graph = physical.temporal_graph().ok_or(CausalError::Compile {
             message: "Ready panel plan missing resolved graph".into(),
         })?;
+        if matches!(
+            self.estimator,
+            Some(EstimatorId::TemporalGlmLinkContrast | EstimatorId::BayesianTemporalGlmLinkContrast)
+        ) {
+            return self.execute_panel_link(panel, graph, q, physical, ctx);
+        }
         self.execute_panel(panel, graph, q, physical, ctx)
     }
 
@@ -854,6 +880,52 @@ impl super::Study {
         Ok(result)
     }
 
+    /// The attribution and change routes over a supplied static DAG.
+    fn execute_tabular_attribution_route(
+        &self,
+        route: AnalysisRoute,
+        data: &TabularData,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        match route {
+            AnalysisRoute::Anomaly => {
+                let CausalQuery::AnomalyAttribution(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
+                let graph = self.require_execute_dag(
+                    "AnomalyAttribution execute requires a supplied static DAG",
+                )?;
+                self.execute_anomaly(data, graph, q, physical, ctx)
+            }
+            AnalysisRoute::ChangeAttribution => {
+                let CausalQuery::ChangeAttribution(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
+                let graph = self.require_execute_dag(
+                    "ChangeAttribution execute requires a supplied static DAG",
+                )?;
+                self.execute_change_attribution(data, graph, q, physical, ctx)
+            }
+            AnalysisRoute::MechanismChange => {
+                let CausalQuery::MechanismChange(q) = &self.query else {
+                    return Err(route_mismatch());
+                };
+                let graph = self.require_execute_dag(
+                    "MechanismChange execute requires a supplied static DAG",
+                )?;
+                self.execute_mechanism_change(data, graph, q, physical, ctx)
+            }
+            AnalysisRoute::UnitChange => {
+                let CausalQuery::UnitChange(q) = &self.query else { return Err(route_mismatch()) };
+                let graph =
+                    self.require_execute_dag("UnitChange execute requires a supplied static DAG")?;
+                self.execute_unit_change(data, graph, q, physical, ctx)
+            }
+            _ => Err(route_mismatch()),
+        }
+    }
+
     fn execute_tabular_route_rows(
         &self,
         route: AnalysisRoute,
@@ -897,38 +969,11 @@ impl super::Study {
                     .require_execute_dag("Counterfactual execute requires a supplied static DAG")?;
                 self.execute_counterfactual(data, graph, q, physical, ctx)
             }
-            AnalysisRoute::Anomaly => {
-                let CausalQuery::AnomalyAttribution(q) = &self.query else {
-                    return Err(route_mismatch());
-                };
-                let graph = self.require_execute_dag(
-                    "AnomalyAttribution execute requires a supplied static DAG",
-                )?;
-                self.execute_anomaly(data, graph, q, physical, ctx)
-            }
-            AnalysisRoute::ChangeAttribution => {
-                let CausalQuery::ChangeAttribution(q) = &self.query else {
-                    return Err(route_mismatch());
-                };
-                let graph = self.require_execute_dag(
-                    "ChangeAttribution execute requires a supplied static DAG",
-                )?;
-                self.execute_change_attribution(data, graph, q, physical, ctx)
-            }
-            AnalysisRoute::MechanismChange => {
-                let CausalQuery::MechanismChange(q) = &self.query else {
-                    return Err(route_mismatch());
-                };
-                let graph = self.require_execute_dag(
-                    "MechanismChange execute requires a supplied static DAG",
-                )?;
-                self.execute_mechanism_change(data, graph, q, physical, ctx)
-            }
-            AnalysisRoute::UnitChange => {
-                let CausalQuery::UnitChange(q) = &self.query else { return Err(route_mismatch()) };
-                let graph =
-                    self.require_execute_dag("UnitChange execute requires a supplied static DAG")?;
-                self.execute_unit_change(data, graph, q, physical, ctx)
+            AnalysisRoute::Anomaly
+            | AnalysisRoute::ChangeAttribution
+            | AnalysisRoute::MechanismChange
+            | AnalysisRoute::UnitChange => {
+                self.execute_tabular_attribution_route(route, data, physical, ctx)
             }
             AnalysisRoute::Transport => {
                 let CausalQuery::Transport(q) = &self.query else { return Err(route_mismatch()) };
@@ -950,6 +995,10 @@ impl super::Study {
             AnalysisRoute::Survival => self.execute_survival(data, physical, ctx),
             AnalysisRoute::LongitudinalRegime => {
                 self.execute_longitudinal_regime(data, physical, ctx)
+            }
+            AnalysisRoute::HistoryMatch => self.execute_history_match(data, physical, ctx),
+            AnalysisRoute::SequentialContrast => {
+                self.execute_sequential_contrast(data, physical, ctx)
             }
             AnalysisRoute::TemporalMediation
             | AnalysisRoute::TemporalEffect
@@ -1027,6 +1076,9 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let CausalQuery::AverageEffect(q) = &self.query else { return Err(route_mismatch()) };
         if let Some(background) = &self.tiered {
+            if self.inference.is_bayesian() {
+                return self.execute_tiered_bayesian_average(data, q, physical, ctx, background);
+            }
             let (identifier, estimator) = physical.binding().resolve(RouteDefaults::STATIC_ATE)?;
             return self.execute_tiered_average(
                 data,
@@ -1123,7 +1175,7 @@ impl super::Study {
         }
     }
 
-    /// Conditional-effect execution: Dag, or the Cpdag / Pag class route.
+    /// Conditional-effect execution: Dag, the Cpdag / Pag class route, or an Admg.
     fn execute_tabular_conditional_route(
         &self,
         data: &TabularData,
@@ -1141,8 +1193,25 @@ impl super::Study {
             GraphClass::Cpdag | GraphClass::Pag => {
                 self.execute_class_conditional(data, q, physical, ctx)
             }
+            GraphClass::Admg => match self.graph.graph_ref() {
+                GraphRef::Admg(admg) if admg_has_bidirected(admg) => {
+                    self.execute_admg_conditional(data, admg, q, physical, ctx)
+                }
+                GraphRef::Admg(_) => {
+                    let graph = physical.static_graph().ok_or(CausalError::Compile {
+                        message: "Ready ADMG (DAG-coerced) conditional plan missing resolved \
+                                  static DAG"
+                            .into(),
+                    })?;
+                    self.execute_conditional(data, graph, q, physical, ctx)
+                }
+                _ => Err(route_mismatch()),
+            },
             _ => Err(CausalError::Unsupported {
-                message: "ConditionalEffect execute requires a Dag, Cpdag, or Pag",
+                message: "ConditionalEffect execute requires a Dag, Cpdag, Pag, or Admg; a \
+                          TemporalAdmg contrast is not identified (use TemporalConditionalPulse \
+                          or TemporalConditionalSustained on a TemporalDag, or supply the \
+                          static Admg for the contemporaneous conditional effect)",
             }),
         }
     }
@@ -2124,7 +2193,11 @@ impl super::Study {
         // conjugate model; the one-shot facade must not rebuild one.
         let specialist_estimator = matches!(
             selected_estimator,
-            Some(EstimatorId::BayesianIvJointLinear | EstimatorId::BayesianRdLocalLinear)
+            Some(
+                EstimatorId::BayesianIvJointLinear
+                    | EstimatorId::BayesianRdLocalLinear
+                    | EstimatorId::BayesianRandomizedQuantile
+            )
         );
         if specialist_estimator
             && self.plain_fixed_route()
@@ -2133,7 +2206,9 @@ impl super::Study {
             && self.refute == RefuteSuite::None
         {
             if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
-                if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                if (matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                    || (query.outcome_functional.quantile_level().is_some()
+                        && selected_estimator == Some(EstimatorId::BayesianRandomizedQuantile)))
                     && matches!(
                         query.target_population,
                         antecedent_core::TargetPopulation::AllObserved

@@ -14,6 +14,7 @@ use crate::graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_core::{
     AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, InterferenceQuery,
     InterventionalDistributionQuery, LocalPolynomialRatioQuery, LongitudinalRegimeQuery,
+    HistoryMatchQuery, SequentialContrastQuery,
     MediationQuery, NestedCounterfactualQuery, PanelDidQuery, PathSpecificEffectQuery,
     PolicyValueQuery, RandomizedEffectQuery, ResponseQuery, SurvivalQuery, SyntheticControlQuery,
     TemporalEffectQuery, TransportQuery,
@@ -97,6 +98,12 @@ pub(crate) enum RouteInput<'a> {
         data: &'a TabularData,
         query: &'a ConditionalEffectQuery,
         pag: &'a Pag,
+    },
+    /// A conditional effect on a mixed graph. The cell covers both mixed classes so that the
+    /// temporal one reaches its typed refusal instead of the generic combination refusal.
+    ConditionalMixed {
+        data: &'a TabularData,
+        query: &'a ConditionalEffectQuery,
     },
     TemporalEffectClass {
         data: &'a TimeSeriesData,
@@ -197,6 +204,14 @@ pub(crate) enum RouteInput<'a> {
     LongitudinalRegime {
         data: &'a TabularData,
         query: &'a LongitudinalRegimeQuery,
+    },
+    SequentialContrast {
+        data: &'a TabularData,
+        query: &'a SequentialContrastQuery,
+    },
+    HistoryMatch {
+        data: &'a TabularData,
+        query: &'a HistoryMatchQuery,
     },
     GcmDag {
         data: &'a TabularData,
@@ -324,6 +339,9 @@ fn static_route_input<'a>(
         }
         (AnalysisRoute::Conditional, GraphRef::Pag(pag)) => {
             RouteInput::ConditionalPag { data: tabular(study), query: conditional(study), pag }
+        }
+        (AnalysisRoute::Conditional, GraphRef::Admg(_) | GraphRef::TemporalAdmg(_)) => {
+            RouteInput::ConditionalMixed { data: tabular(study), query: conditional(study) }
         }
         _ => return None,
     })
@@ -470,6 +488,12 @@ fn design_route_input<'a>(
                 query: longitudinal_regime(study),
             }
         }
+        (AnalysisRoute::HistoryMatch, GraphRef::RandomizedTrial) => {
+            RouteInput::HistoryMatch { data: tabular(study), query: history_match(study) }
+        }
+        (AnalysisRoute::SequentialContrast, GraphRef::RandomizedTrial) => {
+            RouteInput::SequentialContrast { data: tabular(study), query: sequential_contrast(study) }
+        }
         _ => return None,
     })
 }
@@ -603,6 +627,16 @@ fn local_polynomial_ratio(study: &Study) -> &LocalPolynomialRatioQuery {
 
 fn survival(study: &Study) -> &SurvivalQuery {
     let CausalQuery::Survival(query) = &study.query else { unreachable!() };
+    query
+}
+
+fn history_match(study: &Study) -> &HistoryMatchQuery {
+    let CausalQuery::HistoryMatch(query) = &study.query else { unreachable!() };
+    query
+}
+
+fn sequential_contrast(study: &Study) -> &SequentialContrastQuery {
+    let CausalQuery::SequentialContrast(query) = &study.query else { unreachable!() };
     query
 }
 

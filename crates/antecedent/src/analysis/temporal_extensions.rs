@@ -30,6 +30,7 @@ use antecedent_estimate::temporal_refresh::{
     TemporalWindowIdentity, accept_refresh, refresh_held,
 };
 use antecedent_io::IoError;
+use antecedent_io::period_refresh_artifact::{PeriodRefreshArtifactWire, PeriodRefreshReplay};
 use antecedent_io::temporal_initial_state_artifact::{
     InitialStateReplay, PanelSummaryWire, TemporalInitialStateArtifactWire,
     TemporalInitialStateConsumeLimits, TemporalPremisesWire,
@@ -345,6 +346,21 @@ pub fn consume_temporal_refresh_artifact(
     limits: &TemporalInitialStateConsumeLimits,
 ) -> Result<(TemporalRefreshArtifactWire, RefreshReplay), IoError> {
     TemporalRefreshArtifactWire::consume(bytes, limits)
+}
+
+/// Independently recompute a period-refresh ledger from its retained blocks.
+///
+/// The consumer re-decides every period (extend or restart) with the window-survival rules,
+/// refuses an overlapping period, a reused snapshot, and a row or block used twice, rebuilds
+/// each block's digest, and recomputes the posterior and the least-squares fit from the rows
+/// alone. A stored result the recomputation does not reproduce is refused.
+///
+/// # Errors
+/// Any seal, prior, block, period, outcome or stored-result mismatch.
+pub fn consume_period_refresh_artifact(
+    bytes: &[u8],
+) -> Result<(PeriodRefreshArtifactWire, PeriodRefreshReplay), IoError> {
+    PeriodRefreshArtifactWire::consume(bytes)
 }
 
 /// The estimand a dependent interval is requested for.

@@ -101,8 +101,8 @@ pub use super::{
 pub use super::{CpdagEvaluation, EmpiricalScenarioInput, EvidenceSearch, SequenceEndpoints};
 pub use super::{
     IntervalEstimand, TemporalInitialState, TemporalWindow,
-    consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
-    temporal_dependent_interval,
+    consume_period_refresh_artifact, consume_temporal_initial_state_artifact,
+    consume_temporal_refresh_artifact, temporal_dependent_interval,
 };
 pub use super::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,

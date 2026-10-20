@@ -4,6 +4,7 @@ use crate::graph::{Cpdag, Dag, Pag};
 use antecedent_core::{
     AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, InterferenceQuery,
     InterventionalDistributionQuery, LocalPolynomialRatioQuery, LongitudinalRegimeQuery,
+    HistoryMatchQuery, SequentialContrastQuery,
     MediationQuery, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
     RandomizedEffectQuery, SurvivalQuery, SyntheticControlQuery, TransportQuery,
 };
@@ -26,6 +27,10 @@ use super::{
     compile_logical_temporal_class_effect, compile_logical_temporal_effect,
     compile_logical_temporal_effect_classified, compile_logical_temporal_response, gcm_query_vars,
     reject_dag_only_on_pag, validate_static_pair,
+};
+use crate::analysis::conditional_admg::{
+    FrequentistAdmgConditional, compile_temporal_admg_conditional_bayesian,
+    compile_temporal_admg_conditional_frequentist,
 };
 
 #[path = "lowered_route.rs"]
@@ -148,6 +153,9 @@ impl super::Study {
             RouteInput::ConditionalPag { data, query: q, pag } => {
                 self.compile_logical_conditional_pag(data, q, pag)
             }
+            RouteInput::ConditionalMixed { data, query: q } => {
+                self.compile_logical_conditional_mixed(data, q)
+            }
             RouteInput::TemporalMediationDag { data, query: q, graph } => {
                 self.compile_logical_temporal_mediation_dag(data, q, graph)
             }
@@ -187,6 +195,12 @@ impl super::Study {
             RouteInput::Survival { data, query: q } => self.compile_logical_survival(data, q),
             RouteInput::LongitudinalRegime { data, query: q } => {
                 self.compile_logical_longitudinal_regime(data, q)
+            }
+            RouteInput::SequentialContrast { data, query: q } => {
+                self.compile_logical_sequential_contrast(data, q)
+            }
+            RouteInput::HistoryMatch { data, query: q } => {
+                self.compile_logical_history_match(data, q)
             }
             RouteInput::GcmDag { data, .. } => self.compile_logical_gcm(
                 data.row_count() as u64,
@@ -432,7 +446,14 @@ impl super::Study {
             false,
             classification,
         )?;
-        if q.is_multi_step_sustained() {
+        if let Some(
+            instrument @ (EstimatorId::TemporalLaggedInstrument
+            | EstimatorId::BayesianTemporalLaggedInstrument),
+        ) = self.estimator
+        {
+            plan.record.identifier = Some(Arc::from(IdentifierId::TemporalIvUnfolded.as_str()));
+            plan.record.estimator = Some(Arc::from(instrument.as_str()));
+        } else if q.is_multi_step_sustained() {
             plan.record.estimator = Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
         } else if self.inference.is_bayesian() && q.effect_modifiers.is_empty() {
             plan.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
@@ -512,7 +533,13 @@ impl super::Study {
             false,
             DataClassification::Panel,
         )?;
-        if self.inference.is_bayesian() {
+        if let Some(
+            link @ (EstimatorId::TemporalGlmLinkContrast
+            | EstimatorId::BayesianTemporalGlmLinkContrast),
+        ) = self.estimator
+        {
+            plan.record.estimator = Some(Arc::from(link.as_str()));
+        } else if self.inference.is_bayesian() {
             plan.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         Ok(plan)
@@ -614,6 +641,93 @@ impl super::Study {
         plan.record.plan_id = Arc::from(PlanId::StaticPagConditional.as_str());
         plan.query = CausalQuery::ConditionalEffect(q.clone());
         Ok(plan)
+    }
+
+    /// Identifier and estimator of a conditional effect on a latent-confounded ADMG. The
+    /// identification is IDC at the two hard-set levels and the estimator evaluates the
+    /// identified contrast; a different pair would answer another question.
+    fn resolve_conditional_admg_ids(&self) -> Result<(IdentifierId, EstimatorId), CausalError> {
+        let (identifier, estimator) = self.resolve_admg_ids();
+        if identifier != FrequentistAdmgConditional::IDENTIFIER
+            || estimator != FrequentistAdmgConditional::ESTIMATOR
+        {
+            return Err(crate::compile_reason!(
+                "strategy_incompatible",
+                "an ADMG ConditionalEffect is identified by {:?} and evaluated by {:?}; got \
+                 identifier {:?} and estimator {:?}",
+                FrequentistAdmgConditional::IDENTIFIER.as_str(),
+                FrequentistAdmgConditional::ESTIMATOR.as_str(),
+                identifier.as_str(),
+                estimator.as_str()
+            ));
+        }
+        Ok((identifier, estimator))
+    }
+
+    /// Logical plan of a conditional effect on a mixed graph.
+    ///
+    /// A latent-confounded `Admg` compiles the IDC contrast; a latent-free one is the
+    /// Dag conditional route. A `TemporalAdmg` is refused: its contrast is a temporal one
+    /// and is not identified, and the contemporaneous projection answers a different target.
+    fn compile_logical_conditional_mixed(
+        &self,
+        data: &TabularData,
+        q: &ConditionalEffectQuery,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        if let GraphRef::TemporalAdmg(temporal) = self.graph.graph_ref() {
+            let refusal = if self.inference.is_bayesian() {
+                compile_temporal_admg_conditional_bayesian(temporal, q).map(drop)
+            } else {
+                compile_temporal_admg_conditional_frequentist(temporal, q).map(drop)
+            };
+            refusal?;
+            return Err(CausalError::Compile {
+                message: "a conditional effect on a TemporalAdmg has no compile arm".into(),
+            });
+        }
+        let admg = mixed_admg(self)?;
+        if !admg_has_bidirected(&admg) {
+            let dag = admg_without_latents_to_dag(&admg)?;
+            return self.compile_logical_conditional_dag(data, q, &dag);
+        }
+        let (identifier_id, estimator_id) = self.resolve_conditional_admg_ids()?;
+        let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
+        q.validate()?;
+        let record = antecedent_contract::LogicalAnalysisPlanRecord {
+            plan_id: Arc::from(PlanId::StaticAdmgConditional.as_str()),
+            data_classification: antecedent_contract::DataClassification::Tabular,
+            discovery_algorithm: None,
+            graph_review_required: false,
+            identifier: Some(identifier),
+            estimator: Some(estimator),
+            validation_suite: self.validation_suite_id(),
+            query_variables: Arc::from([q.inner.treatment, q.inner.outcome]),
+        };
+        let logical = LogicalAnalysisPlan::unsplit(
+            record,
+            CausalQuery::ConditionalEffect(q.clone()),
+            data.row_count() as u64,
+        );
+        logical.validate()?;
+        Ok(logical)
+    }
+
+    /// Physical compile of the mixed-graph conditional cell: a latent-confounded graph keeps
+    /// the ADMG plan, a latent-free one projects to a DAG first.
+    fn compile_physical_conditional_mixed(
+        &self,
+        data: &TabularData,
+        q: &ConditionalEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
+        let logical = self.compile_logical_conditional_mixed(data, q)?;
+        let admg = mixed_admg(self)?;
+        if admg_has_bidirected(&admg) {
+            logical.compile_physical(ctx)
+        } else {
+            let dag = admg_without_latents_to_dag(&admg)?;
+            logical.compile_physical_with_graphs(ctx, None, Some(dag))
+        }
     }
 
     fn compile_logical_temporal_mediation_dag(
@@ -800,7 +914,10 @@ impl super::Study {
             DataClassification::Tabular,
             PlanId::RandomizedTrialItt.as_str(),
             "randomized.design",
-            match &q.design {
+            if self.inference.is_bayesian() {
+                super::checked_randomized::bayesian_randomized_estimator(self.estimator, &q.design).as_str()
+            } else {
+                match &q.design {
                 antecedent_core::RandomizationDesign::Bernoulli => {
                     if q.received_treatment.is_some() {
                         "randomized.wald_cace_late"
@@ -820,6 +937,7 @@ impl super::Study {
                     "randomized.switchback_ht_itt"
                 }
                 antecedent_core::RandomizationDesign::MultiArm { .. } => "randomized.ht_itt",
+                }
             },
             Arc::from([q.outcome]),
         ))
@@ -837,6 +955,16 @@ impl super::Study {
             return Err(CausalError::Compile {
                 message: "policy inputs must align with the table rows".into(),
             });
+        }
+        if self.inference.is_bayesian() {
+            return Ok(self.study_query_plan(
+                data.row_count() as u64,
+                DataClassification::Tabular,
+                PlanId::BayesianPolicyValue.as_str(),
+                "randomized.design",
+                EstimatorId::BayesianBinaryPolicyValue.as_str(),
+                Arc::from([q.outcome]),
+            ));
         }
         Ok(self.study_query_plan(
             data.row_count() as u64,
@@ -872,7 +1000,11 @@ impl super::Study {
             });
         }
         let (plan_id, identifier, estimator) =
-            super::checked_panel_did::panel_did_plan_ids(q.design);
+            if self.inference.is_bayesian() {
+                super::checked_panel_did::bayesian_panel_did_plan_ids(q.design)
+            } else {
+                super::checked_panel_did::panel_did_plan_ids(q.design)
+            };
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
@@ -895,7 +1027,11 @@ impl super::Study {
             });
         }
         let (plan_id, identifier, estimator) =
-            super::checked_synthetic_control::synthetic_panel_plan_ids(q.method);
+            if self.inference.is_bayesian() {
+                super::checked_synthetic_control::bayesian_synthetic_panel_plan_ids()
+            } else {
+                super::checked_synthetic_control::synthetic_panel_plan_ids(q.method)
+            };
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
@@ -917,12 +1053,17 @@ impl super::Study {
                 message: "continuous-dose baseline groups must align with table rows".into(),
             });
         }
+        let (plan, estimator) = if self.inference.is_bayesian() {
+            (PlanId::BayesianDosePolicy, EstimatorId::BayesianDosePolicy)
+        } else {
+            (PlanId::PolicyContinuousDoseResponse, EstimatorId::ContinuousDoseKernel)
+        };
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
-            PlanId::PolicyContinuousDoseResponse.as_str(),
+            plan.as_str(),
             IdentifierId::ContinuousDoseExchangeability.as_str(),
-            EstimatorId::ContinuousDoseKernel.as_str(),
+            estimator.as_str(),
             Arc::from([q.outcome, q.dose, q.dose_density]),
         ))
     }
@@ -937,7 +1078,13 @@ impl super::Study {
             data.schema().get(variable).map_err(CausalError::rejected)?;
         }
         let (plan_id, identifier, estimator) =
-            super::checked_local_polynomial_ratio::local_polynomial_ratio_plan_ids(q.kink);
+            if self.inference.is_bayesian() {
+                super::checked_local_polynomial_ratio::bayesian_local_polynomial_ratio_plan_ids(
+                    q.kink,
+                )
+            } else {
+                super::checked_local_polynomial_ratio::local_polynomial_ratio_plan_ids(q.kink)
+            };
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
@@ -960,13 +1107,80 @@ impl super::Study {
         {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
+        let (plan, estimator) = if self.inference.is_bayesian() {
+            (PlanId::BayesianPiecewiseSurvival.as_str(), EstimatorId::BayesianPiecewiseSurvival.as_str())
+        } else {
+            (
+                PlanId::RandomizedSurvivalProductLimit.as_str(),
+                PlanId::RandomizedSurvivalProductLimit.as_str(),
+            )
+        };
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
-            PlanId::RandomizedSurvivalProductLimit.as_str(),
+            plan,
             "randomized.design",
-            PlanId::RandomizedSurvivalProductLimit.as_str(),
+            estimator,
             Arc::from([q.duration, q.event, q.treatment]),
+        ))
+    }
+
+    fn compile_logical_history_match(
+        &self,
+        data: &TabularData,
+        q: &HistoryMatchQuery,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        q.validate()?;
+        for id in [q.outcome, q.treated]
+            .into_iter()
+            .chain(q.history.iter().copied())
+            .chain(q.period)
+            .chain(q.weight)
+        {
+            data.schema().get(id).map_err(CausalError::rejected)?;
+        }
+        let plan = PlanId::PeriodHistoryMatching.as_str();
+        Ok(self.study_query_plan(
+            data.row_count() as u64,
+            DataClassification::Tabular,
+            plan,
+            "randomized.design",
+            plan,
+            Arc::from([q.outcome, q.treated]),
+        ))
+    }
+
+    fn compile_logical_sequential_contrast(
+        &self,
+        data: &TabularData,
+        q: &SequentialContrastQuery,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        q.validate()?;
+        if q.fold_of_row.len() != data.row_count() {
+            return Err(CausalError::Compile {
+                message: "sequential contrast folds must align with the table rows".into(),
+            });
+        }
+        for id in [q.outcome, q.first_treatment, q.second_treatment]
+            .into_iter()
+            .chain(q.baseline.iter().copied())
+            .chain(q.intermediate.iter().copied())
+        {
+            data.schema().get(id).map_err(CausalError::rejected)?;
+        }
+        let plan = if self.inference.is_bayesian() {
+            PlanId::BayesianSequentialCrossfitContrast
+        } else {
+            PlanId::SequentialCrossfitContrastWald
+        }
+        .as_str();
+        Ok(self.study_query_plan(
+            data.row_count() as u64,
+            DataClassification::Tabular,
+            plan,
+            "randomized.design",
+            plan,
+            Arc::from([q.outcome, q.first_treatment, q.second_treatment]),
         ))
     }
 
@@ -982,7 +1196,9 @@ impl super::Study {
             });
         }
         data.schema().get(q.outcome).map_err(CausalError::rejected)?;
+        let bayesian = self.inference.is_bayesian();
         let method_id = match q.method {
+            _ if bayesian => PlanId::BayesianSequentialRegimeValue,
             antecedent_core::LongitudinalRegimeMethod::Ipw => PlanId::LongitudinalIpwRegime,
             antecedent_core::LongitudinalRegimeMethod::GFormula => {
                 PlanId::LongitudinalGFormulaRegime
@@ -1065,12 +1281,22 @@ impl super::Study {
         data: &TimeSeriesData,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let (treatment, outcome) = temporal_cross_world_endpoints(&self.query)?;
+        // The unit counterfactual of a linear additive-noise model has the posterior of its
+        // slope times the contrast: the Bayesian twin runs the tempered temporal posterior,
+        // not the ridge point of the frequentist fit.
+        let estimator = if matches!(self.query, CausalQuery::Counterfactual(_))
+            && self.inference.is_bayesian()
+        {
+            EstimatorId::BayesianTemporalGcomp
+        } else {
+            EstimatorId::TemporalLinearAdjustment
+        };
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Temporal,
             PlanId::TemporalCrossWorldLinear.as_str(),
             IdentifierId::TemporalBackdoorUnfolded.as_str(),
-            EstimatorId::TemporalLinearAdjustment.as_str(),
+            estimator.as_str(),
             Arc::from([treatment, outcome]),
         ))
     }
@@ -1104,6 +1330,9 @@ impl super::Study {
         match *input {
             RouteInput::StaticAteMixed { data, query: q } => {
                 self.compile_physical_static_ate_mixed(data, q, ctx)
+            }
+            RouteInput::ConditionalMixed { data, query: q } => {
+                self.compile_physical_conditional_mixed(data, q, ctx)
             }
             RouteInput::MixedAdmgResponse { .. } => {
                 let admg = mixed_admg(self)?;
@@ -1162,6 +1391,8 @@ impl super::Study {
             | RouteInput::LocalPolynomialRatio { .. }
             | RouteInput::Survival { .. }
             | RouteInput::LongitudinalRegime { .. }
+            | RouteInput::SequentialContrast { .. }
+            | RouteInput::HistoryMatch { .. }
             | RouteInput::GcmTemporal { .. }
             | RouteInput::TemporalCrossWorldClass { .. } => {
                 self.compile_logical_from(input)?.compile_physical(ctx)

@@ -88,7 +88,8 @@ const TEMPORAL_MEDIATION: &[GraphClass] = &[GraphClass::TemporalDag, GraphClass:
 const DAG: &[GraphClass] = &[GraphClass::Dag];
 const TEMPORAL_DAG: &[GraphClass] = &[GraphClass::TemporalDag];
 const ADMG_ONLY: &[GraphClass] = &[GraphClass::Admg, GraphClass::TemporalAdmg];
-const STATIC_CONDITIONAL: &[GraphClass] = &[GraphClass::Dag, GraphClass::Cpdag, GraphClass::Pag];
+const STATIC_CONDITIONAL: &[GraphClass] =
+    &[GraphClass::Dag, GraphClass::Cpdag, GraphClass::Pag, GraphClass::Admg];
 const STATIC_DISTRIBUTION: &[GraphClass] =
     &[GraphClass::Dag, GraphClass::Admg, GraphClass::TemporalAdmg];
 const RANDOMIZED: &[GraphClass] = &[GraphClass::RandomizedTrial];
@@ -218,7 +219,11 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
         },
         K::ConditionalEffect => KindLicense {
             tabular: rule(STATIC_CONDITIONAL, || CausalError::Unsupported {
-                message: "PreparedStudy supports ConditionalEffect on a supplied Dag, Cpdag, or Pag",
+                message: "PreparedStudy supports ConditionalEffect on a supplied Dag, Cpdag, Pag, \
+                          or Admg. A TemporalAdmg contrast is not identified; use \
+                          TemporalConditionalPulse or TemporalConditionalSustained on a \
+                          TemporalDag, or supply the static Admg for the contemporaneous \
+                          conditional effect",
             }),
             ..UNLICENSED
         },
@@ -312,6 +317,19 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
         K::LongitudinalRegime => KindLicense {
             tabular: design(false, || CausalError::Unsupported {
                 message: "LongitudinalRegime requires a graphless sequential randomized trial",
+            }),
+            ..UNLICENSED
+        },
+        K::HistoryMatch => KindLicense {
+            tabular: design(false, || CausalError::Unsupported {
+                message: "HistoryMatch requires a graphless table of per-unit histories",
+            }),
+            ..UNLICENSED
+        },
+        K::SequentialContrast => KindLicense {
+            tabular: design(false, || CausalError::Unsupported {
+                message: "SequentialContrast requires a graphless two-decision panel with \
+                          declared sequential exchangeability",
             }),
             ..UNLICENSED
         },

@@ -31,7 +31,7 @@ use antecedent_core::StreamDomain;
 impl super::Study {
     /// The panel license owner, consulted on the data each execute receives
     /// (a prepared refresh hands in new units).
-    fn refuse_unlicensed_panel(&self, panel: &PanelData) -> Result<(), CausalError> {
+    pub(super) fn refuse_unlicensed_panel(&self, panel: &PanelData) -> Result<(), CausalError> {
         super::super::builder::refuse_unlicensed_panel_route(
             &self.query,
             self.graph.class(),
@@ -239,7 +239,7 @@ impl super::Study {
     }
 
     /// Identifies the panel's pooled Pulse estimand, or reads the prepared horizon entry.
-    fn identify_pooled_panel(
+    pub(super) fn identify_pooled_panel(
         &self,
         graph: &TemporalDag,
         query: &TemporalEffectQuery,
@@ -2749,7 +2749,7 @@ const PANEL_INTERVAL_LEVEL: f64 = crate::result::REPORTED_SE_INTERVAL_LEVEL;
 
 /// Estimator for the pooled panel regression: no row bootstrap (the unit cluster
 /// bootstrap below resamples whole units) and the declared overlap policy.
-fn pooled_panel_estimator() -> TemporalLinearAdjustment {
+pub(super) fn pooled_panel_estimator() -> TemporalLinearAdjustment {
     let mut estimator = TemporalLinearAdjustment::new();
     estimator.inner.bootstrap_replicates = 0;
     estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
@@ -2758,13 +2758,13 @@ fn pooled_panel_estimator() -> TemporalLinearAdjustment {
 
 /// One pooled Pulse design (the DAG, or one identified completion): every unit's own
 /// lag-aligned block, prepared once and stacked per fit.
-struct PanelPulseAtom {
+pub(super) struct PanelPulseAtom {
     weight: f64,
     units: Vec<antecedent_estimate::PreparedEstimationProblem>,
 }
 
 impl PanelPulseAtom {
-    fn prepare(
+    pub(super) fn prepare(
         panel: &PanelData,
         estimand: &IdentifiedEstimand,
         query: &TemporalEffectQuery,
@@ -2780,7 +2780,7 @@ impl PanelPulseAtom {
     }
 
     /// Stacked design with the panel's own unit ids.
-    fn stacked(
+    pub(super) fn stacked(
         &self,
         unit_ids: &[u32],
     ) -> Result<(antecedent_estimate::PreparedEstimationProblem, Vec<u32>, Vec<i64>), CausalError>
@@ -2838,7 +2838,7 @@ fn distinct_clusters(cluster_ids: &[u32]) -> usize {
 }
 
 /// Panel unit ids in panel order.
-fn panel_unit_ids(panel: &PanelData) -> Vec<u32> {
+pub(super) fn panel_unit_ids(panel: &PanelData) -> Vec<u32> {
     panel.units().iter().map(|unit| unit.unit_id).collect()
 }
 

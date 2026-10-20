@@ -10,6 +10,7 @@ pub use antecedent_core::{
     LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MechanismChangeQuery, MediationContrast,
     MediationQuery, OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, RandomizationDesign,
     RandomizedEffectQuery, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, SyntheticControlQuery, SyntheticPanelMethod,
+    ResponseUncertainty, ResponseValue, HistoryMatchQuery, SequentialContrastQuery, SyntheticControlQuery,
+    SyntheticPanelMethod,
     TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, TransportQuery, UnitChangeQuery,
 };

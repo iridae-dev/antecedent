@@ -432,6 +432,19 @@ fn refuse_estimator_design_mismatch(
     query: &CausalQuery,
     estimator: Option<EstimatorId>,
 ) -> Result<(), CausalError> {
+    refuse_randomized_effect_mismatch(query, estimator)?;
+    refuse_policy_value_mismatch(query, estimator)?;
+    refuse_bayesian_design_mismatch(query, estimator)?;
+    refuse_survival_dose_mismatch(query, estimator)?;
+    refuse_history_contrast_mismatch(query, estimator)?;
+    refuse_longitudinal_regime_mismatch(query, estimator)
+}
+
+/// Refuses a randomized-effect estimator that does not match the assignment design.
+fn refuse_randomized_effect_mismatch(
+    query: &CausalQuery,
+    estimator: Option<EstimatorId>,
+) -> Result<(), CausalError> {
     if let CausalQuery::RandomizedEffect(randomized) = query {
         let expected = match &randomized.design {
             antecedent_core::RandomizationDesign::Bernoulli => {
@@ -454,12 +467,50 @@ fn refuse_estimator_design_mismatch(
                 EstimatorId::RandomizedSwitchbackHt
             }
         };
-        if estimator.is_some_and(|id| id != expected) {
+        let bayesian_arms = matches!(
+            randomized.design,
+            antecedent_core::RandomizationDesign::Bernoulli
+                | antecedent_core::RandomizationDesign::Complete { .. }
+                | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
+                | antecedent_core::RandomizationDesign::MultiArm { .. }
+        );
+        let selected_bayesian = matches!(
+            estimator,
+            Some(
+                EstimatorId::BayesianRandomizedFinitePopulation
+                    | EstimatorId::BayesianRandomizedSuperpopulation
+            )
+        );
+        let selected_switchback = estimator == Some(EstimatorId::BayesianSwitchback);
+        if selected_switchback
+            && !matches!(randomized.design, antecedent_core::RandomizationDesign::Switchback { .. })
+        {
+            return Err(CausalError::Unsupported {
+                message: "the Bayesian switchback posterior needs a switchback assignment design",
+            });
+        }
+        if selected_bayesian && !bayesian_arms {
+            return Err(CausalError::Unsupported {
+                message: "the Bayesian arm-contrast posterior models Bernoulli, complete, \
+                          multi-arm and 2x2 factorial assignment; cluster, stratified and \
+                          switchback designs have no arm-exchangeable likelihood here",
+            });
+        }
+        if estimator.is_some_and(|id| id != expected) && !selected_bayesian && !selected_switchback
+        {
             return Err(CausalError::Unsupported {
                 message: "the selected randomized estimator does not match the assignment design",
             });
         }
     }
+    Ok(())
+}
+
+/// Refuses a policy estimator that does not match the policy query's frozen inputs.
+fn refuse_policy_value_mismatch(
+    query: &CausalQuery,
+    estimator: Option<EstimatorId>,
+) -> Result<(), CausalError> {
     if let CausalQuery::PolicyValue(policy) = query {
         let expected = if policy.multi_action.is_some() {
             EstimatorId::RandomizedMultiActionIpwPolicy
@@ -468,17 +519,141 @@ fn refuse_estimator_design_mismatch(
         } else {
             EstimatorId::RandomizedDrPolicy
         };
-        if estimator.is_some_and(|id| id != expected) {
+        if estimator
+            .is_some_and(|id| id != expected && id != EstimatorId::BayesianBinaryPolicyValue)
+        {
             return Err(CausalError::Unsupported {
                 message: "the selected policy estimator does not match its frozen inputs",
             });
         }
     }
-    if matches!(query, CausalQuery::Survival(_))
-        && estimator.is_some_and(|id| id != EstimatorId::RandomizedSurvivalProductLimit)
+    Ok(())
+}
+
+/// Refuses a Bayesian design estimator selected for a query of another design family.
+fn refuse_bayesian_design_mismatch(
+    query: &CausalQuery,
+    estimator: Option<EstimatorId>,
+) -> Result<(), CausalError> {
+    for (matches_query, id) in [
+        (matches!(query, CausalQuery::PanelDid(_)), EstimatorId::BayesianPanelDid),
+        (matches!(query, CausalQuery::SyntheticControl(_)), EstimatorId::BayesianSyntheticControl),
+        (matches!(query, CausalQuery::LocalPolynomialRatio(_)), EstimatorId::BayesianLocalRatio),
+    ] {
+        if matches_query && estimator.is_some_and(|selected| selected != id) {
+            return Err(CausalError::Unsupported {
+                message: "the selected estimator does not match this design query; select its Bayesian estimator or none",
+            });
+        }
+    }
+    if !matches!(
+        query,
+        CausalQuery::PanelDid(_)
+            | CausalQuery::SyntheticControl(_)
+            | CausalQuery::LocalPolynomialRatio(_)
+    ) && matches!(
+        estimator,
+        Some(
+            EstimatorId::BayesianPanelDid
+                | EstimatorId::BayesianSyntheticControl
+                | EstimatorId::BayesianLocalRatio
+        )
+    ) {
+        return Err(CausalError::Unsupported {
+            message: "the selected Bayesian design estimator does not match this query",
+        });
+    }
+    if !matches!(query, CausalQuery::PolicyValue(_))
+        && estimator == Some(EstimatorId::BayesianBinaryPolicyValue)
     {
         return Err(CausalError::Unsupported {
-            message: "randomized survival requires the product-limit estimator",
+            message: "bayesian.binary_policy_value answers a PolicyValue query only",
+        });
+    }
+    Ok(())
+}
+
+/// Refuses survival and dose-response estimators selected for the wrong query.
+fn refuse_survival_dose_mismatch(
+    query: &CausalQuery,
+    estimator: Option<EstimatorId>,
+) -> Result<(), CausalError> {
+    if matches!(query, CausalQuery::Survival(_))
+        && estimator.is_some_and(|id| {
+            id != EstimatorId::RandomizedSurvivalProductLimit
+                && id != EstimatorId::BayesianPiecewiseSurvival
+        })
+    {
+        return Err(CausalError::Unsupported {
+            message: "randomized survival requires the product-limit or the piecewise-exponential Bayesian estimator",
+        });
+    }
+    if matches!(query, CausalQuery::ContinuousDoseResponse(_))
+        && estimator.is_some_and(|id| {
+            id != EstimatorId::ContinuousDoseKernel && id != EstimatorId::BayesianDosePolicy
+        })
+    {
+        return Err(CausalError::Unsupported {
+            message: "continuous-dose response requires the kernel or the Bayesian dose-policy estimator",
+        });
+    }
+    if !matches!(query, CausalQuery::Survival(_))
+        && estimator == Some(EstimatorId::BayesianPiecewiseSurvival)
+    {
+        return Err(CausalError::Unsupported {
+            message: "bayesian.piecewise_survival answers a randomized Survival query only",
+        });
+    }
+    if !matches!(query, CausalQuery::ContinuousDoseResponse(_))
+        && estimator == Some(EstimatorId::BayesianDosePolicy)
+    {
+        return Err(CausalError::Unsupported {
+            message: "bayesian.continuous_dose_policy answers a ContinuousDoseResponse query only",
+        });
+    }
+    Ok(())
+}
+
+/// Refuses history-matching and sequential-contrast estimators selected for the wrong query.
+fn refuse_history_contrast_mismatch(
+    query: &CausalQuery,
+    estimator: Option<EstimatorId>,
+) -> Result<(), CausalError> {
+    let history_estimator = estimator == Some(EstimatorId::PeriodHistoryMatching);
+    if matches!(query, CausalQuery::HistoryMatch(_)) != history_estimator
+        && (history_estimator || estimator.is_some())
+    {
+        return Err(CausalError::Unsupported {
+            message: "a history match query takes the period history matching estimator, and that estimator answers that query only",
+        });
+    }
+    let contrast_estimator = matches!(
+        estimator,
+        Some(
+            EstimatorId::SequentialCrossfitContrastWald
+                | EstimatorId::BayesianSequentialCrossfitContrast
+        )
+    );
+    if matches!(query, CausalQuery::SequentialContrast(_)) != contrast_estimator
+        && (contrast_estimator || estimator.is_some())
+    {
+        return Err(CausalError::Unsupported {
+            message: "a sequential contrast query takes the sequential cross-fit contrast estimators, and they answer that query only",
+        });
+    }
+    Ok(())
+}
+
+/// Refuses a longitudinal-regime estimator that does not match the query's method.
+fn refuse_longitudinal_regime_mismatch(
+    query: &CausalQuery,
+    estimator: Option<EstimatorId>,
+) -> Result<(), CausalError> {
+    if !matches!(query, CausalQuery::LongitudinalRegime(_))
+        && estimator == Some(EstimatorId::BayesianSequentialRegimeValue)
+    {
+        return Err(CausalError::Unsupported {
+            message: "bayesian.sequential_regime_value answers a LongitudinalRegime query only",
         });
     }
     if let CausalQuery::LongitudinalRegime(regime) = query {
@@ -494,7 +669,9 @@ fn refuse_estimator_design_mismatch(
                 EstimatorId::LongitudinalMarginalStructuralModel
             }
         };
-        if estimator.is_some_and(|id| id != expected) {
+        let bayesian_twin = estimator == Some(EstimatorId::BayesianSequentialRegimeValue)
+            && regime.method == antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust;
+        if estimator.is_some_and(|id| id != expected) && !bayesian_twin {
             return Err(CausalError::Unsupported {
                 message: "longitudinal regime estimator must match the selected method",
             });
@@ -514,10 +691,47 @@ fn apply_design_contract(
             message: "design-based queries carry their own identification contract and must not be combined with graph= or discovery=",
         });
     }
-    if !matches!(carry.inference, InferenceMode::Frequentist) {
+    if matches!(query, CausalQuery::HistoryMatch(_))
+        && matches!(carry.inference, InferenceMode::Bayesian(_))
+    {
+        // A matching rule has no likelihood: the typed boundary names the premise and the
+        // next attempt instead of a mislabelled interval.
+        return Err(super::super::matching_posterior_refusal::matching_posterior_refusal(
+            super::super::matching_posterior_refusal::MatchingSetting::WithinPeriodHistory,
+        ));
+    }
+    let bayesian_design = matches!(
+        query,
+        CausalQuery::PanelDid(_)
+            | CausalQuery::SyntheticControl(_)
+            | CausalQuery::LocalPolynomialRatio(_)
+            | CausalQuery::PolicyValue(_)
+            | CausalQuery::LongitudinalRegime(_)
+            | CausalQuery::SequentialContrast(_)
+            | CausalQuery::RandomizedEffect(_)
+            | CausalQuery::Survival(_)
+            | CausalQuery::ContinuousDoseResponse(_)
+    );
+    if !matches!(carry.inference, InferenceMode::Frequentist) && !bayesian_design {
         return Err(CausalError::Unsupported {
             message: "design-based queries currently support Frequentist inference only",
         });
+    }
+    // Survival and the dose policy read the declared design model and refuse an unusable
+    // backend themselves, naming their own next attempt.
+    let reads_own_model =
+        matches!(query, CausalQuery::Survival(_) | CausalQuery::ContinuousDoseResponse(_));
+    if let (InferenceMode::Bayesian(config), false) = (&carry.inference, reads_own_model) {
+        if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
+            || config.has_transfer()
+        {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "the Bayesian panel DiD, synthetic control and local ratio fit their own \
+                 built-in Gaussian models; use the conjugate backend with prior_scale and \
+                 n_draws only, and no transferred or custom prior"
+            ));
+        }
     }
     if carry.identifier.is_some_and(|id| id != IdentifierId::RandomizedDesign)
         || carry.estimator.is_some_and(|id| {
@@ -532,6 +746,20 @@ fn apply_design_contract(
                     | EstimatorId::RandomizedSurvivalProductLimit
                     | EstimatorId::LongitudinalIpwRegime
                     | EstimatorId::LongitudinalGFormulaRegime
+                    | EstimatorId::BayesianPiecewiseSurvival
+                    | EstimatorId::BayesianDosePolicy
+                    | EstimatorId::ContinuousDoseKernel
+                    | EstimatorId::BayesianPanelDid
+                    | EstimatorId::BayesianSyntheticControl
+                    | EstimatorId::BayesianLocalRatio
+                    | EstimatorId::BayesianBinaryPolicyValue
+                    | EstimatorId::BayesianSequentialRegimeValue
+                    | EstimatorId::SequentialCrossfitContrastWald
+                    | EstimatorId::BayesianSequentialCrossfitContrast
+                    | EstimatorId::PeriodHistoryMatching
+                    | EstimatorId::BayesianRandomizedFinitePopulation
+                    | EstimatorId::BayesianRandomizedSuperpopulation
+                    | EstimatorId::BayesianSwitchback
             )
         })
         || carry.estimator_spec.is_some()
@@ -589,6 +817,29 @@ fn retarget_cutoff_estimand(
 fn admit_executable_route(estimand: RetargetedEstimand) -> Result<ExecutableRoute, CausalError> {
     let RetargetedEstimand(Spine { mut carry, graph, graph_posterior, query }) = estimand;
     refuse_unsupported_likelihood(
+        &query,
+        &carry.data,
+        graph.class(),
+        graph_posterior.is_none() && carry.tiered.is_none(),
+        carry.estimator,
+        &carry.inference,
+    )?;
+    super::refuse_unsupported_temporal_link(
+        &query,
+        &carry.data,
+        graph.class(),
+        graph_posterior.is_none() && carry.tiered.is_none(),
+        carry.estimator,
+    )?;
+    super::refuse_unsupported_temporal_instrument(
+        &query,
+        &carry.data,
+        graph.class(),
+        graph_posterior.is_none() && carry.tiered.is_none(),
+        carry.identifier,
+        carry.estimator,
+    )?;
+    super::refuse_unsupported_white_innovation(
         &query,
         &carry.data,
         graph.class(),
@@ -701,8 +952,16 @@ fn refuse_outcome_functional(
         CausalQuery::Response(q) => Some(&q.outcome_functional),
         _ => None,
     };
+    // The randomized quantile posterior reads the outcome functional itself: it is the
+    // Bayesian counterpart of the quantile coordinate, selected explicitly on a Dag.
+    let bayesian_quantile = matches!(inference, InferenceMode::Bayesian(_))
+        && selected == Some(EstimatorId::BayesianRandomizedQuantile)
+        && !graph_posterior
+        && graph_class == GraphClass::Dag
+        && matches!(query, CausalQuery::AverageEffect(q)
+            if q.outcome_functional.quantile_level().is_some());
     if functional.is_some_and(|f| !matches!(f, antecedent_core::OutcomeFunctional::Mean)) {
-        let transforms_outcome = matches!(inference, InferenceMode::Frequentist)
+        let frequentist_transform = matches!(inference, InferenceMode::Frequentist)
             && !graph_posterior
             && match query {
                 CausalQuery::AverageEffect(_) => graph_class == GraphClass::Dag || tiered.is_some(),
@@ -712,6 +971,7 @@ fn refuse_outcome_functional(
                 CausalQuery::Response(q) => q.temporal.is_none(),
                 _ => false,
             };
+        let transforms_outcome = bayesian_quantile || frequentist_transform;
         if !transforms_outcome {
             return Err(CausalError::Unsupported {
                 message: "this inference/graph/query path does not implement the requested outcome functional",
@@ -719,7 +979,7 @@ fn refuse_outcome_functional(
         }
     }
     if functional.and_then(antecedent_core::OutcomeFunctional::quantile_level).is_some() {
-        let supported = matches!(inference, InferenceMode::Frequentist)
+        let frequentist_supported = matches!(inference, InferenceMode::Frequentist)
             && !graph_posterior
             && match query {
                 CausalQuery::AverageEffect(q) => {
@@ -745,6 +1005,7 @@ fn refuse_outcome_functional(
                 }
                 _ => false,
             };
+        let supported = bayesian_quantile || frequentist_supported;
         if !supported {
             return Err(CausalError::Unsupported {
                 message: "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + retarget for score-table target weights",
@@ -973,11 +1234,19 @@ fn refuse_incompatible_estimator_spec(classified: &ClassifiedGraph) -> Result<()
                                 | antecedent_core::ResponseFunctional::MeanCurve { .. }
                         )
             );
+        let admg_conditional_ok = spec.id() == EstimatorId::FunctionalEffect
+            && classified.graph_class == GraphClass::Admg
+            && matches!(query, CausalQuery::ConditionalEffect(_));
         let basis_gcomp_ok = spec.id() == EstimatorId::BayesianBasisGcomp
             && bayesian
             && classified.graph_class == GraphClass::Dag
             && matches!(query, CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_));
-        if spec.id() != expected && !cell_aipw_ok && !admg_functional_ok && !basis_gcomp_ok {
+        if spec.id() != expected
+            && !cell_aipw_ok
+            && !admg_functional_ok
+            && !admg_conditional_ok
+            && !basis_gcomp_ok
+        {
             return Err(crate::compile_reason!(
                 "strategy_incompatible",
                 "query and inference require estimator {}; got {}",
@@ -1137,6 +1406,14 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                 )
         ) {
             support_status = None;
+        }
+        // The untempered posterior of a declared white-innovation premise is a different
+        // construction from the licensed tempered posterior of the same cell: it is unlicensed
+        // and its calibration is unmeasured, so the cell's license does not carry to it.
+        if matches!(&carry.inference, InferenceMode::Bayesian(cfg) if cfg.white_innovation.is_some())
+            && support_status == Some(CellStatus::Licensed)
+        {
+            support_status = Some(CellStatus::Refused);
         }
         if !carry.inspect_only
             && matches!(

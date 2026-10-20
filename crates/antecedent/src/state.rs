@@ -20,6 +20,11 @@ pub use antecedent_state::{
     StateError, StateEvent, StreamingCovariance, SuffStatStore, evict_mechanism_diag,
     full_graph_score, insert_mechanism_diag,
 };
+pub use antecedent_state::{
+    ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary, OlsLedgerState, OlsRefresh,
+    OlsSnapshot, RefreshChange, RefreshDisposition, RefreshOutcome, RefreshRoute, RefreshRow,
+    route_contract,
+};
 
 /// Construct a fresh [`CausalState`] with the given cache budget.
 #[must_use]

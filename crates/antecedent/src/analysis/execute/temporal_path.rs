@@ -663,6 +663,15 @@ impl super::Study {
         ctx: &ExecutionContext,
         checked_bayesian: Option<&crate::analysis::CheckedBayesianTemporalEffectOperation>,
     ) -> Result<StudyResult, CausalError> {
+        if matches!(
+            self.estimator,
+            Some(
+                EstimatorId::TemporalLaggedInstrument
+                    | EstimatorId::BayesianTemporalLaggedInstrument
+            )
+        ) {
+            return self.execute_temporal_iv(data, graph, query, physical, ctx);
+        }
         let started = Instant::now();
         let (identification, estimand, indexer, identify_cached) =
             if let Some(operation) = checked_bayesian {
@@ -5131,6 +5140,8 @@ impl super::Study {
             &fit,
             CrossWorldContrast { treatment, outcome, mediator, active, control },
         )?;
+        let proof = identification.clone();
+        let proof_estimand = estimand.clone();
         let identification = template_scoped_cross_world(
             identification,
             &found.indexer,
@@ -5138,27 +5149,84 @@ impl super::Study {
             CrossWorldContrast { treatment, outcome, mediator, active, control },
         );
         let estimand = identification.estimands[0].clone();
-        let estimate = EffectEstimate::new(
-            point,
-            f64::NAN,
-            identification.required_assumptions.clone(),
-            OverlapPolicy::ExplicitOverride,
-        );
-        let mut result = self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
+        if matches!(&self.query, CausalQuery::Counterfactual(_)) && self.inference.is_bayesian() {
+            let mut contrast_query = probe.clone();
+            contrast_query.control =
+                Intervention::set(treatment, antecedent_core::Value::f64(control));
+            contrast_query.active =
+                Intervention::set(treatment, antecedent_core::Value::f64(active));
+            let (estimate, posterior) = self.temporal_counterfactual_posterior(
+                data,
+                &proof,
+                &proof_estimand,
+                &found.indexer,
+                &contrast_query,
+                ctx,
+            )?;
+            let finish = IdentifiedExecuteFinish::new(
                 physical,
                 identification,
                 estimand,
                 estimate,
                 Strategy::new(
                     IdentifierId::TemporalBackdoorUnfolded,
-                    EstimatorId::TemporalLinearAdjustment,
+                    EstimatorId::BayesianTemporalGcomp,
                 ),
                 treatment,
                 outcome,
             )
-            .wall_time_ns(elapsed_ns(started)),
+            .wall_time_ns(elapsed_ns(started));
+            return Ok(self.finish_cross_world_posterior(finish, posterior));
+        }
+        let estimate = EffectEstimate::new(
+            point,
+            f64::NAN,
+            identification.required_assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
         );
+        let finish = IdentifiedExecuteFinish::new(
+            physical,
+            identification,
+            estimand,
+            estimate,
+            Strategy::new(
+                IdentifierId::TemporalBackdoorUnfolded,
+                EstimatorId::TemporalLinearAdjustment,
+            ),
+            treatment,
+            outcome,
+        )
+        .wall_time_ns(elapsed_ns(started));
+        Ok(self.finish_cross_world_point(finish))
+    }
+
+    /// Finishes the posterior cross-world contrast: the credible interval of the generalized
+    /// posterior of the contrast slope.
+    fn finish_cross_world_posterior(
+        &self,
+        finish: IdentifiedExecuteFinish<'_>,
+        posterior: CausalPosterior,
+    ) -> StudyResult {
+        let n_draws = u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX);
+        let mut result = self.finish_identified_execute(finish.extras(IdentifiedExecuteExtras {
+            n_draws: Some(n_draws),
+            posterior: Some(posterior),
+            ..Default::default()
+        }));
+        result.diagnostics.push(Diagnostic::new(
+            "estimate.temporal.cross_world",
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Info,
+            "published value is the posterior mean of the linear unfolded cross-world \
+             contrast; the interval is the credible interval of the long-run-tempered \
+             generalized posterior of the contrast slope, parameter uncertainty only",
+        ));
+        result
+    }
+
+    /// Finishes the point-only cross-world contrast: no interval is published.
+    fn finish_cross_world_point(&self, finish: IdentifiedExecuteFinish<'_>) -> StudyResult {
+        let mut result = self.finish_identified_execute(finish);
         result.interval = None;
         result.posterior = None;
         result.diagnostics.push(Diagnostic::new(
@@ -5167,7 +5235,81 @@ impl super::Study {
             DiagnosticSeverity::Info,
             "published value is the linear unfolded cross-world point; no interval is published",
         ));
-        Ok(result)
+        result
+    }
+
+    /// Posterior of the unit counterfactual contrast of a linear additive `TemporalDag`.
+    ///
+    /// The structural equation `Y_t = a + b X_{t-1} + Z'g + e_t` has a noise `e_t` that is
+    /// recovered exactly from the factual row and replayed unchanged in the counterfactual
+    /// world, so it cancels: every unit's contrast is `b (active - control)` and the
+    /// outcome carries no uncertainty beyond the parameters. The posterior is therefore the
+    /// posterior of `b (active - control)` on the identified unfolded design, the same
+    /// long-run-tempered generalized posterior (Gaussian likelihood tempered by the
+    /// variance ratio of the treatment score, the prior at full weight) that the Bayesian
+    /// pulse publishes. The coefficient prior is isotropic: a mapped prior is refused by the
+    /// caller.
+    fn temporal_counterfactual_posterior(
+        &self,
+        data: &TimeSeriesData,
+        proof: &IdentificationResult,
+        estimand: &IdentifiedEstimand,
+        indexer: &antecedent_core::TemporalIndexer,
+        contrast_query: &TemporalEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<(EffectEstimate, CausalPosterior), CausalError> {
+        let InferenceMode::Bayesian(cfg) = &self.inference else {
+            return Err(CausalError::Compile {
+                message: "a temporal counterfactual posterior requires Bayesian inference".into(),
+            });
+        };
+        let mut temporal = TemporalLinearAdjustment::new();
+        temporal.inner.bootstrap_replicates = 0;
+        temporal.inner.overlap = OverlapPolicy::ExplicitOverride;
+        let prepared = temporal
+            .prepare(data, estimand, contrast_query, indexer, None, &ctx.kernel_policy)
+            .map_err(CausalError::from)?;
+        let names = antecedent_estimate::temporal_coefficient_names(
+            data,
+            estimand,
+            contrast_query,
+            indexer,
+        )
+        .map_err(CausalError::from)?;
+        let problem = BayesianGComputationAte::from_prepared_temporal(&prepared, names)
+            .map_err(CausalError::from)?;
+        let (prior, conflict) = resolve_bayesian_prior_with_conflict(cfg, &problem, Some(ctx))?;
+        let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
+        bayes.inner.prior = prior;
+        let mut workspace = BayesianGCompWorkspace::default();
+        let mut posterior =
+            bayes.fit(&problem, proof.status, &mut workspace, ctx).map_err(CausalError::from)?;
+        if let Some(summary) = conflict {
+            posterior = with_conflict_summary(posterior, summary);
+        }
+        posterior.assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::ParametricRestriction(
+                antecedent_core::ParametricAssumption {
+                    id: Arc::from("temporal.counterfactual.shared_additive_noise"),
+                    description: Arc::from(
+                        "linear additive-noise structural equation for the outcome: the factual \
+                         noise is recovered exactly and replayed in the counterfactual world, so \
+                         it cancels and every unit's contrast equals the slope times the \
+                         contrast. The posterior is parameter uncertainty only; the outcome adds \
+                         none. A nonlinear, interacting or categorical mechanism is outside this \
+                         route",
+                    ),
+                },
+            ),
+            source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("temporal.counterfactual.posterior"),
+            },
+            scope: antecedent_core::AssumptionScope::Estimation,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+        let estimate = effect_from_posterior(&posterior)?
+            .with_n_obs(u64::try_from(prepared.design.nrows).unwrap_or(u64::MAX));
+        Ok((estimate, posterior))
     }
 }
 

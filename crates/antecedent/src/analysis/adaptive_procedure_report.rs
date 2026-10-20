@@ -273,6 +273,15 @@ fn premise_remedy(detail: &str) -> &'static str {
         "adaptive_inference.batch_incomplete" => {
             "retain the responses of every participant of a batch whose follow-up has elapsed, or end the history at the last batch whose participants all completed"
         }
+        "adaptive_inference.selection_not_ignorable" => {
+            "model the selection jointly with the outcome, or randomize independently of unobserved quantities"
+        }
+        "adaptive_inference.arm_not_observed" => {
+            "observe a completed unit in both contrast arms; a prior alone does not identify the contrast"
+        }
+        "adaptive_inference.structure_incomplete" => {
+            "declare the within-unit variance and a valid correlation or hierarchy"
+        }
         _ => {
             "declare a procedure that meets the paradigm's premise, or choose the paradigm the procedure meets"
         }
