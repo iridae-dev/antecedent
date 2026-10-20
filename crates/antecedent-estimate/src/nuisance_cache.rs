@@ -1996,6 +1996,7 @@ fn prepare_blocks(
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::execution::AdmissionPool;
     use antecedent_core::{
         ExecutionContext, NonZeroThreadCount, NumericalPolicy, Parallelism, PhysicalTolerance,
     };
@@ -2428,7 +2429,8 @@ mod tests {
     }
 
     fn parallel_context() -> ExecutionContext {
-        let mut ctx = ExecutionContext::for_tests(11);
+        let mut ctx = ExecutionContext::for_tests(11)
+            .with_admission(AdmissionPool::fixed(2, u64::MAX));
         ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(2).unwrap());
         ctx
     }
