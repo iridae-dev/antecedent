@@ -56,6 +56,7 @@ mod counterfactual_id_api;
 mod cpdag_scenario_api;
 mod cross_world_api;
 mod cross_world_execution_api;
+mod cyclic_system_api;
 mod decision_api;
 mod decision_reliability_api;
 #[allow(dead_code, reason = "signature literals are checked against this table in tests")]

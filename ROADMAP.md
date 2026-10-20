@@ -43,7 +43,8 @@ This document consolidates the performance, cyclic-model, and unified-compiler a
 | Joint response core | X01 typed joint intervention-response contracts and X06 scope/evidence suite; the bounded X02 family, with joint Δ_AB licensed only for worlds an identification attempt has earned. | Whole-contrast inference, a recorded sequence of failed and following attempts, independent artifacts, and explicit comparison scope; no unconditional MMM-feature-parity claim. |
 | Joint response extensions | X03 time-varying mechanisms, X04 intervention-program search, and X05 experiment-to-decision closure, each attempted on the fitted interface. | A failed attempt names the next attempt. The public claim is adjusted after the named attempts are exhausted. |
 | Accelerator | One optional backend/platform if the whole neural crossfit workload clears the promotion gate. | All six carried-over roadmap gates, including packaging and CPU consumption. |
-| Advanced research | Broader cyclic ID/FCI, nonlinear feedback, full continuous-time/stationary models, BGCM/constraint systems, and automatic estimator generation. | Separate theorem/reproduction/whole-route validation before production promotion. |
+| Broader cyclic systems (promoted 20 October 2026) | Y18 cyclic ID/FCI and all Y19 families: nonlinear equilibrium, solution sets/selection, counterfactuals, ODE/OU and equation/constraint systems; modeling, fitting, discovery, identification. | Mandatory implementation workflows with theorem/correctness tests, Python, resource, compiler and artifact acceptance. Calibration/attestation are separate and do not block Y18/Y19 closure. |
+| Advanced research | Automatic estimator generation and extensions beyond named production families. | Separate validation. |
 
 Parity is not a promise that every estimator automatically accepts every graph, intervention, or uncertainty object. A meaningful counterpart may need a different statistical method or additional premises. Engineering gaps remain unfinished work; genuinely different or unidentified targets require an explicit scientific boundary. New cyclic families do not inherit all acyclic licenses merely because they share operators.
 
@@ -262,9 +263,9 @@ Represent `A → B` and `B → A` as two directed mechanisms. Retain `A ↔ B` f
 | Family | Required scientific interpretation | Planned status |
 | --- | --- | --- |
 | Lagged feedback | Cadence, history/initial state, duration, horizon | Extend existing temporal routes |
-| Simultaneous equilibrium SCM | Equations, input/noise law, solution/intervention contract | Initial cyclic production family |
-| Continuous-time/stationary dynamics | Drift/diffusion, initial/stationary law, time and perturbations | Separate research family |
-| Physical constraints/equation systems | Active equations and replaced mechanism | Future extension influenced by constraints/BGCM work |
+| Simultaneous equilibrium SCM | Equations, input/noise law, solution/intervention contract | Mandatory nonlinear Y19.1–Y19.4 workflows, beyond the initial linear component |
+| Continuous-time/stationary dynamics | Drift/diffusion, initial/stationary law, time and perturbations | Mandatory Y19.5/Y19.6 workflows; ODE integration/fitting and OU laws/interventional likelihood |
+| Physical constraints/equation systems | Active equations and replaced mechanism | Mandatory Y19.7 workflows; bounded algebraic solutions, declared-selection fitting and BGCM reasoning |
 
 Hard clamps, mechanism changes, additive input shocks, pulses, sustained policies, and initial-state changes are different interventions. ODE-to-SCM translations require assumptions; setting derivatives to zero does not establish the causal abstraction. [Mooij, Janzing and Schölkopf 2013](https://arxiv.org/abs/1304.7920), [dynamic SCM reference](https://arxiv.org/abs/1608.08028).
 
@@ -325,7 +326,7 @@ Bind discovery to its sampling contract. Where a method requires independent equ
 
 Guard DAG-dependent separation, ID, recursive likelihood, sampling, mediation, abduction, attribution, transport, refuters, and composition. A cyclic model should initially be one certified component; arbitrary circular scientific artifact dependencies remain refused. [Current composition gate](/Users/charleshinshaw/Desktop/antecedent/crates/antecedent-contract/src/interface_contract/composition.rs:256).
 
-### Keep advanced models separate
+### Broader cyclic families — active 3.0 work
 
 Counterfactuals need abduction and shared factual/counterfactual disturbances. Independent resampling gives an interventional draw, not a unit counterfactual. Start with specified additive-linear models; partial observation, measurement noise, and latent uncertainty require explicit conditional abduction.
 
@@ -642,3 +643,9 @@ Lead with complete supported workflows and measured results: the same target acr
 “The fastest causal infrastructure” is the competitive objective. Any public claim must name workload scope, competing versions, equivalent scientific work, resource class, and measured result. Generic dataframe, GEMM, or GPU results cannot establish it. Publish failures and cases where CPU, small workloads, or existing prepared paths win.
 
 The unifying 3.0 architecture is **one scientific target, several principled realizations, typed evidence, and an efficient executable plan for the decision at hand**. Compiler parity, feedback modeling, larger data, and acceleration then strengthen the same system.
+
+## Cyclic scope amendment — 20 October 2026
+
+Y18 and all Y19 families are mandatory 3.0 production work. Arbitrary directed topology is independent of solvability and identification. TODO.md defines the children. Numerical roots do not establish uniqueness; multiple-root distributions require an explicit selection/dynamic law. Reports alone do not complete workflows. Failed approaches retain their following attempt. Work is isolated on codex/general-cyclic-systems.
+
+Calibration/attestation clarification (20 October 2026): Y18/Y19 implementation tickets close after all non-calibration engineering/scientific-correctness work passes. Statistical calibration and release attestation are separately owned; uncertainty outputs retain their unmeasured status until those processes complete.

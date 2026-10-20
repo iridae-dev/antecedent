@@ -1,0 +1,68 @@
+# Production implementation inventory; calibration and attestation are separate.
+version = 1
+parents = ["Y18", "Y19"]
+excluded_processes = ["statistical_calibration", "release_attestation"]
+implementation_guide = "docs/development/cyclic-systems.md"
+research_provenance = "provenance/cyclic.general_systems.toml"
+python_acceptance = "python/tests/test_cyclic.py"
+test_registry = "parity/v3_test_registry.toml"
+
+[[capability]]
+id = "Y18.1"
+workflow = "CyclicGraph.identify/calculus/adjust -> identified_functional -> finite-law or continuous Gaussian density fitting/evaluation -> evidence/artifact"
+rust = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs"]
+independent_truth = "All three-node mixed-graph Gaussian calculus checks; latent binary frontdoor and SCC joint tables; positivity and bounded-search failures"
+
+[[capability]]
+id = "Y18.2"
+workflow = "CyclicGraph.discover / discover_cyclic -> inducing-path PAG and theorem-scoped conclusions -> artifact"
+rust = ["crates/antecedent-discovery/src/cyclic_fci.rs"]
+independent_truth = "All 512 three-node mixed-graph exact CI cases; sampled CI; sigma walk oracle and exhaustive four-node directed graphs"
+
+[[capability]]
+id = "Y19.1"
+workflow = "EquilibriumModel / LocalCyclicModel -> SCC execution/inspection -> explicit certified or numerical outcomes"
+rust = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs"]
+independent_truth = "Overlapping loops, joint disturbances, noncontractive affine bijections, nonlinear multiple roots and clamp-induced failure"
+
+[[capability]]
+id = "Y19.2"
+workflow = "EquilibriumModel.isolate / PolynomialSystem.prepare -> roots and unresolved boxes -> explicit selection law / robust set decision"
+rust = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs"]
+independent_truth = "Cubic root sets, finite domains, exact expression coefficients, explicit incomplete work and equation-specific replacement"
+
+[[capability]]
+id = "Y19.3"
+workflow = "fit_gradient / fit_adam / posterior_responses / bootstrap_responses / learn_structure -> held-out regimes -> artifacts"
+rust = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs"]
+independent_truth = "Jacobian/mixed scores against central differences; exact linear moments; independent nonlinear data; explicit sampling designs and selection uncertainty"
+
+[[capability]]
+id = "Y19.4"
+workflow = "Fully observed abduction / partial_counterfactual / joint_counterfactual / PolynomialCausalModel -> coupled worlds -> evidence/artifact"
+rust = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/polynomial_scm.rs"]
+independent_truth = "Conjugate noisy Gaussian abduction; shared disturbance coupling; identical marginal root laws with different counterfactuals; undefined and impossible evidence"
+
+[[capability]]
+id = "Y19.5"
+workflow = "OdeSystem.prepare / fit -> explicit initial state, scheduled actions, sensitivities and trajectory artifacts"
+rust = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs"]
+independent_truth = "Analytic trajectories, tolerance refinement, sensitivity differences and step/stiffness budgets"
+
+[[capability]]
+id = "Y19.6"
+workflow = "OrnsteinUhlenbeck stationary/transient/intervened and OuMechanisms.prepare -> joint regime fit, failed worlds and artifact"
+rust = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs"]
+independent_truth = "Analytic scalar/multivariate Lyapunov and transient laws; SciPy stationary covariance checks; shared mechanism gradients against finite differences"
+
+[[capability]]
+id = "Y19.7"
+workflow = "PolynomialSystem / fit_polynomial_candidates / PolynomialCausalModel / BipartiteCausalGraph -> equation intervention, fitting and graphical reasoning"
+rust = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs"]
+independent_truth = "Different replaced physical equations give different effects; independent Gaussian incidence checks; declared geometric selection/measurement likelihood"
+
+[[capability]]
+id = "Y19.8"
+workflow = "Study::prepare_cyclic[_family] -> retained execution -> source-bound evidence/decision -> independent CPU consumer"
+rust = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs"]
+independent_truth = "Fresh processes, immutable preparation, zero-refit retargets, source/schema/world/policy/seed invalidation, resource/cancellation and malformed artifact refusal"

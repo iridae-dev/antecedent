@@ -24,6 +24,8 @@ mod class_envelope_cache;
 pub mod compiled_product;
 pub mod counterfactual_id;
 pub mod cross_world;
+pub mod cyclic_id;
+pub mod cyclic_calculus;
 pub mod efficient;
 pub(crate) mod enum_masks;
 pub mod envelope;

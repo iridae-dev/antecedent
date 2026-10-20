@@ -96,3 +96,6 @@ pub use unfold::{
 };
 pub use unfold_pag::UnfoldedTemporalPag;
 pub use workspace::{BitSet, GraphWorkspace};
+
+/// Equation-variable causal ordering and determinism-aware B-separation.
+pub mod bipartite;

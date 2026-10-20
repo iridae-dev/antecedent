@@ -38,7 +38,9 @@
 #[non_exhaustive] pub enum antecedent_io::stream_artifact::StreamArtifactError
 #[non_exhaustive] pub enum antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::ModelBundle [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_system_artifact::PreparedCyclicExecution [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_io::ModelBundle [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_system_artifact::PreparedCyclicExecution [auto]
 impl core::clone::Clone for antecedent_io::CandidateSelectionWire
 impl core::clone::Clone for antecedent_io::ClipSensitivityWire
 impl core::clone::Clone for antecedent_io::EffectEstimateWire
@@ -111,6 +113,23 @@ impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::CpdagEvide
 impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::CpdagReportWire
 impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises
 impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl core::clone::Clone for antecedent_io::cyclic_functional::CyclicFunctionalReport
+impl core::clone::Clone for antecedent_io::cyclic_functional::CyclicFunctionalValue
+impl core::clone::Clone for antecedent_io::cyclic_functional::FiniteCyclicLaw
+impl core::clone::Clone for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl core::clone::Clone for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw
+impl core::clone::Clone for antecedent_io::cyclic_graph::CyclicGraphReport
+impl core::clone::Clone for antecedent_io::cyclic_graph::CyclicGraphRequest
+impl core::clone::Clone for antecedent_io::cyclic_graph::CyclicGraphSpec
+impl core::clone::Clone for antecedent_io::cyclic_system_artifact::CyclicExecutionReport
+impl core::clone::Clone for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest
+impl core::clone::Clone for antecedent_io::cyclic_system_artifact::CyclicFitRequest
+impl core::clone::Clone for antecedent_io::cyclic_system_artifact::PreparedCyclicExecution
 impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
 impl core::clone::Clone for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
@@ -575,6 +594,22 @@ impl core::cmp::PartialEq for antecedent_io::cpdag_completion_artifact::Completi
 impl core::cmp::PartialEq for antecedent_io::cpdag_completion_artifact::CpdagArtifactError
 impl core::cmp::PartialEq for antecedent_io::cpdag_completion_artifact::CpdagEvidenceWire
 impl core::cmp::PartialEq for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl core::cmp::PartialEq for antecedent_io::cyclic_functional::CyclicFunctionalReport
+impl core::cmp::PartialEq for antecedent_io::cyclic_functional::CyclicFunctionalValue
+impl core::cmp::PartialEq for antecedent_io::cyclic_functional::FiniteCyclicLaw
+impl core::cmp::PartialEq for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl core::cmp::PartialEq for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw
+impl core::cmp::PartialEq for antecedent_io::cyclic_graph::CyclicGraphReport
+impl core::cmp::PartialEq for antecedent_io::cyclic_graph::CyclicGraphRequest
+impl core::cmp::PartialEq for antecedent_io::cyclic_graph::CyclicGraphSpec
+impl core::cmp::PartialEq for antecedent_io::cyclic_system_artifact::CyclicExecutionReport
+impl core::cmp::PartialEq for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest
+impl core::cmp::PartialEq for antecedent_io::cyclic_system_artifact::CyclicFitRequest
 impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
 impl core::cmp::PartialEq for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
@@ -848,6 +883,7 @@ impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
+impl core::convert::From<antecedent_model::nonlinear_equilibrium::EquilibriumError> for antecedent_io::cyclic_system_artifact::CyclicArtifactError
 impl core::default::Default for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits
 impl core::default::Default for antecedent_io::array_fit_artifact::ArrayFitConsumeLimits
 impl core::default::Default for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits
@@ -884,6 +920,7 @@ impl core::error::Error for antecedent_io::array_fit_artifact::ArrayFitError
 impl core::error::Error for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
 impl core::error::Error for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
 impl core::error::Error for antecedent_io::cpdag_completion_artifact::CpdagArtifactError
+impl core::error::Error for antecedent_io::cyclic_system_artifact::CyclicArtifactError
 impl core::error::Error for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::error::Error for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
 impl core::error::Error for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
@@ -977,6 +1014,24 @@ impl core::fmt::Debug for antecedent_io::cpdag_completion_artifact::CpdagEvidenc
 impl core::fmt::Debug for antecedent_io::cpdag_completion_artifact::CpdagReportWire
 impl core::fmt::Debug for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises
 impl core::fmt::Debug for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl core::fmt::Debug for antecedent_io::cyclic_functional::CyclicFunctionalReport
+impl core::fmt::Debug for antecedent_io::cyclic_functional::CyclicFunctionalValue
+impl core::fmt::Debug for antecedent_io::cyclic_functional::FiniteCyclicLaw
+impl core::fmt::Debug for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl core::fmt::Debug for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw
+impl core::fmt::Debug for antecedent_io::cyclic_graph::CyclicGraphReport
+impl core::fmt::Debug for antecedent_io::cyclic_graph::CyclicGraphRequest
+impl core::fmt::Debug for antecedent_io::cyclic_graph::CyclicGraphSpec
+impl core::fmt::Debug for antecedent_io::cyclic_system_artifact::CyclicArtifactError
+impl core::fmt::Debug for antecedent_io::cyclic_system_artifact::CyclicExecutionReport
+impl core::fmt::Debug for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest
+impl core::fmt::Debug for antecedent_io::cyclic_system_artifact::CyclicFitRequest
+impl core::fmt::Debug for antecedent_io::cyclic_system_artifact::PreparedCyclicExecution
 impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
 impl core::fmt::Debug for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
@@ -1277,6 +1332,7 @@ impl core::fmt::Display for antecedent_io::array_fit_artifact::ArrayFitError
 impl core::fmt::Display for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
 impl core::fmt::Display for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
 impl core::fmt::Display for antecedent_io::cpdag_completion_artifact::CpdagArtifactError
+impl core::fmt::Display for antecedent_io::cyclic_system_artifact::CyclicArtifactError
 impl core::fmt::Display for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::fmt::Display for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
 impl core::fmt::Display for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
@@ -1428,6 +1484,24 @@ impl core::marker::Freeze for antecedent_io::cpdag_completion_artifact::CpdagEvi
 impl core::marker::Freeze for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::marker::Freeze for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::marker::Freeze for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_system_artifact::CyclicArtifactError [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_system_artifact::CyclicExecutionReport [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_system_artifact::CyclicFitRequest [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_system_artifact::PreparedCyclicExecution [auto]
 impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
 impl core::marker::Freeze for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
@@ -1808,6 +1882,24 @@ impl core::marker::Send for antecedent_io::cpdag_completion_artifact::CpdagEvide
 impl core::marker::Send for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::marker::Send for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::marker::Send for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::marker::Send for antecedent_io::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::marker::Send for antecedent_io::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::marker::Send for antecedent_io::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::marker::Send for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::marker::Send for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
+impl core::marker::Send for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
+impl core::marker::Send for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
+impl core::marker::Send for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
+impl core::marker::Send for antecedent_io::cyclic_system_artifact::CyclicArtifactError [auto]
+impl core::marker::Send for antecedent_io::cyclic_system_artifact::CyclicExecutionReport [auto]
+impl core::marker::Send for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest [auto]
+impl core::marker::Send for antecedent_io::cyclic_system_artifact::CyclicFitRequest [auto]
+impl core::marker::Send for antecedent_io::cyclic_system_artifact::PreparedCyclicExecution [auto]
 impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
 impl core::marker::Send for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
@@ -2173,6 +2265,22 @@ impl core::marker::StructuralPartialEq for antecedent_io::cpdag_completion_artif
 impl core::marker::StructuralPartialEq for antecedent_io::cpdag_completion_artifact::CpdagArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io::cpdag_completion_artifact::CpdagEvidenceWire
 impl core::marker::StructuralPartialEq for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_functional::CyclicFunctionalReport
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_functional::CyclicFunctionalValue
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_functional::FiniteCyclicLaw
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_graph::CyclicGraphReport
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_graph::CyclicGraphRequest
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_graph::CyclicGraphSpec
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_system_artifact::CyclicExecutionReport
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_system_artifact::CyclicFitRequest
 impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
 impl core::marker::StructuralPartialEq for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
@@ -2501,6 +2609,24 @@ impl core::marker::Sync for antecedent_io::cpdag_completion_artifact::CpdagEvide
 impl core::marker::Sync for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::marker::Sync for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::marker::Sync for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::marker::Sync for antecedent_io::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::marker::Sync for antecedent_io::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::marker::Sync for antecedent_io::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::marker::Sync for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::marker::Sync for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
+impl core::marker::Sync for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
+impl core::marker::Sync for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
+impl core::marker::Sync for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
+impl core::marker::Sync for antecedent_io::cyclic_system_artifact::CyclicArtifactError [auto]
+impl core::marker::Sync for antecedent_io::cyclic_system_artifact::CyclicExecutionReport [auto]
+impl core::marker::Sync for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest [auto]
+impl core::marker::Sync for antecedent_io::cyclic_system_artifact::CyclicFitRequest [auto]
+impl core::marker::Sync for antecedent_io::cyclic_system_artifact::PreparedCyclicExecution [auto]
 impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
 impl core::marker::Sync for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
@@ -2881,6 +3007,24 @@ impl core::marker::Unpin for antecedent_io::cpdag_completion_artifact::CpdagEvid
 impl core::marker::Unpin for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::marker::Unpin for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::marker::Unpin for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_system_artifact::CyclicArtifactError [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_system_artifact::CyclicExecutionReport [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_system_artifact::CyclicFitRequest [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_system_artifact::PreparedCyclicExecution [auto]
 impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
 impl core::marker::Unpin for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
@@ -3260,6 +3404,23 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cpdag_completion
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_system_artifact::CyclicArtifactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_system_artifact::CyclicExecutionReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_system_artifact::CyclicFitRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
@@ -3639,6 +3800,23 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cpdag_completion_ar
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_system_artifact::CyclicArtifactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_system_artifact::CyclicExecutionReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_system_artifact::CyclicFitRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseContrastWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire [auto]
@@ -3992,6 +4170,22 @@ impl serde_core::ser::Serialize for antecedent_io::cpdag_completion_artifact::Cp
 impl serde_core::ser::Serialize for antecedent_io::cpdag_completion_artifact::CpdagEvidenceWire
 impl serde_core::ser::Serialize for antecedent_io::cpdag_completion_artifact::CpdagReportWire
 impl serde_core::ser::Serialize for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl serde_core::ser::Serialize for antecedent_io::cyclic_functional::CyclicFunctionalReport
+impl serde_core::ser::Serialize for antecedent_io::cyclic_functional::CyclicFunctionalValue
+impl serde_core::ser::Serialize for antecedent_io::cyclic_functional::FiniteCyclicLaw
+impl serde_core::ser::Serialize for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl serde_core::ser::Serialize for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw
+impl serde_core::ser::Serialize for antecedent_io::cyclic_graph::CyclicGraphReport
+impl serde_core::ser::Serialize for antecedent_io::cyclic_graph::CyclicGraphRequest
+impl serde_core::ser::Serialize for antecedent_io::cyclic_graph::CyclicGraphSpec
+impl serde_core::ser::Serialize for antecedent_io::cyclic_system_artifact::CyclicExecutionReport
+impl serde_core::ser::Serialize for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest
+impl serde_core::ser::Serialize for antecedent_io::cyclic_system_artifact::CyclicFitRequest
 impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
 impl serde_core::ser::Serialize for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
@@ -4370,6 +4564,22 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cpdag_completion_a
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cpdag_completion_artifact::CpdagEvidenceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cpdag_completion_artifact::CpdagReportWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_functional::CyclicFunctionalReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_functional::CyclicFunctionalValue
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_functional::FiniteCyclicLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_graph::CyclicGraphReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_graph::CyclicGraphRequest
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_graph::CyclicGraphSpec
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_system_artifact::CyclicExecutionReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_system_artifact::CyclicExecutionRequest
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_system_artifact::CyclicFitRequest
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_functional_artifact::DoseContrastWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
@@ -4639,6 +4849,7 @@ pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_TREATMENT_C
 pub const antecedent_io::categorical_treatment_artifact::MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES: usize
 pub const antecedent_io::cpdag_completion_artifact::CPDAG_COMPLETION_ARTIFACT_FEATURE: &str
 pub const antecedent_io::cpdag_completion_artifact::CPDAG_COMPLETION_ARTIFACT_VERSION: u32
+pub const antecedent_io::cyclic_system_artifact::MAX_CYCLIC_ARTIFACT_BYTES: usize
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_ARTIFACT_FEATURE: &str
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_ARTIFACT_VERSION: u32
 pub const antecedent_io::dose_grid_functional_artifact::DOSE_GRID_BAND_CLOSED: &str
@@ -4810,6 +5021,12 @@ pub enum antecedent_io::array_fit_artifact::ArrayFitRequestWire
 pub enum antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
 pub enum antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 pub enum antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome
+pub enum antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
+pub enum antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
+pub enum antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw
+pub enum antecedent_io::cyclic_graph::CyclicGraphReport
+pub enum antecedent_io::cyclic_graph::CyclicGraphRequest
+pub enum antecedent_io::cyclic_system_artifact::CyclicArtifactError
 pub enum antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
 pub enum antecedent_io::measured_inference::split_parent_set_effect::Transformation
 pub enum antecedent_io::model_codes::GraphClassCode
@@ -5329,6 +5546,53 @@ pub field antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises::query
 pub field antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises::request: antecedent_expr::provider::Assignment
 pub field antecedent_io::cpdag_completion_artifact::SharedEvidenceWire::catalog: antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire
 pub field antecedent_io::cpdag_completion_artifact::SharedEvidenceWire::identity: alloc::string::String
+pub field antecedent_io::cyclic_family_artifact::CyclicActionWorldReport::blocks: alloc::vec::Vec<alloc::vec::Vec<usize>>
+pub field antecedent_io::cyclic_family_artifact::CyclicActionWorldReport::counterfactual: core::option::Option<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>
+pub field antecedent_io::cyclic_family_artifact::CyclicActionWorldReport::id: alloc::string::String
+pub field antecedent_io::cyclic_family_artifact::CyclicActionWorldReport::rows: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>
+pub field antecedent_io::cyclic_family_artifact::CyclicFamilyReport::answer: antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
+pub field antecedent_io::cyclic_family_artifact::CyclicFamilyReport::identity: alloc::string::String
+pub field antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy::chains: usize
+pub field antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy::draws: usize
+pub field antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy::proposal_scale: f64
+pub field antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy::seed: u64
+pub field antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy::warmup: usize
+pub field antecedent_io::cyclic_functional::CyclicFunctionalReport::derivation: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::cyclic_functional::CyclicFunctionalReport::operations: u64
+pub field antecedent_io::cyclic_functional::CyclicFunctionalReport::source_identity: alloc::string::String
+pub field antecedent_io::cyclic_functional::CyclicFunctionalReport::values: alloc::vec::Vec<antecedent_io::cyclic_functional::CyclicFunctionalValue>
+pub field antecedent_io::cyclic_functional::CyclicFunctionalValue::assignment: alloc::vec::Vec<(u32, f64)>
+pub field antecedent_io::cyclic_functional::CyclicFunctionalValue::failure: core::option::Option<alloc::string::String>
+pub field antecedent_io::cyclic_functional::CyclicFunctionalValue::value: core::option::Option<f64>
+pub field antecedent_io::cyclic_functional::FiniteCyclicLaw::support: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_io::cyclic_functional::FiniteCyclicLaw::weights: alloc::vec::Vec<f64>
+pub field antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::covariance: alloc::vec::Vec<f64>
+pub field antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::covariance_condition_estimate: f64
+pub field antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::derivation: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::fitted_rows: core::option::Option<usize>
+pub field antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::mean: alloc::vec::Vec<f64>
+pub field antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::operations: usize
+pub field antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::source_identity: alloc::string::String
+pub field antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::values: alloc::vec::Vec<antecedent_io::cyclic_functional::CyclicFunctionalValue>
+pub field antecedent_io::cyclic_graph::CyclicGraphSpec::bidirected: alloc::vec::Vec<(u32, u32)>
+pub field antecedent_io::cyclic_graph::CyclicGraphSpec::directed: alloc::vec::Vec<(u32, u32)>
+pub field antecedent_io::cyclic_graph::CyclicGraphSpec::nodes: u32
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionReport::calibration: alloc::string::String
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionReport::claim: alloc::string::String
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionReport::counterfactuals: core::option::Option<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumResult>>
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionReport::fit: core::option::Option<antecedent_estimate::cyclic_likelihood::CyclicFit>
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionReport::identity: alloc::string::String
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionReport::worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumResult>>
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::factual: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::fit: core::option::Option<antecedent_io::cyclic_system_artifact::CyclicFitRequest>
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::initial: alloc::vec::Vec<f64>
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::model: antecedent_model::nonlinear_equilibrium::EquilibriumModel
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::noise: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::policy: antecedent_model::nonlinear_equilibrium::SolvePolicy
+pub field antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>>
+pub field antecedent_io::cyclic_system_artifact::CyclicFitRequest::options: antecedent_estimate::cyclic_likelihood::CyclicFitOptions
+pub field antecedent_io::cyclic_system_artifact::CyclicFitRequest::parameters: alloc::vec::Vec<antecedent_estimate::cyclic_likelihood::CyclicParameter>
+pub field antecedent_io::cyclic_system_artifact::CyclicFitRequest::rows: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>
 pub field antecedent_io::dose_grid_functional_artifact::DoseClaimsWire::derivative: bool
 pub field antecedent_io::dose_grid_functional_artifact::DoseClaimsWire::pointwise_level: bool
 pub field antecedent_io::dose_grid_functional_artifact::DoseClaimsWire::simultaneous_band: bool
@@ -7219,6 +7483,22 @@ pub fn <antecedent_io::cpdag_completion_artifact::CpdagEvidenceWire>::fn from_ev
 pub fn <antecedent_io::cpdag_completion_artifact::CpdagEvidenceWire>::fn to_evidence(&self) -> core::result::Result<antecedent_identify::sid::cpdag_completion::CpdagEvidence, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::cpdag_completion_artifact::CpdagReportWire>::fn from_report(prepared: &antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios, report: &antecedent_estimate::cpdag_scenarios::CpdagScenarioReport) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises>::fn prepare(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::cyclic_family_artifact::CyclicFamilyRequest>::const fn family_name(&self) -> &'static str
+pub fn <antecedent_io::cyclic_family_artifact::CyclicFamilyRequest>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_family_artifact::CyclicFamilyReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_family_artifact::CyclicFamilyRequest>::fn export(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_io::cyclic_family_artifact::CyclicFamilyReport, alloc::vec::Vec<u8>), antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_graph::CyclicGraphRequest>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_graph::CyclicGraphReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_graph::CyclicGraphSpec>::fn graph(&self) -> core::result::Result<antecedent_graph::cyclic::CyclicMixedGraph, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_system_artifact::CyclicExecutionRequest>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_system_artifact::CyclicExecutionReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_system_artifact::CyclicExecutionRequest>::fn export(&self, artifact_id: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_io::cyclic_system_artifact::CyclicExecutionReport, alloc::vec::Vec<u8>), antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_system_artifact::CyclicExecutionRequest>::fn identity(&self) -> core::result::Result<alloc::string::String, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_system_artifact::PreparedCyclicExecution>::fn blocks(&self) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<alloc::vec::Vec<usize>>>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_system_artifact::PreparedCyclicExecution>::fn estimate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_system_artifact::CyclicExecutionReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_system_artifact::PreparedCyclicExecution>::fn execution_plans(&self) -> core::result::Result<alloc::vec::Vec<antecedent_model::system_compile::CompiledSystemPlan>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_system_artifact::PreparedCyclicExecution>::fn export(&self, artifact_id: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_io::cyclic_system_artifact::CyclicExecutionReport, alloc::vec::Vec<u8>), antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_system_artifact::PreparedCyclicExecution>::fn fits_performed(&self) -> usize
+pub fn <antecedent_io::cyclic_system_artifact::PreparedCyclicExecution>::fn identity(&self) -> core::result::Result<alloc::string::String, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_system_artifact::PreparedCyclicExecution>::fn prepare(request: antecedent_io::cyclic_system_artifact::CyclicExecutionRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_system_artifact::PreparedCyclicExecution>::fn retarget(&self, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>>, noise: alloc::vec::Vec<alloc::vec::Vec<f64>>, initial: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn <antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError>::fn refusal(&self) -> (&'static str, alloc::string::String)
 pub fn <antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire>::fn consume_typed(bytes: &[u8], limits: antecedent_io::dose_grid_functional_artifact::DoseGridConsumeLimits) -> core::result::Result<Self, antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError>
 pub fn <antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::dose_grid_functional_artifact::DoseGridConsumeLimits) -> core::result::Result<Self, antecedent_io_core::error::IoError>
@@ -7599,6 +7879,13 @@ pub fn antecedent_io::bridge_interval::construct_bridged_claim_interval(bridged:
 pub fn antecedent_io::counterfactual_transport_artifact::consume_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity, limits: antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
 pub fn antecedent_io::counterfactual_transport_artifact::identified_counterfactual_transport_artifact(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, data: &antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, variable_names: &[alloc::string::String], point: &antecedent_estimate::counterfactual_transport::CounterfactualTransportPoint) -> core::result::Result<antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
 pub fn antecedent_io::counterfactual_transport_artifact::obstructed_counterfactual_transport_artifact(obstruction: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportObstruction, search: antecedent_core::search::SearchLimits, memory_limit_bytes: u64, variable_names: &[alloc::string::String]) -> core::result::Result<antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
+pub fn antecedent_io::cyclic_family_artifact::consume_cyclic_family(bytes: &[u8], expected_identity: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_family_artifact::CyclicFamilyReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn antecedent_io::cyclic_family_artifact::consume_cyclic_family_with_request(bytes: &[u8], expected_identity: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, antecedent_io::cyclic_family_artifact::CyclicFamilyReport), antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn antecedent_io::cyclic_functional::evaluate_cyclic_functional(source: &antecedent_io::cyclic_graph::CyclicGraphRequest, source_identity: &str, program: &antecedent_io_core::expr_wire::FunctionalProgramWire, law: &antecedent_io::cyclic_functional::FiniteCyclicLaw, assignments: &[alloc::vec::Vec<(u32, f64)>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_functional::CyclicFunctionalReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn antecedent_io::cyclic_gaussian_functional::evaluate_gaussian_cyclic_functional(source: &antecedent_io::cyclic_graph::CyclicGraphRequest, source_identity: &str, program: &antecedent_io_core::expr_wire::FunctionalProgramWire, law: &antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw, assignments: &[alloc::vec::Vec<(u32, f64)>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn antecedent_io::cyclic_system_artifact::consume_cyclic_artifact(bytes: &[u8], expected_identity: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_system_artifact::CyclicExecutionReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn antecedent_io::cyclic_system_artifact::cyclic_decode_admission(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn antecedent_io::cyclic_system_artifact::cyclic_serialized_size<T: serde_core::ser::Serialize>(value: &T, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<usize, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn antecedent_io::decode_model_bundle(artifact: &antecedent_io_core::container::EncodedArtifact) -> core::result::Result<antecedent_io::ModelBundle, antecedent_io_core::error::IoError>
 pub fn antecedent_io::distribution_factor_laws_to_wire(snapshot: &antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot) -> core::result::Result<antecedent_io_core::identity::DistributionFactorLawsWire, antecedent_io_core::error::IoError>
 pub fn antecedent_io::dose_grid_functional_artifact::dose_support_table(dose: &[f64], points: &[f64], bandwidth: f64, minimum_local_ess: f64) -> core::result::Result<alloc::vec::Vec<antecedent_io::dose_grid_functional_artifact::DoseSupportWire>, antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError>
@@ -7653,6 +7940,11 @@ pub mod antecedent_io::bridge_interval
 pub mod antecedent_io::categorical_treatment_artifact
 pub mod antecedent_io::counterfactual_transport_artifact
 pub mod antecedent_io::cpdag_completion_artifact
+pub mod antecedent_io::cyclic_family_artifact
+pub mod antecedent_io::cyclic_functional
+pub mod antecedent_io::cyclic_gaussian_functional
+pub mod antecedent_io::cyclic_graph
+pub mod antecedent_io::cyclic_system_artifact
 pub mod antecedent_io::dose_grid_functional_artifact
 pub mod antecedent_io::effect_constancy_artifact
 pub mod antecedent_io::joint_bayesian_transport_artifact
@@ -7767,6 +8059,19 @@ pub struct antecedent_io::cpdag_completion_artifact::CpdagEvidenceWire
 pub struct antecedent_io::cpdag_completion_artifact::CpdagReportWire
 pub struct antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises
 pub struct antecedent_io::cpdag_completion_artifact::SharedEvidenceWire
+pub struct antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
+pub struct antecedent_io::cyclic_family_artifact::CyclicFamilyReport
+pub struct antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+pub struct antecedent_io::cyclic_functional::CyclicFunctionalReport
+pub struct antecedent_io::cyclic_functional::CyclicFunctionalValue
+pub struct antecedent_io::cyclic_functional::FiniteCyclicLaw
+pub struct antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+pub struct antecedent_io::cyclic_graph::CyclicGraphSpec
+pub struct antecedent_io::cyclic_system_artifact::CyclicExecutionReport
+pub struct antecedent_io::cyclic_system_artifact::CyclicExecutionRequest
+pub struct antecedent_io::cyclic_system_artifact::CyclicFitRequest
+pub struct antecedent_io::cyclic_system_artifact::PreparedCyclicExecution
+pub struct antecedent_io::cyclic_system_artifact::PreparedCyclicExecution has private fields
 pub struct antecedent_io::dose_grid_functional_artifact::DoseClaimsWire
 pub struct antecedent_io::dose_grid_functional_artifact::DoseContrastWire
 pub struct antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire
@@ -7909,11 +8214,9 @@ pub struct antecedent_io::period_refresh_artifact::PeriodEventWire
 pub struct antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
 pub struct antecedent_io::period_refresh_artifact::PeriodRefreshReplay
 pub struct antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire
-pub struct antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire
 pub struct antecedent_io::period_refresh_artifact::PosteriorWire
 pub struct antecedent_io::period_refresh_artifact::PriorWire
 pub struct antecedent_io::period_refresh_artifact::RowWire
-pub struct antecedent_io::period_refresh_artifact::SummaryLedgerWire
 pub struct antecedent_io::period_refresh_artifact::SummaryLedgerWire
 pub struct antecedent_io::predictive_assessment_artifact::DependenceWire
 pub struct antecedent_io::predictive_assessment_artifact::DesignWire
@@ -8756,6 +9059,65 @@ pub variant antecedent_io::cpdag_completion_artifact::CpdagArtifactError::Premis
 pub variant antecedent_io::cpdag_completion_artifact::CpdagArtifactError::ProviderMismatch(&'static str)
 pub variant antecedent_io::cpdag_completion_artifact::CpdagArtifactError::ReportMismatch
 pub variant antecedent_io::cpdag_completion_artifact::CpdagArtifactError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::AdamFit(antecedent_estimate::cyclic_adam::CyclicAdamFit)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::EquilibriumActions(alloc::vec::Vec<antecedent_io::cyclic_family_artifact::CyclicActionWorldReport>)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::FrequentistBootstrap { parameters: alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>, worlds: alloc::vec::Vec<alloc::vec::Vec<core::option::Option<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>>>> }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::Functional(antecedent_io::cyclic_functional::CyclicFunctionalReport)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::GaussianFunctional(antecedent_io::cyclic_gaussian_functional::GaussianCyclicFunctionalReport)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::GradientFit(antecedent_estimate::cyclic_gradient::CyclicGradientFit)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::Graph(antecedent_io::cyclic_graph::CyclicGraphReport)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::JointCounterfactual { posterior: antecedent_estimate::cyclic_likelihood::CyclicJointAbduction, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>> }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::Ode(antecedent_model::continuous_cyclic::OdeTrajectory)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OdeFit(antecedent_estimate::cyclic_dynamics::OdeFit)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OuFit(antecedent_estimate::cyclic_dynamics::OuFit)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OuMechanisms { fit: core::option::Option<antecedent_estimate::ou_mechanisms::OuMechanismFit>, laws: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuMechanismOutcome> }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OuStationary(alloc::vec::Vec<f64>)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::OuTransient(antecedent_model::continuous_cyclic::OuMoments)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::ParameterPosterior { posterior: antecedent_estimate::cyclic_likelihood::CyclicPosterior, worlds: alloc::vec::Vec<alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>>> }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::PartialCounterfactual { abduction: antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome>> }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::Polynomial(antecedent_model::equation_system::IsolatedSolutions)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::PolynomialCausal(antecedent_estimate::polynomial_scm::PolynomialCausalReport)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::PolynomialFit(antecedent_estimate::constraint_likelihood::PolynomialFit)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::StructureFit { fit: antecedent_estimate::cyclic_likelihood::CyclicStructureFit, bootstrap: alloc::vec::Vec<core::option::Option<antecedent_estimate::cyclic_likelihood::CyclicStructureFit>> }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::AdamFit { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: alloc::vec::Vec<antecedent_estimate::cyclic_likelihood::CyclicParameter>, training: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, validation: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, policy: antecedent_estimate::cyclic_adam::CyclicAdamPolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::EquilibriumActions { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, worlds: alloc::vec::Vec<antecedent_model::cyclic_actions::EquilibriumActionWorld>, noise: alloc::vec::Vec<alloc::vec::Vec<f64>>, initial: alloc::vec::Vec<f64>, factual: core::option::Option<alloc::vec::Vec<f64>>, policy: antecedent_model::nonlinear_equilibrium::SolvePolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::EquilibriumRoots { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, domain: alloc::vec::Vec<antecedent_model::equation_system::Interval>, noise: alloc::vec::Vec<f64>, clamps: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>, policy: antecedent_model::equation_system::IsolationPolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::FrequentistBootstrap { design: antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign, model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: alloc::vec::Vec<antecedent_estimate::cyclic_likelihood::CyclicParameter>, rows: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, policy: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, replicates: usize, seed: u64, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>>, noise: alloc::vec::Vec<alloc::vec::Vec<f64>>, initial: alloc::vec::Vec<f64>, solve_policy: antecedent_model::nonlinear_equilibrium::SolvePolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::Functional { source: antecedent_io::cyclic_graph::CyclicGraphRequest, source_identity: alloc::string::String, program: antecedent_io_core::expr_wire::FunctionalProgramWire, law: antecedent_io::cyclic_functional::FiniteCyclicLaw, assignments: alloc::vec::Vec<alloc::vec::Vec<(u32, f64)>> }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::GaussianFunctional { source: antecedent_io::cyclic_graph::CyclicGraphRequest, source_identity: alloc::string::String, program: antecedent_io_core::expr_wire::FunctionalProgramWire, law: antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw, assignments: alloc::vec::Vec<alloc::vec::Vec<(u32, f64)>> }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::GradientFit { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: alloc::vec::Vec<antecedent_estimate::cyclic_likelihood::CyclicParameter>, rows: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, policy: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::Graph { request: antecedent_io::cyclic_graph::CyclicGraphRequest }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::JointCounterfactual { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: alloc::vec::Vec<antecedent_estimate::cyclic_likelihood::CyclicParameter>, rows: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, prior_sd: f64, observations: alloc::vec::Vec<core::option::Option<f64>>, measurement_variances: alloc::vec::Vec<f64>, initial: alloc::vec::Vec<f64>, sampling: antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>>, solve_policy: antecedent_model::nonlinear_equilibrium::SolvePolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::Ode { model: antecedent_model::continuous_cyclic::OdeSystem, initial: alloc::vec::Vec<f64>, times: alloc::vec::Vec<f64>, schedule: alloc::vec::Vec<antecedent_model::continuous_cyclic::TimedClamp>, policy: antecedent_model::continuous_cyclic::OdePolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OdeFit { model: antecedent_model::continuous_cyclic::OdeSystem, parameters: alloc::vec::Vec<antecedent_model::continuous_cyclic::OdeParameter>, observations: alloc::vec::Vec<antecedent_estimate::cyclic_dynamics::OdeObservation>, integration: antecedent_model::continuous_cyclic::OdePolicy, policy: antecedent_estimate::cyclic_dynamics::OdeFitPolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OuFit { model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck, parameters: alloc::vec::Vec<antecedent_estimate::cyclic_dynamics::OuParameter>, rows: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, policy: antecedent_estimate::cyclic_likelihood::CyclicFitOptions }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OuMechanisms { model: antecedent_estimate::ou_mechanisms::OuMechanisms, regimes: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuMechanismRegime>, parameters: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuMechanismParameter>, policy: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuEquationReplacement>> }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OuStationary { model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::OuTransient { model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck, initial_mean: alloc::vec::Vec<f64>, initial_covariance: alloc::vec::Vec<f64>, times: alloc::vec::Vec<f64>, policy: antecedent_model::continuous_cyclic::OdePolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::ParameterPosterior { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: alloc::vec::Vec<antecedent_estimate::cyclic_likelihood::CyclicParameter>, rows: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, prior_sd: f64, sampling: antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>>, noise: alloc::vec::Vec<alloc::vec::Vec<f64>>, initial: alloc::vec::Vec<f64>, solve_policy: antecedent_model::nonlinear_equilibrium::SolvePolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::PartialCounterfactual { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, observations: alloc::vec::Vec<core::option::Option<f64>>, measurement_variances: alloc::vec::Vec<f64>, initial: alloc::vec::Vec<f64>, sampling: antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy, worlds: alloc::vec::Vec<alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::Clamp>>, solve_policy: antecedent_model::nonlinear_equilibrium::SolvePolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::Polynomial { model: antecedent_model::equation_system::PolynomialSystem, policy: antecedent_model::equation_system::IsolationPolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::PolynomialCausal { program: antecedent_estimate::polynomial_scm::PolynomialCausalProgram }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::PolynomialFit { candidates: alloc::vec::Vec<antecedent_estimate::constraint_likelihood::PolynomialCandidate>, measurements: alloc::vec::Vec<antecedent_estimate::constraint_likelihood::PolynomialMeasurement>, policy: antecedent_model::equation_system::IsolationPolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::StructureFit { seed: u64, design: antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign, model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, training: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, heldout: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, policy: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, threshold: f64, bootstrap_replicates: usize }
+pub variant antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw::Fit { rows: alloc::vec::Vec<alloc::vec::Vec<f64>>, independent_observational_replicates: bool }
+pub variant antecedent_io::cyclic_gaussian_functional::GaussianCyclicLaw::Specified { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64> }
+pub variant antecedent_io::cyclic_graph::CyclicGraphReport::Backdoor { valid: bool }
+pub variant antecedent_io::cyclic_graph::CyclicGraphReport::Bipartite { separated: bool, determined: alloc::vec::Vec<usize>, variable_clusters: alloc::vec::Vec<usize>, equation_clusters: alloc::vec::Vec<usize>, assumptions: alloc::string::String }
+pub variant antecedent_io::cyclic_graph::CyclicGraphReport::Calculus { status: alloc::string::String, fully_observational: bool, program: core::option::Option<antecedent_io_core::expr_wire::FunctionalProgramWire>, expression: core::option::Option<alloc::string::String>, sigma_checks: usize, derivation: alloc::vec::Vec<alloc::string::String> }
+pub variant antecedent_io::cyclic_graph::CyclicGraphReport::Discover { conclusions: alloc::vec::Vec<(u32, u32, alloc::string::String, alloc::string::String)>, edges: alloc::vec::Vec<(u32, u32, alloc::string::String, alloc::string::String)>, diagnostics: alloc::vec::Vec<alloc::string::String>, interpretation: alloc::string::String, ci_source: alloc::string::String }
+pub variant antecedent_io::cyclic_graph::CyclicGraphReport::DomainInvariance { invariant: bool, assumptions: alloc::string::String }
+pub variant antecedent_io::cyclic_graph::CyclicGraphReport::Identify { status: alloc::string::String, expression: core::option::Option<alloc::string::String>, program: core::option::Option<antecedent_io_core::expr_wire::FunctionalProgramWire>, derivation: alloc::vec::Vec<alloc::string::String> }
+pub variant antecedent_io::cyclic_graph::CyclicGraphRequest::Adjust { graph: antecedent_io::cyclic_graph::CyclicGraphSpec, outcomes: alloc::vec::Vec<usize>, treatments: alloc::vec::Vec<usize>, adjustment: alloc::vec::Vec<usize>, continuous: bool, io_scm: bool, standard_measurable_spaces: bool }
+pub variant antecedent_io::cyclic_graph::CyclicGraphRequest::Backdoor { graph: antecedent_io::cyclic_graph::CyclicGraphSpec, outcomes: alloc::vec::Vec<usize>, treatments: alloc::vec::Vec<usize>, adjustment: alloc::vec::Vec<usize>, io_scm: bool, scc_product_density: bool }
+pub variant antecedent_io::cyclic_graph::CyclicGraphRequest::Bipartite { variables: usize, exogenous: alloc::vec::Vec<usize>, equations: alloc::vec::Vec<alloc::vec::Vec<usize>>, replacement: core::option::Option<(usize, usize)>, x: usize, y: usize, conditioning: alloc::vec::Vec<usize> }
+pub variant antecedent_io::cyclic_graph::CyclicGraphRequest::Calculus { graph: antecedent_io::cyclic_graph::CyclicGraphSpec, rule: antecedent_identify::cyclic_calculus::CyclicCalculusRule, x: alloc::vec::Vec<usize>, y: alloc::vec::Vec<usize>, z: alloc::vec::Vec<usize>, w: alloc::vec::Vec<usize>, io_scm: bool, standard_measurable_spaces: bool, max_checks: usize }
+pub variant antecedent_io::cyclic_graph::CyclicGraphRequest::Discover { seed: u64, columns: alloc::vec::Vec<alloc::vec::Vec<f64>>, oracle: core::option::Option<antecedent_io::cyclic_graph::CyclicGraphSpec>, ci: alloc::string::String, alpha: f64, max_cond_size: usize, pds_max_nodes: usize, simple_scm: bool, sigma_faithful: bool, independent_equilibrium_replicates: bool }
+pub variant antecedent_io::cyclic_graph::CyclicGraphRequest::DomainInvariance { variables: usize, exogenous: alloc::vec::Vec<usize>, equations: alloc::vec::Vec<alloc::vec::Vec<usize>>, changed_equations: alloc::vec::Vec<usize>, outcomes: alloc::vec::Vec<usize>, conditioning: alloc::vec::Vec<usize> }
+pub variant antecedent_io::cyclic_graph::CyclicGraphRequest::Identify { graph: antecedent_io::cyclic_graph::CyclicGraphSpec, outcomes: alloc::vec::Vec<usize>, treatments: alloc::vec::Vec<usize>, continuous: bool, max_steps: usize, io_scm: bool, scc_product_density: bool }
+pub variant antecedent_io::cyclic_system_artifact::CyclicArtifactError::Execution(antecedent_model::nonlinear_equilibrium::EquilibriumError)
+pub variant antecedent_io::cyclic_system_artifact::CyclicArtifactError::Invalid(alloc::string::String)
+pub variant antecedent_io::cyclic_system_artifact::CyclicArtifactError::Mismatch
 pub variant antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError::DataMismatch
 pub variant antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError::LimitsExceeded(&'static str)
 pub variant antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError::PremisesMismatch

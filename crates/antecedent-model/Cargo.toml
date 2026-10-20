@@ -24,6 +24,7 @@ antecedent-kernels = { workspace = true }
 antecedent-learn = { workspace = true }
 antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }
 
 [features]
 default = []

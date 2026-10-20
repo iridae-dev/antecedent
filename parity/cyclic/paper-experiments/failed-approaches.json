@@ -1,0 +1,191 @@
+{
+  "calibration": "separate_not_assessed",
+  "attestation": "separate_not_performed",
+  "attempts": [
+    {
+      "name": "smooth_Armijo_on_ReLU_likelihood",
+      "outcome": "Both fixed-penalty fits exhausted line search at Jacobian activation jumps.",
+      "next_named_approach": "Projected minibatch Adam with separately declared validation stopping, exact free Jacobians and global contraction feasibility.",
+      "observed_metrics": {
+        "lane": "nodags-relu",
+        "seed": 0,
+        "mode": "smoke",
+        "paper": "https://proceedings.mlr.press/v206/sethuraman23a/sethuraman23a.pdf",
+        "paper_sections": [
+          "5.1",
+          "B.1",
+          "B.3"
+        ],
+        "nodes": 4,
+        "samples_per_single_intervention": 50,
+        "training_rows": 200,
+        "validation_targets": [
+          [
+            1,
+            3
+          ],
+          [
+            1,
+            2,
+            3
+          ],
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        "test_targets": [
+          [
+            1,
+            2
+          ],
+          [
+            0,
+            2,
+            3
+          ],
+          [
+            0,
+            3
+          ]
+        ],
+        "heldout_regimes_disjoint_from_training": true,
+        "attempts": [
+          {
+            "penalty_per_row": 0.001,
+            "validation_nll": 0.6923351067957298,
+            "converged": false,
+            "score_per_row": 0.01464522122321697,
+            "iterations": 29,
+            "line_search_exhausted": true
+          },
+          {
+            "penalty_per_row": 0.01,
+            "validation_nll": 0.6923058664394364,
+            "converged": false,
+            "score_per_row": 0.021234113691417925,
+            "iterations": 30,
+            "line_search_exhausted": true
+          }
+        ],
+        "fit_converged": false,
+        "auprc": 0.9821428571428572,
+        "weight_rmse": 0.04372320164653902,
+        "heldout_nll_per_free_coordinate": 0.7555352847577601,
+        "oracle_nll_per_free_coordinate": 0.7520846461776528,
+        "null_nll_per_free_coordinate": 0.8042240145225993,
+        "deviations": [
+          "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
+          "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
+          "Exact full Jacobians and proximal likelihood fitting in the data-generating single-layer family; no copied neural-mask or stochastic logdet code.",
+          "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
+        ],
+        "artifact": {
+          "identity": "8eff2a587ea86d31d4b59f27e86f3fe911e1a28200da15d6547ed60240044c5a",
+          "bytes": 10288,
+          "artifact_sha256": "67a6b918e962ae9af0e9df56e50a19387e2eea3922d5c54427cd4665877428c2",
+          "fresh_process_cpu_replay": true
+        },
+        "wall_seconds": 1.6127264578826725
+      }
+    },
+    {
+      "name": "OU_steepest_ascent",
+      "outcome": "Stationary fits exhausted iteration/backtracking budgets with large scores.",
+      "next_named_approach": "Symmetric Lyapunov score construction and limited-memory BFGS with Armijo feasibility checks.",
+      "observed_metrics": {
+        "lane": "bicycle",
+        "seed": 0,
+        "mode": "smoke",
+        "paper": "https://proceedings.mlr.press/v236/rohbeck24a/rohbeck24a.pdf",
+        "paper_sections": [
+          "3.1-3.3",
+          "4.1",
+          "A.1"
+        ],
+        "nodes": 4,
+        "samples_per_single_context": 30,
+        "observational_samples": 60,
+        "test_pairs": [
+          [
+            2,
+            1
+          ],
+          [
+            2,
+            0
+          ],
+          [
+            3,
+            0
+          ],
+          [
+            3,
+            1
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "rejected_nonstationary_graph_draws": 0,
+        "deviations": [
+          "Applicable Gaussian SEM1 synthetic experiment; no technical count-noise or latent-count ELBO claim.",
+          "Exact Lyapunov/mean likelihood gradients and bounded local Armijo optimization, not a reference-code port.",
+          "Paper coefficient intervals and equation-level forcing/diffusion perturbations; reject graphs lacking any requested stationary law.",
+          "No hyperparameter or graph selection uses held-out pair outcomes; low-intervention fits are not claimed structurally identified."
+        ],
+        "cases": [
+          {
+            "single_contexts": 0,
+            "training_rows": 60,
+            "converged": false,
+            "score_norm": 292.93640004350027,
+            "iterations": 300,
+            "line_search_exhausted": false,
+            "auprc": 0.7948979591836733,
+            "heldout_mean_mae": 0.2954542790770421,
+            "heldout_nll_per_coordinate_on_evaluated_worlds": 7.202282847634942,
+            "oracle_nll_on_same_worlds": -3.5277093047486376,
+            "failed_worlds": [],
+            "all_requested_worlds_evaluated": true,
+            "independent_law_max_absolute_error": 4.440892098500626e-16,
+            "artifact": {
+              "identity": "be5e9a8314af7813db006427ceb3d13234b254f68a8395baef176b151fab43ac",
+              "bytes": 4324,
+              "artifact_sha256": "49d615bc0a1d57264495ff2453bca5df09aeb1608c2dca623ab3b74738d5aec9",
+              "fresh_process_cpu_replay": true
+            }
+          },
+          {
+            "single_contexts": 4,
+            "training_rows": 180,
+            "converged": false,
+            "score_norm": 658.4577155728696,
+            "iterations": 254,
+            "line_search_exhausted": true,
+            "auprc": 0.9478458049886621,
+            "heldout_mean_mae": 0.07895232263587239,
+            "heldout_nll_per_coordinate_on_evaluated_worlds": -0.7536559906541954,
+            "oracle_nll_on_same_worlds": -3.5277093047486376,
+            "failed_worlds": [],
+            "all_requested_worlds_evaluated": true,
+            "independent_law_max_absolute_error": 4.440892098500626e-16,
+            "artifact": {
+              "identity": "8b4cb7dca61ae280a841e60f8a35f7f936acd25f6e664d6c87d841bbd41df3a9",
+              "bytes": 8640,
+              "artifact_sha256": "fbb420183946446cc23a8facdec91c901098112476c4418bd8ec8da6fd4ee749",
+              "fresh_process_cpu_replay": true
+            }
+          }
+        ],
+        "wall_seconds": 1.4533049170859158
+      }
+    }
+  ]
+}

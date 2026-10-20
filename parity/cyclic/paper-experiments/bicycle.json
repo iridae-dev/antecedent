@@ -1,0 +1,1279 @@
+{
+  "manifest": {
+    "lane": "bicycle",
+    "full": true,
+    "trials": 5,
+    "max_iterations": 2000,
+    "script_sha256": "c646e1e0c7e0f6239515e41158f2c2a50c93f22975cee806ece5107bc8930549",
+    "protocol": "independent_paper_derived_data_and_native_public_workflows",
+    "calibration": "separate_not_assessed",
+    "attestation": "separate_not_performed"
+  },
+  "trials": [
+    {
+      "lane": "bicycle",
+      "seed": 0,
+      "mode": "paper_size",
+      "paper": "https://proceedings.mlr.press/v236/rohbeck24a/rohbeck24a.pdf",
+      "paper_sections": [
+        "3.1-3.3",
+        "4.1",
+        "A.1"
+      ],
+      "nodes": 10,
+      "samples_per_single_context": 250,
+      "observational_samples": 500,
+      "test_pairs": [
+        [
+          8,
+          5
+        ],
+        [
+          4,
+          3
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          9,
+          8
+        ],
+        [
+          5,
+          4
+        ],
+        [
+          9,
+          2
+        ],
+        [
+          7,
+          3
+        ],
+        [
+          9,
+          3
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          7,
+          2
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          8,
+          0
+        ],
+        [
+          7,
+          5
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          9,
+          6
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          7,
+          1
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          8,
+          1
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "rejected_nonstationary_graph_draws": 0,
+      "deviations": [
+        "Applicable Gaussian SEM1 synthetic experiment; no technical count-noise or latent-count ELBO claim.",
+        "Exact Lyapunov/mean likelihood gradients and bounded local L-BFGS/Armijo optimization, not a reference-code port.",
+        "Paper coefficient intervals and equation-level forcing/diffusion perturbations; reject graphs lacking any requested stationary law.",
+        "No hyperparameter or graph selection uses held-out pair outcomes; low-intervention fits are not claimed structurally identified."
+      ],
+      "cases": [
+        {
+          "single_contexts": 0,
+          "training_rows": 500,
+          "converged": true,
+          "score_norm": 0.495825764023328,
+          "iterations": 825,
+          "line_search_exhausted": false,
+          "auprc": 0.5730538996622699,
+          "heldout_mean_mae": 0.2262998328831141,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.636358488533942,
+          "oracle_nll_on_same_worlds": -2.116619999068984,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "artifact": {
+            "identity": "112550d4a205c85e8ab082876b2e8b060c7f5de1b462641d6280f9235af45be1",
+            "bytes": 62578,
+            "artifact_sha256": "efc92520c7bdadeea9e3c7561dc77f536fed8d2d91ba9b88c60fb472f88a753b",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 1,
+          "training_rows": 750,
+          "converged": true,
+          "score_norm": 0.6710753773582657,
+          "iterations": 988,
+          "line_search_exhausted": false,
+          "auprc": 0.6612439973067428,
+          "heldout_mean_mae": 0.22188858417584453,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 5.945359266590405,
+          "oracle_nll_on_same_worlds": -2.116619999068984,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 1.3322676295501878e-15,
+          "artifact": {
+            "identity": "0fc8838c062f21ca9e9e6b76b81277bcaa10386cbf32d543e316d47a54d062ab",
+            "bytes": 84936,
+            "artifact_sha256": "ada58d64b0e582bf0879636e97d108830d8ba58266ed636de48771ffa312dd58",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 2,
+          "training_rows": 1000,
+          "converged": false,
+          "score_norm": 20.571307722446626,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.6563074392046585,
+          "heldout_mean_mae": 0.20727801804440993,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 5.972692549832868,
+          "oracle_nll_on_same_worlds": -2.116619999068984,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "artifact": {
+            "identity": "7ebe6058c3dd0e7b0aa882f2dfa841494f3287113d2dc7d052a3d5e1503b08c1",
+            "bytes": 107836,
+            "artifact_sha256": "6f7ce4049eab581ce4df1f193b5c8e7f13ac833a27f44995f580f6be55a66523",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 4,
+          "training_rows": 1500,
+          "converged": false,
+          "score_norm": 11.758371868871214,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.8162237223353375,
+          "heldout_mean_mae": 0.11456942986499019,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 2.26013720252833,
+          "oracle_nll_on_same_worlds": -2.116619999068984,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "artifact": {
+            "identity": "baa5eb28fb5f31bc1ad0f1a8206e736a44d53a3053cd9ceeaba0a88da72912c1",
+            "bytes": 153139,
+            "artifact_sha256": "30fa4f94d818c170b96e3a6e99335dce61d7ecc18054f7e5ebfbd0bcf94cf619",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 6,
+          "training_rows": 2000,
+          "converged": true,
+          "score_norm": 1.8500527899596069,
+          "iterations": 1108,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.026378700975821,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.9287591823690244,
+          "oracle_nll_on_same_worlds": -2.116619999068984,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 1.3322676295501878e-15,
+          "artifact": {
+            "identity": "9ee0a1323b8fdeecf3cd06e43515586cd7ce9c2e0f18ff3fc263acea6d97491e",
+            "bytes": 198364,
+            "artifact_sha256": "e09be69d71b226a74df6b949d42672870113d1116b9e93fc40a5f70b33010127",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 8,
+          "training_rows": 2500,
+          "converged": true,
+          "score_norm": 2.1659933599707983,
+          "iterations": 892,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.011334892859260925,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.078212168613578,
+          "oracle_nll_on_same_worlds": -2.116619999068984,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "artifact": {
+            "identity": "7a400f92a564f9e9053eb1f4c3d492a0c6d0a30750ccb3572a34c3edf479af75",
+            "bytes": 244129,
+            "artifact_sha256": "822426ce7d703b29d1704390d9a5e4aec8113fb554b9dee6ad1b713465a8d86c",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 10,
+          "training_rows": 3000,
+          "converged": true,
+          "score_norm": 2.946104761880761,
+          "iterations": 562,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.004760858257748778,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.1112989749845155,
+          "oracle_nll_on_same_worlds": -2.116619999068984,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "artifact": {
+            "identity": "051e25baf3db0d31fb70286ca2bf7712b816eb27eda4eff5380da9262c20540a",
+            "bytes": 290223,
+            "artifact_sha256": "69de5da9a0b3671e510218a61a3928bff4b1fafb8fb3af1e9016e7c39d70bf43",
+            "fresh_process_cpu_replay": true
+          }
+        }
+      ],
+      "wall_seconds": 100.60842879209667
+    },
+    {
+      "lane": "bicycle",
+      "seed": 1,
+      "mode": "paper_size",
+      "paper": "https://proceedings.mlr.press/v236/rohbeck24a/rohbeck24a.pdf",
+      "paper_sections": [
+        "3.1-3.3",
+        "4.1",
+        "A.1"
+      ],
+      "nodes": 10,
+      "samples_per_single_context": 250,
+      "observational_samples": 500,
+      "test_pairs": [
+        [
+          4,
+          2
+        ],
+        [
+          9,
+          5
+        ],
+        [
+          9,
+          8
+        ],
+        [
+          9,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          7,
+          0
+        ],
+        [
+          5,
+          2
+        ],
+        [
+          8,
+          3
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          7,
+          6
+        ],
+        [
+          5,
+          3
+        ],
+        [
+          8,
+          7
+        ],
+        [
+          7,
+          5
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          8,
+          4
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          6,
+          1
+        ],
+        [
+          9,
+          3
+        ],
+        [
+          7,
+          2
+        ]
+      ],
+      "rejected_nonstationary_graph_draws": 0,
+      "deviations": [
+        "Applicable Gaussian SEM1 synthetic experiment; no technical count-noise or latent-count ELBO claim.",
+        "Exact Lyapunov/mean likelihood gradients and bounded local L-BFGS/Armijo optimization, not a reference-code port.",
+        "Paper coefficient intervals and equation-level forcing/diffusion perturbations; reject graphs lacking any requested stationary law.",
+        "No hyperparameter or graph selection uses held-out pair outcomes; low-intervention fits are not claimed structurally identified."
+      ],
+      "cases": [
+        {
+          "single_contexts": 0,
+          "training_rows": 500,
+          "converged": true,
+          "score_norm": 0.49398747352779787,
+          "iterations": 739,
+          "line_search_exhausted": false,
+          "auprc": 0.5779059018212286,
+          "heldout_mean_mae": 0.24569460864499656,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 4.90107158562529,
+          "oracle_nll_on_same_worlds": -2.0988405956807066,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 1.1102230246251565e-15,
+          "artifact": {
+            "identity": "33b0bb02d59cbc63746a04e35aac50d722ee22665780efeb04b55edbe5d91f44",
+            "bytes": 63350,
+            "artifact_sha256": "1da27df651f0e5413bd2dd0db75f981e9f9d11d5306ea32c32c75fa65e6fd2fc",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 1,
+          "training_rows": 750,
+          "converged": false,
+          "score_norm": 17.316109265735868,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.3536592652403012,
+          "heldout_mean_mae": 0.4091867356781341,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 16.55625281464488,
+          "oracle_nll_on_same_worlds": -2.0988405956807066,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 1.5543122344752192e-15,
+          "artifact": {
+            "identity": "249ef2a786183080e95f9957a5b2467b82c668671d4b2cbeddcf67924f7be704",
+            "bytes": 85940,
+            "artifact_sha256": "d61db6ea779f73f6d899634ceecf306156795ff5993ea96db8cf7fd0af8386bb",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 2,
+          "training_rows": 1000,
+          "converged": false,
+          "score_norm": 21.891477171599945,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.9177790479976867,
+          "heldout_mean_mae": 0.1654573524239568,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 0.9384782296857005,
+          "oracle_nll_on_same_worlds": -2.0988405956807066,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "artifact": {
+            "identity": "2d6c352f28ded30f31399af07b1ed2ac24c5c70e89d373b115af9b2f777b79f4",
+            "bytes": 109159,
+            "artifact_sha256": "cb355f79ff40c97bb7978c5c1cbfe95015c8f7cbe4bdf84c53082dca018caf90",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 4,
+          "training_rows": 1500,
+          "converged": true,
+          "score_norm": 1.4595124078516122,
+          "iterations": 1855,
+          "line_search_exhausted": false,
+          "auprc": 0.9622076023391812,
+          "heldout_mean_mae": 0.095875860772184,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.7113400818282302,
+          "oracle_nll_on_same_worlds": -2.0988405956807066,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 1.3322676295501878e-15,
+          "artifact": {
+            "identity": "cbe25383e2e0daafca7b5a8f8c2d8739852f2e8553ba28b4dd4758796d9141d1",
+            "bytes": 155219,
+            "artifact_sha256": "025a8a699dddcaf94c70ccbdbfb01777397a80de2910ec416514542fa965e278",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 6,
+          "training_rows": 2000,
+          "converged": false,
+          "score_norm": 16.20651655336335,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.06207267940520071,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.2664498930124206,
+          "oracle_nll_on_same_worlds": -2.0988405956807066,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 1.3322676295501878e-15,
+          "artifact": {
+            "identity": "e84750e10700de60929fe5f73c2646ad71960797ac5e6e132239221acddec22e",
+            "bytes": 201016,
+            "artifact_sha256": "ca0158347736f23395b29011ba98c447a9eaa7c7a8ba14373094f50296bb1db2",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 8,
+          "training_rows": 2500,
+          "converged": true,
+          "score_norm": 2.445573472358028,
+          "iterations": 878,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.03165529450156913,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.9124336033907061,
+          "oracle_nll_on_same_worlds": -2.0988405956807066,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 1.3322676295501878e-15,
+          "artifact": {
+            "identity": "56f3ddff3b23fb6b8cc22134a9a1717daec35a0a4ab522e03fb2dbde9e704f76",
+            "bytes": 247437,
+            "artifact_sha256": "fe0a1ef6f6241aae8e4eaa9a8991cd06334ad51054c6d0793d9f535ceab04de4",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 10,
+          "training_rows": 3000,
+          "converged": true,
+          "score_norm": 2.6549934344619643,
+          "iterations": 624,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.006337984315211161,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.092283336448555,
+          "oracle_nll_on_same_worlds": -2.0988405956807066,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "artifact": {
+            "identity": "e4750e70345998ad907fc79d5e45aad93091fde90f755e6b9129a4dd2eac2480",
+            "bytes": 294538,
+            "artifact_sha256": "d96a98f192f10fc50ca5016a37fee0a377189e686c0a3951bd3d66c6f616e5e1",
+            "fresh_process_cpu_replay": true
+          }
+        }
+      ],
+      "wall_seconds": 70.97547008376569
+    },
+    {
+      "lane": "bicycle",
+      "seed": 2,
+      "mode": "paper_size",
+      "paper": "https://proceedings.mlr.press/v236/rohbeck24a/rohbeck24a.pdf",
+      "paper_sections": [
+        "3.1-3.3",
+        "4.1",
+        "A.1"
+      ],
+      "nodes": 10,
+      "samples_per_single_context": 250,
+      "observational_samples": 500,
+      "test_pairs": [
+        [
+          9,
+          2
+        ],
+        [
+          7,
+          0
+        ],
+        [
+          9,
+          7
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          9,
+          1
+        ],
+        [
+          8,
+          7
+        ],
+        [
+          8,
+          4
+        ],
+        [
+          7,
+          4
+        ],
+        [
+          7,
+          2
+        ],
+        [
+          9,
+          6
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          5,
+          1
+        ],
+        [
+          8,
+          6
+        ],
+        [
+          9,
+          8
+        ],
+        [
+          7,
+          5
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          5,
+          2
+        ],
+        [
+          8,
+          1
+        ],
+        [
+          5,
+          4
+        ]
+      ],
+      "rejected_nonstationary_graph_draws": 0,
+      "deviations": [
+        "Applicable Gaussian SEM1 synthetic experiment; no technical count-noise or latent-count ELBO claim.",
+        "Exact Lyapunov/mean likelihood gradients and bounded local L-BFGS/Armijo optimization, not a reference-code port.",
+        "Paper coefficient intervals and equation-level forcing/diffusion perturbations; reject graphs lacking any requested stationary law.",
+        "No hyperparameter or graph selection uses held-out pair outcomes; low-intervention fits are not claimed structurally identified."
+      ],
+      "cases": [
+        {
+          "single_contexts": 0,
+          "training_rows": 500,
+          "converged": true,
+          "score_norm": 0.43456695301144116,
+          "iterations": 749,
+          "line_search_exhausted": false,
+          "auprc": 0.532140371300485,
+          "heldout_mean_mae": 0.29104857904241366,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 10.508251556728501,
+          "oracle_nll_on_same_worlds": -2.100450647696978,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "artifact": {
+            "identity": "91fb2f3ce9128ce5880f94d73637411084067554ce37811b883476c821ee25d3",
+            "bytes": 63897,
+            "artifact_sha256": "46565b9cb9a6fc9ee441a3a6c38e43e554967b1eaa532a1bc5cb79544a785fea",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 1,
+          "training_rows": 750,
+          "converged": false,
+          "score_norm": 7.374939491414686,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.4589666829716894,
+          "heldout_mean_mae": 0.2994448804475214,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 9.332093361969351,
+          "oracle_nll_on_same_worlds": -2.100450647696978,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "artifact": {
+            "identity": "0e233700a65c14e365e480b3c565d7b612cc0739e8204e7aa7dbf51bf20bc2b4",
+            "bytes": 86549,
+            "artifact_sha256": "094b2ce81ba4b26debc8ac19ee2bd39d1abb428c9401bab56d9fa7adb2c902d8",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 2,
+          "training_rows": 1000,
+          "converged": false,
+          "score_norm": 9.129969872436796,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.5858845991664687,
+          "heldout_mean_mae": 0.2518013012058652,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.268153050332409,
+          "oracle_nll_on_same_worlds": -2.100450647696978,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 1.7763568394002505e-15,
+          "artifact": {
+            "identity": "7c457add297a3f98e00603aab401650ea1a3cce01494ff458dcac7b7a49a4684",
+            "bytes": 109883,
+            "artifact_sha256": "55d4db5116ec3e0aea015bbd1a282dd28aa1ef787b40f2d550068e0cef04f6f6",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 4,
+          "training_rows": 1500,
+          "converged": false,
+          "score_norm": 9.878514946753143,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.9087283122254766,
+          "heldout_mean_mae": 0.1156291752060056,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 0.18985365023627762,
+          "oracle_nll_on_same_worlds": -2.100450647696978,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "artifact": {
+            "identity": "53ed69c91d6e441ee0fe9767ce2de158e0a60dbf36662cabbd5f19f455f322a0",
+            "bytes": 155963,
+            "artifact_sha256": "34641a06470b33a10cb4c7056b69e460b795a93ef86ab1d59241b504d785a573",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 6,
+          "training_rows": 2000,
+          "converged": false,
+          "score_norm": 24.6761679584891,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.9245242615004413,
+          "heldout_mean_mae": 0.08141692929999722,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.28808724464511226,
+          "oracle_nll_on_same_worlds": -2.100450647696978,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "artifact": {
+            "identity": "b91a40711412c3cc9a5cc285dd6f49148e903650be90228361e03f30de37b033",
+            "bytes": 202377,
+            "artifact_sha256": "740d96f49a7a45e57cbd62cc4b260b9b798b5f99ab060c5380ff87c362752967",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 8,
+          "training_rows": 2500,
+          "converged": true,
+          "score_norm": 2.190480679490218,
+          "iterations": 1446,
+          "line_search_exhausted": false,
+          "auprc": 0.9731187652082266,
+          "heldout_mean_mae": 0.07119858228753834,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.0010125235487943,
+          "oracle_nll_on_same_worlds": -2.100450647696978,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "artifact": {
+            "identity": "7b56faf0c01cec78fa62e2f2cdb3546dccb3517211ce0e363ded3f3e457c0417",
+            "bytes": 248968,
+            "artifact_sha256": "dce7931acea82eb22cdfd3aca743c8060264e7e3d4319ef4ec3b87e9955a4479",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 10,
+          "training_rows": 3000,
+          "converged": true,
+          "score_norm": 2.810516325186505,
+          "iterations": 843,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.0071725479172668576,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.0929672167223847,
+          "oracle_nll_on_same_worlds": -2.100450647696978,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 8.881784197001252e-16,
+          "artifact": {
+            "identity": "1082e7e2deb3671cdf28d768814c131c5e76054a6c4fd7604546e33e0bb44b34",
+            "bytes": 296023,
+            "artifact_sha256": "c4d3863a777179b8fdb24473f7bf9070e70b0781e5afffbd632e25ba96f91844",
+            "fresh_process_cpu_replay": true
+          }
+        }
+      ],
+      "wall_seconds": 109.63254687469453
+    },
+    {
+      "lane": "bicycle",
+      "seed": 3,
+      "mode": "paper_size",
+      "paper": "https://proceedings.mlr.press/v236/rohbeck24a/rohbeck24a.pdf",
+      "paper_sections": [
+        "3.1-3.3",
+        "4.1",
+        "A.1"
+      ],
+      "nodes": 10,
+      "samples_per_single_context": 250,
+      "observational_samples": 500,
+      "test_pairs": [
+        [
+          7,
+          0
+        ],
+        [
+          7,
+          3
+        ],
+        [
+          8,
+          1
+        ],
+        [
+          6,
+          1
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          6,
+          3
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          5,
+          1
+        ],
+        [
+          7,
+          2
+        ],
+        [
+          9,
+          5
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          9,
+          7
+        ],
+        [
+          9,
+          8
+        ],
+        [
+          8,
+          3
+        ],
+        [
+          7,
+          6
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          9,
+          4
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          3,
+          0
+        ]
+      ],
+      "rejected_nonstationary_graph_draws": 0,
+      "deviations": [
+        "Applicable Gaussian SEM1 synthetic experiment; no technical count-noise or latent-count ELBO claim.",
+        "Exact Lyapunov/mean likelihood gradients and bounded local L-BFGS/Armijo optimization, not a reference-code port.",
+        "Paper coefficient intervals and equation-level forcing/diffusion perturbations; reject graphs lacking any requested stationary law.",
+        "No hyperparameter or graph selection uses held-out pair outcomes; low-intervention fits are not claimed structurally identified."
+      ],
+      "cases": [
+        {
+          "single_contexts": 0,
+          "training_rows": 500,
+          "converged": true,
+          "score_norm": 0.47558147857144906,
+          "iterations": 1359,
+          "line_search_exhausted": false,
+          "auprc": 0.6935565559868361,
+          "heldout_mean_mae": 0.5143964398176187,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 25.348371020376938,
+          "oracle_nll_on_same_worlds": -2.0636666354251214,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 2.6645352591003757e-15,
+          "artifact": {
+            "identity": "66f53a25cf8b4a7234729ade492f919c640273d98ec0b781990ccd3360ddde79",
+            "bytes": 63293,
+            "artifact_sha256": "ab24073b8da5a24b8f110f747a05c94a851e2aac214615df1a4b6d11e8be4a03",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 1,
+          "training_rows": 750,
+          "converged": false,
+          "score_norm": 93.88538478064204,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.7715523110799654,
+          "heldout_mean_mae": 0.6125193973789289,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 24.89213088439218,
+          "oracle_nll_on_same_worlds": -2.0636666354251214,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 3.552713678800501e-15,
+          "artifact": {
+            "identity": "2866d7929c99c54fe773b9cacb7e9e0fe969a78c7b5a0c10624251bb04b2b3b1",
+            "bytes": 85919,
+            "artifact_sha256": "7facc68bfb249dbb111ada24b4ac6773cc8d66b3ea33ef197efc37bbd155a3f3",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 2,
+          "training_rows": 1000,
+          "converged": false,
+          "score_norm": 21.062974734409053,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.897660901935087,
+          "heldout_mean_mae": 0.30606590752654705,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.693465007548141,
+          "oracle_nll_on_same_worlds": -2.0636666354251214,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 3.552713678800501e-15,
+          "artifact": {
+            "identity": "09ff11cfea9dfd336408ddb6dad1f20c6d4b551337e4abfd69a1f49431a7271e",
+            "bytes": 108954,
+            "artifact_sha256": "6794b1e7e1446867198e1ba804e047dc5cd0378db374dd1371729717a05cefa9",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 4,
+          "training_rows": 1500,
+          "converged": false,
+          "score_norm": 17.997742529479346,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.945477294418145,
+          "heldout_mean_mae": 0.2496007866815274,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 6.029342296234496,
+          "oracle_nll_on_same_worlds": -2.0636666354251214,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 4.440892098500626e-15,
+          "artifact": {
+            "identity": "2fb72b79fac6e3de13b1899dcd2d2d48d14919f5b88b98592341a739bf732987",
+            "bytes": 154641,
+            "artifact_sha256": "a8e59528efb9862cb12fdd2f8a8cce27576c70a7da51fa5d9b01c822ec6fd4b9",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 6,
+          "training_rows": 2000,
+          "converged": false,
+          "score_norm": 26.036485264372637,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.18140001960109095,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 1.944366653475269,
+          "oracle_nll_on_same_worlds": -2.0636666354251214,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 3.9968028886505635e-15,
+          "artifact": {
+            "identity": "e3ccc2b4011643f080022c858a69bea18570f16f0a12c4a49bf8ee8a472bedac",
+            "bytes": 200853,
+            "artifact_sha256": "bd7e92cb866a27b643eeacab96aaea637ad6231f52f426a4d61ac557fb39b3a9",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 8,
+          "training_rows": 2500,
+          "converged": false,
+          "score_norm": 52.32167518160904,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.1067625143103499,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.23827751912481981,
+          "oracle_nll_on_same_worlds": -2.0636666354251214,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 5.329070518200751e-15,
+          "artifact": {
+            "identity": "e07546417a1c3818e252c8eb24990ed8f97f22b97a89a450bfcc89f5332004e4",
+            "bytes": 247026,
+            "artifact_sha256": "03d4ad568c559171f69985a8cf5f11459a3cb485160a8e4928356d41fc367875",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 10,
+          "training_rows": 3000,
+          "converged": true,
+          "score_norm": 2.934311425042104,
+          "iterations": 1047,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.009827307235189757,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.052368432947972,
+          "oracle_nll_on_same_worlds": -2.0636666354251214,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 7.993605777301127e-15,
+          "artifact": {
+            "identity": "dec1145b94e52b435d58e1a221f95f041d66d227393c2153f06ec63ebcdf349b",
+            "bytes": 294011,
+            "artifact_sha256": "a9559b41d59a05b93e0f299a566e2dac8f547f385723daf7e5ee1f2e4ddfaa42",
+            "fresh_process_cpu_replay": true
+          }
+        }
+      ],
+      "wall_seconds": 96.03712945943698
+    },
+    {
+      "lane": "bicycle",
+      "seed": 4,
+      "mode": "paper_size",
+      "paper": "https://proceedings.mlr.press/v236/rohbeck24a/rohbeck24a.pdf",
+      "paper_sections": [
+        "3.1-3.3",
+        "4.1",
+        "A.1"
+      ],
+      "nodes": 10,
+      "samples_per_single_context": 250,
+      "observational_samples": 500,
+      "test_pairs": [
+        [
+          9,
+          2
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          6,
+          3
+        ],
+        [
+          7,
+          3
+        ],
+        [
+          8,
+          0
+        ],
+        [
+          9,
+          5
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          8,
+          2
+        ],
+        [
+          5,
+          4
+        ],
+        [
+          7,
+          0
+        ],
+        [
+          7,
+          2
+        ],
+        [
+          5,
+          3
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          4,
+          3
+        ],
+        [
+          9,
+          8
+        ],
+        [
+          9,
+          3
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          7,
+          4
+        ],
+        [
+          9,
+          1
+        ],
+        [
+          8,
+          3
+        ]
+      ],
+      "rejected_nonstationary_graph_draws": 0,
+      "deviations": [
+        "Applicable Gaussian SEM1 synthetic experiment; no technical count-noise or latent-count ELBO claim.",
+        "Exact Lyapunov/mean likelihood gradients and bounded local L-BFGS/Armijo optimization, not a reference-code port.",
+        "Paper coefficient intervals and equation-level forcing/diffusion perturbations; reject graphs lacking any requested stationary law.",
+        "No hyperparameter or graph selection uses held-out pair outcomes; low-intervention fits are not claimed structurally identified."
+      ],
+      "cases": [
+        {
+          "single_contexts": 0,
+          "training_rows": 500,
+          "converged": true,
+          "score_norm": 0.44148940440084006,
+          "iterations": 617,
+          "line_search_exhausted": false,
+          "auprc": 0.44830602788786944,
+          "heldout_mean_mae": 0.2160439380942948,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 2.3781051895432586,
+          "oracle_nll_on_same_worlds": -2.0892045262263883,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "artifact": {
+            "identity": "cdabcd69c6ffaad8c2928e743bf40914b34dfa9c4890632edbc06ade77ebf19d",
+            "bytes": 63556,
+            "artifact_sha256": "0ba1caf1cc16fabfc0e68c6812b624740ebe4ed88086058a62c082d6075433e4",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 1,
+          "training_rows": 750,
+          "converged": false,
+          "score_norm": 2.8431334963869404,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.4767850408891771,
+          "heldout_mean_mae": 0.4104420824167485,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 5.489909321297344,
+          "oracle_nll_on_same_worlds": -2.0892045262263883,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 6.217248937900877e-15,
+          "artifact": {
+            "identity": "819affccfa12cf033294af505bd3e11245600b45f3a9240a46a3acb162fa7a29",
+            "bytes": 86245,
+            "artifact_sha256": "6a26cd1007b77983a5da28fc88bd9604b31e7bbfe1ddd85ce6741f476e80ba5d",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 2,
+          "training_rows": 1000,
+          "converged": false,
+          "score_norm": 9.151718982585123,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.5011653284134202,
+          "heldout_mean_mae": 0.25022935113957756,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": 5.675588629819378,
+          "oracle_nll_on_same_worlds": -2.0892045262263883,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 2.4390212072233908e-15,
+          "artifact": {
+            "identity": "f836f735ed673c88b9bd97a56dc98d5d28ed33d4692684b702bd4d689ef69efc",
+            "bytes": 109463,
+            "artifact_sha256": "0a558d8266e92398da0cb84c26bb8ecc4ccfde300776ba19347e6456bd3d72d6",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 4,
+          "training_rows": 1500,
+          "converged": false,
+          "score_norm": 10.520271402637812,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 0.8714356747977439,
+          "heldout_mean_mae": 0.09951149673227168,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -0.04803917423290453,
+          "oracle_nll_on_same_worlds": -2.0892045262263883,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "artifact": {
+            "identity": "51c81cac8481131b695d30a492f8b2d8b4046c48c30183396d080b9a85522fb1",
+            "bytes": 155499,
+            "artifact_sha256": "8e360fcec5885c1b0501e3d19f148699828f026a551c86a2511f06607992936d",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 6,
+          "training_rows": 2000,
+          "converged": false,
+          "score_norm": 9.862106928699605,
+          "iterations": 2000,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.038401948599908774,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.867237100615216,
+          "oracle_nll_on_same_worlds": -2.0892045262263883,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "artifact": {
+            "identity": "4b5ec8fea4037fce718a5c31181ca490622e349bc185a1ff9f45db6ffc91e86d",
+            "bytes": 201678,
+            "artifact_sha256": "7b77f59c33458df0b49eca69927c19ff4def24d6a3a12ac8283b38efd681d17e",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 8,
+          "training_rows": 2500,
+          "converged": true,
+          "score_norm": 2.2464271464314542,
+          "iterations": 1018,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.023682130568575443,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -1.999121902265302,
+          "oracle_nll_on_same_worlds": -2.0892045262263883,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 6.661338147750939e-16,
+          "artifact": {
+            "identity": "fb79c0d465587c5bd2f9c096e2009d4f8ed2dbebd26544b2b9ba60888496b938",
+            "bytes": 248142,
+            "artifact_sha256": "a54195623df71f0387443371fabd0e6d6a71034ee7ad021c8a29d05d098d985e",
+            "fresh_process_cpu_replay": true
+          }
+        },
+        {
+          "single_contexts": 10,
+          "training_rows": 3000,
+          "converged": true,
+          "score_norm": 2.713530219211833,
+          "iterations": 615,
+          "line_search_exhausted": false,
+          "auprc": 1.0,
+          "heldout_mean_mae": 0.006604715851391696,
+          "heldout_nll_per_coordinate_on_evaluated_worlds": -2.0778345946933854,
+          "oracle_nll_on_same_worlds": -2.0892045262263883,
+          "failed_worlds": [],
+          "all_requested_worlds_evaluated": true,
+          "independent_law_max_absolute_error": 4.718447854656915e-16,
+          "artifact": {
+            "identity": "63bf67ba4c83f2f48a3dddbeb02651c37575dc7ff1e1f7d3b1804f6ae4035d30",
+            "bytes": 295027,
+            "artifact_sha256": "a994e0bf803829cddd8510a5340ae8913c10e42d4c96b69cb920b7a03b94a4e5",
+            "fresh_process_cpu_replay": true
+          }
+        }
+      ],
+      "wall_seconds": 72.9640561658889
+    }
+  ]
+}

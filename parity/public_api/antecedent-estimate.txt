@@ -377,6 +377,11 @@ impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::CohortMea
 impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::NativeCohortFit
 impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::NativeFitRows
 impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::NativeFitSize
+impl core::clone::Clone for antecedent_estimate::constraint_likelihood::PolynomialCandidate
+impl core::clone::Clone for antecedent_estimate::constraint_likelihood::PolynomialFit
+impl core::clone::Clone for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
+impl core::clone::Clone for antecedent_estimate::constraint_likelihood::PolynomialMeasurement
+impl core::clone::Clone for antecedent_estimate::constraint_likelihood::RootSelectionRegion
 impl core::clone::Clone for antecedent_estimate::continuous_dose::DosePolicyValue
 impl core::clone::Clone for antecedent_estimate::continuous_dose::DoseResponsePoint
 impl core::clone::Clone for antecedent_estimate::continuous_dose::DoseWindow
@@ -414,6 +419,24 @@ impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sample
 impl core::clone::Clone for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry
 impl core::clone::Clone for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport
 impl core::clone::Clone for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios
+impl core::clone::Clone for antecedent_estimate::cyclic_adam::CyclicAdamEpoch
+impl core::clone::Clone for antecedent_estimate::cyclic_adam::CyclicAdamFit
+impl core::clone::Clone for antecedent_estimate::cyclic_adam::CyclicAdamPolicy
+impl core::clone::Clone for antecedent_estimate::cyclic_dynamics::OdeFit
+impl core::clone::Clone for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
+impl core::clone::Clone for antecedent_estimate::cyclic_dynamics::OdeObservation
+impl core::clone::Clone for antecedent_estimate::cyclic_dynamics::OuFit
+impl core::clone::Clone for antecedent_estimate::cyclic_dynamics::OuParameter
+impl core::clone::Clone for antecedent_estimate::cyclic_gradient::CyclicGradientFit
+impl core::clone::Clone for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
+impl core::clone::Clone for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
+impl core::clone::Clone for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
+impl core::clone::Clone for antecedent_estimate::cyclic_likelihood::CyclicFit
+impl core::clone::Clone for antecedent_estimate::cyclic_likelihood::CyclicFitOptions
+impl core::clone::Clone for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction
+impl core::clone::Clone for antecedent_estimate::cyclic_likelihood::CyclicParameter
+impl core::clone::Clone for antecedent_estimate::cyclic_likelihood::CyclicPosterior
+impl core::clone::Clone for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
 impl core::clone::Clone for antecedent_estimate::dose_basis_regression::BasisPosterior
 impl core::clone::Clone for antecedent_estimate::dose_basis_regression::ResidualPrior
 impl core::clone::Clone for antecedent_estimate::dose_grid_functional::ClaimSet
@@ -590,6 +613,13 @@ impl core::clone::Clone for antecedent_estimate::observational_survival::Censori
 impl core::clone::Clone for antecedent_estimate::observational_survival::ObservationalSurvival
 impl core::clone::Clone for antecedent_estimate::observational_survival::ObservationalSurvivalEstimate
 impl core::clone::Clone for antecedent_estimate::observational_survival::SurvivalContrast
+impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuEquationReplacement
+impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuMechanismFit
+impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuMechanismLaw
+impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuMechanismOutcome
+impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuMechanismParameter
+impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuMechanismRegime
+impl core::clone::Clone for antecedent_estimate::ou_mechanisms::OuMechanisms
 impl core::clone::Clone for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior
 impl core::clone::Clone for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior
 impl core::clone::Clone for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary
@@ -606,6 +636,19 @@ impl core::clone::Clone for antecedent_estimate::policy_value::ScoreBinUplift
 impl core::clone::Clone for antecedent_estimate::policy_value::UpliftBinScore
 impl core::clone::Clone for antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior
 impl core::clone::Clone for antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::MassBounds
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialCausalProgram
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialCausalReport
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialClamp
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialObservation
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialReplacement
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialSelectedState
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialShock
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialWorld
+impl core::clone::Clone for antecedent_estimate::polynomial_scm::PolynomialWorldMass
 impl core::clone::Clone for antecedent_estimate::population_aipw::PopulationAipwInterval
 impl core::clone::Clone for antecedent_estimate::population_atc::PopulationAtcInterval
 impl core::clone::Clone for antecedent_estimate::posterior_mean::DirichletNamespace
@@ -878,6 +921,9 @@ impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::Sa
 impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
 impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty
+impl core::cmp::Eq for antecedent_estimate::cyclic_dynamics::OuParameter
+impl core::cmp::Eq for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
+impl core::cmp::Eq for antecedent_estimate::cyclic_likelihood::CyclicParameter
 impl core::cmp::Eq for antecedent_estimate::dose_grid_functional::ClaimSet
 impl core::cmp::Eq for antecedent_estimate::dose_grid_functional::DoseDesign
 impl core::cmp::Eq for antecedent_estimate::dose_grid_functional::IntervalCalibration
@@ -952,6 +998,7 @@ impl core::cmp::Eq for antecedent_estimate::nuisance_cache::TreatmentDependency
 impl core::cmp::Eq for antecedent_estimate::observational_policy::PolicyObjective
 impl core::cmp::Eq for antecedent_estimate::observational_policy::PolicyOrigin
 impl core::cmp::Eq for antecedent_estimate::observational_survival::CensoringAssumption
+impl core::cmp::Eq for antecedent_estimate::ou_mechanisms::OuMechanismParameter
 impl core::cmp::Eq for antecedent_estimate::posterior_mean::DirichletNamespace
 impl core::cmp::Eq for antecedent_estimate::posterior_mean::LocalQuadraticNamespace
 impl core::cmp::Eq for antecedent_estimate::posterior_mean::ScalarNamespace
@@ -1246,6 +1293,11 @@ impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::CohortM
 impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::NativeCohortFit
 impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::NativeFitRows
 impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::NativeFitSize
+impl core::cmp::PartialEq for antecedent_estimate::constraint_likelihood::PolynomialCandidate
+impl core::cmp::PartialEq for antecedent_estimate::constraint_likelihood::PolynomialFit
+impl core::cmp::PartialEq for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
+impl core::cmp::PartialEq for antecedent_estimate::constraint_likelihood::PolynomialMeasurement
+impl core::cmp::PartialEq for antecedent_estimate::constraint_likelihood::RootSelectionRegion
 impl core::cmp::PartialEq for antecedent_estimate::continuous_dose::DosePolicyValue
 impl core::cmp::PartialEq for antecedent_estimate::continuous_dose::DoseResponsePoint
 impl core::cmp::PartialEq for antecedent_estimate::continuous_dose::DoseWindow
@@ -1277,6 +1329,24 @@ impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_samp
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty
 impl core::cmp::PartialEq for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_adam::CyclicAdamEpoch
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_adam::CyclicAdamFit
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_adam::CyclicAdamPolicy
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_dynamics::OdeFit
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_dynamics::OdeObservation
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_dynamics::OuFit
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_dynamics::OuParameter
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_gradient::CyclicGradientFit
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_likelihood::CyclicFit
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_likelihood::CyclicFitOptions
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_likelihood::CyclicParameter
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_likelihood::CyclicPosterior
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
 impl core::cmp::PartialEq for antecedent_estimate::dose_basis_regression::BasisPosterior
 impl core::cmp::PartialEq for antecedent_estimate::dose_basis_regression::ResidualPrior
 impl core::cmp::PartialEq for antecedent_estimate::dose_grid_functional::ClaimSet
@@ -1442,6 +1512,13 @@ impl core::cmp::PartialEq for antecedent_estimate::observational_survival::ArmSu
 impl core::cmp::PartialEq for antecedent_estimate::observational_survival::CensoringAssumption
 impl core::cmp::PartialEq for antecedent_estimate::observational_survival::ObservationalSurvivalEstimate
 impl core::cmp::PartialEq for antecedent_estimate::observational_survival::SurvivalContrast
+impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuEquationReplacement
+impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuMechanismFit
+impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuMechanismLaw
+impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuMechanismOutcome
+impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuMechanismParameter
+impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuMechanismRegime
+impl core::cmp::PartialEq for antecedent_estimate::ou_mechanisms::OuMechanisms
 impl core::cmp::PartialEq for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary
 impl core::cmp::PartialEq for antecedent_estimate::policy_value::BinaryIpwPolicy
 impl core::cmp::PartialEq for antecedent_estimate::policy_value::BinaryPolicyLimits
@@ -1455,6 +1532,19 @@ impl core::cmp::PartialEq for antecedent_estimate::policy_value::ScoreBinUplift
 impl core::cmp::PartialEq for antecedent_estimate::policy_value::UpliftBinScore
 impl core::cmp::PartialEq for antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior
 impl core::cmp::PartialEq for antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::MassBounds
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialCausalProgram
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialCausalReport
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialClamp
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialObservation
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialReplacement
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialSelectedState
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialShock
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialWorld
+impl core::cmp::PartialEq for antecedent_estimate::polynomial_scm::PolynomialWorldMass
 impl core::cmp::PartialEq for antecedent_estimate::posterior_mean::DirichletNamespace
 impl core::cmp::PartialEq for antecedent_estimate::posterior_mean::LocalQuadraticNamespace
 impl core::cmp::PartialEq for antecedent_estimate::posterior_mean::PosteriorRequest
@@ -1732,6 +1822,11 @@ impl core::default::Default for antecedent_estimate::WaldIv
 impl core::default::Default for antecedent_estimate::bayesian_robust_ate::BayesianRobustAteOptions
 impl core::default::Default for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
 impl core::default::Default for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
+impl core::default::Default for antecedent_estimate::cyclic_adam::CyclicAdamPolicy
+impl core::default::Default for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
+impl core::default::Default for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
+impl core::default::Default for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
+impl core::default::Default for antecedent_estimate::cyclic_likelihood::CyclicFitOptions
 impl core::default::Default for antecedent_estimate::dose_grid_functional::ClaimSet
 impl core::default::Default for antecedent_estimate::functional_distribution::EmpiricalFactorCache
 impl core::default::Default for antecedent_estimate::history_match::FrequentistHistoryContrast
@@ -2070,6 +2165,11 @@ impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::CohortMeanI
 impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::NativeCohortFit
 impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::NativeFitRows
 impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::NativeFitSize
+impl core::fmt::Debug for antecedent_estimate::constraint_likelihood::PolynomialCandidate
+impl core::fmt::Debug for antecedent_estimate::constraint_likelihood::PolynomialFit
+impl core::fmt::Debug for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
+impl core::fmt::Debug for antecedent_estimate::constraint_likelihood::PolynomialMeasurement
+impl core::fmt::Debug for antecedent_estimate::constraint_likelihood::RootSelectionRegion
 impl core::fmt::Debug for antecedent_estimate::continuous_dose::DosePolicyValue
 impl core::fmt::Debug for antecedent_estimate::continuous_dose::DoseResponsePoint
 impl core::fmt::Debug for antecedent_estimate::continuous_dose::DoseWindow
@@ -2107,6 +2207,24 @@ impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled:
 impl core::fmt::Debug for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry
 impl core::fmt::Debug for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport
 impl core::fmt::Debug for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios
+impl core::fmt::Debug for antecedent_estimate::cyclic_adam::CyclicAdamEpoch
+impl core::fmt::Debug for antecedent_estimate::cyclic_adam::CyclicAdamFit
+impl core::fmt::Debug for antecedent_estimate::cyclic_adam::CyclicAdamPolicy
+impl core::fmt::Debug for antecedent_estimate::cyclic_dynamics::OdeFit
+impl core::fmt::Debug for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
+impl core::fmt::Debug for antecedent_estimate::cyclic_dynamics::OdeObservation
+impl core::fmt::Debug for antecedent_estimate::cyclic_dynamics::OuFit
+impl core::fmt::Debug for antecedent_estimate::cyclic_dynamics::OuParameter
+impl core::fmt::Debug for antecedent_estimate::cyclic_gradient::CyclicGradientFit
+impl core::fmt::Debug for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
+impl core::fmt::Debug for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
+impl core::fmt::Debug for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
+impl core::fmt::Debug for antecedent_estimate::cyclic_likelihood::CyclicFit
+impl core::fmt::Debug for antecedent_estimate::cyclic_likelihood::CyclicFitOptions
+impl core::fmt::Debug for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction
+impl core::fmt::Debug for antecedent_estimate::cyclic_likelihood::CyclicParameter
+impl core::fmt::Debug for antecedent_estimate::cyclic_likelihood::CyclicPosterior
+impl core::fmt::Debug for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
 impl core::fmt::Debug for antecedent_estimate::dose_basis_regression::BasisPosterior
 impl core::fmt::Debug for antecedent_estimate::dose_basis_regression::ResidualPrior
 impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::ClaimSet
@@ -2284,6 +2402,13 @@ impl core::fmt::Debug for antecedent_estimate::observational_survival::Censoring
 impl core::fmt::Debug for antecedent_estimate::observational_survival::ObservationalSurvival
 impl core::fmt::Debug for antecedent_estimate::observational_survival::ObservationalSurvivalEstimate
 impl core::fmt::Debug for antecedent_estimate::observational_survival::SurvivalContrast
+impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuEquationReplacement
+impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuMechanismFit
+impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuMechanismLaw
+impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuMechanismOutcome
+impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuMechanismParameter
+impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuMechanismRegime
+impl core::fmt::Debug for antecedent_estimate::ou_mechanisms::OuMechanisms
 impl core::fmt::Debug for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior
 impl core::fmt::Debug for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior
 impl core::fmt::Debug for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary
@@ -2300,6 +2425,19 @@ impl core::fmt::Debug for antecedent_estimate::policy_value::ScoreBinUplift
 impl core::fmt::Debug for antecedent_estimate::policy_value::UpliftBinScore
 impl core::fmt::Debug for antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior
 impl core::fmt::Debug for antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::MassBounds
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialCausalProgram
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialCausalReport
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialClamp
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialObservation
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialReplacement
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialSelectedState
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialShock
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialWorld
+impl core::fmt::Debug for antecedent_estimate::polynomial_scm::PolynomialWorldMass
 impl core::fmt::Debug for antecedent_estimate::population_aipw::PopulationAipwInterval
 impl core::fmt::Debug for antecedent_estimate::population_atc::PopulationAtcInterval
 impl core::fmt::Debug for antecedent_estimate::posterior_mean::DirichletNamespace
@@ -2659,6 +2797,13 @@ impl core::marker::Copy for antecedent_estimate::count_weight_lowering::Resample
 impl core::marker::Copy for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 impl core::marker::Copy for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
 impl core::marker::Copy for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
+impl core::marker::Copy for antecedent_estimate::cyclic_adam::CyclicAdamPolicy
+impl core::marker::Copy for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
+impl core::marker::Copy for antecedent_estimate::cyclic_dynamics::OuParameter
+impl core::marker::Copy for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
+impl core::marker::Copy for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
+impl core::marker::Copy for antecedent_estimate::cyclic_likelihood::CyclicFitOptions
+impl core::marker::Copy for antecedent_estimate::cyclic_likelihood::CyclicParameter
 impl core::marker::Copy for antecedent_estimate::dose_basis_regression::ResidualPrior
 impl core::marker::Copy for antecedent_estimate::dose_grid_functional::ClaimSet
 impl core::marker::Copy for antecedent_estimate::dose_grid_functional::DoseContrast
@@ -2724,6 +2869,7 @@ impl core::marker::Copy for antecedent_estimate::observational_policy::Reference
 impl core::marker::Copy for antecedent_estimate::observational_survival::ArmSurvival
 impl core::marker::Copy for antecedent_estimate::observational_survival::CensoringAssumption
 impl core::marker::Copy for antecedent_estimate::observational_survival::SurvivalContrast
+impl core::marker::Copy for antecedent_estimate::ou_mechanisms::OuMechanismParameter
 impl core::marker::Copy for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior
 impl core::marker::Copy for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary
 impl core::marker::Copy for antecedent_estimate::policy_value::BinaryIpwPolicy
@@ -2733,6 +2879,7 @@ impl core::marker::Copy for antecedent_estimate::policy_value::PolicyValueInterv
 impl core::marker::Copy for antecedent_estimate::policy_value::PolicyValueScores
 impl core::marker::Copy for antecedent_estimate::policy_value::ScoreBinUplift
 impl core::marker::Copy for antecedent_estimate::policy_value::UpliftBinScore
+impl core::marker::Copy for antecedent_estimate::polynomial_scm::MassBounds
 impl core::marker::Copy for antecedent_estimate::posterior_mean::DirichletNamespace
 impl core::marker::Copy for antecedent_estimate::posterior_mean::LocalQuadraticNamespace
 impl core::marker::Copy for antecedent_estimate::posterior_mean::PosteriorRequest
@@ -3137,6 +3284,11 @@ impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::CohortM
 impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::marker::Freeze for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
+impl core::marker::Freeze for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
+impl core::marker::Freeze for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
+impl core::marker::Freeze for antecedent_estimate::constraint_likelihood::PolynomialMeasurement [auto]
+impl core::marker::Freeze for antecedent_estimate::constraint_likelihood::RootSelectionRegion [auto]
 impl core::marker::Freeze for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::marker::Freeze for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::marker::Freeze for antecedent_estimate::continuous_dose::DoseWindow [auto]
@@ -3174,6 +3326,24 @@ impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_samp
 impl core::marker::Freeze for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::marker::Freeze for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::marker::Freeze for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_adam::CyclicAdamEpoch [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_adam::CyclicAdamFit [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_adam::CyclicAdamPolicy [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_dynamics::OdeFit [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_dynamics::OdeFitPolicy [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_dynamics::OuFit [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_likelihood::CyclicFit [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_likelihood::CyclicFitOptions [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_likelihood::CyclicParameter [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_likelihood::CyclicPosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_likelihood::CyclicStructureFit [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_basis_regression::BasisPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
@@ -3350,6 +3520,13 @@ impl core::marker::Freeze for antecedent_estimate::observational_survival::Censo
 impl core::marker::Freeze for antecedent_estimate::observational_survival::ObservationalSurvival [auto]
 impl core::marker::Freeze for antecedent_estimate::observational_survival::ObservationalSurvivalEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::observational_survival::SurvivalContrast [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuEquationReplacement [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuMechanismFit [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuMechanismLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuMechanismOutcome [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
+impl core::marker::Freeze for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
 impl core::marker::Freeze for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::marker::Freeze for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -3366,6 +3543,19 @@ impl core::marker::Freeze for antecedent_estimate::policy_value::ScoreBinUplift 
 impl core::marker::Freeze for antecedent_estimate::policy_value::UpliftBinScore [auto]
 impl core::marker::Freeze for antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::MassBounds [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialCausalProgram [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialCausalReport [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialClamp [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialObservation [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialReplacement [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialSelectedState [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialShock [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialWorld [auto]
+impl core::marker::Freeze for antecedent_estimate::polynomial_scm::PolynomialWorldMass [auto]
 impl core::marker::Freeze for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
@@ -3875,6 +4065,11 @@ impl core::marker::Send for antecedent_estimate::cohort_linear_effect::CohortMea
 impl core::marker::Send for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::marker::Send for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::marker::Send for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::marker::Send for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
+impl core::marker::Send for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
+impl core::marker::Send for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
+impl core::marker::Send for antecedent_estimate::constraint_likelihood::PolynomialMeasurement [auto]
+impl core::marker::Send for antecedent_estimate::constraint_likelihood::RootSelectionRegion [auto]
 impl core::marker::Send for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::marker::Send for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::marker::Send for antecedent_estimate::continuous_dose::DoseWindow [auto]
@@ -3912,6 +4107,24 @@ impl core::marker::Send for antecedent_estimate::counterfactual_transport_sample
 impl core::marker::Send for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::marker::Send for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::marker::Send for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_adam::CyclicAdamEpoch [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_adam::CyclicAdamFit [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_adam::CyclicAdamPolicy [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_dynamics::OdeFit [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_dynamics::OdeFitPolicy [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_dynamics::OuFit [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_likelihood::CyclicFit [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_likelihood::CyclicFitOptions [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_likelihood::CyclicParameter [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_likelihood::CyclicPosterior [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_likelihood::CyclicStructureFit [auto]
 impl core::marker::Send for antecedent_estimate::dose_basis_regression::BasisPosterior [auto]
 impl core::marker::Send for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::marker::Send for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
@@ -4089,6 +4302,13 @@ impl core::marker::Send for antecedent_estimate::observational_survival::Censori
 impl core::marker::Send for antecedent_estimate::observational_survival::ObservationalSurvival [auto]
 impl core::marker::Send for antecedent_estimate::observational_survival::ObservationalSurvivalEstimate [auto]
 impl core::marker::Send for antecedent_estimate::observational_survival::SurvivalContrast [auto]
+impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuEquationReplacement [auto]
+impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuMechanismFit [auto]
+impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuMechanismLaw [auto]
+impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuMechanismOutcome [auto]
+impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
+impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
+impl core::marker::Send for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
 impl core::marker::Send for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::marker::Send for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::marker::Send for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -4105,6 +4325,19 @@ impl core::marker::Send for antecedent_estimate::policy_value::ScoreBinUplift [a
 impl core::marker::Send for antecedent_estimate::policy_value::UpliftBinScore [auto]
 impl core::marker::Send for antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior [auto]
 impl core::marker::Send for antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::MassBounds [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialCausalProgram [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialCausalReport [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialClamp [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialObservation [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialReplacement [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialSelectedState [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialShock [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialWorld [auto]
+impl core::marker::Send for antecedent_estimate::polynomial_scm::PolynomialWorldMass [auto]
 impl core::marker::Send for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
 impl core::marker::Send for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::marker::Send for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
@@ -4518,6 +4751,11 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_ef
 impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_effect::NativeCohortFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_effect::NativeFitRows
 impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_effect::NativeFitSize
+impl core::marker::StructuralPartialEq for antecedent_estimate::constraint_likelihood::PolynomialCandidate
+impl core::marker::StructuralPartialEq for antecedent_estimate::constraint_likelihood::PolynomialFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
+impl core::marker::StructuralPartialEq for antecedent_estimate::constraint_likelihood::PolynomialMeasurement
+impl core::marker::StructuralPartialEq for antecedent_estimate::constraint_likelihood::RootSelectionRegion
 impl core::marker::StructuralPartialEq for antecedent_estimate::continuous_dose::DosePolicyValue
 impl core::marker::StructuralPartialEq for antecedent_estimate::continuous_dose::DoseResponsePoint
 impl core::marker::StructuralPartialEq for antecedent_estimate::continuous_dose::DoseWindow
@@ -4549,6 +4787,24 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_t
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::WithheldUncertainty
 impl core::marker::StructuralPartialEq for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_adam::CyclicAdamEpoch
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_adam::CyclicAdamFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_adam::CyclicAdamPolicy
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_dynamics::OdeFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_dynamics::OdeObservation
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_dynamics::OuFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_dynamics::OuParameter
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_gradient::CyclicGradientFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_likelihood::CyclicFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_likelihood::CyclicFitOptions
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_likelihood::CyclicParameter
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_likelihood::CyclicPosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_basis_regression::BasisPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_basis_regression::ResidualPrior
 impl core::marker::StructuralPartialEq for antecedent_estimate::dose_grid_functional::ClaimSet
@@ -4714,6 +4970,13 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::observational_su
 impl core::marker::StructuralPartialEq for antecedent_estimate::observational_survival::CensoringAssumption
 impl core::marker::StructuralPartialEq for antecedent_estimate::observational_survival::ObservationalSurvivalEstimate
 impl core::marker::StructuralPartialEq for antecedent_estimate::observational_survival::SurvivalContrast
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::OuEquationReplacement
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::OuMechanismFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::OuMechanismLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::OuMechanismOutcome
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::OuMechanismParameter
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::OuMechanismRegime
+impl core::marker::StructuralPartialEq for antecedent_estimate::ou_mechanisms::OuMechanisms
 impl core::marker::StructuralPartialEq for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary
 impl core::marker::StructuralPartialEq for antecedent_estimate::policy_value::BinaryIpwPolicy
 impl core::marker::StructuralPartialEq for antecedent_estimate::policy_value::BinaryPolicyLimits
@@ -4727,6 +4990,19 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::policy_value::Sc
 impl core::marker::StructuralPartialEq for antecedent_estimate::policy_value::UpliftBinScore
 impl core::marker::StructuralPartialEq for antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::MassBounds
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialCausalProgram
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialCausalReport
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialClamp
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialObservation
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialReplacement
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialSelectedState
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialShock
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialWorld
+impl core::marker::StructuralPartialEq for antecedent_estimate::polynomial_scm::PolynomialWorldMass
 impl core::marker::StructuralPartialEq for antecedent_estimate::posterior_mean::DirichletNamespace
 impl core::marker::StructuralPartialEq for antecedent_estimate::posterior_mean::LocalQuadraticNamespace
 impl core::marker::StructuralPartialEq for antecedent_estimate::posterior_mean::PosteriorRequest
@@ -5204,6 +5480,11 @@ impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::CohortMea
 impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::marker::Sync for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
+impl core::marker::Sync for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
+impl core::marker::Sync for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
+impl core::marker::Sync for antecedent_estimate::constraint_likelihood::PolynomialMeasurement [auto]
+impl core::marker::Sync for antecedent_estimate::constraint_likelihood::RootSelectionRegion [auto]
 impl core::marker::Sync for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::marker::Sync for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::marker::Sync for antecedent_estimate::continuous_dose::DoseWindow [auto]
@@ -5241,6 +5522,24 @@ impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sample
 impl core::marker::Sync for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::marker::Sync for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::marker::Sync for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_adam::CyclicAdamEpoch [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_adam::CyclicAdamFit [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_adam::CyclicAdamPolicy [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_dynamics::OdeFit [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_dynamics::OdeFitPolicy [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_dynamics::OuFit [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_likelihood::CyclicFit [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_likelihood::CyclicFitOptions [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_likelihood::CyclicParameter [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_likelihood::CyclicPosterior [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_likelihood::CyclicStructureFit [auto]
 impl core::marker::Sync for antecedent_estimate::dose_basis_regression::BasisPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::marker::Sync for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
@@ -5418,6 +5717,13 @@ impl core::marker::Sync for antecedent_estimate::observational_survival::Censori
 impl core::marker::Sync for antecedent_estimate::observational_survival::ObservationalSurvival [auto]
 impl core::marker::Sync for antecedent_estimate::observational_survival::ObservationalSurvivalEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::observational_survival::SurvivalContrast [auto]
+impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuEquationReplacement [auto]
+impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuMechanismFit [auto]
+impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuMechanismLaw [auto]
+impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuMechanismOutcome [auto]
+impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
+impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
+impl core::marker::Sync for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
 impl core::marker::Sync for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::marker::Sync for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -5434,6 +5740,19 @@ impl core::marker::Sync for antecedent_estimate::policy_value::ScoreBinUplift [a
 impl core::marker::Sync for antecedent_estimate::policy_value::UpliftBinScore [auto]
 impl core::marker::Sync for antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior [auto]
 impl core::marker::Sync for antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::MassBounds [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialCausalProgram [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialCausalReport [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialClamp [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialObservation [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialReplacement [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialSelectedState [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialShock [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialWorld [auto]
+impl core::marker::Sync for antecedent_estimate::polynomial_scm::PolynomialWorldMass [auto]
 impl core::marker::Sync for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
 impl core::marker::Sync for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::marker::Sync for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
@@ -5943,6 +6262,11 @@ impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::CohortMe
 impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::marker::Unpin for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
+impl core::marker::Unpin for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
+impl core::marker::Unpin for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
+impl core::marker::Unpin for antecedent_estimate::constraint_likelihood::PolynomialMeasurement [auto]
+impl core::marker::Unpin for antecedent_estimate::constraint_likelihood::RootSelectionRegion [auto]
 impl core::marker::Unpin for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::marker::Unpin for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::marker::Unpin for antecedent_estimate::continuous_dose::DoseWindow [auto]
@@ -5980,6 +6304,24 @@ impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampl
 impl core::marker::Unpin for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::marker::Unpin for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::marker::Unpin for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_adam::CyclicAdamEpoch [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_adam::CyclicAdamFit [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_adam::CyclicAdamPolicy [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_dynamics::OdeFit [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_dynamics::OdeFitPolicy [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_dynamics::OuFit [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_likelihood::CyclicFit [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_likelihood::CyclicFitOptions [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_likelihood::CyclicParameter [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_likelihood::CyclicPosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_likelihood::CyclicStructureFit [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_basis_regression::BasisPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
@@ -6157,6 +6499,13 @@ impl core::marker::Unpin for antecedent_estimate::observational_survival::Censor
 impl core::marker::Unpin for antecedent_estimate::observational_survival::ObservationalSurvival [auto]
 impl core::marker::Unpin for antecedent_estimate::observational_survival::ObservationalSurvivalEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::observational_survival::SurvivalContrast [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuEquationReplacement [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuMechanismFit [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuMechanismLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuMechanismOutcome [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
+impl core::marker::Unpin for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
 impl core::marker::Unpin for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::marker::Unpin for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -6173,6 +6522,19 @@ impl core::marker::Unpin for antecedent_estimate::policy_value::ScoreBinUplift [
 impl core::marker::Unpin for antecedent_estimate::policy_value::UpliftBinScore [auto]
 impl core::marker::Unpin for antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::MassBounds [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialCausalProgram [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialCausalReport [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialClamp [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialObservation [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialReplacement [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialSelectedState [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialShock [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialWorld [auto]
+impl core::marker::Unpin for antecedent_estimate::polynomial_scm::PolynomialWorldMass [auto]
 impl core::marker::Unpin for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
@@ -6682,6 +7044,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_lin
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialMeasurement [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::constraint_likelihood::RootSelectionRegion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DoseWindow [auto]
@@ -6719,6 +7086,24 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfac
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_adam::CyclicAdamEpoch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_adam::CyclicAdamFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_adam::CyclicAdamPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_dynamics::OdeFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_dynamics::OdeFitPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_dynamics::OuFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicFitOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicParameter [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicStructureFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_basis_regression::BasisPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
@@ -6896,6 +7281,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::observatio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::observational_survival::ObservationalSurvival [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::observational_survival::ObservationalSurvivalEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::observational_survival::SurvivalContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechanisms::OuEquationReplacement [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -6912,6 +7304,19 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_val
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value::UpliftBinScore [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::MassBounds [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialCausalProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialCausalReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialClamp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialObservation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialReplacement [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialSelectedState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialShock [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialWorld [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::polynomial_scm::PolynomialWorldMass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
@@ -7420,6 +7825,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialMeasurement [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::constraint_likelihood::RootSelectionRegion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DosePolicyValue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DoseResponsePoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DoseWindow [auto]
@@ -7457,6 +7867,24 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactua
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cpdag_scenarios::CpdagScenarioReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_adam::CyclicAdamEpoch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_adam::CyclicAdamFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_adam::CyclicAdamPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_dynamics::OdeFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_dynamics::OdeFitPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_dynamics::OuFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicFitOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicParameter [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicStructureFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_basis_regression::BasisPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_basis_regression::ResidualPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::ClaimSet [auto]
@@ -7634,6 +8062,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::observational
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::observational_survival::ObservationalSurvival [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::observational_survival::ObservationalSurvivalEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::observational_survival::SurvivalContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms::OuEquationReplacement [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismParameter [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanismRegime [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ou_mechanisms::OuMechanisms [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary [auto]
@@ -7650,6 +8085,19 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value::UpliftBinScore [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::MassBounds [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialCausalProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialCausalReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialClamp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialObservation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialReplacement [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialSelectedState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialShock [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialWorld [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::polynomial_scm::PolynomialWorldMass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
@@ -7865,7 +8313,50 @@ impl serde_core::ser::Serialize for antecedent_estimate::TrialAipwEstimate
 impl serde_core::ser::Serialize for antecedent_estimate::TrialAipwInput
 impl serde_core::ser::Serialize for antecedent_estimate::TrialAipwOptions
 impl serde_core::ser::Serialize for antecedent_estimate::TrialSampling
+impl serde_core::ser::Serialize for antecedent_estimate::constraint_likelihood::PolynomialCandidate
+impl serde_core::ser::Serialize for antecedent_estimate::constraint_likelihood::PolynomialFit
+impl serde_core::ser::Serialize for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
+impl serde_core::ser::Serialize for antecedent_estimate::constraint_likelihood::PolynomialMeasurement
+impl serde_core::ser::Serialize for antecedent_estimate::constraint_likelihood::RootSelectionRegion
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_adam::CyclicAdamEpoch
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_adam::CyclicAdamFit
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_adam::CyclicAdamPolicy
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_dynamics::OdeFit
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_dynamics::OdeObservation
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_dynamics::OuFit
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_dynamics::OuParameter
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_gradient::CyclicGradientFit
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicFit
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicFitOptions
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicParameter
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicPosterior
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
 impl serde_core::ser::Serialize for antecedent_estimate::learned_trial::TrialNuisanceDiagnostics
+impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuEquationReplacement
+impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanismFit
+impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanismLaw
+impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanismOutcome
+impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanismParameter
+impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanismRegime
+impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanisms
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::MassBounds
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialCausalProgram
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialCausalReport
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialClamp
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialObservation
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialReplacement
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialSelectedState
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialShock
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialWorld
+impl serde_core::ser::Serialize for antecedent_estimate::polynomial_scm::PolynomialWorldMass
 impl serde_core::ser::Serialize for antecedent_estimate::smoothed_dose::LocalDoseSupport
 impl serde_core::ser::Serialize for antecedent_estimate::smoothed_dose::MembershipOverlap
 impl serde_core::ser::Serialize for antecedent_estimate::smoothed_dose::QuadratureRecord
@@ -8382,7 +8873,50 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::TrialAipwEst
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::TrialAipwInput
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::TrialAipwOptions
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::TrialSampling
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::constraint_likelihood::PolynomialCandidate
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::constraint_likelihood::PolynomialFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::constraint_likelihood::PolynomialMeasurement
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::constraint_likelihood::RootSelectionRegion
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_adam::CyclicAdamEpoch
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_adam::CyclicAdamFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_adam::CyclicAdamPolicy
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_dynamics::OdeFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_dynamics::OdeObservation
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_dynamics::OuFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_dynamics::OuParameter
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_gradient::CyclicGradientFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicFitOptions
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicJointAbduction
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicParameter
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicPosterior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::learned_trial::TrialNuisanceDiagnostics
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuEquationReplacement
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanismFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanismLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanismOutcome
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanismParameter
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanismRegime
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanisms
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::MassBounds
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialCausalCandidate
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialCausalProgram
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialCausalReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialClamp
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialExogenousAtom
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialObservation
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialReplacement
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialSelectedState
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialShock
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialWorld
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::polynomial_scm::PolynomialWorldMass
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::smoothed_dose::LocalDoseSupport
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::smoothed_dose::MembershipOverlap
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::smoothed_dose::QuadratureRecord
@@ -8735,6 +9269,9 @@ pub enum antecedent_estimate::count_weight_lowering::ResamplePath
 pub enum antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 pub enum antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
 pub enum antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
+pub enum antecedent_estimate::cyclic_dynamics::OuParameter
+pub enum antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
+pub enum antecedent_estimate::cyclic_likelihood::CyclicParameter
 pub enum antecedent_estimate::dose_basis_regression::ResidualPrior
 pub enum antecedent_estimate::dose_grid_functional::DoseDesign
 pub enum antecedent_estimate::dose_grid_functional::DoseFunctional
@@ -8775,6 +9312,9 @@ pub enum antecedent_estimate::observational_policy::PolicyEvaluation
 pub enum antecedent_estimate::observational_policy::PolicyObjective
 pub enum antecedent_estimate::observational_policy::PolicyOrigin
 pub enum antecedent_estimate::observational_survival::CensoringAssumption
+pub enum antecedent_estimate::ou_mechanisms::OuMechanismOutcome
+pub enum antecedent_estimate::ou_mechanisms::OuMechanismParameter
+pub enum antecedent_estimate::polynomial_scm::PolynomialSelectedState
 pub enum antecedent_estimate::posterior_mean::DirichletNamespace
 pub enum antecedent_estimate::posterior_mean::LocalQuadraticNamespace
 pub enum antecedent_estimate::posterior_mean::PosteriorRequest
@@ -10278,6 +10818,22 @@ pub field antecedent_estimate::cohort_linear_effect::NativeFitRows::outcome: all
 pub field antecedent_estimate::cohort_linear_effect::NativeFitRows::treatment: alloc::vec::Vec<f64>
 pub field antecedent_estimate::cohort_linear_effect::NativeFitSize::rows: u64
 pub field antecedent_estimate::cohort_linear_effect::NativeFitSize::width: u64
+pub field antecedent_estimate::constraint_likelihood::PolynomialCandidate::id: alloc::string::String
+pub field antecedent_estimate::constraint_likelihood::PolynomialCandidate::model: antecedent_model::equation_system::PolynomialSystem
+pub field antecedent_estimate::constraint_likelihood::PolynomialCandidate::selection: alloc::vec::Vec<antecedent_estimate::constraint_likelihood::RootSelectionRegion>
+pub field antecedent_estimate::constraint_likelihood::PolynomialFit::best_candidate: core::option::Option<alloc::string::String>
+pub field antecedent_estimate::constraint_likelihood::PolynomialFit::candidates: alloc::vec::Vec<antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound>
+pub field antecedent_estimate::constraint_likelihood::PolynomialFit::finite_set_optimum_certified: bool
+pub field antecedent_estimate::constraint_likelihood::PolynomialFit::next_attempt: core::option::Option<alloc::string::String>
+pub field antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound::candidate: alloc::string::String
+pub field antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound::lower: core::option::Option<f64>
+pub field antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound::ranking_score: core::option::Option<antecedent_model::equation_system::Interval>
+pub field antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound::solutions: antecedent_model::equation_system::IsolatedSolutions
+pub field antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound::upper: core::option::Option<f64>
+pub field antecedent_estimate::constraint_likelihood::PolynomialMeasurement::values: alloc::vec::Vec<f64>
+pub field antecedent_estimate::constraint_likelihood::PolynomialMeasurement::variances: alloc::vec::Vec<f64>
+pub field antecedent_estimate::constraint_likelihood::RootSelectionRegion::bounds: alloc::vec::Vec<antecedent_model::equation_system::Interval>
+pub field antecedent_estimate::constraint_likelihood::RootSelectionRegion::probability: f64
 pub field antecedent_estimate::continuous_dose::DosePolicyValue::incremental_interval_95: core::option::Option<[f64; 2]>
 pub field antecedent_estimate::continuous_dose::DosePolicyValue::incremental_value: f64
 pub field antecedent_estimate::continuous_dose::DosePolicyValue::incremental_variance: f64
@@ -10455,6 +11011,95 @@ pub field antecedent_estimate::cpdag_scenarios::CpdagScenarioReport::receipt: co
 pub field antecedent_estimate::cpdag_scenarios::CpdagScenarioReport::report: core::option::Option<antecedent_estimate::transport_scenarios::ScenarioSetReport>
 pub field antecedent_estimate::cpdag_scenarios::CpdagScenarioReport::unevaluated: usize
 pub field antecedent_estimate::cpdag_scenarios::CpdagScenarioReport::unidentified: usize
+pub field antecedent_estimate::cyclic_adam::CyclicAdamEpoch::epoch: usize
+pub field antecedent_estimate::cyclic_adam::CyclicAdamEpoch::rejected_updates: usize
+pub field antecedent_estimate::cyclic_adam::CyclicAdamEpoch::validation_log_likelihood_per_row: f64
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::best_epoch: usize
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::epochs: usize
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::gradient_steps: usize
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::model: antecedent_model::nonlinear_equilibrium::EquilibriumModel
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::nonsmooth_convention: core::option::Option<alloc::string::String>
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::stopping_reason: alloc::string::String
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::trace: alloc::vec::Vec<antecedent_estimate::cyclic_adam::CyclicAdamEpoch>
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::training_log_likelihood: f64
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::training_score_converged: bool
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::training_score_per_row: f64
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::validation_converged: bool
+pub field antecedent_estimate::cyclic_adam::CyclicAdamFit::validation_log_likelihood: f64
+pub field antecedent_estimate::cyclic_adam::CyclicAdamPolicy::batch_size: usize
+pub field antecedent_estimate::cyclic_adam::CyclicAdamPolicy::contraction_margin: f64
+pub field antecedent_estimate::cyclic_adam::CyclicAdamPolicy::l1_penalty: f64
+pub field antecedent_estimate::cyclic_adam::CyclicAdamPolicy::learning_rate: f64
+pub field antecedent_estimate::cyclic_adam::CyclicAdamPolicy::max_epochs: usize
+pub field antecedent_estimate::cyclic_adam::CyclicAdamPolicy::minimum_epochs: usize
+pub field antecedent_estimate::cyclic_adam::CyclicAdamPolicy::patience: usize
+pub field antecedent_estimate::cyclic_adam::CyclicAdamPolicy::relative_tolerance: f64
+pub field antecedent_estimate::cyclic_adam::CyclicAdamPolicy::score_tolerance: f64
+pub field antecedent_estimate::cyclic_adam::CyclicAdamPolicy::seed: u64
+pub field antecedent_estimate::cyclic_dynamics::OdeFit::converged: bool
+pub field antecedent_estimate::cyclic_dynamics::OdeFit::iterations: usize
+pub field antecedent_estimate::cyclic_dynamics::OdeFit::log_likelihood: f64
+pub field antecedent_estimate::cyclic_dynamics::OdeFit::model: antecedent_model::continuous_cyclic::OdeSystem
+pub field antecedent_estimate::cyclic_dynamics::OdeFit::score_norm: f64
+pub field antecedent_estimate::cyclic_dynamics::OdeFitPolicy::learning_rate: f64
+pub field antecedent_estimate::cyclic_dynamics::OdeFitPolicy::max_iterations: usize
+pub field antecedent_estimate::cyclic_dynamics::OdeFitPolicy::score_tolerance: f64
+pub field antecedent_estimate::cyclic_dynamics::OdeObservation::initial: alloc::vec::Vec<f64>
+pub field antecedent_estimate::cyclic_dynamics::OdeObservation::schedule: alloc::vec::Vec<antecedent_model::continuous_cyclic::TimedClamp>
+pub field antecedent_estimate::cyclic_dynamics::OdeObservation::times: alloc::vec::Vec<f64>
+pub field antecedent_estimate::cyclic_dynamics::OdeObservation::values: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::cyclic_dynamics::OdeObservation::variances: alloc::vec::Vec<f64>
+pub field antecedent_estimate::cyclic_dynamics::OuFit::converged: bool
+pub field antecedent_estimate::cyclic_dynamics::OuFit::log_likelihood: f64
+pub field antecedent_estimate::cyclic_dynamics::OuFit::model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck
+pub field antecedent_estimate::cyclic_dynamics::OuFit::sweeps: usize
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::converged: bool
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::evaluations: usize
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::iterations: usize
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::line_search_exhausted: bool
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::log_likelihood: f64
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::model: antecedent_model::nonlinear_equilibrium::EquilibriumModel
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::nonsmooth_convention: core::option::Option<alloc::string::String>
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::objective: f64
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::score_norm: f64
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientPolicy::l1_penalty: f64
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientPolicy::learning_rate: f64
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientPolicy::max_iterations: usize
+pub field antecedent_estimate::cyclic_gradient::CyclicGradientPolicy::score_tolerance: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior::chains: usize
+pub field antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior::diagnostics_pass: bool
+pub field antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior::disturbances: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior::draws_per_chain: usize
+pub field antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior::max_rhat: core::option::Option<f64>
+pub field antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior::min_bulk_ess: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior::min_tail_ess: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior::states: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::cyclic_likelihood::CyclicFit::converged: bool
+pub field antecedent_estimate::cyclic_likelihood::CyclicFit::evaluations: usize
+pub field antecedent_estimate::cyclic_likelihood::CyclicFit::log_likelihood: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicFit::model: antecedent_model::nonlinear_equilibrium::EquilibriumModel
+pub field antecedent_estimate::cyclic_likelihood::CyclicFit::objective: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicFit::sweeps: usize
+pub field antecedent_estimate::cyclic_likelihood::CyclicFitOptions::initial_step: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicFitOptions::l1_penalty: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicFitOptions::max_sweeps: usize
+pub field antecedent_estimate::cyclic_likelihood::CyclicFitOptions::tolerance: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicJointAbduction::factual: antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
+pub field antecedent_estimate::cyclic_likelihood::CyclicJointAbduction::parameter_draws: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::cyclic_likelihood::CyclicPosterior::accepted: alloc::vec::Vec<usize>
+pub field antecedent_estimate::cyclic_likelihood::CyclicPosterior::chains: usize
+pub field antecedent_estimate::cyclic_likelihood::CyclicPosterior::diagnostics_pass: bool
+pub field antecedent_estimate::cyclic_likelihood::CyclicPosterior::draws_per_chain: usize
+pub field antecedent_estimate::cyclic_likelihood::CyclicPosterior::max_rhat: core::option::Option<f64>
+pub field antecedent_estimate::cyclic_likelihood::CyclicPosterior::min_bulk_ess: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicPosterior::min_tail_ess: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicPosterior::samples: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::cyclic_likelihood::CyclicStructureFit::directed_edges: alloc::vec::Vec<(usize, usize)>
+pub field antecedent_estimate::cyclic_likelihood::CyclicStructureFit::fit: antecedent_estimate::cyclic_likelihood::CyclicFit
+pub field antecedent_estimate::cyclic_likelihood::CyclicStructureFit::heldout_log_likelihood: core::option::Option<f64>
+pub field antecedent_estimate::cyclic_likelihood::CyclicStructureFit::l1_penalty: f64
+pub field antecedent_estimate::cyclic_likelihood::CyclicStructureFit::selection_converged: bool
+pub field antecedent_estimate::cyclic_likelihood::CyclicStructureFit::threshold: f64
 pub field antecedent_estimate::dose_basis_regression::BasisPosterior::coefficients: alloc::vec::Vec<f64>
 pub field antecedent_estimate::dose_basis_regression::BasisPosterior::covariance: core::option::Option<alloc::vec::Vec<f64>>
 pub field antecedent_estimate::dose_basis_regression::BasisPosterior::draws: usize
@@ -11140,6 +11785,27 @@ pub field antecedent_estimate::observational_survival::SurvivalData::covariates:
 pub field antecedent_estimate::observational_survival::SurvivalData::duration: &'a [f64]
 pub field antecedent_estimate::observational_survival::SurvivalData::event: &'a [f64]
 pub field antecedent_estimate::observational_survival::SurvivalData::treatment: &'a [f64]
+pub field antecedent_estimate::ou_mechanisms::OuEquationReplacement::diffusion_factor: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_mechanisms::OuEquationReplacement::drift: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_mechanisms::OuEquationReplacement::equation: alloc::string::String
+pub field antecedent_estimate::ou_mechanisms::OuEquationReplacement::forcing: f64
+pub field antecedent_estimate::ou_mechanisms::OuMechanismFit::converged: bool
+pub field antecedent_estimate::ou_mechanisms::OuMechanismFit::evaluations: usize
+pub field antecedent_estimate::ou_mechanisms::OuMechanismFit::iterations: usize
+pub field antecedent_estimate::ou_mechanisms::OuMechanismFit::line_search_exhausted: bool
+pub field antecedent_estimate::ou_mechanisms::OuMechanismFit::log_likelihood: f64
+pub field antecedent_estimate::ou_mechanisms::OuMechanismFit::model: antecedent_estimate::ou_mechanisms::OuMechanisms
+pub field antecedent_estimate::ou_mechanisms::OuMechanismFit::optimizer: alloc::string::String
+pub field antecedent_estimate::ou_mechanisms::OuMechanismFit::score_norm: f64
+pub field antecedent_estimate::ou_mechanisms::OuMechanismLaw::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_mechanisms::OuMechanismLaw::mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_mechanisms::OuMechanismRegime::id: alloc::string::String
+pub field antecedent_estimate::ou_mechanisms::OuMechanismRegime::replacements: alloc::vec::Vec<antecedent_estimate::ou_mechanisms::OuEquationReplacement>
+pub field antecedent_estimate::ou_mechanisms::OuMechanismRegime::values: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::ou_mechanisms::OuMechanisms::diffusion_factor: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_mechanisms::OuMechanisms::drift: alloc::vec::Vec<f64>
+pub field antecedent_estimate::ou_mechanisms::OuMechanisms::equations: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::ou_mechanisms::OuMechanisms::forcing: alloc::vec::Vec<f64>
 pub field antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior::draws: alloc::vec::Vec<f64>
 pub field antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior::mode: alloc::vec::Vec<f64>
 pub field antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior::n_draws: usize
@@ -11233,6 +11899,51 @@ pub field antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterio
 pub field antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior::reference: antecedent_estimate::score_posterior::ScorePosterior
 pub field antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior::summary: antecedent_stats::longitudinal_regime::RegimeValueSummary
 pub field antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior::value: antecedent_estimate::score_posterior::ScorePosterior
+pub field antecedent_estimate::polynomial_scm::MassBounds::lower: f64
+pub field antecedent_estimate::polynomial_scm::MassBounds::upper: f64
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalCandidate::atoms: alloc::vec::Vec<antecedent_estimate::polynomial_scm::PolynomialExogenousAtom>
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalCandidate::id: alloc::string::String
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalCandidate::model: antecedent_model::equation_system::PolynomialSystem
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalCandidate::prior_weight: f64
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalProgram::candidates: alloc::vec::Vec<antecedent_estimate::polynomial_scm::PolynomialCausalCandidate>
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalProgram::factual: antecedent_estimate::polynomial_scm::PolynomialObservation
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalProgram::policy: antecedent_model::equation_system::IsolationPolicy
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalProgram::training: alloc::vec::Vec<antecedent_estimate::polynomial_scm::PolynomialObservation>
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalProgram::worlds: alloc::vec::Vec<antecedent_estimate::polynomial_scm::PolynomialWorld>
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalReport::atoms: alloc::vec::Vec<antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom>
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalReport::evidence: antecedent_estimate::polynomial_scm::MassBounds
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalReport::impossible_evidence: bool
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalReport::parameter_posterior: alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_estimate::polynomial_scm::MassBounds>
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalReport::positive_evidence_certified: bool
+pub field antecedent_estimate::polynomial_scm::PolynomialCausalReport::world_mass: alloc::vec::Vec<antecedent_estimate::polynomial_scm::PolynomialWorldMass>
+pub field antecedent_estimate::polynomial_scm::PolynomialClamp::equation: alloc::string::String
+pub field antecedent_estimate::polynomial_scm::PolynomialClamp::value: f64
+pub field antecedent_estimate::polynomial_scm::PolynomialClamp::variable: usize
+pub field antecedent_estimate::polynomial_scm::PolynomialExogenousAtom::disturbances: alloc::vec::Vec<f64>
+pub field antecedent_estimate::polynomial_scm::PolynomialExogenousAtom::id: alloc::string::String
+pub field antecedent_estimate::polynomial_scm::PolynomialExogenousAtom::measurements: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::collections::btree::map::BTreeMap<alloc::string::String, f64>>
+pub field antecedent_estimate::polynomial_scm::PolynomialExogenousAtom::selections: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<antecedent_model::equation_system::Interval>>
+pub field antecedent_estimate::polynomial_scm::PolynomialExogenousAtom::weight: f64
+pub field antecedent_estimate::polynomial_scm::PolynomialObservation::bounds: alloc::vec::Vec<core::option::Option<antecedent_model::equation_system::Interval>>
+pub field antecedent_estimate::polynomial_scm::PolynomialObservation::label: core::option::Option<alloc::string::String>
+pub field antecedent_estimate::polynomial_scm::PolynomialObservation::world: alloc::string::String
+pub field antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom::atom: alloc::string::String
+pub field antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom::candidate: alloc::string::String
+pub field antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom::posterior_mass: core::option::Option<antecedent_estimate::polynomial_scm::MassBounds>
+pub field antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom::states: alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_estimate::polynomial_scm::PolynomialSelectedState>
+pub field antecedent_estimate::polynomial_scm::PolynomialReplacement::clear_disturbance: bool
+pub field antecedent_estimate::polynomial_scm::PolynomialReplacement::equation: alloc::string::String
+pub field antecedent_estimate::polynomial_scm::PolynomialReplacement::replacement: antecedent_model::equation_system::PolynomialEquation
+pub field antecedent_estimate::polynomial_scm::PolynomialShock::delta: f64
+pub field antecedent_estimate::polynomial_scm::PolynomialShock::equation: alloc::string::String
+pub field antecedent_estimate::polynomial_scm::PolynomialWorld::clamps: alloc::vec::Vec<antecedent_estimate::polynomial_scm::PolynomialClamp>
+pub field antecedent_estimate::polynomial_scm::PolynomialWorld::id: alloc::string::String
+pub field antecedent_estimate::polynomial_scm::PolynomialWorld::replacements: alloc::vec::Vec<antecedent_estimate::polynomial_scm::PolynomialReplacement>
+pub field antecedent_estimate::polynomial_scm::PolynomialWorld::shocks: alloc::vec::Vec<antecedent_estimate::polynomial_scm::PolynomialShock>
+pub field antecedent_estimate::polynomial_scm::PolynomialWorldMass::selected: antecedent_estimate::polynomial_scm::MassBounds
+pub field antecedent_estimate::polynomial_scm::PolynomialWorldMass::undefined: antecedent_estimate::polynomial_scm::MassBounds
+pub field antecedent_estimate::polynomial_scm::PolynomialWorldMass::unresolved: antecedent_estimate::polynomial_scm::MassBounds
+pub field antecedent_estimate::polynomial_scm::PolynomialWorldMass::world: alloc::string::String
 pub field antecedent_estimate::population_aipw::PopulationAipwInterval::estimate: antecedent_estimate::EffectEstimate
 pub field antecedent_estimate::population_aipw::PopulationAipwInterval::level: f64
 pub field antecedent_estimate::population_aipw::PopulationAipwInterval::lower: f64
@@ -12722,11 +13433,16 @@ pub fn <antecedent_estimate::observational_policy::PolicyObjective>::const fn as
 pub fn <antecedent_estimate::observational_survival::CensoringAssumption>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::observational_survival::ObservationalSurvival>::fn estimate(&self, data: &antecedent_estimate::observational_survival::SurvivalData<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::observational_survival::ObservationalSurvivalEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::observational_survival::ObservationalSurvival>::fn new(active: f64, control: f64, horizon: f64, censoring: antecedent_estimate::observational_survival::CensoringAssumption) -> Self
+pub fn <antecedent_estimate::ou_mechanisms::OuMechanisms>::fn stationary(&self, replacements: &[antecedent_estimate::ou_mechanisms::OuEquationReplacement], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::ou_mechanisms::OuMechanismLaw, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_estimate::ou_mechanisms::OuMechanisms>::fn stationary_outcome(&self, replacements: &[antecedent_estimate::ou_mechanisms::OuEquationReplacement], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::ou_mechanisms::OuMechanismOutcome, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_estimate::ou_mechanisms::OuMechanisms>::fn validate(&self) -> core::result::Result<usize, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior>::fn score_at(&self, row: &[f64], clip: f64) -> core::result::Result<antecedent_estimate::penalized_propensity_posterior::PropensityScoreSummary, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior>::fn weighting_effect_posterior(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior>::fn fit(&self, design: &antecedent_estimate::penalized_propensity_posterior::StaticPropensityDesign) -> core::result::Result<antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior>::fn new(prior_sd: f64, n_draws: usize, seed: u64) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::penalized_propensity_posterior::StaticPropensityDesign>::fn try_new(x_colmajor: alloc::vec::Vec<f64>, treatment: alloc::vec::Vec<f64>, nrows: usize) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::polynomial_scm::PolynomialCausalProgram>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::polynomial_scm::PolynomialCausalReport, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn <antecedent_estimate::polynomial_scm::PolynomialCausalProgram>::fn validate(&self) -> core::result::Result<(), antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_estimate::recovery::CertifiedInterventionEvaluation>::const fn outcome(&self) -> usize
 pub fn <antecedent_estimate::recovery::CertifiedInterventionEvaluation>::fn draws(&self) -> &[antecedent_estimate::recovery::EvaluatedRecoveryDraw]
 pub fn <antecedent_estimate::recovery::CertifiedInterventionEvaluation>::fn outcome_mixture(&self) -> core::option::Option<antecedent_estimate::recovery::OutcomeMixture>
@@ -12969,6 +13685,7 @@ pub fn antecedent_estimate::cohort_linear_effect::native_cohort_interval_for(nat
 pub fn antecedent_estimate::common_time_window(designs: &[antecedent_estimate::AlignedRows]) -> core::option::Option<(usize, usize)>
 pub fn antecedent_estimate::compare_raw_adjusted(outcome: &[f64], treatment: &[f64], adjusted: antecedent_estimate::AdjustedEstimate, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::DescriptiveComparison, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::conditional_odds_ratio(stratum: &[alloc::string::String], case: &[f64], exposed: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::ConditionalOddsRatio, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::constraint_likelihood::fit_polynomial_candidates(candidates: &[antecedent_estimate::constraint_likelihood::PolynomialCandidate], measurements: &[antecedent_estimate::constraint_likelihood::PolynomialMeasurement], policy: antecedent_model::equation_system::IsolationPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::constraint_likelihood::PolynomialFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::continuous_dose::conditional_dose_response(outcome: &[f64], dose: &[f64], groups: &[alloc::string::String], density: &[f64], target_doses: &[f64], bandwidth: f64, min_local_support: usize) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::continuous_dose::DoseResponsePoint>, alloc::string::String>
 pub fn antecedent_estimate::continuous_dose::fixed_dose_policy_value(rows: &antecedent_estimate::continuous_dose::DoseRows<'_>, rules: &antecedent_estimate::continuous_dose::DoseRules<'_>, window: &antecedent_estimate::continuous_dose::DoseWindow) -> core::result::Result<antecedent_estimate::continuous_dose::DosePolicyValue, alloc::string::String>
 pub fn antecedent_estimate::continuous_dose_posterior::fixed_dose_policy_posterior(rows: &antecedent_estimate::continuous_dose_posterior::DoseResponseRows<'_>, rules: &antecedent_estimate::continuous_dose::DoseRules<'_>, curve: &antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'_>, window: &antecedent_estimate::continuous_dose_posterior::PolicyWindow) -> core::result::Result<antecedent_estimate::continuous_dose_posterior::DosePolicyPosterior, antecedent_estimate::EstimationError>
@@ -12990,6 +13707,21 @@ pub fn antecedent_estimate::cpdag_scenarios::prepare_cpdag_scenarios(decision: a
 pub fn antecedent_estimate::crossfit_aipw::crossfit_binary_scores(problem: &antecedent_estimate::PreparedPropensityProblem, query: &antecedent_core::query::average::AverageEffectQuery, folds: usize, glm_options: &antecedent_stats::glm::GlmOptions, backend: antecedent_stats::faer_backend::FaerBackend) -> core::result::Result<antecedent_estimate::ScoreTable, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::crossfit_aipw::execute_certified_aipw(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn antecedent_estimate::crossfit_influence_se(table: &antecedent_estimate::ScoreTable) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::cyclic_adam::fit_cyclic_adam(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], training: &[antecedent_model::nonlinear_equilibrium::RegimeRow], validation: &[antecedent_model::nonlinear_equilibrium::RegimeRow], policy: antecedent_estimate::cyclic_adam::CyclicAdamPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_adam::CyclicAdamFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_dynamics::fit_ode_likelihood(template: &antecedent_model::continuous_cyclic::OdeSystem, parameters: &[antecedent_model::continuous_cyclic::OdeParameter], data: &[antecedent_estimate::cyclic_dynamics::OdeObservation], integration: antecedent_model::continuous_cyclic::OdePolicy, policy: antecedent_estimate::cyclic_dynamics::OdeFitPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_dynamics::OdeFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_dynamics::fit_ou_likelihood(template: &antecedent_model::continuous_cyclic::OrnsteinUhlenbeck, parameters: &[antecedent_estimate::cyclic_dynamics::OuParameter], rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], options: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_dynamics::OuFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_gradient::fit_cyclic_gradient(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], policy: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_gradient::CyclicGradientFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::abduce_cyclic_joint(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], training: &[antecedent_model::nonlinear_equilibrium::RegimeRow], prior_sd: f64, observations: &[core::option::Option<f64>], measurement_variances: &[f64], initial: &[f64], options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_likelihood::CyclicJointAbduction, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::abduce_cyclic_partial(model: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, observations: &[core::option::Option<f64>], measurement_variances: &[f64], initial: &[f64], options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::bootstrap_cyclic_fit(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], options: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, replicates: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::bootstrap_cyclic_fit_with_design(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], options: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, replicates: usize, design: antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::bootstrap_cyclic_structure(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, training: &[antecedent_model::nonlinear_equilibrium::RegimeRow], heldout: &[antecedent_model::nonlinear_equilibrium::RegimeRow], options: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, threshold: f64, replicates: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<core::option::Option<antecedent_estimate::cyclic_likelihood::CyclicStructureFit>>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::bootstrap_cyclic_structure_with_design(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, training: &[antecedent_model::nonlinear_equilibrium::RegimeRow], heldout: &[antecedent_model::nonlinear_equilibrium::RegimeRow], options: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, threshold: f64, replicates: usize, design: antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<core::option::Option<antecedent_estimate::cyclic_likelihood::CyclicStructureFit>>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::fit_cyclic_likelihood(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], options: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_likelihood::CyclicFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::learn_cyclic_structure(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, training: &[antecedent_model::nonlinear_equilibrium::RegimeRow], heldout: &[antecedent_model::nonlinear_equilibrium::RegimeRow], options: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, threshold: f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_likelihood::CyclicStructureFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::parameter_values(model: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::sample_cyclic_posterior(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], prior_sd: f64, options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_likelihood::CyclicPosterior, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_likelihood::with_parameters(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], values: &[f64]) -> core::result::Result<antecedent_model::nonlinear_equilibrium::EquilibriumModel, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::declared_joint_nuisance(provider: &str) -> core::result::Result<core::option::Option<antecedent_learn::spec::LearnerSpec>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dependence_block_length(structural_span: usize, rows: usize, scores: &[&[f64]]) -> usize
 pub fn antecedent_estimate::dependence_refusal(catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, samples: &[antecedent_estimate::RegimeSample]) -> core::option::Option<&'static str>
@@ -13149,6 +13881,8 @@ pub fn antecedent_estimate::nuisance_cache::with_certified_cache<R>(cache: &mut 
 pub fn antecedent_estimate::observation::temporal_curve_outcome_regressors(query: &antecedent_core::query::response::ResponseQuery, identifications: &[(&antecedent_expr::estimand::IdentifiedEstimand, &antecedent_core::temporal::TemporalIndexer)]) -> core::result::Result<alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::observation::temporal_sequence_outcome_regressors(graph: &antecedent_graph::temporal::TemporalDag, outcome: antecedent_core::ids::VariableId) -> alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>
 pub fn antecedent_estimate::observational_policy::execute_certified_observational_policy(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn antecedent_estimate::ou_mechanisms::fit_ou_mechanisms(template: &antecedent_estimate::ou_mechanisms::OuMechanisms, coordinates: &[antecedent_estimate::ou_mechanisms::OuMechanismParameter], regimes: &[antecedent_estimate::ou_mechanisms::OuMechanismRegime], policy: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::ou_mechanisms::OuMechanismFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::ou_mechanisms::ou_mechanism_likelihood_score(model: &antecedent_estimate::ou_mechanisms::OuMechanisms, regimes: &[antecedent_estimate::ou_mechanisms::OuMechanismRegime], coordinates: &[antecedent_estimate::ou_mechanisms::OuMechanismParameter], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(f64, alloc::vec::Vec<f64>), antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::penalized_propensity_posterior::weighting_effect_posterior_refusal() -> antecedent_estimate::EstimationError
 pub fn antecedent_estimate::percentile_interval(values: &[f64], level: f64) -> core::option::Option<(f64, f64)>
 pub fn antecedent_estimate::plan_from_response_query(query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<core::option::Option<antecedent_estimate::TemporalInterventionPlan>, antecedent_estimate::EstimationError>
@@ -13337,6 +14071,7 @@ pub mod antecedent_estimate::cell_aipw
 pub mod antecedent_estimate::cluster_dml_aipw
 pub mod antecedent_estimate::cohort_linear_effect
 pub mod antecedent_estimate::conditional
+pub mod antecedent_estimate::constraint_likelihood
 pub mod antecedent_estimate::continuous_dose
 pub mod antecedent_estimate::continuous_dose_posterior
 pub mod antecedent_estimate::count_fitted_posterior
@@ -13346,6 +14081,10 @@ pub mod antecedent_estimate::counterfactual_transport_sampled
 pub mod antecedent_estimate::cpdag_scenarios
 pub mod antecedent_estimate::crossfit_aipw
 pub mod antecedent_estimate::crossfit_cache
+pub mod antecedent_estimate::cyclic_adam
+pub mod antecedent_estimate::cyclic_dynamics
+pub mod antecedent_estimate::cyclic_gradient
+pub mod antecedent_estimate::cyclic_likelihood
 pub mod antecedent_estimate::descriptive_comparison
 pub mod antecedent_estimate::design_compile
 pub mod antecedent_estimate::dml
@@ -13402,10 +14141,12 @@ pub mod antecedent_estimate::nuisance_cache
 pub mod antecedent_estimate::observation
 pub mod antecedent_estimate::observational_policy
 pub mod antecedent_estimate::observational_survival
+pub mod antecedent_estimate::ou_mechanisms
 pub mod antecedent_estimate::overlap
 pub mod antecedent_estimate::penalized_propensity_posterior
 pub mod antecedent_estimate::policy_value
 pub mod antecedent_estimate::policy_value_posterior
+pub mod antecedent_estimate::polynomial_scm
 pub mod antecedent_estimate::population_aipw
 pub mod antecedent_estimate::population_atc
 pub mod antecedent_estimate::posterior_mean
@@ -13762,6 +14503,11 @@ pub struct antecedent_estimate::cohort_linear_effect::NativeCohortFit
 pub struct antecedent_estimate::cohort_linear_effect::NativeCohortFit has private fields
 pub struct antecedent_estimate::cohort_linear_effect::NativeFitRows
 pub struct antecedent_estimate::cohort_linear_effect::NativeFitSize
+pub struct antecedent_estimate::constraint_likelihood::PolynomialCandidate
+pub struct antecedent_estimate::constraint_likelihood::PolynomialFit
+pub struct antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
+pub struct antecedent_estimate::constraint_likelihood::PolynomialMeasurement
+pub struct antecedent_estimate::constraint_likelihood::RootSelectionRegion
 pub struct antecedent_estimate::continuous_dose::DosePolicyValue
 pub struct antecedent_estimate::continuous_dose::DoseResponsePoint
 pub struct antecedent_estimate::continuous_dose::DoseRows<'a>
@@ -13801,6 +14547,21 @@ pub struct antecedent_estimate::cpdag_scenarios::CompletionReceiptEntry
 pub struct antecedent_estimate::cpdag_scenarios::CpdagScenarioReport
 pub struct antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios
 pub struct antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios has private fields
+pub struct antecedent_estimate::cyclic_adam::CyclicAdamEpoch
+pub struct antecedent_estimate::cyclic_adam::CyclicAdamFit
+pub struct antecedent_estimate::cyclic_adam::CyclicAdamPolicy
+pub struct antecedent_estimate::cyclic_dynamics::OdeFit
+pub struct antecedent_estimate::cyclic_dynamics::OdeFitPolicy
+pub struct antecedent_estimate::cyclic_dynamics::OdeObservation
+pub struct antecedent_estimate::cyclic_dynamics::OuFit
+pub struct antecedent_estimate::cyclic_gradient::CyclicGradientFit
+pub struct antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
+pub struct antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
+pub struct antecedent_estimate::cyclic_likelihood::CyclicFit
+pub struct antecedent_estimate::cyclic_likelihood::CyclicFitOptions
+pub struct antecedent_estimate::cyclic_likelihood::CyclicJointAbduction
+pub struct antecedent_estimate::cyclic_likelihood::CyclicPosterior
+pub struct antecedent_estimate::cyclic_likelihood::CyclicStructureFit
 pub struct antecedent_estimate::dose_basis_regression::BasisPosterior
 pub struct antecedent_estimate::dose_grid_functional::ClaimSet
 pub struct antecedent_estimate::dose_grid_functional::DoseContrast
@@ -13983,6 +14744,11 @@ pub struct antecedent_estimate::observational_survival::ObservationalSurvival
 pub struct antecedent_estimate::observational_survival::ObservationalSurvivalEstimate
 pub struct antecedent_estimate::observational_survival::SurvivalContrast
 pub struct antecedent_estimate::observational_survival::SurvivalData<'a>
+pub struct antecedent_estimate::ou_mechanisms::OuEquationReplacement
+pub struct antecedent_estimate::ou_mechanisms::OuMechanismFit
+pub struct antecedent_estimate::ou_mechanisms::OuMechanismLaw
+pub struct antecedent_estimate::ou_mechanisms::OuMechanismRegime
+pub struct antecedent_estimate::ou_mechanisms::OuMechanisms
 pub struct antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPosterior
 pub struct antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior
 pub struct antecedent_estimate::penalized_propensity_posterior::PropensityCoefficientPrior has private fields
@@ -14005,6 +14771,18 @@ pub struct antecedent_estimate::policy_value::ScoreBinUplift
 pub struct antecedent_estimate::policy_value::UpliftBinScore
 pub struct antecedent_estimate::policy_value_posterior::BinaryPolicyValuePosterior
 pub struct antecedent_estimate::policy_value_posterior::SequentialRegimeValuePosterior
+pub struct antecedent_estimate::polynomial_scm::MassBounds
+pub struct antecedent_estimate::polynomial_scm::PolynomialCausalCandidate
+pub struct antecedent_estimate::polynomial_scm::PolynomialCausalProgram
+pub struct antecedent_estimate::polynomial_scm::PolynomialCausalReport
+pub struct antecedent_estimate::polynomial_scm::PolynomialClamp
+pub struct antecedent_estimate::polynomial_scm::PolynomialExogenousAtom
+pub struct antecedent_estimate::polynomial_scm::PolynomialObservation
+pub struct antecedent_estimate::polynomial_scm::PolynomialPosteriorAtom
+pub struct antecedent_estimate::polynomial_scm::PolynomialReplacement
+pub struct antecedent_estimate::polynomial_scm::PolynomialShock
+pub struct antecedent_estimate::polynomial_scm::PolynomialWorld
+pub struct antecedent_estimate::polynomial_scm::PolynomialWorldMass
 pub struct antecedent_estimate::population_aipw::PopulationAipwInterval
 pub struct antecedent_estimate::population_atc::PopulationAtcInterval
 pub struct antecedent_estimate::quantile::QuantileArm
@@ -14923,6 +15701,13 @@ pub variant antecedent_estimate::counterfactual_transport_sampled::SamplingDesig
 pub variant antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule::AdditiveSmoothing { pseudo_count: f64 }
 pub variant antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule::Refuse
 pub variant antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule::UnseenMassEnvelope { unseen_mass: f64 }
+pub variant antecedent_estimate::cyclic_dynamics::OuParameter::Center { variable: usize }
+pub variant antecedent_estimate::cyclic_dynamics::OuParameter::Drift { row: usize, column: usize }
+pub variant antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign::FixedAssignments
+pub variant antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign::RandomizedWithinTargets
+pub variant antecedent_estimate::cyclic_likelihood::CyclicParameter::ExpressionParameter { equation: usize, parameter: usize }
+pub variant antecedent_estimate::cyclic_likelihood::CyclicParameter::Intercept { equation: usize }
+pub variant antecedent_estimate::cyclic_likelihood::CyclicParameter::Weight { equation: usize, parent: usize }
 pub variant antecedent_estimate::dose_basis_regression::ResidualPrior::InverseGamma { shape: f64, scale: f64 }
 pub variant antecedent_estimate::dose_basis_regression::ResidualPrior::KnownVariance(f64)
 pub variant antecedent_estimate::dose_grid_functional::DoseDesign::Observational
@@ -15048,6 +15833,14 @@ pub variant antecedent_estimate::observational_policy::PolicyOrigin::LearnedOnEv
 pub variant antecedent_estimate::observational_policy::PolicyOrigin::Prespecified
 pub variant antecedent_estimate::observational_survival::CensoringAssumption::AtRandomGivenCovariates
 pub variant antecedent_estimate::observational_survival::CensoringAssumption::IndependentWithinArm
+pub variant antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Failed { failure: alloc::string::String, detail: alloc::string::String }
+pub variant antecedent_estimate::ou_mechanisms::OuMechanismOutcome::Stationary(antecedent_estimate::ou_mechanisms::OuMechanismLaw)
+pub variant antecedent_estimate::ou_mechanisms::OuMechanismParameter::Diffusion { equation: usize, source: usize }
+pub variant antecedent_estimate::ou_mechanisms::OuMechanismParameter::Drift { equation: usize, parent: usize }
+pub variant antecedent_estimate::ou_mechanisms::OuMechanismParameter::Forcing { equation: usize }
+pub variant antecedent_estimate::polynomial_scm::PolynomialSelectedState::Selected { enclosure: alloc::vec::Vec<antecedent_model::equation_system::Interval> }
+pub variant antecedent_estimate::polynomial_scm::PolynomialSelectedState::Undefined { reason: alloc::string::String }
+pub variant antecedent_estimate::polynomial_scm::PolynomialSelectedState::Unresolved { intersecting_unresolved_boxes: usize, intersecting_roots: usize }
 pub variant antecedent_estimate::posterior_mean::DirichletNamespace::AdmgConditional
 pub variant antecedent_estimate::posterior_mean::DirichletNamespace::BinaryRecovery
 pub variant antecedent_estimate::posterior_mean::DirichletNamespace::ChainRecovery

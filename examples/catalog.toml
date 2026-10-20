@@ -681,3 +681,25 @@ level = "intermediate"
 dependencies = []
 runtime = "up to 1 min"
 claim = "Exact enumeration of a fully declared finite SCM whose mechanisms share an exogenous term; undeclared latent confounding is refused as not identified."
+
+[[example]]
+id = "general_cyclic_systems"
+title = "General cyclic systems (3.0 development)"
+summary = "Fit overlapping nonlinear feedback loops, query a held-out joint intervention and replay a shared-noise counterfactual artifact."
+python = "examples/python/general_cyclic_systems.py"
+topic = "Mechanisms and counterfactuals"
+level = "advanced"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Specified-structure/covariance nonlinear equilibrium likelihood and shared-disturbance counterfactuals; calibration unmeasured."
+
+[[example]]
+id = "cyclic_paper_experiments"
+title = "Independent cyclic paper protocols"
+summary = "Reproduce applicable nonlinear and stochastic feedback synthetic experiments with held-out joint interventions and fresh CPU artifact replay."
+python = "examples/python/cyclic_paper_experiments.py"
+topic = "Cyclic systems"
+level = "advanced"
+dependencies = ["numpy", "scipy"]
+runtime = "paper-size runs vary with feature and sample counts"
+claim = "Specified synthetic likelihood experiments with explicit deviations, optimizer diagnostics and independent numerical references; no calibration or latent recovery claim"

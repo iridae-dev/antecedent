@@ -18,3 +18,206 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/check_v3_test_registry.py"
 gates = ["inventory"]
+
+[[test]]
+id = "cyclic-nonlinear-equilibrium"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/nonlinear_equilibrium.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-continuous-cyclic"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/continuous_cyclic.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-equation-system"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/equation_system.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-metropolis"
+crate = "antecedent-prob"
+cargo_target = "lib"
+path = "crates/antecedent-prob/src/metropolis.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-cyclic-likelihood"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/cyclic_likelihood.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-cyclic-id"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/cyclic_id.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-cyclic-fci"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/cyclic_fci.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-cyclic-system-artifact"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/cyclic_system_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-cyclic-family-artifact"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/cyclic_family_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-dynamics-fit"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/cyclic_dynamics.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-bipartite-b-separation"
+crate = "antecedent-graph"
+cargo_target = "lib"
+path = "crates/antecedent-graph/src/bipartite.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-constraint-likelihood"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/constraint_likelihood.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-common-prepared-lifecycle"
+crate = "antecedent"
+path = "crates/antecedent/src/analysis/cyclic.rs"
+cargo_target = "lib"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-named-actions"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/cyclic_actions.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-semantic-compiler"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/system_compile.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-joint-equilibrium-selection"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/polynomial_scm.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-compositional-derivatives"
+crate = "antecedent-model"
+path = "crates/antecedent-model/src/mechanism_expr.rs"
+cargo_target = "lib"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-analytic-gradient-fit"
+crate = "antecedent-estimate"
+path = "crates/antecedent-estimate/src/cyclic_gradient.rs"
+cargo_target = "lib"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-typed-functional-consumer"
+crate = "antecedent-io"
+path = "crates/antecedent-io/src/cyclic_functional.rs"
+cargo_target = "lib"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-local-callbacks"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/local_cyclic.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-affine-bijection"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/affine_certificate.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-exact-linear-moments"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/linear_moments.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-equilibrium-polynomial-bridge"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/equilibrium_polynomial.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-adam-fitting"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/cyclic_adam.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-ou-mechanism-likelihood"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/ou_mechanisms.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-cyclic-calculus"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/cyclic_calculus.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-native-cyclic-evidence"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/cyclic_evidence.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-continuous-functional-consumer"
+crate = "antecedent-io"
+path = "crates/antecedent-io/src/cyclic_gaussian_functional.rs"
+cargo_target = "lib"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-implementation-gate"
+crate = "scripts"
+path = "scripts/gate_cyclic_systems.py"
+cargo_target = "script"
+gates = ["inventory"]

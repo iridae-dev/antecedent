@@ -272,6 +272,10 @@ impl core::clone::Clone for antecedent_identify::counterfactual_id::Counterfactu
 impl core::clone::Clone for antecedent_identify::cross_world::CounterfactualNode
 impl core::clone::Clone for antecedent_identify::cross_world::CrossWorldRefusal
 impl core::clone::Clone for antecedent_identify::cross_world::CrossWorldWitness
+impl core::clone::Clone for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::clone::Clone for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::clone::Clone for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::clone::Clone for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::clone::Clone for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::clone::Clone for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::clone::Clone for antecedent_identify::discovered_transport::EnvelopeMember
@@ -502,6 +506,10 @@ impl core::cmp::Eq for antecedent_identify::counterfactual_id::CounterfactualNod
 impl core::cmp::Eq for antecedent_identify::cross_world::CounterfactualNode
 impl core::cmp::Eq for antecedent_identify::cross_world::CrossWorldRefusal
 impl core::cmp::Eq for antecedent_identify::cross_world::CrossWorldWitness
+impl core::cmp::Eq for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::cmp::Eq for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::cmp::Eq for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::cmp::Eq for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::cmp::Eq for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::cmp::Eq for antecedent_identify::discovered_transport::EnvelopeStatus
 impl core::cmp::Eq for antecedent_identify::discovered_transport::UnresolvedPair
@@ -733,6 +741,10 @@ impl core::cmp::PartialEq for antecedent_identify::counterfactual_id::Counterfac
 impl core::cmp::PartialEq for antecedent_identify::cross_world::CounterfactualNode
 impl core::cmp::PartialEq for antecedent_identify::cross_world::CrossWorldRefusal
 impl core::cmp::PartialEq for antecedent_identify::cross_world::CrossWorldWitness
+impl core::cmp::PartialEq for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::cmp::PartialEq for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::cmp::PartialEq for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::cmp::PartialEq for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::EnvelopeMember
@@ -852,6 +864,7 @@ impl core::error::Error for antecedent_identify::ProductRefusal
 impl core::error::Error for antecedent_identify::RecoveryError
 impl core::error::Error for antecedent_identify::StudyPlanRefusal
 impl core::error::Error for antecedent_identify::counterfactual_id::CounterfactualIdRefusal
+impl core::error::Error for antecedent_identify::cyclic_id::CyclicIdError
 impl core::error::Error for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::error::Error for antecedent_identify::experimental_recovery::PointCollapseRefusal
 impl core::error::Error for antecedent_identify::experimental_recovery::UncertaintyFault
@@ -1105,6 +1118,11 @@ impl core::fmt::Debug for antecedent_identify::counterfactual_id::Counterfactual
 impl core::fmt::Debug for antecedent_identify::cross_world::CounterfactualNode
 impl core::fmt::Debug for antecedent_identify::cross_world::CrossWorldRefusal
 impl core::fmt::Debug for antecedent_identify::cross_world::CrossWorldWitness
+impl core::fmt::Debug for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::fmt::Debug for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::fmt::Debug for antecedent_identify::cyclic_id::CyclicIdError
+impl core::fmt::Debug for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::fmt::Debug for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::fmt::Debug for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::fmt::Debug for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::fmt::Debug for antecedent_identify::discovered_transport::EnvelopeMember
@@ -1202,6 +1220,7 @@ impl core::fmt::Display for antecedent_identify::RegimeRefusalReason
 impl core::fmt::Display for antecedent_identify::SourceIdentity
 impl core::fmt::Display for antecedent_identify::StudyPlanRefusal
 impl core::fmt::Display for antecedent_identify::counterfactual_id::CounterfactualIdRefusal
+impl core::fmt::Display for antecedent_identify::cyclic_id::CyclicIdError
 impl core::fmt::Display for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::fmt::Display for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::fmt::Display for antecedent_identify::experiment_moments::MomentAssemblyRefusal
@@ -1304,6 +1323,10 @@ impl core::marker::Copy for antecedent_identify::counterfactual_id::CfSymbol
 impl core::marker::Copy for antecedent_identify::counterfactual_id::CfValue
 impl core::marker::Copy for antecedent_identify::counterfactual_id::CounterfactualIdSearchRecord
 impl core::marker::Copy for antecedent_identify::counterfactual_id::CounterfactualIdShape
+impl core::marker::Copy for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::marker::Copy for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::marker::Copy for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::marker::Copy for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::marker::Copy for antecedent_identify::discovered_transport::EnvelopeStatus
 impl core::marker::Copy for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::marker::Copy for antecedent_identify::experiment_moments::ConstraintRow
@@ -1570,6 +1593,13 @@ impl core::marker::Freeze for antecedent_identify::counterfactual_id::Counterfac
 impl core::marker::Freeze for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::marker::Freeze for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::marker::Freeze for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -1901,6 +1931,13 @@ impl core::marker::Send for antecedent_identify::counterfactual_id::Counterfactu
 impl core::marker::Send for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::marker::Send for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::marker::Send for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::marker::Send for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::marker::Send for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::marker::Send for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -2157,6 +2194,10 @@ impl core::marker::StructuralPartialEq for antecedent_identify::counterfactual_i
 impl core::marker::StructuralPartialEq for antecedent_identify::cross_world::CounterfactualNode
 impl core::marker::StructuralPartialEq for antecedent_identify::cross_world::CrossWorldRefusal
 impl core::marker::StructuralPartialEq for antecedent_identify::cross_world::CrossWorldWitness
+impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::EnvelopeMember
@@ -2467,6 +2508,13 @@ impl core::marker::Sync for antecedent_identify::counterfactual_id::Counterfactu
 impl core::marker::Sync for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::marker::Sync for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::marker::Sync for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -2798,6 +2846,13 @@ impl core::marker::Unpin for antecedent_identify::counterfactual_id::Counterfact
 impl core::marker::Unpin for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::marker::Unpin for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::marker::Unpin for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -3129,6 +3184,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::counterfac
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -3460,6 +3522,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::counterfactua
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -3585,6 +3654,7 @@ impl serde_core::ser::Serialize for antecedent_identify::counterfactual_id::Coun
 impl serde_core::ser::Serialize for antecedent_identify::counterfactual_id::CounterfactualObstruction
 impl serde_core::ser::Serialize for antecedent_identify::cross_world::CounterfactualNode
 impl serde_core::ser::Serialize for antecedent_identify::cross_world::CrossWorldWitness
+impl serde_core::ser::Serialize for antecedent_identify::cyclic_calculus::CyclicCalculusRule
 impl serde_core::ser::Serialize for antecedent_identify::sid::Rule
 impl serde_core::ser::Serialize for antecedent_identify::sid::SHedgeRecord
 impl serde_core::ser::Serialize for antecedent_identify::sid::SelectionForestRecord
@@ -3704,6 +3774,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::counterfactu
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::counterfactual_id::CounterfactualObstruction
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::cross_world::CounterfactualNode
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::cross_world::CrossWorldWitness
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::cyclic_calculus::CyclicCalculusRule
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::sid::Rule
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::sid::SHedgeRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::sid::SelectionForestRecord
@@ -3877,6 +3948,10 @@ pub enum antecedent_identify::counterfactual_id::CfValue
 pub enum antecedent_identify::counterfactual_id::CounterfactualFunctional
 pub enum antecedent_identify::counterfactual_id::CounterfactualIdShape
 pub enum antecedent_identify::counterfactual_id::CounterfactualObstruction
+pub enum antecedent_identify::cyclic_calculus::CyclicCalculusRule
+pub enum antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+pub enum antecedent_identify::cyclic_id::CyclicIdError
+pub enum antecedent_identify::cyclic_id::CyclicIdStatus
 pub enum antecedent_identify::discovered_transport::EnvelopeStatus
 pub enum antecedent_identify::discovered_transport::MemberVerdict
 pub enum antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
@@ -4541,6 +4616,16 @@ pub field antecedent_identify::cross_world::CrossWorldWitness::outcome: u32
 pub field antecedent_identify::cross_world::CrossWorldWitness::query_text: alloc::string::String
 pub field antecedent_identify::cross_world::CrossWorldWitness::rerouted_edges: alloc::vec::Vec<(u32, u32, u8)>
 pub field antecedent_identify::cross_world::CrossWorldWitness::treatment: u32
+pub field antecedent_identify::cyclic_calculus::CyclicCalculusApplication::derivation: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_identify::cyclic_calculus::CyclicCalculusApplication::program: core::option::Option<antecedent_expr::program::FunctionalProgram>
+pub field antecedent_identify::cyclic_calculus::CyclicCalculusApplication::sigma_checks: usize
+pub field antecedent_identify::cyclic_calculus::CyclicCalculusApplication::status: antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+pub field antecedent_identify::cyclic_id::CyclicIdPremises::io_scm: bool
+pub field antecedent_identify::cyclic_id::CyclicIdPremises::scc_product_density: bool
+pub field antecedent_identify::cyclic_id::CyclicIdentification::derivation: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_identify::cyclic_id::CyclicIdentification::premises: antecedent_identify::cyclic_id::CyclicIdPremises
+pub field antecedent_identify::cyclic_id::CyclicIdentification::program: core::option::Option<antecedent_expr::program::FunctionalProgram>
+pub field antecedent_identify::cyclic_id::CyclicIdentification::status: antecedent_identify::cyclic_id::CyclicIdStatus
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::code: &'static str
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::detail: &'static str
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::exhausted_search_bounds: usize
@@ -5276,6 +5361,10 @@ pub fn antecedent_identify::bind_transport_derivation(arena: &mut antecedent_exp
 pub fn antecedent_identify::bind_z_transport_catalog(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, derivation: &antecedent_identify::ZTransportDerivation, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::BoundZTransportFunctional, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::counterfactual_id::decide_counterfactual_id(problem: &antecedent_identify::counterfactual_id::CounterfactualIdProblem, query: &antecedent_core::query::counterfactual_event::CounterfactualEventQuery, limits: antecedent_core::search::SearchLimits, memory_limit_bytes: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::counterfactual_id::CounterfactualIdDerivation, antecedent_identify::counterfactual_id::CounterfactualIdRefusal>
 pub fn antecedent_identify::cross_world::check_cross_world(graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::cross_world::CrossWorldQuery) -> core::result::Result<antecedent_identify::cross_world::CrossWorldWitness, antecedent_identify::cross_world::CrossWorldRefusal>
+pub fn antecedent_identify::cyclic_calculus::apply_cyclic_calculus(graph: &antecedent_graph::cyclic::CyclicMixedGraph, rule: antecedent_identify::cyclic_calculus::CyclicCalculusRule, x: &[usize], y: &[usize], z: &[usize], w: &[usize], io_scm: bool, standard_measurable_spaces: bool, max_checks: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::cyclic_calculus::CyclicCalculusApplication, antecedent_identify::cyclic_id::CyclicIdError>
+pub fn antecedent_identify::cyclic_calculus::identify_cyclic_adjustment(graph: &antecedent_graph::cyclic::CyclicMixedGraph, outcomes: &[usize], treatments: &[usize], adjustment: &[usize], continuous: bool, premises: antecedent_identify::cyclic_id::CyclicIdPremises) -> core::result::Result<core::option::Option<antecedent_expr::program::FunctionalProgram>, antecedent_identify::cyclic_id::CyclicIdError>
+pub fn antecedent_identify::cyclic_id::cyclic_backdoor_valid(graph: &antecedent_graph::cyclic::CyclicMixedGraph, outcomes: &[usize], treatments: &[usize], adjustment: &[usize], premises: antecedent_identify::cyclic_id::CyclicIdPremises) -> core::result::Result<bool, antecedent_identify::cyclic_id::CyclicIdError>
+pub fn antecedent_identify::cyclic_id::identify_cyclic(graph: &antecedent_graph::cyclic::CyclicMixedGraph, outcomes: &[usize], treatments: &[usize], premises: antecedent_identify::cyclic_id::CyclicIdPremises, continuous: bool, max_steps: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::cyclic_id::CyclicIdentification, antecedent_identify::cyclic_id::CyclicIdError>
 pub fn antecedent_identify::dag_to_admg(dag: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::decide_admg_conditional_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalTransportDecision, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::decide_chain_recovery(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ChainRecoveryQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ChainRecoveryDecision, antecedent_identify::ChainRecoveryError>
@@ -5356,6 +5445,8 @@ pub mod antecedent_identify::bounds
 pub mod antecedent_identify::compiled_product
 pub mod antecedent_identify::counterfactual_id
 pub mod antecedent_identify::cross_world
+pub mod antecedent_identify::cyclic_calculus
+pub mod antecedent_identify::cyclic_id
 pub mod antecedent_identify::discovered_transport
 pub mod antecedent_identify::discovered_transport_temporal
 pub mod antecedent_identify::efficient
@@ -5609,6 +5700,9 @@ pub struct antecedent_identify::counterfactual_id::CounterfactualIdSearchRecord
 pub struct antecedent_identify::counterfactual_id::CounterfactualNodeRecord
 pub struct antecedent_identify::cross_world::CounterfactualNode
 pub struct antecedent_identify::cross_world::CrossWorldRefusal
+pub struct antecedent_identify::cyclic_calculus::CyclicCalculusApplication
+pub struct antecedent_identify::cyclic_id::CyclicIdPremises
+pub struct antecedent_identify::cyclic_id::CyclicIdentification
 pub struct antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 pub struct antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a>
 pub struct antecedent_identify::discovered_transport::EnvelopeMember
@@ -6273,6 +6367,17 @@ pub variant antecedent_identify::counterfactual_id::CounterfactualIdShape::Effec
 pub variant antecedent_identify::counterfactual_id::CounterfactualIdShape::ExactZero
 pub variant antecedent_identify::counterfactual_id::CounterfactualObstruction::ConflictingSubscripts { graph: antecedent_identify::counterfactual_id::CounterfactualGraphRecord, variable: u32, subscript: antecedent_identify::counterfactual_id::CfValue, event: core::option::Option<antecedent_identify::counterfactual_id::CfValue> }
 pub variant antecedent_identify::counterfactual_id::CounterfactualObstruction::Hedge { node_count: usize, directed: alloc::vec::Vec<(u32, u32)>, bidirected: alloc::vec::Vec<(u32, u32)>, treatments: alloc::vec::Vec<u32>, outcomes: alloc::vec::Vec<u32>, f: alloc::vec::Vec<u32>, f_prime: alloc::vec::Vec<u32> }
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusRule::Action
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusRule::Exchange
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusRule::Observation
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusStatus::BudgetExhausted
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusStatus::NotLicensedByCriterion
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusStatus::Verified
+pub variant antecedent_identify::cyclic_id::CyclicIdError::Invalid(alloc::string::String)
+pub variant antecedent_identify::cyclic_id::CyclicIdError::Resource(alloc::string::String)
+pub variant antecedent_identify::cyclic_id::CyclicIdStatus::BudgetExhausted
+pub variant antecedent_identify::cyclic_id::CyclicIdStatus::Identified
+pub variant antecedent_identify::cyclic_id::CyclicIdStatus::NotIdentifiedByProcedure
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Estimation(alloc::string::String)
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Identification(antecedent_identify::IdentificationError)
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Refused(antecedent_identify::discovered_transport::DiscoveredTransportRefusal)

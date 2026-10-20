@@ -51,6 +51,9 @@ impl core::clone::Clone for antecedent_prob::TransportOutcome
 impl core::clone::Clone for antecedent_prob::TransportPolicy
 impl core::clone::Clone for antecedent_prob::WeightedGraphSamples
 impl core::clone::Clone for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::clone::Clone for antecedent_prob::metropolis::MetropolisDraws
+impl core::clone::Clone for antecedent_prob::metropolis::MetropolisError
+impl core::clone::Clone for antecedent_prob::metropolis::MetropolisOptions
 impl core::cmp::Eq for antecedent_prob::BayesLikelihood
 impl core::cmp::Eq for antecedent_prob::ContrastCoding
 impl core::cmp::Eq for antecedent_prob::GraphIdentFlag
@@ -114,6 +117,7 @@ impl core::default::Default for antecedent_prob::PriorSet
 impl core::default::Default for antecedent_prob::fit_counts::BayesianWorkCounts
 impl core::error::Error for antecedent_prob::ProbError
 impl core::error::Error for antecedent_prob::TransportError
+impl core::error::Error for antecedent_prob::metropolis::MetropolisError
 impl core::fmt::Debug for antecedent_prob::BayesFitOptions
 impl core::fmt::Debug for antecedent_prob::BayesFitResult
 impl core::fmt::Debug for antecedent_prob::BayesLikelihood
@@ -158,8 +162,12 @@ impl core::fmt::Debug for antecedent_prob::TransportOutcome
 impl core::fmt::Debug for antecedent_prob::TransportPolicy
 impl core::fmt::Debug for antecedent_prob::WeightedGraphSamples
 impl core::fmt::Debug for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::fmt::Debug for antecedent_prob::metropolis::MetropolisDraws
+impl core::fmt::Debug for antecedent_prob::metropolis::MetropolisError
+impl core::fmt::Debug for antecedent_prob::metropolis::MetropolisOptions
 impl core::fmt::Display for antecedent_prob::ProbError
 impl core::fmt::Display for antecedent_prob::TransportError
+impl core::fmt::Display for antecedent_prob::metropolis::MetropolisError
 impl core::hash::Hash for antecedent_prob::BayesLikelihood
 impl core::hash::Hash for antecedent_prob::ContrastCoding
 impl core::hash::Hash for antecedent_prob::GraphIdentFlag
@@ -187,6 +195,7 @@ impl core::marker::Copy for antecedent_prob::ParameterMcmcDiagnostics
 impl core::marker::Copy for antecedent_prob::PriorSensitivityFamily
 impl core::marker::Copy for antecedent_prob::TransportPolicy
 impl core::marker::Copy for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::marker::Copy for antecedent_prob::metropolis::MetropolisOptions
 impl core::marker::Freeze for antecedent_prob::BayesFitOptions [auto]
 impl core::marker::Freeze for antecedent_prob::BayesFitResult [auto]
 impl core::marker::Freeze for antecedent_prob::BayesLikelihood [auto]
@@ -231,6 +240,9 @@ impl core::marker::Freeze for antecedent_prob::TransportOutcome [auto]
 impl core::marker::Freeze for antecedent_prob::TransportPolicy [auto]
 impl core::marker::Freeze for antecedent_prob::WeightedGraphSamples [auto]
 impl core::marker::Freeze for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::Freeze for antecedent_prob::metropolis::MetropolisDraws [auto]
+impl core::marker::Freeze for antecedent_prob::metropolis::MetropolisError [auto]
+impl core::marker::Freeze for antecedent_prob::metropolis::MetropolisOptions [auto]
 impl core::marker::Send for antecedent_prob::BayesFitOptions [auto]
 impl core::marker::Send for antecedent_prob::BayesFitResult [auto]
 impl core::marker::Send for antecedent_prob::BayesLikelihood [auto]
@@ -275,6 +287,9 @@ impl core::marker::Send for antecedent_prob::TransportOutcome [auto]
 impl core::marker::Send for antecedent_prob::TransportPolicy [auto]
 impl core::marker::Send for antecedent_prob::WeightedGraphSamples [auto]
 impl core::marker::Send for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::Send for antecedent_prob::metropolis::MetropolisDraws [auto]
+impl core::marker::Send for antecedent_prob::metropolis::MetropolisError [auto]
+impl core::marker::Send for antecedent_prob::metropolis::MetropolisOptions [auto]
 impl core::marker::StructuralPartialEq for antecedent_prob::BayesFitOptions
 impl core::marker::StructuralPartialEq for antecedent_prob::BayesLikelihood
 impl core::marker::StructuralPartialEq for antecedent_prob::BetaHyperparameters
@@ -354,6 +369,9 @@ impl core::marker::Sync for antecedent_prob::TransportOutcome [auto]
 impl core::marker::Sync for antecedent_prob::TransportPolicy [auto]
 impl core::marker::Sync for antecedent_prob::WeightedGraphSamples [auto]
 impl core::marker::Sync for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::Sync for antecedent_prob::metropolis::MetropolisDraws [auto]
+impl core::marker::Sync for antecedent_prob::metropolis::MetropolisError [auto]
+impl core::marker::Sync for antecedent_prob::metropolis::MetropolisOptions [auto]
 impl core::marker::Unpin for antecedent_prob::BayesFitOptions [auto]
 impl core::marker::Unpin for antecedent_prob::BayesFitResult [auto]
 impl core::marker::Unpin for antecedent_prob::BayesLikelihood [auto]
@@ -398,6 +416,9 @@ impl core::marker::Unpin for antecedent_prob::TransportOutcome [auto]
 impl core::marker::Unpin for antecedent_prob::TransportPolicy [auto]
 impl core::marker::Unpin for antecedent_prob::WeightedGraphSamples [auto]
 impl core::marker::Unpin for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::Unpin for antecedent_prob::metropolis::MetropolisDraws [auto]
+impl core::marker::Unpin for antecedent_prob::metropolis::MetropolisError [auto]
+impl core::marker::Unpin for antecedent_prob::metropolis::MetropolisOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::BayesFitOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::BayesFitResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::BayesLikelihood [auto]
@@ -442,6 +463,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::TransportOutco
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::TransportPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::WeightedGraphSamples [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::metropolis::MetropolisDraws [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::metropolis::MetropolisError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::metropolis::MetropolisOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::BayesFitOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::BayesFitResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::BayesLikelihood [auto]
@@ -486,6 +510,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportOutcome 
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::WeightedGraphSamples [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::metropolis::MetropolisDraws [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::metropolis::MetropolisError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::metropolis::MetropolisOptions [auto]
 impl<'a> core::clone::Clone for antecedent_prob::BayesDesignRef<'a>
 impl<'a> core::clone::Clone for antecedent_prob::PosteriorBatch<'a>
 impl<'a> core::clone::Clone for antecedent_prob::TransportContext<'a>
@@ -523,6 +550,7 @@ pub enum antecedent_prob::PosteriorQuantityKind
 pub enum antecedent_prob::PriorSensitivityFamily
 pub enum antecedent_prob::PriorSpec
 pub enum antecedent_prob::TransportPolicy
+pub enum antecedent_prob::metropolis::MetropolisError
 pub field antecedent_prob::BayesDesignRef::ncols: usize
 pub field antecedent_prob::BayesDesignRef::nrows: usize
 pub field antecedent_prob::BayesDesignRef::offsets: core::option::Option<&'a [f64]>
@@ -661,6 +689,12 @@ pub field antecedent_prob::WeightedGraphSamples::orientation_marginals: core::op
 pub field antecedent_prob::WeightedGraphSamples::weights: alloc::sync::Arc<[f64]>
 pub field antecedent_prob::fit_counts::BayesianWorkCounts::model_fits: u64
 pub field antecedent_prob::fit_counts::BayesianWorkCounts::posterior_draws: u64
+pub field antecedent_prob::metropolis::MetropolisDraws::accepted: alloc::vec::Vec<usize>
+pub field antecedent_prob::metropolis::MetropolisDraws::samples: alloc::vec::Vec<f64>
+pub field antecedent_prob::metropolis::MetropolisOptions::chains: usize
+pub field antecedent_prob::metropolis::MetropolisOptions::draws: usize
+pub field antecedent_prob::metropolis::MetropolisOptions::proposal_scale: f64
+pub field antecedent_prob::metropolis::MetropolisOptions::warmup: usize
 pub fn <antecedent_prob::BetaHyperparameters>::fn ess(&self) -> f64
 pub fn <antecedent_prob::BetaHyperparameters>::fn from_mean_and_ess(mean: f64, ess: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
 pub fn <antecedent_prob::BetaHyperparameters>::fn from_moments(mean: f64, variance: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
@@ -715,7 +749,9 @@ pub fn <antecedent_prob::InferenceDiagnostics>::fn curvature_refusal(&self) -> c
 pub fn <antecedent_prob::InferenceDiagnostics>::fn laplace(backend_id: impl core::convert::Into<alloc::sync::Arc<str>>, converged: bool, iterations: u32, grad_inf_norm: f64, hessian_condition: f64, separation_warning: bool, notes: alloc::vec::Vec<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_prob::InferenceDiagnostics>::fn mcmc_publication_failures(&self) -> alloc::vec::Vec<&'static str>
 pub fn <antecedent_prob::InferenceDiagnostics>::fn mcmc_publication_ok(&self) -> bool
+pub fn <antecedent_prob::InferenceDiagnostics>::fn publication_error(&self, summary: impl core::convert::Into<alloc::string::String>) -> core::option::Option<antecedent_prob::ProbError>
 pub fn <antecedent_prob::InferenceDiagnostics>::fn record_postwarmup_divergences(&mut self, n: u32)
+pub fn <antecedent_prob::InferenceDiagnostics>::fn route_records(&self, unevaluable_mass: antecedent_core::diagnostic::RouteMass) -> alloc::vec::Vec<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_prob::InvGammaPrior>::const fn weakly_informative() -> Self
 pub fn <antecedent_prob::InvGammaPrior>::fn validate(self) -> core::result::Result<(), antecedent_prob::ProbError>
 pub fn <antecedent_prob::LaplaceWorkspace>::fn invalidate_design(&mut self)
@@ -748,6 +784,7 @@ pub fn <antecedent_prob::PriorSet>::fn validate_contrasts(&self) -> core::result
 pub fn <antecedent_prob::PriorSet>::fn weakly_informative(n_coef: usize) -> Self
 pub fn <antecedent_prob::PriorSpec>::fn as_assumption(&self) -> antecedent_core::assumption::PriorAssumption
 pub fn <antecedent_prob::PriorSpec>::fn validate(&self) -> core::result::Result<(), antecedent_prob::ProbError>
+pub fn <antecedent_prob::ProbError>::fn route_diagnostics(&self) -> &[antecedent_core::diagnostic::RouteNativeDiagnostic]
 pub fn <antecedent_prob::TransportAdjustment>::fn kish_ess(&self) -> f64
 pub fn <antecedent_prob::TransportAdjustment>::fn new(unit_effects: impl core::convert::Into<alloc::sync::Arc<[f64]>>, target_weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_prob::TransportError>
 pub fn <antecedent_prob::TransportAdjustment>::fn reweighted_mean_variance(&self) -> f64
@@ -777,6 +814,7 @@ pub fn antecedent_prob::mcmc_stats::mcmc_summary(samples: &[f64], n_chains: usiz
 pub fn antecedent_prob::mcmc_stats::min_bulk_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64
 pub fn antecedent_prob::mcmc_stats::min_tail_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64
 pub fn antecedent_prob::mcmc_stats::parameter_mcmc_diagnostics(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> alloc::vec::Vec<antecedent_prob::ParameterMcmcDiagnostics>
+pub fn antecedent_prob::metropolis::sample_metropolis<F>(initial: &[f64], options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::ExecutionContext, log_density: F) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError> where F: core::ops::function::Fn(&[f64]) -> f64
 pub mod antecedent_prob::backend
 pub mod antecedent_prob::conjugate
 pub mod antecedent_prob::conjugate_moment_match
@@ -789,6 +827,7 @@ pub mod antecedent_prob::graph_samples
 pub mod antecedent_prob::hmc
 pub mod antecedent_prob::laplace
 pub mod antecedent_prob::mcmc_stats
+pub mod antecedent_prob::metropolis
 pub mod antecedent_prob::posterior
 pub mod antecedent_prob::prior
 pub mod antecedent_prob::transport
@@ -829,6 +868,8 @@ pub struct antecedent_prob::TransportContext<'a>
 pub struct antecedent_prob::TransportOutcome
 pub struct antecedent_prob::WeightedGraphSamples
 pub struct antecedent_prob::fit_counts::BayesianWorkCounts
+pub struct antecedent_prob::metropolis::MetropolisDraws
+pub struct antecedent_prob::metropolis::MetropolisOptions
 pub trait antecedent_prob::InferenceBackend: core::marker::Send + core::marker::Sync
 pub trait fn fn antecedent_prob::InferenceBackend::fit(&self, likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions, workspace: &mut antecedent_prob::LaplaceWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
 pub use antecedent_prob::backend::BayesDesignRef = antecedent_prob::BayesDesignRef
@@ -930,6 +971,7 @@ pub variant antecedent_prob::ProbError::InvalidPrior { message: &'static str }
 pub variant antecedent_prob::ProbError::MissingDiagnostics { message: alloc::string::String }
 pub variant antecedent_prob::ProbError::Numerical { message: alloc::string::String }
 pub variant antecedent_prob::ProbError::Refused { code: &'static str, message: alloc::string::String }
+pub variant antecedent_prob::ProbError::Route { summary: alloc::string::String, diagnostics: alloc::vec::Vec<antecedent_core::diagnostic::RouteNativeDiagnostic> }
 pub variant antecedent_prob::ProbError::Shape { message: &'static str }
 pub variant antecedent_prob::TransportError::CoefIndexOutOfRange { index: usize, n_coef: usize }
 pub variant antecedent_prob::TransportError::InvalidWeights { message: &'static str }
@@ -939,3 +981,5 @@ pub variant antecedent_prob::TransportError::UnknownPolicy { name: alloc::sync::
 pub variant antecedent_prob::TransportPolicy::InvariantConditionalOutcome
 pub variant antecedent_prob::TransportPolicy::InvariantEffectModifiers
 pub variant antecedent_prob::TransportPolicy::InvariantPropensity
+pub variant antecedent_prob::metropolis::MetropolisError::Invalid(&'static str)
+pub variant antecedent_prob::metropolis::MetropolisError::Resource(alloc::string::String)

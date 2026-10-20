@@ -26,6 +26,7 @@ pub mod laplace;
 pub(crate) mod likelihood_terms;
 pub(crate) mod linalg;
 pub mod mcmc_stats;
+pub mod metropolis;
 pub mod posterior;
 pub mod prior;
 pub(crate) mod streams;

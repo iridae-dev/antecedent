@@ -46,6 +46,7 @@ pub mod ci_screened_posterior;
 pub mod combinations;
 pub mod conflict_resolution;
 pub mod constraints;
+pub mod cyclic_fci;
 pub mod dbn_posterior;
 pub mod discriminating_paths;
 pub mod engine;

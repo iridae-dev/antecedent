@@ -455,3 +455,17 @@ mod white_innovation_window;
 
 #[doc(hidden)]
 pub use temporal_extensions::validate_temporal_dependent_interval;
+
+/// Retained nonlinear equilibrium programs and independent artifact replay.
+pub use antecedent_io::cyclic_system_artifact::{
+    CyclicExecutionReport, CyclicExecutionRequest, CyclicFitRequest, consume_cyclic_artifact,
+};
+
+/// Typed continuous-time and equation-system execution with independent replay.
+pub use antecedent_io::cyclic_family_artifact::{
+    CyclicFamilyAnswer, CyclicFamilyReport, CyclicFamilyRequest, consume_cyclic_family,
+};
+
+/// Cyclic specialization of the common retained prepared-analysis handle.
+pub mod cyclic;
+pub mod cyclic_evidence;

@@ -12,10 +12,13 @@ pub mod basis;
 pub mod batch;
 pub mod compile;
 pub mod compose;
+pub mod continuous_cyclic;
+pub mod cyclic_actions;
 pub mod cyclic_component;
 pub mod discretized_scm;
 pub mod discretized_scm_artifact;
 pub mod do_sampler;
+pub mod equation_system;
 pub mod error;
 pub mod evaluate;
 pub mod falsify;
@@ -28,6 +31,12 @@ pub mod mechanism;
 pub mod mechanism_transport;
 pub mod model_collection;
 pub mod noise_replay;
+pub mod equilibrium_polynomial;
+pub mod linear_moments;
+pub mod affine_certificate;
+pub mod local_cyclic;
+pub mod mechanism_expr;
+pub mod nonlinear_equilibrium;
 pub mod observation_query;
 pub mod overlay;
 pub mod program;
@@ -100,3 +109,6 @@ pub use tree::TreeEnsemble;
 
 /// Crate version.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Semantic mechanism, simultaneous-equation and dynamic execution compiler.
+pub mod system_compile;

@@ -27,7 +27,7 @@ Mandatory rows are the licensed routes in `parity/capabilities/route_manifest.to
 
 A closed research boundary is not a row. That is a B03 child whose B04 failure policy starts with `Refuse this axis`, or whose route is already `closed.*` and whose failure policy starts with `Identification is blocked`. X03, X04, and X05 are the pending attempt rows rather than a second copy of those children.
 
-The research list is the four `X02.broader` children, Y18, Y19, and G08.
+The research list is the four `X02.broader` children and G08. The 20 October 2026 scope amendment promotes Y18, Y19 and their ten acceptance children to mandatory 3.0 implementation work. Calibration and release attestation remain separate from those implementation tickets. The executing acceptance contract is `parity/cyclic/acceptance.toml`.
 
 Graphless, closed, `execution_only`, and `fitting_gap` manifest rows are not licensed routes in this file.
 
@@ -35,9 +35,9 @@ Graphless, closed, `execution_only`, and `fitting_gap` manifest rows are not lic
 
 | status | Rows |
 | --- | --- |
-| mandatory | 192 |
+| mandatory | 204 |
 | pending_attempt | 10 |
-| research | 7 |
+| research | 5 |
 | closed_failed | 1 |
 
-192 mandatory rows: 91 licensed routes, 94 counterparts, 5 feedback rows, Q04, and `X01.licensed_contrast`.
+204 mandatory rows: the original 192 rows (91 licensed routes, 94 counterparts, 5 feedback rows, Q04, and `X01.licensed_contrast`), plus Y18/Y19 and their ten acceptance children.
