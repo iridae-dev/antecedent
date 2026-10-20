@@ -219,8 +219,7 @@ fn validate_rows(rows: &TrajectoryRows<'_>) -> Result<(), &'static str> {
     {
         return Err("trajectory arrays must share one positive subject-period length");
     }
-    if !minimum_probability.is_finite() || minimum_probability <= 0.0 || minimum_probability > 0.5
-    {
+    if !minimum_probability.is_finite() || minimum_probability <= 0.0 || minimum_probability > 0.5 {
         return Err("minimum treatment probability must be finite and in (0, 0.5]");
     }
     let upper = 1.0 - minimum_probability;
@@ -327,8 +326,7 @@ fn posterior_means(masses: &[PeriodMass], prior: HazardPrior) -> (f64, f64) {
     let mut restricted_mean = 0.0;
     for mass in masses {
         restricted_mean += survival;
-        let stay = (prior.nonevents + mass.nonevent)
-            / (prior.events + prior.nonevents + mass.risk);
+        let stay = (prior.nonevents + mass.nonevent) / (prior.events + prior.nonevents + mass.risk);
         survival *= stay;
     }
     (survival, restricted_mean)
@@ -415,13 +413,9 @@ mod tests {
         let zero = trajectory_survival_contrast(&rows(&data), &ACTIVE, &CONTROL).unwrap_err();
         assert_eq!(zero, "censoring weights must be finite and positive");
         data.censoring_weight[5] = -1.0;
-        let negative = trajectory_hazard_posterior(
-            &rows(&data),
-            &ACTIVE,
-            &CONTROL,
-            HazardPrior::uniform(),
-        )
-        .unwrap_err();
+        let negative =
+            trajectory_hazard_posterior(&rows(&data), &ACTIVE, &CONTROL, HazardPrior::uniform())
+                .unwrap_err();
         assert_eq!(negative, "censoring weights must be finite and positive");
     }
 

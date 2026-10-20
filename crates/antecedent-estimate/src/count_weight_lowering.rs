@@ -132,9 +132,9 @@ pub fn multiplicity_counts(n_rows: usize, indexes: &[usize]) -> Result<Vec<u64>,
         if index >= n_rows {
             return Err(EstimationError::data_msg("resample index is outside the original rows"));
         }
-        counts[index] = counts[index].checked_add(1).ok_or_else(|| {
-            EstimationError::data_msg("resample multiplicity exceeds u64")
-        })?;
+        counts[index] = counts[index]
+            .checked_add(1)
+            .ok_or_else(|| EstimationError::data_msg("resample multiplicity exceeds u64"))?;
     }
     Ok(counts)
 }
@@ -205,12 +205,7 @@ pub fn fit_gaussian_count_weights(
     let mut workspace = LeastSquaresWorkspace::default();
     let fit = fit_glm_weighted(
         GlmFamily::GaussianIdentity,
-        GlmDesignRef {
-            x_colmajor: &design.x,
-            nrows: design.nrows,
-            ncols,
-            y: &design.y,
-        },
+        GlmDesignRef { x_colmajor: &design.x, nrows: design.nrows, ncols, y: &design.y },
         &design.weights,
         &FaerBackend,
         &mut workspace,
@@ -298,10 +293,7 @@ mod tests {
     };
 
     fn near(label: &str, left: f64, right: f64, tol: f64) {
-        assert!(
-            (left - right).abs() <= tol,
-            "{label}: {left} vs {right} (tolerance {tol})"
-        );
+        assert!((left - right).abs() <= tol, "{label}: {left} vs {right} (tolerance {tol})");
     }
 
     fn max_abs_diff(left: &[f64], right: &[f64]) -> f64 {
@@ -451,16 +443,9 @@ mod tests {
         let indexes = repeat_indexes(&counts);
         let (x_boot, y_boot) = gather(&x, 3, 2, &y, &indexes);
         let mut workspace = LeastSquaresWorkspace::default();
-        let ridge = fit_ridge(
-            &x_boot,
-            indexes.len(),
-            2,
-            &y_boot,
-            4.0,
-            &FaerBackend,
-            &mut workspace,
-        )
-        .expect("indexed ridge");
+        let ridge =
+            fit_ridge(&x_boot, indexes.len(), 2, &y_boot, 4.0, &FaerBackend, &mut workspace)
+                .expect("indexed ridge");
         let count_fit =
             fit_gaussian_count_weights(&x, 3, 2, &y, &counts).expect("count-weight least squares");
         let gap = max_abs_diff(&ridge.coefficients, &count_fit.coefficients);
@@ -636,14 +621,8 @@ mod tests {
         assert!(weighted.converged && indexed.converged);
         assert!(weighted.penalized && indexed.penalized);
         let gap = (weighted.deviance - indexed.deviance).abs();
-        assert!(
-            gap > 0.5,
-            "penalized deviance still counts distinct rows, gap {gap}"
-        );
-        assert_eq!(
-            resample_path(RepeatedRowEstimator::PenalizedBinomial),
-            ResamplePath::Indexed
-        );
+        assert!(gap > 0.5, "penalized deviance still counts distinct rows, gap {gap}");
+        assert_eq!(resample_path(RepeatedRowEstimator::PenalizedBinomial), ResamplePath::Indexed);
     }
 
     #[test]

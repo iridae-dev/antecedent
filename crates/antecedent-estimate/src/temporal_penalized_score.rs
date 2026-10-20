@@ -250,7 +250,9 @@ impl BayesianTemporalPropensity {
             &mut LaplaceWorkspace::default(),
         )?;
         if fit.map.len() != design.ncols {
-            return Err(EstimationError::stats_msg("Laplace mode length does not match the design"));
+            return Err(EstimationError::stats_msg(
+                "Laplace mode length does not match the design",
+            ));
         }
         let mut draws = Vec::with_capacity(self.n_draws * design.ncols);
         for draw in 0..self.n_draws {
@@ -342,10 +344,7 @@ fn column_is_ones(column: &[f64]) -> bool {
     column.iter().all(|&value| value == 1.0)
 }
 
-#[allow(
-    clippy::float_cmp,
-    reason = "treatment is coded exactly 0 or 1"
-)]
+#[allow(clippy::float_cmp, reason = "treatment is coded exactly 0 or 1")]
 fn binary_outcomes(y: &[f64]) -> Result<(), EstimationError> {
     if y.iter().all(|&value| value == 0.0 || value == 1.0) {
         Ok(())

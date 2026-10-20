@@ -57,9 +57,7 @@ impl HistoryUnit {
             return Err(EstimationError::data_msg("history match outcome must be finite"));
         }
         if !weight.is_finite() {
-            return Err(EstimationError::data_msg(
-                "history match sampling weight must be finite",
-            ));
+            return Err(EstimationError::data_msg("history match sampling weight must be finite"));
         }
         Ok(unit)
     }
@@ -270,9 +268,9 @@ struct MatchedHistories {
 /// A caliper is a maximum distance: finite and non-negative.
 fn validate_caliper(caliper: Option<f64>) -> Result<(), EstimationError> {
     match caliper {
-        Some(limit) if !(limit.is_finite() && limit >= 0.0) => Err(EstimationError::data_msg(
-            "matching caliper must be finite and non-negative",
-        )),
+        Some(limit) if !(limit.is_finite() && limit >= 0.0) => {
+            Err(EstimationError::data_msg("matching caliper must be finite and non-negative"))
+        }
         _ => Ok(()),
     }
 }
@@ -534,10 +532,7 @@ mod tests {
             );
             let prior = ContrastPrior::try_new(0.0, 1.0).unwrap();
             let bayesian = BayesianHistoryContrast::try_new(prior, Some(bad)).unwrap_err();
-            assert!(
-                bayesian.to_string().contains("finite and non-negative"),
-                "{bad}: {bayesian}"
-            );
+            assert!(bayesian.to_string().contains("finite and non-negative"), "{bad}: {bayesian}");
         }
         assert!(FrequentistHistoryContrast::try_with_caliper(0.0).is_ok());
     }
@@ -612,10 +607,7 @@ mod tests {
         let treated = estimator.contrast(&treated_only).unwrap_err();
         assert!(treated.to_string().contains("treated and control"), "{treated}");
 
-        let mixed_length = vec![
-            unit(&[1.0], 1.0, false, 1.0),
-            unit(&[1.0, 1.0], 1.0, true, 1.0),
-        ];
+        let mixed_length = vec![unit(&[1.0], 1.0, false, 1.0), unit(&[1.0, 1.0], 1.0, true, 1.0)];
         let lengths = estimator.contrast(&mixed_length).unwrap_err();
         assert!(lengths.to_string().contains("same length"), "{lengths}");
 

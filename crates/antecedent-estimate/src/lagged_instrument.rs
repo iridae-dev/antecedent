@@ -256,11 +256,8 @@ fn wald(
     }
     // Homoskedastic SE of the just-identified slope with an intercept:
     // σ² · Σ z̃² / (Σ z̃ t̃)², with σ² = Σ(y − α − β t)² / (n − 2).
-    let homoskedastic_se = if structural_rss <= 0.0 {
-        0.0
-    } else {
-        (structural_rss / df * z_ss / (zt * zt)).sqrt()
-    };
+    let homoskedastic_se =
+        if structural_rss <= 0.0 { 0.0 } else { (structural_rss / df * z_ss / (zt * zt)).sqrt() };
     Ok(LaggedInstrumentContrast {
         effect,
         intercept,
@@ -465,11 +462,9 @@ mod tests {
             .sum();
         assert!(adjustment_rss < 1e-9, "adjustment rss {adjustment_rss}");
         let (instrument, treatment_series, outcome_series) = lag1(&z, &treatment, &outcome);
-        let fit = fit_lagged_instrument(
-            &sample(&instrument, &treatment_series, &outcome_series, 1),
-            1.0,
-        )
-        .unwrap();
+        let fit =
+            fit_lagged_instrument(&sample(&instrument, &treatment_series, &outcome_series, 1), 1.0)
+                .unwrap();
         assert!((fit.effect - 2.0).abs() < 1e-9, "effect {effect}", effect = fit.effect);
         assert!((fit.effect - 5.0).abs() > 1.0);
         assert!((fit.first_stage_slope - 1.0).abs() < 1e-9);
@@ -507,11 +502,9 @@ mod tests {
             .sum();
         assert!(adjustment_rss < 1e-9, "adjustment rss {adjustment_rss}");
         let (instrument, treatment_series, outcome_series) = lag1(&z, &treatment, &outcome);
-        let fit = fit_lagged_instrument(
-            &sample(&instrument, &treatment_series, &outcome_series, 1),
-            1.0,
-        )
-        .unwrap();
+        let fit =
+            fit_lagged_instrument(&sample(&instrument, &treatment_series, &outcome_series, 1), 1.0)
+                .unwrap();
         assert!((fit.effect - 6.0).abs() < 1e-9, "effect {effect}", effect = fit.effect);
         assert!((fit.first_stage_slope - 1.0).abs() < 1e-9);
     }
@@ -547,11 +540,9 @@ mod tests {
         assert_eq!(untouched_tail, fit);
         instrument[last] = 0.0;
         instrument[0] = 1.0;
-        let changed_lag = fit_lagged_instrument(
-            &sample(&instrument, &treatment_series, &outcome_series, 1),
-            1.0,
-        )
-        .unwrap();
+        let changed_lag =
+            fit_lagged_instrument(&sample(&instrument, &treatment_series, &outcome_series, 1), 1.0)
+                .unwrap();
         assert!((changed_lag.first_stage_slope - 2.0).abs() > 0.1);
     }
 
@@ -607,11 +598,9 @@ mod tests {
         let z = binary_instrument(8);
         let orthogonal = paired_signs(8);
         let (instrument, treatment_series, outcome_series) = lag1(&z, &orthogonal, &orthogonal);
-        let none = fit_lagged_instrument(
-            &sample(&instrument, &treatment_series, &outcome_series, 1),
-            0.0,
-        )
-        .unwrap_err();
+        let none =
+            fit_lagged_instrument(&sample(&instrument, &treatment_series, &outcome_series, 1), 0.0)
+                .unwrap_err();
         assert!(none.to_string().contains("does not predict"));
         let weak_treatment: Vec<f64> =
             z.iter().zip(&orthogonal).map(|(zi, ui)| 0.01 * zi + ui).collect();
@@ -668,8 +657,7 @@ mod tests {
         assert!((wald.effect - 2.0).abs() < 1e-9, "wald {effect}", effect = wald.effect);
         assert!(wald.first_stage_f.is_infinite());
         let sampling = DrawSpec::new(2000, 19);
-        let diffuse =
-            fit_lagged_instrument_posterior(&sample, 100.0, sampling, 10.0).unwrap();
+        let diffuse = fit_lagged_instrument_posterior(&sample, 100.0, sampling, 10.0).unwrap();
         let tight = fit_lagged_instrument_posterior(&sample, 0.05, sampling, 10.0).unwrap();
         let shrunk_slope = 15_922.0 / 183_161.0;
         assert!((diffuse.mean - 2.0).abs() < 0.05, "diffuse {mean}", mean = diffuse.mean);

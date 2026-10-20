@@ -68,9 +68,11 @@ impl TemporalOutcomeLink {
             GlmFamily::GaussianIdentity => Err(EstimationError::unsupported(
                 "an identity link belongs to temporal linear adjustment",
             )),
-            GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => Err(EstimationError::unsupported(
-                "temporal GLM contrast supports Bernoulli logit and Bernoulli probit",
-            )),
+            GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => {
+                Err(EstimationError::unsupported(
+                    "temporal GLM contrast supports Bernoulli logit and Bernoulli probit",
+                ))
+            }
         }
     }
 
@@ -200,7 +202,11 @@ impl TemporalContrastDesign {
     fn column_value(&self, column: usize, row: usize, active: bool) -> f64 {
         match &self.regimes[column] {
             Some((active_values, control_values)) => {
-                if active { active_values[row] } else { control_values[row] }
+                if active {
+                    active_values[row]
+                } else {
+                    control_values[row]
+                }
             }
             None => self.x_colmajor[column * self.nrows + row],
         }
@@ -545,10 +551,7 @@ fn column_is_ones(column: &[f64]) -> bool {
     column.iter().all(|&value| value == 1.0)
 }
 
-#[allow(
-    clippy::float_cmp,
-    reason = "Bernoulli outcomes are coded exactly 0 or 1"
-)]
+#[allow(clippy::float_cmp, reason = "Bernoulli outcomes are coded exactly 0 or 1")]
 fn binary_outcomes(y: &[f64]) -> Result<(), EstimationError> {
     if y.iter().all(|&value| value == 0.0 || value == 1.0) {
         Ok(())
