@@ -829,6 +829,7 @@ pub const antecedent_learn::nested_markov_bayesian::COORDINATES: [&str; 14]
 pub const antecedent_learn::nested_markov_bayesian::METHOD: &str
 pub const antecedent_learn::nested_markov_bayesian::OUTPUTS: usize
 pub const antecedent_learn::nested_markov_bayesian::RNG: &str
+pub const antecedent_learn::recipes::ANSWER_CAPABILITY_CALL: &str
 pub const antecedent_learn::recipes::BIND_MODEL_PROVIDER: &str
 pub const antecedent_learn::recipes::DECLARE_REQUIRED_CAPABILITIES: &str
 pub const antecedent_learn::recipes::KEEP_PREDICTION_BOUNDARY: &str
@@ -1322,6 +1323,7 @@ pub variant antecedent_learn::recipes::RecipeError::NotALikelihood { kind: antec
 pub variant antecedent_learn::recipes::RecipeError::PredictionBoundaryAsLikelihood { capability: antecedent_core::provider_capability::ProviderCapability, next_attempt: &'static str }
 pub variant antecedent_learn::recipes::RecipeError::PredictionBoundaryRefused { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::InferenceSelection, next_attempt: &'static str }
 pub variant antecedent_learn::recipes::RecipeError::PredictionOnlyAsLikelihood { provider: antecedent_core::provider_capability::ProviderId, provider_name: alloc::string::String, kind: antecedent_learn::recipes::RecipeKind, next_attempt: &'static str }
+pub variant antecedent_learn::recipes::RecipeError::UnansweredCall { provider: antecedent_core::provider_capability::ProviderId, provider_name: alloc::string::String, capability: antecedent_core::provider_capability::ProviderCapability, next_attempt: &'static str }
 pub variant antecedent_learn::recipes::RecipeError::UnsupportedRealization { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::InferenceSelection, supported: &'static str }
 pub variant antecedent_learn::recipes::RecipeKind::FiniteDiscrete
 pub variant antecedent_learn::recipes::RecipeKind::GComputation

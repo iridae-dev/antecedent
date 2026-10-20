@@ -490,6 +490,8 @@ impl core::clone::Clone for antecedent_core::physical_choice::PhysicalChoiceRefu
 impl core::clone::Clone for antecedent_core::physical_choice::RejectedAlternative
 impl core::clone::Clone for antecedent_core::physical_choice::RejectionReason
 impl core::clone::Clone for antecedent_core::physical_choice::ResourceCapability
+impl core::clone::Clone for antecedent_core::provider_capability::CapabilityAnswer
+impl core::clone::Clone for antecedent_core::provider_capability::UnansweredCapability
 impl core::clone::Clone for antecedent_core::query::ComputationLimits
 impl core::clone::Clone for antecedent_core::query::ExperimentFamily
 impl core::clone::Clone for antecedent_core::query::GraphAssumptionSet
@@ -861,6 +863,8 @@ impl core::cmp::Eq for antecedent_core::physical_choice::PhysicalChoiceRefusal
 impl core::cmp::Eq for antecedent_core::physical_choice::RejectedAlternative
 impl core::cmp::Eq for antecedent_core::physical_choice::RejectionReason
 impl core::cmp::Eq for antecedent_core::physical_choice::ResourceCapability
+impl core::cmp::Eq for antecedent_core::provider_capability::CapabilityAnswer
+impl core::cmp::Eq for antecedent_core::provider_capability::UnansweredCapability
 impl core::cmp::Eq for antecedent_core::query::ComputationLimits
 impl core::cmp::Eq for antecedent_core::query::ExperimentFamily
 impl core::cmp::Eq for antecedent_core::query::GraphAssumptionSet
@@ -1328,6 +1332,8 @@ impl core::cmp::PartialEq for antecedent_core::physical_choice::PhysicalChoiceRe
 impl core::cmp::PartialEq for antecedent_core::physical_choice::RejectedAlternative
 impl core::cmp::PartialEq for antecedent_core::physical_choice::RejectionReason
 impl core::cmp::PartialEq for antecedent_core::physical_choice::ResourceCapability
+impl core::cmp::PartialEq for antecedent_core::provider_capability::CapabilityAnswer
+impl core::cmp::PartialEq for antecedent_core::provider_capability::UnansweredCapability
 impl core::cmp::PartialEq for antecedent_core::query::ComputationLimits
 impl core::cmp::PartialEq for antecedent_core::query::ExperimentFamily
 impl core::cmp::PartialEq for antecedent_core::query::GraphAssumptionSet
@@ -1489,6 +1495,7 @@ impl core::error::Error for antecedent_core::execution_facts::ExecutionFactError
 impl core::error::Error for antecedent_core::inspect::InspectionRefusal
 impl core::error::Error for antecedent_core::parallel_axis::ParallelPlanError
 impl core::error::Error for antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl core::error::Error for antecedent_core::provider_capability::UnansweredCapability
 impl core::error::Error for antecedent_core::scratch_pool::ScratchFull
 impl core::error::Error for antecedent_core::scratch_pool::ScratchPoolError
 impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
@@ -1899,6 +1906,8 @@ impl core::fmt::Debug for antecedent_core::physical_choice::PhysicalChoiceRefusa
 impl core::fmt::Debug for antecedent_core::physical_choice::RejectedAlternative
 impl core::fmt::Debug for antecedent_core::physical_choice::RejectionReason
 impl core::fmt::Debug for antecedent_core::physical_choice::ResourceCapability
+impl core::fmt::Debug for antecedent_core::provider_capability::CapabilityAnswer
+impl core::fmt::Debug for antecedent_core::provider_capability::UnansweredCapability
 impl core::fmt::Debug for antecedent_core::query::ComputationLimits
 impl core::fmt::Debug for antecedent_core::query::ExperimentFamily
 impl core::fmt::Debug for antecedent_core::query::GraphAssumptionSet
@@ -2035,6 +2044,7 @@ impl core::fmt::Display for antecedent_core::physical_choice::PhysicalChoiceRefu
 impl core::fmt::Display for antecedent_core::physical_choice::RejectedAlternative
 impl core::fmt::Display for antecedent_core::physical_choice::RejectionReason
 impl core::fmt::Display for antecedent_core::physical_choice::ResourceCapability
+impl core::fmt::Display for antecedent_core::provider_capability::UnansweredCapability
 impl core::fmt::Display for antecedent_core::recalc::ChangedDependency
 impl core::fmt::Display for antecedent_core::recalc::RefusalReason
 impl core::fmt::Display for antecedent_core::recalc::Stage
@@ -2315,6 +2325,8 @@ impl core::hash::Hash for antecedent_core::physical_choice::PhysicalChoiceRefusa
 impl core::hash::Hash for antecedent_core::physical_choice::RejectedAlternative
 impl core::hash::Hash for antecedent_core::physical_choice::RejectionReason
 impl core::hash::Hash for antecedent_core::physical_choice::ResourceCapability
+impl core::hash::Hash for antecedent_core::provider_capability::CapabilityAnswer
+impl core::hash::Hash for antecedent_core::provider_capability::UnansweredCapability
 impl core::hash::Hash for antecedent_core::query::ComputationLimits
 impl core::hash::Hash for antecedent_core::query::ExperimentFamily
 impl core::hash::Hash for antecedent_core::query::GraphAssumptionSet
@@ -2978,6 +2990,8 @@ impl core::marker::Freeze for antecedent_core::physical_choice::PhysicalChoiceRe
 impl core::marker::Freeze for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::marker::Freeze for antecedent_core::provider_capability::CapabilityAnswer [auto]
+impl core::marker::Freeze for antecedent_core::provider_capability::UnansweredCapability [auto]
 impl core::marker::Freeze for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Freeze for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Freeze for antecedent_core::query::GraphAssumptionSet [auto]
@@ -3430,6 +3444,8 @@ impl core::marker::Send for antecedent_core::physical_choice::PhysicalChoiceRefu
 impl core::marker::Send for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::marker::Send for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::marker::Send for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::marker::Send for antecedent_core::provider_capability::CapabilityAnswer [auto]
+impl core::marker::Send for antecedent_core::provider_capability::UnansweredCapability [auto]
 impl core::marker::Send for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Send for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Send for antecedent_core::query::GraphAssumptionSet [auto]
@@ -3861,6 +3877,8 @@ impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::Phy
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::RejectedAlternative
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::RejectionReason
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::ResourceCapability
+impl core::marker::StructuralPartialEq for antecedent_core::provider_capability::CapabilityAnswer
+impl core::marker::StructuralPartialEq for antecedent_core::provider_capability::UnansweredCapability
 impl core::marker::StructuralPartialEq for antecedent_core::query::ComputationLimits
 impl core::marker::StructuralPartialEq for antecedent_core::query::ExperimentFamily
 impl core::marker::StructuralPartialEq for antecedent_core::query::GraphAssumptionSet
@@ -4311,6 +4329,8 @@ impl core::marker::Sync for antecedent_core::physical_choice::PhysicalChoiceRefu
 impl core::marker::Sync for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::marker::Sync for antecedent_core::provider_capability::CapabilityAnswer [auto]
+impl core::marker::Sync for antecedent_core::provider_capability::UnansweredCapability [auto]
 impl core::marker::Sync for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Sync for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Sync for antecedent_core::query::GraphAssumptionSet [auto]
@@ -4763,6 +4783,8 @@ impl core::marker::Unpin for antecedent_core::physical_choice::PhysicalChoiceRef
 impl core::marker::Unpin for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::marker::Unpin for antecedent_core::provider_capability::CapabilityAnswer [auto]
+impl core::marker::Unpin for antecedent_core::provider_capability::UnansweredCapability [auto]
 impl core::marker::Unpin for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Unpin for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Unpin for antecedent_core::query::GraphAssumptionSet [auto]
@@ -5218,6 +5240,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choic
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::provider_capability::CapabilityAnswer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::provider_capability::UnansweredCapability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::ComputationLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::ExperimentFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::GraphAssumptionSet [auto]
@@ -5669,6 +5693,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::RejectedAlternative [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::RejectionReason [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::ResourceCapability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::provider_capability::CapabilityAnswer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::provider_capability::UnansweredCapability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::ComputationLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::ExperimentFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::GraphAssumptionSet [auto]
@@ -7084,9 +7110,11 @@ pub fn <antecedent_core::ProviderCapability>::fn from_name(name: &str) -> core::
 pub fn <antecedent_core::ProviderDeclaration>::const fn capabilities(&self) -> antecedent_core::CapabilitySet
 pub fn <antecedent_core::ProviderDeclaration>::const fn id(&self) -> antecedent_core::ProviderId
 pub fn <antecedent_core::ProviderDeclaration>::const fn supports(&self, capability: antecedent_core::ProviderCapability) -> bool
+pub fn <antecedent_core::ProviderDeclaration>::fn answering(self, calls: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ProviderCapability>) -> Self
 pub fn <antecedent_core::ProviderDeclaration>::fn compile(&self, request: antecedent_core::CapabilityRequest) -> core::result::Result<antecedent_core::CompiledCapabilityRequest, antecedent_core::FailedCapabilityAttempt>
 pub fn <antecedent_core::ProviderDeclaration>::fn name(&self) -> &str
 pub fn <antecedent_core::ProviderDeclaration>::fn new(id: antecedent_core::ProviderId, name: impl core::convert::Into<alloc::sync::Arc<str>>, capabilities: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ProviderCapability>) -> core::result::Result<Self, antecedent_core::ProviderDeclarationError>
+pub fn <antecedent_core::ProviderDeclaration>::fn probe(&self, request: antecedent_core::CapabilityRequest) -> core::result::Result<antecedent_core::provider_capability::CapabilityAnswer, antecedent_core::provider_capability::UnansweredCapability>
 pub fn <antecedent_core::ProviderId>::const fn from_raw(raw: u64) -> Self
 pub fn <antecedent_core::ProviderId>::const fn raw(self) -> u64
 pub fn <antecedent_core::QuantityUnits>::fn dimensionless() -> Self
@@ -7641,6 +7669,12 @@ pub fn <antecedent_core::physical_choice::RejectedAlternative>::const fn alterna
 pub fn <antecedent_core::physical_choice::RejectedAlternative>::const fn reason(self) -> antecedent_core::physical_choice::RejectionReason
 pub fn <antecedent_core::physical_choice::ResourceCapability>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::physical_choice::ResourceCapability>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::provider_capability::CapabilityAnswer>::const fn capability(&self) -> antecedent_core::ProviderCapability
+pub fn <antecedent_core::provider_capability::CapabilityAnswer>::const fn provider(&self) -> antecedent_core::ProviderId
+pub fn <antecedent_core::provider_capability::CapabilityAnswer>::fn provider_name(&self) -> &str
+pub fn <antecedent_core::provider_capability::UnansweredCapability>::const fn capability(&self) -> antecedent_core::ProviderCapability
+pub fn <antecedent_core::provider_capability::UnansweredCapability>::const fn provider(&self) -> antecedent_core::ProviderId
+pub fn <antecedent_core::provider_capability::UnansweredCapability>::fn provider_name(&self) -> &str
 pub fn <antecedent_core::query::ExperimentFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::query::GraphAssumptionSet>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::query::OutcomeGuarantee>::const fn as_str(self) -> &'static str
@@ -8200,6 +8234,10 @@ pub struct antecedent_core::physical_choice::PhysicalChoice has private fields
 pub struct antecedent_core::physical_choice::PhysicalChoiceRefusal has private fields
 pub struct antecedent_core::physical_choice::RejectedAlternative
 pub struct antecedent_core::physical_choice::RejectedAlternative has private fields
+pub struct antecedent_core::provider_capability::CapabilityAnswer
+pub struct antecedent_core::provider_capability::CapabilityAnswer has private fields
+pub struct antecedent_core::provider_capability::UnansweredCapability
+pub struct antecedent_core::provider_capability::UnansweredCapability has private fields
 pub struct antecedent_core::query::ComputationLimits
 pub struct antecedent_core::query::TheoremReference
 pub struct antecedent_core::recalc::Branch
@@ -9056,6 +9094,7 @@ pub variant antecedent_core::RefusedSampleKind::ScoreFrequentist
 pub variant antecedent_core::RegimeKind::Experimental
 pub variant antecedent_core::RegimeKind::Observational
 pub variant antecedent_core::ResamplingRule::ContiguousBlock
+pub variant antecedent_core::ResamplingRule::RowIid
 pub variant antecedent_core::ResamplingRule::RowSubjectIid
 pub variant antecedent_core::ResamplingRule::WholeCluster
 pub variant antecedent_core::ResponseFunctional::AverageDerivative { outcome: antecedent_core::VariableId, treatment: antecedent_core::VariableId, weighting: antecedent_core::DerivativeWeighting }
