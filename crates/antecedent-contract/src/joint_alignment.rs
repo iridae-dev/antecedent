@@ -4,8 +4,10 @@
 //!
 //! A joint law is one measure indexed by the identities of its axes: graph
 //! atom, bootstrap replicate, parameter draw, outcome, trajectory,
-//! counterfactual world, and history. Two arrays align when those identities
-//! are the same. Equal length is not an identity. A contrast of intervention
+//! counterfactual world, and history. The identity of a replicate stream, a
+//! posterior, or a world is the digest of that producing law. A caller-chosen
+//! display name is not an axis. Two arrays align when those identities are
+//! the same. Equal length is not an identity. A contrast of intervention
 //! worlds and a response surface that share world, parameter, replicate, and history
 //! axes are one measured joint, and that joint records covariance cross terms.
 //! Equal length is not an identity, but arrays on the same parameter-draw or
@@ -25,6 +27,10 @@
 use std::{collections::BTreeSet, error::Error, fmt, sync::Arc};
 
 use antecedent_core::text::is_blank;
+use antecedent_core::{CanonicalWriter, SemanticDigest};
+
+/// Domain tag for [`ProducingLaw::identity`].
+const PRODUCING_LAW_TAG: &str = "antecedent.contract.producing_law";
 
 const JOINT_CODE: &str = antecedent_core::reason_code!("joint_law_required");
 const INVALID_CODE: &str = antecedent_core::reason_code!("invalid_argument");
@@ -95,6 +101,17 @@ impl JointAxisKind {
     pub fn from_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|kind| kind.as_str() == name)
     }
+
+    /// A replicate stream, posterior, or world produces this kind.
+    const fn is_law_axis(self) -> bool {
+        matches!(
+            self,
+            Self::GraphAtom
+                | Self::BootstrapReplicate
+                | Self::ParameterDraw
+                | Self::CounterfactualWorld
+        )
+    }
 }
 
 impl fmt::Display for JointAxisKind {
@@ -103,11 +120,166 @@ impl fmt::Display for JointAxisKind {
     }
 }
 
+/// Law that produced the positions on one axis.
+///
+/// [`Self::identity`] is the canonical digest of the stream key, posterior id,
+/// or world id. [`Self::display_name`] is a caller-chosen label and is not
+/// that identity.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[non_exhaustive]
+pub enum ProducingLaw {
+    /// Bootstrap or Monte Carlo replicate stream.
+    ReplicateStream {
+        /// Key of the replicate stream. This is the producing-law identity.
+        stream_key: Arc<str>,
+        /// Caller-chosen label. It is not the axis identity.
+        display_name: Arc<str>,
+    },
+    /// Posterior whose draws or graph atoms index the array.
+    Posterior {
+        /// Identity of the posterior. This is the producing-law identity.
+        posterior_id: Arc<str>,
+        /// Caller-chosen label. It is not the axis identity.
+        display_name: Arc<str>,
+    },
+    /// Counterfactual world, including an intervention world.
+    World {
+        /// Identity of the world. This is the producing-law identity.
+        world_id: Arc<str>,
+        /// Caller-chosen label. It is not the axis identity.
+        display_name: Arc<str>,
+    },
+}
+
+impl ProducingLaw {
+    /// Replicate stream keyed by `stream_key`, labeled `display_name`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `stream_key` or `display_name` is empty or only
+    /// whitespace.
+    ///
+    /// # Panics
+    ///
+    /// Does not panic.
+    #[must_use = "a blank stream key or display name is refused"]
+    pub fn replicate_stream(
+        stream_key: &str,
+        display_name: &str,
+    ) -> Result<Self, JointAlignmentError> {
+        Ok(Self::ReplicateStream {
+            stream_key: law_text(stream_key, "replicate stream key")?,
+            display_name: law_text(display_name, "producing-law display name")?,
+        })
+    }
+
+    /// Posterior identified by `posterior_id`, labeled `display_name`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `posterior_id` or `display_name` is empty or only
+    /// whitespace.
+    ///
+    /// # Panics
+    ///
+    /// Does not panic.
+    #[must_use = "a blank posterior id or display name is refused"]
+    pub fn posterior(posterior_id: &str, display_name: &str) -> Result<Self, JointAlignmentError> {
+        Ok(Self::Posterior {
+            posterior_id: law_text(posterior_id, "posterior id")?,
+            display_name: law_text(display_name, "producing-law display name")?,
+        })
+    }
+
+    /// World identified by `world_id`, labeled `display_name`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `world_id` or `display_name` is empty or only
+    /// whitespace.
+    ///
+    /// # Panics
+    ///
+    /// Does not panic.
+    #[must_use = "a blank world id or display name is refused"]
+    pub fn world(world_id: &str, display_name: &str) -> Result<Self, JointAlignmentError> {
+        Ok(Self::World {
+            world_id: law_text(world_id, "world id")?,
+            display_name: law_text(display_name, "producing-law display name")?,
+        })
+    }
+
+    /// Stable `snake_case` name of the producing law.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::ReplicateStream { .. } => "replicate_stream",
+            Self::Posterior { .. } => "posterior",
+            Self::World { .. } => "world",
+        }
+    }
+
+    /// Caller-chosen label. This is not [`Self::identity`].
+    #[must_use]
+    pub fn display_name(&self) -> &str {
+        match self {
+            Self::ReplicateStream { display_name, .. }
+            | Self::Posterior { display_name, .. }
+            | Self::World { display_name, .. } => display_name,
+        }
+    }
+
+    /// Canonical digest of the stream key, posterior id, or world id.
+    ///
+    /// The inputs are the law kind and that producing field. [`Self::display_name`]
+    /// is not an input. A shared display name does not make two producing fields
+    /// one axis, and distinct display names do not split one producing field
+    /// into two digests.
+    #[must_use]
+    pub fn identity(&self) -> SemanticDigest {
+        let mut writer = CanonicalWriter::new(PRODUCING_LAW_TAG);
+        writer.text(self.as_str());
+        writer.text(self.key());
+        SemanticDigest::from_bytes(writer.finish())
+    }
+
+    /// Whether this law produces positions of `kind`.
+    ///
+    /// A replicate stream produces bootstrap replicates. A posterior produces
+    /// parameter draws and graph atoms. A world produces counterfactual worlds.
+    #[must_use]
+    pub const fn produces(&self, kind: JointAxisKind) -> bool {
+        match self {
+            Self::ReplicateStream { .. } => matches!(kind, JointAxisKind::BootstrapReplicate),
+            Self::Posterior { .. } => {
+                matches!(kind, JointAxisKind::ParameterDraw | JointAxisKind::GraphAtom)
+            }
+            Self::World { .. } => matches!(kind, JointAxisKind::CounterfactualWorld),
+        }
+    }
+
+    fn key(&self) -> &str {
+        match self {
+            Self::ReplicateStream { stream_key, .. } => stream_key,
+            Self::Posterior { posterior_id, .. } => posterior_id,
+            Self::World { world_id, .. } => world_id,
+        }
+    }
+}
+
+impl fmt::Display for ProducingLaw {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
 /// One position on a [`JointAxisKind`].
 ///
-/// The identity is the caller's label (`"do(a,b)"`, `"theta"`, `"boot-1"`).
-/// Blank text is refused. Two positions are the same only when the kind and the
-/// label are the same.
+/// For a replicate stream, a posterior, or a world, [`Self::id`] is the hex
+/// digest from [`ProducingLaw::identity`]. A caller-chosen display name is not
+/// an axis. Outcome, trajectory, and history are coordinates; their id is the
+/// coordinate token. Two positions are the same only when the kind and that
+/// identity are the same.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct JointAxis {
     kind: JointAxisKind,
@@ -115,21 +287,54 @@ pub struct JointAxis {
 }
 
 impl JointAxis {
-    /// Axis `kind` at `id`.
+    /// Coordinate `kind` at token `id`.
+    ///
+    /// Outcome, trajectory, and history are coordinates. A replicate stream,
+    /// posterior, or world is refused: that identity is [`Self::try_from_law`].
     ///
     /// # Errors
     ///
-    /// Returns an error when `id` is empty or only whitespace.
+    /// Returns an error when `id` is empty or only whitespace, or when `kind`
+    /// is produced by a law.
     ///
     /// # Panics
     ///
     /// Does not panic.
-    #[must_use = "a blank axis id is refused"]
+    #[must_use = "a blank coordinate token, or a producing-law kind, is refused"]
     pub fn try_new(kind: JointAxisKind, id: &str) -> Result<Self, JointAlignmentError> {
+        if kind.is_law_axis() {
+            return Err(invalid(format!(
+                "{kind} identity is the digest of its producing law, not a caller-chosen name",
+            )));
+        }
         if is_blank(id) {
             return Err(invalid("an axis id is blank"));
         }
         Ok(Self { kind, id: Arc::from(id) })
+    }
+
+    /// Axis `kind` produced by `law`.
+    ///
+    /// [`Self::id`] is the lowercase hex of [`ProducingLaw::identity`]. The
+    /// law's display name is not stored and is not compared.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `law` does not produce `kind`.
+    ///
+    /// # Panics
+    ///
+    /// Does not panic.
+    #[must_use = "a law that does not produce this axis kind is refused"]
+    pub fn try_from_law(
+        kind: JointAxisKind,
+        law: &ProducingLaw,
+    ) -> Result<Self, JointAlignmentError> {
+        if !law.produces(kind) {
+            let law_name = law.as_str();
+            return Err(invalid(format!("{kind} is not produced by a {law_name} law")));
+        }
+        Ok(Self { kind, id: Arc::<str>::from(law.identity().to_hex()) })
     }
 
     /// Kind of axis.
@@ -139,6 +344,10 @@ impl JointAxis {
     }
 
     /// Identity within that kind.
+    ///
+    /// For a replicate stream, posterior, or world, this is the hex digest from
+    /// [`ProducingLaw::identity`]. A display name is not this identity. For an
+    /// outcome, trajectory, or history coordinate, this is the coordinate token.
     #[must_use]
     pub fn id(&self) -> &str {
         &self.id
@@ -423,7 +632,9 @@ impl JointAlignmentRequest {
     /// A measured joint requires one shared axis identity and records
     /// covariance cross terms. A declared product is returned as a product even
     /// when the axis identities coincide. Equal lengths do not align arrays
-    /// whose axis identities differ.
+    /// whose axis identities differ. A shared display name does not either:
+    /// the identity of a replicate stream, posterior, or world is that law's
+    /// digest.
     ///
     /// # Errors
     ///
@@ -688,6 +899,13 @@ impl fmt::Display for JointAlignmentError {
 
 impl Error for JointAlignmentError {}
 
+fn law_text(value: &str, what: &str) -> Result<Arc<str>, JointAlignmentError> {
+    if is_blank(value) {
+        return Err(invalid(format!("a {what} is blank")));
+    }
+    Ok(Arc::from(value))
+}
+
 fn invalid(message: impl Into<String>) -> JointAlignmentError {
     JointAlignmentError {
         code: INVALID_CODE,
@@ -917,11 +1135,23 @@ fn common_length(arrays: &[LawArray]) -> Option<usize> {
 mod tests {
     use super::{
         AlignedLaw, JointAlignmentRequest, JointAxis, JointAxisKind, JointConsumer,
-        JointCovariance, LawArray, LawCoupling, MassAccount, MassFate, NextAttempt,
+        JointCovariance, LawArray, LawCoupling, MassAccount, MassFate, NextAttempt, ProducingLaw,
     };
 
     fn axis(kind: JointAxisKind, id: &str) -> JointAxis {
-        JointAxis::try_new(kind, id).expect("axis")
+        let law = match kind {
+            JointAxisKind::BootstrapReplicate => {
+                ProducingLaw::replicate_stream(id, id).expect("stream")
+            }
+            JointAxisKind::ParameterDraw | JointAxisKind::GraphAtom => {
+                ProducingLaw::posterior(id, id).expect("posterior")
+            }
+            JointAxisKind::CounterfactualWorld => ProducingLaw::world(id, id).expect("world"),
+            JointAxisKind::Outcome | JointAxisKind::Trajectory | JointAxisKind::History => {
+                return JointAxis::try_new(kind, id).expect("axis");
+            }
+        };
+        JointAxis::try_from_law(kind, &law).expect("axis")
     }
 
     fn axes(world: &str) -> Vec<JointAxis> {
@@ -965,16 +1195,99 @@ mod tests {
             .expect_err("equal length is not alignment");
         assert_eq!(err.code(), "joint_law_required");
         assert_eq!(err.detail(), "joint_alignment.unrelated_axes");
+        let left = ProducingLaw::world("do(a,b)", "do(a,b)").expect("world").identity().to_hex();
+        let right = ProducingLaw::world("do(a,0)", "do(a,0)").expect("world").identity().to_hex();
         assert!(err.message().contains("equal length 4"));
         assert!(err.message().contains("counterfactual_world"));
-        assert!(err.message().contains("do(a,b)"));
-        assert!(err.message().contains("do(a,0)"));
+        assert!(err.message().contains(&left));
+        assert!(err.message().contains(&right));
+        assert!(!err.message().contains("do(a,b)"));
+        assert!(!err.message().contains("do(a,0)"));
         assert_eq!(err.next_attempt(), NextAttempt::DeclareSharedAxes);
         assert_eq!(
             err.next_attempt().sentence(),
             "declare the shared axes, including covariance cross terms for a joint contrast",
         );
         assert!(err.to_string().contains(err.next_attempt().sentence()));
+    }
+
+    #[test]
+    fn same_caller_name_from_different_laws_is_refused() {
+        let left_law = ProducingLaw::replicate_stream("stream-left", "shared").expect("left law");
+        let right_law =
+            ProducingLaw::replicate_stream("stream-right", "shared").expect("right law");
+        assert_eq!(left_law.display_name(), right_law.display_name());
+        assert_ne!(left_law.identity(), right_law.identity());
+        let left_digest = left_law.identity().to_hex();
+        let right_digest = right_law.identity().to_hex();
+        let left_axis =
+            JointAxis::try_from_law(JointAxisKind::BootstrapReplicate, &left_law).expect("left");
+        let right_axis =
+            JointAxis::try_from_law(JointAxisKind::BootstrapReplicate, &right_law).expect("right");
+        assert_eq!(left_axis.id(), left_digest.as_str());
+        assert_ne!(left_axis.id(), left_law.display_name());
+        assert_ne!(left_axis, right_axis);
+        let contrast = LawArray::try_new(
+            "contrast",
+            4,
+            &[left_axis],
+            MassAccount::retained(),
+            JointConsumer::Contrast,
+        )
+        .expect("contrast");
+        let surface = LawArray::try_new(
+            "surface",
+            4,
+            &[right_axis],
+            MassAccount::retained(),
+            JointConsumer::ResponseSurface,
+        )
+        .expect("surface");
+        assert_eq!(contrast.len(), surface.len());
+        let err = request(vec![contrast, surface], LawCoupling::MeasuredJoint)
+            .align()
+            .expect_err("a shared display name is not one law");
+        assert_eq!(err.code(), "joint_law_required");
+        assert_eq!(err.detail(), "joint_alignment.unrelated_axes");
+        assert!(err.message().contains("equal length 4"));
+        assert!(err.message().contains(&left_digest));
+        assert!(err.message().contains(&right_digest));
+        assert!(!err.message().contains("shared"));
+        assert_eq!(err.next_attempt(), NextAttempt::DeclareSharedAxes);
+        assert!(JointAxis::try_new(JointAxisKind::BootstrapReplicate, "shared").is_err());
+    }
+
+    #[test]
+    fn shared_producing_law_digest_is_admitted() {
+        let left_law = ProducingLaw::posterior("posterior-1", "draws").expect("left law");
+        let right_law = ProducingLaw::posterior("posterior-1", "samples").expect("right law");
+        assert_eq!(left_law.identity(), right_law.identity());
+        assert_ne!(left_law.display_name(), right_law.display_name());
+        let digest = left_law.identity().to_hex();
+        let contrast = LawArray::try_new(
+            "contrast",
+            4,
+            &[JointAxis::try_from_law(JointAxisKind::ParameterDraw, &left_law).expect("left")],
+            MassAccount::retained(),
+            JointConsumer::Contrast,
+        )
+        .expect("contrast");
+        let surface = LawArray::try_new(
+            "surface",
+            4,
+            &[JointAxis::try_from_law(JointAxisKind::ParameterDraw, &right_law).expect("right")],
+            MassAccount::retained(),
+            JointConsumer::ResponseSurface,
+        )
+        .expect("surface");
+        let aligned = request(vec![contrast, surface], LawCoupling::MeasuredJoint)
+            .align()
+            .expect("shared producing-law digest");
+        assert!(aligned.is_measured_joint());
+        assert_eq!(aligned.covariance(), JointCovariance::CrossTerms);
+        assert_eq!(aligned.axis_id(JointAxisKind::ParameterDraw), Some(digest.as_str()));
+        assert_ne!(aligned.axis_id(JointAxisKind::ParameterDraw), Some("draws"));
+        assert_ne!(aligned.axis_id(JointAxisKind::ParameterDraw), Some("samples"));
     }
 
     #[test]
@@ -1002,9 +1315,14 @@ mod tests {
                 JointAxisKind::History,
             ],
         );
-        assert_eq!(aligned.axis_id(JointAxisKind::CounterfactualWorld), Some("do(a,b)"));
-        assert_eq!(aligned.axis_id(JointAxisKind::ParameterDraw), Some("theta"));
-        assert_eq!(aligned.axis_id(JointAxisKind::BootstrapReplicate), Some("boot-1"));
+        let world = ProducingLaw::world("do(a,b)", "do(a,b)").expect("world").identity().to_hex();
+        let draw =
+            ProducingLaw::posterior("theta", "theta").expect("posterior").identity().to_hex();
+        let replicate =
+            ProducingLaw::replicate_stream("boot-1", "boot-1").expect("stream").identity().to_hex();
+        assert_eq!(aligned.axis_id(JointAxisKind::CounterfactualWorld), Some(world.as_str()));
+        assert_eq!(aligned.axis_id(JointAxisKind::ParameterDraw), Some(draw.as_str()));
+        assert_eq!(aligned.axis_id(JointAxisKind::BootstrapReplicate), Some(replicate.as_str()));
         assert_eq!(aligned.axis_id(JointAxisKind::History), Some("h0"));
         assert_eq!(aligned.axis_id(JointAxisKind::GraphAtom), None);
         assert_eq!(aligned.axis_id(JointAxisKind::Outcome), None);
