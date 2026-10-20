@@ -149,4 +149,17 @@ mod tests {
         let network = NetworkData::try_new(table, []).unwrap();
         assert!(network.incoming(0).unwrap().is_empty());
     }
+
+    #[test]
+    fn edge_row_past_u32_max_stays_a_global_id() {
+        let past = u64::from(u32::MAX) + 1;
+        let edge = NetworkEdge::new(past, 0, 1.0);
+        assert_eq!(edge.from.get(), past);
+        assert!(u32::try_from(edge.from.get()).is_err());
+        let values = [1.0];
+        let table = TabularData::from_f64_columns([("y", values.as_slice())]).unwrap();
+        let err = NetworkData::try_new(table, [edge]).unwrap_err();
+        let message = err.to_string();
+        assert!(message.contains("network edge row index is outside the unit table"));
+    }
 }

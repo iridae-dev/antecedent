@@ -106,6 +106,11 @@ class ScoreResumeUnavailable(ScoreResumeRefusal, RecalcUnavailable):
     """
 
 
+def _row_id_array(ids: Sequence[int]) -> NDArray[np.uint64]:
+    """Row ids as ``uint64``. A value past ``2**32 - 1`` is not narrowed."""
+    return np.asarray(ids, dtype=np.uint64)
+
+
 def _resume_refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
     """The class of a refusal raised while resuming from a frozen score artifact."""
     unavailable = str(wire["detail"]) in _UNAVAILABLE
@@ -462,9 +467,12 @@ class ScoreResumeSession:
         return self._handle.n_rows()
 
     @property
-    def row_ids(self) -> NDArray[np.uint32]:
-        """The original row ids target weights are indexed by, in row order."""
-        return np.asarray(self._handle.row_ids(), dtype=np.uint32)
+    def row_ids(self) -> NDArray[np.uint64]:
+        """The original row ids target weights are indexed by, in row order.
+
+        Each id is a ``uint64``. A row past ``2**32 - 1`` is kept.
+        """
+        return _row_id_array(self._handle.row_ids())
 
     @property
     def has_run(self) -> bool:

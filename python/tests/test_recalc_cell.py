@@ -652,3 +652,11 @@ def test_cell_crossfit_scores_resume_the_same_way() -> None:
     # Nothing is exportable before a run.
     with pytest.raises(RecalcNoLiveState):
         CrossfitSession().export_frozen_scores()
+
+
+def test_row_ids_past_u32_max_are_not_truncated() -> None:
+    past = 2**32
+    ids = rc._row_id_array([past, 0])
+    assert ids.dtype == np.uint64
+    assert int(ids[0]) == past
+    assert int(ids[0]) != 0

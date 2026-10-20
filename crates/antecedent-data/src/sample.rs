@@ -564,6 +564,15 @@ mod tests {
     }
 
     #[test]
+    fn row_index_past_u32_max_is_not_truncated() {
+        let past = usize::try_from(u32::MAX).expect("row") + 1;
+        let map = LagMap::new(past + 1, 0).expect("lag map");
+        let row = map.row_index(Lag::CONTEMPORANEOUS, past);
+        assert_eq!(row, past);
+        assert!(u32::try_from(row).is_err());
+    }
+
+    #[test]
     fn prepare_gathers_lagged_values() {
         let data = float_series(20, 2);
         let cols = Arc::from([
