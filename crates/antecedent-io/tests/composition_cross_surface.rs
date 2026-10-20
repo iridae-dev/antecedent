@@ -1,5 +1,6 @@
-//! The aligned joint draw and the external finite response,
-//! each as one test over the committed cross-surface fixtures.
+//! The aligned joint draw, the external finite response, and the slice cases in
+//! `slice_cases.json`: the Gaussian line as a joint draw, the finite-discrete
+//! adjustment, and the named feedback policy.
 //!
 //! The fixtures in `conformance/cross_surface/` are read-only here. `py_*` files were built by
 //! `python/tests/generate_cross_surface_fixtures.py`, `rust_*` files by the ignored
@@ -18,8 +19,15 @@
 //! nonlinear value, which is why they are refused.
 //!
 //! Hand-derived external truth: `E[Y | do(a)] = 1 + 2a` on `a` in `0, 1, 2` is `[1, 3, 5]`.
+//!
+//! Hand-derived slice truth, from `slice_cases.json`: the line `y = 1 + 2t` has contrast 2;
+//! the frequency table sums the confounder out to active `0.5625`, control `0.25`, contrast
+//! `0.3125`; the two posterior draws mix to `0.4375`.
+
+use std::sync::Arc;
 
 use antecedent_contract::{BoundExternalClaim, BoundTrustLevel};
+use antecedent_contract::mixed_module::{CutFeedback, MixedModulePolicy, MixedModuleRefusal};
 use antecedent_contract::{
     CheckedCausalContract, CompositionStage, DistributionMeaning, ExternalBindingError,
     ExternalCapability, ExternalResponse, ExternalResult, ExternalResultHeader,
@@ -28,7 +36,14 @@ use antecedent_contract::{
     QuantityMismatch, QuantityRole, ScientificQuantity, VerificationProbe, VerificationProbeKind,
     bind_external_result, verify_external_object,
 };
-use antecedent_core::{IdentificationStatus, SupportStatus};
+use antecedent_core::{
+    ExecutionContext, IdentificationStatus, RegimeId, SupportStatus, Value, VariableId,
+};
+use antecedent_expr::{
+    Assignment, CausalExprArena, DiscreteAxis, DomainRef, ExactDiscreteLaw, ExactEvaluationLimits,
+    ExactEvaluationPlan, ExactEvaluationSpec, ExactTransportData, ExprNode, LawTolerance,
+};
+use antecedent_io::exact_law_wire::ExactLawWire;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
@@ -482,4 +497,261 @@ fn external_response_refusals_and_verification() {
     let mut native = response();
     native.header.trust = ExternalTrustState::NativeLicensed;
     assert_eq!(bind(native).unwrap_err(), ExternalBindingError::TrustMismatch);
+}
+
+// ------------------------------------------------------------------------ slice cases
+
+const TREATMENT: u32 = 0;
+const CONFOUNDER: u32 = 1;
+const OUTCOME: u32 = 2;
+
+fn slice_cases() -> serde_json::Value {
+    let bytes = read_fixture_bytes(
+        &fixture_dir(),
+        "slice_cases.json",
+        "slice_cases.json is a committed cross-surface fixture",
+    );
+    serde_json::from_slice(&bytes).expect("slice_cases.json")
+}
+
+fn json_f64s(value: &serde_json::Value) -> Vec<f64> {
+    value.as_array().expect("number list").iter().map(|item| item.as_f64().expect("f64")).collect()
+}
+
+fn json_u64s(value: &serde_json::Value) -> Vec<u64> {
+    value.as_array().expect("count list").iter().map(|item| item.as_u64().expect("u64")).collect()
+}
+
+fn json_strings(value: &serde_json::Value) -> Vec<String> {
+    value.as_array().unwrap().iter().map(|item| item.as_str().unwrap().to_owned()).collect()
+}
+
+fn probabilities(counts: &[u64]) -> Vec<f64> {
+    let total: u64 = counts.iter().sum();
+    counts.iter().map(|count| *count as f64 / total as f64).collect()
+}
+
+fn binary_axes() -> [DiscreteAxis; 3] {
+    [TREATMENT, CONFOUNDER, OUTCOME].map(|raw| DiscreteAxis {
+        variable: VariableId::from_raw(raw),
+        values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+    })
+}
+
+fn adjustment(population: &str, regime: RegimeId) -> (CausalExprArena, antecedent_expr::ExprId) {
+    let mut arena = CausalExprArena::new();
+    let population = arena.intern_population(population);
+    let empty = arena.empty_var_set();
+    let none = arena.intern_intervention_set([]);
+    let confounder = arena.intern_var_set([VariableId::from_raw(CONFOUNDER)]);
+    let outcome = arena.intern_var_set([VariableId::from_raw(OUTCOME)]);
+    let given = arena.intern_var_set([
+        VariableId::from_raw(TREATMENT),
+        VariableId::from_raw(CONFOUNDER),
+    ]);
+    let marginal = arena.intern(ExprNode::Distribution {
+        variables: confounder,
+        conditioned_on: empty,
+        intervention: none,
+        domain: DomainRef::Observational,
+        population,
+        regime: Some(regime),
+    });
+    let conditional = arena.intern(ExprNode::Distribution {
+        variables: outcome,
+        conditioned_on: given,
+        intervention: none,
+        domain: DomainRef::Observational,
+        population,
+        regime: Some(regime),
+    });
+    let factors = arena.intern_list([marginal, conditional]);
+    let product = arena.intern(ExprNode::Product(factors));
+    let root = arena.intern(ExprNode::SumOut { variables: confounder, expr: product });
+    (arena, root)
+}
+
+fn outcome_mean(law: &ExactDiscreteLaw, regime: RegimeId, level: i64) -> f64 {
+    let (arena, root) = adjustment(law.population(), regime);
+    let data = ExactTransportData::try_new(vec![law.clone()], 64).expect("one law");
+    let ctx = ExecutionContext::for_tests(1);
+    let plan = ExactEvaluationPlan::compile(
+        ExactEvaluationSpec {
+            arena: &arena,
+            root,
+            outcomes: Arc::from([VariableId::from_raw(OUTCOME)]),
+            request: Assignment::from_pairs([(
+                VariableId::from_raw(TREATMENT),
+                Value::Int64(level),
+            )]),
+            limits: ExactEvaluationLimits::default(),
+            tolerance: LawTolerance::default(),
+        },
+        data,
+        &ctx,
+    )
+    .expect("adjustment compiles");
+    plan.evaluate(&ctx).expect("adjustment evaluates").mean(VariableId::from_raw(OUTCOME)).unwrap()
+}
+
+fn reload_law(law: &ExactDiscreteLaw) -> ExactDiscreteLaw {
+    let bytes = serde_json::to_vec(&ExactLawWire::from_law(law)).expect("law wire");
+    serde_json::from_slice::<ExactLawWire>(&bytes).expect("law wire parses").to_law().unwrap()
+}
+
+fn empirical_law(cases: &serde_json::Value, regime: u32) -> ExactDiscreteLaw {
+    let discrete = &cases["finite_discrete"];
+    let counts = json_u64s(&discrete["counts"]);
+    ExactDiscreteLaw::try_empirical(
+        discrete["population"].as_str().unwrap(),
+        RegimeId::from_raw(regime),
+        [],
+        binary_axes(),
+        probabilities(&counts),
+        discrete["snapshot"].as_str().unwrap(),
+        LawTolerance::default(),
+    )
+    .unwrap()
+    .with_empirical_counts(counts)
+    .unwrap()
+}
+
+fn assert_adjustment(law: &ExactDiscreteLaw, regime: RegimeId, cases: &serde_json::Value) {
+    let discrete = &cases["finite_discrete"];
+    let active = outcome_mean(law, regime, 1);
+    let control = outcome_mean(law, regime, 0);
+    assert!(near(active, discrete["active"].as_f64().unwrap()));
+    assert!(near(control, discrete["control"].as_f64().unwrap()));
+    assert!(near(active - control, discrete["contrast"].as_f64().unwrap()));
+    assert_eq!(law.empirical_counts().unwrap(), json_u64s(&discrete["counts"]));
+}
+
+/// The frequency table and the two posterior draws are loaded from their own law
+/// wires. Static and horizon regimes share the counts and keep distinct regime ids.
+/// `gaussian` and `linear_gaussian` are not law origins.
+#[test]
+fn finite_discrete_adjustment_reloads_from_the_law_artifact() {
+    let cases = slice_cases();
+    let discrete = &cases["finite_discrete"];
+    let static_regime = u32::try_from(discrete["static_regime"].as_u64().unwrap()).unwrap();
+    let horizon_regime = u32::try_from(discrete["horizon_regime"].as_u64().unwrap()).unwrap();
+    let loaded = reload_law(&empirical_law(&cases, static_regime));
+    assert_adjustment(&loaded, RegimeId::from_raw(static_regime), &cases);
+    let mut horizon_wire = ExactLawWire::from_law(&loaded);
+    horizon_wire.regime = horizon_regime;
+    let horizon_bytes = serde_json::to_vec(&horizon_wire).unwrap();
+    let horizon = serde_json::from_slice::<ExactLawWire>(&horizon_bytes).unwrap().to_law().unwrap();
+    assert_ne!(loaded.regime(), horizon.regime());
+    assert_adjustment(&horizon, RegimeId::from_raw(horizon_regime), &cases);
+
+    let mut mixed = 0.0;
+    for draw in discrete["posterior_draws"].as_array().unwrap() {
+        let counts = json_u64s(&draw["counts"]);
+        let law = reload_law(
+            &ExactDiscreteLaw::try_bayesian_posterior(
+                discrete["population"].as_str().unwrap(),
+                RegimeId::from_raw(static_regime),
+                [],
+                binary_axes(),
+                probabilities(&counts),
+                discrete["snapshot"].as_str().unwrap(),
+                LawTolerance::default(),
+            )
+            .unwrap(),
+        );
+        let contrast = outcome_mean(&law, RegimeId::from_raw(static_regime), 1)
+            - outcome_mean(&law, RegimeId::from_raw(static_regime), 0);
+        assert!(near(contrast, draw["contrast"].as_f64().unwrap()));
+        mixed += draw["weight"].as_f64().unwrap() * contrast;
+    }
+    assert!(near(mixed, discrete["posterior_mean"].as_f64().unwrap()));
+
+    for origin in json_strings(&discrete["refused_origins"]) {
+        let mut wire = ExactLawWire::from_law(&loaded);
+        wire.origin = origin;
+        let error = wire.to_law().unwrap_err().to_string();
+        assert!(error.contains("unknown law origin"), "{error}");
+    }
+}
+
+/// The line rows are one aligned joint draw. The contrast is the ordinary least-squares slope.
+#[test]
+fn gaussian_line_reloads_as_aligned_joint_draws() {
+    let cases = slice_cases();
+    let gaussian = &cases["gaussian"];
+    let treatment = json_f64s(&gaussian["treatment"]);
+    let outcome = json_f64s(&gaussian["outcome"]);
+    let mut draws = Vec::with_capacity(treatment.len() * 2);
+    for (arm, response) in treatment.iter().zip(&outcome) {
+        draws.push(*arm);
+        draws.push(*response);
+    }
+    let identity = DistributionIdentity::new(
+        DistributionMeaningWire::EmpiricalOutcome,
+        &[
+            ScientificQuantity {
+                variable_id: "t".into(),
+                variable_name: "t".into(),
+                role: QuantityRole::Treatment,
+                units: "units".into(),
+                population_id: "target".into(),
+                regime_id: "observational".into(),
+                horizon: 0,
+                functional_id: "treatment".into(),
+                conditioning: vec![],
+                transform_id: "identity".into(),
+            },
+            ScientificQuantity {
+                variable_id: "y".into(),
+                variable_name: "y".into(),
+                role: QuantityRole::Outcome,
+                units: "units".into(),
+                population_id: "target".into(),
+                regime_id: "observational".into(),
+                horizon: 0,
+                functional_id: "outcome".into(),
+                conditioning: vec![],
+                transform_id: "identity".into(),
+            },
+        ],
+        DrawAlignment::Joint,
+        DistributionProvenance {
+            source_id: "line-rows".into(),
+            provider_id: "cross-surface-line".into(),
+            rng_id: "deterministic_exact".into(),
+            snapshot_id: "line-snapshot".into(),
+            causal_contract_id: "checked-contract".into(),
+        },
+    )
+    .unwrap();
+    let bytes = law_with(identity.clone(), draws).to_bytes("gaussian-line").unwrap();
+    let loaded = DistributionArtifact::from_bytes(&bytes, &identity).unwrap();
+    assert!(near(loaded.mean(0).unwrap(), 0.5));
+    assert!(near(loaded.mean(1).unwrap(), 2.0));
+    let slope = loaded.covariance(0, 1).unwrap() / loaded.covariance(0, 0).unwrap();
+    assert!(near(slope, gaussian["effect"].as_f64().unwrap()));
+    let wrong = joint_identity(DistributionMeaningWire::Bootstrap, DrawAlignment::Joint, "y");
+    assert!(DistributionArtifact::from_bytes(&bytes, &wrong).is_err());
+    assert!(DistributionArtifact::from_bytes(&flip_last_byte(&bytes), &identity).is_err());
+}
+
+/// Feedback is the named modular policy. A coherent joint stores no cut, and a blank
+/// reconciliation is refused before a policy exists.
+#[test]
+fn specified_feedback_reloads_from_the_declared_record() {
+    let feedback = slice_cases()["feedback"].clone();
+    let reconciliation = feedback["reconciliation"].as_str().unwrap();
+    let specified = CutFeedback::from_name(feedback["specified"].as_str().unwrap()).unwrap();
+    let cut = CutFeedback::from_name(feedback["cut"].as_str().unwrap()).unwrap();
+    assert_eq!(specified, CutFeedback::Feedback);
+    assert_eq!(cut, CutFeedback::Cut);
+    assert!(CutFeedback::from_name("cycle").is_none());
+    let policy = MixedModulePolicy::declared_modular(reconciliation, specified).unwrap();
+    assert_eq!(policy.cut_feedback(), Some(CutFeedback::Feedback));
+    assert_eq!(policy.reconciliation().unwrap().as_str(), reconciliation);
+    assert!(MixedModulePolicy::coherent_joint().cut_feedback().is_none());
+    assert_eq!(
+        MixedModulePolicy::declared_modular("  ", specified).unwrap_err(),
+        MixedModuleRefusal::BlankReconciliation
+    );
 }

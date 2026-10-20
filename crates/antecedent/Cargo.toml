@@ -382,6 +382,10 @@ name = "horizon_one_equivalence"
 path = "tests/horizon_one_equivalence.rs"
 
 [[test]]
+name = "composition_cross_surface_slices"
+path = "tests/composition_cross_surface_slices.rs"
+
+[[test]]
 name = "joint_law_composed_interval_calibration"
 path = "tests/joint_law_composed_interval_calibration.rs"
 
