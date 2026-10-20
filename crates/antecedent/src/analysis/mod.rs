@@ -84,6 +84,7 @@ pub mod inverse_query;
 pub mod inverse_sources;
 pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
+mod joint_contrast;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
 pub mod latent_class_effects;
