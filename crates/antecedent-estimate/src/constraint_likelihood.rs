@@ -301,7 +301,8 @@ mod tests {
             .map(|y| PolynomialMeasurement { values: vec![y], variances: vec![0.01] })
             .collect();
         let ctx = ExecutionContext::for_tests(1);
-        let fit = fit_polynomial_candidates(&candidates, &data, Default::default(), &ctx).unwrap();
+        let fit = fit_polynomial_candidates(&candidates, &data, IsolationPolicy::default(), &ctx)
+            .unwrap();
         assert_eq!(fit.best_candidate.as_deref(), Some("a=0.81"));
         assert!(fit.finite_set_optimum_certified);
         let unresolved = fit_polynomial_candidates(

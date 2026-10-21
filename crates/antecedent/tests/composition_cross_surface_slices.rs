@@ -388,7 +388,7 @@ fn discrete_arm(
             variable: v(TREATMENT),
             value: Value::Int64(i64::from(level)),
         }],
-        &discrete_table(counts, |treatment| treatment == f64::from(level)),
+        &discrete_table(counts, |treatment| treatment.to_bits() == f64::from(level).to_bits()),
         &[v(CONFOUNDER), v(OUTCOME)],
     )
     .unwrap();

@@ -17,7 +17,6 @@
     )
 )]
 
-use std::cell::RefCell;
 use std::sync::Arc;
 
 use antecedent_core::{AverageEffectQuery, ExecutionContext, OutcomeFunctional, VariableId};
@@ -247,22 +246,6 @@ fn build_scores_pass(
     // outcome slots are only ever locked under their propensity slot, so leases cannot
     // deadlock. A failed build leaves every slot empty.
     let fold_ids: Arc<[u32]> = Arc::from(fold_ids);
-    // Certified reuse sits beside [`crate::CrossfitNuisanceCache`]. An inactive scope, a
-    // penalized or weighted fit, or more than the mean functional keeps the fold loop.
-    let certify = crate::nuisance_cache::certification_requested()
-        && unpenalized
-        && sampling.is_none()
-        && thresholds.len() == 1
-        && thresholds[0].is_none();
-    let restored = if certify {
-        restore_certified_mean_table(problem, treatment, &fold_ids, folds, clip)?
-    } else {
-        None
-    };
-    if let Some(table) = restored {
-        return Ok((table, Vec::new()));
-    }
-    let certified = certify.then(|| RefCell::new(CertifiedMean::empty(n)));
     let lease = if share {
         crate::crossfit_cache::PropensityLease::acquire(|| crate::crossfit_cache::PropensityKey {
             design: Arc::clone(&problem.design_matrix),
@@ -399,18 +382,11 @@ fn build_scores_pass(
                         out[i] = e_valid[k];
                     }
                 }
-                if let Some(buffers) = certified.as_ref() {
-                    buffers.borrow_mut().fitted_e = true;
-                }
+
                 e_valid
             };
             let raw_e = e_valid.clone();
-            if let Some(buffers) = certified.as_ref() {
-                let mut buffers = buffers.borrow_mut();
-                for (k, &i) in valid.iter().enumerate() {
-                    buffers.e[i] = raw_e[k];
-                }
-            }
+
             if let Some(clip_at) = clip {
                 clamp_scores(&mut e_valid, clip_at);
             }
@@ -449,16 +425,6 @@ fn build_scores_pass(
                             mu0[i] = out_ws.mu0[k];
                             mu1[i] = out_ws.mu1[k];
                         }
-                    }
-                    if let Some(buffers) = certified.as_ref() {
-                        buffers.borrow_mut().fitted_mu = true;
-                    }
-                }
-                if let Some(buffers) = certified.as_ref() {
-                    let mut buffers = buffers.borrow_mut();
-                    for (k, &i) in valid.iter().enumerate() {
-                        buffers.mu0[i] = out_ws.mu0[k];
-                        buffers.mu1[i] = out_ws.mu1[k];
                     }
                 }
 
@@ -499,10 +465,6 @@ fn build_scores_pass(
     }
     drop(outcome_slots);
     drop(prop_slot);
-
-    if let Some(buffers) = certified {
-        store_certified_mean(problem, &fold_ids, buffers.into_inner())?;
-    }
 
     let provenance = format!(
         "{}{}",
@@ -547,236 +509,6 @@ fn build_scores_pass(
         preparation: None,
     };
     Ok((table, selections))
-}
-
-struct CertifiedMean {
-    e: Vec<f64>,
-    mu0: Vec<f64>,
-    mu1: Vec<f64>,
-    fitted_e: bool,
-    fitted_mu: bool,
-}
-
-impl CertifiedMean {
-    fn empty(rows: usize) -> Self {
-        Self {
-            e: vec![f64::NAN; rows],
-            mu0: vec![f64::NAN; rows],
-            mu1: vec![f64::NAN; rows],
-            fitted_e: false,
-            fitted_mu: false,
-        }
-    }
-}
-
-#[allow(clippy::needless_pass_by_value, reason = "map_err passes the cache error by value")]
-fn cache_failure(error: crate::nuisance_cache::NuisanceCacheError) -> EstimationError {
-    EstimationError::data_msg(error.to_string())
-}
-
-fn row_ids(problem: &PreparedPropensityProblem) -> Vec<u64> {
-    problem.row_index.iter().map(|id| id.get()).collect()
-}
-
-fn restore_certified_mean_table(
-    problem: &PreparedPropensityProblem,
-    treatment: VariableId,
-    fold_ids: &[u32],
-    folds: usize,
-    clip: Option<f64>,
-) -> Result<Option<ScoreTable>, EstimationError> {
-    let ids = row_ids(problem);
-    let mut e = vec![0.0; problem.nrows];
-    let mut mu0 = vec![0.0; problem.nrows];
-    let mut mu1 = vec![0.0; problem.nrows];
-    for fold in 0..folds {
-        let fold_id = u32::try_from(fold).unwrap_or(u32::MAX);
-        let rows: Vec<usize> = fold_ids
-            .iter()
-            .enumerate()
-            .filter(|(_, id)| **id == fold_id)
-            .map(|(index, _)| index)
-            .collect();
-        if rows.is_empty() {
-            return Ok(None);
-        }
-        let row_ids: Vec<u64> = rows.iter().map(|&i| ids[i]).collect();
-        let Some(e_rows) = crate::nuisance_cache::restore_active(
-            crate::nuisance_cache::NuisanceRole::Treatment,
-            fold_id,
-            &row_ids,
-        )
-        .map_err(cache_failure)?
-        else {
-            return Ok(None);
-        };
-        let Some(m0) = crate::nuisance_cache::restore_active(
-            crate::nuisance_cache::NuisanceRole::Outcome { level: 0 },
-            fold_id,
-            &row_ids,
-        )
-        .map_err(cache_failure)?
-        else {
-            return Ok(None);
-        };
-        let Some(m1) = crate::nuisance_cache::restore_active(
-            crate::nuisance_cache::NuisanceRole::Outcome { level: 1 },
-            fold_id,
-            &row_ids,
-        )
-        .map_err(cache_failure)?
-        else {
-            return Ok(None);
-        };
-        if e_rows.len() != rows.len() || m0.len() != rows.len() || m1.len() != rows.len() {
-            return Err(EstimationError::data_msg(
-                "certified AIPW restore length does not match the fold",
-            ));
-        }
-        for (k, &i) in rows.iter().enumerate() {
-            e[i] = e_rows[k];
-            mu0[i] = m0[k];
-            mu1[i] = m1[k];
-        }
-    }
-    crate::nuisance_cache::record_active_hits(3);
-    mean_score_table(problem, treatment, fold_ids, folds, clip, &e, &mu0, &mu1, &[]).map(Some)
-}
-
-fn store_certified_mean(
-    problem: &PreparedPropensityProblem,
-    fold_ids: &[u32],
-    buffers: CertifiedMean,
-) -> Result<(), EstimationError> {
-    if buffers.e.iter().any(|value| !value.is_finite())
-        || buffers.mu0.iter().any(|value| !value.is_finite())
-        || buffers.mu1.iter().any(|value| !value.is_finite())
-    {
-        return Err(EstimationError::data_msg(
-            "certified AIPW nuisance was not written for every row",
-        ));
-    }
-    let ids = row_ids(problem);
-    let roles = [
-        (crate::nuisance_cache::NuisanceRole::Treatment, buffers.e),
-        (crate::nuisance_cache::NuisanceRole::Outcome { level: 0 }, buffers.mu0),
-        (crate::nuisance_cache::NuisanceRole::Outcome { level: 1 }, buffers.mu1),
-    ];
-    let mut stored = Vec::with_capacity(roles.len());
-    for (role, values) in roles {
-        let blocks = crate::nuisance_cache::blocks_by_fold(&ids, fold_ids, &values)
-            .map_err(cache_failure)?;
-        stored.push((role, blocks));
-    }
-    for (role, blocks) in &stored {
-        crate::nuisance_cache::store_active(*role, blocks).map_err(cache_failure)?;
-    }
-    let fitted = u64::from(buffers.fitted_e) + u64::from(buffers.fitted_mu) * 2;
-    crate::nuisance_cache::record_certified_fits(fitted);
-    Ok(())
-}
-
-#[allow(
-    clippy::too_many_arguments,
-    reason = "the mean score table takes the same aligned row inputs the fold loop writes"
-)]
-fn mean_score_table(
-    problem: &PreparedPropensityProblem,
-    treatment: VariableId,
-    fold_ids: &[u32],
-    folds: usize,
-    clip: Option<f64>,
-    raw_e: &[f64],
-    mu0: &[f64],
-    mu1: &[f64],
-    selections: &[RidgeFoldSelection],
-) -> Result<ScoreTable, EstimationError> {
-    let n = problem.nrows;
-    let mut e_used = raw_e.to_vec();
-    if let Some(clip_at) = clip {
-        clamp_scores(&mut e_used, clip_at);
-    }
-    require_interior_propensities(&e_used)?;
-    let mut scores = vec![0.0; n * 2];
-    let mut propensities = vec![0.0; n * 2];
-    for i in 0..n {
-        let t = problem.treatment[i];
-        let y = problem.outcome[i];
-        let e = e_used[i];
-        let m0 = mu0[i];
-        let m1 = mu1[i];
-        propensities[i] = 1.0 - raw_e[i];
-        propensities[n + i] = raw_e[i];
-        scores[i] = m0 + ((1.0 - t) / (1.0 - e)) * (y - m0);
-        scores[n + i] = m1 + (t / e) * (y - m1);
-    }
-    let provenance = format!(
-        "{}{}",
-        if problem.shared_design {
-            "aipw.crossfit.v1;batch.shared_design"
-        } else {
-            AIPW_CROSSFIT_PROVENANCE
-        },
-        problem.propensity.provenance_suffix_with(selections, &problem.adjustment_set)
-    );
-    let provenance = match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
-        (None, Some(units)) => format!(
-            "{provenance}{}",
-            crate::cluster_dml_aipw::provenance_suffix(units, problem.fold_unit_kind)
-        ),
-        _ => provenance,
-    };
-    Ok(ScoreTable {
-        observed_arm: problem
-            .treatment
-            .iter()
-            .map(|t| u32::from(*t > 0.5))
-            .collect::<Vec<_>>()
-            .into(),
-        propensities: propensities.into(),
-        observed_outcome: Arc::clone(&problem.outcome),
-        n_rows: n,
-        row_index: Arc::clone(&problem.row_index),
-        fold_ids: Arc::from(fold_ids),
-        n_folds: u32::try_from(folds).unwrap_or(u32::MAX),
-        scores: Arc::from(scores),
-        columns: Arc::from([
-            ScoreColumn { arm: 0, threshold: None },
-            ScoreColumn { arm: 1, threshold: None },
-        ]),
-        adjustment_set: Arc::clone(&problem.adjustment_set),
-        nuisance_provenance: Arc::from(provenance),
-        propensity_clip: clip,
-        treatment,
-        intervened: Arc::from([]),
-        preparation: None,
-    })
-}
-
-/// Execute AIPW prepared requests through the certified nuisance cache.
-///
-/// # Errors
-///
-/// [`crate::nuisance_cache::NuisanceCacheError::WrongFamily`] when a request is not AIPW,
-/// and the compilation and execution errors of the shared subplan.
-#[must_use = "a refused AIPW subplan is not a certified fit"]
-pub fn execute_certified_aipw(
-    cache: &mut crate::nuisance_cache::NuisanceCache,
-    requests: &[crate::nuisance_cache::PreparedFamilyRequest],
-    produce: impl FnMut(
-        &crate::nuisance_cache::NuisanceCacheKey,
-        crate::nuisance_cache::NuisanceRole,
-    ) -> Result<
-        Vec<crate::nuisance_cache::BlockedOutOfFoldPredictions>,
-        crate::nuisance_cache::NuisanceCacheError,
-    >,
-) -> Result<crate::nuisance_cache::BatchExecution, crate::nuisance_cache::NuisanceCacheError> {
-    crate::nuisance_cache::execute_family_requests(
-        crate::nuisance_cache::EstimatorFamily::Aipw,
-        cache,
-        requests,
-        produce,
-    )
 }
 
 /// Map an outcome functional to score-table thresholds (`None` = mean).
@@ -952,152 +684,6 @@ mod tests {
             table.scores.iter().map(|v| v.to_bits()).collect(),
             table.propensities.iter().map(|v| v.to_bits()).collect(),
         )
-    }
-
-    fn certified_aipw_key(
-        problem: &PreparedPropensityProblem,
-    ) -> crate::nuisance_cache::NuisanceCacheKey {
-        use crate::nuisance_cache::{
-            DesignDependency, FoldAssignment, FoldRow, NuisanceCacheKey, NumericalDependencies,
-            ProviderDependency, TargetDependency, TreatmentDependency,
-        };
-        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest};
-        let arms = problem.fold_strata();
-        let plan = CrossfitPlan::derive(
-            problem.nrows,
-            5,
-            FoldSource::Stratified {
-                strata: &arms,
-                units: &problem.row_index,
-                seed: problem.fold_seed,
-            },
-            &SHARED_FOLD_ID_ERRORS,
-        )
-        .unwrap();
-        let fold_ids = plan.fold_ids();
-        let rows: Vec<FoldRow> = (0..problem.nrows)
-            .map(|row| FoldRow::new(problem.row_index[row].get(), fold_ids[row]))
-            .collect();
-        let mut bytes = [0u8; 32];
-        bytes[0] = 1;
-        let digest = SemanticDigest::from_bytes(bytes);
-        NuisanceCacheKey::new(
-            TargetDependency::new(digest),
-            DesignDependency::new(DesignDependencyId::from_raw(7)),
-            FoldAssignment::try_new(5, &rows, &[]).unwrap(),
-            TreatmentDependency::try_new("arm", digest).unwrap(),
-            ProviderDependency::new(ProviderId::from_raw(4), digest),
-            NumericalDependencies::try_new(antecedent_core::NumericalPolicy::strict(), &[])
-                .unwrap(),
-        )
-    }
-
-    #[test]
-    fn certified_aipw_second_request_reuses_the_fit() {
-        use crate::crossfit_cache::CrossfitNuisanceCache;
-        use crate::nuisance_cache::{NuisanceCache, NuisanceCacheKey, with_certified_cache};
-        let (data, estimand) = confounded(400, 61);
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let est = AipwAte::new();
-        let problem = est.prepare(&data, &estimand, &query).unwrap();
-        let solo =
-            crossfit_binary_scores(&problem, &query, 5, &est.glm_options, est.backend).unwrap();
-        let key = certified_aipw_key(&problem);
-        let mut cache = NuisanceCache::new();
-        let score = |cache: &mut NuisanceCache, key: &NuisanceCacheKey| {
-            let crossfit = CrossfitNuisanceCache::new();
-            let ((table, receipt), _) = crossfit.scope(|| {
-                with_certified_cache(cache, key, || {
-                    crossfit_binary_scores(&problem, &query, 5, &est.glm_options, est.backend)
-                        .unwrap()
-                })
-            });
-            (table, receipt, crossfit.completed_fold_fits())
-        };
-        let (first, receipt, fold_fits) = score(&mut cache, &key);
-        assert_eq!(table_bits(&first), table_bits(&solo));
-        assert_eq!((receipt.scans, receipt.fits, receipt.hits), (1, 3, 0));
-        assert_eq!(fold_fits, 10);
-        let (again, receipt, fold_fits) = score(&mut cache, &key);
-        assert_eq!(table_bits(&again), table_bits(&solo));
-        assert_eq!((receipt.scans, receipt.fits, receipt.hits), (0, 0, 3));
-        assert_eq!(fold_fits, 0, "the certified hit does not refit");
-
-        let mut bytes = [0u8; 32];
-        bytes[0] = 2;
-        let changed = NuisanceCacheKey::new(
-            crate::nuisance_cache::TargetDependency::new(
-                antecedent_core::SemanticDigest::from_bytes(bytes),
-            ),
-            key.design(),
-            key.folds().clone(),
-            key.treatment().clone(),
-            key.provider(),
-            key.numerical().clone(),
-        );
-        let (_, receipt, fold_fits) = score(&mut cache, &changed);
-        assert_eq!((receipt.scans, receipt.fits), (1, 3));
-        assert_eq!(fold_fits, 10, "a different target misses");
-    }
-
-    #[test]
-    fn aipw_family_executor_reuses_the_certified_fit() {
-        use crate::nuisance_cache::{
-            BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency, EstimatorFamily,
-            FoldAssignment, FoldRow, NuisanceCache, NuisanceCacheKey, NuisanceRole,
-            NumericalDependencies, PredictedRow, PreparedFamilyRequest, ProviderDependency,
-            RequestColumns, TargetDependency, TreatmentDependency,
-        };
-        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
-        let mut bytes = [0u8; 32];
-        bytes[0] = 4;
-        let digest = SemanticDigest::from_bytes(bytes);
-        let folds =
-            FoldAssignment::try_new(2, &[FoldRow::new(10, 0), FoldRow::new(40, 1)], &[]).unwrap();
-        let key = NuisanceCacheKey::new(
-            TargetDependency::new(digest),
-            DesignDependency::new(DesignDependencyId::from_raw(7)),
-            folds,
-            TreatmentDependency::try_new("arm", digest).unwrap(),
-            ProviderDependency::new(ProviderId::from_raw(4), digest),
-            NumericalDependencies::try_new(antecedent_core::NumericalPolicy::strict(), &[])
-                .unwrap(),
-        );
-        let prepared = PreparedFamilyRequest::try_new(
-            EstimatorFamily::Aipw,
-            RequestColumns::try_new("outcome", "arm", &["z"]).unwrap(),
-            CertifiedSource::new(SourceDependencyId::from_raw(3), digest),
-            key,
-            &[NuisanceRole::Treatment],
-        )
-        .unwrap();
-        let mut cache = NuisanceCache::new();
-        let calls = std::cell::Cell::new(0u64);
-        let run = |cache: &mut NuisanceCache, requests: &[PreparedFamilyRequest]| {
-            execute_certified_aipw(cache, requests, |_, _| {
-                calls.set(calls.get().saturating_add(1));
-                let rows = [
-                    PredictedRow::try_new(10, 0.2).unwrap(),
-                    PredictedRow::try_new(40, 0.4).unwrap(),
-                ];
-                Ok(vec![
-                    BlockedOutOfFoldPredictions::try_new(0, &rows[..1]).unwrap(),
-                    BlockedOutOfFoldPredictions::try_new(1, &rows[1..]).unwrap(),
-                ])
-            })
-        };
-        let first = run(&mut cache, &[prepared.clone(), prepared.clone()]).unwrap();
-        assert_eq!(calls.get(), 1);
-        assert_eq!((first.receipt().scans, first.receipt().fits), (1, 1));
-        calls.set(0);
-        let second = run(&mut cache, &[prepared]).unwrap();
-        assert_eq!(calls.get(), 0);
-        assert_eq!(
-            (second.receipt().scans, second.receipt().fits, second.receipt().hits),
-            (0, 0, 1)
-        );
-        assert_eq!(first.fits()[0], second.fits()[0]);
     }
 
     #[test]

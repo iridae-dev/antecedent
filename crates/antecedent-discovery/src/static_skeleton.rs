@@ -23,6 +23,91 @@ use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, EdgeEvidence, LaggedLink, PcSepsets, ScoredLink,
 };
 
+/// One borrowed cohort and every possible decision boundary for this search.
+pub(crate) struct CovarianceSearch<'a> {
+    session: antecedent_stats::ci::CovarianceCiSession<'a>,
+    thresholds: Vec<f64>,
+}
+
+impl<'a> CovarianceSearch<'a> {
+    pub(crate) fn prepare(
+        ci: &dyn ConditionalIndependence,
+        cols: &'a [&'a [f64]],
+        constraints: &DiscoveryConstraints,
+        fdr: Option<antecedent_stats::FdrAdjustment>,
+        ctx: &ExecutionContext,
+    ) -> Option<Self> {
+        use antecedent_stats::{MultipleTestingMethod, SignificanceMethod};
+        // Parent caps rank evidence against other evidence, rather than a
+        // known rejection threshold. Keep their exact reference ranking.
+        if constraints.significance != SignificanceMethod::Analytic
+            || constraints.max_parents.is_some()
+        {
+            return None;
+        }
+        let edges = cols.len().checked_mul(cols.len().checked_sub(1)?)? / 2;
+        // Keep the possible-family grid bounded. Larger FDR families use the
+        // ordinary route rather than allocate quadratic threshold storage.
+        if fdr.is_some() && edges > 512 {
+            return None;
+        }
+        let threshold_count = match fdr.map(|cfg| cfg.method) {
+            Some(
+                MultipleTestingMethod::BenjaminiHochberg
+                | MultipleTestingMethod::BenjaminiYekutieli,
+            ) => edges.checked_mul(edges.checked_add(1)?)?.checked_div(2)?.checked_add(1)?,
+            Some(_) => edges.checked_add(1)?,
+            None => 1,
+        };
+        let preparation_cells = cols
+            .first()?
+            .len()
+            .checked_mul(cols.len())?
+            .checked_add(cols.len().checked_mul(cols.len())?)?
+            .checked_add(cols.len())?
+            .checked_add(threshold_count)?;
+        let bytes =
+            preparation_cells.checked_mul(size_of::<f64>())?.checked_add(size_of::<Self>())?;
+        if ctx.cache_policy.max_bytes.is_some_and(|cap| bytes as u64 > cap) {
+            return None;
+        }
+        let session = ci.covariance_session(cols, ctx)?;
+        let mut thresholds = Vec::with_capacity(threshold_count);
+        thresholds.push(constraints.alpha);
+        if let Some(cfg) = fdr {
+            let mut harmonic = 0.0;
+            for m in 1..=edges {
+                harmonic += 1.0 / m as f64;
+                let scale = if cfg.method == MultipleTestingMethod::BenjaminiYekutieli {
+                    harmonic
+                } else {
+                    1.0
+                };
+                let max_rank = match cfg.method {
+                    MultipleTestingMethod::BenjaminiHochberg
+                    | MultipleTestingMethod::BenjaminiYekutieli => m,
+                    MultipleTestingMethod::Bonferroni | MultipleTestingMethod::Holm => 1,
+                };
+                for rank in 1..=max_rank {
+                    thresholds.push(constraints.alpha * rank as f64 / (m as f64 * scale));
+                }
+            }
+        }
+        thresholds.sort_unstable_by(f64::total_cmp);
+        thresholds.dedup();
+        Some(Self { session, thresholds })
+    }
+
+    fn test(
+        &self,
+        query: CiQuery,
+        z_flat: &[usize],
+        confidence: antecedent_stats::ConfidenceMethod,
+    ) -> Option<antecedent_stats::CiResult> {
+        self.session.try_test(query, z_flat, confidence, &self.thresholds)
+    }
+}
+
 /// Undirected skeleton as one bit-row per variable.
 ///
 /// Row `i` bit `j` is the edge between `variables[i]` and `variables[j]`. A
@@ -176,6 +261,7 @@ pub(crate) struct StaticSkeleton {
 
 /// Inputs of [`run_static_skeleton`].
 pub(crate) struct StaticSkeletonInput<'a> {
+    pub covariance: Option<&'a CovarianceSearch<'a>>,
     pub ci: &'a (dyn ConditionalIndependence + Sync),
     pub constraints: &'a DiscoveryConstraints,
     pub cols: &'a [&'a [f64]],
@@ -269,6 +355,12 @@ pub(crate) fn static_ci_test(
         .as_ref()
         .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
     let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
+    if let Some(result) = input
+        .covariance
+        .and_then(|cov| cov.test(queries[0], &workspace.z_flat, prepared.plan.confidence))
+    {
+        return Ok((result.statistic, result.p_value));
+    }
     let req =
         crate::ci::ci_batch_request(cols, &queries, &workspace.z_flat, constraints.significance);
     let result = run_ci_batch(ci, prepared, &req, &mut workspace.ci, ctx)
@@ -311,6 +403,38 @@ fn static_ci_batch(
     }
     let req = crate::ci::ci_batch_request(cols, &queries, &z_flat, constraints.significance);
     let prepared = workspace.prepared_ci.as_ref()?;
+    if let Some(cov) = input.covariance {
+        // Small covariance solves are cheaper than spawning workers, but
+        // rejected queries can still require full residual fits. Batch those
+        // through the original worker scheduler, then restore query order.
+        let mut results: Vec<_> = queries
+            .iter()
+            .map(|&query| cov.test(query, &z_flat, prepared.plan.confidence))
+            .collect();
+        let missing: Vec<_> = results
+            .iter()
+            .enumerate()
+            .filter_map(|(i, result)| result.is_none().then_some(i))
+            .collect();
+        if !missing.is_empty() {
+            let fallback_queries: Vec<_> = missing.iter().map(|&i| queries[i]).collect();
+            let fallback_request = crate::ci::ci_batch_request(
+                cols,
+                &fallback_queries,
+                &z_flat,
+                constraints.significance,
+            );
+            let fallback =
+                run_ci_batch(ci, prepared, &fallback_request, &mut workspace.ci, ctx).ok()?;
+            if fallback.len() != missing.len() {
+                return None;
+            }
+            for (index, result) in missing.into_iter().zip(fallback) {
+                results[index] = Some(result);
+            }
+        }
+        return results.into_iter().collect();
+    }
     let results = run_ci_batch(ci, prepared, &req, &mut workspace.ci, ctx).ok()?;
     (results.len() == zs.len()).then_some(results)
 }

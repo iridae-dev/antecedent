@@ -44,8 +44,8 @@ fn data() -> TabularData {
     let mut y = Vec::with_capacity(n);
     let mut z = Vec::with_capacity(n);
     for i in 0..n {
-        let ti = (i % 2) as f64;
-        let zi = ((i * 37 % 101) as f64 - 50.0) / 50.0;
+        let ti = f64::from(u32::try_from(i % 2).unwrap());
+        let zi = (f64::from(u32::try_from(i * 37 % 101).unwrap()) - 50.0) / 50.0;
         t.push(ti);
         z.push(zi);
         y.push(2.0 * ti + zi + ((i * 13 % 47) as f64 - 23.0) / 100.0);
@@ -344,8 +344,9 @@ fn gaussian_design_reuse_rebinds_rows_and_recomputes_draws() {
     assert!(!cached(&prepared.estimate(&data, &ctx).unwrap()));
 
     // A new outcome, under the same schema and shape, must replace the binding.
-    let t: Vec<_> = (0..512).map(|i| (i % 2) as f64).collect();
-    let z: Vec<_> = (0..512).map(|i| ((i * 37 % 101) as f64 - 50.0) / 50.0).collect();
+    let t: Vec<_> = (0..512).map(|i| f64::from(u32::try_from(i % 2).unwrap())).collect();
+    let z: Vec<_> =
+        (0..512).map(|i| (f64::from(u32::try_from(i * 37 % 101).unwrap()) - 50.0) / 50.0).collect();
     let y: Vec<_> =
         (0..512).map(|i| 4.0 * t[i] + z[i] + ((i * 13 % 47) as f64 - 23.0) / 100.0).collect();
     let changed = TabularData::try_from_schema_f64(

@@ -15,9 +15,15 @@ from typing import Any
 
 import numpy as np
 
+_ATOMIC_TYPES = frozenset((type(None), bool, int, float, complex, str, bytes))
+
 
 def freeze(value: Any) -> Any:
     """Return an immutable copy of mappings, lists and tuples."""
+    # Report schemas have many absent fields and scalar leaves. Exact types
+    # avoid treating a scalar subclass with dataclass fields as immutable.
+    if type(value) in _ATOMIC_TYPES:
+        return value
     from dataclasses import fields, is_dataclass
 
     if is_dataclass(value) and not isinstance(value, type):

@@ -2,9 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::mem::size_of;
-use std::time::{Duration, Instant};
-
 use faer::diag::Diag;
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::linalg::qr::col_pivoting::factor::{
@@ -21,6 +18,9 @@ use antecedent_core::execution::AdmissionLease;
 
 use crate::faer_scope::{FaerScope, FaerScopeError, detached_serial_lease};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
+
+mod resampling;
+pub use resampling::{ResampledLeastSquares, ResampledLeastSquaresWorkspace};
 
 /// Default `faer` backend.
 #[derive(Clone, Copy, Debug, Default)]
@@ -118,7 +118,6 @@ impl FaerBackend {
         }
         let mut scratch = FactorScratch::new();
         min_norm_on_column_major(x_colmajor, nrows, ncols, y, serial_scope(), &mut scratch, 0)
-            .map(|(fit, _factors)| fit)
     }
 }
 
@@ -162,26 +161,6 @@ pub(crate) struct ScopedQr {
 }
 
 impl ScopedQr {
-    /// Counted bytes of the factors and both permutation vectors.
-    #[must_use]
-    pub(crate) fn counted_bytes(&self) -> u64 {
-        counted_bytes(self.q_basis.nrows().saturating_mul(self.q_basis.ncols()), size_of::<f64>())
-            .saturating_add(counted_bytes(
-                self.q_coeff.nrows().saturating_mul(self.q_coeff.ncols()),
-                size_of::<f64>(),
-            ))
-            .saturating_add(counted_bytes(
-                self.r_full.nrows().saturating_mul(self.r_full.ncols()),
-                size_of::<f64>(),
-            ))
-            .saturating_add(counted_bytes(
-                self.thin_r.nrows().saturating_mul(self.thin_r.ncols()),
-                size_of::<f64>(),
-            ))
-            .saturating_add(counted_bytes(self.perm_forward.len(), size_of::<usize>()))
-            .saturating_add(counted_bytes(self.perm_inverse.len(), size_of::<usize>()))
-    }
-
     /// Numerical rank and `min|R_ii| / max|R_ii|` from the leading triangle.
     ///
     /// The tolerance is `sqrt(nrows) · ε · max|R_ii|`, the same rule as
@@ -235,14 +214,9 @@ impl FactorScratch {
         Self { buffer: None, root: Some(root), child: None }
     }
 
-    /// Address of the buffer, when one has been allocated.
-    #[must_use]
-    pub(crate) fn address(&self) -> Option<usize> {
-        self.buffer.as_ref().map(|buffer| buffer.as_ptr().cast::<u8>().addr())
-    }
-
     /// Bytes of the retained buffer. Zero when nothing has been allocated.
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn bytes(&self) -> u64 {
         match self.buffer.as_ref() {
             Some(buffer) => match u64::try_from(buffer.len()) {
@@ -255,6 +229,7 @@ impl FactorScratch {
 
     /// Whether this scratch holds one buffer.
     #[must_use]
+    #[cfg(test)]
     pub(crate) const fn is_allocated(&self) -> bool {
         self.buffer.is_some()
     }
@@ -285,18 +260,6 @@ impl FactorScratch {
     fn buffer_mut(&mut self) -> Result<&mut MemBuffer, StatsError> {
         self.buffer.as_mut().ok_or(StatsError::Backend("faer scratch was not allocated".into()))
     }
-}
-
-/// Byte size of `len` elements of `width` bytes, or [`u64::MAX`] when that overflows.
-#[must_use]
-pub(crate) fn counted_bytes(len: usize, width: usize) -> u64 {
-    let Ok(len) = u64::try_from(len) else {
-        return u64::MAX;
-    };
-    let Ok(width) = u64::try_from(width) else {
-        return u64::MAX;
-    };
-    len.saturating_mul(width)
 }
 
 /// One worker. Scratch for this scope is drawn by [`FactorScratch`] from a
@@ -382,8 +345,6 @@ pub(crate) fn write_residuals(
 
 /// Minimum-norm coefficients of a column-major design, viewed in place.
 ///
-/// The second value is the counted bytes of `U`, `S`, and `V` while they were
-/// alive. Those factors are dropped before return.
 pub(crate) fn min_norm_on_column_major(
     design: &[f64],
     nrows: usize,
@@ -392,7 +353,7 @@ pub(crate) fn min_norm_on_column_major(
     scope: FaerScope,
     scratch: &mut FactorScratch,
     grow_count: u32,
-) -> Result<(LeastSquaresFit, u64), StatsError> {
+) -> Result<LeastSquaresFit, StatsError> {
     if y.len() != nrows {
         return Err(StatsError::Shape { message: "y length != nrows" });
     }
@@ -406,12 +367,6 @@ pub(crate) fn min_norm_on_column_major(
     let svd = thin_svd_in_scope(view, scope, scratch).map_err(|_| {
         StatsError::Backend("minimum-norm least squares: SVD did not converge".into())
     })?;
-    let factor_bytes = counted_bytes(svd.u.nrows().saturating_mul(svd.u.ncols()), size_of::<f64>())
-        .saturating_add(counted_bytes(svd.s.as_ref().column_vector().nrows(), size_of::<f64>()))
-        .saturating_add(counted_bytes(
-            svd.v.nrows().saturating_mul(svd.v.ncols()),
-            size_of::<f64>(),
-        ));
     let (u, s, v) = (svd.u.as_ref(), svd.s.as_ref().column_vector(), svd.v.as_ref());
     let size = nrows.min(ncols);
     let s_max = (0..size).map(|index| s[index].abs()).fold(0.0_f64, f64::max);
@@ -435,42 +390,13 @@ pub(crate) fn min_norm_on_column_major(
     let mut residuals = vec![0.0; nrows];
     let rss = write_residuals(design, nrows, ncols, y, &coefficients, &mut residuals);
     let rcond = (rank > 0).then(|| s_min / s_max);
-    Ok((
-        LeastSquaresFit {
-            coefficients,
-            residuals,
-            rank,
-            rss,
-            diagnostics: FitDiagnostics::new(rank, rcond, "faer-svd", grow_count),
-        },
-        factor_bytes,
-    ))
-}
-
-/// Time one column-pivoted QR under `scope`.
-///
-/// The clock starts after the design has been copied into a factor matrix and
-/// stops after that factor's rank has been read. The duration is not a
-/// crossover threshold.
-pub(crate) fn column_pivoted_qr_duration(
-    design: &[f64],
-    nrows: usize,
-    ncols: usize,
-    scope: FaerScope,
-) -> Result<Duration, StatsError> {
-    let Some(cells) = nrows.checked_mul(ncols) else {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    };
-    if nrows == 0 || ncols == 0 || design.len() < cells {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
-    let matrix = Mat::from_fn(nrows, ncols, |row, column| design[column * nrows + row]);
-    let mut scratch = FactorScratch::new();
-    let started = Instant::now();
-    let factored = column_pivoted_qr(matrix, scope, &mut scratch)?;
-    let (rank, _) = factored.rank_and_rcond(nrows);
-    let _observed = std::hint::black_box(rank);
-    Ok(started.elapsed())
+    Ok(LeastSquaresFit {
+        coefficients,
+        residuals,
+        rank,
+        rss,
+        diagnostics: FitDiagnostics::new(rank, rcond, "faer-svd", grow_count),
+    })
 }
 
 fn column_pivoted_qr(
@@ -681,12 +607,6 @@ mod tests {
         ));
         assert!(FaerBackend.least_squares_coefficients(&x, 4, 2, &y[..3]).is_err());
         assert!(FaerBackend.least_squares_coefficients(&x[..7], 4, 2, &y).is_err());
-    }
-
-    #[test]
-    fn counted_bytes_saturates_instead_of_wrapping() {
-        assert_eq!(usize::MAX.wrapping_mul(usize::MAX), 1);
-        assert_eq!(counted_bytes(usize::MAX, usize::MAX), u64::MAX);
     }
 
     #[test]

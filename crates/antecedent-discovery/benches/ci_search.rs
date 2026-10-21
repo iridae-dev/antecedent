@@ -124,7 +124,11 @@ fn temporal_data(p: usize, n: usize, seed: u64) -> (TimeSeriesData, Vec<Variable
 }
 
 fn context(threads: u32) -> ExecutionContext {
-    let mut ctx = ExecutionContext::for_tests(1);
+    let mut ctx = if std::env::var_os("CI_SEARCH_REFERENCE").is_some() {
+        ExecutionContext::for_tests(1)
+    } else {
+        ExecutionContext::production(1, threads)
+    };
     ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(threads).unwrap());
     ctx = ctx.with_admission(antecedent_core::execution::AdmissionPool::fixed(threads, u64::MAX));
     ctx
@@ -161,6 +165,7 @@ fn measure<T>(name: &str, threads: u32, mut run: impl FnMut() -> T) -> (std::tim
 }
 
 fn main() {
+    println!("ci_search reference={}", std::env::var_os("CI_SEARCH_REFERENCE").is_some());
     let (tab, tab_vars) = static_data(30, 1500, 7, 8.0);
     let pc = Pc::new().with_fdr(false).with_constraints(DiscoveryConstraints {
         temporal: TemporalConstraints {

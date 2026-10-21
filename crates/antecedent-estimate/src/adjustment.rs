@@ -1020,18 +1020,49 @@ impl LinearAdjustmentAte {
         let p = problem.design.ncols;
         // Replicates own a cold workspace. The caller's scratch stays untouched: parallel
         // workers cannot share it, and a warm IRLS start would change the replicate fit.
+        let resampling = (self.fit_kind == LinearFitKind::Ols && self.bootstrap_replicates >= 32)
+            .then(|| {
+                antecedent_stats::faer_backend::ResampledLeastSquares::prepare(
+                    &problem.design.matrix,
+                    n,
+                    p,
+                    &problem.design.outcome,
+                    ctx,
+                )
+            })
+            .flatten();
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,
             0xA7E_u64,
             n,
-            || (EstimationWorkspace::default(), vec![0.0; n * p], vec![0.0; n]),
-            |(ws, x_boot, y_boot), idx| match self
-                .fit_resampled_coefficients(problem, ws, idx, x_boot, y_boot)
-            {
-                Ok(coefs) => Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?)),
-                Err(error) if bootstrap_fit_failed(&error) => Ok(None),
-                Err(error) => Err(error),
+            || {
+                (
+                    EstimationWorkspace::default(),
+                    Vec::new(),
+                    Vec::new(),
+                    antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace::default(),
+                )
+            },
+            |(ws, x_boot, y_boot, summary_ws), idx| {
+                let candidate = match &resampling {
+                    Some(prepared) => prepared.try_coefficients(idx, summary_ws),
+                    None => Ok(None),
+                };
+                let coefficients = match candidate {
+                    Ok(Some(coefs)) => Ok(coefs),
+                    Ok(None) => {
+                        x_boot.resize(n * p, 0.0);
+                        y_boot.resize(n, 0.0);
+                        self.fit_resampled_coefficients(problem, ws, idx, x_boot, y_boot)
+                    }
+                    Err(error) => Err(EstimationError::from(error)),
+                };
+                match coefficients {
+                    Ok(coefs) => Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?)),
+                    Err(error) if bootstrap_fit_failed(&error) => Ok(None),
+                    Err(error) => Err(error),
+                }
             },
         )
     }

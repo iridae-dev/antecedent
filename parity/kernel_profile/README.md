@@ -1,17 +1,22 @@
 # Kernel profile (N15)
 
+This is the historical measurement at `8f69473d8`. The current diagnostic harness
+uses the underlying borrowed views directly; experiment-only layout wrappers
+and the isolated N16 reduction API have been retired. This record does not
+measure the subsequently promoted Gram backend.
+
 `plan.toml` names four kernels. `measurement.toml` is the portable-layout measurement. Explicit SIMD is `not_promoted`: the release bodies are scalar `f64`, and this record does not add an architecture kernel.
 
-N16's scalar reference and tolerance must exist before promotion. An upstream change to an owning source requires a remeasure. Matching, CI, and family work do not supply this record. `benches/baselines/kernel_reductions.md` is a different record.
+Any future SIMD promotion needs an independent numerical contract and fresh measurements. An upstream change to an owning source requires a remeasure. Matching, CI, and family work do not supply this record. `benches/baselines/kernel_reductions.md` is a different record.
 
 ## Layout contract
 
 | Id | Contract |
 | --- | --- |
-| `fused_reductions` | `UnitStrideF64` in `crates/antecedent-kernels/src/layout_contract.rs` |
-| `bitmap_mask` | `PackedBitmapMask` in the same module. `1` = included, least-significant bit first. |
+| `fused_reductions` | contiguous `F64VectorView` in `crates/antecedent-kernels/src/view.rs` |
+| `bitmap_mask` | `BitMaskView` in the same module. `1` = included, least-significant bit first. |
 | `score_gram` | `ColumnMajorDesign` and `DesignRow` in `crates/antecedent-stats/src/gram.rs` |
-| `column_scaling` | `ContiguousColumn` in `crates/antecedent-kernels/src/layout_contract.rs` |
+| `column_scaling` | a mutable contiguous `f64` slice |
 
 ## Measurement
 

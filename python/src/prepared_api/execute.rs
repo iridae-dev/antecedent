@@ -151,7 +151,7 @@ impl PyPreparedAnalysis {
                 })
                 .collect::<PyResult<Vec<_>>>()?;
             let result = inner.retarget(&weights, &schema_ids, &ctx).map_err(py_err)?;
-            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
+            let mapped = ate_result_from_analysis(&out_names, &result, false)?;
             Ok((mapped, result))
         })?;
         self.last_study = Some(bound);
@@ -191,7 +191,7 @@ impl PyPreparedAnalysis {
                     || crate::value_err("artifact carries no row-weight retarget to re-execute"),
                 )?;
             let result = inner.reexecute_retarget(&section, &ctx).map_err(py_err)?;
-            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
+            let mapped = ate_result_from_analysis(&out_names, &result, false)?;
             Ok((mapped, result))
         })?;
         self.last_study = Some(bound);
@@ -484,7 +484,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let result = inner.refute_bound(&prior, refute_suite, &ctx).map_err(crate::py_err)?;
-            let mapped = crate::ate_result_from_analysis(&names, result.clone(), false)?;
+            let mapped = crate::ate_result_from_analysis(&names, &result, false)?;
             Ok((mapped, result))
         })?;
         self.last_study = Some(bound);

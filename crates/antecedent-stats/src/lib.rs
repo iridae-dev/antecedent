@@ -36,8 +36,6 @@ pub mod propensity;
 pub mod quantile;
 pub mod regularized;
 pub mod response;
-pub mod retained_factor;
-pub mod solver_workspace;
 #[path = "ci/sparse_discrete.rs"]
 mod sparse_discrete;
 pub mod special;

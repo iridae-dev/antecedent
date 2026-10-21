@@ -299,6 +299,10 @@ mod exhaustive_tests {
     use antecedent_graph::Endpoint;
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "exhaustive graph and oracle comparison in one fixture"
+    )]
     fn all_three_node_cyclic_mixed_oracles_have_sound_skeletons_and_ancestry_marks() {
         let data = crate::test_tables::tabular_n(3, 30);
         let id = DenseNodeId::from_raw;
@@ -316,7 +320,12 @@ mod exhaustive_tests {
                 for (b, reachable) in row.iter_mut().enumerate() {
                     if a != b {
                         if mask & (1 << bit) != 0 {
-                            graph.insert_directed(id(a as u32), id(b as u32)).unwrap();
+                            graph
+                                .insert_directed(
+                                    id(u32::try_from(a).unwrap()),
+                                    id(u32::try_from(b).unwrap()),
+                                )
+                                .unwrap();
                             *reachable = true;
                         }
                         bit += 1;
@@ -326,7 +335,12 @@ mod exhaustive_tests {
             for a in 0..3 {
                 for b in a + 1..3 {
                     if mask & (1 << bit) != 0 {
-                        graph.insert_bidirected(id(a as u32), id(b as u32)).unwrap();
+                        graph
+                            .insert_bidirected(
+                                id(u32::try_from(a).unwrap()),
+                                id(u32::try_from(b).unwrap()),
+                            )
+                            .unwrap();
                     }
                     bit += 1;
                 }
@@ -361,17 +375,22 @@ mod exhaustive_tests {
                     "ancestor" => assert!(ancestor[a][b], "ancestor mask {mask}"),
                     "not_ancestor" => assert!(!ancestor[a][b], "nonancestor mask {mask}"),
                     "direct_edge" => assert!(
-                        graph.directed_edge_pairs_sorted().contains(&(a as u32, b as u32)),
+                        graph
+                            .directed_edge_pairs_sorted()
+                            .contains(&(u32::try_from(a).unwrap(), u32::try_from(b).unwrap())),
                         "direct mask {mask}"
                     ),
                     "no_direct_edge" => assert!(
-                        !graph.directed_edge_pairs_sorted().contains(&(a as u32, b as u32)),
+                        !graph
+                            .directed_edge_pairs_sorted()
+                            .contains(&(u32::try_from(a).unwrap(), u32::try_from(b).unwrap())),
                         "no direct mask {mask}"
                     ),
                     "no_confounder" => assert!(
-                        !graph
-                            .bidirected_edge_pairs_sorted()
-                            .contains(&(a.min(b) as u32, a.max(b) as u32)),
+                        !graph.bidirected_edge_pairs_sorted().contains(&(
+                            u32::try_from(a.min(b)).unwrap(),
+                            u32::try_from(a.max(b)).unwrap()
+                        )),
                         "confounding mask {mask}"
                     ),
                     _ => panic!("unknown conclusion"),
@@ -382,18 +401,27 @@ mod exhaustive_tests {
             for a in 0..3 {
                 for b in a + 1..3 {
                     let remaining = 3 - a - b;
-                    let separable = [vec![], vec![id(remaining as u32)]].iter().any(|z| {
-                        sigma_separates(&graph, id(a as u32), id(b as u32), z, &mut ws)
+                    let separable =
+                        [vec![], vec![id(u32::try_from(remaining).unwrap())]].iter().any(|z| {
+                            sigma_separates(
+                                &graph,
+                                id(u32::try_from(a).unwrap()),
+                                id(u32::try_from(b).unwrap()),
+                                z,
+                                &mut ws,
+                            )
                             .unwrap()
                             .status
                             .is_separated()
-                    });
+                        });
                     assert_eq!(
-                        pag.has_edge(id(a as u32), id(b as u32)),
+                        pag.has_edge(id(u32::try_from(a).unwrap()), id(u32::try_from(b).unwrap())),
                         !separable,
                         "mask {mask} pair {a},{b}"
                     );
-                    if let Some(edge) = pag.edge_between(id(a as u32), id(b as u32)) {
+                    if let Some(edge) = pag
+                        .edge_between(id(u32::try_from(a).unwrap()), id(u32::try_from(b).unwrap()))
+                    {
                         for (at, from, to) in [(edge.at_a, a, b), (edge.at_b, b, a)] {
                             match at {
                                 Endpoint::Arrow => {

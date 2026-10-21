@@ -30,8 +30,8 @@ mod prepare_posterior;
 mod prepare_query;
 mod prepare_response;
 mod prepare_unlicensed_design;
-mod treatment_score;
 mod routing;
+mod treatment_score;
 
 #[path = "../prepare_request.rs"]
 mod prepare_request;
@@ -211,7 +211,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let result = inner.refute(&prior, &data, refute_suite, &ctx).map_err(py_err)?;
-            let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
+            let mapped = ate_result_from_analysis(&out_names, &result, false)?;
             Ok((mapped, result))
         })?;
         self.last_study = Some(bound);

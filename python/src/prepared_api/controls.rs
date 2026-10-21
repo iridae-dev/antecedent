@@ -75,7 +75,7 @@ pub(super) fn map_ate(
     _prepared: &PreparedStudy,
     _ctx: &ExecutionContext,
 ) -> PyResult<AteAnalysisResult> {
-    ate_result_from_analysis(names, result.clone(), false)
+    ate_result_from_analysis(names, result, false)
 }
 
 pub(super) fn refuse_unstaged(inner: &PreparedStudy) -> PyResult<()> {

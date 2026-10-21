@@ -7,6 +7,8 @@
 mod predictive_score_interval_facade;
 #[path = "released_surface.rs"]
 mod released_surface;
+#[path = "resampling_accuracy.rs"]
+mod resampling_accuracy;
 #[path = "z_transport_repair.rs"]
 mod z_transport_repair;
 #[path = "z_transport_surrogate_calibration.rs"]

@@ -749,13 +749,16 @@ pub fn <antecedent_prob::InferenceDiagnostics>::fn curvature_refusal(&self) -> c
 pub fn <antecedent_prob::InferenceDiagnostics>::fn laplace(backend_id: impl core::convert::Into<alloc::sync::Arc<str>>, converged: bool, iterations: u32, grad_inf_norm: f64, hessian_condition: f64, separation_warning: bool, notes: alloc::vec::Vec<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_prob::InferenceDiagnostics>::fn mcmc_publication_failures(&self) -> alloc::vec::Vec<&'static str>
 pub fn <antecedent_prob::InferenceDiagnostics>::fn mcmc_publication_ok(&self) -> bool
+pub fn <antecedent_prob::InferenceDiagnostics>::fn passed_route_records(&self, unevaluable_mass: antecedent_core::diagnostic::RouteMass) -> alloc::vec::Vec<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_prob::InferenceDiagnostics>::fn publication_error(&self, summary: impl core::convert::Into<alloc::string::String>) -> core::option::Option<antecedent_prob::ProbError>
 pub fn <antecedent_prob::InferenceDiagnostics>::fn record_postwarmup_divergences(&mut self, n: u32)
 pub fn <antecedent_prob::InferenceDiagnostics>::fn route_records(&self, unevaluable_mass: antecedent_core::diagnostic::RouteMass) -> alloc::vec::Vec<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_prob::InvGammaPrior>::const fn weakly_informative() -> Self
 pub fn <antecedent_prob::InvGammaPrior>::fn validate(self) -> core::result::Result<(), antecedent_prob::ProbError>
+pub fn <antecedent_prob::LaplaceWorkspace>::fn bind_immutable_gaussian_design(&mut self, x: alloc::sync::Arc<[f64]>, y: alloc::sync::Arc<[f64]>, nrows: usize, ncols: usize) -> core::result::Result<(), antecedent_prob::ProbError>
 pub fn <antecedent_prob::LaplaceWorkspace>::fn invalidate_design(&mut self)
 pub fn <antecedent_prob::LaplaceWorkspace>::fn prepare(&mut self, nrows: usize, ncols: usize, n_draws: usize)
+pub fn <antecedent_prob::LaplaceWorkspace>::fn retained_buffer_bytes(&self) -> usize
 pub fn <antecedent_prob::PosteriorBatch<'a>>::fn column(&self, q: usize) -> core::result::Result<&'a [f64], antecedent_prob::ProbError>
 pub fn <antecedent_prob::PosteriorDraws>::fn batch(&self, start: usize, len: usize) -> core::result::Result<antecedent_prob::PosteriorBatch<'_>, antecedent_prob::ProbError>
 pub fn <antecedent_prob::PosteriorDraws>::fn column(&self, q: usize) -> core::result::Result<&[f64], antecedent_prob::ProbError>

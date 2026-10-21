@@ -859,34 +859,6 @@ fn parse_coefficients(spec: &str) -> Option<Vec<f64>> {
     Some(out)
 }
 
-/// Execute cell-AIPW prepared requests through the certified nuisance cache.
-///
-/// The multinomial cell fit stays on its own numeric path. Compatible prepared
-/// requests share one certified AIPW nuisance.
-///
-/// # Errors
-///
-/// [`crate::nuisance_cache::NuisanceCacheError::WrongFamily`] when a request is not AIPW.
-#[must_use = "a refused cell AIPW subplan is not a certified fit"]
-pub fn execute_certified_cell_aipw(
-    cache: &mut crate::nuisance_cache::NuisanceCache,
-    requests: &[crate::nuisance_cache::PreparedFamilyRequest],
-    produce: impl FnMut(
-        &crate::nuisance_cache::NuisanceCacheKey,
-        crate::nuisance_cache::NuisanceRole,
-    ) -> Result<
-        Vec<crate::nuisance_cache::BlockedOutOfFoldPredictions>,
-        crate::nuisance_cache::NuisanceCacheError,
-    >,
-) -> Result<crate::nuisance_cache::BatchExecution, crate::nuisance_cache::NuisanceCacheError> {
-    crate::nuisance_cache::execute_family_requests(
-        crate::nuisance_cache::EstimatorFamily::Aipw,
-        cache,
-        requests,
-        produce,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use antecedent_core::StreamDomain;
@@ -897,67 +869,6 @@ mod tests {
     };
     use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
     use antecedent_kernels::standard_normal;
-
-    #[test]
-    fn cell_aipw_calls_the_certified_cache() {
-        use std::cell::Cell;
-
-        use crate::nuisance_cache::{
-            BlockedOutOfFoldPredictions, CertifiedSource, EstimatorFamily, FoldAssignment, FoldRow,
-            NuisanceCache, NuisanceCacheKey, NuisanceColumns, NuisanceInputs, NuisanceRole,
-            PredictedRow, PreparedFamilyRequest, RequestColumns,
-        };
-        use antecedent_core::{NumericalPolicy, SourceDependencyId};
-        let folds =
-            FoldAssignment::try_new(2, &[FoldRow::new(10, 0), FoldRow::new(40, 1)], &[]).unwrap();
-        let outcome = [0.2f64, 0.4];
-        let treatment = [0.0f64, 1.0];
-        let design = [1.0f64, 1.0, 0.2, 0.5];
-        let options = [1.0f64];
-        let columns =
-            NuisanceColumns::try_new(&outcome, &treatment, &design, &options, None).unwrap();
-        let inputs =
-            NuisanceInputs::try_new(columns, 5, &folds, "arm", NumericalPolicy::strict()).unwrap();
-        let key = NuisanceCacheKey::from_inputs(&inputs).unwrap();
-        let prepared = PreparedFamilyRequest::try_new(
-            EstimatorFamily::Aipw,
-            RequestColumns::try_new("outcome", "arm", &["z"]).unwrap(),
-            CertifiedSource::new(SourceDependencyId::from_raw(3), key.outcome_digest()),
-            key,
-            &[NuisanceRole::Treatment, NuisanceRole::Outcome { level: 0 }],
-        )
-        .unwrap();
-        let mut cache = NuisanceCache::new();
-        let calls = Cell::new(0u64);
-        let run = |cache: &mut NuisanceCache, requests: &[PreparedFamilyRequest]| {
-            execute_certified_cell_aipw(cache, requests, |_, _| {
-                calls.set(calls.get().saturating_add(1));
-                Ok(vec![
-                    BlockedOutOfFoldPredictions::try_new(
-                        0,
-                        &[PredictedRow::try_new(10, 0.2).unwrap()],
-                    )
-                    .unwrap(),
-                    BlockedOutOfFoldPredictions::try_new(
-                        1,
-                        &[PredictedRow::try_new(40, 0.4).unwrap()],
-                    )
-                    .unwrap(),
-                ])
-            })
-        };
-        let first = run(&mut cache, &[prepared.clone(), prepared.clone()]).unwrap();
-        assert_eq!(calls.get(), 2, "treatment and outcome are fit once for the shared subplan");
-        assert_eq!((first.receipt().scans, first.receipt().fits, first.receipt().hits), (1, 2, 0));
-        calls.set(0);
-        let second = run(&mut cache, &[prepared]).unwrap();
-        assert_eq!(calls.get(), 0);
-        assert_eq!(
-            (second.receipt().scans, second.receipt().fits, second.receipt().hits),
-            (0, 0, 2)
-        );
-        assert_eq!(first.fits(), second.fits());
-    }
 
     #[test]
     fn multinomial_propensity_matches_exact_two_stratum_frequencies() {

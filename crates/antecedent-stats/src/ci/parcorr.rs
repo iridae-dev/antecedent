@@ -164,6 +164,14 @@ impl PartialCorrelation {
 }
 
 impl ConditionalIndependenceTest for PartialCorrelation {
+    fn covariance_session<'a>(
+        &self,
+        columns: &'a [&'a [f64]],
+        ctx: &ExecutionContext,
+    ) -> Option<super::CovarianceCiSession<'a>> {
+        super::CovarianceCiSession::prepare(columns, ctx)
+    }
+
     fn test_batch(
         &self,
         prepared: &PreparedCiTest,

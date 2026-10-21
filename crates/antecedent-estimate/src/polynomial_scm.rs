@@ -757,7 +757,7 @@ mod tests {
         encloses(result.parameter_posterior["declared"], 64.0 / 65.0);
         encloses(result.parameter_posterior["alternative"], 1.0 / 65.0);
         encloses(result.world_mass[1].undefined, 1.0);
-        assert_eq!(result.world_mass[1].selected.upper, 0.0);
+        assert_eq!(result.world_mass[1].selected.upper.to_bits(), 0.0_f64.to_bits());
         assert!(result.atoms.iter().all(|a|matches!(&a.states["counterfactual"],PolynomialSelectedState::Undefined{reason} if reason=="no_solution_in_declared_domain")));
     }
     #[test]

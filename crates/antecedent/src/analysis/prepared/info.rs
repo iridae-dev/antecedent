@@ -568,6 +568,7 @@ impl PreparedStudy {
     #[cfg(test)]
     pub(crate) fn study_mut(&mut self) -> &mut Study {
         self.program_cache = std::sync::OnceLock::new();
+        self.contract_cache = std::sync::OnceLock::new();
         if self.execution.kind() == ExecutionKind::CheckedLinear {
             self.execution = PreparedExecution::OrdinaryDispatch;
         }
@@ -577,6 +578,7 @@ impl PreparedStudy {
     /// Replace the frozen study after a successful refresh.
     pub(super) fn replace_study(&mut self, study: Study) {
         self.program_cache = std::sync::OnceLock::new();
+        self.contract_cache = std::sync::OnceLock::new();
         self.analysis = study;
     }
 
@@ -584,6 +586,12 @@ impl PreparedStudy {
         &self,
     ) -> &std::sync::OnceLock<Arc<crate::analysis::contract::ProgramPayloads>> {
         &self.program_cache
+    }
+
+    pub(crate) fn contract_cache(
+        &self,
+    ) -> &std::sync::OnceLock<Arc<crate::analysis::contract::CompiledContract>> {
+        &self.contract_cache
     }
 
     /// Replace custom validators. Incoming names must match the prepare-time set.

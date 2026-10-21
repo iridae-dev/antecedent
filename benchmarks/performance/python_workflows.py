@@ -22,13 +22,34 @@ from pathlib import Path
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rows", type=int, default=10_000)
+    parser.add_argument("--covariates", type=int, default=1)
+    parser.add_argument(
+        "--family", choices=("bootstrap", "gaussian_bayes"), action="append"
+    )
     parser.add_argument("--threads", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=7)
     parser.add_argument("--bootstrap", type=int, default=199)
     parser.add_argument("--draws", type=int, default=400)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--profile",
+        type=Path,
+        help="cProfile dump of additional prepared Bayesian calls",
+    )
+    parser.add_argument("--profile-repeats", type=int, default=200)
     args = parser.parse_args()
-    if min(args.rows, args.threads, args.repeats, args.bootstrap, args.draws) < 1:
+    if (
+        min(
+            args.rows,
+            args.covariates,
+            args.threads,
+            args.repeats,
+            args.bootstrap,
+            args.draws,
+            args.profile_repeats,
+        )
+        < 1
+    ):
         parser.error("rows, threads, repeats and uncertainty budgets must be positive")
     try:
         import antecedent as ant
@@ -42,19 +63,25 @@ def main() -> None:
             "For an editable checkout, run maturin develop --release from python/ in its virtualenv.\n",
         )
     rng = np.random.default_rng(7)
-    z = rng.normal(size=args.rows)
+    covariates = rng.normal(size=(args.covariates, args.rows))
+    z = covariates.sum(axis=0) / math.sqrt(args.covariates)
     t = (rng.random(args.rows) < 1 / (1 + np.exp(-0.9 * z))).astype(float)
     y = 2 * t + z + rng.normal(scale=0.4, size=args.rows)
-    data = {"t": t, "y": y, "z": z}
+    names = ["z"] if args.covariates == 1 else [f"z{i}" for i in range(args.covariates)]
+    data = {"t": t, "y": y, **dict(zip(names, covariates, strict=True))}
     common = {
-        "graph": [("z", "t"), ("z", "y"), ("t", "y")],
+        "graph": [(name, target) for name in names for target in ("t", "y")]
+        + [("t", "y")],
         "query": ant.AverageEffect("t", "y"),
         "refute": False,
         "seed": 11,
         "threads": args.threads,
     }
     cells = []
-    for family in ("bootstrap", "gaussian_bayes"):
+    families = args.family or ("bootstrap", "gaussian_bayes")
+    if args.profile is not None and families[-1] != "gaussian_bayes":
+        parser.error("--profile requires the final family to be gaussian_bayes")
+    for family in families:
         options = dict(common, bootstrap=args.bootstrap if family == "bootstrap" else 0)
         if family == "gaussian_bayes":
             options["inference"] = ant.inference.Bayesian(n_draws=args.draws)
@@ -97,7 +124,8 @@ def main() -> None:
                         "bootstrap_ok": perf.bootstrap_replicates_ok,
                         "posterior_draws": perf.n_draws,
                         "design_reused": any(
-                            d.startswith("exec.design.cached:") for d in result.diagnostics
+                            d.startswith("exec.design.cached:")
+                            for d in result.diagnostics
                         ),
                         "cancelled": perf.cancelled,
                         "early_stopped": perf.early_stopped,
@@ -112,10 +140,31 @@ def main() -> None:
                     "median_ns": statistics.median(times),
                 }
             )
+    # Separate replay after every timed cell: profiler overhead is never included
+    # in the reported elapsed samples. The last prepared handle is Bayesian.
+    if args.profile is not None:
+        import cProfile
+
+        profiler = cProfile.Profile()
+        profiler.enable()
+        try:
+            for _ in range(args.profile_repeats):
+                result = prepared.estimate()
+                if (
+                    result.performance.n_draws != args.draws
+                    or result.performance.cancelled
+                    or result.performance.early_stopped
+                    or result.posterior is None
+                ):
+                    raise RuntimeError("incomplete profiled posterior uncertainty")
+        finally:
+            profiler.disable()
+        args.profile.parent.mkdir(parents=True, exist_ok=True)
+        profiler.dump_stats(str(args.profile))
     record = {
         "scope": "diagnostic_subset_not_full_N20_acceptance",
         "rows": args.rows,
-        "width": 3,
+        "width": args.covariates + 2,
         "threads_requested": args.threads,
         "warmups": 1,
         "replicates": args.bootstrap,

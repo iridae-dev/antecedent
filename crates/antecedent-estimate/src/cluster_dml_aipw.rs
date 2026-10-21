@@ -1008,34 +1008,6 @@ fn require_whole_clusters_per_fold(
     Ok(())
 }
 
-/// Execute cluster-DML prepared requests through the certified nuisance cache.
-///
-/// Cluster dependence stays in the score. This path shares the certified DML
-/// nuisance when the source and cache key match.
-///
-/// # Errors
-///
-/// [`crate::nuisance_cache::NuisanceCacheError::WrongFamily`] when a request is not DML.
-#[must_use = "a refused cluster DML subplan is not a certified fit"]
-pub fn execute_certified_cluster_dml(
-    cache: &mut crate::nuisance_cache::NuisanceCache,
-    requests: &[crate::nuisance_cache::PreparedFamilyRequest],
-    produce: impl FnMut(
-        &crate::nuisance_cache::NuisanceCacheKey,
-        crate::nuisance_cache::NuisanceRole,
-    ) -> Result<
-        Vec<crate::nuisance_cache::BlockedOutOfFoldPredictions>,
-        crate::nuisance_cache::NuisanceCacheError,
-    >,
-) -> Result<crate::nuisance_cache::BatchExecution, crate::nuisance_cache::NuisanceCacheError> {
-    crate::nuisance_cache::execute_family_requests(
-        crate::nuisance_cache::EstimatorFamily::Dml,
-        cache,
-        requests,
-        produce,
-    )
-}
-
 #[cfg(test)]
 mod digest_tests {
     use super::unit_digest;
@@ -1052,72 +1024,5 @@ mod digest_tests {
         assert_eq!(unit_digest(&[2, 3, 1]), expected);
         assert_ne!(unit_digest(&[1, 2, 4]), expected);
         assert_eq!(expected, "4f02b3c17b6ea0c01be8ccf7ee9bc04ad8b4ddbf245e1da7926766487b8e1f9f");
-    }
-}
-
-#[cfg(test)]
-mod certified_cache_tests {
-    use std::cell::Cell;
-
-    use antecedent_core::{NumericalPolicy, SourceDependencyId};
-
-    use super::execute_certified_cluster_dml;
-    use crate::nuisance_cache::{
-        BlockedOutOfFoldPredictions, CertifiedSource, EstimatorFamily, FoldAssignment, FoldRow,
-        NuisanceCache, NuisanceCacheKey, NuisanceColumns, NuisanceInputs, NuisanceRole,
-        PredictedRow, PreparedFamilyRequest, RequestColumns,
-    };
-
-    #[test]
-    fn cluster_dml_calls_the_certified_cache() {
-        let folds =
-            FoldAssignment::try_new(2, &[FoldRow::new(10, 0), FoldRow::new(40, 1)], &[]).unwrap();
-        let outcome = [0.2f64, 0.4];
-        let treatment = [0.0f64, 1.0];
-        let design = [1.0f64, 1.0, 0.2, 0.5];
-        let options = [1.0f64];
-        let columns =
-            NuisanceColumns::try_new(&outcome, &treatment, &design, &options, None).unwrap();
-        let inputs =
-            NuisanceInputs::try_new(columns, 8, &folds, "arm", NumericalPolicy::strict()).unwrap();
-        let key = NuisanceCacheKey::from_inputs(&inputs).unwrap();
-        let prepared = PreparedFamilyRequest::try_new(
-            EstimatorFamily::Dml,
-            RequestColumns::try_new("outcome", "arm", &["z"]).unwrap(),
-            CertifiedSource::new(SourceDependencyId::from_raw(3), key.outcome_digest()),
-            key,
-            &[NuisanceRole::Treatment],
-        )
-        .unwrap();
-        let mut cache = NuisanceCache::new();
-        let calls = Cell::new(0u64);
-        let run = |cache: &mut NuisanceCache, requests: &[PreparedFamilyRequest]| {
-            execute_certified_cluster_dml(cache, requests, |_, _| {
-                calls.set(calls.get().saturating_add(1));
-                Ok(vec![
-                    BlockedOutOfFoldPredictions::try_new(
-                        0,
-                        &[PredictedRow::try_new(10, 0.2).unwrap()],
-                    )
-                    .unwrap(),
-                    BlockedOutOfFoldPredictions::try_new(
-                        1,
-                        &[PredictedRow::try_new(40, 0.4).unwrap()],
-                    )
-                    .unwrap(),
-                ])
-            })
-        };
-        let first = run(&mut cache, &[prepared.clone(), prepared.clone()]).unwrap();
-        assert_eq!(calls.get(), 1);
-        assert_eq!((first.receipt().scans, first.receipt().fits, first.receipt().hits), (1, 1, 0));
-        calls.set(0);
-        let second = run(&mut cache, &[prepared]).unwrap();
-        assert_eq!(calls.get(), 0);
-        assert_eq!(
-            (second.receipt().scans, second.receipt().fits, second.receipt().hits),
-            (0, 0, 1)
-        );
-        assert_eq!(first.fits()[0], second.fits()[0]);
     }
 }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import pstats
 import subprocess
 import sys
 
@@ -70,3 +71,41 @@ def test_python_performance_probe_keeps_all_repeats_and_uncertainty(repo_root, t
                 assert row["posterior_draws"] == 16
                 if cell["mode"] == "prepared_estimate":
                     assert row["design_reused"]
+
+
+def test_wide_gaussian_probe_profiles_complete_prepared_calls(repo_root, tmp_path):
+    output = tmp_path / "wide.json"
+    profile = tmp_path / "prepared.prof"
+    subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "benchmarks/performance/python_workflows.py"),
+            "--rows",
+            "512",
+            "--covariates",
+            "30",
+            "--family",
+            "gaussian_bayes",
+            "--draws",
+            "16",
+            "--repeats",
+            "2",
+            "--profile",
+            str(profile),
+            "--profile-repeats",
+            "2",
+            "--output",
+            str(output),
+        ],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    report = json.loads(output.read_text())
+    assert report["width"] == 32
+    assert len(report["cells"]) == 2
+    for cell in report["cells"]:
+        assert len(cell["samples"]) == 2
+        assert all(sample["posterior_draws"] == 16 for sample in cell["samples"])
+    assert pstats.Stats(str(profile)).total_calls > 0

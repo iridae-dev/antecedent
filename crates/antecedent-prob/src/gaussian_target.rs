@@ -96,8 +96,23 @@ impl GaussianSufficientStats {
             anchor_score: vec![0.0; ncols],
             anchor_rss: 0.0,
         };
+        let blocked_gram = design.weights.is_none()
+            && design.nrows >= 256
+            && ncols >= 16
+            && design.nrows.saturating_mul(ncols).saturating_mul(ncols) >= 524_288
+            && design.x_colmajor[..design.nrows * ncols]
+                .iter()
+                .all(|v| v.is_finite() && v.abs() < (f64::MAX / design.nrows as f64).sqrt());
         for row in 0..design.nrows {
-            accumulate_summary_row(design, row, &mut stats)?;
+            accumulate_summary_row(design, row, &mut stats, !blocked_gram)?;
+        }
+        if blocked_gram {
+            antecedent_stats::gram::form_xtx(
+                design.x_colmajor,
+                design.nrows,
+                ncols,
+                &mut stats.xtwx,
+            );
         }
         if !(stats.n_eff > 0.0) || !stats.n_eff.is_finite() {
             return Err(ProbError::Numerical {
@@ -281,6 +296,7 @@ fn accumulate_summary_row(
     design: BayesDesignRef<'_>,
     row: usize,
     stats: &mut GaussianSufficientStats,
+    accumulate_gram: bool,
 ) -> Result<(), ProbError> {
     let weight = design.weights.map_or(1.0, |weights| weights[row]);
     if !weight.is_finite() {
@@ -309,7 +325,7 @@ fn accumulate_summary_row(
             return Err(non_finite_summary_input("design row", row));
         }
         add_finite(&mut stats.xtwy[c1], weight * x1 * adjusted, row)?;
-        for c2 in c1..p {
+        for c2 in c1..if accumulate_gram { p } else { c1 } {
             let x2 = design.x_colmajor[c2 * nrows + row];
             if c1 != c2 && !x2.is_finite() {
                 return Err(non_finite_summary_input("design row", row));

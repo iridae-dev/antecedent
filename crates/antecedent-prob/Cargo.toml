@@ -19,6 +19,7 @@ workspace = true
 [dependencies]
 antecedent-core = { workspace = true }
 antecedent-kernels = { workspace = true }
+antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

@@ -271,7 +271,7 @@ mod tests {
         };
         let data: Vec<_> = (0..8)
             .map(|i| {
-                let initial = 1.0 + i as f64 / 4.0;
+                let initial = 1.0 + f64::from(i) / 4.0;
                 let sign = if i % 2 == 0 { 1.0 } else { -1.0 };
                 OdeObservation {
                     initial: vec![initial],
@@ -292,7 +292,7 @@ mod tests {
             &template,
             &parameters,
             &data,
-            Default::default(),
+            OdePolicy::default(),
             OdeFitPolicy { score_tolerance: 1e-5, ..Default::default() },
             &ctx,
         )
@@ -300,13 +300,15 @@ mod tests {
         assert!(fit.converged, "{fit:?}");
         assert!((fit.model.decay[0] - 2.0).abs() < 0.02);
         let (_, score) =
-            likelihood_score(&template, &parameters, &data, Default::default(), &ctx).unwrap();
+            likelihood_score(&template, &parameters, &data, OdePolicy::default(), &ctx).unwrap();
         let h = 1e-5;
         let high = bind(&template, &parameters, &[1.0 + h]);
         let low = bind(&template, &parameters, &[1.0 - h]);
         let finite_difference =
-            (likelihood_score(&high, &parameters, &data, Default::default(), &ctx).unwrap().0
-                - likelihood_score(&low, &parameters, &data, Default::default(), &ctx).unwrap().0)
+            (likelihood_score(&high, &parameters, &data, OdePolicy::default(), &ctx).unwrap().0
+                - likelihood_score(&low, &parameters, &data, OdePolicy::default(), &ctx)
+                    .unwrap()
+                    .0)
                 / (2.0 * h);
         assert!((score[0] - finite_difference).abs() < 1e-3);
     }
@@ -427,7 +429,7 @@ mod ou_fit_tests {
             &template,
             &[OuParameter::Drift { row: 0, column: 0 }, OuParameter::Center { variable: 0 }],
             &rows,
-            Default::default(),
+            crate::cyclic_likelihood::CyclicFitOptions::default(),
             &ctx,
         )
         .unwrap();

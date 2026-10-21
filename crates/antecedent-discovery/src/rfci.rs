@@ -163,10 +163,18 @@ impl Rfci {
             ctx,
         )?;
         let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
+        let covariance = crate::static_skeleton::CovarianceSearch::prepare(
+            &*self.ci,
+            &cols,
+            &self.constraints,
+            self.fdr,
+            ctx,
+        );
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
         let input = StaticSkeletonInput {
+            covariance: covariance.as_ref(),
             ci: &*self.ci,
             constraints: &self.constraints,
             cols: &cols,

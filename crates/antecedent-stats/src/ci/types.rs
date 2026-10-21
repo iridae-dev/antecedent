@@ -315,6 +315,16 @@ pub struct CiBatchResult {
 /// Numeric kernels live in `antecedent-stats`; discovery owns the algorithm surface and
 /// re-exports this trait.
 pub trait ConditionalIndependenceTest {
+    /// Optional borrow-scoped cross-products for repeated analytic queries.
+    /// Tests with different nulls or statistics retain the ordinary route.
+    fn covariance_session<'a>(
+        &self,
+        _columns: &'a [&'a [f64]],
+        _ctx: &ExecutionContext,
+    ) -> Option<super::CovarianceCiSession<'a>> {
+        None
+    }
+
     /// Prepare once for a data view / plan (sample planning, caches).
     ///
     /// # Errors

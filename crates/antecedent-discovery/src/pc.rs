@@ -146,11 +146,19 @@ impl Pc {
             ctx,
         )?;
         let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
+        let covariance = crate::static_skeleton::CovarianceSearch::prepare(
+            &*self.ci,
+            &cols,
+            &self.constraints,
+            self.fdr,
+            ctx,
+        );
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
         let skel = run_static_skeleton(
             &StaticSkeletonInput {
+                covariance: covariance.as_ref(),
                 ci: &*self.ci,
                 constraints: &self.constraints,
                 cols: &cols,
@@ -469,6 +477,84 @@ mod tests {
     use super::*;
     use crate::result::LaggedLink;
     use crate::test_tables::tabular_n;
+
+    #[test]
+    fn covariance_search_preserves_graphs_and_corrected_decisions() {
+        use antecedent_stats::MultipleTestingMethod;
+        let methods = [
+            None,
+            Some(MultipleTestingMethod::BenjaminiHochberg),
+            Some(MultipleTestingMethod::BenjaminiYekutieli),
+            Some(MultipleTestingMethod::Bonferroni),
+            Some(MultipleTestingMethod::Holm),
+        ];
+        for seed in 0..12 {
+            let mut rng = antecedent_core::CausalRng::from_seed(seed);
+            let mut columns = vec![vec![0.0; 512]; 8];
+            for row in 0..512 {
+                for c in 0..8 {
+                    columns[c][row] = antecedent_kernels::standard_normal(&mut rng)
+                        + if c > 0 { 0.65 * columns[c - 1][row] } else { 0.0 };
+                }
+            }
+            if seed % 4 == 1 {
+                // Mix eligible queries with nearly collinear residual systems
+                // that must use the original solver, including threaded batches.
+                for row in 0..512 {
+                    columns[7][row] = columns[0][row] + 1e-5 * columns[7][row];
+                }
+            }
+            let data = crate::test_tables::continuous_table(
+                &["a", "b", "c", "d", "e", "f", "g", "h"],
+                columns,
+            );
+            let vars: Vec<_> = (0..8).map(VariableId::from_raw).collect();
+            for method in methods {
+                let pc = Pc::new()
+                    .with_constraints(DiscoveryConstraints {
+                        max_cond_size: 3,
+                        max_parents: if seed % 3 == 0 { Some(2) } else { None },
+                        ..DiscoveryConstraints::default()
+                    })
+                    .with_fdr_adjustment(
+                        method
+                            .map(|method| FdrAdjustment { method, exclude_contemporaneous: false }),
+                    );
+                let expected = pc
+                    .run(
+                        &data,
+                        &vars,
+                        &mut DiscoveryWorkspace::default(),
+                        &ExecutionContext::for_tests(seed),
+                    )
+                    .unwrap();
+                for threads in [1, 4] {
+                    let actual = pc
+                        .run(
+                            &data,
+                            &vars,
+                            &mut DiscoveryWorkspace::default(),
+                            &ExecutionContext::production(seed, threads),
+                        )
+                        .unwrap();
+                    assert_eq!(actual.performance.ci_tests, expected.performance.ci_tests);
+                    assert_eq!(
+                        format!("{:?}", actual.evidence.graph),
+                        format!("{:?}", expected.evidence.graph)
+                    );
+                    assert_eq!(actual.evidence.links.len(), expected.evidence.links.len());
+                    for (a, b) in actual.evidence.links.iter().zip(expected.evidence.links.iter()) {
+                        assert_eq!(a.link, b.link);
+                        assert!((a.statistic - b.statistic).abs() < 1e-10);
+                        assert!((a.p_value - b.p_value).abs() < 1e-9);
+                        if let (Some(a), Some(b)) = (a.adjusted_p_value, b.adjusted_p_value) {
+                            assert!((a - b).abs() < 1e-9);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn fixed_directions_leave_an_edge_the_search_already_directed_alone_or_mark_it_a_conflict() {

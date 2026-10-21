@@ -111,6 +111,7 @@ impl Study {
             state: SampledPreparedState {
                 analysis,
                 program_cache: std::sync::OnceLock::new(),
+                contract_cache: std::sync::OnceLock::new(),
                 plan,
                 schema,
                 modality,

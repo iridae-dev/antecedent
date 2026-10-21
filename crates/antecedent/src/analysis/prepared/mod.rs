@@ -157,6 +157,8 @@ pub struct SampledPreparedState {
     analysis: Study,
     /// Data-independent contract layers, compiled once per handle state.
     program_cache: std::sync::OnceLock<Arc<crate::analysis::contract::ProgramPayloads>>,
+    /// Immutable base contract; execution claims and reasoning are rebound per result.
+    contract_cache: std::sync::OnceLock<Arc<crate::analysis::contract::CompiledContract>>,
     /// Ready physical plan from the prepare-time compile (never recompiled on refresh).
     plan: std::sync::Arc<PhysicalExecutionPlan>,
     /// Schema fingerprint from prepare-time data.

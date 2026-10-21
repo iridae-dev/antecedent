@@ -526,7 +526,29 @@ impl PreparedStudy {
     ///
     /// Canonical-encoding failures.
     pub fn contract(&self) -> Result<CausalContract, CausalError> {
-        Ok(compile_with_payloads(self.study(), Some(self), Some(self.program_payloads()?))?.0)
+        Ok(self.compiled_contract()?.contract.clone())
+    }
+
+    fn compiled_contract(&self) -> Result<Arc<CompiledContract>, CausalError> {
+        if let Some(cached) = self.contract_cache().get() {
+            return Ok(Arc::clone(cached));
+        }
+        let (contract, payloads) =
+            compile_with_payloads(self.study(), Some(self), Some(self.program_payloads()?))?;
+        let compiled = Arc::new(CompiledContract { contract, payloads });
+        // Keep compiled metadata, not potentially row-sized fitted laws or
+        // participant/network exports. Those retain the ordinary on-demand
+        // compilation path. Linear moments are already capped at 64 columns.
+        let snapshot = &compiled.payloads.data_snapshot;
+        if snapshot.distribution_factor_laws.is_some()
+            || snapshot.nested_counterfactual_fit.is_some()
+            || snapshot.interference.is_some()
+            || snapshot.participants.is_some()
+            || snapshot.partitions.len() > 64
+        {
+            return Ok(compiled);
+        }
+        Ok(Arc::clone(self.contract_cache().get_or_init(|| compiled)))
     }
 
     /// Program-side payloads of the bound study, compiled once per handle
@@ -677,7 +699,8 @@ impl PreparedStudy {
         let retargeted = result.retarget_population();
         let compiled = match self.study_for_execution(executed.refute, retargeted.as_ref()) {
             None => {
-                compile_with_payloads(self.study(), Some(self), Some(self.program_payloads()?))?
+                let compiled = self.compiled_contract()?;
+                (compiled.contract.clone(), compiled.payloads.clone())
             }
             Some(study) => compile_with_payloads(&study, Some(self), None)?,
         };
@@ -1506,6 +1529,14 @@ impl ProgramPayloads {
     }
 }
 
+/// Base prepared contract. Never stores an execution's claim or result reasoning.
+#[derive(Clone, Debug)]
+pub(crate) struct CompiledContract {
+    contract: CausalContract,
+    payloads: ContractPayloads,
+}
+
+#[derive(Clone, Debug)]
 struct ContractPayloads {
     program: Arc<ProgramPayloads>,
     data_snapshot: DataSnapshotIdentityWire,

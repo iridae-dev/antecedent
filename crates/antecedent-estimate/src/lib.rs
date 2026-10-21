@@ -43,7 +43,6 @@ pub mod constraint_likelihood;
 pub mod continuous_dose;
 pub mod continuous_dose_posterior;
 pub mod count_fitted_posterior;
-pub mod count_weight_lowering;
 pub mod counterfactual_transport;
 pub mod counterfactual_transport_sampled;
 pub mod cpdag_scenarios;

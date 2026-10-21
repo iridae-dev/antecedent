@@ -1,7 +1,7 @@
 //! Portable-layout measurement of the four N15 kernels.
 //!
 //! This is not the mixed `reductions` or `linalg` bench. Each function times one
-//! kernel on the layout in `layout_contract` or `ColumnMajorDesign`.
+//! kernel on borrowed vector/bitmap views or `ColumnMajorDesign`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -10,8 +10,7 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-use antecedent_kernels::layout_contract::{ContiguousColumn, PackedBitmapMask, UnitStrideF64};
-use antecedent_kernels::{portable, scalar};
+use antecedent_kernels::{BitMaskView, F64VectorView, portable, scalar};
 use antecedent_stats::gram::{
     ColumnMajorDesign, DesignRow, accumulate_xtx_xty_row, form_xtx, form_xty,
 };
@@ -52,8 +51,8 @@ fn report(kernel: &str, symbol: &str, detail: &str, ns: u64) {
 fn fused_reductions() {
     let x = column(FUSED_N, 0.01);
     let y = column(FUSED_N, 0.02);
-    let xv = UnitStrideF64::new(&x).view();
-    let yv = UnitStrideF64::new(&y).view();
+    let xv = F64VectorView::contiguous(&x);
+    let yv = F64VectorView::contiguous(&y);
     let n = format!("n={FUSED_N}");
     report(
         "fused_reductions",
@@ -92,11 +91,9 @@ fn bitmap_mask() {
     let x = column(FUSED_N, 0.01);
     let y = column(FUSED_N, 0.02);
     let bytes = vec![0b0101_0101; FUSED_N.div_ceil(8)];
-    let mx = PackedBitmapMask::new(&x, &bytes).unwrap();
-    let my = PackedBitmapMask::new(&y, &bytes).unwrap();
-    let xv = mx.values();
-    let yv = my.values();
-    let mask = mx.mask();
+    let xv = F64VectorView::contiguous(&x);
+    let yv = F64VectorView::contiguous(&y);
+    let mask = BitMaskView::new(&bytes, x.len()).unwrap();
     let n = format!("n={FUSED_N} bits=alternating");
     report(
         "bitmap_mask",
@@ -212,8 +209,7 @@ fn column_scaling() {
         "standardize_inplace",
         &n,
         median_ns!(values.copy_from_slice(&source), {
-            let mut column = ContiguousColumn::new(black_box(&mut values));
-            black_box(portable::standardize_inplace(black_box(column.as_mut_slice()), 1e-12));
+            black_box(portable::standardize_inplace(black_box(&mut values), 1e-12));
         }),
     );
 }

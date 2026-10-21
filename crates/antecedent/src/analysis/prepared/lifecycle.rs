@@ -67,6 +67,7 @@ impl PreparedStudy {
             Some(crate::analysis::contract_identity::estimator_spec_identity(&spec));
         candidate.analysis.estimator_spec = Some(Arc::new(spec));
         candidate.program_cache = std::sync::OnceLock::new();
+        candidate.contract_cache = std::sync::OnceLock::new();
 
         if let PreparedExecution::CheckedAipw(operation) = &mut candidate.execution {
             let identification = &operation.cache.identification;
@@ -254,6 +255,7 @@ impl PreparedStudy {
         self.analysis.overlap_policy = spec.propensity_overlap();
         self.analysis.estimator_spec = Some(Arc::new(spec));
         self.program_cache = std::sync::OnceLock::new();
+        self.contract_cache = std::sync::OnceLock::new();
         self.refresh(data, ctx)
     }
 

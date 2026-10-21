@@ -269,17 +269,21 @@ fn ensure_conjugate_gram(
             let w = design.weights.map_or(1.0, |ww| ww[r]);
             n_eff += w;
         }
-        for c1 in 0..ncols {
-            for c2 in c1..ncols {
-                let mut acc = 0.0;
-                for r in 0..nrows {
-                    let w = design.weights.map_or(1.0, |ww| ww[r]);
-                    let x1 = design.x_colmajor[c1 * nrows + r];
-                    let x2 = design.x_colmajor[c2 * nrows + r];
-                    acc += w * x1 * x2;
+        if design.weights.is_none() {
+            antecedent_stats::gram::form_xtx(design.x_colmajor, nrows, ncols, xtx);
+        } else {
+            for c1 in 0..ncols {
+                for c2 in c1..ncols {
+                    let mut acc = 0.0;
+                    for r in 0..nrows {
+                        let w = design.weights.map_or(1.0, |ww| ww[r]);
+                        let x1 = design.x_colmajor[c1 * nrows + r];
+                        let x2 = design.x_colmajor[c2 * nrows + r];
+                        acc += w * x1 * x2;
+                    }
+                    xtx[c1 * ncols + c2] = acc;
+                    xtx[c2 * ncols + c1] = acc;
                 }
-                xtx[c1 * ncols + c2] = acc;
-                xtx[c2 * ncols + c1] = acc;
             }
         }
         workspace.conjugate_xtx.clear();

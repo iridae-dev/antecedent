@@ -5,6 +5,8 @@
 //! Calibration remains unmeasured; optimization is local and its status explicit.
 
 use antecedent_core::ExecutionContext;
+#[cfg(test)]
+use antecedent_model::nonlinear_equilibrium::SolvePolicy;
 use antecedent_model::nonlinear_equilibrium::{EquilibriumError, EquilibriumModel, RegimeRow};
 use antecedent_prob::metropolis::{MetropolisOptions, sample_metropolis};
 use serde::{Deserialize, Serialize};
@@ -481,10 +483,12 @@ mod tests {
         assert!((values[1] + 0.25).abs() < 0.06, "{values:?}");
         let clamps = [Clamp { variable: 0, value: 2.0 }, Clamp { variable: 1, value: -2.0 }];
         let outcome =
-            fit.model.solve(&[0.0; 2], &clamps, &[0.0; 2], Default::default(), &ctx).unwrap();
+            fit.model.solve(&[0.0; 2], &clamps, &[0.0; 2], SolvePolicy::default(), &ctx).unwrap();
         assert_eq!(outcome.values, vec![2.0, -2.0]);
-        let unseen =
-            fit.model.solve(&[0.0; 2], &clamps[..1], &[0.0; 2], Default::default(), &ctx).unwrap();
+        let unseen = fit
+            .model
+            .solve(&[0.0; 2], &clamps[..1], &[0.0; 2], SolvePolicy::default(), &ctx)
+            .unwrap();
         assert!((unseen.values[1] - (-0.5_f64).tanh()).abs() < 0.1);
         let failed = fit_cyclic_likelihood(
             &template,
@@ -812,7 +816,7 @@ mod partial_tests {
         let expected_variance = 1.25 / 0.64 - (0.9 / 0.64_f64).powi(2) / (1.16 / 0.64);
         assert!((variance - expected_variance).abs() < 0.15, "{variance} vs {expected_variance}");
         for (state, noise) in posterior.states.iter().zip(&posterior.disturbances) {
-            assert_eq!(state[0], 1.0);
+            assert_eq!(state[0].to_bits(), 1.0_f64.to_bits());
             assert!((noise[1] - (state[1] - 0.5)).abs() < 1e-12);
         }
     }
@@ -993,7 +997,7 @@ mod selection_tests {
         let predicted = selected
             .fit
             .model
-            .solve(&[0.0; 3], &heldout[0].clamps, &[0.0; 3], Default::default(), &ctx)
+            .solve(&[0.0; 3], &heldout[0].clamps, &[0.0; 3], SolvePolicy::default(), &ctx)
             .unwrap();
         assert!((predicted.values[2] - 0.33).abs() < 0.07, "{predicted:?}");
         let failed = bootstrap_cyclic_structure(

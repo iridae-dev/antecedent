@@ -631,13 +631,13 @@ fn analyze_ate_many(
         )?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let results = batch.estimate_many(&ate_queries, &ctx).map_err(py_err)?;
-        results.into_iter().map(|r| ate_result_from_analysis(&names, r, false)).collect()
+        results.into_iter().map(|r| ate_result_from_analysis(&names, &r, false)).collect()
     })
 }
 
 pub(crate) fn ate_result_from_analysis(
     names: &[String],
-    result: antecedent::StudyResult,
+    result: &antecedent::StudyResult,
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     let effect_authority =
@@ -653,14 +653,14 @@ pub(crate) fn ate_result_from_analysis(
             },
         );
     let effect = result.estimate.as_effect();
-    let certificate_json = crate::identification_details::analysis_to_json(&result, names)?;
+    let certificate_json = crate::identification_details::analysis_to_json(result, names)?;
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
     let posterior_artifact = if include_posterior_artifact {
-        posterior_summary_from_result(&result, true)?.7
+        posterior_summary_from_result(result, true)?.7
     } else {
         None
     };
-    let sections = crate::shared_study_sections(names, &result, estimator_id)?
+    let sections = crate::shared_study_sections(names, result, estimator_id)?
         .with_posterior_artifact(posterior_artifact);
     let ppc = ppc_fields_from_checks(&result.predictive_checks);
     let (
@@ -670,9 +670,9 @@ pub(crate) fn ate_result_from_analysis(
         prior_sensitivity_sds,
         prior_sensitivity_family,
         prior_sensitivity_variance_multipliers,
-    ) = prior_sensitivity_from_result(&result);
+    ) = prior_sensitivity_from_result(result);
     let (conflict_source_ids, conflict_alphas_requested, conflict_alphas_applied) =
-        conflict_summary_from_result(&result);
+        conflict_summary_from_result(result);
     let SharedStudySections {
         identification,
         estimate,
@@ -1518,7 +1518,7 @@ impl PyPreparedBatch {
             let (results, scores) = inner.estimate_scored(&data, &ctx).map_err(py_err)?;
             let results = results
                 .into_iter()
-                .map(|r| ate_result_from_analysis(&names, r, false))
+                .map(|r| ate_result_from_analysis(&names, &r, false))
                 .collect::<PyResult<Vec<_>>>()?;
             Ok((results, scores))
         })?;

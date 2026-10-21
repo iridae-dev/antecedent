@@ -78,6 +78,29 @@ impl<'a> DesignRow<'a> {
 /// Fill symmetric `ncols×ncols` `XtX` (row-major) from column-major `X`.
 pub fn form_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
+    // Borrow both layouts; no n*p packing or p*p result copy. Keep tiny and
+    // skinny products on the reference loop. Explicit serial faer execution
+    // cannot oversubscribe an outer bootstrap/discovery worker.
+    if nrows >= 256 && ncols >= 16 && nrows.saturating_mul(ncols).saturating_mul(ncols) >= 524_288 {
+        let x = faer::MatRef::from_column_major_slice(&x_colmajor[..nrows * ncols], nrows, ncols);
+        let out = faer::MatMut::from_row_major_slice_mut(&mut xtx[..ncols * ncols], ncols, ncols);
+        faer::linalg::matmul::matmul(
+            out,
+            faer::Accum::Replace,
+            x.transpose(),
+            x,
+            1.0,
+            faer::Par::Seq,
+        );
+        // Consumers expect exact symmetry, including under different backend
+        // blocking choices. Both entries represent the same dot product.
+        for i in 0..ncols {
+            for j in i + 1..ncols {
+                xtx[j * ncols + i] = xtx[i * ncols + j];
+            }
+        }
+        return;
+    }
     xtx[..ncols * ncols].fill(0.0);
     accumulate_xtx(x_colmajor, nrows, ncols, xtx);
 }
@@ -214,6 +237,37 @@ pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn borrowed_blocked_gram_matches_independent_products_and_is_symmetric() {
+        let (n, p) = (1024, 32);
+        let x: Vec<_> = (0..p)
+            .flat_map(|c| {
+                (0..n).map(move |r| {
+                    let scale = if c % 3 == 0 {
+                        1e-6
+                    } else if c % 3 == 1 {
+                        1e6
+                    } else {
+                        1.0
+                    };
+                    scale * ((r as f64 * 0.13 + c as f64).sin() + 0.2)
+                })
+            })
+            .collect();
+        let mut actual = vec![0.0; p * p];
+        super::form_xtx(&x, n, p, &mut actual);
+        for i in 0..p {
+            for j in 0..p {
+                let expected: f64 = (0..n).map(|r| x[i * n + r] * x[j * n + r]).sum();
+                let magnitude: f64 = (0..n).map(|r| (x[i * n + r] * x[j * n + r]).abs()).sum();
+                assert!(
+                    (actual[i * p + j] - expected).abs()
+                        <= 16.0 * n as f64 * f64::EPSILON * magnitude
+                );
+                assert_eq!(actual[i * p + j].to_bits(), actual[j * p + i].to_bits());
+            }
+        }
+    }
     use super::*;
 
     #[test]

@@ -51,7 +51,7 @@ antecedent-graph            -> core
 antecedent-expr             -> core
 antecedent-learn-burn       -> (no workspace crate)
 antecedent-data             -> core, kernels
-antecedent-prob             -> core, kernels
+antecedent-prob             -> core, kernels, stats
 antecedent-stats            -> core, kernels
 antecedent-state            -> core, kernels, stats
 antecedent-learn            -> core, kernels, stats, prob, learn-burn
