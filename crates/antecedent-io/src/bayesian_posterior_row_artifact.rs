@@ -240,6 +240,8 @@ pub use antecedent_io_core::PosteriorRowWire as PosteriorRowResultWire;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PosteriorRowArtifactWire {
+    #[serde(skip)]
+    retention: crate::retained_allocation::RetainedAllocation,
     /// Independent format version.
     pub version: u32,
     /// Required feature marker.
@@ -574,6 +576,12 @@ pub fn survival_row(
 }
 
 impl PosteriorRowArtifactWire {
+    /// Reservations held by the returned artifact and its clones, excluding shared compiler inputs.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        self.retention.bytes()
+    }
+
     /// Evaluate the row on `request` and seal the result with both digests.
     ///
     /// # Errors
@@ -597,6 +605,7 @@ impl PosteriorRowArtifactWire {
     ) -> Result<Self, PosteriorRowArtifactError> {
         let undecodable = |e: IoError| PosteriorRowArtifactError::Undecodable(e.to_string());
         let wire = Self {
+            retention: crate::retained_allocation::RetainedAllocation::default(),
             version: POSTERIOR_ROW_ARTIFACT_VERSION,
             required_features: vec![POSTERIOR_ROW_ARTIFACT_FEATURE.to_owned()],
             premises_digest: request.premises_digest().map_err(undecodable)?,
@@ -664,6 +673,73 @@ impl PosteriorRowArtifactWire {
     /// Encoding failure.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
         crate::to_cbor(self)
+    }
+
+    /// Encode with cancellation and caller admission before allocating CBOR buffers.
+    /// Returned artifact bytes become caller-owned after encoding.
+    ///
+    /// # Errors
+    /// Cancellation, resource refusal, or a CBOR encoding failure.
+    pub fn export_with_context(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Vec<u8>, PosteriorRowArtifactError> {
+        struct Counter<'a> {
+            bytes: u64,
+            ctx: &'a antecedent_core::ExecutionContext,
+        }
+        impl std::io::Write for Counter<'_> {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                if self.ctx.cancellation.is_cancelled() {
+                    return Err(std::io::Error::other("cancelled"));
+                }
+                self.bytes = self
+                    .bytes
+                    .checked_add(u64::try_from(bytes.len()).map_err(std::io::Error::other)?)
+                    .ok_or_else(|| std::io::Error::other("artifact byte size overflow"))?;
+                if self.ctx.memory.hard_limit_bytes.is_some_and(|limit| self.bytes > limit) {
+                    return Err(std::io::Error::other("artifact exceeds memory limit"));
+                }
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(execution_refusal("dose_grid.cancelled", "artifact export cancelled"));
+        }
+        let mut counter = Counter { bytes: 0, ctx };
+        if let Err(error) = ciborium::ser::into_writer(self, &mut counter) {
+            return Err(if ctx.cancellation.is_cancelled() {
+                execution_refusal("dose_grid.cancelled", "artifact export cancelled")
+            } else {
+                execution_refusal("dose_grid.resource_refused", &error.to_string())
+            });
+        }
+        let scratch = counter
+            .bytes
+            .checked_mul(3)
+            .and_then(|bytes| bytes.checked_add(4096))
+            .ok_or_else(|| {
+                execution_refusal("dose_grid.resource_refused", "artifact encoding size overflow")
+            })?;
+        if ctx.memory.hard_limit_bytes.is_some_and(|limit| scratch > limit) {
+            return Err(execution_refusal(
+                "dose_grid.resource_refused",
+                "artifact encoding exceeds memory limit",
+            ));
+        }
+        let _encoding = ctx
+            .acquire_admission(0, scratch)
+            .map_err(|error| execution_refusal("dose_grid.resource_refused", &error.to_string()))?;
+        let bytes = self
+            .export()
+            .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(execution_refusal("dose_grid.cancelled", "artifact export cancelled"));
+        }
+        Ok(bytes)
     }
 
     /// Decode, refusing any other version before the payload is interpreted.
@@ -739,7 +815,7 @@ impl PosteriorRowArtifactWire {
         let _decode = ctx
             .acquire_admission(0, bound)
             .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
-        let wire = Self::decode(bytes).map_err(|e| match e {
+        let mut wire = Self::decode(bytes).map_err(|e| match e {
             IoError::Refused { .. } => PosteriorRowArtifactError::UnsupportedSemantics("shape"),
             other => PosteriorRowArtifactError::Undecodable(other.to_string()),
         })?;
@@ -761,6 +837,16 @@ impl PosteriorRowArtifactWire {
         if stored != recomputed {
             return Err(PosteriorRowArtifactError::ResultMismatch);
         }
+        wire.retention = crate::retained_allocation::RetainedAllocation::acquire(
+            crate::retained_allocation::allocation_bytes(&wire)
+                .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?,
+            ctx,
+        )
+        .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        antecedent_core::execution_attempt::record_physical(
+            antecedent_core::execution_attempt::PhysicalEvent::RetainedFull,
+            1,
+        );
         Ok((wire, program))
     }
 }
@@ -779,7 +865,7 @@ pub struct CompiledPosteriorRow {
     program: CompiledDoseGridPosterior,
     premises_digest: String,
     data_digest: String,
-    _source_retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
+    source_retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
 }
 impl CompiledPosteriorRow {
     /// Validate premises/support/prior and retain a typed numerical program without fitting.
@@ -807,7 +893,7 @@ impl CompiledPosteriorRow {
             program,
             premises_digest,
             data_digest,
-            _source_retention: std::sync::Arc::new(retention),
+            source_retention: std::sync::Arc::new(retention),
         })
     }
     /// Frozen scientific/data identity pair; no fitting or simulation.
@@ -820,8 +906,9 @@ impl CompiledPosteriorRow {
     pub fn request(&self) -> &PosteriorRowRequestWire {
         &self.request
     }
-    /// Execute the retained original numerical engine; compatible retargeting reuses its coefficient posterior.
-    pub fn execute(
+    // Internal conversion into a bare wire record. Public execution returns the guarded
+    // artifact owner; exposing this conversion would lose result admission ownership.
+    pub(crate) fn execute(
         &self,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<PosteriorRowResultWire, PosteriorRowArtifactError> {
@@ -875,7 +962,7 @@ impl CompiledPosteriorRow {
             program,
             premises_digest,
             data_digest: self.data_digest.clone(),
-            _source_retention: std::sync::Arc::new(retention),
+            source_retention: std::sync::Arc::new(retention),
         })
     }
     /// Execute and separately encode the original posterior artifact format.
@@ -883,6 +970,76 @@ impl CompiledPosteriorRow {
         &self,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<PosteriorRowArtifactWire, PosteriorRowArtifactError> {
-        PosteriorRowArtifactWire::from_executed(self.request.as_ref().clone(), self.execute(ctx)?)
+        self.source_retention.observe_current();
+        let PosteriorRowRequestWire::DoseGrid(request) = self.request.as_ref();
+        let points =
+            if request.functional.kind == "contrast" { 1usize } else { request.grid.len() };
+        let numeric = points
+            .checked_mul(request.draws)
+            .and_then(|n| n.checked_add(points.checked_mul(points)?.checked_mul(2)?))
+            .and_then(|n| n.checked_add(points.checked_mul(16)?))
+            .and_then(|n| n.checked_mul(16))
+            .ok_or_else(|| {
+                execution_refusal("dose_grid.resource_refused", "artifact output size overflow")
+            })? as u64;
+        let source = crate::retained_allocation::allocation_bytes(self.request.as_ref())
+            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let bytes =
+            source.checked_add(numeric).and_then(|n| n.checked_add(16384)).ok_or_else(|| {
+                execution_refusal("dose_grid.resource_refused", "artifact output size overflow")
+            })?;
+        let retention = crate::retained_allocation::RetainedAllocation::acquire(bytes, ctx)
+            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let mut artifact = PosteriorRowArtifactWire::from_executed(
+            self.request.as_ref().clone(),
+            self.execute(ctx)?,
+        )?;
+        artifact.retention = retention;
+        antecedent_core::execution_attempt::record_physical(
+            antecedent_core::execution_attempt::PhysicalEvent::RetainedFull,
+            1,
+        );
+        Ok(artifact)
+    }
+}
+
+#[cfg(test)]
+mod retained_artifact_tests {
+    use super::*;
+    #[test]
+    fn posterior_artifact_owns_its_output_reservation_after_program_drop() {
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 1_000_000);
+        let ctx = antecedent_core::ExecutionContext::for_tests(3).with_admission(pool.clone());
+        let request = PosteriorRowRequestWire::DoseGrid(DoseGridPosteriorWire {
+            design: "randomized_dose".into(),
+            functional: DoseFunctionalWire { kind: "level".into(), from: None, to: None },
+            grid: vec![0.25, 0.75],
+            support: (0., 1.),
+            coefficient_scales: vec![2., 1.],
+            residual: ResidualPriorWire::KnownVariance(0.5),
+            draws: 200,
+            seed: 3,
+            dose: vec![0., 0.25, 0.5, 0.75, 1.],
+            outcome: vec![0., 0.4, 1.1, 1.4, 2.],
+        });
+        let program = CompiledPosteriorRow::compile(request, &ctx).unwrap();
+        let artifact = program.artifact(&ctx).unwrap();
+        drop(program);
+        assert!(artifact.retained_admitted_bytes() > 0);
+        assert_eq!(
+            pool.byte_budget() - pool.available().bytes(),
+            artifact.retained_admitted_bytes()
+        );
+        let bytes = artifact.export().unwrap();
+        let replay = PosteriorRowArtifactWire::consume_prepared_with_context(
+            &bytes,
+            PosteriorRowConsumeLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(artifact, replay.0);
+        drop(replay);
+        drop(artifact);
+        assert_eq!(pool.available().bytes(), pool.byte_budget());
     }
 }

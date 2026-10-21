@@ -313,7 +313,7 @@ pub fn reject_dag_only_on_pag(
 }
 
 impl PhysicalExecutionPlan {
-    /// Bind the direct immutable design implementation verified by checked linear preparation.
+    /// Choose an executable design implementation before checked preparation.
     pub(crate) fn bind_prepared_linear_views(
         &mut self,
         direct_eligible: bool,
@@ -324,10 +324,14 @@ impl PhysicalExecutionPlan {
         };
         let direct = PhysicalAlternative::DirectPreparedNumericViews;
         let materialized = PhysicalAlternative::MaterializedDesign;
-        let backend = if direct_eligible { direct } else { materialized };
-        let available = AvailableCapabilities::empty()
-            .with_operator(backend.required_operator())
-            .with_resource(backend.required_resource());
+        let mut available = AvailableCapabilities::empty()
+            .with_operator(materialized.required_operator())
+            .with_resource(materialized.required_resource());
+        if direct_eligible {
+            available = available
+                .with_operator(direct.required_operator())
+                .with_resource(direct.required_resource());
+        }
         let peak = self.record.estimated_peak_memory_bytes.ok_or_else(|| {
             CausalError::Resource { message: "prepared design omitted memory estimate".into() }
         })?;
@@ -350,14 +354,8 @@ impl PhysicalExecutionPlan {
             available,
         )
         .map_err(|error| CausalError::Resource { message: error.to_string() })?;
-        self.record.materializations = Arc::from([(
-            Arc::from("design.matrix"),
-            if self.choice.selected() == direct {
-                BufferMaterialization::Borrowed
-            } else {
-                BufferMaterialization::CopiedContiguous
-            },
-        )]);
+        self.record.materializations =
+            Arc::from([(Arc::from("design.matrix"), BufferMaterialization::CopiedContiguous)]);
         Ok(())
     }
 }

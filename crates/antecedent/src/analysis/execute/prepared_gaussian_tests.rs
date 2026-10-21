@@ -66,6 +66,10 @@ fn prepared_gaussian_retains_the_compiled_program_after_builder_drop() {
         plan.choice.selected(),
         antecedent_core::physical_choice::PhysicalAlternative::DirectPreparedNumericViews
     );
+    assert_eq!(
+        prepared.checked_linear_adjustment().unwrap().physical_backend(),
+        prepared.plan().choice.selected()
+    );
     let program = prepared.compiled_linear_program().unwrap();
     assert!(
         std::ptr::eq(program, prepared.plan().compiled_linear_program().unwrap()),
@@ -265,6 +269,7 @@ fn prepared_gaussian_materializes_the_actual_categorical_design() {
     assert_eq!(prepared.plan().choice.selected(), PhysicalAlternative::MaterializedDesign);
     assert_eq!(prepared.plan().logical.design_columns_hint, 5);
     let checked = prepared.checked_linear_adjustment().unwrap();
+    assert_eq!(checked.physical_backend(), prepared.plan().choice.selected());
     assert_eq!(checked.problem().design.ncols, 5);
     assert_eq!(checked.problem().preparation.categories()[0].n_columns, 3);
     let result = prepared.estimate_retained(&ctx).unwrap();

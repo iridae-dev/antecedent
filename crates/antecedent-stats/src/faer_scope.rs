@@ -196,8 +196,6 @@ mod tests {
     use faer::Par;
     use faer::dyn_stack::StackReq;
 
-    use antecedent_core::execution::AdmissionPool;
-
     use super::{FaerScope, FaerScopeError};
 
     fn lease_bytes(bytes: u64) -> antecedent_core::execution::AdmissionLease {

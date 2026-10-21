@@ -72,7 +72,6 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sample_s
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::FittedGcm [auto]
-impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::BatchStudy [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::InterferenceSpec [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::PreparedBatch [auto]
@@ -92,7 +91,6 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::sample_spli
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::gcm::FittedGcm [auto]
-impl !core::panic::unwind_safe::UnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl antecedent::IntoAccepted for antecedent_graph::cpdag::CpdagReview
 impl antecedent::IntoAccepted for antecedent_graph::dag::DagReview
 impl antecedent::IntoAccepted for antecedent_graph::pag::PagReview
@@ -5555,6 +5553,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::Ref
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::RefreshEvent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::SummaryOnlyFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::LogicalAnalysisPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::InterferenceInference [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::InterferencePointwiseInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::IntervalBinding [auto]
@@ -6152,6 +6151,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::Refres
 impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::RefreshEvent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::SummaryOnlyFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::LogicalAnalysisPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::InterferenceInference [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::InterferencePointwiseInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::IntervalBinding [auto]
@@ -9286,6 +9286,7 @@ pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn replace_snapshot(&mut self, input: antecedent::analysis::TransportGridData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn statistical_options(&self) -> core::option::Option<antecedent_estimate::empirical_table::EmpiricalTableOptions>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState>>::fn estimate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::PreparedStudy<antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState>>::fn estimate_observed(&self, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_core::execution_attempt::ExecutionAttempt<antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState>>::fn inspect(&self) -> (&str, &str)
 pub fn <antecedent::PreparedStudy<antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState>>::fn retarget(&self, grid: alloc::vec::Vec<f64>, functional: antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>>::fn cyclic_evidence(&self, schema: antecedent::analysis::cyclic_evidence::CyclicEvidenceSchema, selectors: alloc::vec::Vec<antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::cyclic_evidence::CyclicEvidence, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
@@ -9871,13 +9872,16 @@ pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::con
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::const fn request(&self) -> &antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::const fn result(&self) -> &antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn consume(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn consume_observed(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_core::execution_attempt::ExecutionAttempt<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn consume_with_context(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn digests(&self) -> (&str, &str)
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn estimator(&self) -> &str
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn evaluate(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn evaluate_observed(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_core::execution_attempt::ExecutionAttempt<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn evaluate_with_context(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn execution_facts(&self) -> core::option::Option<&antecedent_core::execution_facts::ExecutionFacts>
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn export_with_context(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn artifact(&self) -> &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn consume(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn consume_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>

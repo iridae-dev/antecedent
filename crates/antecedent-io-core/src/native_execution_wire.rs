@@ -13,6 +13,9 @@ pub enum NativeExecutionFormat {
     /// Optional measurements, admitted reservations rather than process RSS.
     #[serde(rename = "native_execution_v1")]
     V1,
+    /// Adds optional buffer volumes and an explicit measured retention mode.
+    #[serde(rename = "native_execution_v2")]
+    V2,
 }
 /// Recorded observations are descriptive; importing them never executes or licenses a claim.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,6 +35,26 @@ pub struct NativeExecutionWire {
     pub kernel_policy: [bool; 3],
     /// Completed, cancelled or failed.
     pub status: NativeExecutionStatus,
+    /// Copied numeric buffer bytes and retained admitted output reservation bytes.
+    /// Retention is cumulative handoff volume, not exact heap allocation or RSS.
+    /// Absent means unmeasured.
+    /// V1 did not encode these values even if its coverage contained the event bit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub buffer_bytes: Option<[Option<u64>; 2]>,
+    /// Absent in V1; omission never implies summary-only retention.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retention: Option<NativeOutputRetention>,
+}
+/// Measured output storage mode, without reusable authority or storage paths.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NativeOutputRetention {
+    /// Full in-memory output.
+    FullReusable,
+    /// Only a summary was retained.
+    SummaryOnly,
+    /// Output was retained on disk.
+    DiskBacked,
 }
 /// Terminal execution status; no scientific authority follows from it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,7 +76,7 @@ impl NativeExecutionWire {
         let resources = facts.resources();
         let kernel = facts.backend().kernel();
         Some(Self {
-            format: NativeExecutionFormat::V1,
+            format: NativeExecutionFormat::V2,
             coverage,
             counts: [
                 counts.scans(),
@@ -69,6 +92,13 @@ impl NativeExecutionWire {
                 kernel.allow_arch_simd,
                 kernel.force_scalar,
             ],
+            buffer_bytes: Some([facts.observed_copied_bytes(), facts.observed_retained_bytes()]),
+            retention: match facts.retention() {
+                OutputRetention::Unmeasured => None,
+                OutputRetention::FullReusable => Some(NativeOutputRetention::FullReusable),
+                OutputRetention::SummaryOnly => Some(NativeOutputRetention::SummaryOnly),
+                OutputRetention::DiskBacked => Some(NativeOutputRetention::DiskBacked),
+            },
             status: match facts.status() {
                 ExecutionFactStatus::Completed => NativeExecutionStatus::Completed,
                 ExecutionFactStatus::Cancelled => NativeExecutionStatus::Cancelled,
@@ -87,18 +117,37 @@ impl NativeExecutionWire {
             NativeExecutionStatus::Cancelled => ExecutionFactStatus::Cancelled,
             NativeExecutionStatus::Failed => ExecutionFactStatus::Failed,
         };
+        // V1 omitted buffer volumes and never measured retention, regardless of its
+        // coverage mask. Do not invent zero volumes or infer a storage mode.
+        let v2 = self.format == NativeExecutionFormat::V2;
+        let [copied, retained] =
+            if v2 { self.buffer_bytes.unwrap_or([None, None]) } else { [None, None] };
+        let retention = if v2 { self.retention } else { None };
+        let mut coverage = self.coverage;
+        if copied.is_none() {
+            coverage &= !(1 << 2);
+        }
+        if retained.is_none() {
+            coverage &= !(1 << 4);
+        }
         ExecutionFacts::from_artifact(
             MeasuredExecution::new(
                 ExecutionCounts::new(scans, copies, fits, tests, cache_hits),
-                OutputRetention::SummaryOnly,
+                match retention {
+                    None => OutputRetention::Unmeasured,
+                    Some(NativeOutputRetention::FullReusable) => OutputRetention::FullReusable,
+                    Some(NativeOutputRetention::SummaryOnly) => OutputRetention::SummaryOnly,
+                    Some(NativeOutputRetention::DiskBacked) => OutputRetention::DiskBacked,
+                },
                 ExecutionResources::new(threads, bytes, spill),
                 ExecutionBackend::new(
                     self.backend.clone(),
                     KernelPolicy { allow_portable_optimized, allow_arch_simd, force_scalar },
                 ),
                 status,
-            ),
-            self.coverage,
+            )
+            .with_observed_buffer_bytes(copied, retained),
+            coverage,
         )
     }
 }
@@ -123,5 +172,48 @@ mod tests {
         assert_eq!(imported.peak_admitted_bytes(), Some(32));
         assert_eq!(imported.observed_scans(), None);
         assert_eq!(imported.physical_identity(), facts.physical_identity());
+    }
+    #[test]
+    fn v2_preserves_measured_bytes_and_v1_does_not_invent_missing_fields() {
+        use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+            record_physical(PhysicalEvent::CopiedBytes, 64);
+            record_physical(PhysicalEvent::RetainedBytes, 128);
+            Ok::<_, ()>(())
+        });
+        let facts = attempt.facts.unwrap();
+        let wire = NativeExecutionWire::from_facts(&facts).unwrap();
+        assert_eq!(wire.format, NativeExecutionFormat::V2);
+        assert_eq!(wire.buffer_bytes, Some([Some(64), Some(128)]));
+        let restored: NativeExecutionWire =
+            crate::from_cbor(&crate::to_cbor(&wire).unwrap()).unwrap();
+        let imported = restored.recorded_facts();
+        assert_eq!(imported.observed_copied_bytes(), Some(64));
+        assert_eq!(imported.observed_retained_bytes(), Some(128));
+        assert_eq!(imported.retention(), OutputRetention::Unmeasured);
+        assert_eq!(facts.physical_identity(), imported.physical_identity());
+        let mut legacy = serde_json::to_value(wire).unwrap();
+        legacy["format"] = "native_execution_v1".into();
+        legacy.as_object_mut().unwrap().remove("buffer_bytes");
+        legacy.as_object_mut().unwrap().remove("retention");
+        let legacy: NativeExecutionWire = serde_json::from_value(legacy).unwrap();
+        let imported = legacy.recorded_facts();
+        assert_eq!(imported.observed_copied_bytes(), None);
+        assert_eq!(imported.observed_retained_bytes(), None);
+        assert_eq!(imported.retention(), OutputRetention::Unmeasured);
+        assert!(!imported.is_native());
+    }
+
+    #[test]
+    fn unknown_formats_are_refused() {
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        let attempt =
+            antecedent_core::execution_attempt::observe_with_context(&ctx, || Ok::<_, ()>(()));
+        let mut wire =
+            serde_json::to_value(NativeExecutionWire::from_facts(&attempt.facts.unwrap()).unwrap())
+                .unwrap();
+        wire["format"] = "native_execution_v3".into();
+        assert!(serde_json::from_value::<NativeExecutionWire>(wire).is_err());
     }
 }

@@ -645,13 +645,14 @@ class DoseGridPosteriorResult:
     premises_digest: str
     data_digest: str
     artifact: bytes = field(repr=False, compare=False)
+    execution_facts: Any = field(default=None, repr=False, compare=False)
 
     def export(self) -> bytes:
         """The artifact: premises, compact dose/outcome table, posterior and both digests."""
         return self.artifact
 
 
-def _posterior_result(report_json: str, artifact: bytes) -> DoseGridPosteriorResult:
+def _posterior_result(report_json: str, artifact: bytes, execution_facts: Any = None) -> DoseGridPosteriorResult:
     report = json.loads(report_json)
     request = report["request"]["dose_grid"]
     return DoseGridPosteriorResult(
@@ -662,6 +663,7 @@ def _posterior_result(report_json: str, artifact: bytes) -> DoseGridPosteriorRes
         premises_digest=report["premises_digest"],
         data_digest=report["data_digest"],
         artifact=artifact,
+        execution_facts=execution_facts,
     )
 
 
@@ -750,7 +752,7 @@ def dose_grid_posterior(
             "outcome": [],
         }
     }
-    report, artifact, refusal = _evaluate_posterior(
+    report, artifact, refusal, facts = _evaluate_posterior(
         json.dumps(request, allow_nan=False),
         _column(dose, "dose"),
         _column(outcome, "outcome"),
@@ -758,12 +760,16 @@ def dose_grid_posterior(
         max_bytes=max_bytes,
         cancel=cancel,
     )
-    raise_refusal(refusal, DoseGridRefusal)
+    try:
+        raise_refusal(refusal, DoseGridRefusal)
+    except DoseGridRefusal as error:
+        error.execution_facts = facts
+        raise
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native dose-grid posterior returned neither a result nor a refusal"
         )
-    return _posterior_result(report, bytes(artifact))
+    return _posterior_result(report, bytes(artifact), facts)
 
 
 def consume_dose_grid_posterior_artifact(
@@ -789,11 +795,15 @@ def consume_dose_grid_posterior_artifact(
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)
-    report, refusal = _consume_posterior(
+    report, refusal, facts = _consume_posterior(
         data, max_rows=max_rows, max_grid=max_grid,
         threads=threads, max_bytes=max_bytes, cancel=cancel,
     )
-    raise_refusal(refusal, DoseGridRefusal)
+    try:
+        raise_refusal(refusal, DoseGridRefusal)
+    except DoseGridRefusal as error:
+        error.execution_facts = facts
+        raise
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
-    return _posterior_result(report, data)
+    return _posterior_result(report, data, facts)

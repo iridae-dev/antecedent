@@ -27,8 +27,9 @@ pub(crate) struct CompiledLinearExecution {
     pub(crate) preparation: CheckedLinearAdjustmentAte,
     pub(crate) default_id: bool,
     pub(crate) retention: Arc<antecedent_core::execution::AdmissionLease>,
-    pub(crate) resource_context: antecedent_core::ExecutionContext,
+    pub(crate) resource_context: super::resource_policy::CompiledResourcePolicy,
 }
+
 struct LinearRecipe {
     identification: Arc<super::prepared::CachedStaticIdentification>,
     fitter: antecedent_estimate::LinearAdjustmentAte,
@@ -99,15 +100,24 @@ impl CompiledLinearExecution {
         previous: Option<&CheckedLinearAdjustmentAte>,
     ) -> Result<Self, CausalError> {
         let LinearRecipe { identification, fitter, default_id } = recipe;
-        let (_, preparation_bytes, direct) =
+        let (quoted, preparation_bytes, direct) =
             resources::source_layout(data, &identification.estimand.adjustment_set, &fitter, ctx)?;
+        plan.record.estimated_peak_memory_bytes = Some(quoted.peak()?);
+        plan.record.estimated_copy_bytes = Some(quoted.resident);
+        plan.bind_prepared_linear_views(direct, quoted.work)?;
+        let backend = plan.choice.selected();
         let reservation = ctx
             .acquire_admission(0, preparation_bytes)
             .map_err(|error| CausalError::Resource { message: error.to_string() })?;
         let preparation =
             antecedent_core::numerical_admission::with_context(ctx, || match previous {
-                Some(previous) => fitter.rebind_checked(previous, data),
-                None => fitter.prepare_checked(data, &identification.identification, 0),
+                Some(previous) => fitter.rebind_checked_with_backend(previous, data, backend),
+                None => fitter.prepare_checked_with_backend(
+                    data,
+                    &identification.identification,
+                    0,
+                    backend,
+                ),
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "compile" });
@@ -122,9 +132,8 @@ impl CompiledLinearExecution {
         plan.logical.design_columns_hint = geometry.columns;
         plan.record.batch_size = Some(preparation.problem().design.nrows);
         plan.record.workspace_bytes = Some(geometry.workspace);
-        plan.record.estimated_peak_memory_bytes = Some(geometry.peak()?);
+        plan.record.estimated_peak_memory_bytes = Some(geometry.peak()?.max(preparation_bytes));
         plan.record.estimated_copy_bytes = Some(geometry.resident);
-        plan.bind_prepared_linear_views(direct, geometry.work)?;
         let program = Arc::new(CompiledLinearProgram::compile(
             query,
             &identification.identification,
@@ -140,7 +149,7 @@ impl CompiledLinearExecution {
             preparation,
             default_id,
             retention,
-            resource_context: ctx.clone(),
+            resource_context: super::resource_policy::CompiledResourcePolicy::retain(ctx),
         })
     }
 }

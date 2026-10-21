@@ -120,7 +120,21 @@ pub(crate) fn source_layout(
     }
     let resources =
         LinearResources::new(data.row_count(), columns, fitter.bootstrap_replicates, ctx)?;
-    let preparation = add(resources.resident, add(expansion, mul(data.row_count() as u64, 32)?)?)?;
+    let materialized_columns = if direct {
+        0
+    } else {
+        // Materialized backend holds selected columns while assembling the final design.
+        mul(mul(data.row_count() as u64, columns as u64)?, 8)?
+    };
+    // Vec-to-Arc conversion allocates the shared design while the source Vec is live.
+    let shared_matrix_transfer = mul(mul(data.row_count() as u64, columns as u64)?, 8)?;
+    let preparation = add(
+        resources.resident,
+        add(
+            shared_matrix_transfer,
+            add(materialized_columns, add(expansion, mul(data.row_count() as u64, 32)?)?)?,
+        )?,
+    )?;
     check_limit(preparation, ctx)?;
     resources.check(ctx)?;
     Ok((resources, preparation, direct))

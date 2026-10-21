@@ -723,6 +723,7 @@ impl CapacityAccount {
 
 const fn serves(retention: OutputRetention, operation: AccountedOperation) -> bool {
     match retention {
+        OutputRetention::Unmeasured => false,
         OutputRetention::FullReusable => !matches!(operation, AccountedOperation::ReadDiskArtifact),
         OutputRetention::SummaryOnly => matches!(operation, AccountedOperation::ReuseSummary),
         OutputRetention::DiskBacked => matches!(operation, AccountedOperation::ReadDiskArtifact),

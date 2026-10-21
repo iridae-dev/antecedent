@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Nonlinear cyclic systems: bounded Rust execution, fitting and artifact replay.
 use antecedent_core::ExecutionContext;
+use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
 use antecedent_io::cyclic_system_artifact::{
     CyclicExecutionRequest, MAX_CYCLIC_ARTIFACT_BYTES, consume_cyclic_artifact,
 };
-use numpy::{IntoPyArray, PyArray1, PyReadonlyArray2};
+use numpy::{PyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-type BufferedCyclicExecution = (String, Py<PyBytes>, Py<PyArray1<f64>>, Py<PyArray1<f64>>, usize);
+type NativeFacts = Py<crate::inspect_receipt_api::PyExecutionFacts>;
+type CyclicExecution = (String, Py<PyBytes>, NativeFacts);
+type BufferedCyclicExecution =
+    (String, Py<PyBytes>, Py<PyArray1<f64>>, Py<PyArray1<f64>>, usize, NativeFacts);
 
 fn execution_context(
     max_bytes: Option<u64>,
@@ -51,16 +55,21 @@ fn execute_cyclic_system(
     request_json: &str,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<(String, Py<PyBytes>)> {
+) -> PyResult<CyclicExecution> {
     let ctx = execution_context(max_bytes, cancel);
-    let _input = input_admission(request_json, &ctx)?;
-    let request = parse_request(request_json)?;
-    let (report, bytes) = py
-        .detach(move || request.export("cyclic_equilibrium", &ctx))
-        .map_err(|e| crate::value_err(e.to_string()))?;
-    let json =
-        serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?;
-    Ok((json, PyBytes::new(py, &bytes).unbind()))
+    let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+        let _input = input_admission(request_json, &ctx)?;
+        let request = parse_request(request_json)?;
+        let (report, bytes) = py
+            .detach(|| request.export("cyclic_equilibrium", &ctx))
+            .map_err(|e| crate::value_err(e.to_string()))?;
+        let json =
+            serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?;
+        Ok((json, bytes))
+    });
+    let ((json, bytes), facts) =
+        crate::inspect_receipt_api::finish_observed(py, attempt.result, attempt.facts)?;
+    Ok((json, PyBytes::new(py, &bytes).unbind(), facts))
 }
 
 #[pyfunction]
@@ -71,15 +80,22 @@ fn consume_cyclic_system(
     expected_identity: &str,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<String> {
+) -> PyResult<(String, NativeFacts)> {
     let ctx = execution_context(max_bytes, cancel);
-    if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES {
-        return Err(crate::serialization_err("cyclic artifact byte limit"));
-    }
-    let report = py
-        .detach(|| consume_cyclic_artifact(bytes, expected_identity, &ctx))
-        .map_err(|e| crate::serialization_err(e.to_string()))?;
-    serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))
+    let attempt = py.detach(|| {
+        antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+            consume_cyclic_artifact(bytes, expected_identity, &ctx)
+        })
+    });
+    let (report, facts) = crate::inspect_receipt_api::finish_observed(
+        py,
+        attempt.result.map_err(|e| crate::serialization_err(e.to_string())),
+        attempt.facts,
+    )?;
+    Ok((
+        serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?,
+        facts,
+    ))
 }
 
 #[pyfunction]
@@ -147,20 +163,21 @@ fn execute_cyclic_family(
     request_json: &str,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<(String, Py<PyBytes>)> {
+) -> PyResult<CyclicExecution> {
     let ctx = execution_context(max_bytes, cancel);
-    let _input = input_admission(request_json, &ctx)?;
-    if request_json.len() > MAX_CYCLIC_ARTIFACT_BYTES {
-        return Err(crate::value_err("cyclic family request limit"));
-    }
-    let request: antecedent_io::cyclic_family_artifact::CyclicFamilyRequest =
-        serde_json::from_str(request_json).map_err(|e| crate::value_err(e.to_string()))?;
-    let (report, bytes) =
-        py.detach(|| request.export(&ctx)).map_err(|e| crate::value_err(e.to_string()))?;
-    Ok((
-        serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?,
-        PyBytes::new(py, &bytes).unbind(),
-    ))
+    let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+        let _input = input_admission(request_json, &ctx)?;
+        let request: antecedent_io::cyclic_family_artifact::CyclicFamilyRequest =
+            serde_json::from_str(request_json).map_err(|e| crate::value_err(e.to_string()))?;
+        let (report, bytes) =
+            py.detach(|| request.export(&ctx)).map_err(|e| crate::value_err(e.to_string()))?;
+        let json =
+            serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?;
+        Ok((json, bytes))
+    });
+    let ((json, bytes), facts) =
+        crate::inspect_receipt_api::finish_observed(py, attempt.result, attempt.facts)?;
+    Ok((json, PyBytes::new(py, &bytes).unbind(), facts))
 }
 
 #[pyfunction]
@@ -171,18 +188,26 @@ fn consume_cyclic_family(
     expected_identity: &str,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<String> {
+) -> PyResult<(String, NativeFacts)> {
     let ctx = execution_context(max_bytes, cancel);
-    let report = py
-        .detach(|| {
+    let attempt = py.detach(|| {
+        antecedent_core::execution_attempt::observe_with_context(&ctx, || {
             antecedent_io::cyclic_family_artifact::consume_cyclic_family(
                 bytes,
                 expected_identity,
                 &ctx,
             )
         })
-        .map_err(|e| crate::serialization_err(e.to_string()))?;
-    serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))
+    });
+    let (report, facts) = crate::inspect_receipt_api::finish_observed(
+        py,
+        attempt.result.map_err(|e| crate::serialization_err(e.to_string())),
+        attempt.facts,
+    )?;
+    Ok((
+        serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?,
+        facts,
+    ))
 }
 
 #[pyclass(name = "_PreparedCyclicSystem")]
@@ -198,14 +223,22 @@ impl PyPreparedCyclicSystem {
         py: Python<'_>,
         max_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<(String, Py<PyBytes>)> {
+    ) -> PyResult<CyclicExecution> {
         let ctx = execution_context(max_bytes, cancel);
-        let (report, bytes) = py
-            .detach(|| self.inner.export("cyclic_equilibrium", &ctx))
-            .map_err(|e| crate::value_err(e.to_string()))?;
+        let attempt = py.detach(|| {
+            antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+                self.inner.export("cyclic_equilibrium", &ctx)
+            })
+        });
+        let ((report, bytes), facts) = crate::inspect_receipt_api::finish_observed(
+            py,
+            attempt.result.map_err(|e| crate::value_err(e.to_string())),
+            attempt.facts,
+        )?;
         Ok((
             serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?,
             PyBytes::new(py, &bytes).unbind(),
+            facts,
         ))
     }
     fn request_json(&self) -> PyResult<String> {
@@ -221,42 +254,64 @@ impl PyPreparedCyclicSystem {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<BufferedCyclicExecution> {
         let ctx = execution_context(max_bytes, cancel);
-        let (mut report, bytes) = py
-            .detach(|| self.inner.export("cyclic_equilibrium", &ctx))
-            .map_err(|e| crate::value_err(e.to_string()))?;
-        let width = self.inner.request().model.order();
-        let count = report.worlds.iter().map(Vec::len).sum::<usize>() * width;
-        let counterfactual_count =
-            report.counterfactuals.as_ref().map_or(0, Vec::len).saturating_mul(width);
-        if ctx.cancellation.is_cancelled() {
-            return Err(crate::value_err("cancelled"));
-        }
-        let _transfer = ctx
-            .acquire_admission(
-                0,
-                (count as u64).saturating_add(counterfactual_count as u64).saturating_mul(8),
-            )
-            .map_err(|e| crate::value_err(e.to_string()))?;
-        let mut values = Vec::with_capacity(count);
-        for world in &mut report.worlds {
-            for row in world {
-                values.extend(std::mem::take(&mut row.values));
+        let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+            let (mut report, bytes) = py
+                .detach(|| self.inner.export("cyclic_equilibrium", &ctx))
+                .map_err(|e| crate::value_err(e.to_string()))?;
+            let width = self.inner.request().model.order();
+            let count = report
+                .worlds
+                .iter()
+                .try_fold(0_usize, |n, world| n.checked_add(world.len()))
+                .and_then(|n| n.checked_mul(width))
+                .ok_or_else(|| crate::value_err("cyclic output size overflow"))?;
+            let counterfactual_count = report
+                .counterfactuals
+                .as_ref()
+                .map_or(0, Vec::len)
+                .checked_mul(width)
+                .ok_or_else(|| crate::value_err("cyclic output size overflow"))?;
+            let transferred = count
+                .checked_add(counterfactual_count)
+                .and_then(|n| n.checked_mul(8))
+                .and_then(|n| u64::try_from(n).ok())
+                .ok_or_else(|| crate::value_err("cyclic output byte overflow"))?;
+            if ctx.cancellation.is_cancelled() {
+                return Err(crate::value_err("cancelled"));
             }
-        }
-        let mut counterfactuals = Vec::with_capacity(counterfactual_count);
-        if let Some(worlds) = &mut report.counterfactuals {
-            for row in worlds {
-                counterfactuals.extend(std::mem::take(&mut row.values));
+            let retention = std::sync::Arc::new(
+                ctx.acquire_admission(0, transferred)
+                    .map_err(|e| crate::value_err(e.to_string()))?,
+            );
+            let mut values = Vec::with_capacity(count);
+            for world in &mut report.worlds {
+                for row in world {
+                    values.extend(std::mem::take(&mut row.values));
+                }
             }
-        }
-        let json =
-            serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?;
+            let mut counterfactuals = Vec::with_capacity(counterfactual_count);
+            if let Some(worlds) = &mut report.counterfactuals {
+                for row in worlds {
+                    counterfactuals.extend(std::mem::take(&mut row.values));
+                }
+            }
+            record_physical(PhysicalEvent::Copy, 2);
+            record_physical(PhysicalEvent::CopiedBytes, transferred);
+            record_physical(PhysicalEvent::RetainedBytes, transferred);
+            record_physical(PhysicalEvent::RetainedFull, 1);
+            let json = serde_json::to_string(&report)
+                .map_err(|e| crate::serialization_err(e.to_string()))?;
+            Ok((json, bytes, values, counterfactuals, width, retention))
+        });
+        let ((json, bytes, values, counterfactuals, width, retention), facts) =
+            crate::inspect_receipt_api::finish_observed(py, attempt.result, attempt.facts)?;
         Ok((
             json,
             PyBytes::new(py, &bytes).unbind(),
-            values.into_pyarray(py).unbind(),
-            counterfactuals.into_pyarray(py).unbind(),
+            crate::ffi::admitted_numeric_array(py, values, std::sync::Arc::clone(&retention))?,
+            crate::ffi::admitted_numeric_array(py, counterfactuals, retention)?,
             width,
+            facts,
         ))
     }
 
@@ -376,12 +431,16 @@ fn prepare_cyclic_system(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PyPreparedCyclicSystem> {
     let ctx = execution_context(max_bytes, cancel);
-    let _input = input_admission(request_json, &ctx)?;
-    let request = parse_request(request_json)?;
-    let inner = py
-        .detach(|| antecedent::analysis::Study::prepare_cyclic(request, &ctx))
-        .map_err(|e| crate::value_err(e.to_string()))?;
-    Ok(PyPreparedCyclicSystem { inner })
+    let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+        let _input = input_admission(request_json, &ctx)?;
+        let request = parse_request(request_json)?;
+        let inner = py
+            .detach(|| antecedent::analysis::Study::prepare_cyclic(request, &ctx))
+            .map_err(|e| crate::value_err(e.to_string()))?;
+        Ok(PyPreparedCyclicSystem { inner })
+    });
+    crate::inspect_receipt_api::finish_observed(py, attempt.result, attempt.facts)
+        .map(|(handle, _)| handle)
 }
 
 #[pyfunction]
@@ -395,37 +454,42 @@ fn prepare_cyclic_system_buffers(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PyPreparedCyclicSystem> {
     let ctx = execution_context(max_bytes, cancel);
-    let _metadata = input_admission(metadata, &ctx)?;
-    let mut request = parse_request(metadata)?;
-    let noise = noise.as_array();
-    let observations = observations.as_array();
-    let n = request.model.order();
-    let rows = request.fit.as_ref().map_or(0, |fit| fit.rows.len());
-    if noise.ncols() != n || observations.ncols() != n || observations.nrows() != rows {
-        return Err(crate::value_err("cyclic numeric buffer shape"));
-    }
-    let count = noise
-        .len()
-        .checked_add(observations.len())
-        .ok_or_else(|| crate::value_err("cyclic buffer overflow"))?;
-    let bytes = (count as u64).saturating_mul(32);
-    if bytes > MAX_CYCLIC_ARTIFACT_BYTES as u64 {
-        return Err(crate::value_err("cyclic input byte limit"));
-    }
-    let _input = ctx.acquire_admission(0, bytes).map_err(|e| crate::value_err(e.to_string()))?;
-    if noise.iter().chain(observations.iter()).any(|v| !v.is_finite()) {
-        return Err(crate::value_err("cyclic buffers must be finite"));
-    }
-    request.noise = noise.rows().into_iter().map(|r| r.iter().copied().collect()).collect();
-    if let Some(fit) = &mut request.fit {
-        for (row, values) in fit.rows.iter_mut().zip(observations.rows()) {
-            row.values = values.iter().copied().collect();
+    let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+        let _metadata = input_admission(metadata, &ctx)?;
+        let mut request = parse_request(metadata)?;
+        let noise = noise.as_array();
+        let observations = observations.as_array();
+        let n = request.model.order();
+        let rows = request.fit.as_ref().map_or(0, |fit| fit.rows.len());
+        if noise.ncols() != n || observations.ncols() != n || observations.nrows() != rows {
+            return Err(crate::value_err("cyclic numeric buffer shape"));
         }
-    }
-    let inner = py
-        .detach(|| antecedent::analysis::Study::prepare_cyclic(request, &ctx))
-        .map_err(|e| crate::value_err(e.to_string()))?;
-    Ok(PyPreparedCyclicSystem { inner })
+        let count = noise
+            .len()
+            .checked_add(observations.len())
+            .ok_or_else(|| crate::value_err("cyclic buffer overflow"))?;
+        let bytes = (count as u64).saturating_mul(32);
+        if bytes > MAX_CYCLIC_ARTIFACT_BYTES as u64 {
+            return Err(crate::value_err("cyclic input byte limit"));
+        }
+        let _input =
+            ctx.acquire_admission(0, bytes).map_err(|e| crate::value_err(e.to_string()))?;
+        if noise.iter().chain(observations.iter()).any(|v| !v.is_finite()) {
+            return Err(crate::value_err("cyclic buffers must be finite"));
+        }
+        request.noise = noise.rows().into_iter().map(|r| r.iter().copied().collect()).collect();
+        if let Some(fit) = &mut request.fit {
+            for (row, values) in fit.rows.iter_mut().zip(observations.rows()) {
+                row.values = values.iter().copied().collect();
+            }
+        }
+        let inner = py
+            .detach(|| antecedent::analysis::Study::prepare_cyclic(request, &ctx))
+            .map_err(|e| crate::value_err(e.to_string()))?;
+        Ok(PyPreparedCyclicSystem { inner })
+    });
+    crate::inspect_receipt_api::finish_observed(py, attempt.result, attempt.facts)
+        .map(|(handle, _)| handle)
 }
 
 #[pyclass(name = "_PreparedCyclicFamily")]
@@ -459,13 +523,22 @@ impl PyPreparedCyclicFamily {
         py: Python<'_>,
         max_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
-    ) -> PyResult<(String, Py<PyBytes>)> {
+    ) -> PyResult<CyclicExecution> {
         let ctx = execution_context(max_bytes, cancel);
-        let (report, artifact) =
-            py.detach(|| self.inner.export(&ctx)).map_err(|e| crate::value_err(e.to_string()))?;
+        let attempt = py.detach(|| {
+            antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+                self.inner.export(&ctx)
+            })
+        });
+        let ((report, artifact), facts) = crate::inspect_receipt_api::finish_observed(
+            py,
+            attempt.result.map_err(|e| crate::value_err(e.to_string())),
+            attempt.facts,
+        )?;
         Ok((
             serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?,
             PyBytes::new(py, &artifact).unbind(),
+            facts,
         ))
     }
     #[pyo3(signature=(schema_json,selectors_json,*,max_bytes=None,cancel=None))]
@@ -508,16 +581,20 @@ fn prepare_cyclic_family(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PyPreparedCyclicFamily> {
     let ctx = execution_context(max_bytes, cancel);
-    let _input = input_admission(request_json, &ctx)?;
-    if request_json.len() > MAX_CYCLIC_ARTIFACT_BYTES {
-        return Err(crate::value_err("cyclic family request limit"));
-    }
-    let request =
-        serde_json::from_str(request_json).map_err(|e| crate::value_err(e.to_string()))?;
-    let inner = py
-        .detach(|| antecedent::analysis::Study::prepare_cyclic_family(&request, &ctx))
-        .map_err(|e| crate::value_err(e.to_string()))?;
-    Ok(PyPreparedCyclicFamily { inner })
+    let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+        let _input = input_admission(request_json, &ctx)?;
+        if request_json.len() > MAX_CYCLIC_ARTIFACT_BYTES {
+            return Err(crate::value_err("cyclic family request limit"));
+        }
+        let request =
+            serde_json::from_str(request_json).map_err(|e| crate::value_err(e.to_string()))?;
+        let inner = py
+            .detach(|| antecedent::analysis::Study::prepare_cyclic_family(&request, &ctx))
+            .map_err(|e| crate::value_err(e.to_string()))?;
+        Ok(PyPreparedCyclicFamily { inner })
+    });
+    crate::inspect_receipt_api::finish_observed(py, attempt.result, attempt.facts)
+        .map(|(handle, _)| handle)
 }
 
 struct PythonLocalMechanism {

@@ -32,6 +32,7 @@ pub struct BayesianPosteriorRow {
     artifact: PosteriorRowArtifactWire,
     _program: std::sync::Arc<antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow>,
     native_execution: Option<antecedent_core::execution_facts::ExecutionFacts>,
+    execution_context: super::resource_policy::CompiledResourcePolicy,
 }
 
 impl BayesianPosteriorRow {
@@ -59,6 +60,38 @@ impl BayesianPosteriorRow {
         crate::Study::prepare_posterior_row(request, ctx)?.estimate(ctx)
     }
 
+    /// Execute with engine facts preserved on success, refusal, and cancellation.
+    /// Preparation is included in this observed attempt.
+    #[must_use]
+    pub fn evaluate_observed(
+        request: PosteriorRowRequestWire,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> antecedent_core::execution_attempt::ExecutionAttempt<Self, PosteriorRowArtifactError> {
+        let mut attempt = antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            Self::evaluate_with_context(request, ctx)
+        });
+        if let Ok(row) = &mut attempt.result {
+            row.native_execution.clone_from(&attempt.facts);
+        }
+        attempt
+    }
+
+    /// Replay with native facts preserved even when the artifact or resources are refused.
+    #[must_use]
+    pub fn consume_observed(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> antecedent_core::execution_attempt::ExecutionAttempt<Self, PosteriorRowArtifactError> {
+        let mut attempt = antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            Self::consume_with_context(bytes, limits, ctx)
+        });
+        if let Ok(row) = &mut attempt.result {
+            row.native_execution.clone_from(&attempt.facts);
+        }
+        attempt
+    }
+
     /// Independently consume with the same compiler/engine and caller execution policy.
     ///
     /// # Errors
@@ -76,6 +109,7 @@ impl BayesianPosteriorRow {
             artifact,
             _program: std::sync::Arc::new(program),
             native_execution: observed.facts,
+            execution_context: super::resource_policy::CompiledResourcePolicy::retain(ctx),
         })
     }
 
@@ -101,14 +135,24 @@ impl BayesianPosteriorRow {
         )
     }
 
-    /// Export the artifact.
+    /// Export the artifact under the original execution's resource/cancellation policy.
     ///
     /// # Errors
-    /// Encoding failure.
+    /// Encoding failure, cancellation, or resource refusal.
     pub fn export(&self) -> Result<Vec<u8>, PosteriorRowArtifactError> {
-        self.artifact
-            .export()
-            .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))
+        self.export_with_context(&self.execution_context.context())
+    }
+
+    /// Export under explicit caller resources and cancellation policy.
+    /// The returned byte vector becomes caller-owned after export.
+    ///
+    /// # Errors
+    /// Encoding failure, cancellation, or resource refusal.
+    pub fn export_with_context(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Vec<u8>, PosteriorRowArtifactError> {
+        self.artifact.export_with_context(ctx)
     }
 
     /// The estimator id of this row, for example `bayesian.dose_grid`.
@@ -201,8 +245,26 @@ impl crate::PreparedStudy<PosteriorRowPreparedState> {
             artifact: observed.result?,
             _program: std::sync::Arc::clone(&self.state.program),
             native_execution: observed.facts,
+            execution_context: super::resource_policy::CompiledResourcePolicy::retain(ctx),
         })
     }
+    /// Execute the retained operation while preserving facts on failure and cancellation.
+    #[must_use]
+    pub fn estimate_observed(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> antecedent_core::execution_attempt::ExecutionAttempt<
+        BayesianPosteriorRow,
+        PosteriorRowArtifactError,
+    > {
+        let mut attempt =
+            antecedent_core::execution_attempt::observe_with_context(ctx, || self.estimate(ctx));
+        if let Ok(row) = &mut attempt.result {
+            row.native_execution.clone_from(&attempt.facts);
+        }
+        attempt
+    }
+
     /// Change evaluation coordinates while preserving the fitted data/prior posterior.
     ///
     /// # Errors
@@ -243,6 +305,33 @@ mod prepared_tests {
             outcome: vec![0.0, 0.4, 1.1, 1.4, 2.0],
         })
     }
+    #[test]
+    fn observed_public_attempts_preserve_facts_when_refused_cancelled_or_corrupt() {
+        use antecedent_core::execution_facts::ExecutionFactStatus;
+        let mut limited = ExecutionContext::for_tests(3);
+        limited.memory.hard_limit_bytes = Some(1);
+        let refused = BayesianPosteriorRow::evaluate_observed(request(), &limited);
+        assert!(refused.result.is_err());
+        assert_eq!(refused.facts.unwrap().status(), ExecutionFactStatus::Failed);
+        let cancelled = ExecutionContext::for_tests(3);
+        cancelled.cancellation.cancel();
+        let attempt = BayesianPosteriorRow::evaluate_observed(request(), &cancelled);
+        assert!(attempt.result.is_err());
+        assert_eq!(attempt.facts.unwrap().status(), ExecutionFactStatus::Cancelled);
+        let ctx = ExecutionContext::for_tests(3);
+        let corrupt = BayesianPosteriorRow::consume_observed(
+            b"corrupt",
+            PosteriorRowConsumeLimits::default(),
+            &ctx,
+        );
+        assert!(corrupt.result.is_err());
+        assert_eq!(corrupt.facts.unwrap().status(), ExecutionFactStatus::Failed);
+        let prepared = crate::Study::prepare_posterior_row(request(), &ctx).unwrap();
+        let refused = prepared.estimate_observed(&limited);
+        assert!(refused.result.is_err());
+        assert_eq!(refused.facts.unwrap().status(), ExecutionFactStatus::Failed);
+    }
+
     #[test]
     fn public_preparation_inspects_without_fitting_and_retargets_the_frozen_posterior() {
         let ctx = ExecutionContext::for_tests(3);
@@ -325,5 +414,23 @@ mod prepared_tests {
             crate::Study::prepare_posterior_row(unsupported, &ExecutionContext::for_tests(3))
                 .is_err()
         );
+    }
+    #[test]
+    fn posterior_export_keeps_original_admission_and_refuses_before_encoding() {
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(3).with_admission(pool.clone());
+        let row = BayesianPosteriorRow::evaluate_with_context(request(), &ctx).unwrap();
+        let output_bytes = row.artifact().retained_admitted_bytes();
+        let blocker = ctx.acquire_admission(0, pool.available().bytes()).unwrap();
+        let error = row.export().unwrap_err();
+        assert!(error.refusal().1.contains("resource_refused"));
+        assert_eq!(row.artifact().retained_admitted_bytes(), output_bytes);
+        drop(blocker);
+        assert_eq!(row.export().unwrap(), row.artifact().export().unwrap());
+        ctx.cancellation.cancel();
+        assert!(row.export().unwrap_err().refusal().1.contains("cancelled"));
+        assert!(pool.available().bytes() < pool.byte_budget());
+        drop(row);
+        assert_eq!(pool.available().bytes(), pool.byte_budget());
     }
 }

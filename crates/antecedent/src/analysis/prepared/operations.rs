@@ -1396,7 +1396,7 @@ impl CheckedLinearOperation {
         let owner = self.physical.linear.as_ref().ok_or_else(|| CausalError::Compile {
             message: "compiled linear owner missing".into(),
         })?;
-        self.rebind_with_context(data, &owner.resource_context)
+        self.rebind_with_context(data, &owner.resource_context.context())
     }
 
     pub(super) fn rebind_with_context(
@@ -1519,6 +1519,7 @@ impl CheckedLinearOperation {
             bayesian: false,
         });
         result.retained_resources = vec![output_retention, envelope];
+        Self::record_output_retention(&result);
         result.certificate = Some(crate::AnalysisIdentification {
             identification: crate::Identification::Point {
                 result: self.cache.identification.clone(),
@@ -1646,6 +1647,14 @@ impl CheckedLinearOperation {
             (estimate, retention)
         };
         Ok(estimate)
+    }
+
+    fn record_output_retention(result: &StudyResult) {
+        use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
+        if let Some(bytes) = result.retained_admitted_bytes() {
+            record_physical(PhysicalEvent::RetainedFull, 1);
+            record_physical(PhysicalEvent::RetainedBytes, bytes);
+        }
     }
 
     /// Refuses execution when the retained fit no longer matches the checked target.

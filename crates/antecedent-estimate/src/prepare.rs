@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
 use antecedent_core::{
     AverageEffectQuery, Intervention, PopulationRegistry, TargetPopulation, VariableId,
 };
@@ -249,6 +250,9 @@ impl SelectedRows {
         if values.len() != self.source_len || output.len() != self.indices.len() {
             return Err(EstimationError::data_msg("selected column length mismatch"));
         }
+        record_physical(PhysicalEvent::Scan, 1);
+        record_physical(PhysicalEvent::Copy, 1);
+        record_physical(PhysicalEvent::CopiedBytes, size_of_val(output) as u64);
         if self.indices.len() == self.source_len {
             output.copy_from_slice(values);
         } else {
@@ -270,6 +274,43 @@ impl SelectedRows {
         self.copy_into(column.values.as_slice(), &mut output)?;
         Ok(output)
     }
+}
+
+/// Materialize selected columns before assembling the unchanged linear design kernel.
+pub(crate) fn materialized_adjustment_design(
+    data: &TabularData,
+    treatment: VariableId,
+    outcome: VariableId,
+    adjustment: &[VariableId],
+    expanded: &[antecedent_data::categorical::ExpandedContrast],
+    mask: &[bool],
+) -> Result<antecedent_stats::CompiledDesign, EstimationError> {
+    if mask.len() != data.row_count() {
+        return Err(EstimationError::data_msg("design selection length mismatch"));
+    }
+    let selected = SelectedRows::from_mask(mask);
+    let treatment = selected.gather(data, treatment)?;
+    let outcome = selected.gather(data, outcome)?;
+    let mut columns = Vec::new();
+    for &id in adjustment {
+        if let Some(contrast) = expanded.iter().find(|c| c.variable == id) {
+            for column in &contrast.columns {
+                let mut output = vec![0.0; selected.indices.len()];
+                selected.copy_into(column, &mut output)?;
+                columns.push((id, output));
+            }
+        } else {
+            columns.push((id, selected.gather(data, id)?));
+        }
+    }
+    let refs: Vec<_> = columns.iter().map(|(id, column)| (*id, column.as_slice())).collect();
+    let design = antecedent_stats::CompiledDesign::linear_adjustment(
+        &treatment,
+        &refs,
+        &outcome,
+        &selected.indices,
+    )?;
+    Ok(design)
 }
 
 /// Gather the admitted cohort directly into its final design. Expanded contrasts
@@ -326,6 +367,14 @@ pub(crate) fn direct_adjustment_design(
     selected.copy_into(column(outcome)?, &mut y)?;
     let roles =
         std::iter::once(DesignColumnRole::Intercept).chain(columns.iter().map(|(role, _)| *role));
+    // Vec-to-Arc ownership transfer copies payloads into their shared allocation.
+    record_physical(PhysicalEvent::Copy, 3);
+    record_physical(
+        PhysicalEvent::CopiedBytes,
+        (size_of_val(matrix.as_slice())
+            + size_of_val(y.as_slice())
+            + size_of_val(selected.indices.as_slice())) as u64,
+    );
     Ok(CompiledDesign {
         nrows,
         ncols,
@@ -367,6 +416,12 @@ mod direct_design_tests {
             assert_eq!(actual.outcome, reference.outcome);
             assert_eq!(actual.row_selection, reference.row_selection);
             assert_eq!(actual.columns, reference.columns);
+            let materialized =
+                materialized_adjustment_design(&data, t, y, &[z], &[], &mask).unwrap();
+            assert_eq!(actual.matrix, materialized.matrix);
+            assert_eq!(actual.outcome, materialized.outcome);
+            assert_eq!(actual.row_selection, materialized.row_selection);
+            assert_eq!(actual.columns, materialized.columns);
         }
     }
 }
@@ -381,7 +436,7 @@ mod design_measurement {
         let number = |name: &str, default| {
             std::env::var(name).ok().and_then(|v| v.parse::<usize>().ok()).unwrap_or(default)
         };
-        let n = number("CLASSIC_ROWS", 100000);
+        let n = number("CLASSIC_ROWS", 100_000);
         let width = number("CLASSIC_COLUMNS", 32);
         let repeats = number("CLASSIC_REPEATS", 9);
         let names: Vec<_> = (0..width).map(|i| format!("v{i}")).collect();
@@ -392,7 +447,8 @@ mod design_measurement {
             names.iter().zip(&columns).map(|(name, values)| (name.as_str(), values.as_slice())),
         )
         .unwrap();
-        let ids: Vec<_> = (2..width).map(|i| VariableId::from_raw(i as u32)).collect();
+        let ids: Vec<_> =
+            (2..width).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
         let t = VariableId::from_raw(0);
         let y = VariableId::from_raw(1);
         for filtered in [false, true] {

@@ -164,7 +164,7 @@ fn the_bayesian_arm_is_a_dirichlet_posterior_of_the_same_contrast() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    for result in [
+    for result in vec![
         study.clone().run(&ctx).unwrap(),
         study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap(),
     ] {
@@ -198,10 +198,7 @@ fn frontdoor_modifier_graph() -> Admg {
 /// Counts of a law with a strong front-door effect: `P(z) = 1/2`, `P(x=1 | z) = .3 + .4 z`,
 /// `P(m=1 | x, z) = .2 + .5 x + .1 z`, `P(y=1 | m, z, x) = .15 + .5 m + .1 z + .1 x`, scaled by
 /// 4000 and rounded (the dependence of `y` on `x` stands for the latent `x <-> y` arrow).
-#[allow(
-    clippy::cast_sign_loss,
-    reason = "each cell count is a non-negative rounded mass"
-)]
+#[allow(clippy::cast_sign_loss, reason = "each cell count is a non-negative rounded mass")]
 fn frontdoor_modifier_cells() -> Vec<(Vec<f64>, usize)> {
     (0..16usize)
         .map(|i| {

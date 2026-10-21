@@ -142,3 +142,35 @@ def test_caller_policy_bounds_evaluation_and_independent_consumption():
         _run(draws=200, cancel=token)
     with pytest.raises(CausalCancelledError):
         consume_dose_grid_posterior_artifact(artifact, cancel=token)
+
+
+def test_native_execution_facts_survive_success_refusal_cancellation_and_replay_failure():
+    from antecedent import _native
+    from antecedent.errors import CausalCancelledError, CausalResourceError
+
+    result = _run(draws=200)
+    facts = result.execution_facts
+    assert facts.is_native
+    assert facts.status() == "completed"
+    assert facts.peak_admitted_bytes > 0
+    assert facts.observed_model_fits == 1
+    replay = consume_dose_grid_posterior_artifact(result.artifact)
+    assert replay.execution_facts.is_native
+    assert replay.execution_facts.status() == "completed"
+
+    with pytest.raises(CausalResourceError) as refused:
+        _run(draws=200, max_bytes=1)
+    assert refused.value.execution_facts.is_native
+    assert refused.value.execution_facts.status() == "failed"
+
+    token = _native.CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalCancelledError) as cancelled:
+        _run(draws=200, cancel=token)
+    assert cancelled.value.execution_facts.is_native
+    assert cancelled.value.execution_facts.status() == "cancelled"
+
+    with pytest.raises(CausalSerializationError) as corrupt:
+        consume_dose_grid_posterior_artifact(b"corrupt")
+    assert corrupt.value.execution_facts.is_native
+    assert corrupt.value.execution_facts.status() == "failed"

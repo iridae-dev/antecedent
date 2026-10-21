@@ -1329,11 +1329,12 @@ mod tests {
 
     #[test]
     fn every_feedback_field_enters_the_target_identity() {
+        type FeedbackChange = (&'static str, fn(&mut antecedent_core::FeedbackDeclaration));
         let base = feedback_declaration();
         let without = target_digest(&feedback_query(None));
         let declared = target_digest(&feedback_query(Some(base.clone())));
         assert_ne!(without, declared);
-        let variants: [(&str, fn(&mut antecedent_core::FeedbackDeclaration)); 7] = [
+        let variants: [FeedbackChange; 7] = [
             ("delay", |f| f.delay_ticks = 2),
             ("level", |f| f.level = 2.0),
             ("autoregression", |f| f.autoregression = 0.25),

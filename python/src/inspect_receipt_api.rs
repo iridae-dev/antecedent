@@ -79,6 +79,7 @@ fn kernel_name(policy: KernelPolicy) -> &'static str {
 
 fn retention_of(name: &str) -> PyResult<OutputRetention> {
     match name {
+        "unmeasured" => Ok(OutputRetention::Unmeasured),
         "full_reusable" => Ok(OutputRetention::FullReusable),
         "summary_only" => Ok(OutputRetention::SummaryOnly),
         "disk_backed" => Ok(OutputRetention::DiskBacked),
@@ -422,6 +423,16 @@ impl PyExecutionFacts {
     #[getter]
     fn observed_copies(&self) -> Option<u64> {
         self.inner.observed_copies()
+    }
+    /// Measured bytes copied by native numeric buffer boundaries.
+    #[getter]
+    fn observed_copied_bytes(&self) -> Option<u64> {
+        self.inner.observed_copied_bytes()
+    }
+    /// Cumulative admitted output reservations at handoff, not exact heap usage or RSS.
+    #[getter]
+    fn observed_retained_bytes(&self) -> Option<u64> {
+        self.inner.observed_retained_bytes()
     }
     /// Enclosing model fits, excluding their internal numerical solves.
     #[getter]
@@ -856,4 +867,23 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(resume_live_study, module)?)?;
     module.add_function(wrap_pyfunction!(consume_interchange_family, module)?)?;
     Ok(())
+}
+
+/// Preserve the same native record on successful results and Python execution errors.
+/// This helper only accepts facts produced by a native observed attempt.
+pub(crate) fn finish_observed<T>(
+    py: Python<'_>,
+    result: PyResult<T>,
+    facts: Option<ExecutionFacts>,
+) -> PyResult<(T, Py<PyExecutionFacts>)> {
+    let facts =
+        facts.ok_or_else(|| crate::value_err("observed execution did not produce facts"))?;
+    let facts = Py::new(py, PyExecutionFacts { inner: facts })?;
+    match result {
+        Ok(value) => Ok((value, facts)),
+        Err(error) => {
+            error.value(py).setattr("execution_facts", facts)?;
+            Err(error)
+        }
+    }
 }

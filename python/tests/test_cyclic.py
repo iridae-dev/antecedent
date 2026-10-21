@@ -1354,3 +1354,45 @@ def test_cyclic_logical_retention_and_projection_resource_limits():
         prepared.evidence(schema, [selector] * 128, max_bytes=len(artifact) * 4)
     with pytest.raises(CausalSerializationError, match="admission|resource|limit|budget"):
         consume_evidence(artifact, expected_identity=evidence.identity, max_bytes=len(artifact) * 4)
+
+
+def test_cyclic_native_facts_survive_execution_cancellation_and_bad_artifact():
+    from antecedent import _native
+    from antecedent.cyclic import consume_artifact
+
+    system = EquilibriumModel((Equation("x", 0.0, (0.0,), "identity"),), (1.0,))
+    prepared = system.prepare([[]], [[0.0]])
+    result = prepared.execute()
+    assert result.execution_facts.is_native
+    assert result.execution_facts.status() == "completed"
+    assert result.execution_facts.peak_admitted_bytes > 0
+    replay = consume_artifact(result.artifact, expected_identity=result.identity)
+    assert replay.execution_facts.is_native
+    assert replay.execution_facts.status() == "completed"
+
+    token = _native.CancellationToken()
+    token.cancel()
+    with pytest.raises(ValueError) as cancelled:
+        prepared.execute(cancel=token)
+    assert cancelled.value.execution_facts.status() == "cancelled"
+    with pytest.raises(_native.CausalSerializationError) as corrupt:
+        consume_artifact(b"corrupt", expected_identity=result.identity)
+    assert corrupt.value.execution_facts.is_native
+    assert corrupt.value.execution_facts.status() == "failed"
+
+
+def test_numpy_cyclic_output_keeps_admission_in_its_base_after_receipt_is_discarded():
+    import gc
+    import numpy as np
+
+    system = EquilibriumModel((Equation("x", 0.0, (0.0,), "identity"),), (1.0,))
+    prepared = system.prepare([[]], [[float(i)] for i in range(80)])
+    _, _, values, counterfactuals, _, facts = prepared._handle.execute_buffers()
+    assert facts.observed_copied_bytes >= values.nbytes
+    assert facts.observed_retained_bytes >= values.nbytes
+    assert values.base.admitted_bytes >= values.nbytes
+    retained = values[5:10]
+    del prepared, facts, values, counterfactuals
+    gc.collect()
+    assert np.asarray(retained).tolist() == [5.0, 6.0, 7.0, 8.0, 9.0]
+    assert retained.base.base.admitted_bytes >= 80 * 8

@@ -89,7 +89,7 @@ impl OperationCounts {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct AttemptReport {
     counts: [OperationCounts; 18],
-    physical: [u64; 10],
+    physical: [u64; 13],
     physical_seen: u64,
 }
 impl AttemptReport {
@@ -126,7 +126,7 @@ pub enum PhysicalEvent {
     CopiedBytes = 2,
     /// A retained numerical cache entry was served.
     CacheHit = 3,
-    /// Bytes retained in an executing product.
+    /// Admitted bytes retained by executing products at output handoffs.
     RetainedBytes = 4,
     /// Bytes actually written to spill storage.
     SpillBytes = 5,
@@ -134,6 +134,12 @@ pub enum PhysicalEvent {
     ConditionalIndependenceTest = 8,
     /// Completed enclosing model fit, excluding internal numerical solves.
     ModelFit = 9,
+    /// One complete reusable in-memory output handoff.
+    RetainedFull = 10,
+    /// One summary-only output handoff.
+    RetainedSummary = 11,
+    /// One disk-backed output handoff.
+    RetainedDisk = 12,
 }
 
 fn checked_increment(counter: &AtomicU64, amount: u64) -> u64 {
@@ -278,7 +284,12 @@ impl AttemptReport {
         ExecutionFacts::from_native(
             MeasuredExecution::new(
                 counts,
-                OutputRetention::SummaryOnly,
+                match (self.physical[10] > 0, self.physical[11] > 0, self.physical[12] > 0) {
+                    (true, false, false) => OutputRetention::FullReusable,
+                    (false, true, false) => OutputRetention::SummaryOnly,
+                    (false, false, true) => OutputRetention::DiskBacked,
+                    _ => OutputRetention::Unmeasured,
+                },
                 ExecutionResources::new(self.physical[7], self.physical[6], self.physical[5]),
                 ExecutionBackend::new(
                     if self.counts(Operation::ProviderInvocation).attempted > 0 {
@@ -289,6 +300,10 @@ impl AttemptReport {
                     ctx.kernel_policy,
                 ),
                 status,
+            )
+            .with_observed_buffer_bytes(
+                self.physical(PhysicalEvent::CopiedBytes),
+                self.physical(PhysicalEvent::RetainedBytes),
             ),
             self.physical_seen,
         )
@@ -307,7 +322,7 @@ pub struct ExecutionAttempt<T, E> {
 }
 #[derive(Default, Debug)]
 struct Counters {
-    physical: [AtomicU64; 10],
+    physical: [AtomicU64; 13],
     physical_seen: AtomicU64,
     admitted: Mutex<(u128, u128)>,
     physical_unavailable: AtomicU64,

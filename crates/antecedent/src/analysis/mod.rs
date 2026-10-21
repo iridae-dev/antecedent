@@ -131,6 +131,7 @@ mod recovery;
 pub mod recovery_chain;
 pub mod repair;
 pub mod repeated_measures_posterior_report;
+mod resource_policy;
 pub mod sample_split_analysis;
 pub mod sample_split_effect;
 pub mod sample_split_parent_set_effect;

@@ -25,10 +25,30 @@ Enclosing model fits are counted separately from their internal numerical solves
 Optional `observed_*` fields are absent where the corresponding boundary was not
 measured. Instrumentation coverage remains incomplete across the full library.
 
-Composite result and performance wires accept an optional `native_execution_v1`
-record. Earlier artifacts without the field remain readable; unknown observation
-formats are refused. Imported observations remain historical records. They grant
-no execution or scientific authority. Licensing and calibration are unchanged.
+Composite result and performance wires emit an optional `native_execution_v2`
+record. It adds optional copied buffer bytes, retained admitted output reservation
+bytes, and an explicit
+retention mode. V1 records remain readable, but their omitted buffer volumes and
+retention mode are unknown; their coverage bits cannot manufacture missing values.
+Earlier artifacts without observations remain readable. Unknown observation
+formats are refused, including by older readers that only support V1. Imported
+observations remain historical records and never become a fresh native execution.
+They grant no scientific or execution authority. Licensing and calibration are unchanged.
+
+`OutputRetention::Unmeasured` replaces inferred summary-only mode when no output
+handoff was observed. It grants no capacity reuse. Buffer retention volume counts
+instrumented admitted output reservations cumulatively, including conservative
+capacity bounds held by actual leases. It is distinct from exact heap allocation,
+peak admitted memory, process RSS, and caller declarations. A run with multiple output storage modes
+reports an unmeasured aggregate mode rather than choosing one arbitrarily.
+
+The Bayesian dose-grid facade exposes `evaluate_observed`, `estimate_observed`,
+and `consume_observed`. Python dose-grid posterior and cyclic results expose
+`execution_facts`; native refusal and cancellation exceptions retain the same
+record on `error.execution_facts`, including failed independent artifact consumption.
+These facts describe the attempt and do not make a failed answer publishable.
+Cyclic NumPy output views retain admission in their actual native base owner,
+so discarding receipts or prepared handles cannot release a live array's budget.
 
 This is the resource and observation foundation for the compiler integration
 repair. It does not close H03/H04 or establish complete workflow resource accounting.

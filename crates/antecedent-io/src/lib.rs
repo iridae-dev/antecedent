@@ -508,3 +508,5 @@ mod closed_wire_fields {
 
 /// Versioned observations from native execution.
 pub use antecedent_io_core::native_execution_wire;
+
+mod retained_allocation;

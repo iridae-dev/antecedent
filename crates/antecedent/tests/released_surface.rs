@@ -55,6 +55,7 @@ fn query_and_intervention_types_keep_their_auto_traits() {
     assert_unwind_safe::<antecedent::StageEvent>();
     assert_unwind_safe::<antecedent::planner::LogicalAnalysisPlan>();
     assert_unwind_safe::<antecedent::planner::PhysicalExecutionPlan>();
+    assert_unwind_safe::<antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>();
 }
 
 #[test]

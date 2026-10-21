@@ -41,6 +41,22 @@ predates this execution account. Unknown measurements remain absent. See
 [native execution observations](native-execution-3.0.md).
 
 Public Gaussian and four-way behavioral tests replace demonstration-function-name
-checks in the checked-execution registry. Other family integration, complete
-resource accounting and full Rust/Python acceptance remain pending. H03/H04 stay
-open; this change does not grant new identification or calibration guarantees.
+checks in the checked-execution registry. The accompanying dose-grid/cyclic
+integration and verification evidence are recorded in
+[repair acceptance](compiler-integration-acceptance-3.0.md). H03/H04 remain open
+for unrelated library-wide work; this repair grants no new identification or
+calibration guarantees.
+
+The costed physical choice is made before preparing the checked design and is
+passed to the estimator's actual assembly implementation. Numeric sources admit
+the direct final-buffer gather and materialization alternatives; direct assembly
+avoids intermediate column copies. Expanded categorical sources select the
+materialized column implementation, whose temporary columns are included in the
+admission quote. The checked preparation records the backend actually used.
+Full-row adjustment refuses streamed and lazy assembly because its retained-row
+uncertainty program requires those rows. Streaming remains available for the
+existing sufficient-statistics capacity component, which has a different contract.
+
+The retained recompilation recipe stores only the resource policy needed to bind
+new rows. It does not retain caller progress callbacks in physical plans, so the
+existing plan unwind-safety auto traits remain intact.

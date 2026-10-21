@@ -25,6 +25,7 @@ implementation_deviations = [
  "Named clamps, mechanism changes/replacements and shocks retain distinct identities; numerical/certificate response failures preserve original draw positions.",
  "BGCM graphical reasoning is theorem-scoped; finite polynomial candidate fitting is not a general latent BGCM estimator.",
  "Generalized ID is observation-only with explicit ioSCM/product-density premises; procedure failure is not non-identifiability.",
+ "Finite and Gaussian functional numerical evaluation lives in antecedent-estimate; IO rechecks graph-source identity and exact theorem-derived executable IR before delegation. Numerical component metadata alone grants no causal authority.",
 ]
 upstream_implementations_observed = []
 test_sources = ["inline crate unit tests registered in parity/v3_test_registry.toml, including exhaustive small incidence graphs against independent closed-form Gaussian truths", "python/tests/test_cyclic.py"]
@@ -88,3 +89,8 @@ truth = "Independent NumPy equilibrium generators and SciPy OU laws, declared pu
 id = "continuous-identified-density-composition"
 source = "crates/antecedent-io/src/cyclic_gaussian_functional.rs"
 truth = "Independent latent Gaussian frontdoor structural law gives do(X=1) outcome N(0.4,2.13); checked continuous IR products/ratios and analytic Gaussian integrals agree. IID Gaussian MLE moments, invalid assignments, source mismatch and refit/replay are checked separately."
+
+[[reference_fixture]]
+id = "gaussian-functional-engine-boundary"
+source = "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs"
+truth = "Univariate standard-normal density agrees with its analytic value; malformed retained density buffers and program variables outside the observational law are refused before numerical indexing. Existing IO frontdoor/MLE/replay oracle assertions still exercise the same engine."

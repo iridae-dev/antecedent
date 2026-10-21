@@ -167,6 +167,20 @@ def main() -> None:
          "prepared_gaussian_retains_the_compiled_program_after_builder_drop"),
         ("gaussian_compiled_resource_refusal", gaussian_tests,
          "prepared_gaussian_refuses_cancelled_and_insufficient_resource_execution"),
+        ("gaussian_compiled_retention", gaussian_tests,
+         "prepared_gaussian_reservations_follow_builder_cache_and_result_lifetimes"),
+        ("gaussian_compiled_design_width", gaussian_tests,
+         "prepared_gaussian_quotes_selected_columns_and_resampling_work"),
+        ("gaussian_compiled_materialization", gaussian_tests,
+         "prepared_gaussian_materializes_the_actual_categorical_design"),
+        ("gaussian_compiled_refresh", gaussian_tests,
+         "prepared_gaussian_refresh_replans_changed_rows_without_reidentifying"),
+        ("dose_grid_compiled_reuse", "crates/antecedent/src/analysis/bayesian_posterior_row.rs",
+         "public_preparation_inspects_without_fitting_and_retargets_the_frozen_posterior"),
+        ("dose_grid_compiled_invalidation", "crates/antecedent/src/analysis/bayesian_posterior_row.rs",
+         "changed_inputs_refit_and_execution_policy_refuses_before_fitting"),
+        ("cyclic_compiled_reuse_replay", "crates/antecedent/src/analysis/cyclic.rs",
+         "common_prepared_handle_retains_fit_retargets_and_independently_replays"),
     ])
     shard = sys.argv[2]
     if shard != "all":

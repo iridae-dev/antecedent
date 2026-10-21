@@ -12,7 +12,7 @@ test_registry = "parity/v3_test_registry.toml"
 [[capability]]
 id = "Y18.1"
 workflow = "CyclicGraph.identify/calculus/adjust -> identified_functional -> finite-law or continuous Gaussian density fitting/evaluation -> evidence/artifact"
-rust = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs"]
+rust = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs"]
 independent_truth = "All three-node mixed-graph Gaussian calculus checks; latent binary frontdoor and SCC joint tables; positivity and bounded-search failures"
 
 [[capability]]

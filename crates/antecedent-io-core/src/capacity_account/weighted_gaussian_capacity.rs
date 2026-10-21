@@ -1711,7 +1711,9 @@ fn plan_charges(
             let staging = frame.checked_add(payload).ok_or(WeightedCapacityError::Overflow)?;
             (handle_bytes(&spill.path)?, frame, staging)
         }
-        OutputRetention::FullReusable => return Err(WeightedCapacityError::RetentionKeepsRows),
+        OutputRetention::FullReusable | OutputRetention::Unmeasured => {
+            return Err(WeightedCapacityError::RetentionKeepsRows);
+        }
     };
     let identity = content_identity_bytes(ncols)?;
     let decoder = working_bytes(options.batch_rows, ncols, source_decoder_bytes)?
@@ -2120,6 +2122,11 @@ mod tests {
     }
 
     fn assert_declared(result: &WeightedCapacityResult) {
+        use antecedent_core::physical_choice::{PhysicalAlternative, RejectionReason};
+        assert_eq!(result.physical_choice().selected(), PhysicalAlternative::StreamedReduction);
+        assert!(result.physical_choice().rejected().iter().all(|rejected| {
+            matches!(rejected.reason(), RejectionReason::MissingOperatorCapability { .. })
+        }));
         assert_eq!(result.source_passes, 2);
         assert_eq!(result.batches, 5);
         assert_eq!(result.coefficients.len(), 2);

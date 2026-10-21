@@ -27,6 +27,14 @@ const MAX_JSON_BYTES: usize = crate::bridge::MAX_SPEC_DECLARATION_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Py<PyBytes>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
+type ObservedEvaluatePayload = (
+    Option<String>,
+    Option<Py<PyBytes>>,
+    Option<String>,
+    Py<crate::inspect_receipt_api::PyExecutionFacts>,
+);
+type ObservedConsumePayload =
+    (Option<String>, Option<String>, Py<crate::inspect_receipt_api::PyExecutionFacts>);
 
 fn dose_context(
     threads: Option<u32>,
@@ -247,7 +255,7 @@ fn evaluate_dose_grid_posterior(
     threads: Option<u32>,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<EvaluatePayload> {
+) -> PyResult<ObservedEvaluatePayload> {
     check_declared_size(request_json, MAX_JSON_BYTES, "dose grid posterior")?;
     let mut request: PosteriorRowRequestWire = serde_json::from_str(request_json)
         .map_err(|e| value_err(format!("dose_grid.invalid_request: {e}")))?;
@@ -255,20 +263,26 @@ fn evaluate_dose_grid_posterior(
     wire.dose = dose;
     wire.outcome = outcome;
     let ctx = dose_context(threads, max_bytes, cancel)?;
-    let payload = detach_catch(py, move || {
-        match BayesianPosteriorRow::evaluate_with_context(request, &ctx) {
-            Ok(done) => {
-                let bytes = done.export().map_err(|e| serialization(&e))?;
-                Ok((Some(posterior_report_json(&done)?), Some(bytes), None))
-            }
+    let (payload, facts) = detach_catch(py, move || {
+        let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+            let done = BayesianPosteriorRow::evaluate_with_context(request, &ctx)?;
+            let bytes = done.export()?;
+            let report = posterior_report_json(&done)
+                .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))?;
+            Ok::<_, PosteriorRowArtifactError>((report, bytes))
+        });
+        let payload = match attempt.result {
+            Ok((report, bytes)) => Ok((Some(report), Some(bytes), None)),
             Err(error) => match posterior_refusal_json(&error, "dose_grid") {
                 Some(json) => Ok((None, None, Some(json))),
                 None => Err(posterior_execution_error(&error)),
             },
-        }
+        };
+        Ok((payload, attempt.facts))
     })?;
-    let (report, bytes, refusal) = payload;
-    Ok((report, bytes.map(|b| PyBytes::new(py, &b).unbind()), refusal))
+    let ((report, bytes, refusal), facts) =
+        crate::inspect_receipt_api::finish_observed(py, payload, facts)?;
+    Ok((report, bytes.map(|b| PyBytes::new(py, &b).unbind()), refusal, facts))
 }
 
 /// Consume a dose-grid posterior artifact by recomputation: `(report json, refusal json)`.
@@ -282,18 +296,27 @@ fn consume_dose_grid_posterior_artifact(
     threads: Option<u32>,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<ConsumePayload> {
+) -> PyResult<ObservedConsumePayload> {
     let limits = PosteriorRowConsumeLimits { max_rows, max_points: max_grid };
     let ctx = dose_context(threads, max_bytes, cancel)?;
-    detach_catch(py, move || {
-        match BayesianPosteriorRow::consume_with_context(&artifact, limits, &ctx) {
-            Ok(done) => Ok((Some(posterior_report_json(&done)?), None)),
+    let (payload, facts) = detach_catch(py, move || {
+        let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+            let done = BayesianPosteriorRow::consume_with_context(&artifact, limits, &ctx)?;
+            posterior_report_json(&done)
+                .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))
+        });
+        let payload = match attempt.result {
+            Ok(report) => Ok((Some(report), None)),
             Err(error) => match posterior_refusal_json(&error, "consume") {
                 Some(json) => Ok((None, Some(json))),
                 None => Err(posterior_execution_error(&error)),
             },
-        }
-    })
+        };
+        Ok((payload, attempt.facts))
+    })?;
+    let ((report, refusal), facts) =
+        crate::inspect_receipt_api::finish_observed(py, payload, facts)?;
+    Ok((report, refusal, facts))
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -7846,8 +7846,10 @@ pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn with_scienti
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn from_artifact(measured: antecedent_core::execution_facts::MeasuredExecution, coverage: u64) -> Self
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn is_native(&self) -> bool
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn native_coverage(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_copied_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_copies(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_model_fits(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_retained_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_scans(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_spill_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn peak_admitted_bytes(&self) -> core::option::Option<u64>
@@ -7867,6 +7869,7 @@ pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn new(count
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn resources(&self) -> antecedent_core::execution_facts::ExecutionResources
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn retention(&self) -> antecedent_core::execution_facts::OutputRetention
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn status(&self) -> antecedent_core::execution_facts::ExecutionFactStatus
+pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn with_observed_buffer_bytes(self, copied_bytes: core::option::Option<u64>, retained_bytes: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_counts(&mut self, extra: antecedent_core::execution_facts::ExecutionCounts) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_resources(&mut self, extra: antecedent_core::execution_facts::ExecutionResources) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
 pub fn <antecedent_core::execution_facts::OutputRetention>::const fn as_str(self) -> &'static str
@@ -9698,6 +9701,9 @@ pub variant antecedent_core::execution_attempt::PhysicalEvent::CopiedBytes
 pub variant antecedent_core::execution_attempt::PhysicalEvent::Copy
 pub variant antecedent_core::execution_attempt::PhysicalEvent::ModelFit
 pub variant antecedent_core::execution_attempt::PhysicalEvent::RetainedBytes
+pub variant antecedent_core::execution_attempt::PhysicalEvent::RetainedDisk
+pub variant antecedent_core::execution_attempt::PhysicalEvent::RetainedFull
+pub variant antecedent_core::execution_attempt::PhysicalEvent::RetainedSummary
 pub variant antecedent_core::execution_attempt::PhysicalEvent::Scan
 pub variant antecedent_core::execution_attempt::PhysicalEvent::SpillBytes
 pub variant antecedent_core::execution_facts::ExecutionFactError::Overflow
@@ -9707,6 +9713,7 @@ pub variant antecedent_core::execution_facts::ExecutionFactStatus::Failed
 pub variant antecedent_core::execution_facts::OutputRetention::DiskBacked
 pub variant antecedent_core::execution_facts::OutputRetention::FullReusable
 pub variant antecedent_core::execution_facts::OutputRetention::SummaryOnly
+pub variant antecedent_core::execution_facts::OutputRetention::Unmeasured
 pub variant antecedent_core::inspect::InspectionRefusal::BlankName
 pub variant antecedent_core::inspect::InspectionRefusal::MissingAssumptions
 pub variant antecedent_core::inspect::InspectionRefusal::MissingBackendPolicy

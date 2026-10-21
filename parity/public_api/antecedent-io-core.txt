@@ -629,6 +629,7 @@ impl core::clone::Clone for antecedent_io_core::mechanism_wire::ParentBasisWire
 impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeExecutionFormat
 impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeExecutionWire
+impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeOutputRetention
 impl core::clone::Clone for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::clone::Clone for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::clone::Clone for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -1110,6 +1111,7 @@ impl core::cmp::Eq for antecedent_io_core::mechanism_wire::BasisTermWire
 impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeExecutionFormat
 impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeExecutionWire
+impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeOutputRetention
 impl core::cmp::Eq for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::cmp::Eq for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::cmp::Eq for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -1694,6 +1696,7 @@ impl core::cmp::PartialEq for antecedent_io_core::mechanism_wire::ParentBasisWir
 impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeExecutionFormat
 impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeExecutionWire
+impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeOutputRetention
 impl core::cmp::PartialEq for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::cmp::PartialEq for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::cmp::PartialEq for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -2529,6 +2532,7 @@ impl core::fmt::Debug for antecedent_io_core::mechanism_wire::ParentBasisWire
 impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeExecutionFormat
 impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeExecutionWire
+impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeOutputRetention
 impl core::fmt::Debug for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::fmt::Debug for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::fmt::Debug for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -2842,6 +2846,7 @@ impl core::marker::Copy for antecedent_io_core::measurement_model_wire::Replayed
 impl core::marker::Copy for antecedent_io_core::mechanism_wire::BasisTermWire
 impl core::marker::Copy for antecedent_io_core::native_execution_wire::NativeExecutionFormat
 impl core::marker::Copy for antecedent_io_core::native_execution_wire::NativeExecutionStatus
+impl core::marker::Copy for antecedent_io_core::native_execution_wire::NativeOutputRetention
 impl core::marker::Copy for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::marker::Copy for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::marker::Copy for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -3405,6 +3410,7 @@ impl core::marker::Freeze for antecedent_io_core::mechanism_wire::ParentBasisWir
 impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
 impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
+impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
 impl core::marker::Freeze for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -4119,6 +4125,7 @@ impl core::marker::Send for antecedent_io_core::mechanism_wire::ParentBasisWire 
 impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
 impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
+impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
 impl core::marker::Send for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Send for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Send for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -4793,6 +4800,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::mechanism_wire::P
 impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_wire::NativeExecutionFormat
 impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_wire::NativeExecutionWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_wire::NativeOutputRetention
 impl core::marker::StructuralPartialEq for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -5496,6 +5504,7 @@ impl core::marker::Sync for antecedent_io_core::mechanism_wire::ParentBasisWire 
 impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
 impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
+impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
 impl core::marker::Sync for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Sync for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Sync for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -6210,6 +6219,7 @@ impl core::marker::Unpin for antecedent_io_core::mechanism_wire::ParentBasisWire
 impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
 impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
+impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
 impl core::marker::Unpin for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -6923,6 +6933,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::mechanism_w
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -7636,6 +7647,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::mechanism_wire
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -8198,6 +8210,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::mechanism_wire::ParentBa
 impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::NativeExecutionFormat
 impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::NativeExecutionWire
+impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::NativeOutputRetention
 impl serde_core::ser::Serialize for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl serde_core::ser::Serialize for antecedent_io_core::plan_wire::DataClassificationWire
 impl serde_core::ser::Serialize for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -8788,6 +8801,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::mechanism_wir
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execution_wire::NativeExecutionFormat
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execution_wire::NativeExecutionWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execution_wire::NativeOutputRetention
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::plan_wire::DataClassificationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -9260,6 +9274,7 @@ pub enum antecedent_io_core::mechanism_composition_artifact::TermWire
 pub enum antecedent_io_core::mechanism_wire::BasisTermWire
 pub enum antecedent_io_core::native_execution_wire::NativeExecutionFormat
 pub enum antecedent_io_core::native_execution_wire::NativeExecutionStatus
+pub enum antecedent_io_core::native_execution_wire::NativeOutputRetention
 pub enum antecedent_io_core::plan_wire::BufferMaterializationWire
 pub enum antecedent_io_core::plan_wire::DataClassificationWire
 pub enum antecedent_io_core::plan_wire::KernelSelectionWire
@@ -11634,11 +11649,13 @@ pub field antecedent_io_core::mechanism_wire::ParentBasisWire::n_parents: usize
 pub field antecedent_io_core::mechanism_wire::ParentBasisWire::scales: alloc::vec::Vec<f64>
 pub field antecedent_io_core::mechanism_wire::ParentBasisWire::terms: alloc::vec::Vec<antecedent_io_core::mechanism_wire::BasisTermWire>
 pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::backend: alloc::string::String
+pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::buffer_bytes: core::option::Option<[core::option::Option<u64>; 2]>
 pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::counts: [u64; 5]
 pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::coverage: u64
 pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::format: antecedent_io_core::native_execution_wire::NativeExecutionFormat
 pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::kernel_policy: [bool; 3]
 pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::resources: [u64; 3]
+pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::retention: core::option::Option<antecedent_io_core::native_execution_wire::NativeOutputRetention>
 pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::status: antecedent_io_core::native_execution_wire::NativeExecutionStatus
 pub field antecedent_io_core::provider_envelope::ProviderEnvelope::external_artifact: core::option::Option<alloc::vec::Vec<u8>>
 pub field antecedent_io_core::provider_envelope::ProviderEnvelope::header: antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
@@ -15370,9 +15387,13 @@ pub variant antecedent_io_core::mechanism_wire::BasisTermWire::Power { parent: u
 pub variant antecedent_io_core::mechanism_wire::BasisTermWire::Product { left: u32, right: u32 }
 pub variant antecedent_io_core::mechanism_wire::BasisTermWire::Truncated { parent: u32, knot: u32 }
 pub variant antecedent_io_core::native_execution_wire::NativeExecutionFormat::V1
+pub variant antecedent_io_core::native_execution_wire::NativeExecutionFormat::V2
 pub variant antecedent_io_core::native_execution_wire::NativeExecutionStatus::Cancelled
 pub variant antecedent_io_core::native_execution_wire::NativeExecutionStatus::Completed
 pub variant antecedent_io_core::native_execution_wire::NativeExecutionStatus::Failed
+pub variant antecedent_io_core::native_execution_wire::NativeOutputRetention::DiskBacked
+pub variant antecedent_io_core::native_execution_wire::NativeOutputRetention::FullReusable
+pub variant antecedent_io_core::native_execution_wire::NativeOutputRetention::SummaryOnly
 pub variant antecedent_io_core::plan_wire::BufferMaterializationWire::Borrowed
 pub variant antecedent_io_core::plan_wire::BufferMaterializationWire::Chunked
 pub variant antecedent_io_core::plan_wire::BufferMaterializationWire::CopiedContiguous

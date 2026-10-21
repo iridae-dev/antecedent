@@ -51,6 +51,8 @@ pub mod crossfit_cache;
 mod crossfit_plan;
 pub mod cyclic_adam;
 pub mod cyclic_dynamics;
+pub mod cyclic_functional;
+pub mod cyclic_gaussian_functional;
 pub mod cyclic_gradient;
 pub mod cyclic_likelihood;
 mod cyclic_optim;

@@ -29,6 +29,8 @@ use crate::identity::{CanonicalWriter, SemanticDigest};
 /// [`ExecutionResources::spill_bytes`], a byte count.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum OutputRetention {
+    /// No output retention boundary was measured. Grants no reuse capability.
+    Unmeasured,
     /// Full reusable in-memory state.
     #[default]
     FullReusable,
@@ -43,6 +45,7 @@ impl OutputRetention {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::Unmeasured => "unmeasured",
             Self::FullReusable => "full reusable state",
             Self::SummaryOnly => "summary-only",
             Self::DiskBacked => "disk-backed output",
@@ -255,6 +258,8 @@ pub struct MeasuredExecution {
     resources: ExecutionResources,
     backend: ExecutionBackend,
     status: ExecutionFactStatus,
+    copied_bytes: Option<u64>,
+    retained_bytes: Option<u64>,
 }
 
 impl MeasuredExecution {
@@ -267,7 +272,30 @@ impl MeasuredExecution {
         backend: ExecutionBackend,
         status: ExecutionFactStatus,
     ) -> Self {
-        Self { counts, retention, resources, backend, status }
+        Self {
+            counts,
+            retention,
+            resources,
+            backend,
+            status,
+            copied_bytes: None,
+            retained_bytes: None,
+        }
+    }
+
+    /// Store measured numeric buffer volumes. `None` means the boundary was unmeasured.
+    ///
+    /// Copied bytes describe numeric buffer transfers; retained bytes describe admitted
+    /// output reservations at handoff, never allocator usage or process RSS.
+    #[must_use]
+    pub const fn with_observed_buffer_bytes(
+        mut self,
+        copied_bytes: Option<u64>,
+        retained_bytes: Option<u64>,
+    ) -> Self {
+        self.copied_bytes = copied_bytes;
+        self.retained_bytes = retained_bytes;
+        self
     }
 
     /// Counts actually performed.
@@ -432,6 +460,18 @@ impl ExecutionFacts {
     #[must_use]
     pub fn observed_copies(&self) -> Option<u64> {
         self.covered(1).then_some(self.counts().copies())
+    }
+    /// Bytes copied at instrumented numeric buffer boundaries, or unknown.
+    #[must_use]
+    pub fn observed_copied_bytes(&self) -> Option<u64> {
+        self.covered(2).then_some(self.measured.copied_bytes).flatten()
+    }
+    /// Admitted output reservation bytes at instrumented handoffs, or unknown.
+    /// This cumulative volume can conservatively cover owned allocations. It is
+    /// neither exact heap allocation nor peak live memory nor process RSS.
+    #[must_use]
+    pub fn observed_retained_bytes(&self) -> Option<u64> {
+        self.covered(4).then_some(self.measured.retained_bytes).flatten()
     }
     /// Completed enclosing model fits at instrumented engine boundaries.
     #[must_use]
@@ -615,11 +655,20 @@ fn physical_digest(measured: &MeasuredExecution) -> PhysicalExecutionIdentity {
     writer.word(u64::from(kernel.allow_arch_simd));
     writer.word(u64::from(kernel.force_scalar));
     writer.word(status_code(measured.status));
+    // Preserve v1 physical identities when optional buffer boundaries were absent.
+    if measured.copied_bytes.is_some() || measured.retained_bytes.is_some() {
+        writer.text("buffer_volumes.v2");
+        writer.word(u64::from(measured.copied_bytes.is_some()));
+        writer.word(measured.copied_bytes.unwrap_or(0));
+        writer.word(u64::from(measured.retained_bytes.is_some()));
+        writer.word(measured.retained_bytes.unwrap_or(0));
+    }
     PhysicalExecutionIdentity { digest: SemanticDigest::from_bytes(writer.finish()) }
 }
 
 const fn retention_code(retention: OutputRetention) -> u64 {
     match retention {
+        OutputRetention::Unmeasured => 0,
         OutputRetention::FullReusable => 1,
         OutputRetention::SummaryOnly => 2,
         OutputRetention::DiskBacked => 3,
@@ -863,5 +912,28 @@ mod tests {
         assert!(!original.scientific_contract_changed());
         assert_eq!(explicit.physical_identity(), original.physical_identity());
         assert_eq!(explicit.scientific_identity(), original.scientific_identity());
+    }
+    #[test]
+    fn measured_buffer_volumes_affect_physical_identity_without_becoming_caller_authority() {
+        let values = measured(
+            counts(),
+            OutputRetention::Unmeasured,
+            resources(),
+            KernelPolicy::default_policy(),
+            ExecutionFactStatus::Completed,
+        );
+        let plain = ExecutionFacts::new(values.clone(), None, false);
+        let measured = ExecutionFacts::from_artifact(
+            values.with_observed_buffer_bytes(Some(0), Some(128)),
+            (1 << 2) | (1 << 4),
+        );
+        assert_eq!(plain.observed_copied_bytes(), None);
+        assert_eq!(measured.observed_copied_bytes(), Some(0));
+        assert_eq!(measured.observed_retained_bytes(), Some(128));
+        assert_ne!(plain.physical_identity(), measured.physical_identity());
+        assert!(!measured.is_native());
+        let changed = measured.rebuild(plain.measured().clone());
+        assert_eq!(changed.observed_copied_bytes(), None);
+        assert_eq!(changed.observed_retained_bytes(), None);
     }
 }

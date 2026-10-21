@@ -178,11 +178,19 @@ def main() -> None:
     inventory()
     if args.inventory_only:
         return
-    for crate, test in RUST_CHECKS:
-        command = ["cargo", "test", "-p", crate, "--lib", "-j", "4"]
-        if test:
-            command.append(test)
-        run(command, cwd=ROOT)
+    # Build each library once and run the union of the original selections.
+    # Separate cargo invocations repeatedly rebuilt shared test dependencies and
+    # could let the gate's wall time grow without adding acceptance coverage.
+    command = ["bash", "scripts/test.sh", "dev"]
+    for crate in dict.fromkeys(crate for crate, _ in RUST_CHECKS):
+        command.extend(["-p", crate])
+    selections = [
+        f"package({crate})" if test is None
+        else f"(package({crate}) & test({test}))"
+        for crate, test in RUST_CHECKS
+    ]
+    command.extend(["--lib", "-E", " | ".join(selections)])
+    run(command, cwd=ROOT)
     with tempfile.TemporaryDirectory(prefix="antecedent-cyclic-gate-") as directory:
         target = Path(directory) / "test_cyclic.py"
         target.write_bytes((ROOT / "python/tests/test_cyclic.py").read_bytes())

@@ -21,4 +21,31 @@ unchanged. The row remains explicitly unlicensed with unmeasured calibration;
 compiler integration adds no identification or scientific permission.
 
 This change does not close the aggregate resource-accounting or release
-attestation backlog. Full cross-family acceptance remains a separate check.
+attestation backlog. The reviewed cross-family repair scope and verification are
+recorded in [repair acceptance](compiler-integration-acceptance-3.0.md).
+
+Prepared numerical outputs and returned posterior artifacts retain admission leases
+until their last owner is dropped. Cancellation does not release live outputs.
+Frozen coefficient data and its lease share one immutable owner, so replacing a
+cached numerical policy cannot uncharge a fit still used by another execution.
+Retargeting replaces the grid reservation instead of retaining earlier grids.
+Artifact resource guards are local execution state: serialization omits them,
+independent consumption reserves its own replayed output, and equality compares
+scientific values rather than admission ownership. These byte counts are typed
+allocation quotes/reservations, not process resident memory measurements.
+
+`CompiledPosteriorRow::artifact(ctx)` is the public IO execution entry point and
+returns the guarded artifact owner. The intermediate conversion to a bare
+`PosteriorRowResultWire` is now internal, so a public compiled workflow cannot
+silently discard result admission ownership. Numerical component execution
+through `CompiledDoseGridPosterior::execute` also returns a guarded output.
+
+`BayesianPosteriorRow::export()` keeps the resource policy used to produce or
+consume the row and admits CBOR encoding scratch under that shared account.
+`export_with_context(ctx)` permits an explicit current policy. Cancellation and
+resource exhaustion remain typed refusals. Counting serialization precedes CBOR
+buffer allocation, and the numerical wire bytes remain unchanged. Returned byte
+vectors become caller-owned after export; the row continues funding its own
+retained numerical/artifact state.
+
+Retained resource policy excludes caller progress callbacks, preserving the row's existing unwind-safety auto traits.

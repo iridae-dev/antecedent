@@ -72,6 +72,7 @@ pub struct DoseGridPosteriorRequest<'a> {
 /// Joint posterior of one functional over its evaluation points.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoseGridPosterior {
+    retention: DoseOutputRetention,
     /// Requested functional.
     pub functional: DoseFunctional,
     /// Evaluation doses: the grid, or `[from, to]` for a contrast.
@@ -92,6 +93,21 @@ pub struct DoseGridPosterior {
     pub draws: Vec<f64>,
     /// Number of draws.
     pub n_draws: usize,
+}
+
+#[derive(Clone, Debug, Default)]
+struct DoseOutputRetention(Option<std::sync::Arc<antecedent_core::execution::AdmissionLease>>);
+impl PartialEq for DoseOutputRetention {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+impl DoseGridPosterior {
+    /// Shared reservations funding the retained numerical output, not process resident memory.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        self.retention.0.as_ref().map_or(0, |lease| lease.remainder().bytes())
+    }
 }
 
 /// Posterior of the requested dose-response functional under the declared polynomial prior.
@@ -187,6 +203,7 @@ fn evaluate_frozen_basis(
     let rows_b = functional_rows(request.functional, &points, width, lo, hi);
     let (exact_mean, exact_covariance) = exact_moments(posterior, &rows_b);
     Ok(DoseGridPosterior {
+        retention: DoseOutputRetention::default(),
         functional: request.functional,
         points,
         values,
@@ -600,6 +617,10 @@ mod tests {
     }
 }
 
+type SharedDoseBasis = std::sync::Arc<
+    std::sync::Mutex<Option<(antecedent_core::KernelPolicy, std::sync::Arc<FrozenDoseBasis>)>>,
+>;
+
 /// Typed, checked randomized-dose posterior program. Compilation performs no fit or simulation.
 #[derive(Clone, Debug)]
 pub struct CompiledDoseGridPosterior {
@@ -613,14 +634,14 @@ pub struct CompiledDoseGridPosterior {
     draws: usize,
     seed: u64,
     source_bytes: u64,
-    basis:
-        std::sync::Arc<std::sync::Mutex<Option<(antecedent_core::KernelPolicy, FrozenDoseBasis)>>>,
-    retention: Vec<std::sync::Arc<antecedent_core::execution::AdmissionLease>>,
+    basis: SharedDoseBasis,
+    source_retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
+    grid_retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
 }
 #[derive(Debug)]
 struct FrozenDoseBasis {
-    posterior: std::sync::Arc<BasisPosterior>,
-    _retention: antecedent_core::execution::AdmissionLease,
+    posterior: BasisPosterior,
+    retention: antecedent_core::execution::AdmissionLease,
 }
 fn execution_refusal(detail: &'static str, message: &str) -> EstimationError {
     refuse(antecedent_core::reason_code!("transport_budget_cancel"), detail, message)
@@ -653,8 +674,18 @@ impl CompiledDoseGridPosterior {
                 "retained inputs exceed memory limit",
             ));
         }
+        let grid_bytes =
+            u64::try_from(request.grid.len()).ok().and_then(|n| n.checked_mul(8)).ok_or_else(
+                || execution_refusal("dose_grid.resource_refused", "grid byte size overflow"),
+            )?;
+        let source_bytes = bytes.checked_sub(grid_bytes).ok_or_else(|| {
+            execution_refusal("dose_grid.resource_refused", "input byte size overflow")
+        })?;
         let retained = ctx
-            .acquire_admission(0, bytes)
+            .acquire_admission(0, source_bytes)
+            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let grid_retention = ctx
+            .acquire_admission(0, grid_bytes)
             .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
         Ok(Self {
             dose: request.dose.into(),
@@ -668,7 +699,8 @@ impl CompiledDoseGridPosterior {
             seed: request.seed,
             source_bytes: bytes,
             basis: std::sync::Arc::default(),
-            retention: vec![std::sync::Arc::new(retained)],
+            grid_retention: std::sync::Arc::new(grid_retention),
+            source_retention: std::sync::Arc::new(retained),
         })
     }
     /// Exact numeric input bytes retained by this program.
@@ -721,8 +753,23 @@ impl CompiledDoseGridPosterior {
             })?;
         next.grid = grid.into();
         next.functional = functional;
-        next.retention.push(std::sync::Arc::new(retained));
+        next.grid_retention = std::sync::Arc::new(retained);
         Ok(next)
+    }
+    fn output_bytes(&self, points: usize) -> Result<u64, EstimationError> {
+        let values =
+            if matches!(self.functional, DoseFunctional::Contrast { .. }) { 1 } else { points };
+        let cells = values
+            .checked_mul(self.draws)
+            .and_then(|n| n.checked_add(values.checked_mul(values)?.checked_mul(2)?))
+            .and_then(|n| n.checked_add(values.checked_mul(4)?))
+            .and_then(|n| n.checked_add(points))
+            .and_then(|n| n.checked_mul(8))
+            .and_then(|n| n.checked_add(std::mem::size_of::<DoseGridPosterior>()));
+        u64::try_from(cells.ok_or_else(|| {
+            execution_refusal("dose_grid.resource_refused", "output size overflow")
+        })?)
+        .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))
     }
     /// Execute the original conjugate engine and retained polynomial lowering.
     pub fn execute(
@@ -733,6 +780,8 @@ impl CompiledDoseGridPosterior {
         if ctx.cancellation.is_cancelled() {
             return Err(execution_refusal("dose_grid.cancelled", "execution cancelled"));
         }
+        self.source_retention.observe_current();
+        self.grid_retention.observe_current();
         let request = self.request();
         let points = validate(&request)?;
         let width = self.scales.len() as u64;
@@ -746,6 +795,7 @@ impl CompiledDoseGridPosterior {
             .and_then(|n| n.checked_add(prediction?))
             .and_then(|n| n.checked_add(scratch?))
             .and_then(|n| n.checked_mul(8))
+            .and_then(|n| n.checked_add(self.output_bytes(points.len()).ok()?))
             .ok_or_else(|| {
                 execution_refusal("dose_grid.resource_refused", "execution byte estimate overflow")
             })?;
@@ -774,7 +824,10 @@ impl CompiledDoseGridPosterior {
                     {
                         record_physical(PhysicalEvent::CacheHit, 1);
                         record_physical(PhysicalEvent::ModelFit, 0);
-                        std::sync::Arc::clone(&fit.posterior)
+                        {
+                            fit.retention.observe_current();
+                            std::sync::Arc::clone(fit)
+                        }
                     } else {
                         let fitted = fit_dose_basis(&request)?;
                         let bytes = ((fitted.coefficients.len()
@@ -792,18 +845,22 @@ impl CompiledDoseGridPosterior {
                             execution_refusal("dose_grid.resource_refused", &e.to_string())
                         })?;
                         record_physical(PhysicalEvent::RetainedBytes, bytes);
-                        let posterior = std::sync::Arc::new(fitted);
-                        *frozen = Some((
-                            ctx.kernel_policy,
-                            FrozenDoseBasis {
-                                posterior: std::sync::Arc::clone(&posterior),
-                                _retention: retention,
-                            },
-                        ));
+                        let posterior =
+                            std::sync::Arc::new(FrozenDoseBasis { posterior: fitted, retention });
+                        *frozen = Some((ctx.kernel_policy, std::sync::Arc::clone(&posterior)));
                         posterior
                     };
                     drop(frozen);
-                    let result = evaluate_frozen_basis(&request, points, &posterior)?;
+                    let output_bytes = self.output_bytes(points.len())?;
+                    let output_retention =
+                        reservation.acquire_child(0, output_bytes).map_err(|e| {
+                            execution_refusal("dose_grid.resource_refused", &e.to_string())
+                        })?;
+                    let mut result = evaluate_frozen_basis(&request, points, &posterior.posterior)?;
+                    result.retention =
+                        DoseOutputRetention(Some(std::sync::Arc::new(output_retention)));
+                    record_physical(PhysicalEvent::RetainedBytes, output_bytes);
+                    record_physical(PhysicalEvent::RetainedFull, 1);
                     if ctx.cancellation.is_cancelled() {
                         return Err(execution_refusal(
                             "dose_grid.cancelled",
@@ -814,5 +871,84 @@ impl CompiledDoseGridPosterior {
                 },
             )
         })
+    }
+}
+
+#[cfg(test)]
+mod retained_resource_tests {
+    use super::*;
+    use antecedent_core::{ExecutionContext, execution::AdmissionPool};
+    fn compiled(ctx: &ExecutionContext) -> CompiledDoseGridPosterior {
+        CompiledDoseGridPosterior::compile(
+            &DoseGridPosteriorRequest {
+                dose: &[0., 0.25, 0.5, 0.75, 1.],
+                outcome: &[0., 0.4, 1.1, 1.4, 2.],
+                grid: &[0.25, 0.75],
+                support: (0., 1.),
+                coefficient_scales: &[2., 1.],
+                residual: ResidualPrior::KnownVariance(0.5),
+                functional: DoseFunctional::Level,
+                design: DoseDesign::RandomizedDose,
+                draws: 200,
+                seed: 3,
+            },
+            ctx,
+        )
+        .unwrap()
+    }
+    #[test]
+    fn dose_output_remains_admitted_after_compiler_and_cache_are_dropped() {
+        let pool = AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(3).with_admission(pool.clone());
+        let program = compiled(&ctx);
+        let result = program.execute(&ctx).unwrap();
+        assert!(result.retained_admitted_bytes() > 0);
+        drop(program);
+        assert_eq!(pool.byte_budget() - pool.available().bytes(), result.retained_admitted_bytes());
+        let copy = result.clone();
+        drop(result);
+        assert!(pool.available().bytes() < pool.byte_budget());
+        drop(copy);
+        assert_eq!(pool.available().bytes(), pool.byte_budget());
+    }
+    #[test]
+    fn dose_retarget_replaces_grid_reservation_instead_of_accumulating_history() {
+        let pool = AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(3).with_admission(pool.clone());
+        let mut program = compiled(&ctx);
+        for _ in 0..100 {
+            program = program.retarget(&[0.5], DoseFunctional::Level, &ctx).unwrap();
+        }
+        assert_eq!(pool.byte_budget() - pool.available().bytes(), program.retained_source_bytes());
+        drop(program);
+        assert_eq!(pool.available().bytes(), pool.byte_budget());
+    }
+    #[test]
+    fn dose_replacing_policy_keeps_an_in_flight_frozen_fit_funded() {
+        let pool = AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(3).with_admission(pool.clone());
+        let program = compiled(&ctx);
+        let earlier = program.execute(&ctx).unwrap();
+        let in_flight = std::sync::Arc::clone(&program.basis.lock().unwrap().as_ref().unwrap().1);
+        let old_bytes = in_flight.retention.remainder().bytes();
+        let mut changed = ctx.clone();
+        changed.kernel_policy = if ctx.kernel_policy == antecedent_core::KernelPolicy::scalar_only()
+        {
+            antecedent_core::KernelPolicy::default_policy()
+        } else {
+            antecedent_core::KernelPolicy::scalar_only()
+        };
+        let later = program.execute(&changed).unwrap();
+        let available = pool.available().bytes();
+        drop(in_flight);
+        assert_eq!(pool.available().bytes(), available + old_bytes);
+        let mut refused = ctx.clone();
+        refused.memory.hard_limit_bytes = Some(1);
+        assert!(program.execute(&refused).is_err());
+        assert_eq!(earlier.n_draws, later.n_draws);
+        drop(program);
+        drop(earlier);
+        drop(later);
+        assert_eq!(pool.available().bytes(), pool.byte_budget());
     }
 }

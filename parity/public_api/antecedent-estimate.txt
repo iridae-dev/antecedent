@@ -423,6 +423,12 @@ impl core::clone::Clone for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
 impl core::clone::Clone for antecedent_estimate::cyclic_dynamics::OdeObservation
 impl core::clone::Clone for antecedent_estimate::cyclic_dynamics::OuFit
 impl core::clone::Clone for antecedent_estimate::cyclic_dynamics::OuParameter
+impl core::clone::Clone for antecedent_estimate::cyclic_functional::CyclicFunctionalReport
+impl core::clone::Clone for antecedent_estimate::cyclic_functional::CyclicFunctionalValue
+impl core::clone::Clone for antecedent_estimate::cyclic_functional::FiniteCyclicLaw
+impl core::clone::Clone for antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity
+impl core::clone::Clone for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl core::clone::Clone for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw
 impl core::clone::Clone for antecedent_estimate::cyclic_gradient::CyclicGradientFit
 impl core::clone::Clone for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
 impl core::clone::Clone for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
@@ -1308,6 +1314,11 @@ impl core::cmp::PartialEq for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
 impl core::cmp::PartialEq for antecedent_estimate::cyclic_dynamics::OdeObservation
 impl core::cmp::PartialEq for antecedent_estimate::cyclic_dynamics::OuFit
 impl core::cmp::PartialEq for antecedent_estimate::cyclic_dynamics::OuParameter
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_functional::CyclicFunctionalReport
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_functional::CyclicFunctionalValue
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_functional::FiniteCyclicLaw
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl core::cmp::PartialEq for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw
 impl core::cmp::PartialEq for antecedent_estimate::cyclic_gradient::CyclicGradientFit
 impl core::cmp::PartialEq for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
 impl core::cmp::PartialEq for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
@@ -2169,6 +2180,12 @@ impl core::fmt::Debug for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
 impl core::fmt::Debug for antecedent_estimate::cyclic_dynamics::OdeObservation
 impl core::fmt::Debug for antecedent_estimate::cyclic_dynamics::OuFit
 impl core::fmt::Debug for antecedent_estimate::cyclic_dynamics::OuParameter
+impl core::fmt::Debug for antecedent_estimate::cyclic_functional::CyclicFunctionalReport
+impl core::fmt::Debug for antecedent_estimate::cyclic_functional::CyclicFunctionalValue
+impl core::fmt::Debug for antecedent_estimate::cyclic_functional::FiniteCyclicLaw
+impl core::fmt::Debug for antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity
+impl core::fmt::Debug for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl core::fmt::Debug for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw
 impl core::fmt::Debug for antecedent_estimate::cyclic_gradient::CyclicGradientFit
 impl core::fmt::Debug for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
 impl core::fmt::Debug for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
@@ -3266,6 +3283,12 @@ impl core::marker::Freeze for antecedent_estimate::cyclic_dynamics::OdeFitPolicy
 impl core::marker::Freeze for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
 impl core::marker::Freeze for antecedent_estimate::cyclic_dynamics::OuFit [auto]
 impl core::marker::Freeze for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::marker::Freeze for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
 impl core::marker::Freeze for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
 impl core::marker::Freeze for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
 impl core::marker::Freeze for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
@@ -4035,6 +4058,12 @@ impl core::marker::Send for antecedent_estimate::cyclic_dynamics::OdeFitPolicy [
 impl core::marker::Send for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
 impl core::marker::Send for antecedent_estimate::cyclic_dynamics::OuFit [auto]
 impl core::marker::Send for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::marker::Send for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
 impl core::marker::Send for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
 impl core::marker::Send for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
 impl core::marker::Send for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
@@ -4704,6 +4733,11 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_dynamics:
 impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_dynamics::OdeObservation
 impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_dynamics::OuFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_dynamics::OuParameter
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_functional::CyclicFunctionalReport
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_functional::CyclicFunctionalValue
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_functional::FiniteCyclicLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw
 impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_gradient::CyclicGradientFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
 impl core::marker::StructuralPartialEq for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
@@ -5427,6 +5461,12 @@ impl core::marker::Sync for antecedent_estimate::cyclic_dynamics::OdeFitPolicy [
 impl core::marker::Sync for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
 impl core::marker::Sync for antecedent_estimate::cyclic_dynamics::OuFit [auto]
 impl core::marker::Sync for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::marker::Sync for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
 impl core::marker::Sync for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
 impl core::marker::Sync for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
 impl core::marker::Sync for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
@@ -6197,6 +6237,12 @@ impl core::marker::Unpin for antecedent_estimate::cyclic_dynamics::OdeFitPolicy 
 impl core::marker::Unpin for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
 impl core::marker::Unpin for antecedent_estimate::cyclic_dynamics::OuFit [auto]
 impl core::marker::Unpin for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::marker::Unpin for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
 impl core::marker::Unpin for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
 impl core::marker::Unpin for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
 impl core::marker::Unpin for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
@@ -6967,6 +7013,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_dyn
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_dynamics::OuFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
@@ -7736,6 +7788,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_dynami
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_dynamics::OdeObservation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_dynamics::OuFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_dynamics::OuParameter [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_functional::CyclicFunctionalReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_functional::CyclicFunctionalValue [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_functional::FiniteCyclicLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_gradient::CyclicGradientFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior [auto]
@@ -8178,6 +8236,11 @@ impl serde_core::ser::Serialize for antecedent_estimate::cyclic_dynamics::OdeFit
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_dynamics::OdeObservation
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_dynamics::OuFit
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_dynamics::OuParameter
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_functional::CyclicFunctionalReport
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_functional::CyclicFunctionalValue
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_functional::FiniteCyclicLaw
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl serde_core::ser::Serialize for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_gradient::CyclicGradientFit
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
@@ -8255,6 +8318,7 @@ impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose::DoseRows<'
 impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose::DoseRules<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose_posterior::DoseResponseRows<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::gcomp::GcompContrast<'a>
@@ -8311,6 +8375,7 @@ impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose::DoseRows<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose::DoseRules<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose_posterior::DoseResponseRows<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::gcomp::GcompContrast<'a>
@@ -8359,6 +8424,7 @@ impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose::DoseRows<'
 impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose::DoseRules<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose_posterior::DoseResponseRows<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::gcomp::GcompContrast<'a>
@@ -8408,6 +8474,7 @@ impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose::DoseRows
 impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose_posterior::DoseResponseRows<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
@@ -8459,6 +8526,7 @@ impl<'a> core::marker::Send for antecedent_estimate::continuous_dose::DoseRows<'
 impl<'a> core::marker::Send for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::continuous_dose_posterior::DoseResponseRows<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
@@ -8515,6 +8583,7 @@ impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose::DoseRows<'
 impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose_posterior::DoseResponseRows<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
@@ -8566,6 +8635,7 @@ impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose::DoseRows<
 impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose_posterior::DoseResponseRows<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
@@ -8614,6 +8684,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::contin
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose_posterior::DoseResponseRows<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
@@ -8662,6 +8733,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuou
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose_posterior::DoseResponseRows<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::DoseGridRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::gcomp::GcompContrast<'a> [auto]
@@ -8720,6 +8792,11 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_dynam
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_dynamics::OdeObservation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_dynamics::OuFit
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_dynamics::OuParameter
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_functional::CyclicFunctionalReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_functional::CyclicFunctionalValue
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_functional::FiniteCyclicLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_gradient::CyclicGradientFit
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
@@ -9101,6 +9178,7 @@ pub enum antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 pub enum antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
 pub enum antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
 pub enum antecedent_estimate::cyclic_dynamics::OuParameter
+pub enum antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw
 pub enum antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign
 pub enum antecedent_estimate::cyclic_likelihood::CyclicParameter
 pub enum antecedent_estimate::dose_basis_regression::ResidualPrior
@@ -10875,6 +10953,32 @@ pub field antecedent_estimate::cyclic_dynamics::OuFit::converged: bool
 pub field antecedent_estimate::cyclic_dynamics::OuFit::log_likelihood: f64
 pub field antecedent_estimate::cyclic_dynamics::OuFit::model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck
 pub field antecedent_estimate::cyclic_dynamics::OuFit::sweeps: usize
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalInputs::calculus: bool
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalInputs::continuous: bool
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalInputs::derivation: &'a [alloc::string::String]
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalInputs::identity: &'a str
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalInputs::nodes: usize
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalInputs::program: &'a antecedent_expr::program::FunctionalProgram
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalReport::derivation: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalReport::operations: u64
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalReport::source_identity: alloc::string::String
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalReport::values: alloc::vec::Vec<antecedent_estimate::cyclic_functional::CyclicFunctionalValue>
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalValue::assignment: alloc::vec::Vec<(u32, f64)>
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalValue::failure: core::option::Option<alloc::string::String>
+pub field antecedent_estimate::cyclic_functional::CyclicFunctionalValue::value: core::option::Option<f64>
+pub field antecedent_estimate::cyclic_functional::FiniteCyclicLaw::support: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::cyclic_functional::FiniteCyclicLaw::weights: alloc::vec::Vec<f64>
+pub field antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity::fitted_rows: core::option::Option<usize>
+pub field antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity::mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::covariance_condition_estimate: f64
+pub field antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::derivation: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::fitted_rows: core::option::Option<usize>
+pub field antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::operations: usize
+pub field antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::source_identity: alloc::string::String
+pub field antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport::values: alloc::vec::Vec<antecedent_estimate::cyclic_functional::CyclicFunctionalValue>
 pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::converged: bool
 pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::evaluations: usize
 pub field antecedent_estimate::cyclic_gradient::CyclicGradientFit::iterations: usize
@@ -12547,6 +12651,7 @@ pub fn <antecedent_estimate::CheckedIvPreparation>::fn treatment_program(&self) 
 pub fn <antecedent_estimate::CheckedLinearAdjustmentAte>::fn executable_functional(&self) -> antecedent_expr::ExprId
 pub fn <antecedent_estimate::CheckedLinearAdjustmentAte>::fn factor_requirements(&self) -> &[antecedent_expr::program::FactorRequirement]
 pub fn <antecedent_estimate::CheckedLinearAdjustmentAte>::fn lowering(&self) -> &antecedent_estimate::adjustment::CheckedAdjustmentLowering
+pub fn <antecedent_estimate::CheckedLinearAdjustmentAte>::fn physical_backend(&self) -> antecedent_core::physical_choice::PhysicalAlternative
 pub fn <antecedent_estimate::CheckedLinearAdjustmentAte>::fn problem(&self) -> &antecedent_estimate::PreparedEstimationProblem
 pub fn <antecedent_estimate::CheckedLinearAdjustmentAte>::fn program(&self) -> &antecedent_expr::program::FunctionalProgram
 pub fn <antecedent_estimate::CheckedLinearAdjustmentAte>::fn required_assumptions(&self) -> &antecedent_core::assumption::AssumptionSet
@@ -12775,7 +12880,9 @@ pub fn <antecedent_estimate::LinearAdjustmentAte>::fn fit_point_with_ols_residua
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn new() -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn prepare(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_estimate::PreparedEstimationProblem, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn prepare_checked(&self, data: &antecedent_data::dataset::TabularData, identification: &antecedent_identify::result::IdentificationResult, estimand_index: usize) -> core::result::Result<antecedent_estimate::CheckedLinearAdjustmentAte, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::LinearAdjustmentAte>::fn prepare_checked_with_backend(&self, data: &antecedent_data::dataset::TabularData, identification: &antecedent_identify::result::IdentificationResult, estimand_index: usize, backend: antecedent_core::physical_choice::PhysicalAlternative) -> core::result::Result<antecedent_estimate::CheckedLinearAdjustmentAte, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn rebind_checked(&self, checked: &antecedent_estimate::CheckedLinearAdjustmentAte, data: &antecedent_data::dataset::TabularData) -> core::result::Result<antecedent_estimate::CheckedLinearAdjustmentAte, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::LinearAdjustmentAte>::fn rebind_checked_with_backend(&self, checked: &antecedent_estimate::CheckedLinearAdjustmentAte, data: &antecedent_data::dataset::TabularData, backend: antecedent_core::physical_choice::PhysicalAlternative) -> core::result::Result<antecedent_estimate::CheckedLinearAdjustmentAte, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn reject_stream(_scan: &antecedent_data::materialize::StreamingScan) -> antecedent_estimate::EstimationError
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn with_cluster_ids(self, cluster_ids: alloc::vec::Vec<u32>) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn with_contrast(self, id: antecedent_core::ids::VariableId, contrast: antecedent_data::categorical::Contrast) -> Self
@@ -13103,6 +13210,7 @@ pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn
 pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::dose_grid_posterior::DoseGridPosterior, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn retained_source_bytes(&self) -> u64
 pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn retarget(&self, grid: &[f64], functional: antecedent_estimate::dose_grid_functional::DoseFunctional, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::dose_grid_posterior::DoseGridPosterior>::fn retained_admitted_bytes(&self) -> u64
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn identities(&self) -> alloc::vec::Vec<antecedent_core::recalc::StageIdentity>
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn new() -> alloc::sync::Arc<Self>
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn scope<R>(self: &alloc::sync::Arc<Self>, work: impl core::ops::function::FnOnce() -> R) -> R
@@ -13480,6 +13588,8 @@ pub fn antecedent_estimate::crossfit_influence_se(table: &antecedent_estimate::S
 pub fn antecedent_estimate::cyclic_adam::fit_cyclic_adam(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], training: &[antecedent_model::nonlinear_equilibrium::RegimeRow], validation: &[antecedent_model::nonlinear_equilibrium::RegimeRow], policy: antecedent_estimate::cyclic_adam::CyclicAdamPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_adam::CyclicAdamFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::cyclic_dynamics::fit_ode_likelihood(template: &antecedent_model::continuous_cyclic::OdeSystem, parameters: &[antecedent_model::continuous_cyclic::OdeParameter], data: &[antecedent_estimate::cyclic_dynamics::OdeObservation], integration: antecedent_model::continuous_cyclic::OdePolicy, policy: antecedent_estimate::cyclic_dynamics::OdeFitPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_dynamics::OdeFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::cyclic_dynamics::fit_ou_likelihood(template: &antecedent_model::continuous_cyclic::OrnsteinUhlenbeck, parameters: &[antecedent_estimate::cyclic_dynamics::OuParameter], rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], options: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_dynamics::OuFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
+pub fn antecedent_estimate::cyclic_functional::evaluate_finite_cyclic_functional(source: &antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'_>, law: &antecedent_estimate::cyclic_functional::FiniteCyclicLaw, assignments: &[alloc::vec::Vec<(u32, f64)>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_functional::CyclicFunctionalReport, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::cyclic_gaussian_functional::evaluate_gaussian_cyclic_functional(source: &antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'_>, law: &antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw, assignments: &[alloc::vec::Vec<(u32, f64)>], frozen_density: core::option::Option<&antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::cyclic_gradient::fit_cyclic_gradient(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], policy: antecedent_estimate::cyclic_gradient::CyclicGradientPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_gradient::CyclicGradientFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::cyclic_likelihood::abduce_cyclic_joint(template: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: &[antecedent_estimate::cyclic_likelihood::CyclicParameter], training: &[antecedent_model::nonlinear_equilibrium::RegimeRow], prior_sd: f64, observations: &[core::option::Option<f64>], measurement_variances: &[f64], initial: &[f64], options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_likelihood::CyclicJointAbduction, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::cyclic_likelihood::abduce_cyclic_partial(model: &antecedent_model::nonlinear_equilibrium::EquilibriumModel, observations: &[core::option::Option<f64>], measurement_variances: &[f64], initial: &[f64], options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior, antecedent_model::nonlinear_equilibrium::EquilibriumError>
@@ -13835,6 +13945,8 @@ pub mod antecedent_estimate::crossfit_aipw
 pub mod antecedent_estimate::crossfit_cache
 pub mod antecedent_estimate::cyclic_adam
 pub mod antecedent_estimate::cyclic_dynamics
+pub mod antecedent_estimate::cyclic_functional
+pub mod antecedent_estimate::cyclic_gaussian_functional
 pub mod antecedent_estimate::cyclic_gradient
 pub mod antecedent_estimate::cyclic_likelihood
 pub mod antecedent_estimate::descriptive_comparison
@@ -14305,6 +14417,12 @@ pub struct antecedent_estimate::cyclic_dynamics::OdeFit
 pub struct antecedent_estimate::cyclic_dynamics::OdeFitPolicy
 pub struct antecedent_estimate::cyclic_dynamics::OdeObservation
 pub struct antecedent_estimate::cyclic_dynamics::OuFit
+pub struct antecedent_estimate::cyclic_functional::CyclicFunctionalInputs<'a>
+pub struct antecedent_estimate::cyclic_functional::CyclicFunctionalReport
+pub struct antecedent_estimate::cyclic_functional::CyclicFunctionalValue
+pub struct antecedent_estimate::cyclic_functional::FiniteCyclicLaw
+pub struct antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity
+pub struct antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport
 pub struct antecedent_estimate::cyclic_gradient::CyclicGradientFit
 pub struct antecedent_estimate::cyclic_gradient::CyclicGradientPolicy
 pub struct antecedent_estimate::cyclic_likelihood::CyclicAbductionPosterior
@@ -14326,6 +14444,7 @@ pub struct antecedent_estimate::dose_grid_functional::SimultaneousBand
 pub struct antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior
 pub struct antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior has private fields
 pub struct antecedent_estimate::dose_grid_posterior::DoseGridPosterior
+pub struct antecedent_estimate::dose_grid_posterior::DoseGridPosterior has private fields
 pub struct antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a>
 pub struct antecedent_estimate::effect_constancy::ContrastReport
 pub struct antecedent_estimate::effect_constancy::EffectConstancyResult
@@ -15421,6 +15540,8 @@ pub variant antecedent_estimate::counterfactual_transport_sampled::UnseenCellRul
 pub variant antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule::UnseenMassEnvelope { unseen_mass: f64 }
 pub variant antecedent_estimate::cyclic_dynamics::OuParameter::Center { variable: usize }
 pub variant antecedent_estimate::cyclic_dynamics::OuParameter::Drift { row: usize, column: usize }
+pub variant antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw::Fit { rows: alloc::vec::Vec<alloc::vec::Vec<f64>>, independent_observational_replicates: bool }
+pub variant antecedent_estimate::cyclic_gaussian_functional::GaussianCyclicLaw::Specified { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64> }
 pub variant antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign::FixedAssignments
 pub variant antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign::RandomizedWithinTargets
 pub variant antecedent_estimate::cyclic_likelihood::CyclicParameter::ExpressionParameter { equation: usize, parameter: usize }

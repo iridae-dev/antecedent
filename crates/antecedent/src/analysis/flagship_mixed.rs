@@ -1391,8 +1391,8 @@ mod authority_tests {
             replay_decision(&artifact.bytes, Some(&artifact.identity), &ctx).unwrap(),
             historical
         );
-        assert_eq!(workflow.cost_mean(), cost);
-        assert_eq!(workflow.temporal_effect(), temporal);
+        assert_eq!(workflow.cost_mean().to_bits(), cost.to_bits());
+        assert_eq!(workflow.temporal_effect().to_bits(), temporal.to_bits());
     }
 
     #[test]

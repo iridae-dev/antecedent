@@ -187,13 +187,21 @@ mod tests {
         assert!((answer.worlds[0][0].values[1] - 1.4).abs() < 1e-4);
         assert_eq!(consume_cyclic_artifact(&bytes, &answer.identity, &ctx).unwrap(), answer);
 
+        assert_family_reuses_fit_after_rebinding(request, &ctx);
+    }
+
+    fn assert_family_reuses_fit_after_rebinding(
+        request: CyclicExecutionRequest,
+        ctx: &ExecutionContext,
+    ) {
         use antecedent_core::execution_attempt::Operation;
+        use antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign;
         use antecedent_io::cyclic_family_artifact::{
             CyclicFamilyAnswer, CyclicFamilyRequest, consume_cyclic_family,
         };
         let fit = request.fit.unwrap();
         let mut family = CyclicFamilyRequest::FrequentistBootstrap {
-            design: Default::default(),
+            design: CyclicBootstrapDesign::default(),
             model: request.model,
             parameters: fit.parameters,
             rows: fit.rows,
@@ -205,21 +213,21 @@ mod tests {
             initial: request.initial,
             solve_policy: request.policy,
         };
-        let preparation = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
-            Study::prepare_cyclic_family(&family, &ctx)
+        let preparation = antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            Study::prepare_cyclic_family(&family, ctx)
         });
         assert_eq!(preparation.report.counts(Operation::AdjustedFit).attempted, 0);
         let compiled = preparation.result.unwrap();
         assert_eq!(compiled.inspect().preparation_evaluations, 0);
-        let first = compiled.estimate_observed(&ctx);
+        let first = compiled.estimate_observed(ctx);
         assert_eq!(first.report.counts(Operation::AdjustedFit).attempted, 2);
         let first = first.result.unwrap();
         if let CyclicFamilyRequest::FrequentistBootstrap { worlds, .. } = &mut family {
             *worlds = vec![vec![Clamp { variable: 0, value: 2.0 }]];
         }
-        let rebound = compiled.rebind(&family, &ctx).unwrap();
+        let rebound = compiled.rebind(&family, ctx).unwrap();
         drop(compiled);
-        let reused = rebound.estimate_observed(&ctx);
+        let reused = rebound.estimate_observed(ctx);
         assert_eq!(reused.report.counts(Operation::AdjustedFit).attempted, 0);
         let reused = reused.result.unwrap();
         if let (
@@ -231,15 +239,15 @@ mod tests {
         } else {
             panic!("expected retained bootstrap draws");
         }
-        let (exported, bytes) = rebound.export(&ctx).unwrap();
-        assert_eq!(consume_cyclic_family(&bytes, &exported.identity, &ctx).unwrap(), exported);
+        let (exported, bytes) = rebound.export(ctx).unwrap();
+        assert_eq!(consume_cyclic_family(&bytes, &exported.identity, ctx).unwrap(), exported);
         if let CyclicFamilyRequest::FrequentistBootstrap { rows, .. } = &mut family {
             for row in rows {
                 row.values[1] *= 0.5;
             }
         }
-        let refreshed = rebound.rebind(&family, &ctx).unwrap();
-        let changed = refreshed.estimate_observed(&ctx);
+        let refreshed = rebound.rebind(&family, ctx).unwrap();
+        let changed = refreshed.estimate_observed(ctx);
         assert_eq!(changed.report.counts(Operation::AdjustedFit).attempted, 2);
         assert_ne!(changed.result.unwrap().identity, reused.identity);
     }

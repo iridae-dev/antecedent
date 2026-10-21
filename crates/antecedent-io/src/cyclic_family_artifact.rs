@@ -435,10 +435,19 @@ pub struct CyclicActionWorldReport {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CyclicFamilyReport {
+    #[serde(skip)]
+    pub(crate) retention: crate::retained_allocation::RetainedAllocation,
     /// Independently retained request digest.
     pub identity: String,
     /// Typed family answer.
     pub answer: CyclicFamilyAnswer,
+}
+impl CyclicFamilyReport {
+    /// Admitted bytes held by this report; reservations are not process resident memory.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        self.retention.bytes()
+    }
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -473,8 +482,15 @@ fn bounded_json<T: Serialize>(
 ) -> Result<(Vec<u8>, antecedent_core::execution::AdmissionLease), CyclicArtifactError> {
     let mut size = BoundedJsonSize { bytes: 0 };
     serde_json::to_writer(&mut size, value).map_err(invalid)?;
-    let retention =
-        ctx.acquire_admission(0, (size.bytes as u64).saturating_mul(4)).map_err(invalid)?;
+    let retention = ctx
+        .acquire_admission(
+            0,
+            crate::retained_allocation::allocation_bytes(value)
+                .map_err(invalid)?
+                .checked_add(size.bytes as u64)
+                .ok_or_else(|| invalid("retained request size overflow"))?,
+        )
+        .map_err(invalid)?;
     let bytes = serde_json::to_vec(value).map_err(invalid)?;
     Ok((bytes, retention))
 }
@@ -528,6 +544,9 @@ impl CyclicFamilyRequest {
         if ctx.cancellation.is_cancelled() {
             return Err(invalid("cyclic execution cancelled"));
         }
+        let mut output_leases = Vec::new();
+        let base = compiled::output_bytes(self)?;
+        output_leases.push(std::sync::Arc::new(ctx.acquire_admission(0, base).map_err(invalid)?));
         let answer = match self {
             Self::GaussianFunctional { law, assignments, .. } => {
                 CyclicFamilyAnswer::GaussianFunctional(
@@ -636,9 +655,6 @@ impl CyclicFamilyRequest {
                 {
                     return Err(invalid("frequentist bootstrap response/data limits"));
                 }
-                let _retention = ctx
-                    .acquire_admission(0, (count * 128 + replicates * parameters.len() * 16) as u64)
-                    .map_err(invalid)?;
                 let mut context = ctx.clone();
                 context.rng = antecedent_core::RngFactory::from_seed(*seed);
                 let draws = if let Some(FrozenFamilyFitValue::Bootstrap(retained)) = frozen {
@@ -704,9 +720,6 @@ impl CyclicFamilyRequest {
                     }
                     plans.push(model.compile_actions(&world.actions)?);
                 }
-                let _retention = ctx
-                    .acquire_admission(0, (count * 128 + worlds.len() * 512) as u64)
-                    .map_err(invalid)?;
                 let factual_noise =
                     factual.as_ref().map(|state| model.abduce(state)).transpose()?;
                 let mut output = Vec::with_capacity(worlds.len());
@@ -762,9 +775,6 @@ impl CyclicFamilyRequest {
                 if count > 100_000 || worlds.is_empty() || noise.is_empty() || rows.len() > 10_000 {
                     return Err(invalid("posterior response/data limits"));
                 }
-                let _retention = ctx
-                    .acquire_admission(0, (count * (model.order() * 128 + 512)) as u64)
-                    .map_err(invalid)?;
                 let context = sampling.context(ctx);
                 let posterior = if let Some(FrozenFamilyFitValue::Parameter(retained)) = frozen {
                     retained.clone()
@@ -818,9 +828,6 @@ impl CyclicFamilyRequest {
                 if count > 100_000 || worlds.is_empty() || rows.len() > 10_000 {
                     return Err(invalid("joint counterfactual retention/data limits"));
                 }
-                let _retention = ctx
-                    .acquire_admission(0, (count * (model.order() * 128 + 512)) as u64)
-                    .map_err(invalid)?;
                 let posterior = if let Some(FrozenFamilyFitValue::Joint(retained)) = frozen {
                     retained.clone()
                 } else {
@@ -877,9 +884,6 @@ impl CyclicFamilyRequest {
                 if count > 100_000 || worlds.is_empty() {
                     return Err(invalid("counterfactual retention limit"));
                 }
-                let _retention = ctx
-                    .acquire_admission(0, (count * (model.order() * 128 + 512)) as u64)
-                    .map_err(invalid)?;
                 let context = sampling.context(ctx);
                 let abduction = if let Some(FrozenFamilyFitValue::Partial(retained)) = frozen {
                     retained.clone()
@@ -988,7 +992,29 @@ impl CyclicFamilyRequest {
                 CyclicFamilyAnswer::Polynomial(model.isolate(*policy, ctx)?)
             }
         };
-        Ok(CyclicFamilyReport { identity: identity.to_owned(), answer })
+        let required = crate::retained_allocation::allocation_bytes(&answer)
+            .map_err(invalid)?
+            .checked_add(identity.len() as u64 + std::mem::size_of::<CyclicFamilyReport>() as u64)
+            .ok_or_else(|| invalid("report retention size overflow"))?;
+        let held = output_leases
+            .iter()
+            .try_fold(0u64, |sum, lease| sum.checked_add(lease.remainder().bytes()))
+            .ok_or_else(|| invalid("report retention size overflow"))?;
+        if required > held {
+            output_leases.push(std::sync::Arc::new(
+                ctx.acquire_admission(0, required - held).map_err(invalid)?,
+            ));
+        }
+        let retention = crate::retained_allocation::RetainedAllocation(output_leases);
+        antecedent_core::execution_attempt::record_physical(
+            antecedent_core::execution_attempt::PhysicalEvent::RetainedBytes,
+            retention.bytes(),
+        );
+        antecedent_core::execution_attempt::record_physical(
+            antecedent_core::execution_attempt::PhysicalEvent::RetainedFull,
+            1,
+        );
+        Ok(CyclicFamilyReport { identity: identity.to_owned(), answer, retention })
     }
     /// Execute and encode with the existing family-neutral artifact container.
     pub fn export(
@@ -1011,6 +1037,11 @@ impl CyclicFamilyRequest {
         }
         let (bytes, _record_retention) =
             bounded_json(&View { version: 1, request: self, report }, ctx)?;
+        let scratch = (bytes.len() as u64)
+            .checked_mul(3)
+            .and_then(|n| n.checked_add(65536))
+            .ok_or_else(|| invalid("artifact encoding size overflow"))?;
+        let _encoding = ctx.acquire_admission(0, scratch).map_err(invalid)?;
         let artifact = crate::encode_container(
             &crate::ArtifactContainer {
                 kind: "cyclic_family",
@@ -1026,6 +1057,9 @@ impl CyclicFamilyRequest {
             }],
         )
         .map_err(|e| invalid(e.into_io("cyclic family layout")))?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(invalid("cyclic family artifact export cancelled"));
+        }
         Ok(artifact)
     }
 }

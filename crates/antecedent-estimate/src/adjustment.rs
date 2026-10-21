@@ -99,9 +99,15 @@ pub struct CheckedLinearAdjustmentAte {
     required_assumptions: AssumptionSet,
     /// Checked and prepared linear adjustment design.
     problem: PreparedEstimationProblem,
+    backend: antecedent_core::physical_choice::PhysicalAlternative,
 }
 
 impl CheckedLinearAdjustmentAte {
+    /// Physical implementation that assembled this retained design.
+    #[must_use]
+    pub fn physical_backend(&self) -> antecedent_core::physical_choice::PhysicalAlternative {
+        self.backend
+    }
     /// Selected causal target.
     #[must_use]
     pub fn target(&self) -> &IdentifiedEstimand {
@@ -428,6 +434,35 @@ impl LinearAdjustmentAte {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedEstimationProblem, EstimationError> {
+        self.prepare_with_backend(
+            data,
+            estimand,
+            query,
+            antecedent_core::physical_choice::PhysicalAlternative::DirectPreparedNumericViews,
+        )
+    }
+
+    fn prepare_with_backend(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        query: &AverageEffectQuery,
+        backend: antecedent_core::physical_choice::PhysicalAlternative,
+    ) -> Result<PreparedEstimationProblem, EstimationError> {
+        use antecedent_core::physical_choice::PhysicalAlternative;
+        let assemble = match backend {
+            PhysicalAlternative::DirectPreparedNumericViews => {
+                crate::prepare::direct_adjustment_design
+            }
+            PhysicalAlternative::MaterializedDesign => {
+                crate::prepare::materialized_adjustment_design
+            }
+            _ => {
+                return Err(EstimationError::unsupported(
+                    "linear adjustment requires retained rows; streamed and lazy preparation are unavailable",
+                ));
+            }
+        };
         crate::util::require_explicit_override(
             self.overlap,
             "LinearAdjustmentAte requires ExplicitOverride overlap policy",
@@ -468,14 +503,8 @@ impl LinearAdjustmentAte {
             .as_ref()
             .map(|weights| weights.restrict(&mut row_mask))
             .transpose()?;
-        let design = crate::prepare::direct_adjustment_design(
-            data,
-            treatment,
-            outcome,
-            &estimand.adjustment_set,
-            &expanded,
-            &row_mask,
-        )?;
+        let design =
+            assemble(data, treatment, outcome, &estimand.adjustment_set, &expanded, &row_mask)?;
         let t: Arc<[f64]> = Arc::from(&design.matrix[design.nrows..2 * design.nrows]);
         let design = match &retained {
             Some(retained) => {
@@ -522,6 +551,29 @@ impl LinearAdjustmentAte {
         data: &TabularData,
         identification: &IdentificationResult,
         estimand_index: usize,
+    ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
+        self.prepare_checked_with_backend(
+            data,
+            identification,
+            estimand_index,
+            antecedent_core::physical_choice::PhysicalAlternative::DirectPreparedNumericViews,
+        )
+    }
+
+    /// Prepare a checked claim using a verified physical design implementation.
+    ///
+    /// # Errors
+    /// Refuses unsupported backends and the same invalid claims as [`Self::prepare_checked`].
+    #[allow(
+        clippy::too_many_lines,
+        reason = "validate the complete checked claim before binding its physical design"
+    )]
+    pub fn prepare_checked_with_backend(
+        &self,
+        data: &TabularData,
+        identification: &IdentificationResult,
+        estimand_index: usize,
+        backend: antecedent_core::physical_choice::PhysicalAlternative,
     ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
         let CheckedSelection { estimand: target, claim } =
             CheckedSelection::resolve(identification, estimand_index)?;
@@ -602,7 +654,7 @@ impl LinearAdjustmentAte {
         let factor_requirements: Arc<[FactorRequirement]> =
             Arc::from(program.factor_requirements().to_vec());
 
-        let problem = self.prepare_unchecked(data, target, query)?;
+        let problem = self.prepare_with_backend(data, target, query, backend)?;
         Ok(CheckedLinearAdjustmentAte {
             target: target.clone(),
             source_functional: target.functional,
@@ -622,6 +674,7 @@ impl LinearAdjustmentAte {
             query: query.clone(),
             required_assumptions: claim.required_assumptions.clone(),
             problem,
+            backend,
         })
     }
 
@@ -638,6 +691,20 @@ impl LinearAdjustmentAte {
         &self,
         checked: &CheckedLinearAdjustmentAte,
         data: &TabularData,
+    ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
+        self.rebind_checked_with_backend(checked, data, checked.backend)
+    }
+
+    /// Rebind retained semantics using a newly selected executable design backend.
+    ///
+    /// # Errors
+    /// Refuses unsupported backends or a changed semantic schema or claim.
+    #[allow(clippy::float_cmp, reason = "retained treatment arms must match exactly")]
+    pub fn rebind_checked_with_backend(
+        &self,
+        checked: &CheckedLinearAdjustmentAte,
+        data: &TabularData,
+        backend: antecedent_core::physical_choice::PhysicalAlternative,
     ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
         let schema = ProgramSchema::new(
             data.schema()
@@ -671,7 +738,9 @@ impl LinearAdjustmentAte {
             ));
         }
         let mut rebound = checked.clone();
-        rebound.problem = self.prepare_unchecked(data, &checked.target, &checked.query)?;
+        rebound.problem =
+            self.prepare_with_backend(data, &checked.target, &checked.query, backend)?;
+        rebound.backend = backend;
         Ok(rebound)
     }
 
@@ -1582,6 +1651,43 @@ mod tests {
             AssumptionSet::new(),
             IdentificationPerformanceRecord::default(),
         )
+    }
+
+    #[test]
+    fn checked_linear_backends_execute_equal_designs_and_refuse_unavailable_routes() {
+        use antecedent_core::physical_choice::PhysicalAlternative;
+        let (data, _) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let identification = checked_result(query, &[VariableId::from_raw(2)]);
+        let estimator = LinearAdjustmentAte::new();
+        let direct = estimator
+            .prepare_checked_with_backend(
+                &data,
+                &identification,
+                0,
+                PhysicalAlternative::DirectPreparedNumericViews,
+            )
+            .unwrap();
+        let materialized = estimator
+            .prepare_checked_with_backend(
+                &data,
+                &identification,
+                0,
+                PhysicalAlternative::MaterializedDesign,
+            )
+            .unwrap();
+        assert_eq!(direct.problem().design.matrix, materialized.problem().design.matrix);
+        assert_eq!(direct.problem().design.outcome, materialized.problem().design.outcome);
+        for unavailable in
+            [PhysicalAlternative::StreamedReduction, PhysicalAlternative::OptionalLazyPreparation]
+        {
+            assert!(
+                estimator
+                    .prepare_checked_with_backend(&data, &identification, 0, unavailable)
+                    .is_err()
+            );
+        }
     }
 
     #[test]

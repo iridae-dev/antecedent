@@ -56,6 +56,8 @@ pub struct CyclicExecutionRequest {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CyclicExecutionReport {
+    #[serde(skip)]
+    retention: crate::retained_allocation::RetainedAllocation,
     /// Stable request identity; retain independently before artifact consumption.
     pub identity: String,
     /// Optional joint fit and its numerical convergence facts.
@@ -68,6 +70,14 @@ pub struct CyclicExecutionReport {
     pub claim: String,
     /// Always `unmeasured`; no nominal interval/coverage claim is produced.
     pub calibration: String,
+}
+
+impl CyclicExecutionReport {
+    /// Admitted bytes retained until this report and its clones are dropped.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        self.retention.bytes()
+    }
 }
 
 /// Serialization, integrity, identity, scientific or execution failure.
@@ -141,14 +151,36 @@ impl CyclicExecutionRequest {
 
     fn execute_bound(
         &self,
-        fit: Option<CyclicFit>,
+        fit: Option<&CyclicFit>,
         ctx: &ExecutionContext,
     ) -> Result<CyclicExecutionReport, CyclicArtifactError> {
         let identity = self.identity()?;
         let n = self.model.order();
-        let retained = self.worlds.len() * self.noise.len() * (n * n * 8 + n * 128 + 256);
-        let _retention =
-            ctx.acquire_admission(0, u64::try_from(retained).map_err(invalid)?).map_err(invalid)?;
+        let per_row = n
+            .checked_mul(n)
+            .and_then(|n| n.checked_mul(8))
+            .and_then(|bytes| bytes.checked_add(n.checked_mul(128)?))
+            .and_then(|bytes| bytes.checked_add(256))
+            .ok_or_else(|| invalid("output size overflow"))?;
+        let retained = self
+            .worlds
+            .len()
+            .checked_mul(
+                self.noise
+                    .len()
+                    .checked_add(usize::from(self.factual.is_some()))
+                    .ok_or_else(|| invalid("output size overflow"))?,
+            )
+            .and_then(|count| count.checked_mul(per_row))
+            .and_then(|bytes| bytes.checked_add(4096))
+            .ok_or_else(|| invalid("output size overflow"))?;
+        let retained = u64::try_from(retained)
+            .map_err(invalid)?
+            .checked_add(
+                fit.map_or(Ok(0), crate::retained_allocation::allocation_bytes).map_err(invalid)?,
+            )
+            .ok_or_else(|| invalid("output size overflow"))?;
+        let retention = ctx.acquire_admission(0, retained).map_err(invalid)?;
         if fit.as_ref().is_some_and(|f| !f.converged) {
             return Err(invalid("fit did not converge"));
         }
@@ -171,9 +203,20 @@ impl CyclicExecutionRequest {
                     .collect::<Result<Vec<_>, _>>()
             })
             .transpose()?;
+        antecedent_core::execution_attempt::record_physical(
+            antecedent_core::execution_attempt::PhysicalEvent::RetainedBytes,
+            retained,
+        );
+        antecedent_core::execution_attempt::record_physical(
+            antecedent_core::execution_attempt::PhysicalEvent::RetainedFull,
+            1,
+        );
         Ok(CyclicExecutionReport {
+            retention: crate::retained_allocation::RetainedAllocation(vec![std::sync::Arc::new(
+                retention,
+            )]),
             identity,
-            fit,
+            fit: fit.cloned(),
             worlds,
             counterfactuals,
             claim: "specified_or_fitted_model_conditional".into(),
@@ -191,7 +234,7 @@ impl CyclicExecutionRequest {
             return Err(invalid("artifact id"));
         }
         let report = self.execute(ctx)?;
-        let container = encode_report(self, &report, artifact_id)?;
+        let container = encode_report(self, &report, artifact_id, ctx)?;
         Ok((report, container))
     }
 }
@@ -200,6 +243,7 @@ fn encode_report(
     request: &CyclicExecutionRequest,
     report: &CyclicExecutionReport,
     artifact_id: &str,
+    ctx: &ExecutionContext,
 ) -> Result<Vec<u8>, CyclicArtifactError> {
     #[derive(Serialize)]
     struct BorrowedRecord<'a> {
@@ -208,6 +252,13 @@ fn encode_report(
         report: &'a CyclicExecutionReport,
     }
     let record = BorrowedRecord { version: 1, request, report };
+    let logical = cyclic_serialized_size(&record, ctx)?;
+    let bytes_quote = u64::try_from(logical)
+        .map_err(invalid)?
+        .checked_mul(4)
+        .and_then(|bytes| bytes.checked_add(65536))
+        .ok_or_else(|| invalid("artifact encoding size overflow"))?;
+    let _encoding = ctx.acquire_admission(0, bytes_quote).map_err(invalid)?;
     let bytes = serde_json::to_vec(&record).map_err(invalid)?;
     if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES {
         return Err(invalid("logical section byte limit"));
@@ -223,11 +274,25 @@ fn encode_report(
         &[crate::OutSection { id: SECTION, content_type: crate::CONTENT_BYTES, bytes: &bytes }],
     )
     .map_err(|e| invalid(e.into_io("cyclic artifact layout")))?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(invalid("cyclic artifact export cancelled"));
+    }
     Ok(container)
 }
 
+#[derive(Debug)]
+struct RetainedCyclicFit {
+    fit: CyclicFit,
+    retention: antecedent_core::execution::AdmissionLease,
+}
+impl std::ops::Deref for RetainedCyclicFit {
+    type Target = CyclicFit;
+    fn deref(&self) -> &CyclicFit {
+        &self.fit
+    }
+}
 type SharedCyclicFit = std::sync::Arc<
-    std::sync::Mutex<Option<(antecedent_core::KernelPolicy, std::sync::Arc<CyclicFit>)>>,
+    std::sync::Mutex<Option<(antecedent_core::KernelPolicy, std::sync::Arc<RetainedCyclicFit>)>>,
 >;
 
 /// Immutable compiled equilibrium product, sharing its fit across retargeted worlds.
@@ -236,7 +301,7 @@ pub struct PreparedCyclicExecution {
     request: std::sync::Arc<CyclicExecutionRequest>,
     fit: SharedCyclicFit,
     fits_performed: std::sync::Arc<std::sync::atomic::AtomicUsize>,
-    _retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
+    retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
     resource_context: ExecutionContext,
 }
 impl PreparedCyclicExecution {
@@ -258,7 +323,7 @@ impl PreparedCyclicExecution {
             request: std::sync::Arc::new(request),
             fit: std::sync::Arc::default(),
             fits_performed: std::sync::Arc::default(),
-            _retention: std::sync::Arc::new(retention),
+            retention: std::sync::Arc::new(retention),
             resource_context: ctx.clone(),
         })
     }
@@ -304,6 +369,7 @@ impl PreparedCyclicExecution {
         if ctx.cancellation.is_cancelled() {
             return Err(invalid("cyclic execution cancelled"));
         }
+        self.retention.observe_current();
         antecedent_core::numerical_admission::with_context(ctx, || {
             let mut retained = self.fit.lock().map_err(|_| invalid("frozen fit lock poisoned"))?;
             let fit = if let Some(recipe) = &self.request.fit {
@@ -314,19 +380,50 @@ impl PreparedCyclicExecution {
                         antecedent_core::execution_attempt::PhysicalEvent::CacheHit,
                         1,
                     );
+                    fit.retention.observe_current();
                     Some(std::sync::Arc::clone(fit))
                 } else {
-                    let fit = fit_cyclic_likelihood(
-                        &self.request.model,
-                        &recipe.parameters,
-                        &recipe.rows,
-                        recipe.options,
-                        ctx,
+                    let model_bytes =
+                        crate::retained_allocation::allocation_bytes(&self.request.model)
+                            .map_err(invalid)?;
+                    let order = u64::try_from(self.request.model.order()).map_err(invalid)?;
+                    let parameters = u64::try_from(recipe.parameters.len()).map_err(invalid)?;
+                    let workspace = model_bytes
+                        .checked_mul(4)
+                        .and_then(|bytes| {
+                            bytes.checked_add(order.checked_mul(order)?.checked_mul(128)?)
+                        })
+                        .and_then(|bytes| bytes.checked_add(parameters.checked_mul(64)?))
+                        .and_then(|bytes| bytes.checked_add(65536))
+                        .ok_or_else(|| invalid("fit workspace size overflow"))?;
+                    if ctx.memory.hard_limit_bytes.is_some_and(|limit| workspace > limit) {
+                        return Err(invalid("fit workspace exceeds memory limit"));
+                    }
+                    let workspace =
+                        std::sync::Arc::new(ctx.acquire_admission(0, workspace).map_err(invalid)?);
+                    let fit = antecedent_core::numerical_admission::with_reservation(
+                        std::sync::Arc::clone(&workspace),
+                        || {
+                            fit_cyclic_likelihood(
+                                &self.request.model,
+                                &recipe.parameters,
+                                &recipe.rows,
+                                recipe.options,
+                                ctx,
+                            )
+                        },
                     )?;
                     if !fit.converged {
                         return Err(invalid("fit did not converge"));
                     }
-                    let fit = std::sync::Arc::new(fit);
+                    let bytes =
+                        crate::retained_allocation::allocation_bytes(&fit).map_err(invalid)?;
+                    let retention = workspace.acquire_child(0, bytes).map_err(invalid)?;
+                    antecedent_core::execution_attempt::record_physical(
+                        antecedent_core::execution_attempt::PhysicalEvent::RetainedBytes,
+                        bytes,
+                    );
+                    let fit = std::sync::Arc::new(RetainedCyclicFit { fit, retention });
                     *retained = Some((ctx.kernel_policy, std::sync::Arc::clone(&fit)));
                     self.fits_performed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     Some(fit)
@@ -335,7 +432,7 @@ impl PreparedCyclicExecution {
                 None
             };
             drop(retained);
-            self.request.execute_bound(fit.map(|fit| fit.as_ref().clone()), ctx)
+            self.request.execute_bound(fit.as_deref().map(|fit| &fit.fit), ctx)
         })
     }
     /// Change only worlds/disturbance evaluation and numerical initial state.
@@ -356,7 +453,7 @@ impl PreparedCyclicExecution {
             request: std::sync::Arc::new(request),
             fit: self.fit.clone(),
             fits_performed: std::sync::Arc::default(),
-            _retention: std::sync::Arc::new(retention),
+            retention: std::sync::Arc::new(retention),
             resource_context: self.resource_context.clone(),
         })
     }
@@ -370,7 +467,7 @@ impl PreparedCyclicExecution {
             return Err(invalid("artifact id"));
         }
         let report = self.estimate(ctx)?;
-        let bytes = encode_report(&self.request, &report, artifact_id)?;
+        let bytes = encode_report(&self.request, &report, artifact_id, ctx)?;
         Ok((report, bytes))
     }
 }
@@ -621,5 +718,19 @@ mod tests {
             consume_cyclic_artifact(&resealed, &report.identity, &ctx),
             Err(CyclicArtifactError::Mismatch)
         ));
+    }
+    #[test]
+    fn cyclic_output_reservation_survives_prepared_owner_and_cancellation() {
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(3).with_admission(pool.clone());
+        let prepared = PreparedCyclicExecution::prepare(request(), &ctx).unwrap();
+        let report = prepared.estimate(&ctx).unwrap();
+        drop(prepared);
+        assert!(report.retained_admitted_bytes() > 0);
+        assert_eq!(pool.byte_budget() - pool.available().bytes(), report.retained_admitted_bytes());
+        ctx.cancellation.cancel();
+        assert!(pool.available().bytes() < pool.byte_budget());
+        drop(report);
+        assert_eq!(pool.available().bytes(), pool.byte_budget());
     }
 }

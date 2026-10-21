@@ -198,3 +198,38 @@ fn take_arrow_c_stream(obj: &Bound<'_, PyAny>) -> PyResult<ArrowCStream> {
     }
     Ok(unsafe { ArrowCStream::from_ffi(stream) })
 }
+
+/// Owns an immutable allocation and its admission until the final NumPy view is dropped.
+/// Python may mutate elements, but no Rust method can resize or access the allocation.
+#[pyclass(frozen)]
+struct AdmittedNumericBuffer {
+    array: numpy::ndarray::Array1<f64>,
+    retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
+}
+
+#[pymethods]
+impl AdmittedNumericBuffer {
+    #[getter]
+    fn admitted_bytes(&self) -> u64 {
+        self.retention.remainder().bytes()
+    }
+}
+
+/// Convert an owned vector without copying, retaining admission in the array's base owner.
+pub(crate) fn admitted_numeric_array(
+    py: Python<'_>,
+    values: Vec<f64>,
+    retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
+) -> PyResult<Py<numpy::PyArray1<f64>>> {
+    let owner = Bound::new(
+        py,
+        AdmittedNumericBuffer { array: numpy::ndarray::Array1::from_vec(values), retention },
+    )?;
+    let buffer = owner.borrow();
+    // SAFETY: NumPy retains `owner` as its base. The allocation is private and no
+    // exposed Rust method can access, resize, or replace it. Python element writes
+    // do not reallocate it. Slices retain the base transitively, along with its lease.
+    let array =
+        unsafe { numpy::PyArray1::borrow_from_array(&buffer.array, owner.clone().into_any()) };
+    Ok(array.unbind())
+}

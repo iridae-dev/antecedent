@@ -88,6 +88,7 @@ class CyclicResult:
 
     report: dict[str, Any]
     artifact: bytes
+    execution_facts: Any = field(default=None, repr=False, compare=False)
 
     @property
     def identity(self) -> str:
@@ -103,12 +104,10 @@ def consume_artifact(
     artifact: bytes, *, expected_identity: str, max_bytes: int | None = None, cancel: Any = None
 ) -> CyclicResult:
     """Check identity/integrity and recompute in Rust, including any retained fit."""
-    report = json.loads(
-        _native.consume_cyclic_system(
-            artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
-        )
+    report, facts = _native.consume_cyclic_system(
+        artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
     )
-    return CyclicResult(report, artifact)
+    return CyclicResult(json.loads(report), artifact, facts)
 
 
 @dataclass(frozen=True)
@@ -347,12 +346,12 @@ class PreparedCyclicSystem:
         """Execute the retained native product and produce its independent replay artifact."""
         # Tiny results are cheaper to decode directly; bulk values use NumPy buffers.
         if not self.__dict__.get("_use_buffers", False):
-            report, artifact = self._handle.execute(
+            report, artifact, facts = self._handle.execute(
                 max_bytes=self.max_bytes if max_bytes is None else max_bytes,
                 cancel=self.cancel if cancel is None else cancel,
             )
-            return CyclicResult(json.loads(report), artifact)
-        report, artifact, values, counterfactuals, width = self._handle.execute_buffers(
+            return CyclicResult(json.loads(report), artifact, facts)
+        report, artifact, values, counterfactuals, width, facts = self._handle.execute_buffers(
             max_bytes=self.max_bytes if max_bytes is None else max_bytes,
             cancel=self.cancel if cancel is None else cancel,
         )
@@ -366,7 +365,7 @@ class PreparedCyclicSystem:
         for row in report["counterfactuals"] or []:
             row["values"] = counterfactuals[offset : offset + width].tolist()
             offset += width
-        return CyclicResult(report, artifact)
+        return CyclicResult(report, artifact, facts)
 
     def posterior(
         self,
@@ -499,20 +498,18 @@ class PreparedCyclicFamily:
         """Execute the retained program and encode its result, reusing compatible fits."""
         with self._lock:
             self._prepare(max_bytes=max_bytes, cancel=cancel)
-            report, artifact = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
-        return CyclicResult(json.loads(report), artifact)
+            report, artifact, facts = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
+        return CyclicResult(json.loads(report), artifact, facts)
 
 
 def consume_family_artifact(
     artifact: bytes, *, expected_identity: str, max_bytes: int | None = None, cancel: Any = None
 ) -> CyclicResult:
     """Recompute a dynamic/constraint answer with independent identity checking."""
-    report = json.loads(
-        _native.consume_cyclic_family(
-            artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
-        )
+    report, facts = _native.consume_cyclic_family(
+        artifact, expected_identity, max_bytes=max_bytes, cancel=cancel
     )
-    return CyclicResult(report, artifact)
+    return CyclicResult(json.loads(report), artifact, facts)
 
 
 @dataclass(frozen=True)

@@ -327,6 +327,10 @@ impl CompiledDesign {
             matrix[base..base + nrows].copy_from_slice(&col[..nrows]);
             roles.push(DesignColumnRole::Covariate(*id));
         }
+        // Shared ownership copies the matrix/outcome buffers; source row indices
+        // are copied into a Vec and then the retained Arc allocation above.
+        record_physical(PhysicalEvent::Copy, 4);
+        record_physical(PhysicalEvent::CopiedBytes, (nrows * (ncols + 3) * 8) as u64);
         Ok(Self {
             nrows,
             ncols,

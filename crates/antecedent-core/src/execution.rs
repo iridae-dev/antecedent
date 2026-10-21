@@ -2601,7 +2601,7 @@ mod tests {
         let result = ctx.try_map_indexed_with_scratch(
             1,
             || panic!("cancelled work must not allocate scratch"),
-            |_, _, _: &mut ()| Ok::<_, ()>(()),
+            |_, _, (): &mut ()| Ok::<_, ()>(()),
         );
         assert!(matches!(result, Err(MapExecutionError::Admission(AdmissionError::Cancelled))));
     }
