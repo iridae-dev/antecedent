@@ -18,6 +18,10 @@ fn actual_frequentist_panel_fit_retains_aligned_worlds_and_reuses_after_builder_
     };
     assert_eq!(prepared.inspect().fits_performed, 0);
     let result = prepared.estimate(&ctx).unwrap();
+    assert_eq!(
+        result.numerical_mean_source().unwrap().estimate,
+        antecedent_design::decision_eval::MeanEstimate::Frequentist,
+    );
     let JointPanelFit::Invariant(fit) = &result.fit else { panic!("invariant mechanism") };
     assert!(fit.diagnostics.optimizer_converged, "{:?}", fit.diagnostics);
     assert!(fit.diagnostics.curvature_available, "{:?}", fit.diagnostics);
@@ -53,6 +57,10 @@ fn actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes()
     );
     let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
     let result = prepared.estimate(&ctx).unwrap();
+    assert_eq!(
+        result.numerical_mean_source().unwrap().estimate,
+        antecedent_design::decision_eval::MeanEstimate::Frequentist,
+    );
     let JointPanelFit::Invariant(fit) = &result.fit else { panic!("invariant mechanism") };
     assert_eq!(result.draws.len(), 48_000);
     assert!(result.draws.iter().any(Option::is_some));

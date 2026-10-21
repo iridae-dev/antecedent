@@ -11,9 +11,10 @@ use antecedent_core::{
     ScientificTarget, SemanticDigest, TargetForm,
 };
 use antecedent_data::{TableView, TabularData};
+use antecedent_identify::compiled_product::IdentificationObligation;
 use antecedent_identify::{
-    AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
-    IdentificationClaimClass, IdentificationOutcome, WorldObligation,
+    CompiledIdentificationProduct, CompiledProductParts, IdentificationClaimClass,
+    IdentificationOutcome,
 };
 use std::sync::Arc;
 
@@ -93,7 +94,7 @@ impl PreparedStudy<JointPanelState> {
         parts.world_obligations = current_worlds
             .iter()
             .map(|world| {
-                WorldObligation::new(
+                IdentificationObligation::for_world(
                     world.id(),
                     IdentificationOutcome::Identified,
                     IdentificationClaimClass::IdentifiedClaim,
@@ -103,7 +104,7 @@ impl PreparedStudy<JointPanelState> {
             })
             .collect();
         if matches!(target.form(), TargetForm::Contrast(_) | TargetForm::DoseTime(_)) {
-            parts.assembled = Some(AssembledFunctionalObligation::new(
+            parts.assembled = Some(IdentificationObligation::assembled(
                 IdentificationOutcome::Identified,
                 IdentificationClaimClass::IdentifiedClaim,
                 vec![],

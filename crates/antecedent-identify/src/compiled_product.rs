@@ -572,7 +572,6 @@ impl CompiledIdentificationProduct {
     }
 
     /// Declared assumptions. These are premises of the product.
-    #[must_use]
     pub fn premises(&self) -> impl Iterator<Item = &AssumptionRecord> {
         self.assumptions
             .entries
@@ -2012,23 +2011,27 @@ mod tests {
         )
         .unwrap();
 
-        assert!(product.world_obligations().iter().all(WorldObligation::is_numerically_feasible));
+        assert!(
+            product
+                .world_obligations()
+                .iter()
+                .all(IdentificationObligation::is_numerically_feasible)
+        );
         assert!(product.world_obligations().iter().all(|world| !world.is_identified_claim()));
         assert_eq!(
-            product.assembled_obligation().map(AssembledFunctionalObligation::outcome),
+            product.assembled_obligation().map(IdentificationObligation::outcome),
             Some(IdentificationOutcome::Unidentified)
         );
         assert!(
             product
                 .assembled_obligation()
-                .is_some_and(AssembledFunctionalObligation::is_numerically_feasible,)
+                .is_some_and(IdentificationObligation::is_numerically_feasible,)
         );
         assert!(!product.assembled_is_identified_claim());
         assert!(!product.is_identified_claim());
     }
 
-    #[test]
-    fn retain_keeps_functional_derivation_assumptions_factors_obligations_and_bounded_search() {
+    fn identified_result_with_declared_positivity() -> IdentificationResult {
         let mut assumptions = AssumptionSet::new();
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Positivity,
@@ -2043,14 +2046,19 @@ mod tests {
             Arc::from([VariableId::from_raw(2)]),
             ExprId::from_raw(0),
         );
-        let mut result = IdentificationResult::identified(
+        IdentificationResult::identified(
             query(),
             vec![estimand],
             CausalExprArena::new(),
             derivation,
             assumptions,
             IdentificationPerformanceRecord::default(),
-        );
+        )
+    }
+
+    #[test]
+    fn retain_keeps_functional_derivation_assumptions_factors_obligations_and_bounded_search() {
+        let mut result = identified_result_with_declared_positivity();
         result
             .diagnostics
             .push(search_bounded_diagnostic("identify.example.search_bounded", "stopped"));

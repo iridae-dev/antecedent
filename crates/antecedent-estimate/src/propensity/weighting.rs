@@ -566,8 +566,7 @@ impl PropensityWeighting {
                 replicate,
             ),
             None => crate::util::bootstrap_by_design(
-                None,
-                None,
+                crate::util::BootstrapDesign { clusters: None, series_block: None },
                 self.bootstrap_replicates,
                 ctx,
                 0x9A17_u64,

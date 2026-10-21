@@ -947,11 +947,12 @@ fn evaluate_contract_on_means_validated(
     source: &MeanSource,
     identity: String,
 ) -> Result<DecisionResult, DecisionEvalError> {
-    let requirement = contract.validated_source_requirement().map_err(DecisionEvalError::Contract)?.ok_or(
-        DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration(
+    let requirement = contract
+        .validated_source_requirement()
+        .map_err(DecisionEvalError::Contract)?
+        .ok_or(DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration(
             "a decision compares at least two actions",
-        )),
-    )?;
+        )))?;
     if requirement.is_identified_set() {
         return Err(mean_insufficient(Vec::new()));
     }

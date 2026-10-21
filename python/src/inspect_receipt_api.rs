@@ -532,7 +532,7 @@ struct PyInspectionInputs {
 }
 
 impl PyInspectionInputs {
-    fn copied(&self, inner: InspectionInputs) -> Self {
+    fn copied(inner: InspectionInputs) -> Self {
         Self { inner }
     }
 }
@@ -547,11 +547,11 @@ impl PyInspectionInputs {
     fn with_assumptions(&self, names: Vec<String>) -> PyResult<Self> {
         let assumptions =
             names.iter().map(|name| assumption(name)).collect::<PyResult<Vec<_>>>()?;
-        Ok(self.copied(self.inner.clone().assumptions(assumptions)))
+        Ok(Self::copied(self.inner.clone().assumptions(assumptions)))
     }
 
     fn with_realization(&self, name: &str) -> PyResult<Self> {
-        Ok(self.copied(self.inner.clone().realization(realization(name)?)))
+        Ok(Self::copied(self.inner.clone().realization(realization(name)?)))
     }
 
     fn with_evidence(&self, names: Vec<String>) -> PyResult<Self> {
@@ -559,7 +559,7 @@ impl PyInspectionInputs {
         for name in &names {
             steps.push(EvidenceTransformation::declared(name.as_str()).map_err(inspection_err)?);
         }
-        Ok(self.copied(self.inner.clone().evidence(EvidenceTransformations::declared(steps))))
+        Ok(Self::copied(self.inner.clone().evidence(EvidenceTransformations::declared(steps))))
     }
 
     fn with_uncertainty(&self, joint: bool, level: f64) -> PyResult<Self> {
@@ -571,18 +571,18 @@ impl PyInspectionInputs {
                 ),
             ));
         }
-        Ok(self.copied(self.inner.clone().uncertainty(UncertaintyDemand::declared(joint, level))))
+        Ok(Self::copied(self.inner.clone().uncertainty(UncertaintyDemand::declared(joint, level))))
     }
 
     fn with_reuse(&self, name: &str, frozen_fit: bool) -> PyResult<Self> {
         let reuse = ReuseSnapshot::declared(name, frozen_fit).map_err(inspection_err)?;
-        Ok(self.copied(self.inner.clone().reuse(reuse)))
+        Ok(Self::copied(self.inner.clone().reuse(reuse)))
     }
 
     fn with_materialization(&self, name: &str, copy_bytes: u64) -> PyResult<Self> {
         let materialization =
             MaterializationSnapshot::declared(name, copy_bytes).map_err(inspection_err)?;
-        Ok(self.copied(self.inner.clone().materialization(materialization)))
+        Ok(Self::copied(self.inner.clone().materialization(materialization)))
     }
 
     fn with_resources(
@@ -595,11 +595,11 @@ impl PyInspectionInputs {
             MemoryBudget { soft_limit_bytes, hard_limit_bytes },
             estimated_bytes,
         );
-        self.copied(self.inner.clone().resources(resources))
+        Self::copied(self.inner.clone().resources(resources))
     }
 
     fn with_backend(&self, kernel: &str) -> PyResult<Self> {
-        Ok(self.copied(self.inner.clone().backend_policy(kernel_policy(kernel)?)))
+        Ok(Self::copied(self.inner.clone().backend_policy(kernel_policy(kernel)?)))
     }
 
     /// Supply read operators in caller order. An empty list is a supplied list.
@@ -608,7 +608,7 @@ impl PyInspectionInputs {
     /// Declaring the operator does not read a column.
     fn with_read_operators(&self, operators: Vec<(u64, u64, u64, u64)>) -> PyResult<Self> {
         let operators = read_operators(&operators)?;
-        Ok(self.copied(self.inner.clone().operators(operators)))
+        Ok(Self::copied(self.inner.clone().operators(operators)))
     }
 
     /// Copy the held parts. Missing parts are refused. This method takes no callback.

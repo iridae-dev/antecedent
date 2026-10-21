@@ -855,10 +855,10 @@ fn experimental_effects(
         return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
     }
     for passive_slot in 0..u {
-        for probe_slot in 0..j {
+        for (probe_slot, &scale) in spread.iter().enumerate() {
             // Undo the column scaling: the solved row is `D_jj` times the effect.
             let slot = passive_slot * j + probe_slot;
-            let effect = solved[slot] / spread[probe_slot];
+            let effect = solved[slot] / scale;
             if !effect.is_finite() {
                 return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
             }
@@ -1058,8 +1058,8 @@ fn compensated_dot(left: &[f64], right: &[f64]) -> f64 {
 mod tests {
     use super::{
         AssembledExperimentConstraints, ConstraintColumnReport, ConstraintRow, MissingPair,
-        MomentAssemblyRefusal, RegimeInconsistency, RegimeSample, TargetConstraintBlock, UnitColumn,
-        assemble_experiment_constraints, compensated_sum, constraint_column_report,
+        MomentAssemblyRefusal, RegimeInconsistency, RegimeSample, TargetConstraintBlock,
+        UnitColumn, assemble_experiment_constraints, compensated_sum, constraint_column_report,
         experiment_constraint_bytes,
     };
     use crate::experiment_regime::{
@@ -1413,8 +1413,9 @@ mod tests {
             [UnitColumn { unit: unit(0), values: &x }, UnitColumn { unit: unit(1), values: &y }];
         let contract =
             accepted(vec![regime(&[0, 1], &[0], DependencePremise::Independence, 1, 1)], &[]);
-        let assembled = assemble_experiment_constraints(&contract, &[sample(&columns, 1)], u64::MAX)
-            .expect("the passive target is covered");
+        let assembled =
+            assemble_experiment_constraints(&contract, &[sample(&columns, 1)], u64::MAX)
+                .expect("the passive target is covered");
         let into_y = block(&assembled, 1);
         let (coefficients, effect) = row(into_y, 0, 0);
         assert_eq!(coefficients, &[1.0]);
@@ -1645,10 +1646,8 @@ mod tests {
         let y = [0.5, -0.5];
         let columns =
             [UnitColumn { unit: unit(0), values: &x }, UnitColumn { unit: unit(1), values: &y }];
-        let contract = accepted(
-            vec![regime(&[0, 1], &[0], DependencePremise::Independence, 4, 1)],
-            &[],
-        );
+        let contract =
+            accepted(vec![regime(&[0, 1], &[0], DependencePremise::Independence, 4, 1)], &[]);
         let refusal = assemble_experiment_constraints(&contract, &[sample(&columns, 9)], u64::MAX)
             .expect_err("the sample source is not the declared source");
         assert_eq!(

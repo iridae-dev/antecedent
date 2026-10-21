@@ -528,8 +528,7 @@ impl GlmAdjustmentAte {
         });
         // Replicates own a cold workspace. A warm IRLS start would change the replicate fit.
         crate::util::bootstrap_by_design(
-            clusters.as_deref(),
-            series_block,
+            crate::util::BootstrapDesign { clusters: clusters.as_deref(), series_block },
             self.bootstrap_replicates,
             ctx,
             0xC17A_u64,

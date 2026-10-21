@@ -383,8 +383,7 @@ impl PropensityStratification {
                 replicate,
             ),
             None => crate::util::bootstrap_by_design(
-                None,
-                None,
+                crate::util::BootstrapDesign { clusters: None, series_block: None },
                 self.bootstrap_replicates,
                 ctx,
                 0x3D2F_u64,

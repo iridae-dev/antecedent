@@ -816,7 +816,7 @@ fn log_det_v0(prec: &CoefficientPrecision) -> Result<f64, ProbError> {
         CoefficientPrecision::Diagonal(diag) => {
             let mut sum = 0.0;
             for &precision in diag {
-                if !(precision > 0.0) || !precision.is_finite() {
+                if precision <= 0.0 || !precision.is_finite() {
                     return Err(ProbError::Numerical {
                         message: "coefficient precision is not a finite positive scale".into(),
                     });
@@ -835,9 +835,7 @@ fn log_det_v0(prec: &CoefficientPrecision) -> Result<f64, ProbError> {
         }
     };
     if !det.is_finite() {
-        return Err(ProbError::Numerical {
-            message: "log determinant of V0 is not finite".into(),
-        });
+        return Err(ProbError::Numerical { message: "log determinant of V0 is not finite".into() });
     }
     Ok(det)
 }
@@ -869,8 +867,7 @@ fn invgamma_evidence_offset(
     log_det_v0: f64,
 ) -> Result<f64, ProbError> {
     let ln_2pi = (2.0 * std::f64::consts::PI).ln();
-    let offset = -0.5 * (n_eff + p as f64) * ln_2pi - 0.5 * log_det_v0
-        + shape * scale.ln()
+    let offset = -0.5 * (n_eff + p as f64) * ln_2pi - 0.5 * log_det_v0 + shape * scale.ln()
         - antecedent_stats::ln_gamma(shape);
     finite_offset(offset)
 }

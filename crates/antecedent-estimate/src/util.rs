@@ -391,6 +391,15 @@ fn design_err(error: SamplingDesignError) -> EstimationError {
     EstimationError::Data(DataError::SamplingDesign(error))
 }
 
+/// Source grouping that determines the resampling unit and dependence preservation.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BootstrapDesign<'a> {
+    /// Whole-cluster labels take precedence over a series block declaration.
+    pub(crate) clusters: Option<&'a [u32]>,
+    /// Contiguous time-series block length when no cluster labels are present.
+    pub(crate) series_block: Option<usize>,
+}
+
 /// Bootstrap under the sampling design the labels declare.
 ///
 /// Cluster labels draw whole clusters. A time-ordered series with no cluster labels
@@ -401,8 +410,7 @@ fn design_err(error: SamplingDesignError) -> EstimationError {
 ///
 /// The design refuses the draw, or [`bootstrap_se_with_scratch`] fails.
 pub(crate) fn bootstrap_by_design<S, F>(
-    clusters: Option<&[u32]>,
-    series_block: Option<usize>,
+    design: BootstrapDesign<'_>,
     replicates: u32,
     ctx: &ExecutionContext,
     stream_base: u64,
@@ -414,6 +422,7 @@ where
     S: Send,
     F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
 {
+    let BootstrapDesign { clusters, series_block } = design;
     if let Some(labels) = clusters {
         let grouped = ClusterRows::new(labels)?;
         return bootstrap_se_clusters_with_scratch(
@@ -655,12 +664,7 @@ enum ReplicateRows<'a> {
         stream_base: u64,
     },
     /// Contiguous blocks of `block_length` over `n` series rows.
-    Blocks {
-        n: usize,
-        block_length: usize,
-        ctx: &'a ExecutionContext,
-        stream_base: u64,
-    },
+    Blocks { n: usize, block_length: usize, ctx: &'a ExecutionContext, stream_base: u64 },
 }
 
 impl ReplicateRows<'_> {

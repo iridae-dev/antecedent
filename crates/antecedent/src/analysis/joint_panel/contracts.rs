@@ -12,9 +12,9 @@ use antecedent_core::{
 use antecedent_core::{ScientificTarget, ScientificWorldId, SemanticDigest, VariableId};
 use antecedent_estimate::joint_panel::PanelProgram;
 use antecedent_identify::CompiledIdentificationProduct;
+use antecedent_identify::compiled_product::IdentificationObligation;
 use antecedent_identify::{
-    AssembledFunctionalObligation, CompiledProductParts, IdentificationClaimClass,
-    IdentificationOutcome, UnresolvedObligation, WorldObligation,
+    CompiledProductParts, IdentificationClaimClass, IdentificationOutcome, UnresolvedObligation,
 };
 
 /// Requested assembly of the same jointly fitted worlds.
@@ -561,12 +561,14 @@ pub(super) fn compile_support(
     parts.world_obligations = request
         .worlds
         .iter()
-        .map(|w| WorldObligation::new(w.world, outcome, class, unresolved.clone(), None))
+        .map(|w| {
+            IdentificationObligation::for_world(w.world, outcome, class, unresolved.clone(), None)
+        })
         .collect();
     parts.unresolved_obligations.clone_from(&unresolved);
     if matches!(request.target.form(), TargetForm::Contrast(_) | TargetForm::DoseTime(_)) {
         parts.assembled =
-            Some(AssembledFunctionalObligation::new(outcome, class, unresolved, None));
+            Some(IdentificationObligation::assembled(outcome, class, unresolved, None));
     }
     let product = match evidence {
         Ok(query) => {
@@ -625,12 +627,20 @@ pub(super) fn conditional_target_product(
     let mut parts = CompiledProductParts::new(outcome, class);
     parts.world_obligations = target_worlds(target)?
         .iter()
-        .map(|world| WorldObligation::new(world.id(), outcome, class, unresolved.clone(), None))
+        .map(|world| {
+            IdentificationObligation::for_world(
+                world.id(),
+                outcome,
+                class,
+                unresolved.clone(),
+                None,
+            )
+        })
         .collect();
     parts.unresolved_obligations.clone_from(&unresolved);
     if matches!(target.form(), TargetForm::Contrast(_) | TargetForm::DoseTime(_)) {
         parts.assembled =
-            Some(AssembledFunctionalObligation::new(outcome, class, unresolved, None));
+            Some(IdentificationObligation::assembled(outcome, class, unresolved, None));
     }
     CompiledIdentificationProduct::new(
         vec![],

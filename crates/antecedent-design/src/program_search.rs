@@ -761,6 +761,7 @@ mod tests {
         let source = MeanSource {
             coordinates: candidates.iter().map(|c| c.inputs[0].clone()).collect(),
             means: vec![0., 3., 8.],
+            estimate: crate::decision_eval::MeanEstimate::Frequentist,
             provider_id: "compiled-model".into(),
             snapshot_id: "source".into(),
             causal_contract_id: "target".into(),

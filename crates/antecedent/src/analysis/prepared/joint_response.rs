@@ -24,10 +24,10 @@ use antecedent_estimate::response::{
     JointLinearError, JointLinearEvaluation, JointLinearInference, PreparedJointLinear,
 };
 use antecedent_estimate::{ContinuousResponseEstimator, PreparedBayesianProblem};
+use antecedent_identify::compiled_product::IdentificationObligation;
 use antecedent_identify::{
-    AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
-    IdentificationClaimClass, IdentificationOutcome, IdentificationResult, RequiredFactor,
-    UnresolvedObligation, WorldObligation,
+    CompiledIdentificationProduct, CompiledProductParts, IdentificationClaimClass,
+    IdentificationOutcome, IdentificationResult, RequiredFactor, UnresolvedObligation,
 };
 use antecedent_stats::DesignColumnRole;
 
@@ -215,13 +215,13 @@ impl PreparedJointResponse {
             let (weight, established) = compile_world(&source, world)?;
             world_ids.push(world.id());
             weights.push(weight);
-            obligations.push(WorldObligation::new(world.id(),
+            obligations.push(IdentificationObligation::for_world(world.id(),
                 if established { IdentificationOutcome::Identified } else { IdentificationOutcome::Unidentified },
                 if established { IdentificationClaimClass::IdentifiedClaim } else { IdentificationClaimClass::ModelConditional },
                 if established { vec![] } else { vec![UnresolvedObligation::new("response.joint_support_unverified",
                     "marginal treatment ranges do not establish conditional joint-world support; the Gaussian response is model-conditional")] }, None));
         }
-        let established = obligations.iter().all(WorldObligation::is_identified_claim);
+        let established = obligations.iter().all(IdentificationObligation::is_identified_claim);
         let contrast = contrast_coefficients(target, &world_ids)?;
         let target = retained_target(&source, target)?;
         let mut parts = CompiledProductParts::new(
@@ -234,7 +234,7 @@ impl PreparedJointResponse {
         );
         parts.world_obligations = obligations;
         if contrast.is_some() {
-            parts.assembled = Some(AssembledFunctionalObligation::new(
+            parts.assembled = Some(IdentificationObligation::assembled(
                 if established {
                     IdentificationOutcome::Identified
                 } else {
@@ -472,6 +472,14 @@ impl JointResponseResult {
         Ok(antecedent_design::decision_eval::MeanSource {
             coordinates: self.quantities()?,
             means: self.evaluation.means.to_vec(),
+            estimate: match self.program.numerical_program().inference() {
+                JointLinearInference::Bayesian(_) => {
+                    antecedent_design::decision_eval::MeanEstimate::Posterior
+                }
+                JointLinearInference::Frequentist => {
+                    antecedent_design::decision_eval::MeanEstimate::Frequentist
+                }
+            },
             provider_id: "native:joint_gaussian_response".into(),
             snapshot_id: antecedent_core::to_hex(&self.source_digest()),
             causal_contract_id: self.target().identity().to_hex(),
@@ -1154,7 +1162,7 @@ mod tests {
                 < 1e-12
         );
         assert_eq!(second.calibration(), "unmeasured");
-        assert!(second.target().assumptions().records().entries.iter().any(|record| matches!(&record.assumption,
+        assert!(second.target().assumptions().records().entries.iter().any(|record| record.status == AssumptionStatus::Declared && matches!(&record.assumption,
             Assumption::ParametricRestriction(premise) if premise.id.as_ref() == LINEAR_ASSUMPTION)));
         drop(program);
         assert_eq!(first.world_ids().len(), 2);
@@ -1216,6 +1224,10 @@ mod tests {
         );
         let program = source.compile_joint_response(&target(false), &ctx).unwrap();
         let first = program.execute(&ctx).unwrap();
+        assert_eq!(
+            first.numerical_mean_source().unwrap().estimate,
+            antecedent_design::decision_eval::MeanEstimate::Posterior,
+        );
         emit_gaussian_interchange(&first, &ctx);
         let retained_mean = first.mean_source().unwrap();
         let retained_law = first.joint_law(&ctx).unwrap();

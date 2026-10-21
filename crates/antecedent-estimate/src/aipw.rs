@@ -1336,14 +1336,13 @@ impl AipwAte {
         let clusters = self.bootstrap_clusters(problem)?;
         let series_block = self.series_block(problem.nrows);
         crate::util::bootstrap_by_design(
-            clusters.as_deref(),
-            series_block,
+            crate::util::BootstrapDesign { clusters: clusters.as_deref(), series_block },
             self.bootstrap_replicates,
             ctx,
             0xA1D5,
             problem.nrows,
             || (),
-            |_, idx| {
+            |(), idx| {
                 let mut p = resampled_problem(problem, idx, weights);
                 // The point is the GLM result: a replicate whose GLM fit fails is a failed
                 // replicate, never silently a ridge fit.
@@ -1549,8 +1548,7 @@ impl AipwAte {
         let series_block = self.series_block(n);
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_by_design(
-            clusters.as_deref(),
-            series_block,
+            crate::util::BootstrapDesign { clusters: clusters.as_deref(), series_block },
             self.bootstrap_replicates,
             ctx,
             0xA1D0_u64,

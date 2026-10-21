@@ -761,8 +761,7 @@ impl FrontDoorTwoStage {
         }
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_by_design(
-            clusters.as_deref(),
-            None,
+            crate::util::BootstrapDesign { clusters: clusters.as_deref(), series_block: None },
             self.bootstrap_replicates,
             ctx,
             0xF80D_u64,

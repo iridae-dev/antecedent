@@ -7,10 +7,10 @@ use crate::trace::{
 };
 use crate::{IdentifiedEstimandWire, IoError};
 use antecedent_core::{ScientificTarget, ScientificWorldId, VariableId};
+use antecedent_identify::compiled_product::IdentificationObligation;
 use antecedent_identify::{
-    AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
-    DerivationTrace, IdentificationClaimClass, IdentificationOutcome, RequiredFactor,
-    UnresolvedObligation, WorldObligation,
+    CompiledIdentificationProduct, CompiledProductParts, DerivationTrace, IdentificationClaimClass,
+    IdentificationOutcome, RequiredFactor, UnresolvedObligation,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -109,16 +109,21 @@ impl CompiledIdentificationWire {
             worlds: proof
                 .world_obligations()
                 .iter()
-                .map(|world| WorldWire {
-                    world: world.world().raw(),
-                    obligation: ObligationWire {
-                        outcome: outcome_tag(world.outcome()),
-                        claim: claim_tag(world.claim_class()),
-                        unresolved: gaps(world.unresolved()),
-                        value: world.numerical_value().map(f64::to_bits),
-                    },
+                .map(|world| -> Result<WorldWire, IoError> {
+                    Ok(WorldWire {
+                        world: world
+                            .world()
+                            .ok_or_else(|| invalid("world obligation has no world identity"))?
+                            .raw(),
+                        obligation: ObligationWire {
+                            outcome: outcome_tag(world.outcome()),
+                            claim: claim_tag(world.claim_class()),
+                            unresolved: gaps(world.unresolved()),
+                            value: world.numerical_value().map(f64::to_bits),
+                        },
+                    })
                 })
-                .collect(),
+                .collect::<Result<_, _>>()?,
             assembled: proof.assembled_obligation().map(|assembled| ObligationWire {
                 outcome: outcome_tag(assembled.outcome()),
                 claim: claim_tag(assembled.claim_class()),
@@ -166,7 +171,7 @@ impl CompiledIdentificationWire {
             .worlds
             .iter()
             .map(|world| {
-                Ok(WorldObligation::new(
+                Ok(IdentificationObligation::for_world(
                     ScientificWorldId::from_raw(world.world),
                     outcome(world.obligation.outcome)?,
                     claim(world.obligation.claim)?,
@@ -179,7 +184,7 @@ impl CompiledIdentificationWire {
             .assembled
             .as_ref()
             .map(|assembled| -> Result<_, IoError> {
-                Ok(AssembledFunctionalObligation::new(
+                Ok(IdentificationObligation::assembled(
                     outcome(assembled.outcome)?,
                     claim(assembled.claim)?,
                     ungap(&assembled.unresolved),

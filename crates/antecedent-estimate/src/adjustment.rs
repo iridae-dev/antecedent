@@ -1141,8 +1141,7 @@ impl LinearAdjustmentAte {
         let clusters = self.bootstrap_clusters(problem)?;
         let series_block = self.series_block(n);
         crate::util::bootstrap_by_design(
-            clusters.as_deref(),
-            series_block,
+            crate::util::BootstrapDesign { clusters: clusters.as_deref(), series_block },
             self.bootstrap_replicates,
             ctx,
             0xA7E_u64,

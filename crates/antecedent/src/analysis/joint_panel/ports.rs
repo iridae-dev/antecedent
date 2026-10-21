@@ -80,6 +80,9 @@ impl JointPanelResult {
         Ok(MeanSource {
             coordinates: self.coordinates()?,
             means: self.flatten(&self.point)?,
+            // The retained point is the likelihood fit, including for Bayesian requests;
+            // posterior draws are exposed separately through the law ports.
+            estimate: antecedent_design::decision_eval::MeanEstimate::Frequentist,
             provider_id: format!(
                 "antecedent.compiled_joint_panel.{}",
                 if self.identification().is_identified_claim() {
