@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -42,6 +43,7 @@ impl TabularData {
         out.resize(n, true);
         let keep = out;
         if let Some(mask) = self.storage().analysis_mask().filter(|mask| !mask.is_all_valid()) {
+            record_physical(PhysicalEvent::Scan, 1);
             for (i, slot) in keep.iter_mut().enumerate() {
                 *slot = mask.is_valid(i);
             }
@@ -51,6 +53,7 @@ impl TabularData {
             if validity.is_all_valid() {
                 continue;
             }
+            record_physical(PhysicalEvent::Scan, 1);
             for (i, slot) in keep.iter_mut().enumerate() {
                 if *slot && !validity.is_valid(i) {
                     *slot = false;

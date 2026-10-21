@@ -64,6 +64,7 @@ mod defaults;
 mod derived_treatment_api;
 mod descriptive_api;
 mod design_api;
+mod design_model_api;
 mod design_ranking_api;
 mod discovered_transport_api;
 mod discovery_api;
@@ -120,7 +121,6 @@ mod policy_api;
 mod predictive_assessment_api;
 mod preflight_api;
 mod prepared_api;
-mod design_model_api;
 mod prepared_options;
 mod prior_bank;
 mod prior_signal_api;
@@ -143,13 +143,16 @@ mod recalc_temporal_api;
 mod recovery_api;
 mod recovery_chain_api;
 mod regimes_api;
-mod unlicensed_design_api;
 mod registry;
 mod sequential_evaluation_api;
+mod unlicensed_design_api;
 pub(crate) use registry::transport_defaults;
 mod interface_contract_api;
 mod intervention_callback_api;
 mod intervention_program_api;
+mod period_refresh_api;
+mod posterior_boundary_api;
+mod posterior_row_api;
 mod provider_callbacks_api;
 mod repair_api;
 mod response_api;
@@ -166,18 +169,15 @@ mod source_projection_api;
 mod stability;
 mod state_api;
 mod study_planning_api;
-mod posterior_boundary_api;
-mod posterior_row_api;
 mod survival_api;
-mod period_refresh_api;
 mod temporal_api;
 mod temporal_counterfactual_api;
 mod temporal_extension_api;
 mod temporal_license;
 mod temporal_transport_api;
 mod transport_admg_conditional_api;
-mod transport_common;
 mod transport_buffers;
+mod transport_common;
 mod transport_counterfactual_api;
 mod transport_counterfactual_sampled_api;
 mod transport_exact_api;
@@ -553,10 +553,9 @@ fn with_route_diagnostics(
                 })
             })
             .collect();
-        if let Ok(list) = py
-            .import("json")
-            .and_then(|json| json.call_method1("loads", (serde_json::Value::from(rows).to_string(),)))
-        {
+        if let Ok(list) = py.import("json").and_then(|json| {
+            json.call_method1("loads", (serde_json::Value::from(rows).to_string(),))
+        }) {
             let _ = err.value(py).setattr("route_diagnostics", list);
         }
     });
@@ -898,8 +897,7 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
             }),
         ) if {
             let records = RustCausalError::route_diagnostics(&RustCausalError::Estimate(e.clone()));
-            !records.is_empty()
-                && records.iter().all(|record| record.is_unsupported_inference())
+            !records.is_empty() && records.iter().all(|record| record.is_unsupported_inference())
         } =>
         {
             unsupported_py_err(e.to_string())
@@ -2061,6 +2059,7 @@ pub(crate) fn shared_study_sections(
     };
     let validation = ValidationSection::from_reports(refutations.clone(), &result.diagnostics);
     let performance = PerformanceSection {
+        native_execution: result.performance.native_execution.clone(),
         plan_id: plan_id.clone(),
         modality: modality.clone(),
         peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
@@ -2318,6 +2317,7 @@ impl ValidationSection {
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PerformanceSection {
+    native_execution: Option<antecedent_core::execution_facts::ExecutionFacts>,
     #[pyo3(get)]
     pub(crate) plan_id: String,
     #[pyo3(get)]
@@ -2915,5 +2915,14 @@ mod tests {
         assert_eq!(panic_payload_msg(as_string.as_ref()), "kaboom");
         let other: Box<dyn Any + Send> = Box::new(42_u32);
         assert_eq!(panic_payload_msg(other.as_ref()), "unknown panic payload");
+    }
+}
+
+#[pymethods]
+impl PerformanceSection {
+    /// Engine-produced execution observations, separate from plan estimates.
+    #[getter]
+    fn native_execution(&self) -> Option<inspect_receipt_api::PyExecutionFacts> {
+        self.native_execution.clone().map(|inner| inspect_receipt_api::PyExecutionFacts { inner })
     }
 }

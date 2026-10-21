@@ -7,9 +7,17 @@
 #[doc(hidden)] pub fn <antecedent_core::execution_attempt::ObservationToken>::fn is_empty(&self) -> bool
 #[doc(hidden)] pub fn <antecedent_core::execution_attempt::OperationGuard>::fn begin(operation: antecedent_core::execution_attempt::Operation) -> Self
 #[doc(hidden)] pub fn <antecedent_core::execution_attempt::OperationGuard>::fn complete(self)
+#[doc(hidden)] pub fn antecedent_core::execution_attempt::record_physical(event: antecedent_core::execution_attempt::PhysicalEvent, amount: u64)
 #[doc(hidden)] pub fn antecedent_core::execution_attempt::run_operation<T, E>(operation: antecedent_core::execution_attempt::Operation, execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> core::result::Result<T, E>
+#[doc(hidden)] pub fn antecedent_core::numerical_admission::acquire(bytes: u64) -> core::option::Option<core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>>
+#[doc(hidden)] pub fn antecedent_core::numerical_admission::is_cancelled() -> bool
+#[doc(hidden)] pub fn antecedent_core::numerical_admission::with_context<T>(ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> T
+#[doc(hidden)] pub fn antecedent_core::numerical_admission::with_reservation<T>(reservation: alloc::sync::Arc<antecedent_core::execution::AdmissionLease>, execute: impl core::ops::function::FnOnce() -> T) -> T
+#[doc(hidden)] pub mod antecedent_core::numerical_admission
 #[doc(hidden)] pub struct antecedent_core::execution_attempt::ObservationToken
+#[doc(hidden)] pub struct antecedent_core::execution_attempt::ObservedAdmission
 #[doc(hidden)] pub struct antecedent_core::execution_attempt::OperationGuard
+#[doc(hidden)] pub struct antecedent_core::numerical_admission::NumericalAdmissionToken
 #[non_exhaustive] pub enum antecedent_core::AllocationMethod
 #[non_exhaustive] pub enum antecedent_core::ArithOp
 #[non_exhaustive] pub enum antecedent_core::AttributionComponents
@@ -457,6 +465,7 @@ impl core::clone::Clone for antecedent_core::execution_attempt::AttemptReport
 impl core::clone::Clone for antecedent_core::execution_attempt::ObservationToken
 impl core::clone::Clone for antecedent_core::execution_attempt::Operation
 impl core::clone::Clone for antecedent_core::execution_attempt::OperationCounts
+impl core::clone::Clone for antecedent_core::execution_attempt::PhysicalEvent
 impl core::clone::Clone for antecedent_core::execution_facts::ExecutionBackend
 impl core::clone::Clone for antecedent_core::execution_facts::ExecutionCounts
 impl core::clone::Clone for antecedent_core::execution_facts::ExecutionFactError
@@ -500,6 +509,7 @@ impl core::clone::Clone for antecedent_core::measurement_model::PosteriorReferen
 impl core::clone::Clone for antecedent_core::measurement_model::RepresentationMapping
 impl core::clone::Clone for antecedent_core::measurement_model::RepresentationVersion
 impl core::clone::Clone for antecedent_core::measurement_model::VarianceComponent
+impl core::clone::Clone for antecedent_core::numerical_admission::NumericalAdmissionToken
 impl core::clone::Clone for antecedent_core::parallel_axis::ParallelAxis
 impl core::clone::Clone for antecedent_core::physical_choice::AvailableCapabilities
 impl core::clone::Clone for antecedent_core::physical_choice::CostQuotes
@@ -1511,6 +1521,7 @@ impl core::default::Default for antecedent_core::execution_facts::ExecutionCount
 impl core::default::Default for antecedent_core::execution_facts::ExecutionResources
 impl core::default::Default for antecedent_core::execution_facts::OutputRetention
 impl core::default::Default for antecedent_core::inspect::InspectionInputs
+impl core::default::Default for antecedent_core::numerical_admission::NumericalAdmissionToken
 impl core::default::Default for antecedent_core::recalc::ResumeContext
 impl core::default::Default for antecedent_core::recalc::StageIdentities
 impl core::default::Default for antecedent_core::search_budget::FunctionalEnumeration
@@ -1915,8 +1926,10 @@ impl core::fmt::Debug for antecedent_core::execution::AdmissionPool
 impl core::fmt::Debug for antecedent_core::execution::AdmissionRemainder
 impl core::fmt::Debug for antecedent_core::execution::AdmissionRequest
 impl core::fmt::Debug for antecedent_core::execution_attempt::AttemptReport
+impl core::fmt::Debug for antecedent_core::execution_attempt::ObservedAdmission
 impl core::fmt::Debug for antecedent_core::execution_attempt::Operation
 impl core::fmt::Debug for antecedent_core::execution_attempt::OperationCounts
+impl core::fmt::Debug for antecedent_core::execution_attempt::PhysicalEvent
 impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionBackend
 impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionCounts
 impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionFactError
@@ -2605,6 +2618,7 @@ impl core::marker::Copy for antecedent_core::execution::AdmissionRemainder
 impl core::marker::Copy for antecedent_core::execution::AdmissionRequest
 impl core::marker::Copy for antecedent_core::execution_attempt::Operation
 impl core::marker::Copy for antecedent_core::execution_attempt::OperationCounts
+impl core::marker::Copy for antecedent_core::execution_attempt::PhysicalEvent
 impl core::marker::Copy for antecedent_core::execution_facts::ExecutionCounts
 impl core::marker::Copy for antecedent_core::execution_facts::ExecutionFactError
 impl core::marker::Copy for antecedent_core::execution_facts::ExecutionFactStatus
@@ -3034,6 +3048,7 @@ impl core::marker::Freeze for antecedent_core::execution::AdmissionRequest [auto
 impl core::marker::Freeze for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Freeze for antecedent_core::execution_attempt::PhysicalEvent [auto]
 impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -3502,6 +3517,7 @@ impl core::marker::Send for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Send for antecedent_core::execution_attempt::PhysicalEvent [auto]
 impl core::marker::Send for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::marker::Send for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::marker::Send for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -4414,6 +4430,7 @@ impl core::marker::Sync for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Sync for antecedent_core::execution_attempt::PhysicalEvent [auto]
 impl core::marker::Sync for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::marker::Sync for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::marker::Sync for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -4882,6 +4899,7 @@ impl core::marker::Unpin for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Unpin for antecedent_core::execution_attempt::PhysicalEvent [auto]
 impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -4986,6 +5004,7 @@ impl core::marker::Unpin for antecedent_core::search_budget::SearchResourceLimit
 impl core::marker::Unpin for antecedent_core::value::InterventionValueError [auto]
 impl core::ops::drop::Drop for antecedent_core::device_reservation::DeviceReservationLease
 impl core::ops::drop::Drop for antecedent_core::execution::AdmissionLease
+impl core::ops::drop::Drop for antecedent_core::execution_attempt::ObservedAdmission
 impl core::ops::drop::Drop for antecedent_core::execution_attempt::OperationGuard
 impl core::ops::drop::Drop for antecedent_core::scratch_pool::ScratchGuard
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveBootstrapBudget [auto]
@@ -5353,6 +5372,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::Adm
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::PhysicalEvent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -5820,6 +5840,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::Admiss
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::PhysicalEvent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionBackend [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionFactError [auto]
@@ -6139,6 +6160,7 @@ pub enum antecedent_core::device_reservation::ArithmeticPath
 pub enum antecedent_core::device_reservation::ComputeSelection
 pub enum antecedent_core::diagnostic::RouteMass
 pub enum antecedent_core::execution_attempt::Operation
+pub enum antecedent_core::execution_attempt::PhysicalEvent
 pub enum antecedent_core::execution_facts::OutputRetention
 pub enum antecedent_core::intervention::ExecutionSurface
 pub enum antecedent_core::measurement_model::MeasurementParameters
@@ -6653,6 +6675,7 @@ pub field antecedent_core::VariableSchema::unit: core::option::Option<alloc::syn
 pub field antecedent_core::VariableSchema::value_type: antecedent_core::ValueType
 pub field antecedent_core::WorldObservation::variable: antecedent_core::VariableId
 pub field antecedent_core::WorldObservation::world: antecedent_core::WorldId
+pub field antecedent_core::execution_attempt::ExecutionAttempt::facts: core::option::Option<antecedent_core::execution_facts::ExecutionFacts>
 pub field antecedent_core::execution_attempt::ExecutionAttempt::report: antecedent_core::execution_attempt::AttemptReport
 pub field antecedent_core::execution_attempt::ExecutionAttempt::result: core::result::Result<T, E>
 pub field antecedent_core::execution_attempt::OperationCounts::attempted: u64
@@ -7773,9 +7796,13 @@ pub fn <antecedent_core::execution::AdmissionRequest>::const fn threads(self) ->
 pub fn <antecedent_core::execution::AdmissionRequest>::const fn try_product(threads: u32, count: u64, width: u64) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::execution::AdmissionRequest>::const fn try_sum(threads: u32, parts: &[u64]) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn counts(&self, operation: antecedent_core::execution_attempt::Operation) -> antecedent_core::execution_attempt::OperationCounts
+pub fn <antecedent_core::execution_attempt::AttemptReport>::fn execution_facts(&self, ctx: &antecedent_core::ExecutionContext, status: antecedent_core::execution_facts::ExecutionFactStatus) -> antecedent_core::execution_facts::ExecutionFacts
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn is_complete(&self) -> bool
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn is_empty(&self) -> bool
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn operations(&self) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_core::execution_attempt::Operation, antecedent_core::execution_attempt::OperationCounts)> + '_
+pub fn <antecedent_core::execution_attempt::AttemptReport>::fn peak_admitted_bytes(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_attempt::AttemptReport>::fn peak_admitted_threads(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_attempt::AttemptReport>::fn physical(&self, event: antecedent_core::execution_attempt::PhysicalEvent) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_attempt::OperationCounts>::fn unfinished(self) -> u64
 pub fn <antecedent_core::execution_facts::ExecutionBackend>::const fn kernel(&self) -> antecedent_core::KernelPolicy
 pub fn <antecedent_core::execution_facts::ExecutionBackend>::const fn new(name: alloc::string::String, kernel: antecedent_core::KernelPolicy) -> Self
@@ -7801,6 +7828,15 @@ pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn scientific_c
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn scientific_identity(&self) -> core::option::Option<antecedent_core::SemanticDigest>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn status(&self) -> antecedent_core::execution_facts::ExecutionFactStatus
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn with_scientific_identity(self, scientific_identity: core::option::Option<antecedent_core::SemanticDigest>) -> Self
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn from_artifact(measured: antecedent_core::execution_facts::MeasuredExecution, coverage: u64) -> Self
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn is_native(&self) -> bool
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn native_coverage(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_copies(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_model_fits(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_scans(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn observed_spill_bytes(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn peak_admitted_bytes(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn peak_admitted_threads(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn physical_identity(&self) -> antecedent_core::execution_facts::PhysicalExecutionIdentity
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn rebuild(self, measured: antecedent_core::execution_facts::MeasuredExecution) -> Self
 pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn try_add_counts(&mut self, extra: antecedent_core::execution_facts::ExecutionCounts) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
@@ -7879,6 +7915,8 @@ pub fn <antecedent_core::measurement_model::MeasurementRoute>::fn from_name(name
 pub fn <antecedent_core::measurement_model::ParameterUncertainty>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::measurement_model::ParameterUncertainty>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::measurement_model::RepresentationMapping>::fn carries_intervention_meaning(&self) -> bool
+pub fn <antecedent_core::numerical_admission::NumericalAdmissionToken>::fn capture() -> Self
+pub fn <antecedent_core::numerical_admission::NumericalAdmissionToken>::fn execute<T>(&self, ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> T
 pub fn <antecedent_core::parallel_axis::ParallelAxis>::const fn all() -> [Self; 6]
 pub fn <antecedent_core::parallel_axis::ParallelAxis>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn all() -> Self
@@ -8024,6 +8062,7 @@ pub fn antecedent_core::device_reservation::place_physical_predictions(n_rows: u
 pub fn antecedent_core::device_reservation::within_declared_tolerance(left: f64, right: f64, tolerance: antecedent_core::PhysicalTolerance) -> bool
 pub fn antecedent_core::execution::splitmix64(state: &mut u64) -> u64
 pub fn antecedent_core::execution_attempt::observe_execution<T, E>(execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E>
+pub fn antecedent_core::execution_attempt::observe_with_context<T, E>(ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 pub fn antecedent_core::fnv1a_u64(bytes: &[u8]) -> u64
 pub fn antecedent_core::identity::to_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::inspect::inspect(inputs: antecedent_core::inspect::InspectionInputs) -> core::result::Result<antecedent_core::inspect::PlanInspection, antecedent_core::inspect::InspectionRefusal>
@@ -8430,6 +8469,7 @@ pub struct antecedent_core::execution_attempt::AttemptReport
 pub struct antecedent_core::execution_attempt::AttemptReport has private fields
 pub struct antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 pub struct antecedent_core::execution_attempt::ObservationToken has private fields
+pub struct antecedent_core::execution_attempt::ObservedAdmission has private fields
 pub struct antecedent_core::execution_attempt::OperationCounts
 pub struct antecedent_core::execution_attempt::OperationGuard has private fields
 pub struct antecedent_core::execution_facts::ExecutionBackend
@@ -8471,6 +8511,7 @@ pub struct antecedent_core::measurement_model::PosteriorReference
 pub struct antecedent_core::measurement_model::RepresentationMapping
 pub struct antecedent_core::measurement_model::RepresentationVersion
 pub struct antecedent_core::measurement_model::VarianceComponent
+pub struct antecedent_core::numerical_admission::NumericalAdmissionToken has private fields
 pub struct antecedent_core::physical_choice::AvailableCapabilities
 pub struct antecedent_core::physical_choice::AvailableCapabilities has private fields
 pub struct antecedent_core::physical_choice::CostQuotes
@@ -9634,6 +9675,14 @@ pub variant antecedent_core::execution_attempt::Operation::ProgramCompilation
 pub variant antecedent_core::execution_attempt::Operation::ProviderBinding
 pub variant antecedent_core::execution_attempt::Operation::ProviderInvocation
 pub variant antecedent_core::execution_attempt::Operation::ScoreConstruction
+pub variant antecedent_core::execution_attempt::PhysicalEvent::CacheHit
+pub variant antecedent_core::execution_attempt::PhysicalEvent::ConditionalIndependenceTest
+pub variant antecedent_core::execution_attempt::PhysicalEvent::CopiedBytes
+pub variant antecedent_core::execution_attempt::PhysicalEvent::Copy
+pub variant antecedent_core::execution_attempt::PhysicalEvent::ModelFit
+pub variant antecedent_core::execution_attempt::PhysicalEvent::RetainedBytes
+pub variant antecedent_core::execution_attempt::PhysicalEvent::Scan
+pub variant antecedent_core::execution_attempt::PhysicalEvent::SpillBytes
 pub variant antecedent_core::execution_facts::ExecutionFactError::Overflow
 pub variant antecedent_core::execution_facts::ExecutionFactStatus::Cancelled
 pub variant antecedent_core::execution_facts::ExecutionFactStatus::Completed

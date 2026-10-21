@@ -106,16 +106,16 @@ pub mod transport_proof;
 pub mod transport_query_wire;
 pub mod wire;
 pub use analysis_result_artifact::{
-    AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire,
+    AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire, HistoryMatchWire,
     IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterferenceInferenceWire,
     InterferencePointwiseIntervalWire, InterventionalDistributionWire, LocalPolynomialRatioWire,
-    HistoryMatchWire, LongitudinalRegimeWire, SequentialContrastWire, MediationPosteriorSummaryWire, PanelDidWire, PolicyValueWire,
-    POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY, PosteriorRowWire,
-    RandomizedEffectWire, StructuralResponseAtomWire, StructuralResponseMixtureWire,
-    StructuralWeightBasisWire, SurvivalDifferenceBandWire, SurvivalWire, SyntheticControlWire,
-    SyntheticDidWire, TemporalIdentificationWire, TemporalMediationGridWire,
-    TemporalMediationSliceWire, TemporalMediationUncertaintyWire, UnitEffectIntervalsWire,
-    UnitEffectsWire, UpliftBinWire, decode_analysis_result_artifact,
+    LongitudinalRegimeWire, MediationPosteriorSummaryWire, POSTERIOR_ROW_CALIBRATION,
+    POSTERIOR_ROW_UNCERTAINTY, PanelDidWire, PolicyValueWire, PosteriorRowWire,
+    RandomizedEffectWire, SequentialContrastWire, StructuralResponseAtomWire,
+    StructuralResponseMixtureWire, StructuralWeightBasisWire, SurvivalDifferenceBandWire,
+    SurvivalWire, SyntheticControlWire, SyntheticDidWire, TemporalIdentificationWire,
+    TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
+    UnitEffectIntervalsWire, UnitEffectsWire, UpliftBinWire, decode_analysis_result_artifact,
     encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
     identified_set_interval_from_wire, identified_set_interval_to_wire,
 };
@@ -247,9 +247,9 @@ pub use plan_wire::{
     physical_plan_from_wire, physical_plan_to_wire,
 };
 pub use posterior::{
-    CausalPosteriorWire, PosteriorPreparationWire, PosteriorQuantityWire, decode_causal_posterior_bytes,
-    decode_posterior_artifact, decode_posterior_meta_from_path, decode_posterior_meta_from_seek,
-    encode_posterior_artifact,
+    CausalPosteriorWire, PosteriorPreparationWire, PosteriorQuantityWire,
+    decode_causal_posterior_bytes, decode_posterior_artifact, decode_posterior_meta_from_path,
+    decode_posterior_meta_from_seek, encode_posterior_artifact,
 };
 pub use prior_bank::{
     CompatibilityRejectReason, CompatibilityReport, DesignVariableRole, DesignVariableSummary,
@@ -278,13 +278,13 @@ pub use reader::{
 };
 pub use response_wire::{
     CausalResponseWire, ContinuousDomainWire, DerivativeScaleWire, DerivativeWeightingWire,
-    FeedbackDeclarationWire, GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire, IntervalInterpretationWire,
-    ObservationAssumptionWire, ObservationSpecWire, ResponseEnvelopeWire, ResponseFunctionalWire,
-    ResponseIdentificationWire, ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire,
-    SupportDiagnosticWire, SupportRegionWire, SupportReportWire, SupportStatusWire,
-    TemporalResponseSpecWire, causal_response_from_wire, causal_response_to_wire,
-    response_query_from_wire, response_query_to_wire, response_value_from_wire,
-    response_value_to_wire,
+    FeedbackDeclarationWire, GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire,
+    IntervalInterpretationWire, ObservationAssumptionWire, ObservationSpecWire,
+    ResponseEnvelopeWire, ResponseFunctionalWire, ResponseIdentificationWire, ResponseQueryWire,
+    ResponseUncertaintyWire, ResponseValueWire, SupportDiagnosticWire, SupportRegionWire,
+    SupportReportWire, SupportStatusWire, TemporalResponseSpecWire, causal_response_from_wire,
+    causal_response_to_wire, response_query_from_wire, response_query_to_wire,
+    response_value_from_wire, response_value_to_wire,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,
@@ -309,3 +309,6 @@ pub mod transport_handoff_artifact;
 pub mod transport_interference_wire;
 pub mod transport_revalidation_artifact;
 pub mod transported_counterfactual_artifact;
+
+/// Versioned observations from native execution.
+pub mod native_execution_wire;

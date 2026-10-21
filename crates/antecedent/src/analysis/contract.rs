@@ -3450,6 +3450,11 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
     let executed_estimate = effect.and_then(|_| executed_scalar(result));
     let support = result.support_status;
     let mut wire = AnalysisResultWire {
+        native_execution: result
+            .performance
+            .native_execution
+            .as_ref()
+            .and_then(antecedent_io::native_execution_wire::NativeExecutionWire::from_facts),
         query: frame.query.clone(),
         identification,
         identification_variables,

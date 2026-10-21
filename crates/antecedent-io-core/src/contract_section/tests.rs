@@ -169,6 +169,7 @@ fn fixture_body() -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
     let (schema, query) = schema_and_query();
     let query_wire = causal_query_to_wire(&query).unwrap();
     let body = AnalysisResultWire {
+        native_execution: None,
         query: query_wire.clone(),
         identification: IdentificationResultWire {
             status: "nonparametrically_identified".into(),

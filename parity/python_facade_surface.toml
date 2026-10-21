@@ -2630,3 +2630,9 @@ rust = "antecedent::analysis::composition_verification::load_decision"
 kind = "fn"
 status = "missing"
 reason = "Existing mixed-decision replay entry surfaced by regenerated API inventory; the Python composition-verification consumer does not expose this separate Rust-typed mixed-decision workflow. Unrelated to the cyclic implementation."
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::replay_decision"
+kind = "fn"
+status = "missing"
+reason = "Historical numerical replay for the Rust mixed-decision workflow. The Python composition-verification consumer does not expose this typed workflow; replay grants no current decision authority."

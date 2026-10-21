@@ -266,7 +266,27 @@ where
 
 /// Write the whole frame. The default `write` step of [`commit_frame`].
 pub(super) fn write_whole(file: &mut File, frame: &[u8]) -> io::Result<()> {
-    file.write_all(frame)
+    let mut remaining = frame;
+    while !remaining.is_empty() {
+        match file.write(remaining) {
+            Ok(0) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::WriteZero,
+                    "spill frame write made no progress",
+                ));
+            }
+            Ok(written) => {
+                antecedent_core::execution_attempt::record_physical(
+                    antecedent_core::execution_attempt::PhysicalEvent::SpillBytes,
+                    written as u64,
+                );
+                remaining = &remaining[written..];
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
 }
 
 /// Remove a spill file. A file that is already gone is not an error.

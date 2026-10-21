@@ -47,6 +47,7 @@ impl Study {
 
 impl PreparedStudy<CyclicPreparedState> {
     /// Borrow the complete frozen request, including aligned observations.
+    #[must_use]
     pub fn request(&self) -> &CyclicExecutionRequest {
         self.state.product.request()
     }

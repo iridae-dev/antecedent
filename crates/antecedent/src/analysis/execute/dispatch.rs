@@ -759,7 +759,9 @@ impl super::Study {
         })?;
         if matches!(
             self.estimator,
-            Some(EstimatorId::TemporalGlmLinkContrast | EstimatorId::BayesianTemporalGlmLinkContrast)
+            Some(
+                EstimatorId::TemporalGlmLinkContrast | EstimatorId::BayesianTemporalGlmLinkContrast
+            )
         ) {
             return self.execute_panel_link(panel, graph, q, physical, ctx);
         }
@@ -1323,9 +1325,23 @@ impl super::Study {
     ///
     /// Compile / execute failures.
     pub fn run(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
-        // A stats-layer refusal of a one-shot run is named against the plan the study implies.
-        self.run_unnamed(ctx)
-            .map_err(|error| crate::analysis::preflight::name_run_refusal(self, error, ctx))
+        self.run_observed(ctx).result
+    }
+
+    /// Execute with engine-owned work observations, including refusal and cancellation.
+    #[must_use]
+    pub fn run_observed(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> antecedent_core::execution_attempt::ExecutionAttempt<StudyResult, CausalError> {
+        let mut observed = antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            self.run_unnamed(ctx)
+                .map_err(|error| crate::analysis::preflight::name_run_refusal(self, error, ctx))
+        });
+        if let Ok(result) = &mut observed.result {
+            result.performance.native_execution.clone_from(&observed.facts);
+        }
+        observed
     }
 
     fn run_unnamed(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {

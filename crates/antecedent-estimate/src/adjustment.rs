@@ -733,6 +733,18 @@ impl LinearAdjustmentAte {
         workspace: &mut EstimationWorkspace,
         assumptions: AssumptionSet,
     ) -> Result<(EffectEstimate, Option<Vec<f64>>), EstimationError> {
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::AdjustedFit,
+            || self.fit_point_with_ols_residuals_unobserved(problem, workspace, assumptions),
+        )
+    }
+
+    fn fit_point_with_ols_residuals_unobserved(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        assumptions: AssumptionSet,
+    ) -> Result<(EffectEstimate, Option<Vec<f64>>), EstimationError> {
         let mut fit = self.fit_coefficients(problem, workspace)?;
         let t_col = problem
             .design

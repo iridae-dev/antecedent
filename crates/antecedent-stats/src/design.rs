@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, VariableId};
@@ -318,6 +319,8 @@ impl CompiledDesign {
         }
         // col 1: treatment
         matrix[nrows..2 * nrows].copy_from_slice(&treatment[..nrows]);
+        record_physical(PhysicalEvent::Copy, (2 + covariates.len()) as u64);
+        record_physical(PhysicalEvent::CopiedBytes, (nrows * (2 + covariates.len()) * 8) as u64);
         let mut roles = vec![DesignColumnRole::Intercept, DesignColumnRole::Treatment];
         for (i, (id, col)) in covariates.iter().enumerate() {
             let base = (2 + i) * nrows;

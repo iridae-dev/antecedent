@@ -46,6 +46,12 @@
 #[non_exhaustive] pub enum antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::callback_result_artifact::CallbackResultArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::capacity_account::CapacityError
+#[non_exhaustive] pub enum antecedent_io_core::capacity_account::DesignShape
+#[non_exhaustive] pub enum antecedent_io_core::capacity_account::RowFileFault
+#[non_exhaustive] pub enum antecedent_io_core::capacity_account::SpillFault
+#[non_exhaustive] pub enum antecedent_io_core::capacity_account::WeightFault
+#[non_exhaustive] pub enum antecedent_io_core::capacity_account::WeightedCapacityError
+#[non_exhaustive] pub enum antecedent_io_core::capacity_account::WeightedCapacityOutput
 #[non_exhaustive] pub enum antecedent_io_core::chunk_refresh::BorrowError
 #[non_exhaustive] pub enum antecedent_io_core::chunk_refresh::RefreshError
 #[non_exhaustive] pub enum antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError
@@ -76,9 +82,16 @@
 #[non_exhaustive] pub enum antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError
+impl !core::marker::Freeze for antecedent_io_core::capacity_account::SpillHandle [auto]
+impl !core::marker::Freeze for antecedent_io_core::capacity_account::SpilledCapacity [auto]
+impl !core::marker::Freeze for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::WeightedCapacityError [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::WeightedCapacityError [auto]
 impl antecedent_io_core::artifact_codec::CanonicalSize for antecedent_core::identity::CanonicalWriter
 impl antecedent_io_core::artifact_codec::VersionWord for u16
 impl antecedent_io_core::artifact_codec::VersionWord for u32
+impl antecedent_io_core::capacity_account::WeightedRowSource for antecedent_io_core::capacity_account::FileWeightedRows
+impl antecedent_io_core::capacity_account::WeightedRowSource for antecedent_io_core::capacity_account::ResidentWeightedRows<'_>
 impl core::clone::Clone for antecedent_io_core::AdaptiveBudgetWire
 impl core::clone::Clone for antecedent_io_core::AdmgJson
 impl core::clone::Clone for antecedent_io_core::AdmgWire
@@ -402,7 +415,19 @@ impl core::clone::Clone for antecedent_io_core::callback_result_artifact::Update
 impl core::clone::Clone for antecedent_io_core::capacity_account::AccountedKind
 impl core::clone::Clone for antecedent_io_core::capacity_account::AccountedOperation
 impl core::clone::Clone for antecedent_io_core::capacity_account::CapacityAccount
+impl core::clone::Clone for antecedent_io_core::capacity_account::CapacityControl
 impl core::clone::Clone for antecedent_io_core::capacity_account::CapacityError
+impl core::clone::Clone for antecedent_io_core::capacity_account::CapacityOptions
+impl core::clone::Clone for antecedent_io_core::capacity_account::CeilingCharges
+impl core::clone::Clone for antecedent_io_core::capacity_account::DesignShape
+impl core::clone::Clone for antecedent_io_core::capacity_account::GaussianCrossProducts
+impl core::clone::Clone for antecedent_io_core::capacity_account::LeverageSummary
+impl core::clone::Clone for antecedent_io_core::capacity_account::ResidualCheck
+impl core::clone::Clone for antecedent_io_core::capacity_account::RowFileFault
+impl core::clone::Clone for antecedent_io_core::capacity_account::SpillFault
+impl core::clone::Clone for antecedent_io_core::capacity_account::SpillOptions
+impl core::clone::Clone for antecedent_io_core::capacity_account::WeightFault
+impl core::clone::Clone for antecedent_io_core::capacity_account::WeightedCapacityResult
 impl core::clone::Clone for antecedent_io_core::chunk_refresh::BorrowError
 impl core::clone::Clone for antecedent_io_core::chunk_refresh::ChunkLedger
 impl core::clone::Clone for antecedent_io_core::chunk_refresh::ChunkRetention
@@ -601,6 +626,9 @@ impl core::clone::Clone for antecedent_io_core::mechanism_composition_artifact::
 impl core::clone::Clone for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire
 impl core::clone::Clone for antecedent_io_core::mechanism_wire::BasisTermWire
 impl core::clone::Clone for antecedent_io_core::mechanism_wire::ParentBasisWire
+impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeExecutionFormat
+impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeExecutionStatus
+impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl core::clone::Clone for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::clone::Clone for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::clone::Clone for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -952,7 +980,13 @@ impl core::cmp::Eq for antecedent_io_core::callback_result_artifact::TrustWire
 impl core::cmp::Eq for antecedent_io_core::callback_result_artifact::UpdateWire
 impl core::cmp::Eq for antecedent_io_core::capacity_account::AccountedKind
 impl core::cmp::Eq for antecedent_io_core::capacity_account::AccountedOperation
+impl core::cmp::Eq for antecedent_io_core::capacity_account::CapacityControl
 impl core::cmp::Eq for antecedent_io_core::capacity_account::CapacityError
+impl core::cmp::Eq for antecedent_io_core::capacity_account::CeilingCharges
+impl core::cmp::Eq for antecedent_io_core::capacity_account::DesignShape
+impl core::cmp::Eq for antecedent_io_core::capacity_account::RowFileFault
+impl core::cmp::Eq for antecedent_io_core::capacity_account::SpillFault
+impl core::cmp::Eq for antecedent_io_core::capacity_account::WeightFault
 impl core::cmp::Eq for antecedent_io_core::chunk_refresh::BorrowError
 impl core::cmp::Eq for antecedent_io_core::chunk_refresh::ChunkRetention
 impl core::cmp::Eq for antecedent_io_core::chunk_refresh::ChunkRow
@@ -1073,6 +1107,9 @@ impl core::cmp::Eq for antecedent_io_core::mechanism_composition_artifact::Param
 impl core::cmp::Eq for antecedent_io_core::mechanism_composition_artifact::SelectionDiagramWire
 impl core::cmp::Eq for antecedent_io_core::mechanism_composition_artifact::TermWire
 impl core::cmp::Eq for antecedent_io_core::mechanism_wire::BasisTermWire
+impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeExecutionFormat
+impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeExecutionStatus
+impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl core::cmp::Eq for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::cmp::Eq for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::cmp::Eq for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -1463,7 +1500,16 @@ impl core::cmp::PartialEq for antecedent_io_core::callback_result_artifact::Trus
 impl core::cmp::PartialEq for antecedent_io_core::callback_result_artifact::UpdateWire
 impl core::cmp::PartialEq for antecedent_io_core::capacity_account::AccountedKind
 impl core::cmp::PartialEq for antecedent_io_core::capacity_account::AccountedOperation
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::CapacityControl
 impl core::cmp::PartialEq for antecedent_io_core::capacity_account::CapacityError
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::CeilingCharges
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::DesignShape
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::GaussianCrossProducts
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::LeverageSummary
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::ResidualCheck
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::RowFileFault
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::SpillFault
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::WeightFault
 impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::BorrowError
 impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::ChunkRetention
 impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::ChunkRow
@@ -1645,6 +1691,9 @@ impl core::cmp::PartialEq for antecedent_io_core::mechanism_composition_artifact
 impl core::cmp::PartialEq for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire
 impl core::cmp::PartialEq for antecedent_io_core::mechanism_wire::BasisTermWire
 impl core::cmp::PartialEq for antecedent_io_core::mechanism_wire::ParentBasisWire
+impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeExecutionFormat
+impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeExecutionStatus
+impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl core::cmp::PartialEq for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::cmp::PartialEq for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::cmp::PartialEq for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -1850,6 +1899,8 @@ impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::te
 impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifactError
 impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
 impl core::convert::From<antecedent_io_core::IoError> for antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError
+impl core::convert::From<antecedent_io_core::capacity_account::SpillFault> for antecedent_io_core::capacity_account::CapacityError
+impl core::convert::From<antecedent_io_core::capacity_account::SpillFault> for antecedent_io_core::capacity_account::WeightedCapacityError
 impl core::convert::From<antecedent_io_core::transport_errors::AdmgConditionalArtifactError> for antecedent_io_core::IoError
 impl core::convert::From<antecedent_io_core::transport_errors::LearnedContinuousArtifactError> for antecedent_io_core::IoError
 impl core::convert::From<antecedent_io_core::transport_errors::MixedSourceArtifactError> for antecedent_io_core::IoError
@@ -1898,6 +1949,11 @@ impl core::error::Error for antecedent_io_core::bound_identity::BoundRefusal
 impl core::error::Error for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
 impl core::error::Error for antecedent_io_core::callback_result_artifact::CallbackResultArtifactError
 impl core::error::Error for antecedent_io_core::capacity_account::CapacityError
+impl core::error::Error for antecedent_io_core::capacity_account::DesignShape
+impl core::error::Error for antecedent_io_core::capacity_account::RowFileFault
+impl core::error::Error for antecedent_io_core::capacity_account::SpillFault
+impl core::error::Error for antecedent_io_core::capacity_account::WeightFault
+impl core::error::Error for antecedent_io_core::capacity_account::WeightedCapacityError
 impl core::error::Error for antecedent_io_core::chunk_refresh::BorrowError
 impl core::error::Error for antecedent_io_core::chunk_refresh::LagRefusal
 impl core::error::Error for antecedent_io_core::chunk_refresh::RefreshError
@@ -2252,8 +2308,25 @@ impl core::fmt::Debug for antecedent_io_core::callback_result_artifact::UpdateWi
 impl core::fmt::Debug for antecedent_io_core::capacity_account::AccountedKind
 impl core::fmt::Debug for antecedent_io_core::capacity_account::AccountedOperation
 impl core::fmt::Debug for antecedent_io_core::capacity_account::CapacityAccount
+impl core::fmt::Debug for antecedent_io_core::capacity_account::CapacityControl
 impl core::fmt::Debug for antecedent_io_core::capacity_account::CapacityError
+impl core::fmt::Debug for antecedent_io_core::capacity_account::CapacityOptions
+impl core::fmt::Debug for antecedent_io_core::capacity_account::CeilingCharges
 impl core::fmt::Debug for antecedent_io_core::capacity_account::DecompressionBuffer
+impl core::fmt::Debug for antecedent_io_core::capacity_account::DesignShape
+impl core::fmt::Debug for antecedent_io_core::capacity_account::FileWeightedRows
+impl core::fmt::Debug for antecedent_io_core::capacity_account::GaussianCrossProducts
+impl core::fmt::Debug for antecedent_io_core::capacity_account::LeverageSummary
+impl core::fmt::Debug for antecedent_io_core::capacity_account::ResidualCheck
+impl core::fmt::Debug for antecedent_io_core::capacity_account::RowFileFault
+impl core::fmt::Debug for antecedent_io_core::capacity_account::SpillFault
+impl core::fmt::Debug for antecedent_io_core::capacity_account::SpillHandle
+impl core::fmt::Debug for antecedent_io_core::capacity_account::SpillOptions
+impl core::fmt::Debug for antecedent_io_core::capacity_account::SpilledCapacity
+impl core::fmt::Debug for antecedent_io_core::capacity_account::WeightFault
+impl core::fmt::Debug for antecedent_io_core::capacity_account::WeightedCapacityError
+impl core::fmt::Debug for antecedent_io_core::capacity_account::WeightedCapacityOutput
+impl core::fmt::Debug for antecedent_io_core::capacity_account::WeightedCapacityResult
 impl core::fmt::Debug for antecedent_io_core::chunk_refresh::BorrowError
 impl core::fmt::Debug for antecedent_io_core::chunk_refresh::ChunkLedger
 impl core::fmt::Debug for antecedent_io_core::chunk_refresh::ChunkRetention
@@ -2453,6 +2526,9 @@ impl core::fmt::Debug for antecedent_io_core::mechanism_composition_artifact::Te
 impl core::fmt::Debug for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire
 impl core::fmt::Debug for antecedent_io_core::mechanism_wire::BasisTermWire
 impl core::fmt::Debug for antecedent_io_core::mechanism_wire::ParentBasisWire
+impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeExecutionFormat
+impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeExecutionStatus
+impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl core::fmt::Debug for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::fmt::Debug for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::fmt::Debug for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -2635,6 +2711,11 @@ impl core::fmt::Display for antecedent_io_core::callback_result_artifact::Callba
 impl core::fmt::Display for antecedent_io_core::capacity_account::AccountedKind
 impl core::fmt::Display for antecedent_io_core::capacity_account::AccountedOperation
 impl core::fmt::Display for antecedent_io_core::capacity_account::CapacityError
+impl core::fmt::Display for antecedent_io_core::capacity_account::DesignShape
+impl core::fmt::Display for antecedent_io_core::capacity_account::RowFileFault
+impl core::fmt::Display for antecedent_io_core::capacity_account::SpillFault
+impl core::fmt::Display for antecedent_io_core::capacity_account::WeightFault
+impl core::fmt::Display for antecedent_io_core::capacity_account::WeightedCapacityError
 impl core::fmt::Display for antecedent_io_core::chunk_refresh::BorrowError
 impl core::fmt::Display for antecedent_io_core::chunk_refresh::ChunkRetention
 impl core::fmt::Display for antecedent_io_core::chunk_refresh::LagRefusal
@@ -2725,7 +2806,15 @@ impl core::marker::Copy for antecedent_io_core::calibration::ConfirmedRegion
 impl core::marker::Copy for antecedent_io_core::calibration::RangeResolution
 impl core::marker::Copy for antecedent_io_core::capacity_account::AccountedKind
 impl core::marker::Copy for antecedent_io_core::capacity_account::AccountedOperation
+impl core::marker::Copy for antecedent_io_core::capacity_account::CapacityControl
 impl core::marker::Copy for antecedent_io_core::capacity_account::CapacityError
+impl core::marker::Copy for antecedent_io_core::capacity_account::CeilingCharges
+impl core::marker::Copy for antecedent_io_core::capacity_account::DesignShape
+impl core::marker::Copy for antecedent_io_core::capacity_account::LeverageSummary
+impl core::marker::Copy for antecedent_io_core::capacity_account::ResidualCheck
+impl core::marker::Copy for antecedent_io_core::capacity_account::RowFileFault
+impl core::marker::Copy for antecedent_io_core::capacity_account::SpillFault
+impl core::marker::Copy for antecedent_io_core::capacity_account::WeightFault
 impl core::marker::Copy for antecedent_io_core::chunk_refresh::ChunkRetention
 impl core::marker::Copy for antecedent_io_core::chunk_refresh::ChunkRow
 impl core::marker::Copy for antecedent_io_core::chunk_refresh::ChunkState
@@ -2751,6 +2840,8 @@ impl core::marker::Copy for antecedent_io_core::graphless_support::GraphlessAssi
 impl core::marker::Copy for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::marker::Copy for antecedent_io_core::measurement_model_wire::ReplayedValues
 impl core::marker::Copy for antecedent_io_core::mechanism_wire::BasisTermWire
+impl core::marker::Copy for antecedent_io_core::native_execution_wire::NativeExecutionFormat
+impl core::marker::Copy for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::marker::Copy for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::marker::Copy for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::marker::Copy for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -3096,8 +3187,22 @@ impl core::marker::Freeze for antecedent_io_core::callback_result_artifact::Upda
 impl core::marker::Freeze for antecedent_io_core::capacity_account::AccountedKind [auto]
 impl core::marker::Freeze for antecedent_io_core::capacity_account::AccountedOperation [auto]
 impl core::marker::Freeze for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::CapacityControl [auto]
 impl core::marker::Freeze for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::CapacityOptions [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::CeilingCharges [auto]
 impl core::marker::Freeze for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::DesignShape [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::FileWeightedRows [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::GaussianCrossProducts [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::LeverageSummary [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::ResidualCheck [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::RowFileFault [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::SpillFault [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::SpillOptions [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::WeightFault [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::WeightedCapacityError [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
 impl core::marker::Freeze for antecedent_io_core::chunk_refresh::BorrowError [auto]
 impl core::marker::Freeze for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
 impl core::marker::Freeze for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
@@ -3297,6 +3402,9 @@ impl core::marker::Freeze for antecedent_io_core::mechanism_composition_artifact
 impl core::marker::Freeze for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire [auto]
 impl core::marker::Freeze for antecedent_io_core::mechanism_wire::BasisTermWire [auto]
 impl core::marker::Freeze for antecedent_io_core::mechanism_wire::ParentBasisWire [auto]
+impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
+impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
+impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::marker::Freeze for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -3790,8 +3898,25 @@ impl core::marker::Send for antecedent_io_core::callback_result_artifact::Update
 impl core::marker::Send for antecedent_io_core::capacity_account::AccountedKind [auto]
 impl core::marker::Send for antecedent_io_core::capacity_account::AccountedOperation [auto]
 impl core::marker::Send for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::CapacityControl [auto]
 impl core::marker::Send for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::CapacityOptions [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::CeilingCharges [auto]
 impl core::marker::Send for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::DesignShape [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::FileWeightedRows [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::GaussianCrossProducts [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::LeverageSummary [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::ResidualCheck [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::RowFileFault [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::SpillFault [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::SpillHandle [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::SpillOptions [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::SpilledCapacity [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::WeightFault [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::WeightedCapacityError [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
 impl core::marker::Send for antecedent_io_core::chunk_refresh::BorrowError [auto]
 impl core::marker::Send for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
 impl core::marker::Send for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
@@ -3991,6 +4116,9 @@ impl core::marker::Send for antecedent_io_core::mechanism_composition_artifact::
 impl core::marker::Send for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire [auto]
 impl core::marker::Send for antecedent_io_core::mechanism_wire::BasisTermWire [auto]
 impl core::marker::Send for antecedent_io_core::mechanism_wire::ParentBasisWire [auto]
+impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
+impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
+impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::marker::Send for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Send for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Send for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -4471,7 +4599,16 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::callback_result_a
 impl core::marker::StructuralPartialEq for antecedent_io_core::callback_result_artifact::UpdateWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::AccountedKind
 impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::AccountedOperation
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::CapacityControl
 impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::CapacityError
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::CeilingCharges
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::DesignShape
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::GaussianCrossProducts
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::LeverageSummary
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::ResidualCheck
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::RowFileFault
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::SpillFault
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::WeightFault
 impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::BorrowError
 impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::ChunkRetention
 impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::ChunkRow
@@ -4653,6 +4790,9 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::mechanism_composi
 impl core::marker::StructuralPartialEq for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::mechanism_wire::BasisTermWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::mechanism_wire::ParentBasisWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_wire::NativeExecutionFormat
+impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_wire::NativeExecutionStatus
+impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -5135,8 +5275,25 @@ impl core::marker::Sync for antecedent_io_core::callback_result_artifact::Update
 impl core::marker::Sync for antecedent_io_core::capacity_account::AccountedKind [auto]
 impl core::marker::Sync for antecedent_io_core::capacity_account::AccountedOperation [auto]
 impl core::marker::Sync for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::CapacityControl [auto]
 impl core::marker::Sync for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::CapacityOptions [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::CeilingCharges [auto]
 impl core::marker::Sync for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::DesignShape [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::FileWeightedRows [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::GaussianCrossProducts [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::LeverageSummary [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::ResidualCheck [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::RowFileFault [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::SpillFault [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::SpillHandle [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::SpillOptions [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::SpilledCapacity [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::WeightFault [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::WeightedCapacityError [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
 impl core::marker::Sync for antecedent_io_core::chunk_refresh::BorrowError [auto]
 impl core::marker::Sync for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
 impl core::marker::Sync for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
@@ -5336,6 +5493,9 @@ impl core::marker::Sync for antecedent_io_core::mechanism_composition_artifact::
 impl core::marker::Sync for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire [auto]
 impl core::marker::Sync for antecedent_io_core::mechanism_wire::BasisTermWire [auto]
 impl core::marker::Sync for antecedent_io_core::mechanism_wire::ParentBasisWire [auto]
+impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
+impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
+impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::marker::Sync for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Sync for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Sync for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -5829,8 +5989,25 @@ impl core::marker::Unpin for antecedent_io_core::callback_result_artifact::Updat
 impl core::marker::Unpin for antecedent_io_core::capacity_account::AccountedKind [auto]
 impl core::marker::Unpin for antecedent_io_core::capacity_account::AccountedOperation [auto]
 impl core::marker::Unpin for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::CapacityControl [auto]
 impl core::marker::Unpin for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::CapacityOptions [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::CeilingCharges [auto]
 impl core::marker::Unpin for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::DesignShape [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::FileWeightedRows [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::GaussianCrossProducts [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::LeverageSummary [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::ResidualCheck [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::RowFileFault [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::SpillFault [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::SpillHandle [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::SpillOptions [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::SpilledCapacity [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::WeightFault [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::WeightedCapacityError [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
 impl core::marker::Unpin for antecedent_io_core::chunk_refresh::BorrowError [auto]
 impl core::marker::Unpin for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
 impl core::marker::Unpin for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
@@ -6030,6 +6207,9 @@ impl core::marker::Unpin for antecedent_io_core::mechanism_composition_artifact:
 impl core::marker::Unpin for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire [auto]
 impl core::marker::Unpin for antecedent_io_core::mechanism_wire::BasisTermWire [auto]
 impl core::marker::Unpin for antecedent_io_core::mechanism_wire::ParentBasisWire [auto]
+impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
+impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
+impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::marker::Unpin for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -6523,8 +6703,24 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::callback_re
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::AccountedKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::AccountedOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::CapacityControl [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::CapacityOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::CeilingCharges [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::DesignShape [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::FileWeightedRows [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::GaussianCrossProducts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::LeverageSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::ResidualCheck [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::RowFileFault [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::SpillFault [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::SpillHandle [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::SpillOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::SpilledCapacity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::WeightFault [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::BorrowError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
@@ -6724,6 +6920,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::mechanism_c
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::mechanism_wire::BasisTermWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::mechanism_wire::ParentBasisWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -7217,8 +7416,24 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::callback_resul
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::AccountedKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::AccountedOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::CapacityControl [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::CapacityOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::CeilingCharges [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::DesignShape [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::FileWeightedRows [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::GaussianCrossProducts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::LeverageSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::ResidualCheck [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::RowFileFault [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::SpillFault [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::SpillHandle [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::SpillOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::SpilledCapacity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::WeightFault [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::BorrowError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
@@ -7418,6 +7633,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::mechanism_comp
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::mechanism_wire::BasisTermWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::mechanism_wire::ParentBasisWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionFormat [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
@@ -7977,6 +8195,9 @@ impl serde_core::ser::Serialize for antecedent_io_core::mechanism_composition_ar
 impl serde_core::ser::Serialize for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire
 impl serde_core::ser::Serialize for antecedent_io_core::mechanism_wire::BasisTermWire
 impl serde_core::ser::Serialize for antecedent_io_core::mechanism_wire::ParentBasisWire
+impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::NativeExecutionFormat
+impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::NativeExecutionStatus
+impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl serde_core::ser::Serialize for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl serde_core::ser::Serialize for antecedent_io_core::plan_wire::DataClassificationWire
 impl serde_core::ser::Serialize for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -8113,6 +8334,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::transported_counterfactu
 impl serde_core::ser::Serialize for antecedent_io_core::wire::GraphCpdagWire
 impl serde_core::ser::Serialize for antecedent_io_core::wire::ScalarTypeWire
 impl<'a> core::clone::Clone for antecedent_io_core::ScoreTableKey<'a>
+impl<'a> core::clone::Clone for antecedent_io_core::capacity_account::ResidentWeightedRows<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::cmp::Eq for antecedent_io_core::feature_version::RequestedVersion<'a>
@@ -8120,6 +8342,7 @@ impl<'a> core::cmp::Eq for antecedent_io_core::graphless_support::GraphlessSuppo
 impl<'a> core::cmp::PartialEq for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::cmp::PartialEq for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::fmt::Debug for antecedent_io_core::ScoreTableKey<'a>
+impl<'a> core::fmt::Debug for antecedent_io_core::capacity_account::ResidentWeightedRows<'a>
 impl<'a> core::fmt::Debug for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::fmt::Debug for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::ScoreTableKey<'a>
@@ -8128,11 +8351,13 @@ impl<'a> core::marker::Copy for antecedent_io_core::graphless_support::Graphless
 impl<'a> core::marker::Freeze for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_io_core::feature_version::RequestedVersion<'a>
@@ -8140,21 +8365,25 @@ impl<'a> core::marker::StructuralPartialEq for antecedent_io_core::graphless_sup
 impl<'a> core::marker::Sync for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'de, T> serde_core::de::Deserialize<'de> for antecedent_io_core::SlotSectionWire<T> where T: serde_core::de::Deserialize<'de>
@@ -8556,6 +8785,9 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::mechanism_com
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::mechanism_composition_artifact::UncertaintyWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::mechanism_wire::BasisTermWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::mechanism_wire::ParentBasisWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execution_wire::NativeExecutionFormat
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execution_wire::NativeExecutionStatus
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::plan_wire::DataClassificationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::plan_wire::KernelSelectionWire
@@ -9001,6 +9233,7 @@ pub enum antecedent_io_core::calibration::RangeResolution
 pub enum antecedent_io_core::callback_result_artifact::CallbackOutcome
 pub enum antecedent_io_core::capacity_account::AccountedKind
 pub enum antecedent_io_core::capacity_account::AccountedOperation
+pub enum antecedent_io_core::capacity_account::CapacityControl
 pub enum antecedent_io_core::chunk_refresh::ChunkRetention
 pub enum antecedent_io_core::chunk_refresh::LagBoundary
 pub enum antecedent_io_core::chunk_refresh::LagNextAttempt
@@ -9025,6 +9258,8 @@ pub enum antecedent_io_core::mechanism_composition_artifact::DomainWire
 pub enum antecedent_io_core::mechanism_composition_artifact::MechanismFormWire
 pub enum antecedent_io_core::mechanism_composition_artifact::TermWire
 pub enum antecedent_io_core::mechanism_wire::BasisTermWire
+pub enum antecedent_io_core::native_execution_wire::NativeExecutionFormat
+pub enum antecedent_io_core::native_execution_wire::NativeExecutionStatus
 pub enum antecedent_io_core::plan_wire::BufferMaterializationWire
 pub enum antecedent_io_core::plan_wire::DataClassificationWire
 pub enum antecedent_io_core::plan_wire::KernelSelectionWire
@@ -9110,6 +9345,7 @@ pub field antecedent_io_core::AnalysisResultWire::learner_provenance: alloc::vec
 pub field antecedent_io_core::AnalysisResultWire::local_polynomial_ratio: core::option::Option<antecedent_io_core::LocalPolynomialRatioWire>
 pub field antecedent_io_core::AnalysisResultWire::longitudinal_regime: core::option::Option<antecedent_io_core::LongitudinalRegimeWire>
 pub field antecedent_io_core::AnalysisResultWire::mediation_grid: core::option::Option<antecedent_io_core::TemporalMediationGridWire>
+pub field antecedent_io_core::AnalysisResultWire::native_execution: core::option::Option<antecedent_io_core::native_execution_wire::NativeExecutionWire>
 pub field antecedent_io_core::AnalysisResultWire::outcome_oof_r2: core::option::Option<f64>
 pub field antecedent_io_core::AnalysisResultWire::panel_did: core::option::Option<antecedent_io_core::PanelDidWire>
 pub field antecedent_io_core::AnalysisResultWire::policy_value: core::option::Option<antecedent_io_core::PolicyValueWire>
@@ -9467,6 +9703,7 @@ pub field antecedent_io_core::ExecutionPerformanceWire::copy_count: u64
 pub field antecedent_io_core::ExecutionPerformanceWire::early_stopped: bool
 pub field antecedent_io_core::ExecutionPerformanceWire::latency_mode: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::ExecutionPerformanceWire::n_draws: core::option::Option<u32>
+pub field antecedent_io_core::ExecutionPerformanceWire::native_execution: core::option::Option<antecedent_io_core::native_execution_wire::NativeExecutionWire>
 pub field antecedent_io_core::ExecutionPerformanceWire::peak_rss_bytes: core::option::Option<u64>
 pub field antecedent_io_core::ExecutionPerformanceWire::scalar_fallback_count: u64
 pub field antecedent_io_core::ExecutionPerformanceWire::stage_timings_ns: alloc::vec::Vec<(alloc::string::String, u64)>
@@ -10601,6 +10838,48 @@ pub field antecedent_io_core::callback_result_artifact::TrustWire::receipt_diges
 pub field antecedent_io_core::callback_result_artifact::UpdateWire::candidate_id: alloc::string::String
 pub field antecedent_io_core::callback_result_artifact::UpdateWire::observation: antecedent_io_core::quantity_wire::ScientificQuantityWire
 pub field antecedent_io_core::callback_result_artifact::UpdateWire::prior_id: alloc::string::String
+pub field antecedent_io_core::capacity_account::CapacityOptions::batch_rows: usize
+pub field antecedent_io_core::capacity_account::CapacityOptions::cancellation: core::option::Option<antecedent_core::execution::CancellationToken>
+pub field antecedent_io_core::capacity_account::CapacityOptions::ceiling_bytes: u64
+pub field antecedent_io_core::capacity_account::CapacityOptions::retention: antecedent_core::execution_facts::OutputRetention
+pub field antecedent_io_core::capacity_account::CapacityOptions::spill: core::option::Option<antecedent_io_core::capacity_account::SpillOptions>
+pub field antecedent_io_core::capacity_account::CeilingCharges::content_identity_bytes: u64
+pub field antecedent_io_core::capacity_account::CeilingCharges::decoder_bytes: u64
+pub field antecedent_io_core::capacity_account::CeilingCharges::input_ownership_bytes: u64
+pub field antecedent_io_core::capacity_account::CeilingCharges::output_bytes: u64
+pub field antecedent_io_core::capacity_account::CeilingCharges::spill_bytes: u64
+pub field antecedent_io_core::capacity_account::CeilingCharges::total_bytes: u64
+pub field antecedent_io_core::capacity_account::GaussianCrossProducts::n_eff: f64
+pub field antecedent_io_core::capacity_account::GaussianCrossProducts::xtwx: alloc::vec::Vec<f64>
+pub field antecedent_io_core::capacity_account::GaussianCrossProducts::xtwy: alloc::vec::Vec<f64>
+pub field antecedent_io_core::capacity_account::GaussianCrossProducts::ytwy: f64
+pub field antecedent_io_core::capacity_account::LeverageSummary::max: f64
+pub field antecedent_io_core::capacity_account::LeverageSummary::saturated_rows: u64
+pub field antecedent_io_core::capacity_account::LeverageSummary::sum: f64
+pub field antecedent_io_core::capacity_account::ResidualCheck::max_abs_residual: f64
+pub field antecedent_io_core::capacity_account::ResidualCheck::positive_weight_rows: u64
+pub field antecedent_io_core::capacity_account::ResidualCheck::weighted_rss: f64
+pub field antecedent_io_core::capacity_account::SpillOptions::path: std::path::PathBuf
+pub field antecedent_io_core::capacity_account::SpillOptions::pool: core::option::Option<antecedent_core::device_reservation::DeviceReservationPool>
+pub field antecedent_io_core::capacity_account::SpilledCapacity::batches: u64
+pub field antecedent_io_core::capacity_account::SpilledCapacity::charges: antecedent_io_core::capacity_account::CeilingCharges
+pub field antecedent_io_core::capacity_account::SpilledCapacity::content_identity: [u8; 32]
+pub field antecedent_io_core::capacity_account::SpilledCapacity::control: antecedent_io_core::capacity_account::CapacityControl
+pub field antecedent_io_core::capacity_account::SpilledCapacity::handle: antecedent_io_core::capacity_account::SpillHandle
+pub field antecedent_io_core::capacity_account::SpilledCapacity::retention: antecedent_core::execution_facts::OutputRetention
+pub field antecedent_io_core::capacity_account::SpilledCapacity::source_passes: u64
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::batches: u64
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::charges: antecedent_io_core::capacity_account::CeilingCharges
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::content_identity: [u8; 32]
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::control: antecedent_io_core::capacity_account::CapacityControl
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::cross_products: antecedent_io_core::capacity_account::GaussianCrossProducts
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::fit: antecedent_stats::linalg::FitDiagnostics
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::leverage: antecedent_io_core::capacity_account::LeverageSummary
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::residual: antecedent_io_core::capacity_account::ResidualCheck
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::retention: antecedent_core::execution_facts::OutputRetention
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::robust_covariance: alloc::vec::Vec<f64>
+pub field antecedent_io_core::capacity_account::WeightedCapacityResult::source_passes: u64
 pub field antecedent_io_core::chunk_refresh::ChunkState::count: u64
 pub field antecedent_io_core::chunk_refresh::ChunkState::id: u64
 pub field antecedent_io_core::chunk_refresh::ChunkState::included: bool
@@ -11354,6 +11633,13 @@ pub field antecedent_io_core::mechanism_wire::ParentBasisWire::knots: alloc::vec
 pub field antecedent_io_core::mechanism_wire::ParentBasisWire::n_parents: usize
 pub field antecedent_io_core::mechanism_wire::ParentBasisWire::scales: alloc::vec::Vec<f64>
 pub field antecedent_io_core::mechanism_wire::ParentBasisWire::terms: alloc::vec::Vec<antecedent_io_core::mechanism_wire::BasisTermWire>
+pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::backend: alloc::string::String
+pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::counts: [u64; 5]
+pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::coverage: u64
+pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::format: antecedent_io_core::native_execution_wire::NativeExecutionFormat
+pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::kernel_policy: [bool; 3]
+pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::resources: [u64; 3]
+pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::status: antecedent_io_core::native_execution_wire::NativeExecutionStatus
 pub field antecedent_io_core::provider_envelope::ProviderEnvelope::external_artifact: core::option::Option<alloc::vec::Vec<u8>>
 pub field antecedent_io_core::provider_envelope::ProviderEnvelope::header: antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
 pub field antecedent_io_core::provider_envelope::ProviderEnvelopeHeader::assumptions: alloc::vec::Vec<alloc::string::String>
@@ -12256,18 +12542,30 @@ pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn is_empty(&sel
 pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn kind(&self, id: u64) -> core::option::Option<antecedent_io_core::capacity_account::AccountedKind>
 pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn len(&self) -> usize
 pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn materialize(&mut self, id: u64, bytes: &alloc::sync::Arc<[u8]>) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn read_disk_artifact(&self, id: u64) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::capacity_account::CapacityError>
 pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn release_decompression(&mut self, buffer: antecedent_io_core::capacity_account::DecompressionBuffer) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
 pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn reserve_decompression(&mut self, declared: u64) -> core::result::Result<antecedent_io_core::capacity_account::DecompressionBuffer, antecedent_io_core::capacity_account::CapacityError>
 pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn resident_bytes(&self) -> core::result::Result<u64, antecedent_io_core::capacity_account::CapacityError>
-pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn retain_disk_backed(&mut self) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn retain_disk_backed(&mut self, directory: &std::path::Path) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
 pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn retain_summary_only(&mut self) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
 pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn stored_bytes(&self, id: u64) -> core::option::Option<alloc::sync::Arc<[u8]>>
 pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn would_fit(&self, additional: u64) -> core::result::Result<bool, antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityOptions>::const fn new(batch_rows: usize, ceiling_bytes: u64, retention: antecedent_core::execution_facts::OutputRetention) -> Self
 pub fn <antecedent_io_core::capacity_account::DecompressionBuffer>::const fn id(&self) -> u64
 pub fn <antecedent_io_core::capacity_account::DecompressionBuffer>::const fn requested(&self) -> usize
 pub fn <antecedent_io_core::capacity_account::DecompressionBuffer>::fn as_slice(&self) -> &[u8]
 pub fn <antecedent_io_core::capacity_account::DecompressionBuffer>::fn capacity(&self) -> usize
 pub fn <antecedent_io_core::capacity_account::DecompressionBuffer>::fn write(&mut self, bytes: &[u8]) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::FileWeightedRows>::fn open(path: &std::path::Path) -> core::result::Result<Self, antecedent_io_core::capacity_account::WeightedCapacityError>
+pub fn <antecedent_io_core::capacity_account::ResidentWeightedRows<'a>>::fn try_new(x_rowmajor: &'a [f64], y: &'a [f64], weights: &'a [f64]) -> core::result::Result<Self, antecedent_io_core::capacity_account::WeightedCapacityError>
+pub fn <antecedent_io_core::capacity_account::SpillHandle>::const fn digest(&self) -> [u8; 32]
+pub fn <antecedent_io_core::capacity_account::SpillHandle>::const fn frame_bytes(&self) -> u64
+pub fn <antecedent_io_core::capacity_account::SpillHandle>::const fn holds_reservation(&self) -> bool
+pub fn <antecedent_io_core::capacity_account::SpillHandle>::fn path(&self) -> &std::path::Path
+pub fn <antecedent_io_core::capacity_account::SpillHandle>::fn remove(self) -> core::result::Result<(), antecedent_io_core::capacity_account::WeightedCapacityError>
+pub fn <antecedent_io_core::capacity_account::WeightedCapacityOutput>::const fn charges(&self) -> antecedent_io_core::capacity_account::CeilingCharges
+pub fn <antecedent_io_core::capacity_account::WeightedCapacityOutput>::fn into_resident(self) -> core::option::Option<antecedent_io_core::capacity_account::WeightedCapacityResult>
+pub fn <antecedent_io_core::capacity_account::WeightedCapacityOutput>::fn into_spilled(self) -> core::option::Option<antecedent_io_core::capacity_account::SpilledCapacity>
 pub fn <antecedent_io_core::chunk_refresh::BorrowError>::const fn refusal(&self) -> core::option::Option<&antecedent_io_core::chunk_refresh::LagRefusal>
 pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::const fn cached_snapshot(&self) -> &antecedent_io_core::chunk_refresh::LedgerSnapshot
 pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::const fn impute_gap(&self) -> core::result::Result<(), antecedent_io_core::chunk_refresh::RefreshError>
@@ -12518,6 +12816,8 @@ pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::f
 pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::fn new(model: &antecedent_core::measurement_model::MeasurementModel, result: core::option::Option<&antecedent_io_core::measurement_model_wire::MeasurementResult>) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::fn result(&self) -> core::result::Result<core::option::Option<antecedent_io_core::measurement_model_wire::MeasurementResult>, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::native_execution_wire::NativeExecutionWire>::fn from_facts(facts: &antecedent_core::execution_facts::ExecutionFacts) -> core::option::Option<Self>
+pub fn <antecedent_io_core::native_execution_wire::NativeExecutionWire>::fn recorded_facts(&self) -> antecedent_core::execution_facts::ExecutionFacts
 pub fn <antecedent_io_core::provider_envelope::ProviderEnvelopeHeader>::fn artifact_id(&self) -> alloc::string::String
 pub fn <antecedent_io_core::provider_replay::ProviderReplay>::const fn fresh_against(&self, previous: &Self) -> antecedent_io_core::provider_replay::ReplayFreshness
 pub fn <antecedent_io_core::provider_verification_artifact::ProviderVerificationReceiptWire>::fn into_receipt(self) -> core::result::Result<antecedent_contract::provider_verification::ProviderVerificationReceipt, antecedent_io_core::IoError>
@@ -12711,6 +13011,9 @@ pub fn antecedent_io_core::canonical_dag_wire(dag: &antecedent_graph::dag::Dag) 
 pub fn antecedent_io_core::canonical_json::canonical_json_digest(domain: &str, json: &str) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn antecedent_io_core::canonical_json::canonical_json_value_digest(domain: &str, value: &serde_json::value::Value) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn antecedent_io_core::canonical_temporal_dag_wire(graph: &antecedent_graph::temporal::TemporalDag) -> core::result::Result<antecedent_io_core::TemporalGraphWire, antecedent_io_core::IoError>
+pub fn antecedent_io_core::capacity_account::encode_weighted_row_file(x_rowmajor: &[f64], y: &[f64], weights: &[f64]) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::capacity_account::WeightedCapacityError>
+pub fn antecedent_io_core::capacity_account::read_spilled_summary(handle: &antecedent_io_core::capacity_account::SpillHandle) -> core::result::Result<antecedent_io_core::capacity_account::WeightedCapacityResult, antecedent_io_core::capacity_account::WeightedCapacityError>
+pub fn antecedent_io_core::capacity_account::run_weighted_capacity(control: antecedent_io_core::capacity_account::CapacityControl, source: &mut dyn antecedent_io_core::capacity_account::WeightedRowSource, options: &antecedent_io_core::capacity_account::CapacityOptions) -> core::result::Result<antecedent_io_core::capacity_account::WeightedCapacityOutput, antecedent_io_core::capacity_account::WeightedCapacityError>
 pub fn antecedent_io_core::causal_artifact::decode_causal_payload_artifact(bytes: &[u8]) -> core::result::Result<(antecedent_io_core::EncodedArtifact, antecedent_io_core::CausalPayloadHeader, antecedent_io_core::CausalPayloadWire), antecedent_io_core::IoError>
 pub fn antecedent_io_core::causal_artifact::encode_causal_payload_artifact(payload: &antecedent_io_core::CausalPayloadWire, variable_names: alloc::vec::Vec<alloc::string::String>, artifact_id: &str) -> core::result::Result<antecedent_io_core::EncodedArtifact, antecedent_io_core::IoError>
 pub fn antecedent_io_core::causal_query_from_wire(w: &antecedent_io_core::CausalQueryWire) -> core::result::Result<antecedent_core::query::CausalQuery, antecedent_io_core::IoError>
@@ -12989,6 +13292,7 @@ pub mod antecedent_io_core::mechanism_composition_artifact
 pub mod antecedent_io_core::mechanism_wire
 pub mod antecedent_io_core::migrate
 pub mod antecedent_io_core::mmap_file
+pub mod antecedent_io_core::native_execution_wire
 pub mod antecedent_io_core::observation_query_artifact
 pub mod antecedent_io_core::plan_wire
 pub mod antecedent_io_core::policy_program_artifact
@@ -13282,8 +13586,22 @@ pub struct antecedent_io_core::callback_result_artifact::TrustWire
 pub struct antecedent_io_core::callback_result_artifact::UpdateWire
 pub struct antecedent_io_core::capacity_account::CapacityAccount
 pub struct antecedent_io_core::capacity_account::CapacityAccount has private fields
+pub struct antecedent_io_core::capacity_account::CapacityOptions
+pub struct antecedent_io_core::capacity_account::CeilingCharges
 pub struct antecedent_io_core::capacity_account::DecompressionBuffer
 pub struct antecedent_io_core::capacity_account::DecompressionBuffer has private fields
+pub struct antecedent_io_core::capacity_account::FileWeightedRows
+pub struct antecedent_io_core::capacity_account::FileWeightedRows has private fields
+pub struct antecedent_io_core::capacity_account::GaussianCrossProducts
+pub struct antecedent_io_core::capacity_account::LeverageSummary
+pub struct antecedent_io_core::capacity_account::ResidentWeightedRows has private fields
+pub struct antecedent_io_core::capacity_account::ResidentWeightedRows<'a>
+pub struct antecedent_io_core::capacity_account::ResidualCheck
+pub struct antecedent_io_core::capacity_account::SpillHandle
+pub struct antecedent_io_core::capacity_account::SpillHandle has private fields
+pub struct antecedent_io_core::capacity_account::SpillOptions
+pub struct antecedent_io_core::capacity_account::SpilledCapacity
+pub struct antecedent_io_core::capacity_account::WeightedCapacityResult
 pub struct antecedent_io_core::chunk_refresh::ChunkLedger
 pub struct antecedent_io_core::chunk_refresh::ChunkLedger has private fields
 pub struct antecedent_io_core::chunk_refresh::ChunkRow
@@ -13472,6 +13790,7 @@ pub struct antecedent_io_core::mechanism_composition_artifact::SelectionDiagramW
 pub struct antecedent_io_core::mechanism_composition_artifact::TabularRowWire
 pub struct antecedent_io_core::mechanism_composition_artifact::UncertaintyWire
 pub struct antecedent_io_core::mechanism_wire::ParentBasisWire
+pub struct antecedent_io_core::native_execution_wire::NativeExecutionWire
 pub struct antecedent_io_core::provider_envelope::ProviderEnvelope
 pub struct antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
 pub struct antecedent_io_core::provider_replay::ProviderReplay
@@ -13606,7 +13925,15 @@ pub struct antecedent_io_core::transported_counterfactual_artifact::TransportedC
 pub struct antecedent_io_core::transported_counterfactual_artifact::UnitContrastWire
 pub struct antecedent_io_core::wire::GraphCpdagWire
 pub trait antecedent_io_core::artifact_codec::VersionWord: core::marker::Copy + core::cmp::Eq + serde_core::de::DeserializeOwned + private::Sealed
+pub trait antecedent_io_core::capacity_account::WeightedRowSource
 pub trait fn fn antecedent_io_core::artifact_codec::CanonicalSize::size(&mut self, value: usize) -> &mut Self
+pub trait fn fn antecedent_io_core::capacity_account::WeightedRowSource::allocated_decoder_bytes(&self) -> u64
+pub trait fn fn antecedent_io_core::capacity_account::WeightedRowSource::decoder_reservation(&self, batch_rows: usize) -> core::result::Result<u64, antecedent_io_core::capacity_account::WeightedCapacityError>
+pub trait fn fn antecedent_io_core::capacity_account::WeightedRowSource::input_ownership_bytes(&self) -> u64
+pub trait fn fn antecedent_io_core::capacity_account::WeightedRowSource::ncols(&self) -> usize
+pub trait fn fn antecedent_io_core::capacity_account::WeightedRowSource::prepare_decoder(&mut self, batch_rows: usize) -> core::result::Result<(), antecedent_io_core::capacity_account::WeightedCapacityError>
+pub trait fn fn antecedent_io_core::capacity_account::WeightedRowSource::read_batch(&mut self, max_rows: usize, x_rowmajor: &mut [f64], y: &mut [f64], weights: &mut [f64]) -> core::result::Result<usize, antecedent_io_core::capacity_account::WeightedCapacityError>
+pub trait fn fn antecedent_io_core::capacity_account::WeightedRowSource::rewind(&mut self) -> core::result::Result<(), antecedent_io_core::capacity_account::WeightedCapacityError>
 pub type antecedent_io_core::CpdagWire = antecedent_io_core::wire::GraphCpdagWire
 pub type antecedent_io_core::TemporalGraphWire = antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire
 pub type antecedent_io_core::counterfactual_id_artifact::CounterfactualIdSearchWire = antecedent_identify::counterfactual_id::CounterfactualIdSearchRecord
@@ -14774,15 +15101,62 @@ pub variant antecedent_io_core::capacity_account::AccountedOperation::ReserveDec
 pub variant antecedent_io_core::capacity_account::AccountedOperation::ReuseFullState
 pub variant antecedent_io_core::capacity_account::AccountedOperation::ReuseSummary
 pub variant antecedent_io_core::capacity_account::AccountedOperation::RowReconstruction
+pub variant antecedent_io_core::capacity_account::CapacityControl::GaussianBayes
+pub variant antecedent_io_core::capacity_account::CapacityControl::Glm
 pub variant antecedent_io_core::capacity_account::CapacityError::DecompressionCap { declared: u64, cap: usize }
 pub variant antecedent_io_core::capacity_account::CapacityError::EmptyPayload
 pub variant antecedent_io_core::capacity_account::CapacityError::OverBudget { resident: u64, additional: u64, budget: u64 }
 pub variant antecedent_io_core::capacity_account::CapacityError::Overflow
 pub variant antecedent_io_core::capacity_account::CapacityError::ReservationOutstanding
 pub variant antecedent_io_core::capacity_account::CapacityError::Retention { retention: antecedent_core::execution_facts::OutputRetention, operation: antecedent_io_core::capacity_account::AccountedOperation }
+pub variant antecedent_io_core::capacity_account::CapacityError::Spill(antecedent_io_core::capacity_account::SpillFault)
+pub variant antecedent_io_core::capacity_account::CapacityError::SpillAllocation { bytes: u64 }
+pub variant antecedent_io_core::capacity_account::CapacityError::SpillIo { context: &'static str, kind: std::io::error::ErrorKind }
 pub variant antecedent_io_core::capacity_account::CapacityError::SummaryExceedsBudget { needed: u64, budget: u64 }
 pub variant antecedent_io_core::capacity_account::CapacityError::UnknownEntry { id: u64 }
 pub variant antecedent_io_core::capacity_account::CapacityError::WritePastReservation { got: usize, requested: usize }
+pub variant antecedent_io_core::capacity_account::DesignShape::BatchWindow
+pub variant antecedent_io_core::capacity_account::DesignShape::DesignLength
+pub variant antecedent_io_core::capacity_account::DesignShape::Row
+pub variant antecedent_io_core::capacity_account::DesignShape::SolveWidth
+pub variant antecedent_io_core::capacity_account::DesignShape::WeightsLength
+pub variant antecedent_io_core::capacity_account::DesignShape::ZeroColumns
+pub variant antecedent_io_core::capacity_account::RowFileFault::BadMagic
+pub variant antecedent_io_core::capacity_account::RowFileFault::LengthMismatch { expected_bytes: u64, actual_bytes: u64 }
+pub variant antecedent_io_core::capacity_account::RowFileFault::ShortHeader
+pub variant antecedent_io_core::capacity_account::RowFileFault::ShortRecord
+pub variant antecedent_io_core::capacity_account::RowFileFault::UnsupportedVersion { found: u32 }
+pub variant antecedent_io_core::capacity_account::SpillFault::BadMagic
+pub variant antecedent_io_core::capacity_account::SpillFault::DigestMismatch
+pub variant antecedent_io_core::capacity_account::SpillFault::LengthMismatch { expected_bytes: u64, actual_bytes: u64 }
+pub variant antecedent_io_core::capacity_account::SpillFault::PayloadLayout
+pub variant antecedent_io_core::capacity_account::SpillFault::ShortFrame
+pub variant antecedent_io_core::capacity_account::SpillFault::UnknownBackend
+pub variant antecedent_io_core::capacity_account::SpillFault::UnsupportedVersion { found: u32 }
+pub variant antecedent_io_core::capacity_account::WeightFault::Negative
+pub variant antecedent_io_core::capacity_account::WeightFault::NotFinite
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Allocation { what: &'static str, bytes: u64, source: alloc::collections::TryReserveError }
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::BatchBound
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Cancelled
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::DecoderNotPrepared
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Empty
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Io { context: &'static str, source: std::io::error::Error }
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::NonFinite { row: u64 }
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::OverCeiling { ceiling: u64, total: u64, over_by: u64, charges: antecedent_io_core::capacity_account::CeilingCharges }
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Overflow
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::ReadPastBatch { requested: usize, bound: usize }
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::RetentionKeepsRows
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::RowFile(antecedent_io_core::capacity_account::RowFileFault)
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Shape(antecedent_io_core::capacity_account::DesignShape)
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Singular
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Solve(antecedent_stats::error::StatsError)
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::SourceChanged { first: [u8; 32], second: [u8; 32] }
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Spill(antecedent_io_core::capacity_account::SpillFault)
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::SpillPathRequired
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::SpillPool(antecedent_core::device_reservation::DeviceReservationError)
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Weight { row: u64, reason: antecedent_io_core::capacity_account::WeightFault }
+pub variant antecedent_io_core::capacity_account::WeightedCapacityOutput::Resident(antecedent_io_core::capacity_account::WeightedCapacityResult)
+pub variant antecedent_io_core::capacity_account::WeightedCapacityOutput::Spilled(antecedent_io_core::capacity_account::SpilledCapacity)
 pub variant antecedent_io_core::chunk_refresh::BorrowError::Refused(antecedent_io_core::chunk_refresh::LagRefusal)
 pub variant antecedent_io_core::chunk_refresh::BorrowError::RowsNotRetained { retention: antecedent_io_core::chunk_refresh::ChunkRetention }
 pub variant antecedent_io_core::chunk_refresh::BorrowError::TargetOutsideChunk { target: usize, start: usize, end: usize }
@@ -14992,6 +15366,10 @@ pub variant antecedent_io_core::mechanism_composition_artifact::TermWire::Interc
 pub variant antecedent_io_core::mechanism_wire::BasisTermWire::Power { parent: u32, degree: u8 }
 pub variant antecedent_io_core::mechanism_wire::BasisTermWire::Product { left: u32, right: u32 }
 pub variant antecedent_io_core::mechanism_wire::BasisTermWire::Truncated { parent: u32, knot: u32 }
+pub variant antecedent_io_core::native_execution_wire::NativeExecutionFormat::V1
+pub variant antecedent_io_core::native_execution_wire::NativeExecutionStatus::Cancelled
+pub variant antecedent_io_core::native_execution_wire::NativeExecutionStatus::Completed
+pub variant antecedent_io_core::native_execution_wire::NativeExecutionStatus::Failed
 pub variant antecedent_io_core::plan_wire::BufferMaterializationWire::Borrowed
 pub variant antecedent_io_core::plan_wire::BufferMaterializationWire::Chunked
 pub variant antecedent_io_core::plan_wire::BufferMaterializationWire::CopiedContiguous

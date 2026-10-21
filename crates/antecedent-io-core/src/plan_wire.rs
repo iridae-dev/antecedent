@@ -175,6 +175,9 @@ pub struct PhysicalExecutionPlanWire {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionPerformanceWire {
+    /// Optional native execution v1 observations; absent in earlier artifacts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_execution: Option<crate::native_execution_wire::NativeExecutionWire>,
     /// Wall ns.
     pub wall_time_ns: Option<u64>,
     /// Peak RSS.
@@ -313,6 +316,10 @@ pub fn physical_plan_from_wire(
 #[must_use]
 pub fn performance_to_wire(p: &ExecutionPerformanceRecord) -> ExecutionPerformanceWire {
     ExecutionPerformanceWire {
+        native_execution: p
+            .native_execution
+            .as_ref()
+            .and_then(crate::native_execution_wire::NativeExecutionWire::from_facts),
         wall_time_ns: p.wall_time_ns,
         peak_rss_bytes: p.peak_rss_bytes,
         copy_count: p.copy_count,
@@ -332,6 +339,10 @@ pub fn performance_to_wire(p: &ExecutionPerformanceRecord) -> ExecutionPerforman
 #[must_use]
 pub fn performance_from_wire(w: &ExecutionPerformanceWire) -> ExecutionPerformanceRecord {
     ExecutionPerformanceRecord {
+        native_execution: w
+            .native_execution
+            .as_ref()
+            .map(crate::native_execution_wire::NativeExecutionWire::recorded_facts),
         wall_time_ns: w.wall_time_ns,
         peak_rss_bytes: w.peak_rss_bytes,
         copy_count: w.copy_count,

@@ -5182,6 +5182,7 @@ pub field antecedent_contract::ExecutionPerformanceRecord::copy_count: u64
 pub field antecedent_contract::ExecutionPerformanceRecord::early_stopped: bool
 pub field antecedent_contract::ExecutionPerformanceRecord::latency_mode: core::option::Option<alloc::sync::Arc<str>>
 pub field antecedent_contract::ExecutionPerformanceRecord::n_draws: core::option::Option<u32>
+pub field antecedent_contract::ExecutionPerformanceRecord::native_execution: core::option::Option<antecedent_core::execution_facts::ExecutionFacts>
 pub field antecedent_contract::ExecutionPerformanceRecord::peak_rss_bytes: core::option::Option<u64>
 pub field antecedent_contract::ExecutionPerformanceRecord::scalar_fallback_count: u64
 pub field antecedent_contract::ExecutionPerformanceRecord::stage_timings_ns: alloc::vec::Vec<(alloc::sync::Arc<str>, u64)>

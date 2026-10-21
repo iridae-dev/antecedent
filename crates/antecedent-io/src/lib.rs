@@ -34,24 +34,24 @@ pub use antecedent_io_core::{
     ExecutionIdentityWire, ExecutionPerformanceWire, ExposureLevelWire, ExposureMappingWire,
     ExprArenaWire, ExprNodeWire, ExternalComposeIdentityWire, ExternalEstimateAttach,
     ExternalPriorSourceIdentityWire, FormatVersion, FunctionalProgramWire, GlmOptionsWire,
-    GraphIdentityWire, GridSpecWire, HedgeCertificateWire, HorizonAdjustmentNodeWire,
-    IdentificationEnvelopeWire, IdentificationIdentityWire, IdentificationProductWire,
-    IdentificationResultWire, IdentificationSlotWire, IdentificationStatusWire,
-    IdentifiedEstimandWire, IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire,
-    InferenceBindingWire, InferentialCommitmentsWire, InterferenceFunctionalWire,
-    InterferenceInferenceWire, InterferencePointwiseIntervalWire, InterferenceQueryWire,
-    InterferenceSnapshotWire, IntervalInterpretationWire, InterventionWire,
+    GraphIdentityWire, GridSpecWire, HedgeCertificateWire, HistoryMatchWire,
+    HorizonAdjustmentNodeWire, IdentificationEnvelopeWire, IdentificationIdentityWire,
+    IdentificationProductWire, IdentificationResultWire, IdentificationSlotWire,
+    IdentificationStatusWire, IdentifiedEstimandWire, IdentifiedSetIntervalMethodWire,
+    IdentifiedSetIntervalWire, InferenceBindingWire, InferentialCommitmentsWire,
+    InterferenceFunctionalWire, InterferenceInferenceWire, InterferencePointwiseIntervalWire,
+    InterferenceQueryWire, InterferenceSnapshotWire, IntervalInterpretationWire, InterventionWire,
     InterventionalDistributionQueryWire, InterventionalDistributionWire, IoError, KernelPolicyWire,
     LaggedLinkWire, LinearFitMomentsWire, LocalPolynomialRatioWire, LogicalAnalysisPlanWire,
-    HistoryMatchWire, LongitudinalRegimeWire, SequentialContrastWire, MAGIC, MappedArtifactReader, MappedSection, MarkedEdgeWire,
+    LongitudinalRegimeWire, MAGIC, MappedArtifactReader, MappedSection, MarkedEdgeWire,
     MeasurementSpecWire, MechanismSlotWire, MechanismStoreWire, MediationPosteriorSummaryWire,
     MissingPolicyWire, ModelKindWire, NestedCounterfactualFitWire, NetworkXAdjacency,
     NetworkXNodeLink, ObligationSectionWire, ObservationAssumptionWire, ObservationIdentityWire,
     ObservationOptionsWire, ObservationSpecWire, OutSection, OverlapPolicyWire,
-    PRIOR_SOURCE_META_SECTION, PagJson, PagWire, PanelDidWire, ParticipantBindingWire,
-    PathSpecificEffectQueryWire, PayloadDigestWire, PhysicalExecutionPlanWire, PolicyValueWire,
-    PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PosteriorPreparationWire, PosteriorQuantityWire,
-    PriorArtifactBody,
+    POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY, PRIOR_SOURCE_META_SECTION, PagJson,
+    PagWire, PanelDidWire, ParticipantBindingWire, PathSpecificEffectQueryWire, PayloadDigestWire,
+    PhysicalExecutionPlanWire, PolicyValueWire, PosteriorAtomGraphWire, PosteriorAtomIdentityWire,
+    PosteriorPreparationWire, PosteriorQuantityWire, PosteriorRowWire, PriorArtifactBody,
     PriorCatalog, PriorMapping, PriorMappingIdentityWire, PriorSetIdentityWire, PriorSourceMeta,
     PriorSourceRef, PriorSpecIdentityWire, ProgramIdentityWire, ProvenanceGraphWire,
     ProvenanceNodeWire, ProvenanceWire, ROW_WEIGHTS_PAYLOAD, RandomizationDesignWire,
@@ -61,12 +61,11 @@ pub use antecedent_io_core::{
     ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire, STABLE_FORMAT,
     SUPPORTED_SOURCE_FORMATS, SchemaWire, SchemaWireV01, ScoreReuseIdentityWire, ScoreTableKey,
     SectionAccess, SectionBytes, SectionDescriptor, SectionIndexEntry, SectionLoadStats,
-    SemanticVersion, SetInterventionWire, SlotSectionWire, SplitIdentityWire, StaticResultWire,
-    StructuralResponseAtomWire, StructuralResponseMixtureWire, StructuralWeightBasisWire,
-    SupportDiagnosticWire, SupportRegionWire, SupportReportWire, SupportSlotWire,
-    POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY, PosteriorRowWire,
-    SupportStatusWire, SurvivalDifferenceBandWire, SurvivalWire, SyntheticControlWire,
-    SyntheticDidWire, TargetDesign, TargetIdentityWire, TargetPopulationWire,
+    SemanticVersion, SequentialContrastWire, SetInterventionWire, SlotSectionWire,
+    SplitIdentityWire, StaticResultWire, StructuralResponseAtomWire, StructuralResponseMixtureWire,
+    StructuralWeightBasisWire, SupportDiagnosticWire, SupportRegionWire, SupportReportWire,
+    SupportSlotWire, SupportStatusWire, SurvivalDifferenceBandWire, SurvivalWire,
+    SyntheticControlWire, SyntheticDidWire, TargetDesign, TargetIdentityWire, TargetPopulationWire,
     TargetWeightsIdentityWire, TargetWeightsSectionWire, TemporalClassIdentityWire,
     TemporalCoordinates, TemporalGraphWire, TemporalIdentificationWire, TemporalMediationGridWire,
     TemporalMediationSliceWire, TemporalMediationUncertaintyWire, TemporalNodeKeyWire,
@@ -157,9 +156,9 @@ pub mod bridge_interval;
 pub mod counterfactual_transport_artifact;
 pub mod cpdag_completion_artifact;
 pub mod cyclic_family_artifact;
-pub mod cyclic_graph;
 pub mod cyclic_functional;
 pub mod cyclic_gaussian_functional;
+pub mod cyclic_graph;
 pub mod cyclic_system_artifact;
 mod distribution_factor_laws;
 pub use distribution_factor_laws::distribution_factor_laws_to_wire;
@@ -351,9 +350,6 @@ pub mod array_fit_artifact;
 /// Unlicensed Bayesian posterior rows of randomized designs (`bayesian_posterior_row_v1`) and
 /// their recomputing consumer.
 pub mod bayesian_posterior_row_artifact;
-/// Unlicensed Bayesian smoothed dose-response transport posterior (`bayesian_smoothed_dose_v1`)
-/// and its recomputing consumer.
-pub mod smoothed_dose_posterior_artifact;
 /// Categorical-treatment artifact (`categorical_treatment_v1`) and its recomputing consumer.
 pub mod categorical_treatment_artifact;
 /// Dose-grid functional artifact (`dose_grid_functional_row_v1`) and its recomputing consumer.
@@ -380,6 +376,9 @@ pub mod recovery_chain_artifact;
 pub mod sensitivity_artifact;
 /// Smoothed dose-response transport grid artifact verification.
 pub mod smoothed_dose_artifact;
+/// Unlicensed Bayesian smoothed dose-response transport posterior (`bayesian_smoothed_dose_v1`)
+/// and its recomputing consumer.
+pub mod smoothed_dose_posterior_artifact;
 /// Checksummed stream artifact: bounds, cheap metadata, and shared payloads.
 pub mod stream_artifact;
 /// Joint vector-treatment artifact (`vector_treatment_v1`) and its recomputing consumer.
@@ -506,3 +505,6 @@ mod closed_wire_fields {
         assert_eq!(future, crate::wire::ArtifactKind::Other("future_kind".into()));
     }
 }
+
+/// Versioned observations from native execution.
+pub use antecedent_io_core::native_execution_wire;

@@ -402,12 +402,47 @@ impl PyExecutionFactStanding {
 /// measurements leaves that digest as it was. Kernel policy, counts, retention,
 /// spill, and status do not set the numerical-policy flag.
 #[pyclass(name = "ExecutionFacts")]
-struct PyExecutionFacts {
-    inner: ExecutionFacts,
+pub(crate) struct PyExecutionFacts {
+    pub(crate) inner: ExecutionFacts,
 }
 
 #[pymethods]
 impl PyExecutionFacts {
+    /// True only for observations returned by this native execution.
+    #[getter]
+    fn is_native(&self) -> bool {
+        self.inner.is_native()
+    }
+    /// Known scan count; None means the relevant source was not measured.
+    #[getter]
+    fn observed_scans(&self) -> Option<u64> {
+        self.inner.observed_scans()
+    }
+    /// Known numeric buffer copy count.
+    #[getter]
+    fn observed_copies(&self) -> Option<u64> {
+        self.inner.observed_copies()
+    }
+    /// Enclosing model fits, excluding their internal numerical solves.
+    #[getter]
+    fn observed_model_fits(&self) -> Option<u64> {
+        self.inner.observed_model_fits()
+    }
+    /// Peak reserved bytes in the shared admission account, not process RSS.
+    #[getter]
+    fn peak_admitted_bytes(&self) -> Option<u64> {
+        self.inner.peak_admitted_bytes()
+    }
+    /// Peak CPU slots reserved by this execution.
+    #[getter]
+    fn peak_admitted_threads(&self) -> Option<u64> {
+        self.inner.peak_admitted_threads()
+    }
+    /// Bytes written to instrumented spill storage, or None if unmeasured.
+    #[getter]
+    fn observed_spill_bytes(&self) -> Option<u64> {
+        self.inner.observed_spill_bytes()
+    }
     #[new]
     fn new(
         py: Python<'_>,

@@ -8840,6 +8840,7 @@ pub use antecedent_io::mz_transport_artifact::MzSourceWire = antecedent_io_core:
 pub use antecedent_io::mz_transport_artifact::MzTransportArtifactError = antecedent_io_core::transport_errors::MzTransportArtifactError
 pub use antecedent_io::mz_transport_artifact::MzTransportPointWire = antecedent_io_core::transport_point_wire::MzTransportPointWire
 pub use antecedent_io::mz_transport_artifact::MzTransportQueryWire = antecedent_io_core::transport_query_wire::MzTransportQueryWire
+pub use antecedent_io::native_execution_wire = antecedent_io_core::native_execution_wire
 pub use antecedent_io::observation_identity_wire = antecedent_io_core::observation_identity_wire
 pub use antecedent_io::observation_query_artifact = antecedent_io_core::observation_query_artifact
 pub use antecedent_io::pack_section = antecedent_io_core::pack_section

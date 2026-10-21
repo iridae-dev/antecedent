@@ -15,23 +15,24 @@ use antecedent_contract::ExecutionPerformanceRecord;
 use antecedent_core::execution::{AdmissionError, AdmissionLease};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionSet, AssumptionStatus, AverageEffectQuery,
-    EncodedWidth, ExecutionContext, Operator, RouteBudget, RouteMemoryDeclaration, ScientificTarget,
+    EncodedWidth, ExecutionContext, Operator, RouteBudget, RouteMemoryDeclaration,
+    ScientificTarget,
 };
-use antecedent_data::{design_layout::DesignLayout, GlobalId, TableView, TabularData};
+use antecedent_data::{GlobalId, TableView, TabularData, design_layout::DesignLayout};
 use antecedent_estimate::{
     CheckedLinearAdjustmentAte, EffectEstimate, EstimationWorkspace, LinearAdjustmentAte,
     LinearFitKind, PreparedEstimationProblem,
+};
+use antecedent_identify::{
+    AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
+    IdentificationClaimClass, IdentificationOutcome, IdentificationResult, RequiredFactor,
+    UnresolvedObligation, WorldObligation,
 };
 use antecedent_io::{
     AnalysisResultWire, CausalQueryWire, IdentificationResultWire, causal_query_to_wire,
     encode_analysis_result_artifact, identification_to_wire,
 };
 use antecedent_stats::CompiledDesign;
-use antecedent_identify::{
-    AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
-    IdentificationClaimClass, IdentificationOutcome, IdentificationResult, RequiredFactor,
-    UnresolvedObligation, WorldObligation,
-};
 
 use crate::analysis::prepared::recompile::{LifecycleInput, LifecycleProduct, PreparedRecompile};
 use crate::error::CausalError;
@@ -294,11 +295,12 @@ fn admit_gaussian(
     let workspace = route.physical.record.workspace_bytes.ok_or_else(|| CausalError::Resource {
         message: "linear/Gaussian physical plan omitted workspace bytes".into(),
     })?;
-    let width = u64::try_from(columns)
-        .map_err(|_| compile_error("column count does not fit in u64"))?;
-    let design_bytes = rows.checked_mul(width).and_then(|cells| cells.checked_mul(8)).ok_or_else(
-        || CausalError::Resource { message: "linear/Gaussian design bytes overflow u64".into() },
-    )?;
+    let width =
+        u64::try_from(columns).map_err(|_| compile_error("column count does not fit in u64"))?;
+    let design_bytes =
+        rows.checked_mul(width).and_then(|cells| cells.checked_mul(8)).ok_or_else(|| {
+            CausalError::Resource { message: "linear/Gaussian design bytes overflow u64".into() }
+        })?;
     let admitted = declaration
         .masks(mask_bytes)
         .design_expansion(design_bytes)
@@ -356,8 +358,8 @@ impl LoweredLinearGaussianRoute {
             if !keep {
                 continue;
             }
-            let raw = u64::try_from(index)
-                .map_err(|_| compile_error("row index does not fit in u64"))?;
+            let raw =
+                u64::try_from(index).map_err(|_| compile_error("row index does not fit in u64"))?;
             rows.push(GlobalId::new(raw));
             selected.push(index);
         }
@@ -403,6 +405,7 @@ fn analysis_wire(
     let published_error =
         (standard_error.is_finite() && standard_error >= 0.0).then_some(standard_error);
     AnalysisResultWire {
+        native_execution: None,
         query,
         identification,
         identification_variables: None,
@@ -550,8 +553,7 @@ impl Study {
                 });
             }
         }
-        let super::super::RouteInput::StaticAteDag { data, query, .. } = self.route_input()?
-        else {
+        let super::super::RouteInput::StaticAteDag { data, query, .. } = self.route_input()? else {
             return Err(CausalError::Compile {
                 message: "linear/Gaussian lowering admits a static DAG average contrast".into(),
             });

@@ -899,9 +899,8 @@ impl PosteriorRowWire {
     /// non-finite value.
     pub fn validate(&self) -> Result<(), crate::IoError> {
         let width = self.coordinates.len();
-        let square = |values: &Option<Vec<f64>>| {
-            values.as_ref().is_none_or(|v| v.len() == width * width)
-        };
+        let square =
+            |values: &Option<Vec<f64>>| values.as_ref().is_none_or(|v| v.len() == width * width);
         if self.uncertainty != POSTERIOR_ROW_UNCERTAINTY
             || self.calibration != POSTERIOR_ROW_CALIBRATION
             || self.licensed
@@ -1175,6 +1174,9 @@ pub struct InterferenceInferenceWire {
 /// Composite result body. Every scientific axis is independently optional.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AnalysisResultWire {
+    /// Optional native execution v1 facts, separate from scientific licensing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_execution: Option<crate::native_execution_wire::NativeExecutionWire>,
     /// Original query.
     pub query: CausalQueryWire,
     /// Structural identification and derivation.

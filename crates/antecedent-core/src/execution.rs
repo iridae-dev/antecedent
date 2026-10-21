@@ -511,6 +511,7 @@ struct LeaseSlot {
     threads: u32,
     bytes: u64,
     flag: Arc<AtomicBool>,
+    observation: Option<crate::execution_attempt::ObservedAdmission>,
 }
 
 enum GrantError {
@@ -666,12 +667,22 @@ fn push_lease(
 ) -> u64 {
     let id = state.next_id;
     state.next_id = next_id;
+    let observation = match parent.and_then(|id| lease_index(&state.leases, id)) {
+        Some(index) => state.leases[index]
+            .observation
+            .as_mut()
+            .map(|held| held.split(request.threads, request.bytes)),
+        None => {
+            Some(crate::execution_attempt::ObservedAdmission::new(request.threads, request.bytes))
+        }
+    };
     state.leases.push(LeaseSlot {
         id,
         parent,
         threads: request.threads,
         bytes: request.bytes,
         flag,
+        observation,
     });
     id
 }
@@ -724,7 +735,14 @@ fn close_slot(state: &mut AdmissionState, index: usize) -> AdmissionRemainder {
             slot.parent = parent;
         }
     }
-    state.leases.remove(index);
+    let mut removed = state.leases.remove(index);
+    if let Some(parent_index) = parent.and_then(|id| lease_index(&state.leases, id)) {
+        if let (Some(held), Some(returned)) =
+            (state.leases[parent_index].observation.as_mut(), removed.observation.as_mut())
+        {
+            held.merge(returned);
+        }
+    }
     AdmissionRemainder::new(threads, bytes)
 }
 
@@ -1301,7 +1319,9 @@ fn admit(
             return Err(AdmissionError::Cancelled);
         }
         match grant_root(&mut guard, request, Arc::clone(flag)) {
-            Ok(id) => return Ok(AdmissionLease::new(Arc::clone(shared), id, Arc::clone(flag))),
+            Ok(id) => {
+                return Ok(AdmissionLease::new(Arc::clone(shared), id, Arc::clone(flag)));
+            }
             Err(GrantError::Overflow) => return Err(AdmissionError::Overflow),
             Err(GrantError::Short(refusal)) => {
                 let never_fits =
@@ -1533,6 +1553,8 @@ impl ExecutionContext {
         let inner = self.serial_inner();
         let mut slots: Vec<Option<Result<T, E>>> = (0..n).map(|_| None).collect();
         let first_failure = AtomicUsize::new(usize::MAX);
+        let observation = crate::execution_attempt::ObservationToken::capture();
+        let numerical = crate::numerical_admission::NumericalAdmissionToken::capture();
         std::thread::scope(|scope| {
             let f = &f;
             let inner = &inner;
@@ -1544,19 +1566,24 @@ impl ExecutionContext {
                 let take = rest.len().div_ceil(threads - t);
                 let (mine, next) = rest.split_at_mut(take);
                 let begin = start;
+                let observation = &observation;
+                let numerical = &numerical;
                 scope.spawn(move || {
-                    let mut scratch = make_scratch();
-                    for (k, slot) in mine.iter_mut().enumerate() {
-                        let index = begin + k;
-                        if first_failure.load(Ordering::Relaxed) < index {
-                            break;
+                    observation.execute(|| {
+                        let mut scratch = make_scratch();
+                        for (k, slot) in mine.iter_mut().enumerate() {
+                            let index = begin + k;
+                            if first_failure.load(Ordering::Relaxed) < index {
+                                break;
+                            }
+                            let outcome =
+                                numerical.execute(inner, || f(index, inner, &mut scratch));
+                            if outcome.is_err() {
+                                first_failure.fetch_min(index, Ordering::Relaxed);
+                            }
+                            *slot = Some(outcome);
                         }
-                        let outcome = f(index, inner, &mut scratch);
-                        if outcome.is_err() {
-                            first_failure.fetch_min(index, Ordering::Relaxed);
-                        }
-                        *slot = Some(outcome);
-                    }
+                    })
                 });
                 rest = next;
                 start += take;
@@ -2019,6 +2046,7 @@ mod tests {
             threads_free: u32::MAX,
             bytes_free: 0,
             leases: vec![LeaseSlot {
+                observation: None,
                 id: 7,
                 parent: None,
                 threads: 1,
@@ -2046,9 +2074,30 @@ mod tests {
             threads_free: 4,
             bytes_free: 40,
             leases: vec![
-                LeaseSlot { id: 1, parent: None, threads: 2, bytes: 20, flag: Arc::clone(&flag) },
-                LeaseSlot { id: 2, parent: None, threads: 3, bytes: 30, flag: Arc::clone(&keep) },
-                LeaseSlot { id: 3, parent: None, threads: 1, bytes: 10, flag: Arc::clone(&flag) },
+                LeaseSlot {
+                    observation: None,
+                    id: 1,
+                    parent: None,
+                    threads: 2,
+                    bytes: 20,
+                    flag: Arc::clone(&flag),
+                },
+                LeaseSlot {
+                    observation: None,
+                    id: 2,
+                    parent: None,
+                    threads: 3,
+                    bytes: 30,
+                    flag: Arc::clone(&keep),
+                },
+                LeaseSlot {
+                    observation: None,
+                    id: 3,
+                    parent: None,
+                    threads: 1,
+                    bytes: 10,
+                    flag: Arc::clone(&flag),
+                },
             ],
             next_id: 4,
             blocked_waiters: 0,

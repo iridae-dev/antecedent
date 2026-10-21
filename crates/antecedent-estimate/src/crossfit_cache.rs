@@ -362,6 +362,12 @@ impl PropensityLease {
 
     /// Count a fit or a reuse and mark the scope as a reader of this entry.
     pub(crate) fn record(&self, reused: bool) {
+        if reused {
+            antecedent_core::execution_attempt::record_physical(
+                antecedent_core::execution_attempt::PhysicalEvent::CacheHit,
+                1,
+            );
+        }
         let counter =
             if reused { &self.cache.propensity_reuses } else { &self.cache.propensity_fits };
         counter.fetch_add(1, Ordering::AcqRel);
@@ -387,6 +393,12 @@ impl OutcomeLease {
     }
 
     pub(crate) fn record(&self, reused: bool) {
+        if reused {
+            antecedent_core::execution_attempt::record_physical(
+                antecedent_core::execution_attempt::PhysicalEvent::CacheHit,
+                1,
+            );
+        }
         let counter = if reused { &self.cache.outcome_reuses } else { &self.cache.outcome_fits };
         counter.fetch_add(1, Ordering::AcqRel);
         note_use(None, Some(self.entry.id), &self.cache);

@@ -26,8 +26,7 @@
 
 use std::num::{NonZeroU32, NonZeroUsize};
 
-use antecedent_core::ExecutionContext;
-use antecedent_core::execution::{AdmissionLease, AdmissionPool};
+use antecedent_core::execution::AdmissionLease;
 use faer::Par;
 use faer::dyn_stack::{MemBuffer, StackReq};
 use thiserror::Error;
@@ -144,19 +143,6 @@ impl FaerScratch {
     }
 }
 
-/// One-worker lease for a factor that has no study [`ExecutionContext`].
-///
-/// [`crate::faer_backend::FaerBackend::least_squares`] does not receive the
-/// study context, so this lease is drawn from a fresh one-thread pool rather
-/// than the caller's admission pool.
-#[must_use = "keep the admission lease alive while the factor uses its worker"]
-pub fn detached_serial_lease() -> AdmissionLease {
-    let pool = AdmissionPool::fixed(1, u64::MAX);
-    let ctx = ExecutionContext::for_tests(0).with_admission(pool);
-    ctx.acquire_admission(1, u64::MAX)
-        .unwrap_or_else(|_| unreachable!("a fresh pool funds one serial lease"))
-}
-
 /// Byte size of `required`, or a layout this budget cannot admit.
 fn scratch_bytes(required: StackReq) -> Result<u64, FaerScopeError> {
     if required.align_bytes() == 0 {
@@ -204,12 +190,12 @@ pub enum FaerScopeError {
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::{ExecutionContext, execution::AdmissionPool};
     use std::num::NonZeroUsize;
 
     use faer::Par;
     use faer::dyn_stack::StackReq;
 
-    use antecedent_core::ExecutionContext;
     use antecedent_core::execution::AdmissionPool;
 
     use super::{FaerScope, FaerScopeError};

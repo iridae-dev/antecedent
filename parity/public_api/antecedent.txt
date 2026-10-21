@@ -389,6 +389,7 @@ impl core::clone::Clone for antecedent::analysis::ConsumedInterfaceContract
 impl core::clone::Clone for antecedent::analysis::CorrelationRangeSummary
 impl core::clone::Clone for antecedent::analysis::DagResponseOrigin
 impl core::clone::Clone for antecedent::analysis::DecisionArtifact
+impl core::clone::Clone for antecedent::analysis::DecisionAuthorityBinding
 impl core::clone::Clone for antecedent::analysis::DecisionReliabilityInspection
 impl core::clone::Clone for antecedent::analysis::DecisionReliabilityRefusal
 impl core::clone::Clone for antecedent::analysis::ExceedanceQuery
@@ -746,6 +747,7 @@ impl core::cmp::Eq for antecedent::Transformation
 impl core::cmp::Eq for antecedent::UncertaintyKind
 impl core::cmp::Eq for antecedent::analysis::CompositionVerificationRefusal
 impl core::cmp::Eq for antecedent::analysis::DagResponseOrigin
+impl core::cmp::Eq for antecedent::analysis::DecisionAuthorityBinding
 impl core::cmp::Eq for antecedent::analysis::DecisionReliabilityRefusal
 impl core::cmp::Eq for antecedent::analysis::InterfaceContractExport
 impl core::cmp::Eq for antecedent::analysis::InterfaceContractRefusal
@@ -990,6 +992,7 @@ impl core::cmp::PartialEq for antecedent::analysis::ComposedInterval
 impl core::cmp::PartialEq for antecedent::analysis::CompositionVerificationRefusal
 impl core::cmp::PartialEq for antecedent::analysis::CorrelationRangeSummary
 impl core::cmp::PartialEq for antecedent::analysis::DagResponseOrigin
+impl core::cmp::PartialEq for antecedent::analysis::DecisionAuthorityBinding
 impl core::cmp::PartialEq for antecedent::analysis::DecisionReliabilityInspection
 impl core::cmp::PartialEq for antecedent::analysis::DecisionReliabilityRefusal
 impl core::cmp::PartialEq for antecedent::analysis::ExceedanceQuery
@@ -1217,6 +1220,7 @@ impl core::convert::From<antecedent::analysis::recalc_temporal::TemporalRunError
 impl core::convert::From<antecedent::strategy_table::UnknownStrategy> for antecedent::CausalError
 impl core::convert::From<antecedent_attribution::error::AttributionError> for antecedent::CausalError
 impl core::convert::From<antecedent_attribution::error::AttributionError> for antecedent::CompileCause
+impl core::convert::From<antecedent_contract::evidence_ledger::refusal::LedgerError> for antecedent::analysis::FlagshipError
 impl core::convert::From<antecedent_contract::external_refusal::ExternalRefusal> for antecedent::analysis::FlagshipError
 impl core::convert::From<antecedent_core::error::SchemaError> for antecedent::CausalError
 impl core::convert::From<antecedent_core::error::SchemaError> for antecedent::CompileCause
@@ -1651,6 +1655,8 @@ impl core::fmt::Debug for antecedent::analysis::ConsumedInterfaceContract
 impl core::fmt::Debug for antecedent::analysis::CorrelationRangeSummary
 impl core::fmt::Debug for antecedent::analysis::DagResponseOrigin
 impl core::fmt::Debug for antecedent::analysis::DecisionArtifact
+impl core::fmt::Debug for antecedent::analysis::DecisionAuthority
+impl core::fmt::Debug for antecedent::analysis::DecisionAuthorityBinding
 impl core::fmt::Debug for antecedent::analysis::DecisionReliabilityInspection
 impl core::fmt::Debug for antecedent::analysis::DecisionReliabilityRefusal
 impl core::fmt::Debug for antecedent::analysis::ExceedanceQuery
@@ -2400,6 +2406,8 @@ impl core::marker::Freeze for antecedent::analysis::ConsumedInterfaceContract [a
 impl core::marker::Freeze for antecedent::analysis::CorrelationRangeSummary [auto]
 impl core::marker::Freeze for antecedent::analysis::DagResponseOrigin [auto]
 impl core::marker::Freeze for antecedent::analysis::DecisionArtifact [auto]
+impl core::marker::Freeze for antecedent::analysis::DecisionAuthority [auto]
+impl core::marker::Freeze for antecedent::analysis::DecisionAuthorityBinding [auto]
 impl core::marker::Freeze for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::marker::Freeze for antecedent::analysis::DecisionReliabilityRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::ExceedanceQuery [auto]
@@ -3010,6 +3018,8 @@ impl core::marker::Send for antecedent::analysis::ConsumedInterfaceContract [aut
 impl core::marker::Send for antecedent::analysis::CorrelationRangeSummary [auto]
 impl core::marker::Send for antecedent::analysis::DagResponseOrigin [auto]
 impl core::marker::Send for antecedent::analysis::DecisionArtifact [auto]
+impl core::marker::Send for antecedent::analysis::DecisionAuthority [auto]
+impl core::marker::Send for antecedent::analysis::DecisionAuthorityBinding [auto]
 impl core::marker::Send for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::marker::Send for antecedent::analysis::DecisionReliabilityRefusal [auto]
 impl core::marker::Send for antecedent::analysis::ExceedanceQuery [auto]
@@ -3515,6 +3525,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::ComposedInterva
 impl core::marker::StructuralPartialEq for antecedent::analysis::CompositionVerificationRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::CorrelationRangeSummary
 impl core::marker::StructuralPartialEq for antecedent::analysis::DagResponseOrigin
+impl core::marker::StructuralPartialEq for antecedent::analysis::DecisionAuthorityBinding
 impl core::marker::StructuralPartialEq for antecedent::analysis::DecisionReliabilityInspection
 impl core::marker::StructuralPartialEq for antecedent::analysis::DecisionReliabilityRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::ExceedanceQuery
@@ -3999,6 +4010,8 @@ impl core::marker::Sync for antecedent::analysis::ConsumedInterfaceContract [aut
 impl core::marker::Sync for antecedent::analysis::CorrelationRangeSummary [auto]
 impl core::marker::Sync for antecedent::analysis::DagResponseOrigin [auto]
 impl core::marker::Sync for antecedent::analysis::DecisionArtifact [auto]
+impl core::marker::Sync for antecedent::analysis::DecisionAuthority [auto]
+impl core::marker::Sync for antecedent::analysis::DecisionAuthorityBinding [auto]
 impl core::marker::Sync for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::marker::Sync for antecedent::analysis::DecisionReliabilityRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::ExceedanceQuery [auto]
@@ -4612,6 +4625,8 @@ impl core::marker::Unpin for antecedent::analysis::ConsumedInterfaceContract [au
 impl core::marker::Unpin for antecedent::analysis::CorrelationRangeSummary [auto]
 impl core::marker::Unpin for antecedent::analysis::DagResponseOrigin [auto]
 impl core::marker::Unpin for antecedent::analysis::DecisionArtifact [auto]
+impl core::marker::Unpin for antecedent::analysis::DecisionAuthority [auto]
+impl core::marker::Unpin for antecedent::analysis::DecisionAuthorityBinding [auto]
 impl core::marker::Unpin for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::marker::Unpin for antecedent::analysis::DecisionReliabilityRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::ExceedanceQuery [auto]
@@ -5223,6 +5238,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::ConsumedI
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::CorrelationRangeSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DagResponseOrigin [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DecisionArtifact [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DecisionAuthority [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DecisionAuthorityBinding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::DecisionReliabilityRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::ExceedanceQuery [auto]
@@ -5817,6 +5834,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::ConsumedInte
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::CorrelationRangeSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DagResponseOrigin [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DecisionArtifact [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DecisionAuthority [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DecisionAuthorityBinding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DecisionReliabilityInspection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::DecisionReliabilityRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::ExceedanceQuery [auto]
@@ -6175,6 +6194,7 @@ impl serde_core::ser::Serialize for antecedent::SpanCheck
 impl serde_core::ser::Serialize for antecedent::TemporalPosition
 impl serde_core::ser::Serialize for antecedent::Transformation
 impl serde_core::ser::Serialize for antecedent::ZTransportSensitivityArtifactWire
+impl serde_core::ser::Serialize for antecedent::analysis::DecisionAuthorityBinding
 impl serde_core::ser::Serialize for antecedent::analysis::conditional_study_ranking::ConditionalBranch
 impl serde_core::ser::Serialize for antecedent::analysis::conditional_study_ranking::ConditionalCandidate
 impl serde_core::ser::Serialize for antecedent::analysis::conditional_study_ranking::ConditionalRankingEntry
@@ -6341,6 +6361,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent::SourceColumn
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::TemporalPosition
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::Transformation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::ZTransportSensitivityArtifactWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::DecisionAuthorityBinding
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::conditional_study_ranking::ConditionalBranch
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::conditional_study_ranking::ConditionalCandidate
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::conditional_study_ranking::ConditionalRankingEntry
@@ -7700,6 +7721,8 @@ pub field antecedent::analysis::CorrelationRangeSummary::y_mean: f64
 pub field antecedent::analysis::CorrelationRangeSummary::y_sd: f64
 pub field antecedent::analysis::DecisionArtifact::bytes: alloc::vec::Vec<u8>
 pub field antecedent::analysis::DecisionArtifact::identity: alloc::string::String
+pub field antecedent::analysis::DecisionAuthorityBinding::result: alloc::string::String
+pub field antecedent::analysis::DecisionAuthorityBinding::sources: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::analysis::DecisionReliabilityInspection::closed_routes: alloc::vec::Vec<&'static str>
 pub field antecedent::analysis::DecisionReliabilityInspection::coordinate: alloc::string::String
 pub field antecedent::analysis::DecisionReliabilityInspection::decided_id: alloc::string::String
@@ -9320,6 +9343,7 @@ pub fn <antecedent::PreparedStudy>::fn estimate_cost(&self) -> core::result::Res
 pub fn <antecedent::PreparedStudy>::fn estimate_multi_env(&self, data: &antecedent_data::multi_env::MultiEnvironmentData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn estimate_panel(&self, data: &antecedent_data::panel::PanelData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn estimate_retained(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn estimate_retained_observed(&self, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_core::execution_attempt::ExecutionAttempt<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn estimate_series(&self, data: &antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn execution_contract(&self, result: &antecedent::StudyResult, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent::CausalContract, antecedent_contract::claim::ClaimEnvelope), antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn has_checked_admg_graph_posterior_response_operation(&self) -> bool
@@ -9491,6 +9515,7 @@ pub fn <antecedent::Study>::fn prepare(&self, ctx: &antecedent_core::execution::
 pub fn <antecedent::Study>::fn prepare_cyclic(request: antecedent_io::cyclic_system_artifact::CyclicExecutionRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn <antecedent::Study>::fn prepare_cyclic_family(request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn <antecedent::Study>::fn run(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
+pub fn <antecedent::Study>::fn run_observed(&self, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_core::execution_attempt::ExecutionAttempt<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::Study>::fn series(data: antecedent_data::dataset::TimeSeriesData) -> antecedent::StudyBuilder
 pub fn <antecedent::Study>::fn series_multi(data: antecedent_data::multi_env::MultiEnvironmentData) -> antecedent::StudyBuilder
 pub fn <antecedent::Study>::fn tabular(data: antecedent_data::dataset::TabularData) -> antecedent::StudyBuilder
@@ -9715,23 +9740,30 @@ pub fn <antecedent::analysis::ConsumedCompositionVerification>::fn require_valid
 pub fn <antecedent::analysis::ConsumedCompositionVerification>::fn revalidation(&self) -> &antecedent_contract::composition_verification::revalidate::GraphRevalidation
 pub fn <antecedent::analysis::ConsumedCompositionVerification>::fn verify_ledger(&self, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<(), antecedent::analysis::CompositionVerificationRefusal>
 pub fn <antecedent::analysis::ConsumedCompositionVerification>::fn view(&self, key: &str) -> core::result::Result<antecedent_contract::composition_verification::view::CompositionView, antecedent::analysis::CompositionVerificationRefusal>
+pub fn <antecedent::analysis::DecisionAuthority>::fn ledger(&self) -> &antecedent_contract::evidence_ledger::ledger::EvidenceLedger
+pub fn <antecedent::analysis::DecisionAuthority>::fn supersede_source(&mut self, coordinate: usize, replacement: antecedent_contract::evidence_ledger::source::SourceDeclaration) -> core::result::Result<(), antecedent_contract::evidence_ledger::refusal::LedgerError>
+pub fn <antecedent::analysis::DecisionAuthority>::fn withdraw_source(&mut self, coordinate: usize, reason: &str) -> core::result::Result<(), antecedent_contract::evidence_ledger::refusal::LedgerError>
 pub fn <antecedent::analysis::FlagshipWorkflow>::const fn cluster_effect(&self) -> f64
 pub fn <antecedent::analysis::FlagshipWorkflow>::const fn cluster_trials(&self) -> u64
 pub fn <antecedent::analysis::FlagshipWorkflow>::const fn cluster_variance(&self) -> f64
 pub fn <antecedent::analysis::FlagshipWorkflow>::const fn cost_draws(&self) -> usize
 pub fn <antecedent::analysis::FlagshipWorkflow>::const fn cost_mean(&self) -> f64
-pub fn <antecedent::analysis::FlagshipWorkflow>::const fn decision(&self) -> &antecedent::analysis::MixedDecision
 pub fn <antecedent::analysis::FlagshipWorkflow>::const fn temporal_effect(&self) -> f64
 pub fn <antecedent::analysis::FlagshipWorkflow>::const fn temporal_means(&self) -> usize
+pub fn <antecedent::analysis::FlagshipWorkflow>::fn authority(&self) -> &antecedent::analysis::DecisionAuthority
+pub fn <antecedent::analysis::FlagshipWorkflow>::fn authority_mut(&mut self) -> &mut antecedent::analysis::DecisionAuthority
 pub fn <antecedent::analysis::FlagshipWorkflow>::fn cluster_design(&self) -> &str
 pub fn <antecedent::analysis::FlagshipWorkflow>::fn cluster_uncertainty(&self) -> &str
+pub fn <antecedent::analysis::FlagshipWorkflow>::fn decision(&self) -> core::result::Result<&antecedent::analysis::MixedDecision, antecedent::analysis::FlagshipError>
 pub fn <antecedent::analysis::FlagshipWorkflow>::fn execute(ctx: &antecedent_core::execution::ExecutionContext, dependence: antecedent::analysis::FlagshipDependence) -> core::result::Result<Self, antecedent::analysis::FlagshipError>
 pub fn <antecedent::analysis::FlagshipWorkflow>::fn execute_with_policy(ctx: &antecedent_core::execution::ExecutionContext, dependence: antecedent::analysis::FlagshipDependence, policy: &antecedent_contract::mixed_module::MixedModulePolicy) -> core::result::Result<Self, antecedent::analysis::FlagshipError>
 pub fn <antecedent::analysis::FlagshipWorkflow>::fn export_decision(&self) -> core::result::Result<antecedent::analysis::DecisionArtifact, antecedent::analysis::FlagshipError>
+pub fn <antecedent::analysis::FlagshipWorkflow>::fn export_historical_replay(&self) -> core::result::Result<antecedent::analysis::DecisionArtifact, antecedent::analysis::FlagshipError>
+pub fn <antecedent::analysis::FlagshipWorkflow>::fn into_authority(self) -> antecedent::analysis::DecisionAuthority
 pub fn <antecedent::analysis::FlagshipWorkflow>::fn period_change(&mut self, period: (u64, u64), ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::PeriodReplay, antecedent::analysis::FlagshipError>
 pub fn <antecedent::analysis::FlagshipWorkflow>::fn prior_change(&mut self, prior_scale: f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::PriorReplay, antecedent::analysis::FlagshipError>
 pub fn <antecedent::analysis::FlagshipWorkflow>::fn utility_only(&mut self, benefit: f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::UtilityReplay, antecedent::analysis::FlagshipError>
-pub fn <antecedent::analysis::FlagshipWorkflow>::fn withdraw_cluster(&self) -> core::result::Result<antecedent::analysis::CompositionVerification, antecedent::analysis::FlagshipError>
+pub fn <antecedent::analysis::FlagshipWorkflow>::fn withdraw_cluster(&mut self) -> core::result::Result<antecedent::analysis::CompositionVerification, antecedent::analysis::FlagshipError>
 pub fn <antecedent::analysis::FnCallback<F>>::fn new(identity: antecedent_contract::external::ProviderObjectIdentity, call: F) -> Self
 pub fn <antecedent::analysis::JointLawPropagationRefusal>::fn code(&self) -> &'static str
 pub fn <antecedent::analysis::JointLawPropagationRefusal>::fn details(&self) -> alloc::vec::Vec<&str>
@@ -10489,11 +10521,12 @@ pub fn antecedent::analysis::composition_verification::invalidation_effects(log:
 pub fn antecedent::analysis::composition_verification::ledger_effects(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, bindings: &[(&str, antecedent_contract::evidence_ledger::ids::ResultId)]) -> core::result::Result<alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::revalidate::ObservedEffect>, antecedent::analysis::CompositionVerificationRefusal>
 pub fn antecedent::analysis::composition_verification::library_transported_node(key: &str, route: &str, route_identity: &str, target_population: &str, support_label: &str, assumptions: alloc::vec::Vec<alloc::string::String>) -> antecedent_contract::composition_verification::graph::CompositionNode
 pub fn antecedent::analysis::composition_verification::library_transported_standing(support_label: &str, coordinates: &[alloc::string::String]) -> antecedent_contract::composition_verification::graph::ClaimStanding
-pub fn antecedent::analysis::composition_verification::load_decision(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::LoadedDecision, antecedent::analysis::FlagshipError>
+pub fn antecedent::analysis::composition_verification::load_decision(bytes: &[u8], expected_identity: core::option::Option<&str>, authority: &antecedent::analysis::DecisionAuthority, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::LoadedDecision, antecedent::analysis::FlagshipError>
 pub fn antecedent::analysis::composition_verification::query_revalidation(log: &antecedent_state::invalidation::InvalidationLog, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> antecedent_core::recalc::Revalidation
 pub fn antecedent::analysis::composition_verification::registry_record_attests(record: &antecedent_core::identity::SemanticDigest) -> bool
 pub fn antecedent::analysis::composition_verification::registry_record_identity(record_id: &str) -> antecedent_core::identity::SemanticDigest
 pub fn antecedent::analysis::composition_verification::registry_resolved_calibration(declaration: &antecedent_contract::composition_verification::graph::CalibrationDeclaration) -> antecedent_contract::composition_verification::graph::CalibrationDeclaration
+pub fn antecedent::analysis::composition_verification::replay_decision(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(f64, f64), antecedent::analysis::FlagshipError>
 pub fn antecedent::analysis::composition_verification::stage_effects(plan: &antecedent_core::recalc::RecalcPlan, bindings: &[(&str, antecedent_core::recalc::Stage)]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::revalidate::ObservedEffect>
 pub fn antecedent::analysis::composition_verification::stage_node(key: &str, kind: antecedent_contract::composition_verification::graph::NodeKind, plan: &antecedent_core::recalc::RecalcPlan, stage: antecedent_core::recalc::Stage) -> core::option::Option<antecedent_contract::composition_verification::graph::CompositionNode>
 pub fn antecedent::analysis::composition_verification::stage_node_with_standing(key: &str, kind: antecedent_contract::composition_verification::graph::NodeKind, plan: &antecedent_core::recalc::RecalcPlan, stage: antecedent_core::recalc::Stage, standing: antecedent_contract::composition_verification::graph::ClaimStanding) -> core::option::Option<antecedent_contract::composition_verification::graph::CompositionNode>
@@ -11210,6 +11243,9 @@ pub struct antecedent::analysis::ConsumedCompositionVerification has private fie
 pub struct antecedent::analysis::ConsumedInterfaceContract
 pub struct antecedent::analysis::CorrelationRangeSummary
 pub struct antecedent::analysis::DecisionArtifact
+pub struct antecedent::analysis::DecisionAuthority
+pub struct antecedent::analysis::DecisionAuthority has private fields
+pub struct antecedent::analysis::DecisionAuthorityBinding
 pub struct antecedent::analysis::DecisionReliabilityInspection
 pub struct antecedent::analysis::DecisionReliabilityRefusal
 pub struct antecedent::analysis::ExceedanceQuery
@@ -12444,6 +12480,8 @@ pub use antecedent::analysis::composition_verification::CompositionVerificationR
 pub use antecedent::analysis::composition_verification::CompositionView = antecedent_contract::composition_verification::CompositionView
 pub use antecedent::analysis::composition_verification::ConsumedCompositionVerification = antecedent::analysis::ConsumedCompositionVerification
 pub use antecedent::analysis::composition_verification::DecisionArtifact = antecedent::analysis::DecisionArtifact
+pub use antecedent::analysis::composition_verification::DecisionAuthority = antecedent::analysis::DecisionAuthority
+pub use antecedent::analysis::composition_verification::DecisionAuthorityBinding = antecedent::analysis::DecisionAuthorityBinding
 pub use antecedent::analysis::composition_verification::DependencyKind = antecedent_contract::composition_verification::DependencyKind
 pub use antecedent::analysis::composition_verification::FlagshipDependence = antecedent::analysis::FlagshipDependence
 pub use antecedent::analysis::composition_verification::FlagshipError = antecedent::analysis::FlagshipError
@@ -13209,6 +13247,7 @@ pub use antecedent::analysis::repair::StudyKind = antecedent_design::StudyKind
 pub use antecedent::analysis::repair::TransportRepairFamily = antecedent_design::TransportRepairFamily
 pub use antecedent::analysis::repair::UnitRules = antecedent_design::UnitRules
 pub use antecedent::analysis::repair::ZTransportRepairFamily = antecedent_design::ZTransportRepairFamily
+pub use antecedent::analysis::replay_decision = antecedent::analysis::composition_verification::replay_decision
 pub use antecedent::analysis::sample_split_analysis::SampleSplitReceipt = antecedent_discovery::selective::reuse::SampleSplitReceipt
 pub use antecedent::analysis::sample_split_analysis::SplitRows = antecedent_discovery::selective::reuse::SplitRows
 pub use antecedent::analysis::sample_split_analysis::SplitRule = antecedent_discovery::selective::reuse::SplitRule
@@ -14675,6 +14714,7 @@ pub variant antecedent::analysis::DagResponseOrigin::Accepted
 pub variant antecedent::analysis::DagResponseOrigin::Explicit
 pub variant antecedent::analysis::FlagshipDependence::Covariance { id: alloc::string::String, margin_temporal: f64, margin_cost: f64, temporal_cost: f64 }
 pub variant antecedent::analysis::FlagshipDependence::Independent
+pub variant antecedent::analysis::FlagshipError::Authority(alloc::boxed::Box<antecedent_contract::evidence_ledger::refusal::LedgerError>)
 pub variant antecedent::analysis::FlagshipError::Bayesian(alloc::boxed::Box<antecedent::analysis::recalc_receipt::RecalcRunError>)
 pub variant antecedent::analysis::FlagshipError::Bridge(alloc::boxed::Box<antecedent::ScientificBridgeRefusal>)
 pub variant antecedent::analysis::FlagshipError::Cluster(alloc::boxed::Box<antecedent::CausalError>)

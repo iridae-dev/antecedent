@@ -22,6 +22,7 @@
 
 #[path = "flagship_authority.rs"]
 mod authority;
+use antecedent_contract::evidence_ledger::{ObservationId, SourceDeclaration, SourceKind};
 pub use authority::{DecisionAuthority, DecisionAuthorityBinding};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -499,8 +500,7 @@ impl FlagshipWorkflow {
             &cluster,
             temporal_out.recalc.law.ate,
             temporal_variance,
-            bayesian_out.law.mean,
-            bayesian_out.law.standard_deviation,
+            (bayesian_out.law.mean, bayesian_out.law.standard_deviation),
             1.0,
             &dependence,
             ctx,
@@ -528,6 +528,9 @@ impl FlagshipWorkflow {
     }
 
     /// The current decision.
+    ///
+    /// # Errors
+    /// Withdrawn, superseded, or untrusted source authority.
     #[must_use = "the decision carries the joint combination and the bridge dependence"]
     pub fn decision(&self) -> Result<&MixedDecision, FlagshipError> {
         self.authority.require_valid()?;
@@ -773,8 +776,7 @@ impl FlagshipWorkflow {
             &self.cluster,
             temporal_effect,
             temporal_variance,
-            cost.mean,
-            cost.standard_deviation,
+            (cost.mean, cost.standard_deviation),
             benefit,
             &self.dependence,
             ctx,
@@ -972,12 +974,12 @@ fn compose(
     cluster: &ClusterFit,
     temporal_effect: f64,
     temporal_variance: f64,
-    cost_mean: f64,
-    cost_sd: f64,
+    cost_moments: (f64, f64),
     benefit: f64,
     dependence: &FlagshipDependence,
     ctx: &ExecutionContext,
 ) -> Result<MixedDecision, FlagshipError> {
+    let (cost_mean, cost_sd) = cost_moments;
     let (margin, bridge_value) = margin_of(cluster)?;
     let cost_variance = cost_sd * cost_sd;
     if !(temporal_variance.is_finite() && temporal_variance > 0.0 && cost_variance.is_finite()) {
@@ -1267,7 +1269,6 @@ fn source_keys(
             posterior.text(&stage.label()).bytes(identities.own(stage).as_bytes());
         }
     }
-    use antecedent_contract::evidence_ledger::{ObservationId, SourceDeclaration, SourceKind};
     let trial = SourceDeclaration::new(
         SemanticDigest::from_bytes(trial.finish()).to_hex(),
         SourceKind::Experiment,
@@ -1309,7 +1310,7 @@ fn decode_decision(
     if bytes.len() > 128 * 1024 * 1024 {
         return Err(FlagshipError::Route("decision artifact byte limit"));
     }
-    let _lease = ctx
+    let lease = ctx
         .acquire_admission(0, (bytes.len() as u64).saturating_mul(8))
         .map_err(|_| FlagshipError::Route("decision artifact admission refused"))?;
     if expected.is_some_and(|id| id != decision_artifact_identity(bytes)) {
@@ -1320,7 +1321,7 @@ fn decode_decision(
     if record.version != 2 {
         return Err(FlagshipError::Route("unsupported decision artifact version"));
     }
-    Ok((record, _lease))
+    Ok((record, lease))
 }
 
 /// Numerically replay a historical decision without granting current source authority.

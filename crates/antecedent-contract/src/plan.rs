@@ -108,6 +108,8 @@ pub struct PhysicalExecutionPlanRecord {
 /// Lightweight performance summary attached to results.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ExecutionPerformanceRecord {
+    /// Engine observations; estimates and process RSS remain separate fields.
+    pub native_execution: Option<antecedent_core::execution_facts::ExecutionFacts>,
     /// Wall time in nanoseconds, if measured.
     pub wall_time_ns: Option<u64>,
     /// Peak resident memory bytes, if measured.

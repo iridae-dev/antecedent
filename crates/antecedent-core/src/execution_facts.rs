@@ -363,6 +363,8 @@ impl PhysicalExecutionIdentity {
 /// Kernel policy, counts, retention, resources, spill, and status do not set it.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ExecutionFacts {
+    native_coverage: Option<u64>,
+    native_origin: bool,
     measured: MeasuredExecution,
     scientific_identity: Option<SemanticDigest>,
     numerical_policy_changes_scientific_contract: bool,
@@ -379,7 +381,80 @@ impl ExecutionFacts {
         scientific_identity: Option<SemanticDigest>,
         numerical_policy_changes_scientific_contract: bool,
     ) -> Self {
-        Self { measured, scientific_identity, numerical_policy_changes_scientific_contract }
+        Self {
+            native_coverage: None,
+            native_origin: false,
+            measured,
+            scientific_identity,
+            numerical_policy_changes_scientific_contract,
+        }
+    }
+
+    /// Facts emitted by native execution; memory is peak admitted bytes, not RSS.
+    pub(crate) fn from_native(measured: MeasuredExecution, coverage: u64) -> Self {
+        Self {
+            native_coverage: Some(coverage),
+            native_origin: true,
+            measured,
+            scientific_identity: None,
+            numerical_policy_changes_scientific_contract: false,
+        }
+    }
+    /// Import non-authoritative observations recorded in an artifact.
+    /// The imported record does not become a new native execution.
+    #[must_use]
+    pub fn from_artifact(measured: MeasuredExecution, coverage: u64) -> Self {
+        Self {
+            native_coverage: Some(coverage),
+            native_origin: false,
+            measured,
+            scientific_identity: None,
+            numerical_policy_changes_scientific_contract: false,
+        }
+    }
+    /// Whether the engine emitted this record instead of accepting caller declarations.
+    #[must_use]
+    pub fn is_native(&self) -> bool {
+        self.native_origin
+    }
+    /// Instrumented physical-event bitset; absent fields remain unknown.
+    #[must_use]
+    pub fn native_coverage(&self) -> Option<u64> {
+        self.native_coverage
+    }
+
+    /// Scans observed by instrumented source boundaries; absent means unmeasured.
+    #[must_use]
+    pub fn observed_scans(&self) -> Option<u64> {
+        self.covered(0).then_some(self.counts().scans())
+    }
+    /// Copies observed at instrumented buffer boundaries.
+    #[must_use]
+    pub fn observed_copies(&self) -> Option<u64> {
+        self.covered(1).then_some(self.counts().copies())
+    }
+    /// Completed enclosing model fits at instrumented engine boundaries.
+    #[must_use]
+    pub fn observed_model_fits(&self) -> Option<u64> {
+        self.covered(9).then_some(self.counts().fits())
+    }
+    /// Peak admitted reservations, never process RSS.
+    #[must_use]
+    pub fn peak_admitted_bytes(&self) -> Option<u64> {
+        self.covered(6).then_some(self.resources().memory_bytes())
+    }
+    /// Peak admitted CPU slots, never an OS thread census.
+    #[must_use]
+    pub fn peak_admitted_threads(&self) -> Option<u64> {
+        self.covered(7).then_some(self.resources().threads())
+    }
+    /// Actual spill bytes when the spill boundary was observed.
+    #[must_use]
+    pub fn observed_spill_bytes(&self) -> Option<u64> {
+        self.covered(5).then_some(self.resources().spill_bytes())
+    }
+    fn covered(&self, bit: u32) -> bool {
+        self.native_coverage.is_some_and(|mask| mask & (1 << bit) != 0)
     }
 
     /// Replace the measurements.
@@ -389,6 +464,8 @@ impl ExecutionFacts {
     #[must_use]
     pub fn rebuild(mut self, measured: MeasuredExecution) -> Self {
         self.measured = measured;
+        self.native_coverage = None;
+        self.native_origin = false;
         self
     }
 
@@ -492,7 +569,10 @@ impl ExecutionFacts {
     /// [`ExecutionFactError::Overflow`] when any sum does not fit in `u64`.
     /// The facts, including the scientific digest, are unchanged on that refusal.
     pub fn try_add_counts(&mut self, extra: ExecutionCounts) -> Result<(), ExecutionFactError> {
-        self.measured.try_add_counts(extra)
+        self.measured.try_add_counts(extra)?;
+        self.native_origin = false;
+        self.native_coverage = None;
+        Ok(())
     }
 
     /// Add resources, including spill bytes.
@@ -505,7 +585,10 @@ impl ExecutionFacts {
         &mut self,
         extra: ExecutionResources,
     ) -> Result<(), ExecutionFactError> {
-        self.measured.try_add_resources(extra)
+        self.measured.try_add_resources(extra)?;
+        self.native_origin = false;
+        self.native_coverage = None;
+        Ok(())
     }
 }
 

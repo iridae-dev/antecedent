@@ -574,37 +574,18 @@ impl BatchStudy {
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
-        let threads = ctx.parallelism.max_threads.get().max(1) as usize;
         let nuisances = CrossfitNuisanceCache::new();
-        let mut out = Vec::with_capacity(queries.len());
-        let mut uses = Vec::with_capacity(queries.len());
-        for chunk in queries.chunks(threads) {
-            std::thread::scope(|scope| {
-                let handles: Vec<_> = chunk
-                    .iter()
-                    .map(|q| {
-                        scope.spawn(|| {
-                            nuisances.scope(|| self.run_one_on(&data, q, ctx, shared.as_ref()))
-                        })
-                    })
-                    .collect();
-                for handle in handles {
-                    match handle.join() {
-                        Ok((Ok(result), used)) => {
-                            out.push(result);
-                            uses.push(used);
-                        }
-                        Ok((Err(err), _)) => return Err(err),
-                        Err(_) => {
-                            return Err(CausalError::Compile {
-                                message: "batch worker panicked".into(),
-                            });
-                        }
-                    }
-                }
-                Ok(())
-            })?;
-        }
+        let completed = ctx.map_indexed(queries.len(), |index, inner| {
+            if inner.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                });
+            }
+            let (result, used) =
+                nuisances.scope(|| self.run_one_on(&data, &queries[index], inner, shared.as_ref()));
+            result.map(|result| (result, used))
+        })?;
+        let (mut out, uses): (Vec<_>, Vec<_>) = completed.into_iter().unzip();
         attach_batch_joint_inference(&mut out, &data, queries, self.screen.as_ref());
         attach_shared_design_diagnostics(
             &mut out,
@@ -916,31 +897,18 @@ impl PreparedBatch {
         let data = subset_estimate_rows(data, self.screen.as_ref())?;
         let shared =
             self.shared_design.as_ref().map(|s| s.rebind(&data).map(Arc::new)).transpose()?;
-        let mut out = Vec::with_capacity(self.plans.len());
-        let mut uses = Vec::with_capacity(self.plans.len());
         let nuisances = CrossfitNuisanceCache::new();
-        let threads = ctx.parallelism.max_threads.get().max(1) as usize;
-        for chunk in self.plans.chunks(threads) {
-            std::thread::scope(|scope| {
-                let handles: Vec<_> = chunk
-                    .iter()
-                    .map(|plan| {
-                        scope.spawn(|| {
-                            nuisances
-                                .scope(|| plan.estimate_with_shared(&data, shared.clone(), ctx))
-                        })
-                    })
-                    .collect();
-                for handle in handles {
-                    let (result, used) = handle.join().map_err(|_| CausalError::Compile {
-                        message: "prepared batch worker panicked".into(),
-                    })?;
-                    out.push(result?);
-                    uses.push(used);
-                }
-                Ok::<(), CausalError>(())
-            })?;
-        }
+        let completed = ctx.map_indexed(self.plans.len(), |index, inner| {
+            if inner.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                });
+            }
+            let (result, used) = nuisances
+                .scope(|| self.plans[index].estimate_with_shared(&data, shared.clone(), inner));
+            result.map(|result| (result, used))
+        })?;
+        let (mut out, uses): (Vec<_>, Vec<_>) = completed.into_iter().unzip();
         attach_prepared_batch_joint_inference(
             &mut out,
             &data,

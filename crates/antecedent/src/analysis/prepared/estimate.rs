@@ -128,6 +128,16 @@ impl PreparedStudy {
         self.estimate_with_shared(data, shared, ctx)
     }
 
+    /// Execute the retained binding with native observations on success or failure.
+    pub fn estimate_retained_observed(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> antecedent_core::execution_attempt::ExecutionAttempt<StudyResult, CausalError> {
+        antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            self.estimate_retained(ctx)
+        })
+    }
+
     pub(crate) fn estimate_with_shared(
         &self,
         data: &TabularData,
@@ -137,8 +147,14 @@ impl PreparedStudy {
         // A stats-layer refusal of a regression, GLM, IV or matching design fit learns here
         // which plan it was for and, for a rank refusal, which columns are dependent on the
         // table the fit read.
-        self.estimate_with_shared_unnamed(data, shared, ctx, &mut ClickNotes::default())
-            .map_err(|error| self.name_stats_refusal(data, error, ctx))
+        let mut observed = antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            self.estimate_with_shared_unnamed(data, shared, ctx, &mut ClickNotes::default())
+                .map_err(|error| self.name_stats_refusal(data, error, ctx))
+        });
+        if let Ok(result) = &mut observed.result {
+            result.performance.native_execution.clone_from(&observed.facts);
+        }
+        observed.result
     }
 
     /// Name a stats-layer refusal for this plan and the table the fit read.

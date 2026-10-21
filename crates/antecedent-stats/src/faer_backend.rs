@@ -16,7 +16,7 @@ use faer::{Conj, Mat, MatRef, Spec};
 use crate::error::StatsError;
 use antecedent_core::execution::AdmissionLease;
 
-use crate::faer_scope::{FaerScope, FaerScopeError, detached_serial_lease};
+use crate::faer_scope::{FaerScope, FaerScopeError};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 
 mod resampling;
@@ -244,13 +244,19 @@ impl FactorScratch {
         if buffer_fits(self.buffer.as_ref(), required, bytes) {
             return Ok(());
         }
+        self.buffer = None;
         self.child = None;
-        if self.root.is_none() {
-            self.root = Some(detached_serial_lease());
-        }
-        let child = {
-            let root = self.root.as_ref().expect("root lease was just installed");
+        let child = if let Some(root) = self.root.as_ref() {
             scope.admit_scratch(root, required).map_err(backend_error)?
+        } else if let Some(admitted) = antecedent_core::numerical_admission::acquire(bytes) {
+            admitted
+                .map_err(|error| StatsError::Backend(format!("faer scratch admission: {error}")))?
+        } else {
+            let context = antecedent_core::ExecutionContext::for_tests(0)
+                .with_admission(antecedent_core::execution::AdmissionPool::fixed(0, bytes));
+            context
+                .acquire_admission(0, bytes)
+                .map_err(|error| StatsError::Backend(error.to_string()))?
         };
         self.buffer = Some(MemBuffer::new(required));
         self.child = Some(child);

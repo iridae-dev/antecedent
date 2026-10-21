@@ -140,6 +140,7 @@ fn receipt_body(
     let query_wire = causal_query_to_wire(&query)?;
     let status = wire_status(&attach.status);
     let body = AnalysisResultWire {
+        native_execution: None,
         query: query_wire.clone(),
         identification: IdentificationResultWire {
             status: status.clone(),

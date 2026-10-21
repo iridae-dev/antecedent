@@ -152,25 +152,25 @@ pub use query::{
     DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog,
     EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime, ExposureLevel,
     ExposureMapping, ExposurePropensityProvenance, FactorNeed, FeedbackDeclaration,
-    FixedCandidateRegretInputs,
-    FixedGroupDosePolicy, GridSpec, InterferenceFunctional, InterferenceQuery,
-    InterventionAssignment, InterventionalDistributionQuery, KnownCensoringSurvival, LawOrigin,
-    LicensedWeights, LocalPolynomialRatioQuery, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
-    SequentialContrastQuery, HistoryMatchQuery,
+    FixedCandidateRegretInputs, FixedGroupDosePolicy, GridSpec, HistoryMatchQuery,
+    InterferenceFunctional, InterferenceQuery, InterventionAssignment,
+    InterventionalDistributionQuery, KnownCensoringSurvival, LawOrigin, LicensedWeights,
+    LocalPolynomialRatioQuery, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
     OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
     PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
-    ResponseFunctional, ResponseQuery, SamplingDesign, SamplingSelection, ShapleyConfig,
-    ShapleyMode, SharedData, SurvivalFunctional, SurvivalQuery, SyntheticControlQuery,
-    SyntheticPanelMethod, TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation, TargetSampling,
-    TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec, TheoremFamily,
-    TheoremScope, TransportEvaluateSupport, TransportIdentifySupport, TransportLocation,
-    TransportOutcome, TransportOutcomeKind, TransportQuery, TransportSupportCoordinate,
-    TransportUncertaintySupport, UnitChangeQuery, UnmetDependency, VariableCoordinate,
-    VariableDomain, policy_graphless_coordinate, randomized_graphless_coordinate,
+    ResponseFunctional, ResponseQuery, SamplingDesign, SamplingSelection, SequentialContrastQuery,
+    ShapleyConfig, ShapleyMode, SharedData, SurvivalFunctional, SurvivalQuery,
+    SyntheticControlQuery, SyntheticPanelMethod, TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation,
+    TargetSampling, TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec,
+    TheoremFamily, TheoremScope, TransportEvaluateSupport, TransportIdentifySupport,
+    TransportLocation, TransportOutcome, TransportOutcomeKind, TransportQuery,
+    TransportSupportCoordinate, TransportUncertaintySupport, UnitChangeQuery, UnmetDependency,
+    VariableCoordinate, VariableDomain, policy_graphless_coordinate,
+    randomized_graphless_coordinate,
 };
 pub use query::{CounterfactualEvent, CounterfactualEventQuery};
 pub use query::{
@@ -187,7 +187,6 @@ pub use rng_key::{
     BatchSize, ChainId, DeclaredTolerance, FailedRngAttempt, FoldId, ReductionPolicy, ReplicateId,
     RngKey, SemanticOperation, StreamRequest, ToleranceError, WorkerId,
 };
-pub use scratch_admission::{ScratchLease, ScratchRefusal};
 pub use route_memory::{
     AdmittedRouteMemory, EncodedWidth, RouteBudget, RouteMemoryComponent, RouteMemoryDeclaration,
     RouteMemoryError, RouteMemoryEstimate,
@@ -210,6 +209,7 @@ pub use scientific_target::{
     ScientificTarget, ScientificTargetError, ScientificWorldId, TargetForm, TimeFrame, WorldAction,
     WorldBinding, WorldCollection,
 };
+pub use scratch_admission::{ScratchLease, ScratchRefusal};
 pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
 pub use text::is_blank;
 pub use tolerance::ToleranceClass;
@@ -233,3 +233,7 @@ mod tests {
         assert!(super::VERSION.contains('.'));
     }
 }
+
+/// Scoped numerical access to the workflow admission account.
+#[doc(hidden)]
+pub mod numerical_admission;

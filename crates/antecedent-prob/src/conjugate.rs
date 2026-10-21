@@ -560,6 +560,12 @@ fn draw_mvn_known_sigma(
     let mut values = vec![0.0; n_draws * ncols];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(ProbError::Refused {
+                code: antecedent_core::reason_code!("transport_budget_cancel"),
+                message: "conjugate.cancelled: posterior drawing cancelled".into(),
+            });
+        }
         let draw_attempt = antecedent_core::execution_attempt::OperationGuard::begin(
             antecedent_core::execution_attempt::Operation::PosteriorDraw,
         );
@@ -603,6 +609,12 @@ fn draw_nig(
     let mut values = vec![0.0; n_draws * (ncols + 1)];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(ProbError::Refused {
+                code: antecedent_core::reason_code!("transport_budget_cancel"),
+                message: "conjugate.cancelled: posterior drawing cancelled".into(),
+            });
+        }
         let draw_attempt = antecedent_core::execution_attempt::OperationGuard::begin(
             antecedent_core::execution_attempt::Operation::PosteriorDraw,
         );

@@ -808,6 +808,7 @@ class PerformanceSection:
     temporal execution path currently records them, so they read `None`/empty on
     the temporal DTO."""
 
+    native_execution: ExecutionFacts | None
     plan_id: str
     modality: str
     peak_memory_bytes: int | None
@@ -8459,6 +8460,20 @@ class ExecutionFacts:
     only through ``declare_numerical_policy_changes_scientific_contract``.
     """
 
+    @property
+    def is_native(self) -> bool: ...
+    @property
+    def observed_scans(self) -> int | None: ...
+    @property
+    def observed_copies(self) -> int | None: ...
+    @property
+    def observed_model_fits(self) -> int | None: ...
+    @property
+    def peak_admitted_bytes(self) -> int | None: ...
+    @property
+    def peak_admitted_threads(self) -> int | None: ...
+    @property
+    def observed_spill_bytes(self) -> int | None: ...
     def __init__(
         self,
         counts: ExecutionCounts,
