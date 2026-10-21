@@ -5,6 +5,7 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionSet, AssumptionStatus, AverageEffectQuery, Operator,
     PhysicalOperator, ScientificTarget,
 };
+use antecedent_data::TableView;
 use antecedent_estimate::CheckedLinearAdjustmentAte;
 use antecedent_identify::{
     AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
@@ -140,7 +141,7 @@ impl CompiledLinearExecution {
             &preparation,
             plan,
             fitter.bootstrap_replicates > 0,
-            data.storage().content_digest(),
+            data,
         )?);
         Ok(Self {
             program,
@@ -170,12 +171,15 @@ impl CompiledLinearProgram {
         checked: &CheckedLinearAdjustmentAte,
         physical: &PhysicalExecutionPlan,
         resample: bool,
-        source_digest: [u8; 32],
+        data: &antecedent_data::TabularData,
     ) -> Result<Self, CausalError> {
+        let target =
+            crate::planner::linear_gaussian_scientific_problem(query, false, data.schema())?;
+        let identification = retain_linear_gaussian(identification, checked, &target)?;
         Ok(Self {
-            source_digest,
-            target: crate::planner::linear_gaussian_scientific_problem(query, false)?,
-            identification: retain_linear_gaussian(identification, checked)?,
+            source_digest: data.storage().content_digest(),
+            target,
+            identification,
             operators: crate::planner::linear_gaussian_program_operators()?,
             physical: crate::planner::linear_gaussian_physical_operators(physical, resample)?,
         })
@@ -208,6 +212,7 @@ impl CompiledLinearProgram {
 fn retain_linear_gaussian(
     identification: &IdentificationResult,
     program: &CheckedLinearAdjustmentAte,
+    target: &ScientificTarget,
 ) -> Result<CompiledIdentificationProduct, CausalError> {
     if program.required_assumptions() != &identification.required_assumptions {
         return Err(CausalError::Compile {
@@ -225,7 +230,7 @@ fn retain_linear_gaussian(
     parts.unresolved_obligations = unresolved;
     parts.world_obligations = worlds;
     parts.assembled = Some(assembled);
-    CompiledIdentificationProduct::retain(identification, parts)
+    CompiledIdentificationProduct::retain_for_target(identification, parts, target)
         .map_err(|refusal| CausalError::Compile { message: refusal.to_string() })
 }
 

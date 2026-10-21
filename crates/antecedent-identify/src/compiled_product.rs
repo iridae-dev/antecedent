@@ -15,6 +15,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -22,7 +23,8 @@ use thiserror::Error;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CanonicalWriter, Diagnostic, IdentificationStatus, ParametricAssumption,
-    PriorAssumption, ScientificWorldId, SemanticDigest, Value, VariableId,
+    PriorAssumption, ScientificTarget, ScientificWorldId, SemanticDigest, TargetForm, Value,
+    VariableId,
 };
 use antecedent_expr::{
     CausalExprArena, ContrastOp, DomainRef, ExprId, ExprListId, ExprNode, IdentifiedEstimand,
@@ -33,6 +35,7 @@ use crate::result::IdentificationResult;
 
 const IDENTITY_TAG: &str = "antecedent.identify.compiled_product.v1";
 const IDENTITY_FORMAT: u64 = 1;
+const TARGET_BOUND_IDENTITY_FORMAT: u64 = 2;
 
 /// Outcome of an identification or support decision.
 ///
@@ -100,6 +103,53 @@ pub enum ProductRefusal {
     IdentifiedFromUnidentifiedResult {
         /// Status of the retained result.
         status: IdentificationStatus,
+    },
+    /// A target world has no retained identification/support obligation.
+    #[error("target world {world:?} has no retained obligation")]
+    MissingWorldObligation {
+        /// Required world identifier.
+        world: ScientificWorldId,
+    },
+    /// One target world has multiple obligations, so its authority is ambiguous.
+    #[error("world {world:?} has duplicate retained obligations")]
+    DuplicateWorldObligation {
+        /// Repeated world identifier.
+        world: ScientificWorldId,
+    },
+    /// An obligation names a world outside the target.
+    #[error("retained obligation names non-target world {world:?}")]
+    UnexpectedWorldObligation {
+        /// Foreign world identifier.
+        world: ScientificWorldId,
+    },
+    /// A contrast or surface omits its assembled-functional check.
+    #[error("the joint target has no assembled-functional obligation")]
+    MissingAssembledObligation,
+    /// An identified product or assembled functional relies on an unsupported world.
+    #[error("an identified joint claim relies on non-identified world {world:?}")]
+    IdentifiedWithoutWorldSupport {
+        /// World whose outcome or claim class does not license identification.
+        world: ScientificWorldId,
+    },
+    /// The product claims identification beyond its assembled-functional outcome.
+    #[error("an identified product has no identified assembled functional")]
+    IdentifiedWithoutAssembledSupport,
+    /// Mediation has separate cross-world premises rather than a generic world collection.
+    #[error("mediation requires theorem-scoped support validation")]
+    MediationRequiresTheoremScopedSupport,
+    /// A future target form requires its own support rules.
+    #[error("the target requires specialized support validation")]
+    TargetRequiresSpecializedSupport,
+    /// Legacy retention did not bind this product to scientific target content.
+    #[error("retained identification is not bound to a scientific target")]
+    UnboundScientificTarget,
+    /// The product was compiled for different scientific content, even if world labels match.
+    #[error("retained identification belongs to scientific target {expected}, not {actual}")]
+    TargetIdentityMismatch {
+        /// Scientific target retained at compilation.
+        expected: SemanticDigest,
+        /// Target offered by the consumer.
+        actual: SemanticDigest,
     },
     /// A search failure, timeout, numerical failure, or uncalibrated outcome retains an
     /// estimand.
@@ -412,6 +462,7 @@ pub struct CompiledIdentificationProduct {
     numerical_value: Option<f64>,
     world_obligations: Vec<WorldObligation>,
     assembled: Option<AssembledFunctionalObligation>,
+    target_identity: Option<SemanticDigest>,
 }
 
 impl PartialEq for CompiledIdentificationProduct {
@@ -426,6 +477,7 @@ impl PartialEq for CompiledIdentificationProduct {
             && self.claim_class == other.claim_class
             && self.world_obligations == other.world_obligations
             && self.assembled == other.assembled
+            && self.target_identity == other.target_identity
     }
 }
 
@@ -471,6 +523,7 @@ impl CompiledIdentificationProduct {
             numerical_value: parts.numerical_value,
             world_obligations: parts.world_obligations,
             assembled: parts.assembled,
+            target_identity: None,
         })
     }
 
@@ -581,6 +634,37 @@ impl CompiledIdentificationProduct {
         self.numerical_value
     }
 
+    /// Retain identification and bind its complete support structure to a scientific target.
+    ///
+    /// The compiler supplies the target corresponding to `result.query` and outcomes from
+    /// its identification/support procedures. This method checks their retained structure;
+    /// it does not infer support from caller declarations or numerical feasibility. Future
+    /// consumers cannot reuse this product for different interventions, population, units,
+    /// conditioning, horizon or assumptions merely by keeping the same world labels.
+    ///
+    /// # Errors
+    ///
+    /// A [`ProductRefusal`] if retention fails or the world/assembled checks do not cover
+    /// `target`. Mediation requires its theorem-specific path.
+    pub fn retain_for_target(
+        result: &IdentificationResult,
+        parts: CompiledProductParts,
+        target: &ScientificTarget,
+    ) -> Result<Self, ProductRefusal> {
+        let mut product = Self::retain(result, parts)?;
+        product.target_identity = Some(target.identity());
+        product.validate_target(target)?;
+        Ok(product)
+    }
+
+    /// Scientific target bound by [`Self::retain_for_target`].
+    ///
+    /// Legacy products retained without a target return `None`.
+    #[must_use]
+    pub const fn target_identity(&self) -> Option<SemanticDigest> {
+        self.target_identity
+    }
+
     /// Per-world obligations. Empty for a target that names no worlds.
     #[must_use]
     pub fn world_obligations(&self) -> &[WorldObligation] {
@@ -591,6 +675,72 @@ impl CompiledIdentificationProduct {
     #[must_use]
     pub const fn assembled_obligation(&self) -> Option<&AssembledFunctionalObligation> {
         self.assembled.as_ref()
+    }
+
+    /// Validate the retained world and assembled obligations against a scientific target.
+    ///
+    /// Every target world must appear exactly once, without foreign obligations. Contrasts
+    /// and dose-by-time surfaces require an assembled-functional obligation. Neither the
+    /// product nor its assembled functional may claim identification beyond any required
+    /// world. Numerical values never discharge these checks. Declared scientific assumptions
+    /// remain explicit premises; they are not automatically treated as failed support.
+    ///
+    /// This validates the retained support structure, not the statistical evidence itself:
+    /// the compiler must obtain the outcomes from its identification and support procedures.
+    /// Mediation must use its own theorem-scoped validation rather than this generic check.
+    ///
+    /// # Errors
+    ///
+    /// A [`ProductRefusal`] for an unbound or different target, missing, duplicate or
+    /// foreign worlds, omitted assembled obligations, unsupported identification claims,
+    /// or a mediation target. Bind legacy products with [`Self::retain_for_target`].
+    pub fn validate_target(&self, target: &ScientificTarget) -> Result<(), ProductRefusal> {
+        let expected = self.target_identity.ok_or(ProductRefusal::UnboundScientificTarget)?;
+        let actual = target.identity();
+        if expected != actual {
+            return Err(ProductRefusal::TargetIdentityMismatch { expected, actual });
+        }
+        let (worlds, needs_assembled) = match target.form() {
+            TargetForm::World(world) => (std::slice::from_ref(world), false),
+            TargetForm::Worlds(worlds) => (worlds.worlds(), false),
+            TargetForm::Contrast(contrast) => (contrast.worlds().worlds(), true),
+            TargetForm::DoseTime(surface) => (surface.worlds().worlds(), true),
+            TargetForm::Mediation(_) => {
+                return Err(ProductRefusal::MediationRequiresTheoremScopedSupport);
+            }
+            _ => return Err(ProductRefusal::TargetRequiresSpecializedSupport),
+        };
+        let target_worlds: BTreeSet<_> =
+            worlds.iter().map(antecedent_core::InterventionWorld::id).collect();
+        let mut retained_worlds = BTreeSet::new();
+        for obligation in &self.world_obligations {
+            let world = obligation.world;
+            if !target_worlds.contains(&world) {
+                return Err(ProductRefusal::UnexpectedWorldObligation { world });
+            }
+            if !retained_worlds.insert(world) {
+                return Err(ProductRefusal::DuplicateWorldObligation { world });
+            }
+        }
+        if let Some(&world) = target_worlds.difference(&retained_worlds).next() {
+            return Err(ProductRefusal::MissingWorldObligation { world });
+        }
+        if needs_assembled && self.assembled.is_none() {
+            return Err(ProductRefusal::MissingAssembledObligation);
+        }
+        let identified_product = states_identified_claim(self.outcome, self.claim_class);
+        let identified_assembled = self.assembled_is_identified_claim();
+        if identified_product || identified_assembled {
+            if let Some(world) =
+                self.world_obligations.iter().find(|world| !world.is_identified_claim())
+            {
+                return Err(ProductRefusal::IdentifiedWithoutWorldSupport { world: world.world });
+            }
+        }
+        if identified_product && needs_assembled && !identified_assembled {
+            return Err(ProductRefusal::IdentifiedWithoutAssembledSupport);
+        }
+        Ok(())
     }
 
     /// Whether this product states an identified claim.
@@ -638,7 +788,12 @@ impl CompiledIdentificationProduct {
     #[must_use]
     pub fn identity(&self) -> SemanticDigest {
         let mut writer = CanonicalWriter::new(IDENTITY_TAG);
-        writer.word(IDENTITY_FORMAT);
+        if let Some(target) = self.target_identity {
+            writer.word(TARGET_BOUND_IDENTITY_FORMAT).bytes(target.as_bytes());
+        } else {
+            // Preserve the identity of legacy products retained without a target.
+            writer.word(IDENTITY_FORMAT);
+        }
         write_estimands(&mut writer, &self.estimands);
         write_arena(&mut writer, &self.arena);
         write_derivation(&mut writer, &self.derivation);
@@ -1167,6 +1322,356 @@ mod tests {
             Arc::from([VariableId::from_raw(2)]),
             ExprId::from_raw(0),
         )
+    }
+
+    fn interaction_target() -> antecedent_core::ScientificTarget {
+        interaction_target_with(
+            1.0,
+            antecedent_core::TargetPopulation::AllObserved,
+            VariableId::from_raw(2),
+        )
+    }
+
+    fn interaction_target_with(
+        active: f64,
+        population: antecedent_core::TargetPopulation,
+        outcome: VariableId,
+    ) -> antecedent_core::ScientificTarget {
+        use antecedent_core::{
+            Conditioning, GraphFamily, InferenceSelection, Intervention, InterventionContrast,
+            InterventionWorld, ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits,
+            ScientificTarget, TargetForm, TimeFrame, WorldAction, WorldBinding, WorldCollection,
+        };
+        let binding = WorldBinding::new(
+            population,
+            ObservationUnit::new("subject").unwrap(),
+            OutcomeQuantity::mean(outcome, QuantityUnits::dimensionless()).unwrap(),
+            Conditioning::unconditional(),
+        )
+        .unwrap();
+        let levels = [(0.0, 0.0), (active, 0.0), (0.0, active), (active, active)];
+        let worlds = WorldCollection::new(levels.into_iter().enumerate().map(|(index, (a, b))| {
+            InterventionWorld::new(
+                ScientificWorldId::from_raw(u32::try_from(index).unwrap()),
+                WorldAction::at_decision([
+                    Intervention::set(VariableId::from_raw(0), Value::f64(a)),
+                    Intervention::set(VariableId::from_raw(1), Value::f64(b)),
+                ])
+                .unwrap(),
+                index == 0,
+                binding.clone(),
+                TimeFrame::static_decision(),
+            )
+            .unwrap()
+        }))
+        .unwrap();
+        let contrast = InterventionContrast::interaction(
+            worlds,
+            ScientificWorldId::from_raw(3),
+            ScientificWorldId::from_raw(1),
+            ScientificWorldId::from_raw(2),
+            ScientificWorldId::from_raw(0),
+        )
+        .unwrap();
+        ScientificTarget::new(
+            TargetForm::Contrast(contrast),
+            ModelAssumptions::new(GraphFamily::Dag, AssumptionSet::new()),
+            InferenceSelection::Frequentist,
+        )
+    }
+
+    fn supported_interaction_product() -> CompiledIdentificationProduct {
+        let mut product = empty_product(
+            IdentificationOutcome::Identified,
+            IdentificationClaimClass::IdentifiedClaim,
+            None,
+        );
+        product.world_obligations = (0..4)
+            .map(|id| {
+                WorldObligation::new(
+                    ScientificWorldId::from_raw(id),
+                    IdentificationOutcome::Identified,
+                    IdentificationClaimClass::IdentifiedClaim,
+                    Vec::new(),
+                    None,
+                )
+            })
+            .collect();
+        product.assembled = Some(AssembledFunctionalObligation::new(
+            IdentificationOutcome::Identified,
+            IdentificationClaimClass::IdentifiedClaim,
+            Vec::new(),
+            None,
+        ));
+        product.target_identity = Some(interaction_target().identity());
+        product
+    }
+
+    #[test]
+    fn target_validation_requires_each_world_exactly_once_and_an_assembled_check() {
+        let target = interaction_target();
+        let product = supported_interaction_product();
+        assert_eq!(product.validate_target(&target), Ok(()));
+        let mut missing = product.clone();
+        missing.world_obligations.pop();
+        assert_eq!(
+            missing.validate_target(&target),
+            Err(ProductRefusal::MissingWorldObligation { world: ScientificWorldId::from_raw(3) })
+        );
+        let mut duplicate = product.clone();
+        duplicate.world_obligations.push(product.world_obligations[0].clone());
+        assert_eq!(
+            duplicate.validate_target(&target),
+            Err(ProductRefusal::DuplicateWorldObligation { world: ScientificWorldId::from_raw(0) })
+        );
+        let mut foreign = product.clone();
+        foreign.world_obligations[0].world = ScientificWorldId::from_raw(9);
+        assert_eq!(
+            foreign.validate_target(&target),
+            Err(ProductRefusal::UnexpectedWorldObligation {
+                world: ScientificWorldId::from_raw(9),
+            })
+        );
+        let mut no_assembled = product;
+        no_assembled.assembled = None;
+        assert_eq!(
+            no_assembled.validate_target(&target),
+            Err(ProductRefusal::MissingAssembledObligation)
+        );
+    }
+
+    #[test]
+    fn target_validation_never_promotes_feasible_unsupported_or_conditional_worlds() {
+        let target = interaction_target();
+        for outcome in OUTCOMES {
+            for class in [
+                IdentificationClaimClass::ModelConditional,
+                IdentificationClaimClass::UnsupportedExtrapolation,
+            ] {
+                let mut product = supported_interaction_product();
+                let world = &mut product.world_obligations[2];
+                world.outcome = outcome;
+                world.claim_class = class;
+                world.numerical_value = Some(4.0);
+                assert_eq!(
+                    product.validate_target(&target),
+                    Err(ProductRefusal::IdentifiedWithoutWorldSupport {
+                        world: ScientificWorldId::from_raw(2),
+                    })
+                );
+                product.outcome = IdentificationOutcome::Unidentified;
+                product.claim_class = IdentificationClaimClass::ModelConditional;
+                assert!(product.assembled_is_identified_claim());
+                assert!(product.validate_target(&target).is_err());
+                product.assembled.as_mut().unwrap().claim_class =
+                    IdentificationClaimClass::ModelConditional;
+                assert_eq!(product.validate_target(&target), Ok(()));
+                assert!(!product.is_identified_claim());
+            }
+        }
+    }
+
+    #[test]
+    fn target_validation_requires_whole_functional_support_for_an_identified_product() {
+        let target = interaction_target();
+        let mut product = supported_interaction_product();
+        let assembled = product.assembled.as_mut().unwrap();
+        assembled.outcome = IdentificationOutcome::Unidentified;
+        assembled.claim_class = IdentificationClaimClass::ModelConditional;
+        assembled.numerical_value = Some(1.0);
+        assert_eq!(
+            product.validate_target(&target),
+            Err(ProductRefusal::IdentifiedWithoutAssembledSupport)
+        );
+    }
+
+    #[test]
+    fn actual_joint_identification_is_bound_to_scientific_content_not_world_labels() {
+        use antecedent_core::{
+            GraphFamily, InferenceSelection, Intervention, ModelAssumptions, NodeRef,
+            ResponseFunctional, ResponseQuery, ScientificTarget,
+        };
+        use antecedent_graph::Admg;
+
+        let mut graph = Admg::empty();
+        let a = graph.add_node(NodeRef::Static(VariableId::from_raw(0))).unwrap();
+        let b = graph.add_node(NodeRef::Static(VariableId::from_raw(1))).unwrap();
+        let y = graph.add_node(NodeRef::Static(VariableId::from_raw(2))).unwrap();
+        graph.insert_directed(a, y).unwrap();
+        graph.insert_directed(b, y).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(2),
+            interventions: Arc::from([
+                Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+                Intervention::set(VariableId::from_raw(1), Value::f64(1.0)),
+            ]),
+        });
+        let result = crate::GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_admg_response(&graph, &query)
+            .unwrap();
+        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+        let supported = supported_interaction_product();
+        let mut parts = CompiledProductParts::new(supported.outcome, supported.claim_class);
+        parts.world_obligations = supported.world_obligations;
+        parts.assembled = supported.assembled;
+        let target = interaction_target();
+        let product =
+            CompiledIdentificationProduct::retain_for_target(&result, parts.clone(), &target)
+                .unwrap();
+        assert_eq!(product.target_identity(), Some(target.identity()));
+        assert_eq!(product.validate_target(&target), Ok(()));
+        let bayesian = target.clone().with_inference(InferenceSelection::Bayesian);
+        assert_eq!(product.validate_target(&bayesian), Ok(()));
+        let changed = ScientificTarget::new(
+            target.form().clone(),
+            ModelAssumptions::new(GraphFamily::Admg, AssumptionSet::new()),
+            InferenceSelection::Frequentist,
+        );
+        assert_eq!(
+            product.validate_target(&changed),
+            Err(ProductRefusal::TargetIdentityMismatch {
+                expected: target.identity(),
+                actual: changed.identity(),
+            })
+        );
+        let rebound =
+            CompiledIdentificationProduct::retain_for_target(&result, parts.clone(), &changed)
+                .unwrap();
+        assert_ne!(product, rebound);
+        assert_ne!(product.identity(), rebound.identity());
+        let legacy = CompiledIdentificationProduct::retain(&result, parts).unwrap();
+        assert_eq!(legacy.target_identity(), None);
+        assert_ne!(legacy.identity(), product.identity());
+        assert_eq!(legacy.validate_target(&target), Err(ProductRefusal::UnboundScientificTarget));
+        for changed in [
+            interaction_target_with(
+                2.0,
+                antecedent_core::TargetPopulation::AllObserved,
+                VariableId::from_raw(2),
+            ),
+            interaction_target_with(
+                1.0,
+                antecedent_core::TargetPopulation::Treated,
+                VariableId::from_raw(2),
+            ),
+            interaction_target_with(
+                1.0,
+                antecedent_core::TargetPopulation::AllObserved,
+                VariableId::from_raw(3),
+            ),
+        ] {
+            assert_eq!(
+                product.validate_target(&changed),
+                Err(ProductRefusal::TargetIdentityMismatch {
+                    expected: target.identity(),
+                    actual: changed.identity(),
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn temporal_surface_requires_every_scheduled_cell_and_its_whole_functional() {
+        use antecedent_core::{
+            DoseTimeSurface, GraphFamily, HistoryWindow, InferenceSelection, InitialLaw,
+            Intervention, InterventionWorld, ModelAssumptions, ScientificTarget, TargetForm,
+            TemporalPolicy, TimeFrame, WorldAction, WorldCollection,
+        };
+        let source = interaction_target();
+        let antecedent_core::TargetForm::Contrast(contrast) = source.form() else {
+            unreachable!("interaction fixture")
+        };
+        let binding = contrast.worlds().worlds()[0].binding().clone();
+        let make_target = |history| {
+            let worlds = WorldCollection::new((0..4).map(|id| {
+                let level = if id < 2 { 0.0 } else { 1.0 };
+                let horizon = id % 2 + 1;
+                InterventionWorld::new(
+                    ScientificWorldId::from_raw(id),
+                    WorldAction::schedule(
+                        Intervention::set(VariableId::from_raw(0), Value::f64(level)),
+                        TemporalPolicy::pulse(0),
+                    )
+                    .unwrap(),
+                    id == 0,
+                    binding.clone(),
+                    TimeFrame::temporal(
+                        horizon,
+                        history,
+                        InitialLaw::named("observed_origin").unwrap(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap()
+            }))
+            .unwrap();
+            let surface = DoseTimeSurface::new(
+                worlds,
+                VariableId::from_raw(0),
+                [0.0, 1.0],
+                [1, 2],
+                (0..4).map(ScientificWorldId::from_raw),
+            )
+            .unwrap();
+            ScientificTarget::new(
+                TargetForm::DoseTime(surface),
+                ModelAssumptions::new(GraphFamily::TemporalDag, AssumptionSet::new()),
+                InferenceSelection::Frequentist,
+            )
+        };
+        let target = make_target(HistoryWindow::max_lag(2));
+        let mut product = supported_interaction_product();
+        product.target_identity = Some(target.identity());
+        assert_eq!(product.validate_target(&target), Ok(()));
+        product.assembled = None;
+        assert_eq!(
+            product.validate_target(&target),
+            Err(ProductRefusal::MissingAssembledObligation)
+        );
+        let changed = make_target(HistoryWindow::max_lag(1));
+        assert!(matches!(
+            product.validate_target(&changed),
+            Err(ProductRefusal::TargetIdentityMismatch { .. })
+        ));
+        product.world_obligations.pop();
+        assert_eq!(
+            product.validate_target(&target),
+            Err(ProductRefusal::MissingWorldObligation { world: ScientificWorldId::from_raw(3) })
+        );
+    }
+
+    #[test]
+    fn mediation_cannot_acquire_authority_from_generic_world_validation() {
+        use antecedent_core::{
+            GraphFamily, InferenceSelection, Intervention, MediationArms, MediationComponent,
+            MediationTarget, ModelAssumptions, ScientificTarget, TargetForm, TimeFrame,
+        };
+        let source = interaction_target();
+        let TargetForm::Contrast(contrast) = source.form() else {
+            unreachable!("interaction fixture")
+        };
+        let binding = contrast.worlds().worlds()[0].binding().clone();
+        let arms = MediationArms::new(
+            VariableId::from_raw(0),
+            [VariableId::from_raw(1)],
+            Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+            Intervention::set(VariableId::from_raw(0), Value::f64(0.0)),
+            MediationComponent::Total,
+        )
+        .unwrap();
+        let mediation =
+            MediationTarget::new(binding, TimeFrame::static_decision(), None, arms, []).unwrap();
+        let target = ScientificTarget::new(
+            TargetForm::Mediation(mediation),
+            ModelAssumptions::new(GraphFamily::Dag, AssumptionSet::new()),
+            InferenceSelection::Frequentist,
+        );
+        let mut product = supported_interaction_product();
+        product.target_identity = Some(target.identity());
+        assert_eq!(
+            product.validate_target(&target),
+            Err(ProductRefusal::MediationRequiresTheoremScopedSupport)
+        );
     }
 
     #[test]

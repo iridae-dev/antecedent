@@ -6816,6 +6816,7 @@ pub field antecedent::CheckedTemporalMediationInfo::estimator: antecedent::Estim
 pub field antecedent::CheckedTemporalMediationInfo::graph_signature: alloc::sync::Arc<str>
 pub field antecedent::CheckedTemporalMediationInfo::horizons: alloc::sync::Arc<[u32]>
 pub field antecedent::CheckedTemporalMediationInfo::query: antecedent_core::query::mediation::MediationQuery
+pub field antecedent::CheckedTemporalMediationInfo::scientific_targets: alloc::sync::Arc<[antecedent_core::scientific_target::ScientificTarget]>
 pub field antecedent::CheckedTemporalMediationInfo::validation: antecedent::RefuteSuite
 pub field antecedent::CheckedTransportTrialInfo::estimator: antecedent::EstimatorId
 pub field antecedent::CheckedTransportTrialInfo::identifier: antecedent::IdentifierId
@@ -7671,6 +7672,7 @@ pub field antecedent::analysis::CheckedStaticMediationInfo::functional_roots: (u
 pub field antecedent::analysis::CheckedStaticMediationInfo::graph_edges: alloc::sync::Arc<[(u32, u32)]>
 pub field antecedent::analysis::CheckedStaticMediationInfo::identifier: antecedent::IdentifierId
 pub field antecedent::analysis::CheckedStaticMediationInfo::query: antecedent_core::query::mediation::MediationQuery
+pub field antecedent::analysis::CheckedStaticMediationInfo::scientific_target: antecedent_core::scientific_target::ScientificTarget
 pub field antecedent::analysis::CheckedStaticMediationInfo::validation: antecedent::RefuteSuite
 pub field antecedent::analysis::CheckedTemporalClassEffectInfo::bootstrap_replicates: u32
 pub field antecedent::analysis::CheckedTemporalClassEffectInfo::completion_count: usize

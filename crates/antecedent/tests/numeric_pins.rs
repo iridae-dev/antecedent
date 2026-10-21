@@ -4114,3 +4114,125 @@ fn replacement_data_changes_score_reuse_not_identification() {
     assert_ne!(before.data_snapshot, after.data_snapshot);
     assert_ne!(score_before, score_after, "same schema and n do not reuse scores");
 }
+
+#[test]
+fn batch_family_contrasts_retain_checked_worlds_after_builder_disposal() {
+    let (data, graph) = zero_effect_pair_dgp(800, 271);
+    let ctx = ExecutionContext::for_tests(271);
+    for kind in [CellFamilyContrast::CellMinusControl, CellFamilyContrast::Interaction] {
+        let results = {
+            let prepared = BatchStudy::new(data.clone(), graph.clone())
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .family_contrast(Some(kind))
+                .prepare_cells(&[joint_query(1.0, 1.0), joint_query(1.0, 0.0)], &ctx)
+                .unwrap();
+            prepared.estimate(&data, &ctx).unwrap()
+        };
+        let identities: Vec<_> = results
+            .iter()
+            .map(|result| {
+                result
+                    .estimate
+                    .as_effect()
+                    .unwrap()
+                    .family
+                    .compiled_contrast
+                    .as_ref()
+                    .unwrap_or_else(|| {
+                        panic!("checked joint target missing: {:?}", result.diagnostics)
+                    })
+                    .target()
+                    .identity()
+            })
+            .collect();
+        if kind == CellFamilyContrast::Interaction {
+            assert_eq!(
+                identities[0], identities[1],
+                "the complete interaction is independent of the requested member level"
+            );
+        } else {
+            assert_ne!(
+                identities[0], identities[1],
+                "different active cells define different differences from control"
+            );
+        }
+        for result in results {
+            let effect = result.estimate.as_effect().unwrap();
+            let binding = effect.family.compiled_contrast.as_ref().unwrap_or_else(|| {
+                panic!("checked joint target missing: {:?}", result.diagnostics)
+            });
+            let product = binding.identification();
+            assert_eq!(product.target_identity(), Some(binding.target().identity()));
+            product.validate_target(binding.target()).unwrap();
+            assert!(product.is_identified_claim());
+            let antecedent_core::TargetForm::Contrast(contrast) = binding.target().form() else {
+                panic!("expected the compiled scientific contrast");
+            };
+            assert_eq!(contrast.reference(), antecedent_core::ScientificWorldId::from_raw(0));
+            assert_eq!(product.world_obligations().len(), contrast.worlds().len());
+            assert_eq!(product.derivation(), &result.identification.derivation);
+            assert_eq!(product.assumptions(), &result.identification.required_assumptions);
+            if kind == CellFamilyContrast::Interaction {
+                let table = effect.scores.table.as_ref().unwrap();
+                let (expected, _) =
+                    antecedent_estimate::family_cell_contrast(table, 3, kind.as_str()).unwrap();
+                assert_eq!(effect.family.contrast.unwrap().0.to_bits(), expected.value.to_bits());
+            }
+            assert!(effect.family.contrast.is_some());
+        }
+    }
+}
+
+#[test]
+fn three_factor_interaction_batch_withholds_instead_of_using_first_four_cells() {
+    let mut columns = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+    for i in 0_u32..1024 {
+        let a = f64::from(i & 1);
+        let b = f64::from((i >> 1) & 1);
+        let c = f64::from((i >> 2) & 1);
+        let y = 2.0 + a + b + c + a * b + (f64::from(i) * 0.23).sin();
+        for (column, value) in columns.iter_mut().zip([a, b, c, y]) {
+            column.push(value);
+        }
+    }
+    let data = TabularData::from_f64_columns(
+        ["a", "b", "c", "y"].into_iter().zip(columns.iter().map(Vec::as_slice)),
+    )
+    .unwrap();
+    let graph =
+        Dag::from_named_edges(data.schema(), &[("a", "y"), ("b", "y"), ("c", "y")]).unwrap();
+    let query = |c| {
+        ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(3),
+            interventions: Arc::from([
+                Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+                Intervention::set(VariableId::from_raw(1), Value::f64(1.0)),
+                Intervention::set(VariableId::from_raw(2), Value::f64(c)),
+            ]),
+        })
+    };
+    let ctx = ExecutionContext::for_tests(271);
+    let results = BatchStudy::new(data.clone(), graph)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .family_contrast(Some(CellFamilyContrast::Interaction))
+        .prepare_cells(&[query(0.0), query(1.0)], &ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    for result in results {
+        let family = &result.estimate.as_effect().unwrap().family;
+        assert!(family.contrast.is_none());
+        assert!(family.contrast_interval.is_none());
+        assert!(family.adjusted_p_values.is_none());
+        assert!(family.compiled_contrast.is_none());
+        assert!(result.diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("exactly two declared treatment factors")
+        }));
+        assert!(
+            result.response().is_some(),
+            "the independently supported cell level remains usable"
+        );
+    }
+}

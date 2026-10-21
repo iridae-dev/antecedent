@@ -1127,6 +1127,7 @@ fn withhold_family_inference(results: &mut [StudyResult], message: &str) {
         effect.family.adjusted_p_values = None;
         effect.family.contrast = None;
         effect.family.contrast_interval = None;
+        effect.family.compiled_contrast = None;
         result.diagnostics.push(antecedent_core::Diagnostic::new(
             "batch.joint_if",
             antecedent_core::DiagnosticKind::Scientific,
@@ -1206,19 +1207,24 @@ fn attach_batch_family_joint_inference(
             Some(kind) => {
                 let mut contrast_aligned = Vec::new();
                 let mut contrast_values = Vec::new();
+                let mut contrast_bindings = Vec::new();
                 for ((result, query), rows) in results.iter().zip(queries).zip(&row_sets) {
-                    let Some((value, scores)) = cell_family_contrast_claim(result, query, kind)
-                    else {
-                        withhold_family_inference(
-                            results,
-                            &format!(
-                                "shared-row joint IF on cell levels; {} contrast could not be formed, p-values omitted",
-                                kind.as_str()
-                            ),
-                        );
-                        attach_candidate_selection(results, screen, &[], &[], None);
-                        return;
-                    };
+                    let CellFamilyClaim { value, scores, binding } =
+                        match cell_family_contrast_claim(data, result, query, kind) {
+                            Ok(claim) => claim,
+                            Err(reason) => {
+                                withhold_family_inference(
+                                    results,
+                                    &format!(
+                                        "shared-row joint IF on cell levels; {} contrast withheld: {reason}; p-values omitted",
+                                        kind.as_str()
+                                    ),
+                                );
+                                attach_candidate_selection(results, screen, &[], &[], None);
+                                return;
+                            }
+                        };
+                    contrast_bindings.push(binding);
                     if scores.len() != rows.len() {
                         attach_batch_inference_unavailable(
                             results,
@@ -1244,6 +1250,11 @@ fn attach_batch_family_joint_inference(
                 };
                 let contrast_crit =
                     resolve_max_t_critical(results, &contrast_cov, "family-contrast interval");
+                for (result, binding) in results.iter_mut().zip(contrast_bindings) {
+                    if let Some(effect) = result.estimate.as_effect_mut() {
+                        effect.family.compiled_contrast = Some(binding);
+                    }
+                }
                 attach_family_p_values(
                     results,
                     &contrast_values,
@@ -1315,25 +1326,32 @@ fn response_requested_arm(query: &ResponseQuery) -> Option<u32> {
     super::helpers::requested_joint_arm(query).ok()
 }
 
+struct CellFamilyClaim {
+    value: f64,
+    scores: Vec<f64>,
+    binding: Arc<antecedent_estimate::effect_estimate::CompiledFamilyContrast>,
+}
+
 fn cell_family_contrast_claim(
+    data: &TabularData,
     result: &StudyResult,
     query: &BatchQuery,
     kind: CellFamilyContrast,
-) -> Option<(f64, Vec<f64>)> {
+) -> Result<CellFamilyClaim, String> {
     let BatchQuery::Response(query) = query else {
-        return None;
+        return Err("a cell-family contrast requires a response query".into());
     };
-    if query.outcome_functional.quantile_level().is_some() {
-        return None;
-    }
-    let table = result.estimate.as_effect()?.scores.table.as_ref()?;
-    if table.distinct_threshold_count() > 1 {
-        return None;
-    }
-    let arm = response_requested_arm(query)?;
-    let (contrast, scores) =
-        antecedent_estimate::family_cell_contrast(table, arm, kind.as_str()).ok()?;
-    Some((contrast.value, scores))
+    let table = result
+        .estimate
+        .as_effect()
+        .and_then(|effect| effect.scores.table.as_ref())
+        .ok_or_else(|| "family contrast requires frozen joint-cell scores".to_owned())?;
+    let binding = super::joint_contrast_binding::bind(data, result, query, table, kind)?;
+    let arm =
+        response_requested_arm(query).ok_or_else(|| "invalid joint intervention arm".to_owned())?;
+    let (contrast, scores) = antecedent_estimate::family_cell_contrast(table, arm, kind.as_str())
+        .map_err(|error| error.to_string())?;
+    Ok(CellFamilyClaim { value: contrast.value, scores, binding })
 }
 
 /// Two-sided p-value for a Wald statistic `value / se`.

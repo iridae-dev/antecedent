@@ -7,13 +7,13 @@ use antecedent_graph::Dag;
 use antecedent_stats::fit_counts::count_least_squares_solves;
 
 fn contrast_study() -> Study {
-    let schema = CausalSchemaBuilder::new()
-        .continuous("t")
-        .treatment()
-        .continuous("y")
-        .outcome()
-        .build()
-        .unwrap();
+    contrast_study_with_units(None)
+}
+
+fn contrast_study_with_units(unit: Option<&str>) -> Study {
+    let outcome = CausalSchemaBuilder::new().continuous("t").treatment().continuous("y");
+    let outcome = if let Some(unit) = unit { outcome.unit(unit) } else { outcome };
+    let schema = outcome.outcome().build().unwrap();
     let treatment = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
     let outcome = [1.0, 3.0, 1.0, 3.0, 1.0, 3.0, 1.0, 3.0];
     let data = TabularData::try_from_schema_f64(
@@ -36,7 +36,7 @@ fn contrast_study() -> Study {
 #[test]
 fn prepared_gaussian_retains_the_compiled_program_after_builder_drop() {
     let ctx = ExecutionContext::for_tests(1);
-    let study = contrast_study();
+    let study = contrast_study_with_units(Some("widgets"));
     let (compilation, preparation_solves) = count_least_squares_solves(|| {
         antecedent_core::execution_attempt::observe_execution(|| study.prepare(&ctx))
     });
@@ -76,7 +76,16 @@ fn prepared_gaussian_retains_the_compiled_program_after_builder_drop() {
         "inspection and execution must retain the identical compiled product"
     );
     assert!(matches!(program.target().form(), TargetForm::Contrast(_)));
+    let TargetForm::Contrast(contrast) = program.target().form() else { unreachable!() };
+    for world in contrast.worlds().worlds() {
+        assert_eq!(
+            world.binding().outcome().units(),
+            &antecedent_core::QuantityUnits::new("widgets").unwrap()
+        );
+    }
     assert_eq!(program.identification().world_obligations().len(), 2);
+    assert_eq!(program.identification().target_identity(), Some(program.target().identity()));
+    program.identification().validate_target(program.target()).unwrap();
     assert_eq!(
         program.identification().assumptions(),
         prepared.checked_linear_adjustment().unwrap().required_assumptions()

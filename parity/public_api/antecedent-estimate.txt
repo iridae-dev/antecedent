@@ -466,6 +466,7 @@ impl core::clone::Clone for antecedent_estimate::effect_constancy::PartitionDepe
 impl core::clone::Clone for antecedent_estimate::effect_constancy::PartitionEstimate
 impl core::clone::Clone for antecedent_estimate::effect_constancy::PartitionReport
 impl core::clone::Clone for antecedent_estimate::effect_constancy::PartitionSupport
+impl core::clone::Clone for antecedent_estimate::effect_estimate::CompiledFamilyContrast
 impl core::clone::Clone for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
 impl core::clone::Clone for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::clone::Clone for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
@@ -2225,6 +2226,7 @@ impl core::fmt::Debug for antecedent_estimate::effect_constancy::PartitionDepend
 impl core::fmt::Debug for antecedent_estimate::effect_constancy::PartitionEstimate
 impl core::fmt::Debug for antecedent_estimate::effect_constancy::PartitionReport
 impl core::fmt::Debug for antecedent_estimate::effect_constancy::PartitionSupport
+impl core::fmt::Debug for antecedent_estimate::effect_estimate::CompiledFamilyContrast
 impl core::fmt::Debug for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
 impl core::fmt::Debug for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::fmt::Debug for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
@@ -3329,6 +3331,7 @@ impl core::marker::Freeze for antecedent_estimate::effect_constancy::PartitionDe
 impl core::marker::Freeze for antecedent_estimate::effect_constancy::PartitionEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::effect_constancy::PartitionReport [auto]
 impl core::marker::Freeze for antecedent_estimate::effect_constancy::PartitionSupport [auto]
+impl core::marker::Freeze for antecedent_estimate::effect_estimate::CompiledFamilyContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::marker::Freeze for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Freeze for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -4105,6 +4108,7 @@ impl core::marker::Send for antecedent_estimate::effect_constancy::PartitionDepe
 impl core::marker::Send for antecedent_estimate::effect_constancy::PartitionEstimate [auto]
 impl core::marker::Send for antecedent_estimate::effect_constancy::PartitionReport [auto]
 impl core::marker::Send for antecedent_estimate::effect_constancy::PartitionSupport [auto]
+impl core::marker::Send for antecedent_estimate::effect_estimate::CompiledFamilyContrast [auto]
 impl core::marker::Send for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::marker::Send for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Send for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -5510,6 +5514,7 @@ impl core::marker::Sync for antecedent_estimate::effect_constancy::PartitionDepe
 impl core::marker::Sync for antecedent_estimate::effect_constancy::PartitionEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::effect_constancy::PartitionReport [auto]
 impl core::marker::Sync for antecedent_estimate::effect_constancy::PartitionSupport [auto]
+impl core::marker::Sync for antecedent_estimate::effect_estimate::CompiledFamilyContrast [auto]
 impl core::marker::Sync for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::marker::Sync for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Sync for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -6287,6 +6292,7 @@ impl core::marker::Unpin for antecedent_estimate::effect_constancy::PartitionDep
 impl core::marker::Unpin for antecedent_estimate::effect_constancy::PartitionEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::effect_constancy::PartitionReport [auto]
 impl core::marker::Unpin for antecedent_estimate::effect_constancy::PartitionSupport [auto]
+impl core::marker::Unpin for antecedent_estimate::effect_estimate::CompiledFamilyContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::marker::Unpin for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Unpin for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -7064,6 +7070,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::effect_con
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::effect_constancy::PartitionEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::effect_constancy::PartitionReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::effect_constancy::PartitionSupport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::effect_estimate::CompiledFamilyContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -7840,6 +7847,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::effect_consta
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::effect_constancy::PartitionEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::effect_constancy::PartitionReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::effect_constancy::PartitionSupport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::effect_estimate::CompiledFamilyContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
@@ -9640,6 +9648,7 @@ pub field antecedent_estimate::FallbackRecord::destination: alloc::string::Strin
 pub field antecedent_estimate::FallbackRecord::failed_fit: antecedent_estimate::FailedFit
 pub field antecedent_estimate::FamilyInference::adjusted_p_values: core::option::Option<(f64, f64)>
 pub field antecedent_estimate::FamilyInference::candidate_selection: core::option::Option<antecedent_estimate::CandidateSelectionRecord>
+pub field antecedent_estimate::FamilyInference::compiled_contrast: core::option::Option<alloc::sync::Arc<antecedent_estimate::effect_estimate::CompiledFamilyContrast>>
 pub field antecedent_estimate::FamilyInference::contrast: core::option::Option<(f64, f64)>
 pub field antecedent_estimate::FamilyInference::contrast_interval: core::option::Option<(f64, f64, f64)>
 pub field antecedent_estimate::FamilyInference::simultaneous_interval: core::option::Option<(f64, f64, f64)>
@@ -13222,6 +13231,9 @@ pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn
 pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn retained_source_bytes(&self) -> u64
 pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn retarget(&self, grid: &[f64], functional: antecedent_estimate::dose_grid_functional::DoseFunctional, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::dose_grid_posterior::DoseGridPosterior>::fn retained_admitted_bytes(&self) -> u64
+pub fn <antecedent_estimate::effect_estimate::CompiledFamilyContrast>::fn identification(&self) -> &antecedent_identify::compiled_product::CompiledIdentificationProduct
+pub fn <antecedent_estimate::effect_estimate::CompiledFamilyContrast>::fn new(target: antecedent_core::scientific_target::ScientificTarget, identification: antecedent_identify::compiled_product::CompiledIdentificationProduct) -> core::result::Result<Self, antecedent_identify::compiled_product::ProductRefusal>
+pub fn <antecedent_estimate::effect_estimate::CompiledFamilyContrast>::fn target(&self) -> &antecedent_core::scientific_target::ScientificTarget
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn identities(&self) -> alloc::vec::Vec<antecedent_core::recalc::StageIdentity>
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn new() -> alloc::sync::Arc<Self>
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn scope<R>(self: &alloc::sync::Arc<Self>, work: impl core::ops::function::FnOnce() -> R) -> R
@@ -14463,6 +14475,8 @@ pub struct antecedent_estimate::effect_constancy::EffectEstimandIdentity
 pub struct antecedent_estimate::effect_constancy::HeterogeneityTest
 pub struct antecedent_estimate::effect_constancy::PartitionEstimate
 pub struct antecedent_estimate::effect_constancy::PartitionReport
+pub struct antecedent_estimate::effect_estimate::CompiledFamilyContrast
+pub struct antecedent_estimate::effect_estimate::CompiledFamilyContrast has private fields
 pub struct antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
 pub struct antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
 pub struct antecedent_estimate::functional_distribution::EmpiricalFactorCache

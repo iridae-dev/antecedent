@@ -19,6 +19,7 @@ use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVa
 pub(crate) struct CheckedBayesianStaticMediationOperation {
     graph: Dag,
     query: antecedent_core::MediationQuery,
+    target: antecedent_core::ScientificTarget,
     cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
     program: FunctionalProgram,
@@ -92,6 +93,13 @@ impl CheckedBayesianStaticMediationOperation {
         Ok(Self {
             graph: graph.clone(),
             query: query.clone(),
+            target: super::checked_static_mediation::theorem_mediation_target(
+                query,
+                data.schema(),
+                &cache.identification.required_assumptions,
+                antecedent_core::InferenceSelection::Bayesian,
+                None,
+            )?,
             cache: Arc::clone(cache),
             physical: physical.clone(),
             program,
@@ -118,6 +126,15 @@ impl CheckedBayesianStaticMediationOperation {
     pub(crate) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         if data.schema() != &self.schema
             || self.program.mapping().source != self.cache.estimand.functional
+            || self.target.identity()
+                != super::checked_static_mediation::theorem_mediation_target(
+                    &self.query,
+                    &self.schema,
+                    &self.cache.identification.required_assumptions,
+                    antecedent_core::InferenceSelection::Bayesian,
+                    None,
+                )?
+                .identity()
         {
             return Err(CausalError::Compile {
                 message: "Bayesian mediation refresh changed its semantic schema or target".into(),
@@ -309,6 +326,7 @@ impl Inspect for CheckedBayesianStaticMediationOperation {
         let edges = self.graph().directed_edge_pairs_sorted();
         CheckedStaticMediationInfo {
             query: query.clone(),
+            scientific_target: self.target.clone(),
             identifier: IdentifierId::PathSpecificNatural,
             estimator: EstimatorId::StaticMediationLinear,
             adjustment_set: Arc::clone(&estimand.adjustment_set),
@@ -406,6 +424,18 @@ mod tests {
                     .unwrap();
                     assert_eq!(operation.inspect().0, &query);
                     assert_eq!(operation.inspect().3, validation);
+                    let info = operation.info();
+                    assert!(matches!(
+                        info.scientific_target.form(),
+                        antecedent_core::TargetForm::Mediation(_)
+                    ));
+                    assert_eq!(
+                        info.scientific_target.inference(),
+                        antecedent_core::InferenceSelection::Bayesian
+                    );
+                    let mut changed = operation.clone();
+                    changed.query.active = Intervention::set(query.treatment, Value::f64(0.9));
+                    assert!(matches!(changed.rebind(&data), Err(CausalError::Compile { .. })));
                     let result = operation.execute(&data, &ctx).unwrap();
                     assert!((result.estimate.as_effect().unwrap().ate - truth).abs() < 0.18);
                     let posterior = result.posterior.as_ref().expect("posterior retained");

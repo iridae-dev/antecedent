@@ -240,10 +240,50 @@ pub struct EstimateScores {
     pub influence: Option<Arc<[f64]>>,
 }
 
+/// Scientific target and identification retained by an executed batch-family contrast.
+///
+/// This binds the contrast to the actual source identification and observed world support.
+/// It does not grant calibration or an additional interval/decision license.
+#[derive(Clone, Debug)]
+pub struct CompiledFamilyContrast {
+    target: antecedent_core::ScientificTarget,
+    identification: antecedent_identify::CompiledIdentificationProduct,
+}
+
+impl CompiledFamilyContrast {
+    /// Retain a product already bound by the compiler to this exact target.
+    ///
+    /// # Errors
+    /// Refuses an unbound, mismatched or incompletely supported scientific target.
+    pub fn new(
+        target: antecedent_core::ScientificTarget,
+        identification: antecedent_identify::CompiledIdentificationProduct,
+    ) -> Result<Self, antecedent_identify::ProductRefusal> {
+        identification.validate_target(&target)?;
+        Ok(Self { target, identification })
+    }
+
+    /// Full inference-independent contrast target, including its explicit reference world.
+    #[must_use]
+    pub fn target(&self) -> &antecedent_core::ScientificTarget {
+        &self.target
+    }
+
+    /// Actual derivation and complete world/assembled support obligations.
+    #[must_use = "the retained proof determines which contrast claims are permitted"]
+    pub fn identification(&self) -> &antecedent_identify::CompiledIdentificationProduct {
+        &self.identification
+    }
+}
+
 /// Batch-family inference over a fixed family of cells or contrasts.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct FamilyInference {
+    /// Checked scientific binding required before a joint-cell family contrast is exposed.
+    /// Native retention only: older numerical artifact formats omit this binding and do not
+    /// gain current scientific authority when decoded.
+    pub compiled_contrast: Option<Arc<CompiledFamilyContrast>>,
     /// Simultaneous batch interval (lower, upper, level).
     ///
     /// Joint-cell batches keep this on cell **levels**. Contrast-family bands

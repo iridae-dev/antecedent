@@ -4920,6 +4920,7 @@ pub fn <antecedent_identify::CompiledIdentificationProduct>::const fn derivation
 pub fn <antecedent_identify::CompiledIdentificationProduct>::const fn is_numerically_feasible(&self) -> bool
 pub fn <antecedent_identify::CompiledIdentificationProduct>::const fn numerical_value(&self) -> core::option::Option<f64>
 pub fn <antecedent_identify::CompiledIdentificationProduct>::const fn outcome(&self) -> antecedent_identify::IdentificationOutcome
+pub fn <antecedent_identify::CompiledIdentificationProduct>::const fn target_identity(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn bounded_search_diagnostics(&self) -> &[antecedent_core::diagnostic::Diagnostic]
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn identified(&self) -> &[antecedent_expr::estimand::IdentifiedEstimand]
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
@@ -4927,7 +4928,9 @@ pub fn <antecedent_identify::CompiledIdentificationProduct>::fn is_identified_cl
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn new(estimands: alloc::vec::Vec<antecedent_expr::estimand::IdentifiedEstimand>, arena: antecedent_expr::CausalExprArena, derivation: antecedent_identify::DerivationTrace, assumptions: antecedent_core::assumption::AssumptionSet, bounded_search: alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>, parts: antecedent_identify::CompiledProductParts) -> core::result::Result<Self, antecedent_identify::ProductRefusal>
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn required_factors(&self) -> &[antecedent_identify::RequiredFactor]
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn retain(result: &antecedent_identify::IdentificationResult, parts: antecedent_identify::CompiledProductParts) -> core::result::Result<Self, antecedent_identify::ProductRefusal>
+pub fn <antecedent_identify::CompiledIdentificationProduct>::fn retain_for_target(result: &antecedent_identify::IdentificationResult, parts: antecedent_identify::CompiledProductParts, target: &antecedent_core::scientific_target::ScientificTarget) -> core::result::Result<Self, antecedent_identify::ProductRefusal>
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn unresolved_obligations(&self) -> &[antecedent_identify::UnresolvedObligation]
+pub fn <antecedent_identify::CompiledIdentificationProduct>::fn validate_target(&self, target: &antecedent_core::scientific_target::ScientificTarget) -> core::result::Result<(), antecedent_identify::ProductRefusal>
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn world_obligations(&self) -> &[antecedent_identify::WorldObligation]
 pub fn <antecedent_identify::CompiledProductParts>::const fn new(outcome: antecedent_identify::IdentificationOutcome, claim_class: antecedent_identify::IdentificationClaimClass) -> Self
 pub fn <antecedent_identify::ConditionalNonTransportabilityProof>::const fn candidate(&self) -> core::option::Option<&antecedent_identify::ConditionalObstructionCandidate>
@@ -6257,11 +6260,21 @@ pub variant antecedent_identify::NotThisRecipe::LatentVariableExpansion
 pub variant antecedent_identify::NotThisRecipe::PriorRegularization
 pub variant antecedent_identify::PhysicalDynamicalStability::Declared
 pub variant antecedent_identify::PhysicalDynamicalStability::NotDeclared
+pub variant antecedent_identify::ProductRefusal::DuplicateWorldObligation { world: antecedent_core::scientific_target::ScientificWorldId }
 pub variant antecedent_identify::ProductRefusal::EstimandBesideNonIdentification { outcome: antecedent_identify::IdentificationOutcome }
 pub variant antecedent_identify::ProductRefusal::IdentifiedClaimClassBesideFailure { outcome: antecedent_identify::IdentificationOutcome }
 pub variant antecedent_identify::ProductRefusal::IdentifiedFromUnidentifiedResult { status: antecedent_core::identification::IdentificationStatus }
 pub variant antecedent_identify::ProductRefusal::IdentifiedWithContradictedAssumption { index: usize }
+pub variant antecedent_identify::ProductRefusal::IdentifiedWithoutAssembledSupport
 pub variant antecedent_identify::ProductRefusal::IdentifiedWithoutEstimand
+pub variant antecedent_identify::ProductRefusal::IdentifiedWithoutWorldSupport { world: antecedent_core::scientific_target::ScientificWorldId }
+pub variant antecedent_identify::ProductRefusal::MediationRequiresTheoremScopedSupport
+pub variant antecedent_identify::ProductRefusal::MissingAssembledObligation
+pub variant antecedent_identify::ProductRefusal::MissingWorldObligation { world: antecedent_core::scientific_target::ScientificWorldId }
+pub variant antecedent_identify::ProductRefusal::TargetIdentityMismatch { expected: antecedent_core::identity::SemanticDigest, actual: antecedent_core::identity::SemanticDigest }
+pub variant antecedent_identify::ProductRefusal::TargetRequiresSpecializedSupport
+pub variant antecedent_identify::ProductRefusal::UnboundScientificTarget
+pub variant antecedent_identify::ProductRefusal::UnexpectedWorldObligation { world: antecedent_core::scientific_target::ScientificWorldId }
 pub variant antecedent_identify::RecoveryAttempt::ClampExperiments(antecedent_identify::ClampExperimentSet)
 pub variant antecedent_identify::RecoveryAttempt::LatentVariableExpansion
 pub variant antecedent_identify::RecoveryAttempt::ObservationalEquilibriumOls

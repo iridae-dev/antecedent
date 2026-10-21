@@ -35,12 +35,15 @@ const CONTRAST_BYTES: u64 = 8;
 pub(crate) fn linear_gaussian_scientific_problem(
     query: &AverageEffectQuery,
     bayesian: bool,
+    schema: &antecedent_core::CausalSchema,
 ) -> Result<ScientificTarget, CausalError> {
+    let outcome = schema.get(query.outcome)?;
+    let units = QuantityUnits::new(outcome.unit.as_deref().unwrap_or("unspecified"))
+        .map_err(|err| target_error(&err))?;
     let binding = antecedent_core::WorldBinding::new(
         query.target_population.clone(),
         ObservationUnit::new("row").map_err(|err| target_error(&err))?,
-        OutcomeQuantity::mean(query.outcome, QuantityUnits::dimensionless())
-            .map_err(|err| target_error(&err))?,
+        OutcomeQuantity::mean(query.outcome, units).map_err(|err| target_error(&err))?,
         Conditioning::unconditional(),
     )
     .map_err(|err| target_error(&err))?;

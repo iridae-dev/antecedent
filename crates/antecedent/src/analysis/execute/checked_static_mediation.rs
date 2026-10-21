@@ -16,6 +16,7 @@ use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVa
 pub(crate) struct CheckedStaticMediationOperation {
     graph: Dag,
     query: antecedent_core::MediationQuery,
+    target: antecedent_core::ScientificTarget,
     cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     physical: std::sync::Arc<PhysicalExecutionPlan>,
     program: FunctionalProgram,
@@ -103,6 +104,13 @@ impl CheckedStaticMediationOperation {
         Ok(Self {
             graph: graph.clone(),
             query: query.clone(),
+            target: theorem_mediation_target(
+                query,
+                data.schema(),
+                &cache.identification.required_assumptions,
+                antecedent_core::InferenceSelection::Frequentist,
+                None,
+            )?,
             cache: Arc::clone(cache),
             physical: physical.clone(),
             program,
@@ -118,6 +126,15 @@ impl CheckedStaticMediationOperation {
     pub(crate) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         if data.schema() != &self.schema
             || self.program.mapping().source != self.cache.estimand.functional
+            || self.target.identity()
+                != theorem_mediation_target(
+                    &self.query,
+                    &self.schema,
+                    &self.cache.identification.required_assumptions,
+                    antecedent_core::InferenceSelection::Frequentist,
+                    None,
+                )?
+                .identity()
         {
             return Err(CausalError::Compile {
                 message: "mediation refresh changed its semantic schema or target".into(),
@@ -208,6 +225,86 @@ impl CheckedStaticMediationOperation {
     }
 }
 
+/// The existing natural-effect and linear temporal theorems carry their own premises.
+/// This target is retained beside their validated proofs, never accepted by the generic
+/// joint-world support validator. Temporal frames describe the observed lag-window law
+/// already averaged by the estimator; they do not introduce independent initial-state draws.
+pub(super) fn theorem_mediation_target(
+    query: &antecedent_core::MediationQuery,
+    schema: &antecedent_core::CausalSchema,
+    assumptions: &antecedent_core::AssumptionSet,
+    inference: antecedent_core::InferenceSelection,
+    temporal: Option<(u32, u32)>,
+) -> Result<antecedent_core::ScientificTarget, CausalError> {
+    use antecedent_core::{
+        Conditioning, CrossWorldPremise, GraphFamily, HistoryWindow, InitialLaw, MediationArms,
+        MediationComponent, MediationContrast, MediationTarget, ModelAssumptions, ObservationUnit,
+        OutcomeQuantity, QuantityUnits, ScientificTarget, TargetForm, TemporalPolicy, TimeFrame,
+        WorldBinding,
+    };
+    let target_error = |error: antecedent_core::ScientificTargetError| CausalError::Compile {
+        message: format!("mediation scientific target: {error}"),
+    };
+    query.validate()?;
+    let component = match query.contrast {
+        MediationContrast::Total => MediationComponent::Total,
+        MediationContrast::Direct => MediationComponent::Direct,
+        MediationContrast::NaturalDirect => MediationComponent::NaturalDirect,
+        MediationContrast::Mediated => MediationComponent::Mediated,
+        MediationContrast::NaturalIndirect => MediationComponent::NaturalIndirect,
+    };
+    let (graph, unit, time, schedule) = match temporal {
+        None => (GraphFamily::Dag, "row", TimeFrame::static_decision(), None),
+        Some((horizon, history)) => (
+            GraphFamily::TemporalDag,
+            "lag_window",
+            TimeFrame::temporal(
+                horizon,
+                HistoryWindow::max_lag(history),
+                InitialLaw::contemporaneous_observed(),
+            )
+            .map_err(target_error)?,
+            Some(TemporalPolicy::pulse(0)),
+        ),
+    };
+    let binding = WorldBinding::new(
+        query.target_population.clone(),
+        ObservationUnit::new(unit).map_err(target_error)?,
+        OutcomeQuantity::mean(
+            query.outcome,
+            QuantityUnits::new(schema.get(query.outcome)?.unit.as_deref().unwrap_or("unspecified"))
+                .map_err(target_error)?,
+        )
+        .map_err(target_error)?,
+        Conditioning::unconditional(),
+    )
+    .map_err(target_error)?;
+    let arms = MediationArms::new(
+        query.treatment,
+        query.mediators.iter().copied(),
+        query.control.clone(),
+        query.active.clone(),
+        component,
+    )
+    .map_err(target_error)?;
+    let premises = if component == MediationComponent::Total {
+        Vec::new()
+    } else {
+        vec![
+            CrossWorldPremise::Composition,
+            CrossWorldPremise::CrossWorldIndependence,
+            CrossWorldPremise::PathSpecificNested,
+        ]
+    };
+    let mediation =
+        MediationTarget::new(binding, time, schedule, arms, premises).map_err(target_error)?;
+    Ok(ScientificTarget::new(
+        TargetForm::Mediation(mediation),
+        ModelAssumptions::new(graph, assumptions.clone()),
+        inference,
+    ))
+}
+
 fn bind_rows(data: &TabularData, roles: &[VariableId]) -> Result<Arc<[u32]>, CausalError> {
     data.complete_case_mask(roles)?
         .iter()
@@ -227,6 +324,8 @@ fn bind_rows(data: &TabularData, roles: &[VariableId]) -> Result<Arc<[u32]>, Cau
 pub struct CheckedStaticMediationInfo {
     /// Complete contrast, mediators, intervention levels, and population.
     pub query: antecedent_core::MediationQuery,
+    /// Scientific target retaining the natural-effect theorem's cross-world premises.
+    pub scientific_target: antecedent_core::ScientificTarget,
     /// Prepare-time identifier.
     pub identifier: crate::strategy_table::IdentifierId,
     /// Prepare-time estimator.
@@ -251,6 +350,7 @@ impl Inspect for CheckedStaticMediationOperation {
         let edges = graph.directed_edge_pairs_sorted();
         CheckedStaticMediationInfo {
             query: query.clone(),
+            scientific_target: self.target.clone(),
             identifier: IdentifierId::PathSpecificNatural,
             estimator: EstimatorId::StaticMediationLinear,
             adjustment_set: Arc::clone(&estimand.adjustment_set),

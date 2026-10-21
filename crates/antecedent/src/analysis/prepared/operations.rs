@@ -1663,7 +1663,11 @@ impl CheckedLinearOperation {
             || self.compiled.identification().assumptions()
                 != self.preparation.required_assumptions()
             || self.compiled.target()
-                != &crate::planner::linear_gaussian_scientific_problem(&self.query, false)?
+                != &crate::planner::linear_gaussian_scientific_problem(
+                    &self.query,
+                    false,
+                    self.source.schema(),
+                )?
             || self.preparation.source_functional() != self.cache.estimand.functional
             || self.preparation.target().adjustment_set != self.cache.estimand.adjustment_set
             || self.preparation.lowering().treatment != self.query.treatment

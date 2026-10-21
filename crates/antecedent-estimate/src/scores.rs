@@ -52,7 +52,8 @@ pub struct ScoreTable {
     pub propensity_clip: Option<f64>,
     /// Treatment variable.
     pub treatment: VariableId,
-    /// Additional intervened coordinates (joint cells). Empty for binary ATE.
+    /// Complete ordered intervention coordinates for joint cells, including `treatment`.
+    /// Arm-mask bit `j` refers to coordinate `j`. Empty for binary ATE tables.
     pub intervened: Arc<[VariableId]>,
     /// How the columns the scores were fitted on were prepared, when the estimator admitted
     /// them through the preparation path. A physical fact about the run, so it is not part of

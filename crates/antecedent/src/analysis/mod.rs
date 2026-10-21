@@ -87,6 +87,7 @@ mod inverse_outcome;
 pub mod inverse_query;
 pub mod inverse_sources;
 mod joint_contrast;
+mod joint_contrast_binding;
 pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
 mod joint_sensitivity;

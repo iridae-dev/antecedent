@@ -228,3 +228,33 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_joint_panel_reference.py"
 gates = ["inventory"]
+
+[[test]]
+id = "joint-target-bound-identification"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/compiled_product.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-target-production-gaussian"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/prepared_gaussian_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-target-production-batch"
+crate = "antecedent"
+cargo_target = "suite_05"
+path = "crates/antecedent/tests/numeric_pins.rs"
+gates = ["inventory", "named"]
+suite_map_line = "suite_05: inverse_forward_sources_facade, joint_class_response, joint_law_propagation_facade, joint_sensitivity_lifecycle, learned_continuous_lifecycle, local_polynomial_ratio_route, longitudinal_regime_route, mag_visible_numeric, manufacturing_temporal, mapped_posterior_transfer, measurement_model_facade, mechanism_composition_facade, msm_sensitivity_decision, multi_source_acceptance, mz_transport_lifecycle, nan_cell_ingest, native_claim_support_and_horizon_draws, native_claims, native_coordinate_parity, nested_counterfactual_route_evidence, numeric_pins, observation_query_facade, observation_recovery_lifecycle, observational_interference_route, pag, pag_admg_numeric_pins, pag_identified_envelope_numeric_pins, panel_did_interval_calibration, panel_did_route, path_specific_edge_gformula_pins"
+
+[[test]]
+id = "joint-target-theorem-mediation"
+crate = "antecedent"
+cargo_target = "suite_02"
+path = "crates/antecedent/tests/checked_static_mediation_route_evidence.rs"
+gates = ["inventory", "named"]
+suite_map_line = "suite_02: checked_admg_graph_posterior_effect_route_evidence, checked_attribution_route_evidence, checked_bayesian_class_conditional_route_evidence, checked_bayesian_class_graph_posterior_effect_route_evidence, checked_bayesian_conditional_multimodifier_lifecycle, checked_bayesian_conditional_route_evidence, checked_bayesian_counterfactual_route_evidence, checked_bayesian_dag_graph_posterior_ate_route_evidence, checked_bayesian_specialist_route_evidence, checked_bayesian_static_class_effect_route_evidence, checked_bayesian_static_dag_response_route_evidence, checked_bayesian_temporal_dag_lifecycle, checked_bayesian_temporal_response_route_evidence, checked_cell_aipw_response_route_evidence, checked_class_graph_posterior_effect_route_evidence, checked_codetermined_cell_aipw_response_route_evidence, checked_conditional_effect_route_evidence, checked_counterfactual_route_evidence, checked_derivative_response_route_evidence, checked_graph_posterior_conditional_route_evidence, checked_graph_posterior_effect_route_evidence, checked_graph_posterior_response_route_evidence, checked_interference_lifecycle, checked_propensity_route_evidence, checked_static_class_response_route_evidence, checked_static_dag_response_route_evidence, checked_static_estimators_route_evidence, checked_static_mediation_route_evidence, checked_temporal_class_mediation_route_evidence, checked_temporal_class_response_route_evidence"

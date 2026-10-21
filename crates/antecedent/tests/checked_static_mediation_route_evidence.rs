@@ -11,6 +11,33 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 
+fn assert_scientific_mediation_target(
+    target: &antecedent_core::ScientificTarget,
+    query: &MediationQuery,
+) {
+    let antecedent_core::TargetForm::Mediation(mediation) = target.form() else {
+        panic!("a mediation theorem must not be replaced by a generic joint contrast");
+    };
+    assert_eq!(mediation.arms().treatment(), query.treatment);
+    assert_eq!(mediation.arms().mediators(), query.mediators.as_ref());
+    assert_eq!(mediation.arms().active(), &query.active);
+    assert_eq!(mediation.arms().control(), &query.control);
+    assert_eq!(mediation.binding().population(), &query.target_population);
+    assert_eq!(mediation.binding().outcome().outcome(), query.outcome);
+    assert_eq!(mediation.binding().outcome().units().name(), "unspecified");
+    assert_eq!(mediation.time(), &antecedent_core::TimeFrame::static_decision());
+    if query.contrast != MediationContrast::Total {
+        assert!(
+            mediation
+                .premises()
+                .contains(&antecedent_core::CrossWorldPremise::CrossWorldIndependence)
+        );
+        assert!(
+            mediation.premises().contains(&antecedent_core::CrossWorldPremise::PathSpecificNested)
+        );
+    }
+}
+
 fn v(raw: u32) -> VariableId {
     VariableId::from_raw(raw)
 }
@@ -66,6 +93,7 @@ fn static_mediation_preserves_declared_nonbinary_levels_and_default_validation()
             drop(builder);
             let plan = prepared.checked_static_mediation_info().unwrap();
             assert_eq!(plan.query, query);
+            assert_scientific_mediation_target(&plan.scientific_target, &query);
             assert_eq!(plan.validation, RefuteSuite::PlaceboAndRcc);
             let result = prepared.estimate(&base, &context).unwrap();
             assert!((result.estimate.as_effect().unwrap().ate - 0.6 * unit_truth).abs() < 1e-10);
@@ -194,6 +222,7 @@ fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_i
                 drop(builder);
                 let plan = prepared.checked_static_mediation_info().expect("sealed mediation plan");
                 assert_eq!(plan.query, query);
+                assert_scientific_mediation_target(&plan.scientific_target, &query);
                 assert_eq!(plan.identifier.as_str(), "path_specific.natural");
                 assert_eq!(plan.estimator.as_str(), "mediation.linear");
                 assert_eq!(plan.validation, suite);
