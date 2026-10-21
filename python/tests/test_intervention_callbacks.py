@@ -76,7 +76,7 @@ def test_the_callback_is_called_once_per_batch_with_whole_float64_columns(gcm):
 
 
 def test_draws_are_deterministic_per_seed_and_vary_across_seeds(gcm):
-    program = _assign_y(lambda x: np.tanh(x))
+    program = _assign_y(np.tanh)
     first = sample_do(gcm, [program], N_DRAWS, seed=21).draws
     again = sample_do(gcm, [program], N_DRAWS, seed=21).draws
     other = sample_do(gcm, [program], N_DRAWS, seed=22).draws

@@ -1122,6 +1122,7 @@ def self_test(fixtures_dir=None):
             cbor_decode(bytes.fromhex(text))
             failures.append("cbor %s: malformed input was accepted" % text)
         except CborError:
+            # Rejecting each malformed CBOR vector is the expected self-test result.
             pass
     for length, expected in KNOWN_BLAKE3:
         if blake3_hex(_pattern(length)) != expected:

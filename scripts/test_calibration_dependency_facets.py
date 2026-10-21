@@ -371,7 +371,7 @@ class DependencyFacets(unittest.TestCase):
                 "gate_group": f"knn_matching_calibration__knn_matching_interval_ci_coverage.p{point}"
             }
             depends = set(facets.record_facets(row, self.surface))
-            self.assertTrue(expected <= depends)
+            self.assertLessEqual(expected, depends)
             for actual_path in (
                 "crates/antecedent-estimate/src/propensity/knn.rs",
                 "crates/antecedent-estimate/src/propensity/distance.rs",

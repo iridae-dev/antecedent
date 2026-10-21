@@ -13,6 +13,7 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
+from _repo_text import REPO_ROOT, read_text
 from antecedent import _native
 from antecedent.artifacts import loads
 from antecedent.discovery import (
@@ -25,9 +26,8 @@ from antecedent.discovery import (
 )
 from antecedent.errors import CausalUnsupportedError
 
-from _repo_text import REPO_ROOT, read_text
-
 GUIDE = REPO_ROOT / "docs/graph_uncertainty.md"
+
 ROWS = 2000
 PUBLISHED = {"n_chains": 4, "n_warmup": 3000, "n_draws": 12_000, "thin": 2, "max_parents": 3}
 # Order MCMC is published at twice the warmup and draws (docs/graph_uncertainty.md).
@@ -152,6 +152,27 @@ def assert_exact_route_and_samplers_agree(
         with pytest.raises(CausalUnsupportedError, match="list of graphs"):
             getattr(exact, name)
     return exact
+
+
+def test_exact_marginals_attribute_discovery_preserves_scientific_refusals():
+    exact = ExactDagMarginals(["x"], 1, 0.0, ((0.0,),))
+    for name in (
+        "adjacency",
+        "weights",
+        "graph_keys",
+        "n_graphs",
+        "to_weighted_samples",
+        "ess",
+        "atoms",
+    ):
+        assert not hasattr(exact, name)
+        assert getattr(exact, name, None) is None
+        with pytest.raises(CausalUnsupportedError, match="list of graphs") as refused:
+            getattr(exact, name)
+        assert isinstance(refused.value, AttributeError)
+        assert refused.value.reason_code == "option_not_applicable"
+    assert not hasattr(exact, "unknown_attribute")
+    assert exact.edge_marginal_matrix() == [[0.0]]
 
 
 def test_a_nine_variable_posterior_is_returned_where_the_eight_variable_word_ended():

@@ -1020,6 +1020,10 @@ _ATOM_ONLY = frozenset(
 )
 
 
+class _UnavailableGraphAtoms(CausalUnsupportedError, AttributeError):
+    """Keep the scientific refusal compatible with Python attribute discovery."""
+
+
 @dataclass(frozen=True)
 class ExactDagMarginals:
     """Exact edge marginals of the Gaussian-BIC DAG posterior of 7 to 12 variables.
@@ -1042,7 +1046,7 @@ class ExactDagMarginals:
 
     def __getattr__(self, name: str) -> Any:
         if name in _ATOM_ONLY:
-            raise CausalUnsupportedError(
+            raise _UnavailableGraphAtoms(
                 f"{name!r} needs the list of graphs, which the exact route does not produce above "
                 f"{EXACT_ENUMERATION_MAX_VARIABLES} variables (it publishes exact edge marginals "
                 "only); use OrderMcmc or StructureMcmc for graph atoms",
