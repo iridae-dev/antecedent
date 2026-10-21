@@ -3,6 +3,7 @@
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_learn::FittedEffectError
 #[non_exhaustive] pub enum antecedent_learn::LearnError
+#[non_exhaustive] pub enum antecedent_learn::recipe_license::CellStanding
 #[non_exhaustive] pub enum antecedent_learn::recipes::RecipeError
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::FiniteJoint [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_learn::FiniteJoint [auto]
@@ -51,6 +52,14 @@ impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Diagnostic
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Options
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Prior
+impl core::clone::Clone for antecedent_learn::recipe_license::CellStanding
+impl core::clone::Clone for antecedent_learn::recipe_license::CheckedCitation
+impl core::clone::Clone for antecedent_learn::recipe_license::CheckedObligations
+impl core::clone::Clone for antecedent_learn::recipe_license::ExplicitLicense
+impl core::clone::Clone for antecedent_learn::recipe_license::LicenseRefusal
+impl core::clone::Clone for antecedent_learn::recipe_license::RouteObligation
+impl core::clone::Clone for antecedent_learn::recipe_license::SupportRoute
+impl core::clone::Clone for antecedent_learn::recipe_license::TestObligation
 impl core::clone::Clone for antecedent_learn::recipes::AcceptedProvider
 impl core::clone::Clone for antecedent_learn::recipes::BoundaryUse
 impl core::clone::Clone for antecedent_learn::recipes::InferenceSite
@@ -79,6 +88,14 @@ impl core::cmp::Eq for antecedent_learn::PolynomialBasis
 impl core::cmp::Eq for antecedent_learn::PosteriorPredictionProvenance
 impl core::cmp::Eq for antecedent_learn::PredictionTask
 impl core::cmp::Eq for antecedent_learn::SupportReport
+impl core::cmp::Eq for antecedent_learn::recipe_license::CellStanding
+impl core::cmp::Eq for antecedent_learn::recipe_license::CheckedCitation
+impl core::cmp::Eq for antecedent_learn::recipe_license::CheckedObligations
+impl core::cmp::Eq for antecedent_learn::recipe_license::ExplicitLicense
+impl core::cmp::Eq for antecedent_learn::recipe_license::LicenseRefusal
+impl core::cmp::Eq for antecedent_learn::recipe_license::RouteObligation
+impl core::cmp::Eq for antecedent_learn::recipe_license::SupportRoute
+impl core::cmp::Eq for antecedent_learn::recipe_license::TestObligation
 impl core::cmp::Eq for antecedent_learn::recipes::AcceptedProvider
 impl core::cmp::Eq for antecedent_learn::recipes::BoundaryUse
 impl core::cmp::Eq for antecedent_learn::recipes::InferenceSite
@@ -127,6 +144,14 @@ impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Diagnost
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Options
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Prior
+impl core::cmp::PartialEq for antecedent_learn::recipe_license::CellStanding
+impl core::cmp::PartialEq for antecedent_learn::recipe_license::CheckedCitation
+impl core::cmp::PartialEq for antecedent_learn::recipe_license::CheckedObligations
+impl core::cmp::PartialEq for antecedent_learn::recipe_license::ExplicitLicense
+impl core::cmp::PartialEq for antecedent_learn::recipe_license::LicenseRefusal
+impl core::cmp::PartialEq for antecedent_learn::recipe_license::RouteObligation
+impl core::cmp::PartialEq for antecedent_learn::recipe_license::SupportRoute
+impl core::cmp::PartialEq for antecedent_learn::recipe_license::TestObligation
 impl core::cmp::PartialEq for antecedent_learn::recipes::AcceptedProvider
 impl core::cmp::PartialEq for antecedent_learn::recipes::BoundaryUse
 impl core::cmp::PartialEq for antecedent_learn::recipes::InferenceSite
@@ -164,6 +189,7 @@ impl core::default::Default for antecedent_learn::recipes::PredictionOnlyBoundar
 impl core::error::Error for antecedent_learn::FittedEffectError
 impl core::error::Error for antecedent_learn::LearnError
 impl core::error::Error for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::error::Error for antecedent_learn::recipe_license::LicenseRefusal
 impl core::error::Error for antecedent_learn::recipes::RecipeError
 impl core::error::Error for antecedent_learn::transported_effect::TransportRefusal
 impl core::fmt::Debug for antecedent_learn::BasisRegressionPosterior
@@ -208,6 +234,14 @@ impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Options
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Prior
+impl core::fmt::Debug for antecedent_learn::recipe_license::CellStanding
+impl core::fmt::Debug for antecedent_learn::recipe_license::CheckedCitation
+impl core::fmt::Debug for antecedent_learn::recipe_license::CheckedObligations
+impl core::fmt::Debug for antecedent_learn::recipe_license::ExplicitLicense
+impl core::fmt::Debug for antecedent_learn::recipe_license::LicenseRefusal
+impl core::fmt::Debug for antecedent_learn::recipe_license::RouteObligation
+impl core::fmt::Debug for antecedent_learn::recipe_license::SupportRoute
+impl core::fmt::Debug for antecedent_learn::recipe_license::TestObligation
 impl core::fmt::Debug for antecedent_learn::recipes::AcceptedProvider
 impl core::fmt::Debug for antecedent_learn::recipes::BoundaryUse
 impl core::fmt::Debug for antecedent_learn::recipes::InferenceSite
@@ -228,10 +262,14 @@ impl core::fmt::Debug for antecedent_learn::transported_effect::TransportedReque
 impl core::fmt::Display for antecedent_learn::FittedEffectError
 impl core::fmt::Display for antecedent_learn::LearnError
 impl core::fmt::Display for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::fmt::Display for antecedent_learn::recipe_license::CellStanding
+impl core::fmt::Display for antecedent_learn::recipe_license::LicenseRefusal
 impl core::fmt::Display for antecedent_learn::recipes::InferenceSite
 impl core::fmt::Display for antecedent_learn::recipes::RecipeError
 impl core::fmt::Display for antecedent_learn::recipes::RecipeKind
 impl core::fmt::Display for antecedent_learn::transported_effect::TransportRefusal
+impl core::hash::Hash for antecedent_learn::recipe_license::CellStanding
+impl core::hash::Hash for antecedent_learn::recipe_license::SupportRoute
 impl core::hash::Hash for antecedent_learn::recipes::AcceptedProvider
 impl core::hash::Hash for antecedent_learn::recipes::BoundaryUse
 impl core::hash::Hash for antecedent_learn::recipes::InferenceSite
@@ -262,6 +300,7 @@ impl core::marker::Copy for antecedent_learn::PredictionTask
 impl core::marker::Copy for antecedent_learn::RidgeLogisticLearner
 impl core::marker::Copy for antecedent_learn::RidgeSpec
 impl core::marker::Copy for antecedent_learn::SupportReport
+impl core::marker::Copy for antecedent_learn::recipe_license::CellStanding
 impl core::marker::Copy for antecedent_learn::recipes::AcceptedProvider
 impl core::marker::Copy for antecedent_learn::recipes::BoundaryUse
 impl core::marker::Copy for antecedent_learn::recipes::InferenceSite
@@ -315,6 +354,14 @@ impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Diagnost
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Freeze for antecedent_learn::recipe_license::CellStanding [auto]
+impl core::marker::Freeze for antecedent_learn::recipe_license::CheckedCitation [auto]
+impl core::marker::Freeze for antecedent_learn::recipe_license::CheckedObligations [auto]
+impl core::marker::Freeze for antecedent_learn::recipe_license::ExplicitLicense [auto]
+impl core::marker::Freeze for antecedent_learn::recipe_license::LicenseRefusal [auto]
+impl core::marker::Freeze for antecedent_learn::recipe_license::RouteObligation [auto]
+impl core::marker::Freeze for antecedent_learn::recipe_license::SupportRoute [auto]
+impl core::marker::Freeze for antecedent_learn::recipe_license::TestObligation [auto]
 impl core::marker::Freeze for antecedent_learn::recipes::AcceptedProvider [auto]
 impl core::marker::Freeze for antecedent_learn::recipes::BoundaryUse [auto]
 impl core::marker::Freeze for antecedent_learn::recipes::InferenceSite [auto]
@@ -375,6 +422,14 @@ impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Diagnostic
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Send for antecedent_learn::recipe_license::CellStanding [auto]
+impl core::marker::Send for antecedent_learn::recipe_license::CheckedCitation [auto]
+impl core::marker::Send for antecedent_learn::recipe_license::CheckedObligations [auto]
+impl core::marker::Send for antecedent_learn::recipe_license::ExplicitLicense [auto]
+impl core::marker::Send for antecedent_learn::recipe_license::LicenseRefusal [auto]
+impl core::marker::Send for antecedent_learn::recipe_license::RouteObligation [auto]
+impl core::marker::Send for antecedent_learn::recipe_license::SupportRoute [auto]
+impl core::marker::Send for antecedent_learn::recipe_license::TestObligation [auto]
 impl core::marker::Send for antecedent_learn::recipes::AcceptedProvider [auto]
 impl core::marker::Send for antecedent_learn::recipes::BoundaryUse [auto]
 impl core::marker::Send for antecedent_learn::recipes::InferenceSite [auto]
@@ -427,6 +482,14 @@ impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayes
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Options
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Prior
+impl core::marker::StructuralPartialEq for antecedent_learn::recipe_license::CellStanding
+impl core::marker::StructuralPartialEq for antecedent_learn::recipe_license::CheckedCitation
+impl core::marker::StructuralPartialEq for antecedent_learn::recipe_license::CheckedObligations
+impl core::marker::StructuralPartialEq for antecedent_learn::recipe_license::ExplicitLicense
+impl core::marker::StructuralPartialEq for antecedent_learn::recipe_license::LicenseRefusal
+impl core::marker::StructuralPartialEq for antecedent_learn::recipe_license::RouteObligation
+impl core::marker::StructuralPartialEq for antecedent_learn::recipe_license::SupportRoute
+impl core::marker::StructuralPartialEq for antecedent_learn::recipe_license::TestObligation
 impl core::marker::StructuralPartialEq for antecedent_learn::recipes::AcceptedProvider
 impl core::marker::StructuralPartialEq for antecedent_learn::recipes::BoundaryUse
 impl core::marker::StructuralPartialEq for antecedent_learn::recipes::InferenceSite
@@ -487,6 +550,14 @@ impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Diagnostic
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Sync for antecedent_learn::recipe_license::CellStanding [auto]
+impl core::marker::Sync for antecedent_learn::recipe_license::CheckedCitation [auto]
+impl core::marker::Sync for antecedent_learn::recipe_license::CheckedObligations [auto]
+impl core::marker::Sync for antecedent_learn::recipe_license::ExplicitLicense [auto]
+impl core::marker::Sync for antecedent_learn::recipe_license::LicenseRefusal [auto]
+impl core::marker::Sync for antecedent_learn::recipe_license::RouteObligation [auto]
+impl core::marker::Sync for antecedent_learn::recipe_license::SupportRoute [auto]
+impl core::marker::Sync for antecedent_learn::recipe_license::TestObligation [auto]
 impl core::marker::Sync for antecedent_learn::recipes::AcceptedProvider [auto]
 impl core::marker::Sync for antecedent_learn::recipes::BoundaryUse [auto]
 impl core::marker::Sync for antecedent_learn::recipes::InferenceSite [auto]
@@ -547,6 +618,14 @@ impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Diagnosti
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Unpin for antecedent_learn::recipe_license::CellStanding [auto]
+impl core::marker::Unpin for antecedent_learn::recipe_license::CheckedCitation [auto]
+impl core::marker::Unpin for antecedent_learn::recipe_license::CheckedObligations [auto]
+impl core::marker::Unpin for antecedent_learn::recipe_license::ExplicitLicense [auto]
+impl core::marker::Unpin for antecedent_learn::recipe_license::LicenseRefusal [auto]
+impl core::marker::Unpin for antecedent_learn::recipe_license::RouteObligation [auto]
+impl core::marker::Unpin for antecedent_learn::recipe_license::SupportRoute [auto]
+impl core::marker::Unpin for antecedent_learn::recipe_license::TestObligation [auto]
 impl core::marker::Unpin for antecedent_learn::recipes::AcceptedProvider [auto]
 impl core::marker::Unpin for antecedent_learn::recipes::BoundaryUse [auto]
 impl core::marker::Unpin for antecedent_learn::recipes::InferenceSite [auto]
@@ -606,6 +685,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipe_license::CellStanding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipe_license::CheckedCitation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipe_license::CheckedObligations [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipe_license::ExplicitLicense [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipe_license::LicenseRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipe_license::RouteObligation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipe_license::SupportRoute [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipe_license::TestObligation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::AcceptedProvider [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::BoundaryUse [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::InferenceSite [auto]
@@ -665,6 +752,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_ba
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipe_license::CellStanding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipe_license::CheckedCitation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipe_license::CheckedObligations [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipe_license::ExplicitLicense [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipe_license::LicenseRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipe_license::RouteObligation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipe_license::SupportRoute [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipe_license::TestObligation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::AcceptedProvider [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::BoundaryUse [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::InferenceSite [auto]
@@ -708,12 +803,16 @@ impl<'a> core::clone::Clone for antecedent_learn::DesignView<'a>
 impl<'a> core::clone::Clone for antecedent_learn::KnownVarianceBasisSpec<'a>
 impl<'a> core::clone::Clone for antecedent_learn::RowSelection<'a>
 impl<'a> core::clone::Clone for antecedent_learn::TargetView<'a>
+impl<'a> core::clone::Clone for antecedent_learn::recipe_license::CellDisposition<'a>
+impl<'a> core::clone::Clone for antecedent_learn::recipe_license::MatrixEstimators<'a>
 impl<'a> core::clone::Clone for antecedent_learn::recipes::BoundRecipe<'a>
 impl<'a> core::clone::Clone for antecedent_learn::recipes::CoherentComponent<'a>
 impl<'a> core::clone::Clone for antecedent_learn::recipes::PredictionAttachment<'a>
+impl<'a> core::cmp::Eq for antecedent_learn::recipe_license::MatrixEstimators<'a>
 impl<'a> core::cmp::Eq for antecedent_learn::recipes::BoundRecipe<'a>
 impl<'a> core::cmp::Eq for antecedent_learn::recipes::CoherentComponent<'a>
 impl<'a> core::cmp::Eq for antecedent_learn::recipes::PredictionAttachment<'a>
+impl<'a> core::cmp::PartialEq for antecedent_learn::recipe_license::MatrixEstimators<'a>
 impl<'a> core::cmp::PartialEq for antecedent_learn::recipes::BoundRecipe<'a>
 impl<'a> core::cmp::PartialEq for antecedent_learn::recipes::CoherentComponent<'a>
 impl<'a> core::cmp::PartialEq for antecedent_learn::recipes::PredictionAttachment<'a>
@@ -724,6 +823,8 @@ impl<'a> core::fmt::Debug for antecedent_learn::DesignView<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::KnownVarianceBasisSpec<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::RowSelection<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::TargetView<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::recipe_license::CellDisposition<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::recipe_license::MatrixEstimators<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::recipes::BoundRecipe<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::recipes::CoherentComponent<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::recipes::PredictionAttachment<'a>
@@ -737,6 +838,8 @@ impl<'a> core::marker::Copy for antecedent_learn::DesignView<'a>
 impl<'a> core::marker::Copy for antecedent_learn::KnownVarianceBasisSpec<'a>
 impl<'a> core::marker::Copy for antecedent_learn::RowSelection<'a>
 impl<'a> core::marker::Copy for antecedent_learn::TargetView<'a>
+impl<'a> core::marker::Copy for antecedent_learn::recipe_license::CellDisposition<'a>
+impl<'a> core::marker::Copy for antecedent_learn::recipe_license::MatrixEstimators<'a>
 impl<'a> core::marker::Copy for antecedent_learn::recipes::BoundRecipe<'a>
 impl<'a> core::marker::Copy for antecedent_learn::recipes::CoherentComponent<'a>
 impl<'a> core::marker::Copy for antecedent_learn::recipes::PredictionAttachment<'a>
@@ -747,6 +850,8 @@ impl<'a> core::marker::Freeze for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::recipe_license::CellDisposition<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::recipe_license::MatrixEstimators<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -757,9 +862,12 @@ impl<'a> core::marker::Send for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::recipe_license::CellDisposition<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::recipe_license::MatrixEstimators<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_learn::recipe_license::MatrixEstimators<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_learn::recipes::BoundRecipe<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_learn::recipes::CoherentComponent<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_learn::recipes::PredictionAttachment<'a>
@@ -770,6 +878,8 @@ impl<'a> core::marker::Sync for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::recipe_license::CellDisposition<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::recipe_license::MatrixEstimators<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -780,6 +890,8 @@ impl<'a> core::marker::Unpin for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::recipe_license::CellDisposition<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::recipe_license::MatrixEstimators<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -790,6 +902,8 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::DesignVie
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipe_license::CellDisposition<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipe_license::MatrixEstimators<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -800,6 +914,8 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::DesignView<'
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipe_license::CellDisposition<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipe_license::MatrixEstimators<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::BoundRecipe<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::CoherentComponent<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
@@ -829,6 +945,9 @@ pub const antecedent_learn::nested_markov_bayesian::COORDINATES: [&str; 14]
 pub const antecedent_learn::nested_markov_bayesian::METHOD: &str
 pub const antecedent_learn::nested_markov_bayesian::OUTPUTS: usize
 pub const antecedent_learn::nested_markov_bayesian::RNG: &str
+pub const antecedent_learn::recipe_license::KEEP_CLOSED_REASON: &str
+pub const antecedent_learn::recipe_license::MATCH_LICENSED_OBLIGATIONS: &str
+pub const antecedent_learn::recipe_license::NAME_LICENSED_ROUTE: &str
 pub const antecedent_learn::recipes::ANSWER_CAPABILITY_CALL: &str
 pub const antecedent_learn::recipes::BIND_MODEL_PROVIDER: &str
 pub const antecedent_learn::recipes::DECLARE_REQUIRED_CAPABILITIES: &str
@@ -967,6 +1086,14 @@ pub field antecedent_learn::nested_markov_bayesian::Posterior::proposals: usize
 pub field antecedent_learn::nested_markov_bayesian::Posterior::samples: alloc::vec::Vec<[f64; 14]>
 pub field antecedent_learn::nested_markov_bayesian::Prior::alpha: [f64; 11]
 pub field antecedent_learn::nested_markov_bayesian::Prior::beta: [f64; 11]
+pub field antecedent_learn::recipe_license::CellDisposition::claimed_estimators: core::option::Option<&'a [&'a str]>
+pub field antecedent_learn::recipe_license::CellDisposition::closed_reason: core::option::Option<&'a str>
+pub field antecedent_learn::recipe_license::CellDisposition::license: core::option::Option<&'a antecedent_learn::recipe_license::ExplicitLicense>
+pub field antecedent_learn::recipe_license::CellDisposition::matrix: core::option::Option<antecedent_learn::recipe_license::MatrixEstimators<'a>>
+pub field antecedent_learn::recipe_license::CellDisposition::not_applicable_reason: core::option::Option<&'a str>
+pub field antecedent_learn::recipe_license::CellDisposition::route: &'a antecedent_learn::recipe_license::SupportRoute
+pub field antecedent_learn::recipe_license::MatrixEstimators::estimators: &'a [&'a str]
+pub field antecedent_learn::recipe_license::MatrixEstimators::route_estimator: &'a str
 pub field antecedent_learn::transported_effect::FeatureOverlap::disjoint: bool
 pub field antecedent_learn::transported_effect::FeatureOverlap::feature: alloc::string::String
 pub field antecedent_learn::transported_effect::FeatureOverlap::mass_outside: f64
@@ -1059,6 +1186,44 @@ pub fn <antecedent_learn::TargetView<'a>>::const fn is_empty(self) -> bool
 pub fn <antecedent_learn::TargetView<'a>>::const fn len(self) -> usize
 pub fn <antecedent_learn::TargetView<'a>>::const fn new(values: &'a [f64]) -> Self
 pub fn <antecedent_learn::TargetView<'a>>::const fn values(self) -> &'a [f64]
+pub fn <antecedent_learn::recipe_license::CellDisposition<'a>>::const fn bare(route: &'a antecedent_learn::recipe_license::SupportRoute) -> Self
+pub fn <antecedent_learn::recipe_license::CellStanding>::const fn as_str(self) -> &'static str
+pub fn <antecedent_learn::recipe_license::CheckedCitation>::fn assertion(&self) -> &str
+pub fn <antecedent_learn::recipe_license::CheckedCitation>::fn estimator(&self) -> &str
+pub fn <antecedent_learn::recipe_license::CheckedCitation>::fn test(&self) -> &str
+pub fn <antecedent_learn::recipe_license::CheckedCitation>::fn try_new(estimator: &str, test: &str, assertion: &str) -> core::result::Result<Self, antecedent_learn::recipe_license::LicenseRefusal>
+pub fn <antecedent_learn::recipe_license::CheckedObligations>::const fn calibration(&self) -> core::option::Option<&str>
+pub fn <antecedent_learn::recipe_license::CheckedObligations>::const fn identification(&self) -> core::option::Option<&str>
+pub fn <antecedent_learn::recipe_license::CheckedObligations>::fn route_estimator(&self) -> &str
+pub fn <antecedent_learn::recipe_license::CheckedObligations>::fn routes(&self) -> &[antecedent_learn::recipe_license::RouteObligation]
+pub fn <antecedent_learn::recipe_license::CheckedObligations>::fn tests(&self) -> &[antecedent_learn::recipe_license::TestObligation]
+pub fn <antecedent_learn::recipe_license::ExplicitLicense>::fn calibration(&self) -> core::option::Option<&str>
+pub fn <antecedent_learn::recipe_license::ExplicitLicense>::fn citations(&self) -> &[antecedent_learn::recipe_license::CheckedCitation]
+pub fn <antecedent_learn::recipe_license::ExplicitLicense>::fn estimators(&self) -> &[alloc::string::String]
+pub fn <antecedent_learn::recipe_license::ExplicitLicense>::fn identification(&self) -> core::option::Option<&str>
+pub fn <antecedent_learn::recipe_license::ExplicitLicense>::fn route(&self) -> &antecedent_learn::recipe_license::SupportRoute
+pub fn <antecedent_learn::recipe_license::ExplicitLicense>::fn route_estimator(&self) -> &str
+pub fn <antecedent_learn::recipe_license::ExplicitLicense>::fn try_new(route: antecedent_learn::recipe_license::SupportRoute, route_estimator: &str, estimators: &[&str], citations: &[antecedent_learn::recipe_license::CheckedCitation], identification: core::option::Option<&str>, calibration: core::option::Option<&str>) -> core::result::Result<Self, antecedent_learn::recipe_license::LicenseRefusal>
+pub fn <antecedent_learn::recipe_license::LicenseRefusal>::const fn detail(&self) -> &'static str
+pub fn <antecedent_learn::recipe_license::LicenseRefusal>::const fn is_not_applicable(&self) -> bool
+pub fn <antecedent_learn::recipe_license::LicenseRefusal>::const fn next_attempt(&self) -> &'static str
+pub fn <antecedent_learn::recipe_license::LicenseRefusal>::const fn standing(&self) -> antecedent_learn::recipe_license::CellStanding
+pub fn <antecedent_learn::recipe_license::LicenseRefusal>::fn coordinate(&self) -> &str
+pub fn <antecedent_learn::recipe_license::LicenseRefusal>::fn estimand(&self) -> &str
+pub fn <antecedent_learn::recipe_license::LicenseRefusal>::fn message(&self) -> &str
+pub fn <antecedent_learn::recipe_license::RouteObligation>::fn estimand(&self) -> &str
+pub fn <antecedent_learn::recipe_license::RouteObligation>::fn estimator(&self) -> &str
+pub fn <antecedent_learn::recipe_license::RouteObligation>::fn route(&self) -> &antecedent_learn::recipe_license::SupportRoute
+pub fn <antecedent_learn::recipe_license::SupportRoute>::fn coordinate(&self) -> alloc::string::String
+pub fn <antecedent_learn::recipe_license::SupportRoute>::fn estimand(&self) -> &str
+pub fn <antecedent_learn::recipe_license::SupportRoute>::fn graph_class(&self) -> &str
+pub fn <antecedent_learn::recipe_license::SupportRoute>::fn inference(&self) -> &str
+pub fn <antecedent_learn::recipe_license::SupportRoute>::fn structure(&self) -> &str
+pub fn <antecedent_learn::recipe_license::SupportRoute>::fn try_new(query: &str, graph_class: &str, structure: &str, inference: &str, validation: &str) -> core::result::Result<Self, antecedent_learn::recipe_license::LicenseRefusal>
+pub fn <antecedent_learn::recipe_license::SupportRoute>::fn validation(&self) -> &str
+pub fn <antecedent_learn::recipe_license::TestObligation>::fn assertion(&self) -> &str
+pub fn <antecedent_learn::recipe_license::TestObligation>::fn estimator(&self) -> &str
+pub fn <antecedent_learn::recipe_license::TestObligation>::fn test(&self) -> &str
 pub fn <antecedent_learn::recipes::AcceptedProvider>::const fn provider(self) -> antecedent_core::provider_capability::ProviderId
 pub fn <antecedent_learn::recipes::AcceptedProvider>::const fn recipe(self) -> antecedent_learn::recipes::Recipe
 pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn component(self) -> &'a str
@@ -1114,6 +1279,8 @@ pub fn antecedent_learn::fit_counts::count_resolved_fits<T>(operation: impl core
 pub fn antecedent_learn::fit_counts::observe_resolved_fits<T>(operation: impl core::ops::function::FnOnce() -> T) -> (T, u64)
 pub fn antecedent_learn::nested_markov_bayesian::fit(counts: &[u64; 16], prior: &antecedent_learn::nested_markov_bayesian::Prior, options: &antecedent_learn::nested_markov_bayesian::Options, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::nested_markov_bayesian::Posterior, antecedent_learn::nested_markov_bayesian::BayesianRefusal>
 pub fn antecedent_learn::nested_markov_bayesian::probabilities(p: &[f64; 11]) -> core::option::Option<[f64; 16]>
+pub fn antecedent_learn::recipe_license::decide(recipe: &antecedent_learn::recipes::Recipe, cell: antecedent_learn::recipe_license::CellDisposition<'_>) -> core::result::Result<antecedent_learn::recipe_license::CheckedObligations, antecedent_learn::recipe_license::LicenseRefusal>
+pub fn antecedent_learn::recipe_license::open_route(recipe: &antecedent_learn::recipes::Recipe, route: &antecedent_learn::recipe_license::SupportRoute) -> core::result::Result<antecedent_learn::recipe_license::CheckedObligations, antecedent_learn::recipe_license::LicenseRefusal>
 pub fn antecedent_learn::resolve(spec: antecedent_learn::LearnerSpec) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
 pub fn antecedent_learn::resolve_for(spec: antecedent_learn::LearnerSpec, task: antecedent_learn::PredictionTask) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
 pub fn antecedent_learn::transported_effect::assess_overlap(support: &antecedent_learn::EffectSupport, feature_names: &[alloc::string::String], columns: &[&[f64]], weights: &[f64]) -> core::result::Result<antecedent_learn::transported_effect::OverlapAssessment, antecedent_learn::transported_effect::TransportRefusal>
@@ -1134,6 +1301,7 @@ pub mod antecedent_learn::logistic
 pub mod antecedent_learn::nested_markov_bayesian
 pub mod antecedent_learn::portable
 pub mod antecedent_learn::posterior_prediction
+pub mod antecedent_learn::recipe_license
 pub mod antecedent_learn::recipes
 pub mod antecedent_learn::ridge
 pub mod antecedent_learn::spec
@@ -1188,6 +1356,22 @@ pub struct antecedent_learn::nested_markov_bayesian::Diagnostics
 pub struct antecedent_learn::nested_markov_bayesian::Options
 pub struct antecedent_learn::nested_markov_bayesian::Posterior
 pub struct antecedent_learn::nested_markov_bayesian::Prior
+pub struct antecedent_learn::recipe_license::CellDisposition<'a>
+pub struct antecedent_learn::recipe_license::CheckedCitation
+pub struct antecedent_learn::recipe_license::CheckedCitation has private fields
+pub struct antecedent_learn::recipe_license::CheckedObligations
+pub struct antecedent_learn::recipe_license::CheckedObligations has private fields
+pub struct antecedent_learn::recipe_license::ExplicitLicense
+pub struct antecedent_learn::recipe_license::ExplicitLicense has private fields
+pub struct antecedent_learn::recipe_license::LicenseRefusal
+pub struct antecedent_learn::recipe_license::LicenseRefusal has private fields
+pub struct antecedent_learn::recipe_license::MatrixEstimators<'a>
+pub struct antecedent_learn::recipe_license::RouteObligation
+pub struct antecedent_learn::recipe_license::RouteObligation has private fields
+pub struct antecedent_learn::recipe_license::SupportRoute
+pub struct antecedent_learn::recipe_license::SupportRoute has private fields
+pub struct antecedent_learn::recipe_license::TestObligation
+pub struct antecedent_learn::recipe_license::TestObligation has private fields
 pub struct antecedent_learn::recipes::AcceptedProvider
 pub struct antecedent_learn::recipes::AcceptedProvider has private fields
 pub struct antecedent_learn::recipes::BoundRecipe has private fields
@@ -1283,6 +1467,7 @@ pub variant antecedent_learn::FittedEffectError::Predictor(alloc::string::String
 pub variant antecedent_learn::Layout::ColumnMajor
 pub variant antecedent_learn::Layout::RowMajor
 pub variant antecedent_learn::LearnError::Backend(alloc::string::String)
+pub variant antecedent_learn::LearnError::Cancelled
 pub variant antecedent_learn::LearnError::Probability(antecedent_prob::error::ProbError)
 pub variant antecedent_learn::LearnError::ProviderUnavailable { spec: &'static str, required: antecedent_learn::LearnerCapabilities }
 pub variant antecedent_learn::LearnError::Shape { message: &'static str }
@@ -1308,6 +1493,10 @@ pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Budget(&'
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Invalid(&'static str)
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Nonconvergence
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Numerical(&'static str)
+pub variant antecedent_learn::recipe_license::CellStanding::Closed
+pub variant antecedent_learn::recipe_license::CellStanding::Licensed
+pub variant antecedent_learn::recipe_license::CellStanding::NotApplicable
+pub variant antecedent_learn::recipe_license::CellStanding::Unlicensed
 pub variant antecedent_learn::recipes::BoundaryUse::Nuisance
 pub variant antecedent_learn::recipes::BoundaryUse::PlugInMean
 pub variant antecedent_learn::recipes::InferenceSite::Component

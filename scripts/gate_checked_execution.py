@@ -6,6 +6,11 @@ A citation whose test keeps or rebuilds a builder, or never runs the retained
 program, fails this gate before any test binary starts. Gaussian compiler
 integration is covered by cited public behavioral tests, which must be executed
 by the acceptance runner; emitting a citation alone does not execute its test.
+
+Checked-recipe obligations for those citations are the route and the test.
+They must match the support matrix. Identification and calibration stay on the
+license record. A closed cell stays closed. This does not weaken the retained
+program check below.
 """
 
 import json
@@ -15,6 +20,7 @@ import tomllib
 from collections import defaultdict
 from pathlib import Path
 
+from gate_recipe_obligations import matrix_alignment_problems
 from test_evidence import checked_execution_body_problems, closure
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -153,10 +159,29 @@ def main() -> None:
                         str(entry.get("assertion", "")),
                     )
                 )
-    if failures:
-        print(f"FAIL: checked execution: {len(failures)} licensed route(s) bypass the retained plan", flush=True)
-        for failure in failures:
-            print(f"FAIL: {failure}", flush=True)
+
+    def cached_cite(test: str, assertion: str) -> list[str]:
+        # cell_problems already reported a cached citation. A miss is still checked.
+        if (test, assertion) in cache:
+            return []
+        return citation_problems(test, assertion, cache)
+
+    alignment = matrix_alignment_problems(ROOT, cite=cached_cite)
+    if failures or alignment:
+        if failures:
+            print(
+                f"FAIL: checked execution: {len(failures)} licensed route(s) bypass the retained plan",
+                flush=True,
+            )
+            for failure in failures:
+                print(f"FAIL: {failure}", flush=True)
+        if alignment:
+            print(
+                f"FAIL: recipe obligations: {len(alignment)} cross-check failure(s)",
+                flush=True,
+            )
+            for failure in alignment:
+                print(f"FAIL: {failure}", flush=True)
         raise SystemExit(1)
     if not rows:
         raise SystemExit("FAIL: support_licensed.toml has no checked-execution citations")

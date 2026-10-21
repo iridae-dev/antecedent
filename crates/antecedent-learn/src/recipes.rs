@@ -21,6 +21,10 @@
 //! fit a model. This module does not evaluate a density, update a posterior,
 //! compute a score, or integrate a functional. Row selections are physical
 //! `u64` indices. They are not converted to `usize`.
+//!
+//! Accepting a provider is not identification and is not calibration. It does
+//! not open a support-matrix route. `recipe_license` emits the route and test
+//! obligations a checked recipe owes, and only from an explicit license.
 
 use std::collections::BTreeSet;
 use std::fmt;
