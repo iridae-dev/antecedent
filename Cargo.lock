@@ -221,6 +221,7 @@ name = "antecedent-expr"
 version = "2.4.1"
 dependencies = [
  "antecedent-core",
+ "antecedent-kernels",
 ]
 
 [[package]]
@@ -241,6 +242,7 @@ dependencies = [
  "antecedent-data",
  "antecedent-expr",
  "antecedent-graph",
+ "antecedent-kernels",
  "criterion",
  "serde",
  "serde_json",
