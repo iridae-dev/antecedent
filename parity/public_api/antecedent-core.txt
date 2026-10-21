@@ -5962,6 +5962,16 @@ impl<'a> core::marker::Unpin for antecedent_core::FactorNeed<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_core::SearchBudget<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FactorNeed<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_core::FactorNeed<'a> [auto]
+impl<E: core::fmt::Debug> core::fmt::Debug for antecedent_core::execution::MapExecutionError<E>
+impl<E> core::convert::From<antecedent_core::execution::AdmissionError> for antecedent_core::execution::MapExecutionError<E>
+impl<E> core::error::Error for antecedent_core::execution::MapExecutionError<E> where Self: core::fmt::Debug + core::fmt::Display
+impl<E> core::fmt::Display for antecedent_core::execution::MapExecutionError<E> where E: core::fmt::Display
+impl<E> core::marker::Freeze for antecedent_core::execution::MapExecutionError<E> where E: core::marker::Freeze [auto]
+impl<E> core::marker::Send for antecedent_core::execution::MapExecutionError<E> where E: core::marker::Send [auto]
+impl<E> core::marker::Sync for antecedent_core::execution::MapExecutionError<E> where E: core::marker::Sync [auto]
+impl<E> core::marker::Unpin for antecedent_core::execution::MapExecutionError<E> where E: core::marker::Unpin [auto]
+impl<E> core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::MapExecutionError<E> where E: core::panic::unwind_safe::RefUnwindSafe [auto]
+impl<E> core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::MapExecutionError<E> where E: core::panic::unwind_safe::UnwindSafe [auto]
 impl<T, E> core::marker::Freeze for antecedent_core::execution_attempt::ExecutionAttempt<T, E> where E: core::marker::Freeze, T: core::marker::Freeze [auto]
 impl<T, E> core::marker::Send for antecedent_core::execution_attempt::ExecutionAttempt<T, E> where E: core::marker::Send, T: core::marker::Send [auto]
 impl<T, E> core::marker::Sync for antecedent_core::execution_attempt::ExecutionAttempt<T, E> where E: core::marker::Sync, T: core::marker::Sync [auto]
@@ -6159,6 +6169,7 @@ pub enum antecedent_core::cancellation_boundary::UninterruptibleAdmission
 pub enum antecedent_core::device_reservation::ArithmeticPath
 pub enum antecedent_core::device_reservation::ComputeSelection
 pub enum antecedent_core::diagnostic::RouteMass
+pub enum antecedent_core::execution::MapExecutionError<E>
 pub enum antecedent_core::execution_attempt::Operation
 pub enum antecedent_core::execution_attempt::PhysicalEvent
 pub enum antecedent_core::execution_facts::OutputRetention
@@ -7068,6 +7079,8 @@ pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch<T, S, E,
 pub fn <antecedent_core::ExecutionContext>::fn production(seed: u64, max_threads: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn production_default(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn serial_inner(&self) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
+pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn with_admission(self, pool: antecedent_core::execution::AdmissionPool) -> Self
 pub fn <antecedent_core::ExecutionReceipt>::const fn new(request: antecedent_core::RequestIdentity, state: antecedent_core::ExecutionRequestState) -> Self
 pub fn <antecedent_core::ExecutionRequestState>::const fn as_str(self) -> &'static str
@@ -9657,6 +9670,8 @@ pub variant antecedent_core::execution::AdmissionError::ExceedsRemainder { reque
 pub variant antecedent_core::execution::AdmissionError::Overflow
 pub variant antecedent_core::execution::AdmissionError::Released
 pub variant antecedent_core::execution::AdmissionError::WaitBoundExceeded { bound: core::time::Duration }
+pub variant antecedent_core::execution::MapExecutionError::Admission(antecedent_core::execution::AdmissionError)
+pub variant antecedent_core::execution::MapExecutionError::Work(E)
 pub variant antecedent_core::execution_attempt::Operation::AdjustedFit
 pub variant antecedent_core::execution_attempt::Operation::CachedFailureRead
 pub variant antecedent_core::execution_attempt::Operation::Decision

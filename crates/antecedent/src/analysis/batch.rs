@@ -575,16 +575,18 @@ impl BatchStudy {
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
         let nuisances = CrossfitNuisanceCache::new();
-        let completed = ctx.map_indexed(queries.len(), |index, inner| {
-            if inner.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled {
-                    stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
-                });
-            }
-            let (result, used) =
-                nuisances.scope(|| self.run_one_on(&data, &queries[index], inner, shared.as_ref()));
-            result.map(|result| (result, used))
-        })?;
+        let completed = ctx
+            .try_map_indexed(queries.len(), |index, inner| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled {
+                        stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                    });
+                }
+                let (result, used) = nuisances
+                    .scope(|| self.run_one_on(&data, &queries[index], inner, shared.as_ref()));
+                result.map(|result| (result, used))
+            })
+            .map_err(batch_map_error)?;
         let (mut out, uses): (Vec<_>, Vec<_>) = completed.into_iter().unzip();
         attach_batch_joint_inference(&mut out, &data, queries, self.screen.as_ref());
         attach_shared_design_diagnostics(
@@ -898,16 +900,18 @@ impl PreparedBatch {
         let shared =
             self.shared_design.as_ref().map(|s| s.rebind(&data).map(Arc::new)).transpose()?;
         let nuisances = CrossfitNuisanceCache::new();
-        let completed = ctx.map_indexed(self.plans.len(), |index, inner| {
-            if inner.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled {
-                    stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
-                });
-            }
-            let (result, used) = nuisances
-                .scope(|| self.plans[index].estimate_with_shared(&data, shared.clone(), inner));
-            result.map(|result| (result, used))
-        })?;
+        let completed = ctx
+            .try_map_indexed(self.plans.len(), |index, inner| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled {
+                        stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                    });
+                }
+                let (result, used) = nuisances
+                    .scope(|| self.plans[index].estimate_with_shared(&data, shared.clone(), inner));
+                result.map(|result| (result, used))
+            })
+            .map_err(batch_map_error)?;
         let (mut out, uses): (Vec<_>, Vec<_>) = completed.into_iter().unzip();
         attach_prepared_batch_joint_inference(
             &mut out,
@@ -1696,6 +1700,20 @@ fn attach_candidate_selection(
                 antecedent_core::DiagnosticSeverity::Info,
                 "winner is ranked on the reported estimate-sample family; screen_rows are recorded provenance and were not used to select",
             ));
+        }
+    }
+}
+
+fn batch_map_error(
+    error: antecedent_core::execution::MapExecutionError<CausalError>,
+) -> CausalError {
+    match error {
+        antecedent_core::execution::MapExecutionError::Work(error) => error,
+        antecedent_core::execution::MapExecutionError::Admission(
+            antecedent_core::execution::AdmissionError::Cancelled,
+        ) => CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT },
+        antecedent_core::execution::MapExecutionError::Admission(error) => {
+            CausalError::Resource { message: error.to_string() }
         }
     }
 }

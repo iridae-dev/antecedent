@@ -8,7 +8,8 @@
 //! [`ExecutionContext::map_indexed`] takes one [`AdmissionPool`] lease for its
 //! workers and returns that lease on success, failure, and cancellation. A
 //! child lease is drawn from its parent's remainder, release returns that
-//! remainder, and cancellation releases the lease. Byte products and sums that
+//! remainder. Cancellation stops new work; live owners retain their reservations
+//! until release or drop. Byte products and sums that
 //! do not fit in `u64` are refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -510,7 +511,6 @@ struct LeaseSlot {
     parent: Option<u64>,
     threads: u32,
     bytes: u64,
-    flag: Arc<AtomicBool>,
     observation: Option<crate::execution_attempt::ObservedAdmission>,
 }
 
@@ -541,14 +541,11 @@ impl AdmissionPool {
 
     /// CPU and RAM no open lease holds.
     ///
-    /// Cancelled leases are released before the remainder is read, so a cancelled study no longer
-    /// occupies the budget.
+    /// Cancellation does not free reservations still held by workers or retained buffers.
+    /// Their owners release them after cleanup, so another job cannot overcommit live memory.
     #[must_use]
     pub fn available(&self) -> AdmissionRemainder {
-        let mut guard = lock_mutex(&self.shared.state);
-        if reap_cancelled(&mut guard) {
-            self.shared.released.notify_all();
-        }
+        let guard = lock_mutex(&self.shared.state);
         AdmissionRemainder::new(guard.threads_free, guard.bytes_free)
     }
 
@@ -621,11 +618,7 @@ fn reserve(
     Ok((threads, bytes))
 }
 
-fn grant_root(
-    state: &mut AdmissionState,
-    request: AdmissionRequest,
-    flag: Arc<AtomicBool>,
-) -> Result<u64, GrantError> {
+fn grant_root(state: &mut AdmissionState, request: AdmissionRequest) -> Result<u64, GrantError> {
     let Some(next_id) = state.next_id.checked_add(1) else {
         return Err(GrantError::Overflow);
     };
@@ -635,14 +628,13 @@ fn grant_root(
     };
     state.threads_free = threads_free;
     state.bytes_free = bytes_free;
-    Ok(push_lease(state, None, request, flag, next_id))
+    Ok(push_lease(state, None, request, next_id))
 }
 
 fn grant_child(
     state: &mut AdmissionState,
     parent_id: u64,
     request: AdmissionRequest,
-    flag: Arc<AtomicBool>,
 ) -> Result<u64, AdmissionError> {
     let Some(next_id) = state.next_id.checked_add(1) else {
         return Err(AdmissionError::Overflow);
@@ -655,14 +647,13 @@ fn grant_child(
     let (threads, bytes) = reserve(remaining_threads, remaining_bytes, request)?;
     state.leases[index].threads = threads;
     state.leases[index].bytes = bytes;
-    Ok(push_lease(state, Some(parent_id), request, flag, next_id))
+    Ok(push_lease(state, Some(parent_id), request, next_id))
 }
 
 fn push_lease(
     state: &mut AdmissionState,
     parent: Option<u64>,
     request: AdmissionRequest,
-    flag: Arc<AtomicBool>,
     next_id: u64,
 ) -> u64 {
     let id = state.next_id;
@@ -681,7 +672,6 @@ fn push_lease(
         parent,
         threads: request.threads,
         bytes: request.bytes,
-        flag,
         observation,
     });
     id
@@ -746,20 +736,6 @@ fn close_slot(state: &mut AdmissionState, index: usize) -> AdmissionRemainder {
     AdmissionRemainder::new(threads, bytes)
 }
 
-fn reap_cancelled(state: &mut AdmissionState) -> bool {
-    let mut freed = false;
-    let mut index = 0;
-    while index < state.leases.len() {
-        if state.leases[index].flag.load(Ordering::SeqCst) {
-            close_slot(state, index);
-            freed = true;
-        } else {
-            index += 1;
-        }
-    }
-    freed
-}
-
 fn close_and_notify(shared: &SharedAdmission, id: u64) -> AdmissionRemainder {
     let mut guard = lock_mutex(&shared.state);
     let Some(index) = lease_index(&guard.leases, id) else {
@@ -772,9 +748,9 @@ fn close_and_notify(shared: &SharedAdmission, id: u64) -> AdmissionRemainder {
 
 /// A hold on CPU slots and RAM bytes.
 ///
-/// Dropping the lease releases whatever remainder it still holds. Cancellation of the study that
-/// took it does the same: the next admission observation returns that remainder to the parent, or
-/// to the pool when the lease is a root.
+/// Dropping or explicitly releasing the lease returns its remainder. Cancellation
+/// refuses new child work and wakes waiters, but keeps live CPU and memory charged
+/// until the owner finishes cleanup. Retained buffers keep their leases until drop.
 #[must_use = "dropping the lease releases its CPU and RAM"]
 pub struct AdmissionLease {
     shared: Arc<SharedAdmission>,
@@ -784,6 +760,10 @@ pub struct AdmissionLease {
 }
 
 impl AdmissionLease {
+    pub(crate) fn belongs_to(&self, pool: &AdmissionPool) -> bool {
+        Arc::ptr_eq(&self.shared, &pool.shared)
+    }
+
     fn new(shared: Arc<SharedAdmission>, id: u64, flag: Arc<AtomicBool>) -> Self {
         Self { shared, id, flag, active: AtomicBool::new(true) }
     }
@@ -825,28 +805,21 @@ impl AdmissionLease {
     /// See [`Self::acquire_child`].
     pub fn acquire_child_request(&self, request: AdmissionRequest) -> Result<Self, AdmissionError> {
         let mut guard = lock_mutex(&self.shared.state);
-        if reap_cancelled(&mut guard) {
-            self.shared.released.notify_all();
-        }
         if self.flag.load(Ordering::SeqCst) {
-            self.active.store(false, Ordering::SeqCst);
             return Err(AdmissionError::Cancelled);
         }
         if lease_index(&guard.leases, self.id).is_none() {
             self.active.store(false, Ordering::SeqCst);
             return Err(AdmissionError::Released);
         }
-        let id = grant_child(&mut guard, self.id, request, Arc::clone(&self.flag))?;
+        let id = grant_child(&mut guard, self.id, request)?;
         Ok(Self::new(Arc::clone(&self.shared), id, Arc::clone(&self.flag)))
     }
 
-    /// CPU and RAM this lease still holds, after cancelled leases are released.
+    /// CPU and RAM this lease still holds, including during cancellation cleanup.
     #[must_use]
     pub fn remainder(&self) -> AdmissionRemainder {
-        let mut guard = lock_mutex(&self.shared.state);
-        if reap_cancelled(&mut guard) {
-            self.shared.released.notify_all();
-        }
+        let guard = lock_mutex(&self.shared.state);
         if let Some(index) = lease_index(&guard.leases, self.id) {
             let slot = &guard.leases[index];
             AdmissionRemainder::new(slot.threads, slot.bytes)
@@ -1312,13 +1285,10 @@ fn admit(
         AdmissionWait::Immediate | AdmissionWait::UntilAvailable => None,
     };
     loop {
-        if reap_cancelled(&mut guard) {
-            shared.released.notify_all();
-        }
         if flag.load(Ordering::SeqCst) {
             return Err(AdmissionError::Cancelled);
         }
-        match grant_root(&mut guard, request, Arc::clone(flag)) {
+        match grant_root(&mut guard, request) {
             Ok(id) => {
                 return Ok(AdmissionLease::new(Arc::clone(shared), id, Arc::clone(flag)));
             }
@@ -1467,8 +1437,8 @@ impl ExecutionContext {
     ///
     /// The parallel path acquires one admission lease for its workers before it
     /// spawns. The lease is dropped after the workers join, including when `f`
-    /// fails. Cancellation returns that lease at the next pool observation, and
-    /// again when the lease is dropped. A call that cannot take the lease,
+    /// fails. Cancellation keeps the lease charged until the workers join and cleanup
+    /// drops it. A call that cannot take the lease,
     /// including one whose context is already cancelled, evaluates `f` on the
     /// caller with a serial inner context and spawns nothing. A second parallel call waits until the pool
     /// can hold that lease. The serial path does not take a lease, so a nested
@@ -1491,6 +1461,72 @@ impl ExecutionContext {
         F: Fn(usize, &Self) -> Result<T, E> + Sync,
     {
         self.map_indexed_with_scratch(n, || (), |index, ctx, _scratch| f(index, ctx))
+    }
+
+    /// Execute an indexed map with shared admission even for a serial caller.
+    /// Nested work reuses a live enclosing worker reservation and remains serial.
+    ///
+    /// # Errors
+    /// Cancellation/admission refusal, or the original lowest-index task error.
+    pub fn try_map_indexed<T, E, F>(&self, n: usize, f: F) -> Result<Vec<T>, MapExecutionError<E>>
+    where
+        T: Send,
+        E: Send,
+        F: Fn(usize, &Self) -> Result<T, E> + Sync,
+    {
+        self.try_map_indexed_with_scratch(n, || (), |index, ctx, ()| f(index, ctx))
+    }
+
+    /// Admitted map with one reusable scratch value per worker, including serial work.
+    /// Scratch construction occurs only after admission and a cancellation check.
+    ///
+    /// # Errors
+    /// Cancellation/admission refusal, or the original lowest-index task error.
+    pub fn try_map_indexed_with_scratch<T, S, E, F>(
+        &self,
+        n: usize,
+        make_scratch: impl Fn() -> S + Sync,
+        f: F,
+    ) -> Result<Vec<T>, MapExecutionError<E>>
+    where
+        T: Send,
+        S: Send,
+        E: Send,
+        F: Fn(usize, &Self, &mut S) -> Result<T, E> + Sync,
+    {
+        if n == 0 {
+            return Ok(Vec::new());
+        }
+        if self.cancellation.is_cancelled() {
+            return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+        }
+        let call = |index, ctx: &Self, scratch: &mut S| {
+            if ctx.cancellation.is_cancelled() {
+                return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+            }
+            if !crate::numerical_admission::worker()
+                .is_some_and(|lease| lease.belongs_to(&ctx.admission))
+            {
+                return Err(MapExecutionError::Admission(AdmissionError::Released));
+            }
+            f(index, ctx, scratch).map_err(MapExecutionError::Work)
+        };
+        if let Some(worker) =
+            crate::numerical_admission::worker().filter(|lease| lease.belongs_to(&self.admission))
+        {
+            let inner = self.serial_inner();
+            return crate::numerical_admission::with_worker(worker, || {
+                inner.map_indexed_with_scratch(n, make_scratch, call)
+            });
+        }
+        if self.map_worker_count(n) <= 1 {
+            let lease = Arc::new(self.acquire_map_lease(1)?);
+            let inner = self.serial_inner();
+            return crate::numerical_admission::with_worker(lease, || {
+                inner.map_indexed_with_scratch(n, make_scratch, call)
+            });
+        }
+        self.map_indexed_with_scratch(n, make_scratch, call)
     }
 
     /// [`Self::map_indexed`] with one scratch value per worker.
@@ -1554,7 +1590,11 @@ impl ExecutionContext {
         let mut slots: Vec<Option<Result<T, E>>> = (0..n).map(|_| None).collect();
         let first_failure = AtomicUsize::new(usize::MAX);
         let observation = crate::execution_attempt::ObservationToken::capture();
-        let numerical = crate::numerical_admission::NumericalAdmissionToken::capture();
+        let lease = Arc::new(lease);
+        let numerical = crate::numerical_admission::with_worker(
+            Arc::clone(&lease),
+            crate::numerical_admission::NumericalAdmissionToken::capture,
+        );
         std::thread::scope(|scope| {
             let f = &f;
             let inner = &inner;
@@ -1745,6 +1785,17 @@ impl ExecutionContext {
             wait,
         )
     }
+}
+
+/// A shared-scheduler refusal or the original lowest-index task error.
+#[derive(Debug, Error)]
+pub enum MapExecutionError<E> {
+    /// No work started without its required shared CPU reservation.
+    #[error(transparent)]
+    Admission(#[from] AdmissionError),
+    /// The original task error, unchanged.
+    #[error("worker execution failed: {0}")]
+    Work(E),
 }
 
 /// Host request identity: scoped to the complete scientific + execution inputs.
@@ -2051,7 +2102,6 @@ mod tests {
                 parent: None,
                 threads: 1,
                 bytes: 0,
-                flag: Arc::new(AtomicBool::new(false)),
             }],
             next_id: 8,
             blocked_waiters: 0,
@@ -2065,50 +2115,22 @@ mod tests {
     }
 
     #[test]
-    fn reap_cancelled_releases_every_flagged_lease_without_restarting() {
-        let flag = Arc::new(AtomicBool::new(true));
-        let keep = Arc::new(AtomicBool::new(false));
-        let mut state = AdmissionState {
-            thread_budget: 10,
-            byte_budget: 100,
-            threads_free: 4,
-            bytes_free: 40,
-            leases: vec![
-                LeaseSlot {
-                    observation: None,
-                    id: 1,
-                    parent: None,
-                    threads: 2,
-                    bytes: 20,
-                    flag: Arc::clone(&flag),
-                },
-                LeaseSlot {
-                    observation: None,
-                    id: 2,
-                    parent: None,
-                    threads: 3,
-                    bytes: 30,
-                    flag: Arc::clone(&keep),
-                },
-                LeaseSlot {
-                    observation: None,
-                    id: 3,
-                    parent: None,
-                    threads: 1,
-                    bytes: 10,
-                    flag: Arc::clone(&flag),
-                },
-            ],
-            next_id: 4,
-            blocked_waiters: 0,
-        };
-        assert!(reap_cancelled(&mut state));
-        assert_eq!(state.leases.len(), 1);
-        assert_eq!(state.leases[0].id, 2);
-        assert_eq!(state.threads_free, 7);
-        assert_eq!(state.bytes_free, 70);
-        assert!(!reap_cancelled(&mut state));
-        assert_eq!(state.leases.len(), 1);
+    fn cancelled_parent_and_child_hold_live_memory_until_cleanup() {
+        let pool = AdmissionPool::fixed(2, 100);
+        let owner = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let other = ExecutionContext::for_tests(2).with_admission(pool.clone());
+        let parent = owner.acquire_admission(2, 100).unwrap();
+        let child = parent.acquire_child(1, 40).unwrap();
+        owner.cancellation.cancel();
+        assert_eq!(pool.available(), AdmissionRemainder::zero());
+        assert!(matches!(parent.acquire_child(0, 1), Err(AdmissionError::Cancelled)));
+        assert!(other.acquire_admission(1, 1).is_err());
+        drop(parent);
+        assert_eq!(pool.available(), AdmissionRemainder::new(1, 60));
+        let _replacement = other.acquire_admission(1, 60).unwrap();
+        assert_eq!(pool.available(), AdmissionRemainder::zero());
+        drop(child);
+        assert_eq!(pool.available(), AdmissionRemainder::new(1, 40));
     }
 
     #[test]
@@ -2353,15 +2375,15 @@ mod tests {
     }
 
     #[test]
-    fn cancellation_releases_the_admission_lease() {
+    fn cancellation_keeps_admission_until_the_owner_releases() {
         let shared = AdmissionPool::fixed(4, 80);
         let study_a = ExecutionContext::for_tests(1).with_admission(shared.clone());
         let study_b = ExecutionContext::for_tests(2).with_admission(shared.clone());
         let lease = study_a.acquire_admission(4, 80).unwrap();
         study_a.cancellation.cancel();
-        assert_eq!(shared.available().threads(), 4);
-        assert_eq!(shared.available().bytes(), 80);
-        assert_eq!(lease.release().threads(), 0);
+        assert_eq!(shared.available(), AdmissionRemainder::zero());
+        assert!(study_b.acquire_admission(4, 80).is_err());
+        assert_eq!(lease.release(), AdmissionRemainder::new(4, 80));
         let taken = study_b.acquire_admission(4, 80).unwrap();
         assert_eq!(shared.available().threads(), 0);
         drop(taken);
@@ -2528,6 +2550,49 @@ mod tests {
     }
 
     #[test]
+    fn serial_admitted_maps_share_capacity_and_nested_work_reuses_the_slot() {
+        let pool = AdmissionPool::fixed(1, 64);
+        let first = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let second = ExecutionContext::for_tests(2).with_admission(pool.clone());
+        let entered = Arc::new(Barrier::new(2));
+        let finish = Arc::new(Barrier::new(2));
+        let worker_entered = Arc::clone(&entered);
+        let worker_finish = Arc::clone(&finish);
+        let a = thread::spawn(move || {
+            first.try_map_indexed(1, |_, inner| {
+                assert_eq!(inner.try_map_indexed(2, |i, _| Ok::<_, ()>(i)).unwrap(), vec![0, 1]);
+                worker_entered.wait();
+                worker_finish.wait();
+                Ok::<_, ()>(1)
+            })
+        });
+        entered.wait();
+        let b = thread::spawn(move || second.try_map_indexed(1, |_, _| Ok::<_, ()>(2)));
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while pool.blocked_waiters() == 0 {
+            assert!(Instant::now() < deadline, "second serial map must wait for shared admission");
+            thread::yield_now();
+        }
+        assert_eq!(pool.available().threads(), 0);
+        finish.wait();
+        assert_eq!(a.join().unwrap().unwrap(), vec![1]);
+        assert_eq!(b.join().unwrap().unwrap(), vec![2]);
+        assert_eq!(pool.available(), AdmissionRemainder::new(1, 64));
+    }
+
+    #[test]
+    fn admitted_map_refuses_cancellation_before_constructing_scratch() {
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let result = ctx.try_map_indexed_with_scratch(
+            1,
+            || panic!("cancelled work must not allocate scratch"),
+            |_, _, _: &mut ()| Ok::<_, ()>(()),
+        );
+        assert!(matches!(result, Err(MapExecutionError::Admission(AdmissionError::Cancelled))));
+    }
+
+    #[test]
     fn cancelled_map_indexed_leaves_no_lease() {
         let shared = AdmissionPool::fixed(2, 64);
         let ctx = parallel_context(&shared, 1);
@@ -2537,17 +2602,22 @@ mod tests {
         let entered_worker = Arc::clone(&entered);
         let finish_worker = Arc::clone(&finish);
         let handle = thread::spawn(move || {
-            running.map_indexed(2, move |index, _inner| {
+            running.map_indexed(2, move |index, inner| {
+                let _reservation = inner.acquire_admission(0, 32).unwrap();
+                let scratch = vec![0_u8; 32];
                 entered_worker.wait();
                 finish_worker.wait();
+                std::hint::black_box(scratch);
                 Ok::<_, ()>(index)
             })
         });
         entered.wait();
         assert_eq!(shared.available().threads(), 0);
-        assert_eq!(shared.available().bytes(), 64);
+        assert_eq!(shared.available().bytes(), 0);
         ctx.cancellation.cancel();
-        assert_eq!(shared.available(), AdmissionRemainder::new(2, 64));
+        assert_eq!(shared.available(), AdmissionRemainder::zero());
+        let competing = ExecutionContext::for_tests(2).with_admission(shared.clone());
+        assert!(competing.acquire_admission(1, 1).is_err());
         finish.wait();
         assert_eq!(handle.join().unwrap().unwrap(), vec![0, 1]);
         assert_eq!(shared.available(), AdmissionRemainder::new(2, 64));

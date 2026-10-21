@@ -11,6 +11,7 @@ use std::{cell::RefCell, sync::Arc};
 struct Binding {
     context: Option<ExecutionContext>,
     reservation: Option<Arc<AdmissionLease>>,
+    worker: Option<Arc<AdmissionLease>>,
 }
 thread_local! { static ACTIVE: RefCell<Binding> = RefCell::default(); }
 struct Restore(Binding);
@@ -31,8 +32,11 @@ impl NumericalAdmissionToken {
     }
     /// Install this binding on a worker, using its bounded inner context.
     pub fn execute<T>(&self, ctx: &ExecutionContext, execute: impl FnOnce() -> T) -> T {
-        let binding =
-            Binding { context: Some(ctx.clone()), reservation: self.0.reservation.clone() };
+        let binding = Binding {
+            context: Some(ctx.clone()),
+            reservation: self.0.reservation.clone(),
+            worker: self.0.worker.clone(),
+        };
         let _restore = Restore(ACTIVE.with(|active| active.replace(binding)));
         execute()
     }
@@ -69,4 +73,16 @@ pub fn is_cancelled() -> bool {
     ACTIVE.with(|active| {
         active.borrow().context.as_ref().is_some_and(|ctx| ctx.cancellation.is_cancelled())
     })
+}
+
+/// Current worker reservation, retained only for the dynamic worker scope.
+pub(crate) fn worker() -> Option<Arc<AdmissionLease>> {
+    ACTIVE.with(|active| active.borrow().worker.clone())
+}
+/// Install the real worker lease so nested admitted maps reuse that CPU slot.
+pub(crate) fn with_worker<T>(worker: Arc<AdmissionLease>, execute: impl FnOnce() -> T) -> T {
+    let mut binding = ACTIVE.with(|active| active.borrow().clone());
+    binding.worker = Some(worker);
+    let _restore = Restore(ACTIVE.with(|active| active.replace(binding)));
+    execute()
 }
