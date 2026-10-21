@@ -27,6 +27,7 @@ antecedent-core = { workspace = true }
 antecedent-data = { workspace = true }
 antecedent-expr = { workspace = true }
 antecedent-graph = { workspace = true }
+antecedent-kernels = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 

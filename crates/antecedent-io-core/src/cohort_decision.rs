@@ -47,6 +47,7 @@ use std::collections::BTreeSet;
 
 use antecedent_contract::{ExternalRefusal, QuantityCondition, QuantityRole, ScientificQuantity};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SupportStatus, VariableId};
+use antecedent_kernels::numeric::CompensatedSum;
 use antecedent_learn::{FittedEffect, PredictionMap};
 use serde::{Deserialize, Serialize};
 
@@ -299,20 +300,9 @@ pub struct CohortBinding {
     weights: Vec<f64>,
 }
 
-/// Sum with Neumaier compensation, so the result is nearly independent of row order.
+/// Sum with [`CompensatedSum`], so the result is nearly independent of row order.
 fn compensated_sum(terms: impl Iterator<Item = f64>) -> f64 {
-    let mut sum = 0.0_f64;
-    let mut compensation = 0.0_f64;
-    for term in terms {
-        let next = sum + term;
-        if sum.abs() >= term.abs() {
-            compensation += (sum - next) + term;
-        } else {
-            compensation += (term - next) + sum;
-        }
-        sum = next;
-    }
-    sum + compensation
+    CompensatedSum::of(terms)
 }
 
 impl CohortBinding {

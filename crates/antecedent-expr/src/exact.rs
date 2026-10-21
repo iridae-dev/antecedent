@@ -7,6 +7,8 @@ use std::sync::{Arc, Mutex};
 
 use antecedent_core::{RegimeId, Value, VariableId};
 
+pub(crate) use antecedent_kernels::numeric::CompensatedSum;
+
 use crate::{
     Assignment, DistributionProvider, DomainRef, EvalContext, EvalError, FactorSpec,
     InterventionAssignment,
@@ -602,36 +604,9 @@ fn finite(v: &Value) -> bool {
     !matches!(v, Value::Float64(x) if !x.is_finite())
 }
 
-/// Neumaier compensated accumulator: avoids normalization drift on large, valid domains and is
-/// order-stable, so incremental use equals summing the same sequence in one call.
-#[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct CompensatedSum {
-    total: f64,
-    correction: f64,
-}
-
-impl CompensatedSum {
-    pub(crate) fn add(&mut self, value: f64) {
-        let next = self.total + value;
-        self.correction += if self.total.abs() >= value.abs() {
-            (self.total - next) + value
-        } else {
-            (value - next) + self.total
-        };
-        self.total = next;
-    }
-
-    pub(crate) fn total(self) -> f64 {
-        self.total + self.correction
-    }
-}
-
+/// Sum in iteration order with [`CompensatedSum`].
 pub(crate) fn sum(values: impl Iterator<Item = f64>) -> f64 {
-    let mut acc = CompensatedSum::default();
-    for value in values {
-        acc.add(value);
-    }
-    acc.total()
+    CompensatedSum::of(values)
 }
 
 /// One population, regime, and normalized intervention world.

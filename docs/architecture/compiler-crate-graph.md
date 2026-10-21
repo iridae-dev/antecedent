@@ -33,7 +33,7 @@ new internal type for that layer would go. No new crate.
 An edge may point only at a crate the source already reaches, or along the
 existing normal graph. New internal types do not add edges. In particular:
 
-- `antecedent-expr` depends only on `antecedent-core`.
+- `antecedent-expr` depends on `antecedent-core` and `antecedent-kernels`.
 - `antecedent-contract` depends only on `antecedent-core`.
 - Neither gains an estimator, model, design, or facade dependency.
 - `antecedent-learn` is not imported by `antecedent-expr` or `antecedent-contract`. It continues to provide prediction to `antecedent-estimate` and `antecedent-model`.
@@ -48,14 +48,14 @@ antecedent-core
 antecedent-kernels          -> core
 antecedent-contract         -> core
 antecedent-graph            -> core
-antecedent-expr             -> core
+antecedent-expr             -> core, kernels
 antecedent-learn-burn       -> (no workspace crate)
 antecedent-data             -> core, kernels
 antecedent-prob             -> core, kernels, stats
 antecedent-stats            -> core, kernels
 antecedent-state            -> core, kernels, stats
 antecedent-learn            -> core, kernels, stats, prob, learn-burn
-antecedent-identify         -> core, data, expr, graph
+antecedent-identify         -> core, data, expr, graph, kernels
 antecedent-discovery        -> core, data, graph, kernels, prob, state, stats
 antecedent-model            -> core, data, graph, kernels, learn, stats
 antecedent-counterfactual   -> core, contract, data, graph, model
@@ -141,7 +141,7 @@ break the estimator-free cuts.
 | `antecedent-design -> antecedent-io` | `io` does not depend on `design` | `antecedent-io` is the estimator-bound artifact crate. |
 | `antecedent-contract -> antecedent-model` | `model` does not depend on `contract` | Contract stays free of model and estimator back-references. |
 | `antecedent-contract -> antecedent-learn` | `learn` does not depend on `contract` | Same. Prediction machinery does not move into the contract crate. |
-| `antecedent-expr -> antecedent-model` or `antecedent-learn` | neither depends on `expr` through a path that returns only if expr imported them; `model` does not depend on `expr` | Expression stays the identified-functional IR and keeps a single edge to `core`. |
+| `antecedent-expr -> antecedent-model` or `antecedent-learn` | neither depends on `expr` through a path that returns only if expr imported them; `model` does not depend on `expr` | Expression stays the identified-functional IR. Its edges are `core` and `kernels`. |
 | `antecedent-io-core -> antecedent-design` | listed above; this one does cycle | Recorded in the cycle table. `io-core` also stays estimator-free and design-free so design can keep reading it. |
 
 `antecedent-estimate -> antecedent-contract` is acyclic (`contract` depends

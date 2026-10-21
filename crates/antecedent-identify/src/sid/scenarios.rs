@@ -68,6 +68,7 @@ use antecedent_core::{
     SearchStop, Value, VariableDomain, VariableId, reason_code,
 };
 use antecedent_graph::SelectionDiagram;
+use antecedent_kernels::numeric::CompensatedSum;
 
 use super::conditional::{
     BoundConditionalTransportFunctional, ConditionalNonTransportabilityProof,
@@ -91,21 +92,14 @@ pub const SCENARIO_MAX_OBSERVED: usize = 12;
 pub const SCENARIO_WEIGHT_TOLERANCE: f64 = 1e-12;
 
 /// Sum of masses independent of their order: the values are sorted, then added
-/// with Neumaier compensation, so any renaming or reordering of scenarios gives
+/// with [`CompensatedSum`], so any renaming or reordering of scenarios gives
 /// the same bits. Every declared-mass total of a scenario set uses this sum.
 #[must_use]
 #[doc(hidden)]
 pub fn mass_sum(values: impl IntoIterator<Item = f64>) -> f64 {
     let mut values = values.into_iter().collect::<Vec<_>>();
     values.sort_by(f64::total_cmp);
-    let (mut sum, mut compensation) = (0.0_f64, 0.0_f64);
-    for value in values {
-        let next = sum + value;
-        compensation +=
-            if sum.abs() >= value.abs() { (sum - next) + value } else { (value - next) + sum };
-        sum = next;
-    }
-    sum + compensation
+    CompensatedSum::of(values)
 }
 
 /// Mass left over once `identified` mass is accounted for: one minus it, zero

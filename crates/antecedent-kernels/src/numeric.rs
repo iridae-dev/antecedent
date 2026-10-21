@@ -1,5 +1,5 @@
 //! Small shared numeric primitives: logistic link, softmax, log-weight
-//! normalisation, median and midranks.
+//! normalisation, median, midranks, and a Neumaier compensated sum.
 //!
 //! Each function is the single workspace owner of its operation, with the
 //! failure semantics documented on the function. They are deliberately free of
@@ -52,6 +52,50 @@ pub fn mean(values: &[f64]) -> f64 {
 pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     debug_assert_eq!(a.len(), b.len(), "dot length mismatch");
     a.iter().zip(b).map(|(x, y)| x * y).sum()
+}
+
+/// Neumaier compensated accumulator.
+///
+/// A running `f64` total drops a unit that sits next to a shift larger than the
+/// mantissa. The correction term keeps it. Adding a sequence one value at a time
+/// matches summing that same sequence in one call. Two orders of a cancelling
+/// series agree to within a few units in the last place; a caller that needs
+/// identical bits sorts first.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CompensatedSum {
+    total: f64,
+    correction: f64,
+}
+
+impl CompensatedSum {
+    /// Add one term.
+    #[inline]
+    pub const fn add(&mut self, value: f64) {
+        let next = self.total + value;
+        self.correction += if self.total.abs() >= value.abs() {
+            (self.total - next) + value
+        } else {
+            (value - next) + self.total
+        };
+        self.total = next;
+    }
+
+    /// Compensated total, `total + correction`.
+    #[inline]
+    #[must_use]
+    pub const fn total(self) -> f64 {
+        self.total + self.correction
+    }
+
+    /// Sum `values` in iteration order.
+    #[must_use]
+    pub fn of(values: impl IntoIterator<Item = f64>) -> f64 {
+        let mut acc = Self::default();
+        for value in values {
+            acc.add(value);
+        }
+        acc.total()
+    }
 }
 
 /// Unbiased sample standard deviation `sqrt(Σ(x − x̄)² / (n − 1))`; `NaN` for fewer than two
@@ -355,5 +399,45 @@ mod tests {
             crate::view::ViewError::InvalidShape { message: "midranks_into length mismatch" }
         );
         assert_eq!(short, [0.0]);
+    }
+
+    /// Ordered integer for an IEEE-754 value, so adjacent floats differ by one.
+    fn ordered_bits(value: f64) -> u64 {
+        let bits = value.to_bits();
+        if bits & (1_u64 << 63) == 0 { bits | (1_u64 << 63) } else { !bits }
+    }
+
+    fn ulps_between(left: f64, right: f64) -> u64 {
+        if !left.is_finite() || !right.is_finite() {
+            return u64::MAX;
+        }
+        ordered_bits(left).abs_diff(ordered_bits(right))
+    }
+
+    fn naive_sum(values: &[f64]) -> f64 {
+        let mut total = 0.0_f64;
+        for value in values {
+            total += value;
+        }
+        total
+    }
+
+    #[test]
+    fn cancelling_series_agrees_across_addition_order() {
+        let shift = 2.0_f64.powi(53);
+        let forward = [shift, 1.0, -shift, 1.0];
+        let reverse = [1.0, -shift, 1.0, shift];
+        let forward_sum = CompensatedSum::of(forward);
+        let reverse_sum = CompensatedSum::of(reverse);
+        assert!(
+            ulps_between(forward_sum, reverse_sum) <= 4,
+            "{forward_sum} vs {reverse_sum}"
+        );
+        assert!(ulps_between(forward_sum, 2.0) <= 4, "{forward_sum}");
+        assert!(ulps_between(reverse_sum, 2.0) <= 4, "{reverse_sum}");
+        assert!(
+            ulps_between(naive_sum(&forward), naive_sum(&reverse)) > 4,
+            "the series must actually cancel; naive order would not be a test"
+        );
     }
 }

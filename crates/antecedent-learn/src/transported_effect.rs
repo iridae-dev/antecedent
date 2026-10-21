@@ -41,6 +41,7 @@
 use std::collections::BTreeSet;
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, VariableId};
+use antecedent_kernels::numeric::CompensatedSum;
 
 use crate::fitted_effect::{EffectSupport, FittedEffect};
 use crate::portable::PredictionMap;
@@ -261,18 +262,7 @@ pub struct TargetCohort {
 impl TargetCohort {
     /// Neumaier-compensated total, nearly independent of row order.
     fn total(values: impl Iterator<Item = f64>) -> f64 {
-        let mut sum = 0.0_f64;
-        let mut compensation = 0.0_f64;
-        for term in values {
-            let next = sum + term;
-            if sum.abs() >= term.abs() {
-                compensation += (sum - next) + term;
-            } else {
-                compensation += (term - next) + sum;
-            }
-            sum = next;
-        }
-        sum + compensation
+        CompensatedSum::of(values)
     }
 
     /// Check shape, finiteness, identities and weights.

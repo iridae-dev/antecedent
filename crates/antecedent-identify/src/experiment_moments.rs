@@ -38,13 +38,15 @@
 //! declares is refused here as [`MomentAssemblyRefusal::DroppedUnitNotClamped`].
 //!
 //! The experimental effects are computed on the correlation matrix of the
-//! intervened columns, so the pivot floor is relative to each column's own
-//! scale and does not depend on the units of measurement.
+//! intervened columns, solved by [`antecedent_kernels::gauss_jordan_solve`].
+//! The pivot floor is that kernel's equilibrated floor on a matrix whose
+//! diagonal is order 1, so it does not depend on the units of measurement.
 
 use std::collections::BTreeSet;
 use std::fmt;
 
 use antecedent_core::VariableId;
+use antecedent_kernels::{gauss_jordan_solve, numeric::CompensatedSum};
 
 use crate::experiment_regime::{
     AcceptedRegimeContract, DependencePremise, ExperimentRegime, SourceIdentity,
@@ -53,19 +55,12 @@ use crate::experiment_regime::{
 /// Bytes in one assembled `f64` entry.
 const F64_BYTES: u64 = 8;
 
-/// Relative floor for a pivot of the intervention correlation matrix.
-///
-/// The intervened covariance is scaled to unit diagonal before this floor applies.
-/// A pivot at or below it means the intervened columns do not have a
-/// positive-definite sample covariance, so the canonical experimental effects are
-/// undefined. It is not a rank test of the constraint matrix.
-const INTERVENTION_PIVOT_FLOOR: f64 = 1e-12;
-
 /// Relative floor for a pivot of an assembled constraint matrix.
 ///
 /// Multiplied by the largest absolute coefficient. A column that does not clear
-/// it is not a pivot. This is not [`INTERVENTION_PIVOT_FLOOR`] and not a test of
-/// weak stability.
+/// it is not a pivot. The intervention solve uses
+/// [`antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR`] on the correlation matrix.
+/// This floor is not that policy and not a test of weak stability.
 const CONSTRAINT_COLUMN_PIVOT_FLOOR: f64 = 1e-12;
 
 /// One observed column of a regime sample.
@@ -814,9 +809,10 @@ fn row_coefficient(source: usize, probe: usize, probe_slot: usize, regime: &Regi
 /// Layout is row-major `passive.len() * intervened.len()`. The system
 /// `Σ_JJ B = Σ_JU` is solved on the correlation scale: with `D = diag(Σ_JJ)^{1/2}`,
 /// `(D⁻¹ Σ_JJ D⁻¹)(D B) = D⁻¹ Σ_JU`, then each row `j` of the solution is divided by
-/// `D_jj`. The pivot floor therefore compares correlations, and rescaling an
-/// intervened column does not change which regimes are degenerate. A constant or
-/// numerically singular intervention is [`MomentAssemblyRefusal::DegenerateIntervention`].
+/// `D_jj`. [`gauss_jordan_solve`] applies its equilibrated pivot floor to that
+/// correlation matrix, so rescaling an intervened column does not change which
+/// regimes are degenerate. A constant or numerically singular intervention is
+/// [`MomentAssemblyRefusal::DegenerateIntervention`].
 fn experimental_effects(
     regime: usize,
     covariance: &[f64],
@@ -847,80 +843,34 @@ fn experimental_effects(
             factor[row * j + col] = covariance[left * n + right] / spread[row] / spread[col];
         }
     }
-    let mut rhs = vec![0.0; length_product(j, u)?];
-    for (col, &passive_index) in passive.iter().enumerate() {
-        for (row, &probe_index) in intervened.iter().enumerate() {
-            rhs[row * u + col] = covariance[probe_index * n + passive_index] / spread[row];
+    // One right-hand side per passive column: `rhs[k * j + row]`.
+    let mut solved = vec![0.0; length_product(u, j)?];
+    for (passive_slot, &passive_index) in passive.iter().enumerate() {
+        for (probe_slot, &probe_index) in intervened.iter().enumerate() {
+            solved[passive_slot * j + probe_slot] =
+                covariance[probe_index * n + passive_index] / spread[probe_slot];
         }
     }
-    for col in 0..j {
-        let mut pivot_row = col;
-        let mut best = factor[col * j + col].abs();
-        for row in (col + 1)..j {
-            let value = factor[row * j + col].abs();
-            if value > best {
-                best = value;
-                pivot_row = row;
-            }
-        }
-        if !best.is_finite() || best <= INTERVENTION_PIVOT_FLOOR {
-            return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
-        }
-        if pivot_row != col {
-            swap_factor_rows(&mut factor, j, col, pivot_row);
-            swap_rhs_rows(&mut rhs, u, col, pivot_row);
-        }
-        let diag = factor[col * j + col];
-        for row in (col + 1)..j {
-            let multiplier = factor[row * j + col] / diag;
-            for k in col..j {
-                factor[row * j + k] -= multiplier * factor[col * j + k];
-            }
-            for k in 0..u {
-                rhs[row * u + k] -= multiplier * rhs[col * u + k];
-            }
-        }
+    if !gauss_jordan_solve(&mut factor, &mut solved, j, u) {
+        return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
     }
-    for col in (0..j).rev() {
-        let diag = factor[col * j + col];
-        if !diag.is_finite() || diag.abs() <= INTERVENTION_PIVOT_FLOOR {
-            return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
-        }
-        for k in 0..u {
-            let mut value = rhs[col * u + k];
-            for row in (col + 1)..j {
-                value -= factor[col * j + row] * rhs[row * u + k];
-            }
-            let solved = value / diag;
-            if !solved.is_finite() {
-                return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
-            }
-            rhs[col * u + k] = solved;
-        }
-    }
-    let mut effects = vec![0.0; length_product(u, j)?];
     for passive_slot in 0..u {
         for probe_slot in 0..j {
             // Undo the column scaling: the solved row is `D_jj` times the effect.
-            let effect = rhs[probe_slot * u + passive_slot] / spread[probe_slot];
+            let slot = passive_slot * j + probe_slot;
+            let effect = solved[slot] / spread[probe_slot];
             if !effect.is_finite() {
                 return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
             }
-            effects[passive_slot * j + probe_slot] = effect;
+            solved[slot] = effect;
         }
     }
-    Ok(effects)
+    Ok(solved)
 }
 
 fn swap_factor_rows(factor: &mut [f64], width: usize, left: usize, right: usize) {
     for col in 0..width {
         factor.swap(left * width + col, right * width + col);
-    }
-}
-
-fn swap_rhs_rows(rhs: &mut [f64], width: usize, left: usize, right: usize) {
-    for col in 0..width {
-        rhs.swap(left * width + col, right * width + col);
     }
 }
 
@@ -1090,21 +1040,10 @@ fn identity_directions(columns: usize) -> Vec<Vec<f64>> {
         .collect()
 }
 
-/// Neumaier compensated sum. A running `f64` total drops a unit that sits next
+/// Sum with [`CompensatedSum`]. A running `f64` total drops a unit that sits next
 /// to a shift larger than the mantissa; the correction term keeps it.
 fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
-    let mut total = 0.0_f64;
-    let mut correction = 0.0_f64;
-    for value in values {
-        let next = total + value;
-        correction += if total.abs() >= value.abs() {
-            (total - next) + value
-        } else {
-            (value - next) + total
-        };
-        total = next;
-    }
-    total + correction
+    CompensatedSum::of(values)
 }
 
 fn compensated_mean(values: &[f64]) -> f64 {
@@ -1460,6 +1399,44 @@ mod tests {
         let (coefficients, rhs) = row(into_y, 0, 0);
         assert_eq!(coefficients, &[1.0]);
         assert_close(rhs, 0.5);
+    }
+
+    /// Nonzero means and a residual, so the through-origin slope is a different number.
+    ///
+    /// The assembled effect is `Cov(x, y) / Var(x)`. Dropping the intercept and
+    /// regressing the raw columns would return `Σxy / Σx²` and fail this check.
+    #[test]
+    fn centered_effect_keeps_the_intercept() {
+        let x = [1.0, 2.0, 4.0, 7.0];
+        let y = [1.0, 3.0, 2.0, 6.0];
+        let columns =
+            [UnitColumn { unit: unit(0), values: &x }, UnitColumn { unit: unit(1), values: &y }];
+        let contract =
+            accepted(vec![regime(&[0, 1], &[0], DependencePremise::Independence, 1, 1)], &[]);
+        let assembled = assemble_experiment_constraints(&contract, &[sample(&columns, 1)], u64::MAX)
+            .expect("the passive target is covered");
+        let into_y = block(&assembled, 1);
+        let (coefficients, effect) = row(into_y, 0, 0);
+        assert_eq!(coefficients, &[1.0]);
+        let mean_x = 3.5;
+        let mean_y = 3.0;
+        let mut centered = 0.0;
+        let mut centered_x = 0.0;
+        let mut raw = 0.0;
+        let mut raw_x = 0.0;
+        for (&xv, yv) in x.iter().zip(y) {
+            centered += (xv - mean_x) * (yv - mean_y);
+            centered_x += (xv - mean_x) * (xv - mean_x);
+            raw += xv * yv;
+            raw_x += xv * xv;
+        }
+        let with_intercept = centered / centered_x;
+        let without_intercept = raw / raw_x;
+        assert!((with_intercept - without_intercept).abs() > 1e-2);
+        assert_close(effect, with_intercept);
+        assert_close(assembled.moments[0].mean[0], mean_x);
+        assert_close(assembled.moments[0].mean[1], mean_y);
+        assert_close(assembled.moments[0].covariance[0], centered_x / x.len() as f64);
     }
 
     #[test]
