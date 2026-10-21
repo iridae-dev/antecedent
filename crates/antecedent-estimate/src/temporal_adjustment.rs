@@ -439,6 +439,18 @@ impl TemporalLinearAdjustment {
             (plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?, None)
         };
 
+        let split = match split {
+            Some(split) => Some(
+                split
+                    .bind_embargo(
+                        antecedent_core::DeclaredSamplingDesign::DependentTimeSeries,
+                        max_lag,
+                    )
+                    .map_err(EstimationError::from)?,
+            ),
+            None => None,
+        };
+        let split = split.as_ref();
         let n = prep.n;
         let (row_start, row_end) = if let Some(s) = split {
             // Prepared row `r` is the lag window `[r, r + max_lag]`. A row belongs to the
@@ -1759,9 +1771,14 @@ mod tests {
         let estimand = id_res.result.estimands.first().unwrap();
         let est = TemporalLinearAdjustment::new();
         let policy = &ExecutionContext::for_tests(1).kernel_policy;
-        // Discovery [0, 100), estimation [100, 240); the treatment sits one lag back, so
-        // max_lag = 1 and prepared row r spans series times [r, r + 1].
-        let split = DiscoveryEstimationSplit::from_sizes(240, 100, 0, 140).unwrap();
+        // Discovery [0, 99), embargo [99, 100), estimation [100, 240). max_lag = 1, so a
+        // gap of 0 would leak across that embargo. Prepared row r spans [r, r + 1].
+        let split = DiscoveryEstimationSplit::from_sizes(240, 99, 1, 140).unwrap();
+        let leaked = DiscoveryEstimationSplit::from_sizes(240, 100, 0, 140).unwrap();
+        let error = est
+            .prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&leaked), policy)
+            .expect_err("a zero gap leaks across the lag embargo");
+        assert!(error.to_string().contains("embargo"), "{error}");
         let (prep, aligned) = est
             .prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&split), policy)
             .unwrap();

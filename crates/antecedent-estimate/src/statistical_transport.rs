@@ -848,7 +848,15 @@ fn outer_bootstrap(
                     TransportStream::Bootstrap.index(dataset, replicate)?,
                 );
                 indexes.clear();
-                if fill_resample_indexes(ResamplingPlan::IidBootstrap, n, &mut rng, &mut indexes)
+                if antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories
+                    .apply_resampling(antecedent_core::ResamplingRule::RowSubjectIid)
+                    .is_err()
+                    || fill_resample_indexes(
+                        ResamplingPlan::IidBootstrap,
+                        n,
+                        &mut rng,
+                        &mut indexes,
+                    )
                     .is_err()
                 {
                     return Ok(None);
@@ -1891,7 +1899,10 @@ fn resample_cited_counts(
         cumulative.push(running);
     }
     indexes.clear();
-    if fill_resample_indexes(ResamplingPlan::IidBootstrap, total, rng, indexes).is_err()
+    if antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories
+        .apply_resampling(antecedent_core::ResamplingRule::RowSubjectIid)
+        .is_err()
+        || fill_resample_indexes(ResamplingPlan::IidBootstrap, total, rng, indexes).is_err()
         || indexes.len() != total
     {
         return false;

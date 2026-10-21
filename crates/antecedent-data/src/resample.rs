@@ -102,12 +102,18 @@ impl ResamplingPlan {
     }
 
     /// Resampling rule this plan applies, for a declared design to accept or refuse.
+    ///
+    /// An iid bootstrap, a Bayesian bootstrap, and a full-row permutation draw rows.
+    /// A trajectory or clustered panel refuses that draw. A within-cluster permutation
+    /// keeps each unit's rows together and is the subject rule. Whole-cluster and
+    /// contiguous-block plans keep their own rules.
     #[must_use]
     pub const fn resampling_rule(self) -> ResamplingRule {
         match self {
-            Self::IidBootstrap | Self::BayesianBootstrap | Self::Permutation(_) => {
-                ResamplingRule::RowSubjectIid
-            }
+            Self::IidBootstrap
+            | Self::BayesianBootstrap
+            | Self::Permutation(PermutationScheme::Full) => ResamplingRule::RowIid,
+            Self::Permutation(PermutationScheme::WithinCluster) => ResamplingRule::RowSubjectIid,
             Self::MovingBlock { .. }
             | Self::CircularBlock { .. }
             | Self::StationaryBlock { .. } => ResamplingRule::ContiguousBlock,
@@ -192,22 +198,26 @@ pub fn fill_declared_plan(
     rng: &mut CausalRng,
     out: &mut Vec<GlobalId>,
 ) -> Result<(), DataError> {
-    design_independent_of_time_column(declaration)
-        .apply_resampling(plan.resampling_rule())
-        .map_err(declared_design_error)?;
+    let design = design_independent_of_time_column(declaration);
+    let rule = plan.resampling_rule();
+    if matches!(rule, ResamplingRule::RowIid) {
+        return Err(refuse_row_iid(design));
+    }
+    design.apply_resampling(rule).map_err(declared_design_error)?;
     fill_resample_indexes_grouped(plan, n, cluster_ids, rng, out)
 }
 
 /// Draw one replicate for a declared sampling design.
 ///
 /// The design selects the draw. [`SamplingDesignDeclaration::time_column_present`]
-/// is recorded and is not that selection. A trajectory design refuses a row-IID
-/// draw. A panel draws whole clusters. A series draws a contiguous block on the
+/// is recorded and is not that selection. A trajectory without subject labels is a
+/// row bootstrap and is refused; with labels, the whole trajectory is the draw.
+/// A panel draws whole clusters. A series draws a contiguous block on the
 /// interior left after the embargo on each side.
 ///
 /// # Errors
 ///
-/// A row-IID attempt on a trajectory, an embargo on a design with no block
+/// A row-IID attempt on a trajectory or panel, an embargo on a design with no block
 /// boundary, a panel without cluster labels, a block that does not fit after
 /// the embargo, or a row id that does not fit in [`GlobalId`].
 pub fn fill_declared_resample(
@@ -221,10 +231,29 @@ pub fn fill_declared_resample(
 ) -> Result<(), DataError> {
     let design = design_independent_of_time_column(declaration);
     match design.rules().resampling() {
-        ResamplingRule::RowSubjectIid | ResamplingRule::RowIid => Err(refuse_row_iid(design)),
-        ResamplingRule::WholeCluster => {
-            draw_whole_clusters(design, n, cluster_ids, embargo, rng, out)
-        }
+        ResamplingRule::RowIid => Err(refuse_row_iid(design)),
+        ResamplingRule::RowSubjectIid => draw_grouped_units(
+            design,
+            ResamplingRule::RowSubjectIid,
+            SplittingRule::RowSubjectIid,
+            n,
+            cluster_ids,
+            embargo,
+            true,
+            rng,
+            out,
+        ),
+        ResamplingRule::WholeCluster => draw_grouped_units(
+            design,
+            ResamplingRule::WholeCluster,
+            SplittingRule::WholeCluster,
+            n,
+            cluster_ids,
+            embargo,
+            false,
+            rng,
+            out,
+        ),
         ResamplingRule::ContiguousBlock => {
             draw_contiguous_block(design, n, block_length, embargo, rng, out)
         }
@@ -250,22 +279,26 @@ fn refuse_row_iid(design: DeclaredSamplingDesign) -> DataError {
     }
 }
 
-fn draw_whole_clusters(
+fn draw_grouped_units(
     design: DeclaredSamplingDesign,
+    resampling: ResamplingRule,
+    splitting: SplittingRule,
     n: usize,
-    cluster_ids: Option<&[u32]>,
+    unit_ids: Option<&[u32]>,
     embargo: u32,
+    missing_units_are_a_row_bootstrap: bool,
     rng: &mut CausalRng,
     out: &mut Vec<GlobalId>,
 ) -> Result<(), DataError> {
-    design.apply_resampling(ResamplingRule::WholeCluster).map_err(declared_design_error)?;
-    design
-        .apply_splitting_with_embargo(SplittingRule::WholeCluster, embargo)
-        .map_err(declared_design_error)?;
+    design.apply_resampling(resampling).map_err(declared_design_error)?;
+    design.apply_splitting_with_embargo(splitting, embargo).map_err(declared_design_error)?;
     if n == 0 {
         return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
     }
-    let Some(ids) = cluster_ids else {
+    let Some(ids) = unit_ids else {
+        if missing_units_are_a_row_bootstrap {
+            return Err(refuse_row_iid(design));
+        }
         return Err(DataError::InvalidArgument {
             message: "clustered resampling requires cluster_ids".into(),
         });
@@ -1996,7 +2029,48 @@ mod tests {
             assert!(message.contains("row_iid"), "{message}");
             assert!(message.contains("row_subject_iid"), "{message}");
             assert_eq!(out, vec![GlobalId::new(7)]);
+            let planned = fill_declared_plan(
+                declaration(DeclaredSamplingDesign::IndependentSubjectTrajectories, time_column),
+                ResamplingPlan::IidBootstrap,
+                6,
+                None,
+                &mut CausalRng::from_seed(9),
+                &mut Vec::new(),
+            )
+            .expect_err("a row plan is not a whole trajectory");
+            let planned = planned.to_string();
+            assert!(planned.contains("row_iid"), "{planned}");
+            assert!(planned.contains("row_subject_iid"), "{planned}");
         }
+    }
+
+    #[test]
+    fn trajectory_design_resamples_whole_trajectories() {
+        let labels = [0_u32, 0, 1, 1, 1, 2];
+        let members: [Vec<u64>; 3] = [vec![0, 1], vec![2, 3, 4], vec![5]];
+        let mut drawn = Vec::new();
+        fill_declared_resample(
+            declaration(DeclaredSamplingDesign::IndependentSubjectTrajectories, false),
+            labels.len(),
+            Some(&labels),
+            1,
+            0,
+            &mut CausalRng::from_seed(5),
+            &mut drawn,
+        )
+        .expect("a trajectory resamples whole subjects");
+        let flat: Vec<u64> = drawn.iter().map(|id| id.get()).collect();
+        let mut cursor = 0usize;
+        let mut draws = 0usize;
+        while cursor < flat.len() {
+            let matched = members.iter().find(|member| flat[cursor..].starts_with(member));
+            let Some(member) = matched else {
+                panic!("a trajectory row was split from its subject at {cursor}: {flat:?}");
+            };
+            cursor += member.len();
+            draws += 1;
+        }
+        assert_eq!(draws, members.len());
     }
 
     #[test]
@@ -2038,6 +2112,18 @@ mod tests {
             draws += 1;
         }
         assert_eq!(draws, members.len());
+        let row = fill_declared_plan(
+            declaration(DeclaredSamplingDesign::ClusteredPanel, false),
+            ResamplingPlan::IidBootstrap,
+            labels.len(),
+            Some(&labels),
+            &mut CausalRng::from_seed(5),
+            &mut Vec::new(),
+        )
+        .expect_err("a panel refuses a row bootstrap");
+        let row = row.to_string();
+        assert!(row.contains("row_iid"), "{row}");
+        assert!(row.contains("whole_cluster"), "{row}");
         let embargoed = fill_declared_resample(
             declaration(DeclaredSamplingDesign::ClusteredPanel, true),
             labels.len(),

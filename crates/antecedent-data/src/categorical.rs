@@ -543,11 +543,9 @@ mod tests {
             domain(),
         )
         .unwrap();
-        let expanded = expand_contrast(
-            &column,
-            &Contrast::Treatment { reference: CategoryCode::from_raw(0) },
-        )
-        .unwrap();
+        let expanded =
+            expand_contrast(&column, &Contrast::Treatment { reference: CategoryCode::from_raw(0) })
+                .unwrap();
         assert_eq!(expanded.conversion.coding, "treatment");
         assert_eq!(expanded.conversion.n_columns, 2);
         assert!(expanded.columns[0][1].is_nan() && expanded.columns[1][1].is_nan());

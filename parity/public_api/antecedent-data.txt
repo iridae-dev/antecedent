@@ -1386,6 +1386,8 @@ pub fn <antecedent_data::DataError>::const fn route_diagnostic(&self) -> core::o
 pub fn <antecedent_data::DeclaredSplit>::const fn rows(&self) -> core::ops::range::Range<usize>
 pub fn <antecedent_data::DeclaredSplit>::fn name(&self) -> &str
 pub fn <antecedent_data::DeclaredSplit>::fn try_new(name: impl core::convert::Into<alloc::sync::Arc<str>>, rows: core::ops::range::Range<usize>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::DiscoveryEstimationSplit>::fn bind_embargo(self, design: antecedent_core::sampling_design::SamplingDesign, embargo: u32) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::DiscoveryEstimationSplit>::fn dropping_embargo(design: antecedent_core::sampling_design::SamplingDesign, series_len: usize, discovery_len: usize, embargo: u32, estimation_len: usize) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::DiscoveryEstimationSplit>::fn from_fraction(series_len: usize, discovery_frac: f64, gap: usize) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::DiscoveryEstimationSplit>::fn from_sizes(series_len: usize, discovery_len: usize, gap: usize, estimation_len: usize) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::DiscoveryEstimationSplit>::fn try_new(series_len: usize, discovery: antecedent_data::TimeRange, estimation: antecedent_data::TimeRange) -> core::result::Result<Self, antecedent_data::DataError>

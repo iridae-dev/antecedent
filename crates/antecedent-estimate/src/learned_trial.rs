@@ -356,6 +356,9 @@ pub fn bootstrap_rows(
             StreamDomain::Estimate,
             0x5452_0000_0000_0000 | ((group as u64) << 32) | u64::from(replicate),
         );
+        antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories
+            .apply_resampling(antecedent_core::ResamplingRule::RowSubjectIid)
+            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
         let mut selected = Vec::new();
         fill_resample_indexes(ResamplingPlan::IidBootstrap, members.len(), &mut rng, &mut selected)
             .map_err(|e| EstimationError::data_msg(e.to_string()))?;

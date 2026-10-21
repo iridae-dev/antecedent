@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use antecedent_core::{DeclaredSamplingDesign, SplittingRule};
+
 use crate::error::DataError;
 
 /// Half-open index range `[start, end)`.
@@ -169,6 +171,57 @@ impl DiscoveryEstimationSplit {
         let estimation_len = usable - discovery_len;
         Self::from_sizes(series_len, discovery_len, gap, estimation_len)
     }
+
+    /// Bind this split to a contiguous-block design with an embargo of `embargo` steps.
+    ///
+    /// The gap between the windows is the embargo. A shorter gap leaves a training
+    /// observation inside the dependence of the held-out block and is refused. The
+    /// observations in the gap belong to neither window.
+    ///
+    /// # Errors
+    ///
+    /// The design does not allow a contiguous-block split, `embargo` does not apply
+    /// to that rule, or the gap is shorter than the embargo.
+    pub fn bind_embargo(
+        self,
+        design: DeclaredSamplingDesign,
+        embargo: u32,
+    ) -> Result<Self, DataError> {
+        let bound = design
+            .apply_splitting_with_embargo(SplittingRule::ContiguousBlock, embargo)
+            .map_err(DataError::SamplingDesign)?;
+        let required = usize::try_from(bound.embargo()).map_err(|_| {
+            DataError::InvalidArgument { message: "embargo does not fit in usize".into() }
+        })?;
+        if self.gap < required {
+            return Err(DataError::InvalidArgument {
+                message: "contiguous split leaks across the embargo".into(),
+            });
+        }
+        Ok(self)
+    }
+
+    /// Discovery, then an embargo gap, then estimation.
+    ///
+    /// The gap rows are in neither window. `discovery_len + embargo + estimation_len`
+    /// must equal `series_len`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::bind_embargo`] and [`Self::from_sizes`].
+    pub fn dropping_embargo(
+        design: DeclaredSamplingDesign,
+        series_len: usize,
+        discovery_len: usize,
+        embargo: u32,
+        estimation_len: usize,
+    ) -> Result<Self, DataError> {
+        let gap = usize::try_from(embargo).map_err(|_| DataError::InvalidArgument {
+            message: "embargo does not fit in usize".into(),
+        })?;
+        let split = Self::from_sizes(series_len, discovery_len, gap, estimation_len)?;
+        split.bind_embargo(design, embargo)
+    }
 }
 
 /// Environment holdout: discovery vs estimation environment index sets (no data copy).
@@ -220,6 +273,8 @@ fn validate_range(series_len: usize, range: TimeRange, label: &str) -> Result<()
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::DeclaredSamplingDesign;
+
     use super::*;
 
     #[test]
@@ -259,6 +314,34 @@ mod tests {
     #[test]
     fn rejects_bad_sum() {
         assert!(DiscoveryEstimationSplit::from_sizes(100, 40, 10, 40).is_err());
+    }
+
+    #[test]
+    fn embargo_split_drops_the_gap() {
+        let embargo = 4u32;
+        let split = DiscoveryEstimationSplit::dropping_embargo(
+            DeclaredSamplingDesign::DependentTimeSeries,
+            20,
+            8,
+            embargo,
+            8,
+        )
+        .expect("a series split drops the embargo");
+        assert_eq!(split.gap, 4);
+        assert_eq!(split.discovery, TimeRange { start: 0, end: 8 });
+        assert_eq!(split.estimation, TimeRange { start: 12, end: 20 });
+        let gap: Vec<usize> = (split.discovery.end..split.estimation.start).collect();
+        assert_eq!(gap, vec![8, 9, 10, 11]);
+        for index in gap {
+            let in_discovery = index >= split.discovery.start && index < split.discovery.end;
+            let in_estimation = index >= split.estimation.start && index < split.estimation.end;
+            assert!(!in_discovery && !in_estimation, "gap row {index} was kept");
+        }
+        let leaked = DiscoveryEstimationSplit::from_sizes(20, 10, 2, 8).unwrap();
+        let error = leaked
+            .bind_embargo(DeclaredSamplingDesign::DependentTimeSeries, embargo)
+            .expect_err("a split inside the embargo leaks");
+        assert!(error.to_string().contains("embargo"), "{error}");
     }
 
     #[test]

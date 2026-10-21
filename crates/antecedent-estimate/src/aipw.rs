@@ -83,7 +83,7 @@ use crate::propensity::{
 };
 use crate::sampling_weights::SamplingWeights;
 use crate::se::AnalyticSeKind;
-use crate::util::{BootstrapSeResult, bootstrap_se, refuse, stats_err};
+use crate::util::{BootstrapSeResult, refuse, stats_err};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
 ///
@@ -1333,17 +1333,28 @@ impl AipwAte {
         weights: Option<&[f64]>,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let fold_seed = ctx.rng.master_seed();
-        bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D5, problem.nrows, |idx| {
-            let mut p = resampled_problem(problem, idx, weights);
-            // The point is the GLM result: a replicate whose GLM fit fails is a failed
-            // replicate, never silently a ridge fit.
-            p.propensity = PropensityNuisance::default();
-            let Ok((t, _)) = self.crossfit_table(&p, false, ctx, Some(fold_seed)) else {
-                return Ok(None);
-            };
-            let ss = t.summarize(p.score_weights().as_deref())?;
-            Ok(Some(ss.means[1] - ss.means[0]))
-        })
+        let clusters = self.bootstrap_clusters(problem)?;
+        let series_block = self.series_block(problem.nrows);
+        crate::util::bootstrap_by_design(
+            clusters.as_deref(),
+            series_block,
+            self.bootstrap_replicates,
+            ctx,
+            0xA1D5,
+            problem.nrows,
+            || (),
+            |_, idx| {
+                let mut p = resampled_problem(problem, idx, weights);
+                // The point is the GLM result: a replicate whose GLM fit fails is a failed
+                // replicate, never silently a ridge fit.
+                p.propensity = PropensityNuisance::default();
+                let Ok((t, _)) = self.crossfit_table(&p, false, ctx, Some(fold_seed)) else {
+                    return Ok(None);
+                };
+                let ss = t.summarize(p.score_weights().as_deref())?;
+                Ok(Some(ss.means[1] - ss.means[0]))
+            },
+        )
     }
 
     /// The nuisance configuration a bootstrap replicate runs: the fallback destination when
@@ -1457,7 +1468,17 @@ impl AipwAte {
         }
         let replicate = u64::try_from(replicate)
             .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds u64"))?;
-        match fill_penalized_bootstrap_indexes(n, replicate, outer, ids, idx) {
+        let clusters = self.bootstrap_clusters(base)?;
+        let series_block = self.series_block(n);
+        match fill_penalized_bootstrap_indexes(
+            n,
+            replicate,
+            outer,
+            ids,
+            idx,
+            clusters.as_deref(),
+            series_block,
+        ) {
             Ok(()) => {}
             Err(EstimationError::Data(antecedent_data::DataError::Cancelled)) => {
                 return Ok(PenalizedDraw::Cancelled);
@@ -1483,6 +1504,33 @@ impl AipwAte {
         })
     }
 
+    fn bootstrap_clusters(
+        &self,
+        problem: &PreparedPropensityProblem,
+    ) -> Result<Option<std::borrow::Cow<'_, [u32]>>, EstimationError> {
+        let labels = crate::se::declared_row_labels(
+            self.cluster_ids.as_deref(),
+            self.source_cluster_ids.as_deref(),
+            problem.row_index.iter().map(|row| usize::try_from(row.get()).expect("row id")),
+        )?;
+        if let Some(labels) = &labels {
+            crate::se::require_clusters(Some(labels.as_ref()), problem.nrows)?;
+        }
+        Ok(labels)
+    }
+
+    fn series_block(&self, n: usize) -> Option<usize> {
+        self.panel_times.as_ref().map(|_| {
+            let span = match self.se_kind {
+                AnalyticSeKind::NeweyWest { lag } | AnalyticSeKind::PanelClusterHac { lag } => {
+                    lag.max(1)
+                }
+                _ => 1,
+            };
+            antecedent_data::circular_block_length(span, n)
+        })
+    }
+
     #[expect(
         clippy::too_many_lines,
         reason = "one linear replicate loop: resample, refit nuisances, rescore and aggregate"
@@ -1497,8 +1545,12 @@ impl AipwAte {
         let trim = trim_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
+        let clusters = self.bootstrap_clusters(problem)?;
+        let series_block = self.series_block(n);
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
-        crate::util::bootstrap_se_with_scratch(
+        crate::util::bootstrap_by_design(
+            clusters.as_deref(),
+            series_block,
             self.bootstrap_replicates,
             ctx,
             0xA1D0_u64,
@@ -1517,9 +1569,14 @@ impl AipwAte {
                 )
             },
             |(workspace, x_boot, t_boot, y_boot, e, design_trim, t_trim, y_trim, e_trim), idx| {
+                let drawn = idx.len();
+                x_boot.resize(drawn * ncols, 0.0);
+                for buffer in [&mut *t_boot, &mut *y_boot, &mut *e] {
+                    buffer.resize(drawn, 0.0);
+                }
                 crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
                 crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-                crate::util::gather_bootstrap_design(x_boot, &problem.design_matrix, n, ncols, idx);
+                crate::util::gather_resampled_design(x_boot, &problem.design_matrix, n, ncols, idx);
                 // The resample carries each drawn row's sampling weight.
                 let w_boot: Option<Vec<f64>> = problem
                     .sampling_weights
@@ -1528,7 +1585,7 @@ impl AipwAte {
                 let propensity_fit = match w_boot.as_deref() {
                     Some(w) => antecedent_stats::fit_propensity_weighted_in_place(
                         x_boot,
-                        n,
+                        drawn,
                         ncols,
                         t_boot,
                         w,
@@ -1538,7 +1595,7 @@ impl AipwAte {
                     ),
                     None => antecedent_stats::fit_propensity_in_place(
                         x_boot,
-                        n,
+                        drawn,
                         ncols,
                         t_boot,
                         &self.backend,
@@ -1549,7 +1606,7 @@ impl AipwAte {
                 if propensity_fit.is_err() {
                     return Ok(None);
                 }
-                let raw = &workspace.propensity.scores[..n];
+                let raw = &workspace.propensity.scores[..drawn];
                 e.copy_from_slice(raw);
                 if let Some(c) = clip {
                     clamp_scores(e, c);
@@ -1559,11 +1616,11 @@ impl AipwAte {
                 };
                 let (design_used, t_used, y_used, e_used): (&[f64], &[f64], &[f64], &[f64]) =
                     match &retained {
-                        Some(rows) => {
-                            select_rows_colmajor(x_boot, n, ncols, rows, design_trim);
-                            gather_into(t_trim, t_boot, rows);
-                            gather_into(y_trim, y_boot, rows);
-                            gather_into(e_trim, e, rows);
+                        Some(kept) => {
+                            select_rows_colmajor(x_boot, drawn, ncols, kept, design_trim);
+                            gather_into(t_trim, t_boot, kept);
+                            gather_into(y_trim, y_boot, kept);
+                            gather_into(e_trim, e, kept);
                             (design_trim, t_trim, y_trim, e_trim)
                         }
                         None => (x_boot, t_boot, y_boot, e),
@@ -1633,20 +1690,41 @@ const PENALIZED_BOOTSTRAP_STREAM: u64 = 0xA1D7_0001;
 
 /// Draw replicate `replicate` into reused buffers on the penalized bootstrap stream.
 ///
-/// `ids` and `idx` end at length `n`. The indexes match row `replicate` of
-/// [`antecedent_data::fill_resample_index_batch`] for an IID plan at
-/// [`PENALIZED_BOOTSTRAP_STREAM`].
+/// Cluster labels draw whole clusters. A series block draws contiguous blocks.
+/// Otherwise each row is one subject. `idx` follows the draw, so a cluster
+/// replicate may not have length `n`.
 fn fill_penalized_bootstrap_indexes(
     n: usize,
     replicate: u64,
     ctx: &ExecutionContext,
     ids: &mut Vec<antecedent_data::GlobalId>,
     idx: &mut Vec<usize>,
+    clusters: Option<&[u32]>,
+    series_block: Option<usize>,
 ) -> Result<(), EstimationError> {
+    use antecedent_core::{DeclaredSamplingDesign, ResamplingRule};
+    use antecedent_data::{DataError, ResamplingPlan};
+
+    let plan = if clusters.is_some() {
+        DeclaredSamplingDesign::ClusteredPanel
+            .apply_resampling(ResamplingRule::WholeCluster)
+            .map_err(|error| EstimationError::Data(DataError::SamplingDesign(error)))?;
+        ResamplingPlan::ClusterBootstrap { cluster: antecedent_core::VariableId::from_raw(0) }
+    } else if let Some(length) = series_block {
+        DeclaredSamplingDesign::DependentTimeSeries
+            .apply_resampling(ResamplingRule::ContiguousBlock)
+            .map_err(|error| EstimationError::Data(DataError::SamplingDesign(error)))?;
+        ResamplingPlan::MovingBlock { length }
+    } else {
+        DeclaredSamplingDesign::IndependentSubjectTrajectories
+            .apply_resampling(ResamplingRule::RowSubjectIid)
+            .map_err(|error| EstimationError::Data(DataError::SamplingDesign(error)))?;
+        ResamplingPlan::IidBootstrap
+    };
     antecedent_data::resample::fill_resample_index_replicate(
-        antecedent_data::ResamplingPlan::IidBootstrap,
+        plan,
         n,
-        None,
+        clusters,
         ctx,
         PENALIZED_BOOTSTRAP_STREAM,
         replicate,
@@ -2817,6 +2895,8 @@ mod tests {
                 &ctx,
                 &mut ids,
                 &mut idx,
+                None,
+                None,
             )
             .unwrap();
             let expect: Vec<usize> = batch[replicate * n..(replicate + 1) * n]

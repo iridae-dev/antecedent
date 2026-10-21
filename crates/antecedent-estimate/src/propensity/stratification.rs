@@ -382,7 +382,9 @@ impl PropensityStratification {
                 StratificationReplicate::default,
                 replicate,
             ),
-            None => crate::util::bootstrap_se_with_scratch(
+            None => crate::util::bootstrap_by_design(
+                None,
+                None,
                 self.bootstrap_replicates,
                 ctx,
                 0x3D2F_u64,

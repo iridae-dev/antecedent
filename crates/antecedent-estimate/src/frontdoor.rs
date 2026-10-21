@@ -751,8 +751,18 @@ impl FrontDoorTwoStage {
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.nrows;
         let k = problem.mediators.len();
+        let clusters = crate::se::declared_row_labels(
+            self.cluster_ids.as_deref(),
+            self.source_cluster_ids.as_deref(),
+            problem.row_selection.iter().copied(),
+        )?;
+        if let Some(labels) = &clusters {
+            crate::se::require_clusters(Some(labels.as_ref()), n)?;
+        }
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
-        crate::util::bootstrap_se_with_scratch(
+        crate::util::bootstrap_by_design(
+            clusters.as_deref(),
+            None,
             self.bootstrap_replicates,
             ctx,
             0xF80D_u64,
@@ -766,6 +776,12 @@ impl FrontDoorTwoStage {
                 )
             },
             |(ws, t_boot, m_boot, y_boot), idx| {
+                let m = idx.len();
+                t_boot.resize(m, 0.0);
+                y_boot.resize(m, 0.0);
+                for column in m_boot.iter_mut() {
+                    column.resize(m, 0.0);
+                }
                 for (r, &src) in idx.iter().enumerate() {
                     t_boot[r] = problem.treatment[src];
                     y_boot[r] = problem.outcome[src];

@@ -10,8 +10,11 @@
     )
 )]
 
-use antecedent_core::{AdaptiveBootstrapBudget, ExecutionContext, ScratchLease, ScratchRefusal};
-use antecedent_data::{ResamplingPlan, resample::fill_resample_index_replicate};
+use antecedent_core::{
+    AdaptiveBootstrapBudget, DeclaredSamplingDesign, ExecutionContext, ResamplingRule,
+    SamplingDesignError, ScratchLease, ScratchRefusal,
+};
+use antecedent_data::{DataError, ResamplingPlan, resample::fill_resample_index_replicate};
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, StatsError, chol_solve, cholesky_spd,
     form_xtx, invert_square,
@@ -384,6 +387,103 @@ where
     evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
 }
 
+fn design_err(error: SamplingDesignError) -> EstimationError {
+    EstimationError::Data(DataError::SamplingDesign(error))
+}
+
+/// Bootstrap under the sampling design the labels declare.
+///
+/// Cluster labels draw whole clusters. A time-ordered series with no cluster labels
+/// draws contiguous blocks of `series_block`. Otherwise each row is one subject, and
+/// the subject rule is the draw.
+///
+/// # Errors
+///
+/// The design refuses the draw, or [`bootstrap_se_with_scratch`] fails.
+pub(crate) fn bootstrap_by_design<S, F>(
+    clusters: Option<&[u32]>,
+    series_block: Option<usize>,
+    replicates: u32,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    n: usize,
+    make_scratch: impl Fn() -> S + Sync,
+    estimate: F,
+) -> Result<BootstrapSeResult, EstimationError>
+where
+    S: Send,
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+{
+    if let Some(labels) = clusters {
+        let grouped = ClusterRows::new(labels)?;
+        return bootstrap_se_clusters_with_scratch(
+            replicates,
+            ctx,
+            stream_base,
+            &grouped,
+            make_scratch,
+            estimate,
+        );
+    }
+    if let Some(block_length) = series_block {
+        return bootstrap_se_blocks_with_scratch(
+            replicates,
+            ctx,
+            stream_base,
+            n,
+            block_length,
+            make_scratch,
+            estimate,
+        );
+    }
+    DeclaredSamplingDesign::IndependentSubjectTrajectories
+        .apply_resampling(ResamplingRule::RowSubjectIid)
+        .map_err(design_err)?;
+    bootstrap_se_with_scratch(replicates, ctx, stream_base, n, make_scratch, estimate)
+}
+
+fn bootstrap_se_blocks_with_scratch<S, F>(
+    replicates: u32,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    n: usize,
+    block_length: usize,
+    make_scratch: impl Fn() -> S + Sync,
+    estimate: F,
+) -> Result<BootstrapSeResult, EstimationError>
+where
+    S: Send,
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+{
+    DeclaredSamplingDesign::DependentTimeSeries
+        .apply_resampling(ResamplingRule::ContiguousBlock)
+        .map_err(design_err)?;
+    if replicates == 0 || n == 0 {
+        return Ok(BootstrapSeResult::skipped());
+    }
+    if block_length == 0 || block_length > n {
+        return Err(EstimationError::data_msg(
+            "contiguous block length must be positive and no longer than the series",
+        ));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
+    }
+    let n_rep = replicates as usize;
+    let Some(scratch) = admit_bootstrap_scratch(ctx, n, n_rep)? else {
+        return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
+    };
+    let workers = scratch.workers();
+    if ctx.cancellation.is_cancelled() {
+        return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
+    }
+    let rows = ReplicateRows::Blocks { n, block_length, ctx, stream_base };
+    if workers > 1 {
+        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, workers, make_scratch, estimate);
+    }
+    evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
+}
+
 /// Reserve the index bytes for one bootstrap.
 ///
 /// The lease holds `n` index slots per worker and no CPU slots. The parallel map
@@ -513,6 +613,9 @@ where
     S: Send,
     F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
 {
+    DeclaredSamplingDesign::ClusteredPanel
+        .apply_resampling(ResamplingRule::WholeCluster)
+        .map_err(design_err)?;
     let groups = clusters.len();
     if replicates == 0 || groups == 0 {
         return Ok(BootstrapSeResult::skipped());
@@ -548,6 +651,13 @@ enum ReplicateRows<'a> {
     /// matrix is not retained. Length varies with the clusters drawn.
     Clusters {
         members: &'a [Vec<antecedent_data::GlobalId>],
+        ctx: &'a ExecutionContext,
+        stream_base: u64,
+    },
+    /// Contiguous blocks of `block_length` over `n` series rows.
+    Blocks {
+        n: usize,
+        block_length: usize,
         ctx: &'a ExecutionContext,
         stream_base: u64,
     },
@@ -593,6 +703,23 @@ impl ReplicateRows<'_> {
                     for src in sources {
                         out.push(row(*src)?);
                     }
+                }
+            }
+            Self::Blocks { n, block_length, ctx, stream_base } => {
+                let replicate = u64::try_from(r)
+                    .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds u64"))?;
+                let mut drawn = Vec::new();
+                fill_resample_index_replicate(
+                    ResamplingPlan::MovingBlock { length: *block_length },
+                    *n,
+                    None,
+                    ctx,
+                    *stream_base,
+                    replicate,
+                    &mut drawn,
+                )?;
+                for id in drawn {
+                    out.push(row(id)?);
                 }
             }
         }

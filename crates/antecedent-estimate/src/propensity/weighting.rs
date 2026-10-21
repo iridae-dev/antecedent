@@ -565,7 +565,9 @@ impl PropensityWeighting {
                 IpwReplicate::default,
                 replicate,
             ),
-            None => crate::util::bootstrap_se_with_scratch(
+            None => crate::util::bootstrap_by_design(
+                None,
+                None,
                 self.bootstrap_replicates,
                 ctx,
                 0x9A17_u64,

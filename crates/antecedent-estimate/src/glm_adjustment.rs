@@ -509,8 +509,27 @@ impl GlmAdjustmentAte {
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
+        let clusters = crate::se::declared_row_labels(
+            self.cluster_ids.as_deref(),
+            self.source_cluster_ids.as_deref(),
+            problem.design.row_selection.iter().copied(),
+        )?;
+        if let Some(labels) = &clusters {
+            crate::se::require_clusters(Some(labels.as_ref()), n)?;
+        }
+        let series_block = self.panel_times.as_ref().map(|_| {
+            let span = match self.se_kind {
+                AnalyticSeKind::NeweyWest { lag } | AnalyticSeKind::PanelClusterHac { lag } => {
+                    lag.max(1)
+                }
+                _ => 1,
+            };
+            antecedent_data::circular_block_length(span, n)
+        });
         // Replicates own a cold workspace. A warm IRLS start would change the replicate fit.
-        crate::util::bootstrap_se_with_scratch(
+        crate::util::bootstrap_by_design(
+            clusters.as_deref(),
+            series_block,
             self.bootstrap_replicates,
             ctx,
             0xC17A_u64,
@@ -525,11 +544,16 @@ impl GlmAdjustmentAte {
                 )
             },
             |(ws, x_boot, y_boot, t_boot, w_boot), idx| {
+                let m = idx.len();
+                x_boot.resize(m * p, 0.0);
+                y_boot.resize(m, 0.0);
+                t_boot.resize(m, 0.0);
+                w_boot.resize(m, 0.0);
                 crate::util::gather_bootstrap_vector(y_boot, &problem.design.outcome, idx);
                 crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
-                crate::util::gather_bootstrap_design(x_boot, &problem.design.matrix, n, p, idx);
+                crate::util::gather_resampled_design(x_boot, &problem.design.matrix, n, p, idx);
                 let boot_design =
-                    GlmDesignRef { x_colmajor: x_boot, nrows: n, ncols: p, y: y_boot };
+                    GlmDesignRef { x_colmajor: x_boot, nrows: m, ncols: p, y: y_boot };
                 let options = self.glm_options.without_separation_ridge();
                 let fitted = match problem.sampling.as_ref() {
                     Some(sampling) => {
@@ -556,7 +580,7 @@ impl GlmAdjustmentAte {
                 let diffs = GcompContrast {
                     family: problem.family,
                     x_colmajor: x_boot,
-                    nrows: n,
+                    nrows: m,
                     ncols: p,
                     t_col,
                     active: problem.active,

@@ -1089,6 +1089,33 @@ impl LinearAdjustmentAte {
             .coefficients)
     }
 
+    fn bootstrap_clusters(
+        &self,
+        problem: &PreparedEstimationProblem,
+    ) -> Result<Option<std::borrow::Cow<'_, [u32]>>, EstimationError> {
+        let labels = crate::se::declared_row_labels(
+            self.cluster_ids.as_deref(),
+            self.source_cluster_ids.as_deref(),
+            problem.design.row_selection.iter().copied(),
+        )?;
+        if let Some(labels) = &labels {
+            crate::se::require_clusters(Some(labels.as_ref()), problem.design.nrows)?;
+        }
+        Ok(labels)
+    }
+
+    fn series_block(&self, n: usize) -> Option<usize> {
+        self.panel_times.as_ref().map(|_| {
+            let span = match self.se_kind {
+                AnalyticSeKind::NeweyWest { lag } | AnalyticSeKind::PanelClusterHac { lag } => {
+                    lag.max(1)
+                }
+                _ => 1,
+            };
+            antecedent_data::circular_block_length(span, n)
+        })
+    }
+
     fn bootstrap_se(
         &self,
         problem: &PreparedEstimationProblem,
@@ -1111,7 +1138,11 @@ impl LinearAdjustmentAte {
                 )
             })
             .flatten();
-        crate::util::bootstrap_se_with_scratch(
+        let clusters = self.bootstrap_clusters(problem)?;
+        let series_block = self.series_block(n);
+        crate::util::bootstrap_by_design(
+            clusters.as_deref(),
+            series_block,
             self.bootstrap_replicates,
             ctx,
             0xA7E_u64,
@@ -1125,15 +1156,21 @@ impl LinearAdjustmentAte {
                 )
             },
             |(ws, x_boot, y_boot, summary_ws), idx| {
-                let candidate = match &resampling {
-                    Some(prepared) => prepared.try_coefficients(idx, summary_ws),
-                    None => Ok(None),
+                let same_length = idx.len() == n;
+                let candidate = if same_length {
+                    match &resampling {
+                        Some(prepared) => prepared.try_coefficients(idx, summary_ws),
+                        None => Ok(None),
+                    }
+                } else {
+                    Ok(None)
                 };
                 let coefficients = match candidate {
                     Ok(Some(coefs)) => Ok(coefs),
                     Ok(None) => {
-                        x_boot.resize(n * p, 0.0);
-                        y_boot.resize(n, 0.0);
+                        let m = idx.len();
+                        x_boot.resize(m * p, 0.0);
+                        y_boot.resize(m, 0.0);
                         self.fit_resampled_coefficients(problem, ws, idx, x_boot, y_boot)
                     }
                     Err(error) => Err(EstimationError::from(error)),
