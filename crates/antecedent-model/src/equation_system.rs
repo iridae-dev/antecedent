@@ -510,12 +510,12 @@ mod tests {
         let a = system
             .replace_equation("sum", 0, 0.0)
             .unwrap()
-            .isolate(Default::default(), &ctx)
+            .isolate(IsolationPolicy::default(), &ctx)
             .unwrap();
         let b = system
             .replace_equation("difference", 0, 0.0)
             .unwrap()
-            .isolate(Default::default(), &ctx)
+            .isolate(IsolationPolicy::default(), &ctx)
             .unwrap();
         assert_eq!(a.roots.len(), 1);
         assert_eq!(b.roots.len(), 1);
@@ -525,7 +525,7 @@ mod tests {
         sa.domain[1] = Interval { lower: -1.1, upper: -0.9 };
         let mut sb = system.replace_equation("difference", 0, 0.0).unwrap();
         sb.domain[1] = Interval { lower: 2.9, upper: 3.1 };
-        assert_eq!(sa.isolate(Default::default(), &ctx).unwrap().roots.len(), 1);
-        assert_eq!(sb.isolate(Default::default(), &ctx).unwrap().roots.len(), 1);
+        assert_eq!(sa.isolate(IsolationPolicy::default(), &ctx).unwrap().roots.len(), 1);
+        assert_eq!(sb.isolate(IsolationPolicy::default(), &ctx).unwrap().roots.len(), 1);
     }
 }

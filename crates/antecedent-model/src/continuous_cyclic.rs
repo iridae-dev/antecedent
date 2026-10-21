@@ -541,8 +541,8 @@ mod tests {
         let path = ode
             .trajectory(&[1.0, 0.0], &[0.0, 0.5, 1.0], &[event], OdePolicy::default(), &ctx)
             .unwrap();
-        assert_eq!(path.states[1][0], 2.0);
-        assert_eq!(path.states[2][0], 2.0);
+        assert_eq!(path.states[1][0].to_bits(), 2.0_f64.to_bits());
+        assert_eq!(path.states[2][0].to_bits(), 2.0_f64.to_bits());
         assert!((path.states[2][1] - (0.5_f64.sin() + 1.0)).abs() < 1e-7);
         let p = OdePolicy { max_steps: 1, ..OdePolicy::default() };
         assert!(ode.trajectory(&[1.0, 0.0], &[0.0, 10.0], &[], p, &ctx).is_err());
@@ -736,7 +736,7 @@ mod sensitivity_tests {
         let ctx = ExecutionContext::for_tests(1);
         let parameters = [OdeParameter::Decay { equation: 0 }];
         let path = model
-            .sensitivities(&[3.0], &[0.0, 1.0], &[], &parameters, Default::default(), &ctx)
+            .sensitivities(&[3.0], &[0.0, 1.0], &[], &parameters, OdePolicy::default(), &ctx)
             .unwrap();
         assert!((path.sensitivities[1][0] + 3.0 * (-2.0_f64).exp()).abs() < 1e-7);
         let actions = [TimedClamp { time: 0.5, clamps: vec![Clamp { variable: 0, value: 1.0 }] }];
@@ -746,12 +746,12 @@ mod sensitivity_tests {
                 &[0.0, 0.5, 1.0],
                 &actions,
                 &parameters,
-                Default::default(),
+                OdePolicy::default(),
                 &ctx,
             )
             .unwrap();
-        assert_eq!(path.sensitivities[1][0], 0.0);
-        assert_eq!(path.sensitivities[2][0], 0.0);
+        assert_eq!(path.sensitivities[1][0].to_bits(), 0.0_f64.to_bits());
+        assert_eq!(path.sensitivities[2][0].to_bits(), 0.0_f64.to_bits());
     }
 }
 

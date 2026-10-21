@@ -224,9 +224,9 @@ impl InterventionOverlay {
             Value::f64(level),
         )
         .map_err(|error| ModelError::Unsupported { message: error.to_string() })?;
-        ExecutionSurface::Static.admit_operation(&operation).map_err(|refusal| {
-            ModelError::Unsupported { message: refusal.to_string() }
-        })?;
+        ExecutionSurface::Static
+            .admit_operation(&operation)
+            .map_err(|refusal| ModelError::Unsupported { message: refusal.to_string() })?;
         Err(ModelError::Unsupported {
             message: "an initial-state change replaces the initial-state law and is not a \
                       hard clamp"
@@ -776,16 +776,14 @@ mod tests {
         let model = CompiledCausalModel::compile(g).unwrap();
         let variable = VariableId::from_raw(0);
         let set = Intervention::set(variable, Value::f64(2.0));
-        let static_op = antecedent_core::intervention::ExecutionSurface::Static
-            .admit(&set, None)
-            .unwrap();
-        let cyclic_op = antecedent_core::intervention::ExecutionSurface::Cyclic
-            .admit(&set, None)
-            .unwrap();
+        let static_op =
+            antecedent_core::intervention::ExecutionSurface::Static.admit(&set, None).unwrap();
+        let cyclic_op =
+            antecedent_core::intervention::ExecutionSurface::Cyclic.admit(&set, None).unwrap();
         assert_eq!(static_op, cyclic_op);
         let overlay = InterventionOverlay::from_declared(&model, &set, None).unwrap();
         assert_eq!(overlay.hard_set[0], Some(2.0));
-        assert_eq!(overlay.shifts[0], 0.0);
+        assert_eq!(overlay.shifts[0].to_bits(), 0.0_f64.to_bits());
         assert!(overlay.soft[0].is_none());
 
         let shift = Intervention::shift(variable, Value::f64(2.0));
@@ -797,11 +795,8 @@ mod tests {
         assert!(replaced.hard_set[0].is_none());
         assert!(replaced.soft[0].is_some());
 
-        let pulse = InterventionOverlay::from_declared(
-            &model,
-            &set,
-            Some(&TemporalPolicy::pulse(0)),
-        );
+        let pulse =
+            InterventionOverlay::from_declared(&model, &set, Some(&TemporalPolicy::pulse(0)));
         assert!(pulse.unwrap_err().to_string().contains("pulse"));
         let sustained = InterventionOverlay::from_declared(
             &model,

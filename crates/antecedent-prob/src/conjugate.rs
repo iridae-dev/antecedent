@@ -870,7 +870,7 @@ mod tests {
                 offsets: None,
             };
             for (seed, n_draws) in [(3, 64), (4, 128), (3, 64)] {
-                let opts = BayesFitOptions { seed, n_draws, ..BayesFitOptions::default() };
+                let opts = BayesFitOptions { n_draws, seed, ..BayesFitOptions::default() };
                 let warm = fit_conjugate_gaussian(design, &prior, &opts, &mut workspace).unwrap();
                 let cold =
                     fit_conjugate_gaussian(design, &prior, &opts, &mut LaplaceWorkspace::default())

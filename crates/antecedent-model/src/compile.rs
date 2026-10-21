@@ -691,6 +691,12 @@ impl InvertibleStructuralCausalModel {
     }
 }
 
+/// General semantic execution schedules; the DAG compiler remains a specialization.
+pub use crate::system_compile::{
+    CompiledSystemPlan, ExecutionBlock, SystemSemantics, compile_constraints, compile_equilibrium,
+    compile_ode, compile_ou,
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -712,9 +718,3 @@ mod tests {
         assert_eq!(plan.dense_of(VariableId::from_raw(1)), Some(b));
     }
 }
-
-/// General semantic execution schedules; the DAG compiler remains a specialization.
-pub use crate::system_compile::{
-    CompiledSystemPlan, ExecutionBlock, SystemSemantics, compile_constraints, compile_equilibrium,
-    compile_ode, compile_ou,
-};

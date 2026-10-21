@@ -1095,7 +1095,7 @@ mod compositional_tests {
         ];
         let (_, scores) = m.likelihood_score(&rows, &ctx).unwrap();
         for (i, score) in scores.iter().enumerate() {
-            for j in 0..score.parameters.len() + score.weights.len() + 1 {
+            for j in 0..=(score.parameters.len() + score.weights.len()) {
                 let mut high = m.clone();
                 let mut low = m.clone();
                 let expected = if j == 0 {

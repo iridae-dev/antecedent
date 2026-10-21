@@ -498,7 +498,6 @@ impl RoutedEquilibrium {
     }
 
     /// Compiled equilibrium. An acyclic route is not a cyclic-block solve.
-    #[must_use]
     pub fn equilibrium(&self) -> &CompiledEquilibrium {
         &self.equilibrium
     }
@@ -524,9 +523,8 @@ pub fn route_linear_support(
         return Err(SccCompileError::ClampDimension { clamp: clamp.dimension(), model: n });
     }
     let free = free_indices(n, clamp.indices());
-    let width = u32::try_from(free.len()).map_err(|_| SccCompileError::Shape {
-        message: "free block does not fit in a dense id",
-    })?;
+    let width = u32::try_from(free.len())
+        .map_err(|_| SccCompileError::Shape { message: "free block does not fit in a dense id" })?;
     let mut graph = Dag::with_variables(width);
     for (into_local, &into_node) in free.iter().enumerate() {
         for (from_local, &from_node) in free.iter().enumerate() {
@@ -548,10 +546,7 @@ pub fn route_linear_support(
                 return match error {
                     antecedent_graph::error::GraphError::Cycle { .. } => {
                         let blocks = support_blocks(model, &free)?;
-                        Ok(LinearSupportRoute::Cyclic {
-                            next_attempt: error.to_string(),
-                            blocks,
-                        })
+                        Ok(LinearSupportRoute::Cyclic { next_attempt: error.to_string(), blocks })
                     }
                     _ => Err(SccCompileError::Shape {
                         message: "structural support edge was rejected",
@@ -562,10 +557,7 @@ pub fn route_linear_support(
     }
     let Some(order) = graph.topological_order() else {
         let blocks = support_blocks(model, &free)?;
-        return Ok(LinearSupportRoute::Cyclic {
-            next_attempt: dag_license_refusal(),
-            blocks,
-        });
+        return Ok(LinearSupportRoute::Cyclic { next_attempt: dag_license_refusal(), blocks });
     };
     let mut global = Vec::with_capacity(order.len());
     for id in order {
@@ -633,8 +625,7 @@ pub fn compile_routed_gaussian_equilibrium(
                 component.id(),
                 model,
                 disturbance,
-                clamp,
-                clamp_values,
+                (clamp, clamp_values),
                 budget,
                 &blocks,
                 DAG_EQUILIBRIUM_ATTEMPT,
@@ -646,8 +637,7 @@ pub fn compile_routed_gaussian_equilibrium(
                 component.id(),
                 model,
                 disturbance,
-                clamp,
-                clamp_values,
+                (clamp, clamp_values),
                 budget,
                 &planned.blocks,
                 SCC_COMPILE_ATTEMPT,
@@ -675,8 +665,7 @@ fn compile_checked(
         component_id,
         model,
         disturbance,
-        clamp,
-        clamp_values,
+        (clamp, clamp_values),
         budget,
         &planned.blocks,
         SCC_COMPILE_ATTEMPT,
@@ -714,12 +703,12 @@ fn finish_compile(
     component_id: &str,
     model: &LinearStructuralMap,
     disturbance: &GaussianDisturbance,
-    clamp: &HardClamp,
-    clamp_values: &[f64],
+    clamp_binding: (&HardClamp, &[f64]),
     budget: CompileBudget,
     blocks: &[Vec<usize>],
     attempt: &'static str,
 ) -> Result<CompiledEquilibrium, SccCompileError> {
+    let (clamp, clamp_values) = clamp_binding;
     let n = model.dimension();
     let sizes: Vec<u64> = blocks
         .iter()
@@ -1282,10 +1271,7 @@ fn condition_of(
 /// Hager's 1-norm estimate of `||A^{-1}||_1` (Higham, 1988).
 ///
 /// Applied to `A^T`, the estimate is `||A^{-1}||_∞`.
-fn hager_one_norm_inverse(
-    matrix: &[f64],
-    members: &[usize],
-) -> Result<f64, SccCompileError> {
+fn hager_one_norm_inverse(matrix: &[f64], members: &[usize]) -> Result<f64, SccCompileError> {
     let m = members.len();
     let Ok(count) = u32::try_from(m) else {
         return Err(SccCompileError::NonFiniteEquilibrium);
@@ -2079,10 +2065,7 @@ mod tests {
     #[test]
     fn acyclic_support_uses_the_dag_path_and_a_cycle_is_refused() {
         // x1 = 0.5 x0 + ε1, x2 = 0.25 x0 + 0.4 x1 + ε2, x0 = ε0. No directed cycle.
-        let chain = map(
-            vec![0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.25, 0.4, 0.0],
-            vec![0.0, 0.0, 0.0],
-        );
+        let chain = map(vec![0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.25, 0.4, 0.0], vec![0.0, 0.0, 0.0]);
         let open = HardClamp::none(3).expect("open chain");
         let noise_mean = vec![1.0, 0.0, 0.0];
         let noise_cov = identity(3);
