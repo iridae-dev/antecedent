@@ -1,0 +1,54 @@
+# Q09/E14 registration only: no calibration measurement or scientific promotion.
+schema = 1
+id = "response.joint_panel_procedures"
+capability_ids = []
+fixture_dir = "conformance/response/joint_panel"
+reference = "conformance/response/joint_panel/expected.json"
+public_workflow = "crates/antecedent/tests/joint_panel_workflow.rs"
+status = "unmeasured"
+measurement_owner = "Q09"
+decision_measurement_owner = "E14"
+implementation_evidence = "docs/guides/joint-response-progress.md"
+
+[[procedure]]
+id = "joint_panel.frequentist.whole_contrast"
+claim = "Conditional fitted-mean whole contrast under the declared Gaussian group/AR1 law; no nominal interval license."
+execution = "Study::prepare_joint_panel -> retained estimate -> aligned whole-functional evaluation -> explicit scoped consumer"
+uncertainty = "Local group-cluster sandwich parameter realizations and conditional group-intercept uncertainty; rank deficiency and failed slots preserved."
+required_grid = "Independent groups 4/8/32; row counts 24/96; channels 2/3/6; additive/pairwise/higher-order expressions; weak/strong saturation, serial dependence and support; exact prehistory and target/reference laws."
+score = "Bias, whole-functional covariance/quantile behavior, failed-fit/slot mass and empirical coverage only for an explicitly declared future interval construction."
+status = "unmeasured"
+
+[[procedure]]
+id = "joint_panel.bayesian.whole_contrast"
+claim = "Posterior functional under the explicit likelihood/prior; no frequentist coverage or empirical posterior calibration license."
+execution = "Actual multi-chain fit -> diagnostic admission -> one shared parameter/group realization per complete world row"
+uncertainty = "Proper priors and transformed-coordinate Jacobians; Rhat/ESS/movement; posterior convergence required for complete law consumption."
+required_grid = "Same multichannel target grid; prior-predictive SBC, weak likelihood, scale/rho/lag boundaries and realistic group counts."
+score = "SBC ranks, whole-functional posterior intervals under matched prior-predictive law, chain failure rate and unsupported design refusal."
+status = "unmeasured"
+
+[[procedure]]
+id = "joint_panel.temporal.selection"
+claim = "Model-conditional no-change/piecewise/smooth response change; no unique causal decomposition."
+execution = "Full prespecified candidate attempts, selection/smoothing and response evaluation repeated inside each whole-procedure realization"
+uncertainty = "Frequentist full-selection parametric bootstrap; Bayesian complete fixed-prior model/path law."
+required_grid = "No change, weak/strong change, misspecified smooth change, changing exposures, history and composition; explicit reference windows."
+score = "False change declarations, location/path uncertainty, failed/unresolved mass and coarse-response error; unique attribution refusals scored separately."
+status = "unmeasured"
+
+[[procedure]]
+id = "joint_panel.program_search"
+claim = "Finite-set numerical optimum or continuous best-found feasible point under the supplied retained law; selected-decision reliability unmeasured."
+execution = "Full data fit -> admitted world law -> all feasibility/risk checks -> actual finite/continuous selection -> held-out utility"
+required_grid = "Candidate count, controls/time axes, nonlinear interactions, binding budgets/restrictions, weak utility separation and uncertainty quality; resource/cancellation failures."
+score = "Held-out selected utility/regret, operational/risk violation rates, wrong-best rate, failure rate and exact scope of supplied-set certificates."
+status = "unmeasured"
+
+[[procedure]]
+id = "joint_panel.experiment_update_decision"
+claim = "Conditional FrozenJointImportance update with a licensed affine bridge and same-estimand next-sample ranking; no joint refit or new regime identification."
+execution = "Full model fit -> experiment/map realizations -> importance update -> changed response/decision -> future-data update/terminal action/net cost"
+required_grid = "Bridge uncertainty/dependence, evidence overlap, likelihood concentration, posterior effective weights, unequal future costs and weak terminal utility separation."
+score = "Updated-functional calibration under the declared modular law, selected-decision reliability, net-value error, stale/duplicate evidence refusal and failure mass."
+status = "unmeasured"

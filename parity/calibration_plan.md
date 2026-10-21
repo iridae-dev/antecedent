@@ -1282,3 +1282,15 @@ Emitter: to be written. Decision: a recovery frequency recorded as evidence abou
 | transport assumption range | structural envelope | an assumption range on a declared bound; no probability |
 | whole-path cross-world spread | exact variance identity + interval for the population mean, MC-ranked | exact enumeration of unit posteriors; sampling component by declaration |
 | per-population discovery, sample-split analysis, class envelope | gates / interval conditional on the selected graph / structural | discovery error rates and joint coverage are measured; the envelope carries no probability |
+
+
+## X-series whole-procedure registration
+
+`parity/fixtures/joint_panel_procedures.toml` registers the implemented panel
+contrast, Bayesian law, temporal selection, program search and modular
+experiment-update procedures for Q09/E14 measurement. Every record is explicitly
+unmeasured. The retained independent truth and actual public workflow are the
+inputs; constructor tests and frozen-law replay do not stand in for fitting or
+calibration. No coverage record, validated interval or selected-decision license
+is created by this registration. The procedure grid includes configurable
+channel counts and existing programmable higher-order interactions.

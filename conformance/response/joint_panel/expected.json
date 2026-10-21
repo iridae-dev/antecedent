@@ -917,7 +917,7 @@
     "external_parity": "not measured",
     "fit": "not performed",
     "kind": "independent synthetic reference only",
-    "meridian": "additive variant is a future matched comparison input; no parity claim"
+    "additive_variant": "zero-interaction reference shares the same histories, covariates and noise"
   },
   "format": "antecedent.independent_joint_panel.v1",
   "mechanism": {

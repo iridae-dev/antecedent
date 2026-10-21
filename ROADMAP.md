@@ -12,7 +12,7 @@ The product ambition is:
 
 Make that ambition an architecture and capability-completion requirement. A feature should become a scientific target with reusable operators and checked inference realizations, rather than another set of independently wired route variants. Parity means equivalent target semantics, appropriate uncertainty, useful composition, and consistent lifecycle behavior; it does not mean identical estimators or numbers.
 
-Antecedent 3.0 should support composable, jointly evaluated intervention-response functionals over fitted dynamic mechanisms. Those functionals remain available to uncertainty-aware decision evaluation and, where supported, intervention-program search. Use the Google Meridian comparison as a test of this general architecture, without introducing a separate MMM workstream or `antecedent.marketing` product surface.
+Antecedent 3.0 should support composable, jointly evaluated intervention-response functionals over fitted dynamic mechanisms. Those functionals remain available to uncertainty-aware decision evaluation and, where supported, intervention-program search. Extend the existing compiler owners without a separate domain-specific workstream or product namespace.
 
 The same compiler should make Antecedent substantially faster and capable of larger workloads. It should avoid unnecessary reads, copies, fits, tests, draws, and retained outputs; choose bounded-memory algorithms; coordinate hardware; and explain the resulting plan. Polars, SIMD, threading, and GPU are physical tools within that design.
 
@@ -40,7 +40,7 @@ This document consolidates the performance, cyclic-model, and unified-compiler a
 | Unified compiler and parity | Complete meaningful counterparts and handoffs for the families explicitly advertised as covered by 3.0. | Executing user workflows, scientific evidence, and lifecycle tests; a larger enum or support matrix is insufficient. |
 | Performance and capacity | Faster complete workloads, efficient prepared/batch reuse, 10× row capacity on named lanes, and one exact 100× capacity demonstration. | Frozen controls, fixed resource/time envelopes, equivalent scientific work, and published measurements. |
 | Feedback | Native cyclic graph/model representation, specified linear equilibrium interventions, at least one experiment-identified linear route, explicit delayed-feedback semantics, and validated σ-separation foundations. | Named model/query/inference licenses, solution checks, independent truths, and artifacts. |
-| Joint response core | X01 typed joint intervention-response contracts and X06 scope/evidence suite; the bounded X02 family, with joint Δ_AB licensed only for worlds an identification attempt has earned. | Whole-contrast inference, a recorded sequence of failed and following attempts, independent artifacts, and explicit comparison scope; no unconditional MMM-feature-parity claim. |
+| Joint response core | X01 typed joint intervention-response contracts and X06 scope/evidence suite; the bounded X02 family, with joint Δ_AB licensed only for worlds an identification attempt has earned. | Whole-contrast inference, a recorded sequence of failed and following attempts, independent artifacts, and explicit causal/statistical support and refusal evidence. |
 | Joint response extensions | X03 time-varying mechanisms, X04 intervention-program search, and X05 experiment-to-decision closure, each attempted on the fitted interface. | A failed attempt names the next attempt. The public claim is adjusted after the named attempts are exhausted. |
 | Accelerator | One optional backend/platform if the whole neural crossfit workload clears the promotion gate. | All six carried-over roadmap gates, including packaging and CPU consumption. |
 | Broader cyclic systems (promoted 20 October 2026) | Y18 cyclic ID/FCI and all Y19 families: nonlinear equilibrium, solution sets/selection, counterfactuals, ODE/OU and equation/constraint systems; modeling, fitting, discovery, identification. | Mandatory implementation workflows with theorem/correctness tests, Python, resource, compiler and artifact acceptance. Calibration/attestation are separate and do not block Y18/Y19 closure. |
@@ -190,7 +190,7 @@ A useful algebraic fixture: X and Y each take 0 or 2 with equal probability, and
 
 The flagship mixed workflow should combine a frequentist cluster trial, temporal period-specific effects, a Bayesian cost model, and a declared endpoint-to-margin map. Bind population, horizon, units, overlap, and transport first. Means can support a nominal affine value comparison. Profit probability or expected regret requires a suitable state/predictive joint model or a supported robust alternative. A new utility should cause zero causal fitting; a new period or prior should invalidate precisely the affected work. EVSI additionally requires what a future study observes and how the decision updates.
 
-## Joint intervention responses and the Meridian design test
+## Joint intervention responses and dynamic mechanisms
 
 These six additions extend existing workstreams. The X IDs correspond to executable work in the development punchlist; they do not introduce a separate domain architecture. Their priority is X01, X02, X04, X03, X05, X06; their numbering preserves the proposal's identifiers.
 
@@ -201,7 +201,7 @@ These six additions extend existing workstreams. The X IDs correspond to executa
 | X03 — Time-varying mechanism inference | T06, T10, P11, P13, E07 | Separately gated modeling increment; no dependency on Y feedback. |
 | X04 — Optimization over intervention programs | E09, E10, E15, C11, L02; P17 | Finite-candidate search first. A missing certificate starts continuous search, which ships as best-found until it earns a certificate. |
 | X05 — Experimental evidence-to-model-to-decision closure | E03–E07, E12; P09, P11, P16 | Translate the experiment into the longitudinal model. An unsupported mapping ships the weaker conditional result and continues the update-to-decision chain. |
-| X06 — Joint-response reference and external acceptance suite | Q04, Q07–Q09, Q11 | Mandatory scope/evidence exercise and second flagship; full Meridian parity is not a release condition. |
+| X06 — Joint-response reference and acceptance suite | Q04, Q07–Q09 | Mandatory scope/evidence exercise with fitted execution, whole-functional uncertainty, independent artifacts and decision consumers. |
 
 ### X01 — Treat a contrast of intervention worlds as one scientific target
 
@@ -242,17 +242,17 @@ First support bounded candidate sets or grids with exhaustive evaluation, feasib
 
 ### X05 — Preserve experiment-to-update-to-decision meaning
 
-Extend E03–E07 and E12 rather than adding an MMM calibration subsystem. An experiment, including a geo experiment, estimates an effect for a particular population, time window, dose, duration, and exposure regime. Translate that estimand into the longitudinal model explicitly, accounting for recency, duration, spend/exposure differences, transport, and source/mapping dependence where relevant. Preserve extra bridge uncertainty and prior/data origin; prevent double use of the same experiment through priors and later updates. An incompatible mapping is a failed attempt. The next result is the weaker conditional mapping the bridge can support, and the update-to-decision chain continues on that result.
+Extend E03–E07 and E12 through the existing scientific bridge and evidence owners. An experiment, including a geo experiment, estimates an effect for a particular population, time window, dose, duration, and exposure regime. Translate that estimand into the longitudinal model explicitly, accounting for recency, duration, spend/exposure differences, transport, and source/mapping dependence where relevant. Preserve extra bridge uncertainty and prior/data origin; prevent double use of the same experiment through priors and later updates. An incompatible mapping is a failed attempt. The next result is the weaker conditional mapping the bridge can support, and the update-to-decision chain continues on that result.
 
 Trace experimental evidence through model updating to changed response/decision outputs and exact invalidation. For the comprehensive extension, compare candidate next experiments using a declared future-data generator, update operator, actions, utility, study cost, and net decision value. Experimental priors alone do not complete this chain. Existing bridge contracts remain mandatory whenever experimental evidence is consumed. The study-ranking extension is the next attempt after a single translated experiment updates a decision. An unsupported ranking is followed by a smaller ranking the declared model can support.
 
 ### X06 — Build the independent reference workflow first
 
-Add a second flagship alongside Q04, using an independently generated small synthetic marketing panel: two paid channels, finite carryover, saturation, a known interaction, geographic variation/partial pooling, an observable confounder, and declared serial/group dependence. Retain generator truth, seeds, reference values, and independence from production estimator code. Fit the mechanism, check supported intervention comparisons, estimate a joint response with whole-contrast uncertainty, and evaluate several proposed spending programs. Hold out joint intervention regimes as well as rows. Include a confounded or unsupported variant that must withhold a causal claim even when a plausible model simulation can be computed. Measure complete-procedure calibration and decision reliability, not just coefficient recovery.
+Add a second flagship alongside Q04, using an independently generated small synthetic group/time panel: two paid channels, finite carryover, saturation, a known interaction, geographic variation/partial pooling, an observable confounder, and declared serial/group dependence. Retain generator truth, seeds, reference values, and independence from production estimator code. Fit the mechanism, check supported intervention comparisons, estimate a joint response with whole-contrast uncertainty, and evaluate several proposed spending programs. Hold out joint intervention regimes as well as rows. Include a confounded or unsupported variant that must withhold a causal claim even when a plausible model simulation can be computed. Measure complete-procedure calibration and decision reliability, not just coefficient recovery.
 
-Compare ordinary contributions and response curves with a pinned Google Meridian baseline on a compatible additive specification. Match population, data/preprocessing, lag/saturation forms and conventions, priors/pooling, estimands, dependence, inference quality, diagnostics, and resource accounting; document any unavoidable mismatch. Demonstrate the interaction question separately rather than scoring Meridian on a model or target it does not claim to support. Review the pinned version's geo-hierarchical Bayesian nonlinear/adstock/Hill modeling, calibration/GeoX integration, time-varying effectiveness conventions, budget optimization, and future-scenario support when recording comparison scope; do not substitute assumptions from the source conversation for versioned evidence.
+Validate additive, interacting and higher-order response specifications against independent retained truth. Match the declared population, source preprocessing, history, functional, uncertainty meaning and dependence assumptions. Measure complete procedures and preserve unsupported cases as explicit refusals.
 
-Publish a capability table of reproduced overlap, Antecedent extensions, and attempts that failed, with the attempt that followed each failure, versions, configurations, and reproducible scripts. X06 is a mandatory scope-and-evidence exercise, not an unconditional parity or superiority promise. The flagship runs the fitted family. A withheld causal claim on a confounded design starts the next identification attempt. The published claim is the one those attempts earn. A simulation of the curve is not that fit.
+Publish supported targets, fitted families, uncertainty meanings and failed attempts with their next supported alternatives, versions, configurations and reproducible scripts. The reference workflow runs the fitted family. A withheld causal claim on a confounded design starts the next identification attempt. Published claims follow the evidence those attempts earn.
 
 ## Feedback and cyclic causal models
 
@@ -498,7 +498,7 @@ Inspect plans should show target, assumptions, model/inference realization, evid
 | M3 Exact scale lanes and typed mixed evidence | Stable statistics/QR/Gaussian targets; bounded X02 fitting on group/time views and X01 joint evaluation after their seams are ready; chunked predictions/scores/diagnostics; mapping/covariance/joint-law adapters and ledger integration | Named 10× capacity lanes, 100× exact demonstration, mixed-source uncertainty/decision evidence | Stats, prob, state, contract, design |
 | M4 Feedback and temporal expansion | Cyclic representation/SCC solves; specified linear interventions; experimental linear recovery; σ-separation foundation; history/initial-state track | Analytic truths, intervention solvability checks, rank/coverage diagnostics, typed artifacts and guarded rules | Graph, model, identify, discovery, temporal owners |
 | M5 Counterpart completion and decisions | Expand advertised families; connect X01/X02 to decisions; separately gated X04 search and X05 update loop; X03 can start once mechanism interfaces stabilize; demand-based action/utility/EVSI programs; branch/mass handling; precise incremental recompilation | Complete named user workflows, zero-fit utility changes, whole-route evidence and replay | All capability owners, facade, design |
-| M6 Release assurance | Full existing regression, route and whole-contrast calibration, X06 second flagship and matched Meridian comparison, runtime/resource gates, independent consumers, migration/docs | Claims match licensed scope, scientific/numerical guarantees and measured capacity/speed | All owners |
+| M6 Release assurance | Full existing regression, route and whole-contrast calibration, X06 second flagship and whole-procedure evidence, runtime/resource gates, independent consumers, migration/docs | Claims match licensed scope, scientific/numerical guarantees and measured capacity/speed | All owners |
 
 At M0–M1, register X01 contracts in C02/C05.1/E08 and X02 scientific specifications in B03/B04. B04's refusal of the Gaussian-panel identification is the closed first attempt, not the end of Δ_AB. X02 fitting and the following identification attempts progress through M2–M3 as D11/T05/T08/N09 become ready. Keep M4 feedback on its existing track: no X capability has a required Y dependency. At M5, run the X03, X04, and X05 attempts on the fitted interface. B05 records each earned claim, or the adjusted claim after the named attempts are exhausted. X06 feeds Q07–Q09 calibration and Q11 comparison at M6. These are dependency-driven additions, not a new phase barrier.
 
@@ -523,7 +523,7 @@ The original performance estimates were preliminary engineering bands, not estim
 11. Complete advertised capability families through reusable recipes and dedicated scientific methods.
 12. Start X06 independent synthetic truth/design fixtures early; deliver X01 contracts and the X02 fit, then continue the identification attempts and evaluate joint interventions and spending programs.
 13. Attempt X03 time variation, X04 search, and X05 experimental closure on that fitted interface. Record the claim each sequence earns.
-14. Publish reference workflows, matched Meridian overlap/extension/unsupported results, full-method quality, capacity/resource results, migration, and precisely scoped claims.
+14. Publish reference workflows, joint-response support and refusal evidence, full-method quality, capacity/resource results, migration, and precisely scoped claims.
 
 ## Quantitative targets and benchmark program
 
@@ -550,7 +550,7 @@ Sweep rows `10⁴,10⁵,10⁶,10⁷` and eligible larger tiers; separately vary 
 
 Separate cold ingest-to-result, compilation, warm prepared execution, compatible reuse, refresh/append, utility-only changes, and future-study programs. Record native peak RSS, RAM/VRAM, source passes, disk/host spill, copy/borrow bytes, cache/output retention, fit/test count, stage timings, actual backend, variability, refusals/OOM/timeouts, and cancellation.
 
-External comparisons use overlapping tasks from DoWhy, EconML, Tigramite, causal-learn, Google Meridian (under X06), or paper-specific baselines with matching query, graph assumptions, rows, learners, tuning, folds, precision, uncertainty, validation, and sampling design. A generic SQL or GEMM result does not establish causal infrastructure leadership.
+External comparisons use overlapping tasks from DoWhy, EconML, Tigramite, causal-learn, or paper-specific baselines with matching query, graph assumptions, rows, learners, tuning, folds, precision, uncertainty, validation, and sampling design. A generic SQL or GEMM result does not establish causal infrastructure leadership.
 
 ## Verification and release evidence
 
@@ -636,7 +636,7 @@ Use the linked official Arrow, Polars, Rust/LLVM, faer, PyO3, Burn, and NVIDIA d
 
 ## Public claims after validation
 
-For the Meridian comparison, publish the pinned overlap/extension/unsupported table. Advertise jointly estimated dynamic responses or searched programs only for complete licensed and calibrated methods; avoid a blanket MMM-parity claim.
+Publish target/family support and unsupported-case evidence. Advertise jointly estimated dynamic responses or searched programs only for complete licensed and calibrated methods, with their exact causal and statistical scope.
 
 Lead with complete supported workflows and measured results: the same target across time/inference realizations; checked mixed evidence into decisions; genuine named feedback models; faster complete answers; and more rows under fixed resources. Explain avoided scans, fits, copies, and repeated computation.
 

@@ -1,165 +1,159 @@
-# Joint-response work and acceptance
+# Joint-response implementation and acceptance
 
-The X-series uses the existing scientific target, identification, estimation,
-composition and decision owners. It introduces no crate or parallel execution
-pipeline. Item completion follows the full TODO criterion; an implemented
-component does not close a whole practitioner workflow.
+The X-series extends the existing causal compiler, model, estimation, composition,
+decision and artifact owners. No new crate or standalone fitting pipeline is
+introduced. This report distinguishes implemented workflows from the statistical
+acceptance owned by Q09 and E14.
 
-## Independent reference design (X06.1)
+## Scope and compiler path
 
-The reference is in `conformance/response/joint_panel`. Four seeded geographic
-groups carry two observed pre-period assignments and 24 outcome periods, with
-L=2 channel-specific carryover, shared Michaelis–Menten saturation, a bilinear
-interaction, hierarchical intercept truth, seasons, an observed assignment/outcome
-confounder and stationary Gaussian AR(1) errors within groups. Additive and
-interaction variants share random draws. A separate latent-confounded design has
-no off-diagonal assignment support and requires withholding an identified claim.
+Channels have stable identities and a common declared time axis. Sparse interaction
+features use the existing Rust `ValueExpr` / Python `intervention_programs.Expr`
+syntax and the shared `NodeProgram` compiler/executor. There is no fixed channel
+count or interaction order and no automatic powerset expansion. Feature reads
+explicitly bind to lag-weighted, saturated channel values. Foreign/generated,
+lagged feature and callback reads are refused for this binding.
 
-The target averages conditional mean outcomes over the retained groups,
-covariates and initial channel histories. It integrates future outcome noise;
-it is neither predictive outcome uncertainty nor a population parameter posterior.
-Four shared-history world trajectories, their assembled interaction and a held-out
-sustained joint program are retained independently of production estimator code.
-Independent steady-state and transient formulas test the reference values.
+General linear scientific contrasts retain each world's finite nonzero coefficient,
+explicit reference, population, units, conditioning and history. Weighted windows
+and higher-order contrasts retain their actual questions. Existing fixed contrast
+identities remain compatible. Target wire version 2 carries the general form;
+version 1 remains readable for its earlier fixed forms.
 
-`parity/fixtures/joint_panel_reference.toml`, the existing conformance reference
-checker, `parity/v3_test_registry.toml` and
-`provenance/response.joint_panel_reference.toml` register Q01/Q06 evidence.
-Seven focused reference tests and all eight registered reference generators pass.
-The generator is deliberately independent: it supplies scientific truth to the
-future compiled workflow, not a public estimator that bypasses the compiler.
+| Workflow | Retained compiler and numerical execution | Scientific boundary |
+| --- | --- | --- |
+| Static Gaussian joint response | Existing checked Gaussian product, one fitted design, shared covariance, retarget reuse, native and independent artifact consumers | Actual graph identification and source support required; conditional covariate support is not invented from marginal counts |
+| Nonlinear group/time panel | `Study::prepare_joint_panel` / `PreparedStudy::compile_joint_panel`, retained target, ordered design attempts, physical choice, dependency identities and synchronized fit cache | Unsupported observational worlds trigger the assignment attempt; finite fitted responses alone grant no causal license |
+| Dose-by-time surfaces | Existing scalar Set/policy contract translated into explicit panel paths and mixed-horizon prepared execution | Policy must assign every modeled period; undeclared fixed channels and implicit post-pulse continuation are refused |
+| Frequentist response law | ML, group scores and cluster sandwich, aligned local parameter/group-effect realizations | Approximate fitted conditional response uncertainty; not a Bayesian posterior or measured calibration |
+| Bayesian response law | Proper-prior posterior, shared parameter/group-effect slots, real mixing diagnostics | Nonconverged or failed draws cannot become a usable posterior merely because their values are finite |
+| Time-varying response | Piecewise candidates, smooth fallback, full-selection bootstrap or declared Bayesian path/model union | Unique exposure/saturation/composition/mechanism attribution is refused; explicit reference-window change is evaluated instead |
+| Finite program search | Existing decision engine, actual schedules, bounds, budgets, risk demands and exhaustive supplied-domain evaluation | Certificate applies only to the supplied finite set under the retained law; selected-decision reliability is unmeasured |
+| Continuous program search | Frozen-fit compiler adapter and checked coordinate pattern search | Best feasible point and stopping evidence; no global gap or certificate is invented |
+| Experiment update and next study | Licensed bridge, current evidence ledger, paired uncertain mappings, frozen-joint importance update, conditional decision and declared Gaussian future-study ranking | Actual converged Bayesian law required; conditional modular update and smaller same-estimand ranking, not an identified longitudinal effect |
 
-X06.1 is complete. X06.2, X06, and their frequentist/Bayesian acceptance children
-remain open. They require the actual compiled X02 fit, its identification attempts,
-uncertainty, production refusals, independent artifacts, calibration and a pinned
-additive comparison. Known mechanism simulation does not satisfy those criteria.
+Compilation/inspection do not fit. Public prepared execution survives builder
+removal. Compatible world and utility changes reuse a frozen fit when caller cache
+policy permits. Changed source, priors, initial law, mechanism or relevant numerical
+policy change actual dependencies. Explicitly disabled caches remain disabled.
+Output and scratch admission uses actual retained widths; failed slots remain in
+the shared draw axis. Cancellation and resource refusal remain typed.
 
-## Scientific contracts in production (X01.1 and X01.2)
+Primary decision/search ports retain the scientific target, proof, question
+projection, dependency identity and output admission. Raw numerical extraction is
+explicitly named `numerical_*`. Conditional consumption does not acquire causal
+authority. Window and change projections retain the actual prefix-world question,
+rather than attaching a new label to an unrelated terminal target.
 
-Retained identification can now bind the complete inference-independent target,
-not only a list of world labels. The binding checks exact world coverage and
-requires an assembled obligation for a contrast or dose-by-time surface. An
-unsupported or model-conditional world cannot become an identified assembled
-claim because its numerical result is finite. A bound product refuses changed
-population, outcome, intervention, units, conditioning, history or assumptions.
-Frequentist/Bayesian realization selection does not change target identity.
-Legacy unbound product digests remain unchanged; target-bound products use a
-separate versioned identity payload and refuse unbound reuse.
+## Identification attempts and adjusted claims
 
-The existing Gaussian compiler constructs and retains this binding from its
-actual query and identification. It preserves the outcome units from the source
-schema. Compilation remains free of fitting and repeats no identification.
+The earlier Gaussian-panel proposal does not identify a nonlinear interaction.
+The production panel records its observational attempt and the concrete reason a
+required world is unsupported. A retained compatible static source proof can bind
+only its exact source/design/context law, without transferring a Gaussian numerical
+restriction. A whole-program randomized assignment can establish supported world
+means under its declared history and exogenous-context premises. Per-period
+assignment metadata cannot certify an unsupported entire trajectory. The
+confounded independent fixture withholds the causal claim.
 
-The existing batch joint-cell consumer now requires a checked target and actual
-frozen-score support for every required world before exposing a family contrast.
-It retains the source derivation, assumptions, explicit reference, outcome units
-and whole-functional obligation beside the existing shared-row covariance
-calculation. Failed binding withholds family contrast outputs while preserving
-supported individual cells. A three-factor table cannot silently stand for the
-first four cells of a two-factor interaction. No parallel contrast fitter or
-public estimator was added.
+Existing static, fixed-temporal and temporal-class mediation consumers retain their
+own theorem, interventions, component and actual horizon. The class posterior
+uses the retained mediation cache; an ATE witness is not substituted for it.
+Unresolved graph/completion slots remain unresolved.
 
-Existing static frequentist/Bayesian mediation and fixed temporal DAG mediation
-retain their theorem-scoped targets. These retain the requested component,
-interventions, mediators, population, units and cross-world premises. Fixed
-temporal targets use the actual per-horizon history and the existing observed
-lag-window law; no independent initial-state distribution is invented. Refresh
-checks this binding before fitting. Generic joint-world validation refuses to
-replace the mediation theorem.
+The experiment chain validates population, quantity, window, duration, dose,
+exposure, recency/spend, transport and dependence through the existing bridge
+contract. Current consumption checks relevant ledger identities/revisions, trust,
+withdrawal, supersession and duplicate/prior origins. Independent historical replay
+uses the stored frozen law and grants no current authorization. Artifacts do not
+attest that stored fit numbers were generated honestly; current consumers must
+supply the expected compiled program and frozen-law authority.
 
-These additions do not close X01.1 or X01.2 as a whole. Temporal class/posterior
-mediation metadata and broader compiled joint-world consumers still need their
-full scope; the common-world functional execution, aligned parameter draws,
-failed/unidentified mass, public evidence/decision ports, independent artifacts
-and whole-contrast calibration remain separate acceptance obligations. In
-particular, the new native batch binding is not persisted by historical numerical
-artifact formats and grants no new artifact or interval authority. No scientific
-license or calibration record was promoted.
+## TODO status
 
-X02's constrained finite-lag nonlinear fitted family and supported-world design
-attempts remain open. X03 mechanism changes, X04 program search and X05
-experiment-to-decision closure must consume that fitted compiler interface;
-standalone evaluators over caller-provided response arrays would not complete
-those items. Their existing owners and method specifications remain in place.
+X01.1, X01.2, X02 and X06.2 implementation criteria are complete. The local TODO
+records their concrete evidence. X03, X04.1, X04.2 and X05 implementations are
+present, while their boxes retain the required Q09/E14 acceptance. X01/X06 final
+acceptance awaits whole-procedure calibration and decision-reliability evidence.
 
-## Scoped verification
+## Independent evidence and remaining acceptance
 
-The final combined selection passed 86 tests covering the changed Gaussian,
-batch contrast and mediation paths and their estimation engines. The 15 focused
-identification-product tests passed separately. These checks include real public
-prepared execution after builder disposal, supported/unsupported world refusals,
-source-query mismatch protections, declared units and target changes. Clippy
-passed with warnings denied for the affected libraries and test targets.
-Formatting was applied only to changed Rust sources.
+`conformance/response/joint_panel` retains independent seeded panel truth,
+additive/interaction variants, held-out programs, a confounded unsupported design
+and whole-program randomized interactions. The standard-library reference imports
+no production estimator. Cross-interpreter checks preserve exact CSV and metadata;
+finite JSON truth uses an absolute tolerance of 1e-13 for arithmetic roundoff.
 
-The reference's seven tests, eight existing reference generators, provenance
-schema/path audit, parity schema check and test-registry checks passed. Generated public
-API snapshots and their comparison gate passed for the affected identification,
-estimation and facade crates. This is implementation evidence; it is not whole-procedure
-calibration, external baseline agreement, full Python interchange or release
-attestation.
+`parity/fixtures/joint_panel_procedures.toml` registers the complete frequentist,
+Bayesian, temporal-selection, search and experiment-to-decision procedures. These
+are **unmeasured** registrations, not coverage records or release attestation.
 
-## Reproduction
+X01/X06 final acceptance and X03/X04/X05 statistical acceptance remain open where
+Q09/E14 require whole-procedure measurements. Numerical implementation tests
+do not close those items. The method specifications preserve their scientific
+review status and failure boundaries.
+
+## Verification record
+
+| Check | Result |
+| --- | --- |
+| Shared compiler/probability/bridge/search selection | 48 passed |
+| Public panel/Gaussian, numerical engines, artifact and mediation selection | 100 distinct tests passed: 97 on the combined run, then the three corrected test declarations passed on focused reruns |
+| Actual Bayesian experiment chain | Four chains, 8,000 warmup and 12,000 retained draws per chain; convergence, changed decision, next-study ranking, independent replay and current-authority refusals passed |
+| Python panel/distribution/causal artifacts | 68 passed against the rebuilt worktree extension |
+| Gaussian Rust-to-Python posterior interchange | 256 × 2 draws, means and full covariance exactly equal by IEEE bits; changed expected identity refused; no current authority minted |
+| Strict Clippy | All ten affected published crates plus the Python extension, libraries and test targets, warnings denied |
+| Public APIs | All ten affected published crate snapshots generated and comparison gate passed |
+| Independent references | Nine independent reference tests and the complete conformance reference-generator gate passed; reference check also passed on Python 3.12, 3.13 and 3.14 |
+| Registry/provenance/schema | 42 test registrations; 459 provenance records/1,247 path references; parity manifest and close-out schema passed |
+| Python declarations | Ruff and mypy passed |
+| Formatting | Cargo formatting applied to changed Rust sources through a temporary snapshot; diff whitespace check passed |
+
+The three final workflow failures were invalid test declarations: two shared a
+constant-only action utility that the existing decision contract correctly
+refused; another changed inference options without changing its explicit target
+label. Their declarations were corrected and the exact affected tests rerun.
+No production permission check or convergence threshold was weakened.
+
+Earlier broad selection also reached a measured-inference consumer and refused
+its nonattesting inference/coverage records. No measurement record or scientific
+gate was changed to make this repair pass. This is an explicit limitation, not a
+claim that the unrelated record problem was proven pre-existing. The focused
+final selections exercise the changed workflows. The full release and support
+matrix execution campaigns were not run; citation auditing is reported separately.
+
+## Reproduction commands
+
+Use a dedicated `CARGO_TARGET_DIR` and the worktree's built Python virtual
+environment. `scripts/test.sh dev` selects unoptimized focused verification with
+line-table debug information; it is not a performance measurement.
 
 ```sh
-python3 -m unittest discover -s scripts -p test_joint_panel_reference.py
-python3 conformance/response/joint_panel/reference.py --check
-python3 scripts/check_conformance_references.py
+bash scripts/test.sh dev -p antecedent-contract -p antecedent-prob -p antecedent-design -p antecedent-identify -p antecedent-model -p antecedent-io-core --lib -E 'test(bridge) | test(finite_belief) | test(preposterior) | test(finite_program_search) | test(compiled_product) | test(compiled_identification_wire) | test(column_program) | test(explicit_column_bindings)'
+ANTECEDENT_GAUSSIAN_INTERCHANGE_DIR=/private/tmp/antecedent-x-gaussian-interchange bash scripts/test.sh dev -p antecedent-estimate -p antecedent-io -p antecedent --lib --test suite_01 --test suite_02 -E 'test(joint_panel) | test(joint_gaussian) | test(joint_linear) | test(mediation)'
+python/.venv/bin/python scripts/check_joint_gaussian_interchange.py /private/tmp/antecedent-x-gaussian-interchange
+(cd python && .venv/bin/python -m pytest -q tests/test_joint_panel.py tests/test_causal_artifacts.py tests/test_joint_distribution_artifact.py)
+cargo clippy --offline --locked --keep-going --no-deps -p antecedent-core -p antecedent-contract -p antecedent-identify -p antecedent-model -p antecedent-estimate -p antecedent-prob -p antecedent-io-core -p antecedent-design -p antecedent-io -p antecedent -p antecedent-py --lib --tests -- -D warnings
 python3 scripts/check_v3_test_registry.py
 python3 scripts/gate_provenance_schema.py
-cargo clippy -p antecedent-identify -p antecedent-estimate -p antecedent --lib --tests -- -D warnings
-bash scripts/test.sh dev -p antecedent-identify --lib -E 'test(compiled_product)'
-bash scripts/test.sh dev -p antecedent -p antecedent-estimate --lib --test suite_02 --test suite_03 --test suite_05 -E 'test(prepared_gaussian) | test(joint_contrast_binding) | test(mediation) | test(numeric_pins::batch) | test(cell_aipw) | test(three_factor_interaction_batch) | test(zero_effect_pair_family)'
-python3 scripts/gate_public_api.py --crate antecedent-identify --crate antecedent-estimate --crate antecedent
+python3 scripts/gate_checked_execution.py /private/tmp/antecedent-x-checked-evidence.toml all
 ```
 
-The reference generator uses only the Python standard library. Other existing
-reference generators require the repository's Python development environment.
+The checked-execution citation audit covers 723 licensed cells and 791 estimator
+citations; emitting those citations does not mean all their tests ran. The focused
+acceptance selection above executes the changed families. No full release,
+performance or statistical calibration campaign is claimed. The native Python
+extension used here was built in the development profile.
 
-## Retained scheduled and unresolved questions
+The final focused corrections can be reproduced with:
 
-Scheduled interaction validation now projects each channel's own sequence before
-checking the factorial worlds. Changing one channel no longer appears to change
-every channel. Unsupported compiler outcomes can bind their real scientific target
-without inventing an identified estimand; rebinding to another question is refused.
+```sh
+bash scripts/test.sh dev -p antecedent --test suite_01 -E 'test(actual_fit_cache_invalidates_changed_history_initialization_seed_and_kernel_policy) | test(static_panel_coarser_prefix_keeps_the_original_temporal_clock)'
+bash scripts/test.sh dev -p antecedent --test suite_01 -E 'test(actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes)'
+```
 
-The shared artifact owner now encodes the complete scientific target, including
-population, observation unit, outcome units and functional, conditioning, every
-world action, history/initial law, graph/model assumptions, inference selection,
-and theorem-scoped mediation premises. Decoding rebuilds domain constructors and
-checks the scientific identity. Transporting a target grants no identification.
-Unknown versions and fields, changed units, and missing mediation premises refuse.
-
-Checkpoint validation: 49 scientific-target, compiled-product and target-wire tests
-passed. Strict Clippy passed for `antecedent-core`, `antecedent-identify` and
-`antecedent-io-core` with `--no-deps --lib --tests -- -D warnings`. The broader
-component selection passed 100 tests before the additional unsupported-binding
-regression. This checkpoint does not close X01.1 or X01.2; production consumers,
-arbitrary-channel expansion, public interchange and acceptance remain in progress.
-
-
-## Expanded channel and interaction scope
-
-The current implementation work removes the two-channel implementation ceiling.
-Channels have explicit stable identities and common declared time axes. Users
-supply a sparse list of interaction features; fitting does not automatically
-expand every subset of channels. A three-channel product, higher-order product,
-or another supported expression uses the existing `ValueExpr` syntax and shared
-`NodeProgram` compiler/executor. Python uses the same portable `Expr` expression
-representation. The feature binding explicitly means lag-weighted, saturated
-channel inputs; it does not silently reinterpret raw exposure as transformed
-exposure. This expands model expressiveness without expanding identification or
-calibration permission.
-
-General linear scientific contrasts retain every selected world, its finite
-nonzero coefficient and an explicit reference. They cover arbitrary-order
-factorial contrasts and explicitly weighted time-window functionals. Fixed
-pairwise difference/interaction identities retain their earlier encoding.
-General linear artifacts use the versioned target wire, preserve coefficients
-exactly and refuse unsupported versions. The legacy four-cell batch helper
-continues to require its actual two-factor contract.
-
-New numerical and public workflow implementations are undergoing combined
-validation in the isolated X-series worktree. Their existence alone does not
-close X02, X03, X04, X05 or X06.2; the item evidence and status are updated after
-public execution and downstream enforcement have been checked.
+Implementation commits are on `codex/x-series-unblocked` in the separate managed
+worktree. The original `3.0.0` checkout was preserved. `TODO.md` is an ignored local
+planning file: its completed implementation boxes and explicit acceptance notes
+are updated locally; this tracked report and the method/release-scope records
+preserve the committed evidence.

@@ -262,7 +262,7 @@ def reference() -> dict:
             "fit": "not performed",
             "calibration": "unmeasured",
             "external_parity": "not measured",
-            "meridian": "additive variant is a future matched comparison input; no parity claim",
+            "additive_variant": "zero-interaction reference shares the same histories, covariates and noise",
         },
     }
 

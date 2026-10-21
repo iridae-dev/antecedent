@@ -9,8 +9,8 @@ implementation_deviations = [
   "Independent synthetic fixture equations, not a new estimator or a reproduced paper procedure.",
   "Finite L=2 weighted carryover precedes shared Michaelis-Menten saturation. Hierarchical group intercept truth, seasonal dummies and an additive observable confounder are declared explicitly.",
   "Known parameter functionals condition on the retained four-group population, covariates and pre-period histories; future mean-zero outcome noise is integrated out. No uncertainty or coverage claim is attached.",
-  "Covariate-dependent randomized per-time joint assignment and a latent-confounded, off-diagonal-unsupported design are separate fixtures; production identification and refusal are later consumer obligations.",
-  "Additive and interaction variants share all random draws. The additive fixture is not evidence of agreement with Meridian or any external implementation.",
+  "Covariate-dependent randomized per-time joint assignment and a latent-confounded, off-diagonal-unsupported design are separate fixtures; production identification and refusal are separately exercised by the retained public workflow tests, not granted by this generator.",
+  "Additive and interaction variants share all random draws; the zero-interaction reference isolates the declared main effects.",
 ]
 upstream_implementations_observed = []
 test_sources = [

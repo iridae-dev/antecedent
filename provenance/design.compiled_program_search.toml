@@ -1,0 +1,21 @@
+feature_id = "design.compiled_program_search"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "Independent deterministic exhaustive finite-set comparison and bounded coordinate pattern search; the existing decision functional engine evaluates every mean/law objective and hard risk constraint.",
+  "Operational bounds, scheduled control costs, budget and linear restrictions remain hard feasibility conditions. No objective penalty stands in for feasibility.",
+  "Finite exhaustion certifies only the declared candidate set under its supplied retained law. Sampling-based selected-decision reliability is unmeasured; no population or continuous global optimum is implied.",
+  "Continuous coordinate polling uses a declared finite work/stopping policy, shared frozen-fit response adapter and the original aligned uncertainty realizations. No derivative is estimated or advertised. An absent valid global bound is reported as no gap and no global certificate.",
+  "Comparative optimality/regret requires an explicit competing set; robust structure requires its actual set law. Unsupported continuous objectives refuse rather than silently substitute expected utility.",
+  "ScientificDecisionSource carries native target/proof/dependency identities through decision and search; a model-conditional product refuses identified-causal consumption. Numerical mean/law components alone issue no scientific permission.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/src/program_search.rs",
+  "crates/antecedent-design/src/program_search/continuous.rs",
+  "crates/antecedent/tests/joint_panel_workflow.rs",
+]

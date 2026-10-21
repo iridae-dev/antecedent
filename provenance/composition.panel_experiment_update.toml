@@ -1,0 +1,22 @@
+feature_id = "composition.panel_experiment_update"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "Independent modular finite Bayesian importance update under a declared known-variance Gaussian experimental-mean likelihood; no new causal identification method or external implementation is reproduced.",
+  "One converged shared panel posterior supplies paired whole-function realizations. A complete licensed estimand bridge and finite affine mapping preserve population, window, duration, dose, exposure, recency, spend and declared source/mapping dependence.",
+  "The FrozenJointImportance policy conditions a frozen fitted law; it does not jointly refit the observational and experimental data. Frequentist Gaussian sandwich realizations refuse as a Bayesian prior.",
+  "Caller current evidence authority checks the selected source/result identities and revisions, trust, withdrawal and supersession. Experimental evidence already used in fitted-data/prior origins refuses duplicate updating.",
+  "The existing weighted preposterior engine ranks additional samples of the same licensed mapped estimand using explicit future data, update, terminal actions, utility and net cost. Unsupported novel regimes do not inherit this mapping.",
+  "Artifacts replay the stored conditional law and update through the same native probability engine. Historical replay grants no current authorization and does not attest stored fit origin. Calibration and decision-selection reliability are unmeasured.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/src/analysis/joint_panel/experiment.rs",
+  "crates/antecedent/tests/joint_panel_experiment_chain.rs",
+  "crates/antecedent-io/src/joint_panel_artifact.rs",
+  "crates/antecedent-prob/src/finite_belief.rs",
+]

@@ -9,4 +9,4 @@ truth = "conformance/response/joint_panel/expected.json"
 test = "scripts/test_joint_panel_reference.py"
 consumers = ["X02", "X06.2", "Q08", "Q09", "Q11"]
 status = "reference_only"
-limitations = "No fitted procedure, parameter uncertainty, calibration, causal license, artifact consumer or Meridian comparison. Confounded-design refusal is an expected consumer obligation."
+limitations = "This independent generator supplies truth, not fitted uncertainty or a scientific license. Production fitted consumers, refusal and artifact replay are recorded separately in joint_panel_procedures.toml and public workflow tests. Q09/E14 whole-procedure calibration remains unmeasured."

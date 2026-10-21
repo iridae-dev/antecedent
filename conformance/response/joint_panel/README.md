@@ -1,9 +1,9 @@
 # Independent two-channel panel reference
 
-This is the X06.1 reference design, shared by the planned frequentist and Bayesian
+This is the X06.1 reference design, shared by the production frequentist and Bayesian
 consumers. It is a fixture, not a fitted workflow or a new causal method. No
 production estimator, simulator, identification routine or external baseline is
-used to generate its truth. `reference.py --check` reproduces all five artifacts.
+used to generate its truth. `reference.py --check` reproduces all six artifacts.
 
 The retained seed is 20261021. Four independent geographic groups each contain 24
 outcome periods and two observed pre-period channel assignments. Group effects
@@ -52,7 +52,7 @@ truth, not observed data. The off-diagonal worlds have no assignment support,
 and unobserved confounding remains after adjusting for z. A consumer must withhold
 an identified joint causal contrast. A fitted smooth response is not a repair of
 these gaps. The fixture metadata records this expected refusal; it does not claim
-that an unimplemented production consumer has already enforced it.
+that generating reference truth itself enforces it. The public prepared workflow separately tests this refusal.
 
 ## Checks and later consumers
 
@@ -61,6 +61,24 @@ retained regeneration, independent steady-state and transient contrast formulas,
 actual finite-lag/AR equations, held-out trajectories and the negative design.
 The reference is registered in the existing fixture/provenance infrastructure and
 runs in `scripts/check_conformance_references.py` alongside other independent
-references. Q08/Q09 and X06.2 must exercise actual fitting, whole-procedure
-uncertainty, refusal and artifact consumers. The additive variant is an input for
-a future matched Meridian comparison; no external parity is claimed.
+references. The public retained workflow in
+`crates/antecedent/tests/joint_panel_workflow.rs` exercises actual fitting,
+aligned uncertainty slots, design refusal, reuse and independent artifact
+consumption. Whole-procedure Q09/E14 grids are registered in
+`parity/fixtures/joint_panel_procedures.toml` but remain unmeasured. The additive
+and interaction references isolate the declared mechanism features; neither
+reference grants a calibration claim.
+
+Truth checking retains every committed decimal digit. `expected.json` numeric
+floats compare with absolute tolerance `1e-13` and zero relative tolerance, to
+allow a few ULPs of standard-library arithmetic variation across supported
+Python interpreters. Keys, shapes, types, integer seeds/design assignments and
+all other metadata remain exact. CSV files remain byte exact. The check does
+not regenerate truth to match the running interpreter; larger numerical drift
+or any design/metadata change still fails.
+
+The public Bayesian example explicitly requests four chains, 8,000 warmup
+iterations and 12,000 retained iterations per chain for this weak four-group
+panel. Production defaults and the R-hat ≤1.05 / bulk and tail ESS ≥100 gates
+are unchanged. This is declared Monte Carlo work, not a statistical calibration
+campaign or a promise that every configured model will converge.

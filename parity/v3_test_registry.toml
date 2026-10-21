@@ -258,3 +258,55 @@ cargo_target = "suite_02"
 path = "crates/antecedent/tests/checked_static_mediation_route_evidence.rs"
 gates = ["inventory", "named"]
 suite_map_line = "suite_02: checked_admg_graph_posterior_effect_route_evidence, checked_attribution_route_evidence, checked_bayesian_class_conditional_route_evidence, checked_bayesian_class_graph_posterior_effect_route_evidence, checked_bayesian_conditional_multimodifier_lifecycle, checked_bayesian_conditional_route_evidence, checked_bayesian_counterfactual_route_evidence, checked_bayesian_dag_graph_posterior_ate_route_evidence, checked_bayesian_specialist_route_evidence, checked_bayesian_static_class_effect_route_evidence, checked_bayesian_static_dag_response_route_evidence, checked_bayesian_temporal_dag_lifecycle, checked_bayesian_temporal_response_route_evidence, checked_cell_aipw_response_route_evidence, checked_class_graph_posterior_effect_route_evidence, checked_codetermined_cell_aipw_response_route_evidence, checked_conditional_effect_route_evidence, checked_counterfactual_route_evidence, checked_derivative_response_route_evidence, checked_graph_posterior_conditional_route_evidence, checked_graph_posterior_effect_route_evidence, checked_graph_posterior_response_route_evidence, checked_interference_lifecycle, checked_propensity_route_evidence, checked_static_class_response_route_evidence, checked_static_dag_response_route_evidence, checked_static_estimators_route_evidence, checked_static_mediation_route_evidence, checked_temporal_class_mediation_route_evidence, checked_temporal_class_response_route_evidence"
+
+[[test]]
+id = "joint-target-portable-wire"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/scientific_target_wire.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-fitted-engine"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-temporal-attempts"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/time_varying.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-public-workflow"
+crate = "antecedent"
+cargo_target = "suite_01"
+suite_map_line = "suite_01: adaptive_inference_facade, adaptive_participant_acceptance, adaptive_participant_facade, adaptive_procedure_facade, adaptive_repeated_measures_consumer, adaptive_repeated_measures_facade, admg_conditional_transport_lifecycle, admg_functional_effect_route_evidence, admg_intervention_response_route_evidence, admg_posterior_ate, admg_posterior_response, admg_response_curve_route_evidence, arrow_null_ingest, artifact_compat_earlier_release, artifact_migrate, attribution, augmented_panel_did_route, batch_analysis, batch_analyze_many, batch_retarget, batch_retarget_known_truth, bayesian, bayesian_design_posterior_routes, bayesian_functional_routes, bayesian_design_routes, bayesian_iv_rd_staged, bayesian_likelihood, bayesian_prior_in_force, bayesian_randomized_routes, bayesian_robust_ate, bayesian_trial_transport, calibration_binding, calibration_grid_binding, callback_nested_overlap_facade, cancellation_expansion_cells, categorical_treatment_posterior_facade, joint_panel_workflow"
+path = "crates/antecedent/tests/joint_panel_workflow.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-experiment-update-chain"
+crate = "antecedent"
+cargo_target = "suite_01"
+suite_map_line = "suite_01: adaptive_inference_facade, adaptive_participant_acceptance, adaptive_participant_facade, adaptive_procedure_facade, adaptive_repeated_measures_consumer, adaptive_repeated_measures_facade, admg_conditional_transport_lifecycle, admg_functional_effect_route_evidence, admg_intervention_response_route_evidence, admg_posterior_ate, admg_posterior_response, admg_response_curve_route_evidence, arrow_null_ingest, artifact_compat_earlier_release, artifact_migrate, attribution, augmented_panel_did_route, batch_analysis, batch_analyze_many, batch_retarget, batch_retarget_known_truth, bayesian, bayesian_design_posterior_routes, bayesian_functional_routes, bayesian_design_routes, bayesian_iv_rd_staged, bayesian_likelihood, bayesian_prior_in_force, bayesian_randomized_routes, bayesian_robust_ate, bayesian_trial_transport, calibration_binding, calibration_grid_binding, callback_nested_overlap_facade, cancellation_expansion_cells, categorical_treatment_posterior_facade, joint_panel_workflow"
+path = "crates/antecedent/tests/joint_panel_workflow.rs"
+evidence_path = "crates/antecedent/tests/joint_panel_experiment_chain.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-program-finite-search"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/program_search.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-target-retained-execution"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/prepared/joint_response.rs"
+gates = ["inventory", "named"]

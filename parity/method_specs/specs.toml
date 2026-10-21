@@ -2324,11 +2324,11 @@ route = "unlisted"
 target = "L=0 saturation and interaction response"
 review_status = "not_admitted"
 identifying_result = "L=0 saturation and interaction response; joint Delta_AB"
-assumptions = "Static reduction of the panel proposal: finite seasonal dummies, one additive observable confounder, shared Michaelis-Menten a/(a+k) with k>0, one bilinear product of the two saturated channels, partial pooling of group intercepts only, independent rows. Simplex lag L=2 is omitted."
-sampling_units = "independent rows"
-estimator = "Gaussian estimating equations, independent rows"
-diagnostics = "unlisted"
-failure_policy = "Not admitted. Fitting is feasible as a finite-parameter Gaussian panel regression. Causal support for joint Delta_AB is absent. A programmable nonlinear callback that can be simulated does not identify the contrast or carry mechanism uncertainty across worlds."
+assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions, including higher-order features, read lag-weighted saturated channels. Shared Michaelis-Menten scale, seasonal dummies, one additive observed confounder, Gaussian group intercepts, independent groups. L=0 fixes carryover and rho=0; repeated group rows retain random-intercept dependence."
+sampling_units = "independent observed groups; outcomes within group retain the declared covariance"
+estimator = "integrated random-intercept Gaussian likelihood, existing limited-memory optimizer, finite-difference curvature and rectangular group-cluster sandwich factor"
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration unmeasured."
+failure_policy = "The original B04 failure still holds: fitting alone does not identify worlds. Production prepared execution retains actual ordered static-source and whole-program randomization checks, with exact source/context/history bindings. Unsupported designs remain explicitly model-conditional, incomplete laws refuse downstream risk use, and uncertainty gains no calibration license."
 references = [
   "Product outcome",
   "Principal decisions",
@@ -2344,11 +2344,11 @@ route = "unlisted"
 target = "L=0 saturation and interaction response"
 review_status = "not_admitted"
 identifying_result = "L=0 saturation and interaction response; joint Delta_AB"
-assumptions = "Static reduction of the panel proposal: finite seasonal dummies, one additive observable confounder, shared Michaelis-Menten a/(a+k) with k>0, one bilinear product of the two saturated channels, partial pooling of group intercepts only, independent rows. Simplex lag L=2 is omitted."
-sampling_units = "independent rows"
-estimator = "same likelihood, prior on k and the interaction; not a tempered posterior"
-diagnostics = "unlisted"
-failure_policy = "Not admitted. Fitting is feasible as a finite-parameter Gaussian panel regression. Causal support for joint Delta_AB is absent. A programmable nonlinear callback that can be simulated does not identify the contrast or carry mechanism uncertainty across worlds."
+assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions, including higher-order features, read lag-weighted saturated channels. Shared Michaelis-Menten scale, seasonal dummies, one additive observed confounder, Gaussian group intercepts, independent groups. L=0 fixes carryover and rho=0; repeated group rows retain random-intercept dependence."
+sampling_units = "independent observed groups; outcomes within group retain the declared covariance"
+estimator = "proper-prior marginal hierarchical Gaussian likelihood, existing Metropolis, transformed-coordinate Jacobians, conditional group-effect draws and genuine chain diagnostics"
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration unmeasured."
+failure_policy = "The original B04 failure still holds: fitting alone does not identify worlds. Production prepared execution retains actual ordered static-source and whole-program randomization checks, with exact source/context/history bindings. Unsupported designs remain explicitly model-conditional, incomplete laws refuse downstream risk use, and uncertainty gains no calibration license."
 references = [
   "Product outcome",
   "Principal decisions",
@@ -2364,11 +2364,11 @@ route = "unlisted"
 target = "finite-lag group-time response"
 review_status = "not_admitted"
 identifying_result = "Finite-lag group-time response; joint Delta_AB"
-assumptions = "Balanced geographic group-time panel, finite seasonal dummies, one additive observable confounder. Simplex distributed lag L=2. Shared Michaelis-Menten a/(a+k), k>0. One bilinear product of the two saturated channels. Partial pooling of group intercepts only. Gaussian AR(1) within group, independent groups."
-sampling_units = "geographic groups; times within group"
-estimator = "Gaussian AR(1) estimating equations and group-cluster sandwich"
-diagnostics = "unlisted"
-failure_policy = "Not admitted. Fitting is feasible as a finite-parameter Gaussian panel regression. Causal support for joint Delta_AB is absent. A programmable nonlinear callback that can be simulated does not identify the contrast or carry mechanism uncertainty across worlds."
+assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions, including higher-order features, read lag-weighted saturated channels. Shared Michaelis-Menten scale, seasonal dummies, one additive observed confounder, Gaussian group intercepts, independent groups. L=2 simplex carryover and stationary within-group AR(1)."
+sampling_units = "independent observed groups; outcomes within group retain the declared covariance"
+estimator = "integrated random-intercept Gaussian likelihood, existing limited-memory optimizer, finite-difference curvature and rectangular group-cluster sandwich factor"
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration unmeasured."
+failure_policy = "The original B04 failure still holds: fitting alone does not identify worlds. Production prepared execution retains actual ordered static-source and whole-program randomization checks, with exact source/context/history bindings. Unsupported designs remain explicitly model-conditional, incomplete laws refuse downstream risk use, and uncertainty gains no calibration license."
 references = [
   "Product outcome",
   "Principal decisions",
@@ -2384,11 +2384,11 @@ route = "unlisted"
 target = "finite-lag group-time response"
 review_status = "not_admitted"
 identifying_result = "Finite-lag group-time response; joint Delta_AB"
-assumptions = "Balanced geographic group-time panel, finite seasonal dummies, one additive observable confounder. Simplex distributed lag L=2. Shared Michaelis-Menten a/(a+k), k>0. One bilinear product of the two saturated channels. Partial pooling of group intercepts only. Gaussian AR(1) within group, independent groups."
-sampling_units = "geographic groups; times within group"
-estimator = "hierarchical prior on group intercepts, Dirichlet lag weights, prior on k"
-diagnostics = "unlisted"
-failure_policy = "Not admitted. Fitting is feasible as a finite-parameter Gaussian panel regression. Causal support for joint Delta_AB is absent. A programmable nonlinear callback that can be simulated does not identify the contrast or carry mechanism uncertainty across worlds."
+assumptions = "Configurable finite channel count; explicitly prespecified sparse ValueExpr interactions, including higher-order features, read lag-weighted saturated channels. Shared Michaelis-Menten scale, seasonal dummies, one additive observed confounder, Gaussian group intercepts, independent groups. L=2 simplex carryover and stationary within-group AR(1)."
+sampling_units = "independent observed groups; outcomes within group retain the declared covariance"
+estimator = "proper-prior marginal hierarchical Gaussian likelihood, existing Metropolis, transformed-coordinate Jacobians, conditional group-effect draws and genuine chain diagnostics"
+diagnostics = "Native optimizer/curvature or Rhat/ESS/movement diagnostics; aligned full parameter and group-effect realization across worlds; failed slots preserved; calibration unmeasured."
+failure_policy = "The original B04 failure still holds: fitting alone does not identify worlds. Production prepared execution retains actual ordered static-source and whole-program randomization checks, with exact source/context/history bindings. Unsupported designs remain explicitly model-conditional, incomplete laws refuse downstream risk use, and uncertainty gains no calibration license."
 references = [
   "Product outcome",
   "Principal decisions",
@@ -2513,10 +2513,10 @@ target = "time-varying structural effectiveness"
 review_status = "blocked_research"
 identifying_result = "Time-varying structural effectiveness"
 assumptions = "Piecewise-constant change points, or smooth parameters with regularization or priors. Not every change point is identifiable. A decomposition of exposure, saturation, population or geographic composition, and mechanism needs reference worlds and joint uncertainty. Carryover stays separate from Y equilibrium."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "uncertainty for changes, smoothing, and model selection; procedure unlisted"
-failure_policy = "Refuse a unique attribution when those explanations are not separated. Changing spend or geography does not establish a mechanism change. No piecewise-constant or smooth time-varying parameter route; change-point identification is unproved."
+sampling_units = "Independent observed groups with the same finite-history covariance law as X02."
+estimator = "Complete prespecified piecewise/smooth selection with full-selection parametric bootstrap, retaining failed slots."
+diagnostics = "Retain all attempts, weak location evidence, smoothing choices and complete selection realizations. Calibration and unique structural attribution remain unmeasured."
+failure_policy = "Unique exposure/saturation/composition/mechanism attribution refuses without a separating design. The next coarser response contrast is evaluated only under its independently supported or explicitly conditional law; a selected change point is not causal identification."
 references = [
   "Release scope and gates",
   "X03 — Infer time-varying structural effectiveness",
@@ -2532,10 +2532,10 @@ target = "time-varying structural effectiveness"
 review_status = "blocked_research"
 identifying_result = "Time-varying structural effectiveness"
 assumptions = "Piecewise-constant change points, or smooth parameters with regularization or priors. Not every change point is identifiable. A decomposition of exposure, saturation, population or geographic composition, and mechanism needs reference worlds and joint uncertainty. Carryover stays separate from Y equilibrium."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "uncertainty for changes, smoothing, and model selection; procedure unlisted"
-failure_policy = "Refuse a unique attribution when those explanations are not separated. Changing spend or geography does not establish a mechanism change. No prior for smooth or change-point mechanisms; selection uncertainty is unproved."
+sampling_units = "Independent observed groups with the same finite-history covariance law as X02."
+estimator = "Proper fixed prior across the declared no-change/piecewise/smooth model union with Metropolis model/path realizations, unused-dimension priors and smoothing normalizers."
+diagnostics = "Retain all attempts, weak location evidence, smoothing choices and complete selection realizations. Calibration and unique structural attribution remain unmeasured."
+failure_policy = "Unique exposure/saturation/composition/mechanism attribution refuses without a separating design. The next coarser response contrast is evaluated only under its independently supported or explicitly conditional law; a selected change point is not causal identification."
 references = [
   "Release scope and gates",
   "X03 — Infer time-varying structural effectiveness",
@@ -2551,10 +2551,10 @@ target = "PolicyProgramValue"
 review_status = "blocked_research"
 identifying_result = "Optimum of a declared finite candidate set, certificate scoped to that set"
 assumptions = "Controllable variables, permissible schedules, bounds, resource limits, and constraints are declared. Unsupported worlds stay unsupported. The program module crates/antecedent-model/src/program.rs simulates candidate programs."
-sampling_units = "unlisted"
-estimator = "exhaustive evaluation of a declared finite candidate set; not constructed"
-diagnostics = "feasibility checks and a set-scoped optimum certificate. Joint uncertainty of the evaluated set is unproved."
-failure_policy = "A best-found point without a certificate scoped to the declared set is a failure. The execution_only simulation is not a search and has no set-scoped optimum certificate."
+sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
+estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Finite-set certificate only under the retained supplied law."
+failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. A supplied-set optimum does not establish a continuous or statistically calibrated optimum."
 references = [
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
@@ -2571,10 +2571,10 @@ target = "continuous intervention program"
 review_status = "blocked_research"
 identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Separate promotion from the finite candidate set."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "best-found feasible point and an optimality gap or bound when one exists; a best-found point is not a global optimum"
-failure_policy = "Claiming a global optimum from a best-found point is a failure. Continuous search is a separate record from X04.1. No convergence or global-optimum certificate for continuous search."
+sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
+estimator = "Bounded coordinate pattern search through a frozen-fit compiler adapter, explicit feasible start, finite work and stopping policy; no derivative/global bound is advertised."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
+failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. Comparative optimality/regret and robust structure refuse without their required competitor/set law; finite search remains the supported fallback."
 references = [
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
@@ -2591,10 +2591,10 @@ target = "PolicyProgramValue"
 review_status = "blocked_research"
 identifying_result = "Optimum of a declared finite candidate set, certificate scoped to that set"
 assumptions = "Controllable variables, permissible schedules, bounds, resource limits, and constraints are declared. Unsupported worlds stay unsupported. The program module crates/antecedent-model/src/program.rs simulates candidate programs."
-sampling_units = "unlisted"
-estimator = "exhaustive evaluation of a declared finite candidate set; not constructed"
-diagnostics = "feasibility checks and a set-scoped optimum certificate. Selection-aware calibration of the searched decision is unproved."
-failure_policy = "A best-found point without a certificate scoped to the declared set is a failure. The execution_only simulation is not a search and has no set-scoped optimum certificate."
+sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
+estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Finite-set certificate only under the retained supplied law."
+failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. A supplied-set optimum does not establish a continuous or statistically calibrated optimum."
 references = [
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
@@ -2611,10 +2611,10 @@ target = "continuous intervention program"
 review_status = "blocked_research"
 identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Separate promotion from the finite candidate set."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "best-found feasible point and an optimality gap or bound when one exists; a best-found point is not a global optimum"
-failure_policy = "Claiming a global optimum from a best-found point is a failure. Continuous search is a separate record from X04.1. No convergence or global-optimum certificate for continuous search."
+sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
+estimator = "Bounded coordinate pattern search through a frozen-fit compiler adapter, explicit feasible start, finite work and stopping policy; no derivative/global bound is advertised."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
+failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. Comparative optimality/regret and robust structure refuse without their required competitor/set law; finite search remains the supported fallback."
 references = [
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
@@ -2631,10 +2631,10 @@ target = "PolicyProgramValue"
 review_status = "blocked_research"
 identifying_result = "Optimum of a declared finite candidate set, certificate scoped to that set"
 assumptions = "Controllable variables, permissible schedules, bounds, resource limits, and constraints are declared. Unsupported worlds stay unsupported. The program module crates/antecedent-model/src/program.rs simulates candidate programs."
-sampling_units = "unlisted"
-estimator = "exhaustive evaluation of a declared finite candidate set; not constructed"
-diagnostics = "feasibility checks and a set-scoped optimum certificate. Joint uncertainty of the evaluated set is unproved."
-failure_policy = "A best-found point without a certificate scoped to the declared set is a failure. The execution_only simulation is not a search and has no set-scoped optimum certificate."
+sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
+estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Finite-set certificate only under the retained supplied law."
+failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. A supplied-set optimum does not establish a continuous or statistically calibrated optimum."
 references = [
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
@@ -2651,10 +2651,10 @@ target = "continuous intervention program"
 review_status = "blocked_research"
 identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Separate promotion from the finite candidate set."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "best-found feasible point and an optimality gap or bound when one exists; a best-found point is not a global optimum"
-failure_policy = "Claiming a global optimum from a best-found point is a failure. Continuous search is a separate record from X04.1. No convergence or global-optimum certificate for continuous search."
+sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
+estimator = "Bounded coordinate pattern search through a frozen-fit compiler adapter, explicit feasible start, finite work and stopping policy; no derivative/global bound is advertised."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
+failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. Comparative optimality/regret and robust structure refuse without their required competitor/set law; finite search remains the supported fallback."
 references = [
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
@@ -2671,10 +2671,10 @@ target = "PolicyProgramValue"
 review_status = "blocked_research"
 identifying_result = "Optimum of a declared finite candidate set, certificate scoped to that set"
 assumptions = "Controllable variables, permissible schedules, bounds, resource limits, and constraints are declared. Unsupported worlds stay unsupported. The program module crates/antecedent-model/src/program.rs simulates candidate programs."
-sampling_units = "unlisted"
-estimator = "exhaustive evaluation of a declared finite candidate set; not constructed"
-diagnostics = "feasibility checks and a set-scoped optimum certificate. Selection-aware calibration of the searched decision is unproved."
-failure_policy = "A best-found point without a certificate scoped to the declared set is a failure. The execution_only simulation is not a search and has no set-scoped optimum certificate."
+sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
+estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Finite-set certificate only under the retained supplied law."
+failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. A supplied-set optimum does not establish a continuous or statistically calibrated optimum."
 references = [
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
@@ -2691,10 +2691,10 @@ target = "continuous intervention program"
 review_status = "blocked_research"
 identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Separate promotion from the finite candidate set."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "best-found feasible point and an optimality gap or bound when one exists; a best-found point is not a global optimum"
-failure_policy = "Claiming a global optimum from a best-found point is a failure. Continuous search is a separate record from X04.1. No convergence or global-optimum certificate for continuous search."
+sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
+estimator = "Bounded coordinate pattern search through a frozen-fit compiler adapter, explicit feasible start, finite work and stopping policy; no derivative/global bound is advertised."
+diagnostics = "Every operational/risk exclusion, exact source and search identities; selected-decision reliability unmeasured. Best feasible point, explicit stop/failures, gap absent unless a valid bound exists, no global certificate."
+failure_policy = "Unsupported scientific scope or incomplete uncertainty refuses; resource/cancellation failure grants no complete certificate. Comparative optimality/regret and robust structure refuse without their required competitor/set law; finite search remains the supported fallback."
 references = [
   "Release scope and gates",
   "X04 — Search a typed space of intervention programs",
@@ -2766,10 +2766,10 @@ target = "geo-experiment to longitudinal model to decision"
 review_status = "blocked_research"
 identifying_result = "Experiment estimand (population, window, dose, duration, regime) translated into a longitudinal model, with bridge uncertainty"
 assumptions = "Recency, duration, spend or exposure differences, transport, and source or mapping dependence stay in the bridge. The same experiment is not used twice through a prior and a later update. Experimental priors alone do not close the chain."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "bridge uncertainty, update-to-decision trace, and exact invalidation; procedure unlisted"
-failure_policy = "An incompatible mapping refuses or returns an explicitly weaker conditional result. No proved map from a windowed experiment estimand through recency, dose, transport, and update to a decision."
+sampling_units = "Declared independent experimental mean observation and inherited model posterior law, with explicit disjoint data/prior/mapping evidence origins."
+estimator = "FrozenJointImportance modular update of actual shared panel posterior realizations under a known-variance Gaussian experiment-mean likelihood and paired finite affine bridge uncertainty; weighted existing preposterior ranking for additional samples of the same mapped estimand."
+diagnostics = "Bridge licensing/units/population/window/duration/exposure/recency/spend/dependence checks, effective finite weights, changed response/decision, current ledger revisions and net future-data value after cost; calibration unmeasured."
+failure_policy = "Missing/incompatible mapping, duplicate evidence, frequentist approximation used as posterior, incomplete mixing/draws or stale current authority refuses. The weaker result is explicitly conditional on the frozen model and licensed mapping. Ranking new regimes without bridges refuses; additional samples of the same mapped estimand provide the smaller ranking."
 references = [
   "Release scope and gates",
   "X05 — Preserve experiment-to-update-to-decision meaning",
@@ -2822,13 +2822,15 @@ review_status = "specification_only"
 identifying_result = "Joint response on an independent synthetic two-channel panel"
 assumptions = "Generator truth, seeds, and reference values stay independent of production estimator code. Two channels, finite carryover, saturation, one known interaction, geographic partial pooling, one observable confounder, serial and group dependence."
 sampling_units = "groups in a synthetic panel"
-estimator = "frequentist fit of the admitted mechanism, or a documented unavailable fit"
+estimator = "Production Study::prepare_joint_panel retained execution lowers to the Gaussian hierarchical likelihood and checked local frequentist fit; aligned conditional group effects and rectangular cluster sampling factor retain rank limitations and failed slots."
 diagnostics = "hold out joint regimes as well as rows; an unsupported design must withhold a causal claim even if a simulation runs"
-failure_policy = "Specification only. A simulation is not a fit. X02 fitting and its named identification attempts remain mandatory. X06.1 now retains independent panel truth, held-out joint regimes and a confounded unsupported design in conformance/response/joint_panel. Compiled fitted execution and production refusal remain under X06.2."
+failure_policy = "Actual compiled fitting, unsupported-design refusal and independent frozen artifact replay have public behavioral evidence in crates/antecedent/tests/joint_panel_workflow.rs. No causal claim follows from finite fitted curves. Failed curvature/convergence slots remain explicit; Q09/E14 whole-procedure calibration and uncertainty validation are unmeasured. Review status is unchanged and grants no release license."
 references = [
   "Release scope and gates",
   "X06 — Build the independent reference workflow first",
   "Verification and release evidence",
+  "crates/antecedent/tests/joint_panel_workflow.rs",
+  "parity/fixtures/joint_panel_procedures.toml",
 ]
 
 [[spec]]
@@ -2841,11 +2843,13 @@ review_status = "specification_only"
 identifying_result = "Joint response on an independent synthetic two-channel panel"
 assumptions = "Generator truth, seeds, and reference values stay independent of production estimator code. Two channels, finite carryover, saturation, one known interaction, geographic partial pooling, one observable confounder, serial and group dependence."
 sampling_units = "groups in a synthetic panel"
-estimator = "Bayesian fit with partial pooling, compared on an additive specification"
-diagnostics = "whole-procedure calibration; interaction stays off the additive comparison; external feature parity is not the claim"
-failure_policy = "Specification only. A simulation is not a fit. The additive comparison does not score the interaction. No pinned external additive comparison and no whole-procedure calibration fixture."
+estimator = "Production Study::prepare_joint_panel retained execution uses the proper-prior Gaussian hierarchical posterior, posterior-MAP curvature preparation and existing multi-chain sampler; one parameter/group realization feeds every world."
+diagnostics = "whole-procedure calibration; aligned joint-world uncertainty and failed-slot diagnostics remain explicit"
+failure_policy = "Actual posterior fitting and failed/mixing diagnostics are retained; complete law consumption refuses until unchanged Rhat/ESS/movement gates pass. Public acceptance exercises the explicit fixture sampler budget, not truth-injected parameters. Q09/E14 whole-procedure grids are registered but unmeasured. Review status is unchanged."
 references = [
   "Release scope and gates",
   "X06 — Build the independent reference workflow first",
   "Verification and release evidence",
+  "crates/antecedent/tests/joint_panel_workflow.rs",
+  "parity/fixtures/joint_panel_procedures.toml",
 ]
