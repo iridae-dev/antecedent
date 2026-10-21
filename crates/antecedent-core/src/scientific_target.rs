@@ -146,7 +146,7 @@ pub enum ScientificTargetError {
         /// Shared id.
         id: VariableId,
     },
-    /// A temporal policy reaches outside the target's horizon.
+    /// A temporal policy reaches outside `[-horizon, +horizon]`.
     #[error("temporal policy {policy} lies outside the target horizon of {horizon_steps} steps")]
     PolicyOutsideHorizon {
         /// Horizon of the frame the policy was declared under.
@@ -767,8 +767,11 @@ fn canonical_intervention(intervention: Intervention) -> Intervention {
     }
 }
 
-/// Offsets are relative to the policy origin. A pulse or window may lead the origin
-/// by at most the horizon (the outcome-lag convention) and may not extend past it.
+/// Offsets are relative to the policy origin and must lie in `[-horizon, +horizon]`.
+///
+/// A negative offset inside that interval is history the initial law supplies, and
+/// a pulse there is a legitimate target. Horizon one admits `pulse(-1)` and refuses
+/// `pulse(-2)`. A positive offset is admitted through `+horizon`.
 fn ensure_policy_within_horizon(
     policy: &TemporalPolicy,
     time: &TimeFrame,
@@ -3195,7 +3198,6 @@ mod tests {
             Err(ScientificTargetError::PolicyOutsideHorizon { horizon_steps: 1, .. })
         ));
         pulse_world(0, 1).unwrap();
-        // An outcome-lag pulse one step before the origin is within a horizon of one.
         pulse_world(-1, 1).unwrap();
 
         let window = |until: i32| {
@@ -3237,6 +3239,15 @@ mod tests {
         temporal(0).unwrap();
         assert!(matches!(temporal(7), Err(ScientificTargetError::PolicyOutsideHorizon { .. })));
         assert!(matches!(temporal(-3), Err(ScientificTargetError::PolicyOutsideHorizon { .. })));
+    }
+
+    #[test]
+    fn a_negative_pulse_inside_the_horizon_is_a_legitimate_target() {
+        pulse_world(-1, 1).unwrap();
+        assert!(matches!(
+            pulse_world(-2, 1),
+            Err(ScientificTargetError::PolicyOutsideHorizon { horizon_steps: 1, .. })
+        ));
     }
 
     #[test]
