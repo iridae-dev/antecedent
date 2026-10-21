@@ -6,8 +6,8 @@
 //! Arrow type, so it builds with `--no-default-features`.
 //!
 //! Polars is not a dependency and is not a backend of the internal contract.
-//! D09 left the feature empty (`polars = []`). See
-//! `parity/polars_decision/decision.toml`. Nothing here selects a default
+//! The feature stays empty (`polars = []`) because that crate was refused.
+//! See `parity/polars_decision/decision.toml`. Nothing here selects a default
 //! backend.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -162,7 +162,7 @@ mod tests {
     fn decision_record_keeps_direct_arrow_and_an_unlinked_polars_crate() {
         let decision = include_str!("../../../parity/polars_decision/decision.toml");
         for needle in [
-            "item = \"D09\"",
+            "item = \"polars_refused\"",
             "preparation_path = \"direct_arrow\"",
             "polars_feature = \"polars = []\"",
             "dependency_added = false",

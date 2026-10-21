@@ -93,7 +93,7 @@ impl ManifestRouteStatus {
         [Self::Licensed, Self::Graphless, Self::Closed, Self::ExecutionOnly, Self::FittingGap];
 }
 
-/// Which scientific-target shapes still hash the caller's world id and reference flag.
+/// Scientific-target shape whose identity is content-based.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum TargetShape {
     /// One intervention world.
@@ -214,17 +214,20 @@ pub fn adopt_retained_score_row_digest(
 
 /// Whether this shape hashes the caller's world id and reference flag.
 ///
-/// A contrast hashes the content of its signed worlds. The caller's labels and
-/// the reference flag do not enter that digest. A world, a world collection,
-/// and a dose × time surface still hash those labels. A dose × time surface
-/// also hashes each cell id.
+/// None do. A world, a world collection, a dose × time surface, and a contrast
+/// are hashed by scientific content. A dose × time surface hashes each cell's
+/// content in grid order.
 #[must_use]
+#[allow(
+    clippy::match_same_arms,
+    reason = "each shape records that the caller label does not enter"
+)]
 pub const fn caller_world_id_and_reference_flag_enter_identity(shape: TargetShape) -> bool {
     match shape {
-        TargetShape::SingleWorld | TargetShape::WorldCollection | TargetShape::DoseTimeSurface => {
-            true
-        }
-        TargetShape::Contrast => false,
+        TargetShape::SingleWorld
+        | TargetShape::WorldCollection
+        | TargetShape::DoseTimeSurface
+        | TargetShape::Contrast => false,
     }
 }
 
@@ -363,13 +366,15 @@ mod tests {
     }
 
     #[test]
-    fn world_identity_still_includes_the_caller_label() {
+    fn world_identity_omits_the_caller_label() {
         let labelled = target(TargetForm::World(world(1, true, 0.0)));
         let relabelled = target(TargetForm::World(world(2, true, 0.0)));
         let unflagged = target(TargetForm::World(world(1, false, 0.0)));
-        assert_ne!(labelled.identity(), relabelled.identity());
-        assert_ne!(labelled.identity(), unflagged.identity());
-        assert!(caller_world_id_and_reference_flag_enter_identity(TargetShape::SingleWorld));
+        assert_ne!(labelled, relabelled);
+        assert_ne!(labelled, unflagged);
+        assert_eq!(labelled.identity(), relabelled.identity());
+        assert_eq!(labelled.identity(), unflagged.identity());
+        assert!(!caller_world_id_and_reference_flag_enter_identity(TargetShape::SingleWorld));
         assert_eq!(
             caller_world_id_and_reference_flag_enter_identity(TargetShape::SingleWorld),
             labelled.identity() != relabelled.identity()
@@ -381,12 +386,13 @@ mod tests {
         let relabelled_collection = target(TargetForm::Worlds(
             WorldCollection::new([world(2, true, 0.0), world(3, false, 1.0)]).unwrap(),
         ));
-        assert_ne!(collection.identity(), relabelled_collection.identity());
+        assert_ne!(collection, relabelled_collection);
+        assert_eq!(collection.identity(), relabelled_collection.identity());
         assert_eq!(
             caller_world_id_and_reference_flag_enter_identity(TargetShape::WorldCollection),
             collection.identity() != relabelled_collection.identity()
         );
-        assert!(caller_world_id_and_reference_flag_enter_identity(TargetShape::DoseTimeSurface));
+        assert!(!caller_world_id_and_reference_flag_enter_identity(TargetShape::DoseTimeSurface));
     }
 
     #[test]

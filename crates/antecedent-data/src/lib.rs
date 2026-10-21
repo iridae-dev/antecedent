@@ -56,7 +56,6 @@ pub mod sample;
 pub mod sample_policy;
 pub mod selection;
 mod source;
-mod source_snapshot;
 pub mod split;
 pub mod storage;
 pub mod surrogate;

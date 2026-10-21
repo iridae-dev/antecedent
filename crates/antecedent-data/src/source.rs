@@ -1,9 +1,9 @@
 //! Internal source and snapshot contract over owned storage.
 //!
-//! A snapshot binds modality, cohort order, validity policy, units, splits, and
-//! the existing full-content digest (columns, mask, and weights). A projection
-//! does not reuse that digest. A chunk is a row range of the same source, not
-//! a new population.
+//! A snapshot binds modality, cohort order, validity policy, units, splits, an
+//! optional time index, and the existing full-content digest (columns, mask,
+//! and weights). A projection does not reuse that digest. A chunk is a row
+//! range of the same source, not a new population.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,6 +17,7 @@ use std::sync::Arc;
 use crate::error::DataError;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
+use crate::temporal::TimeIndex;
 
 /// How the rows are organized. This does not change the stored columns.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -87,6 +88,11 @@ pub(crate) struct SnapshotContract {
     pub splits: Vec<SplitSpan>,
     /// Content identity. Projections use [`SourceIdentity::Projected`].
     pub identity: SourceIdentity,
+    /// Sampling metadata. Absent when the source declares no time axis.
+    ///
+    /// The length, when present, is the source row count. It is not part of
+    /// the storage digest.
+    pub time_index: Option<TimeIndex>,
     /// Row count of the source. Chunks do not change it.
     pub rows: usize,
     /// Schema variable names in dense order.
@@ -163,6 +169,24 @@ impl OwnedSource {
             }
         }
         self.contract.splits = splits;
+        Ok(self)
+    }
+
+    /// Record sampling metadata. This does not reinterpret stored bytes.
+    ///
+    /// # Errors
+    ///
+    /// [`TimeIndex::length`] is not the source row count.
+    pub(crate) fn with_time_index(mut self, time_index: TimeIndex) -> Result<Self, DataError> {
+        if time_index.length != self.contract.rows {
+            return Err(DataError::InvalidArgument {
+                message: format!(
+                    "time index length {} is not the source row count {}",
+                    time_index.length, self.contract.rows
+                ),
+            });
+        }
+        self.contract.time_index = Some(time_index);
         Ok(self)
     }
 
@@ -293,6 +317,7 @@ fn contract_for(
         unit: None,
         splits: Vec::new(),
         identity: SourceIdentity::Full(storage.content_digest()),
+        time_index: None,
         rows: storage.row_count(),
         schema_names,
     }
@@ -396,5 +421,25 @@ mod tests {
         assert!(
             owned.with_splits(vec![SplitSpan { label: Arc::from("bad"), rows: 0..9 }]).is_err()
         );
+    }
+
+    #[test]
+    fn time_index_is_part_of_the_contract_not_the_content_digest() {
+        use crate::temporal::{SamplingRegularity, TimeIndex};
+
+        let owned = OwnedSource::from_storage(table(&[1.0, 2.0, 3.0]), SourceModality::TimeSeries);
+        assert!(owned.contract().time_index.is_none());
+        let fast =
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 10 }, length: 3 };
+        let slow =
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 11 }, length: 3 };
+        let timed = owned.clone().with_time_index(fast.clone()).unwrap();
+        let slower = owned.clone().with_time_index(slow).unwrap();
+        assert_eq!(owned.contract().full_digest(), timed.contract().full_digest());
+        assert_ne!(owned.contract(), timed.contract());
+        assert_ne!(timed.contract(), slower.contract());
+        assert_eq!(timed.contract().time_index.as_ref(), Some(&fast));
+        let short = TimeIndex { regularity: SamplingRegularity::Irregular, length: 2 };
+        assert!(owned.with_time_index(short).is_err());
     }
 }

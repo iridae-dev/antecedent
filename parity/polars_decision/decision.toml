@@ -1,8 +1,8 @@
-# D09 Polars scope. Direct Arrow remains the preparation path.
+# Polars is refused as a preparation backend. Direct Arrow remains the preparation path.
 # The candidate crate was inspected and not linked. This file stores no timings.
 
 schema = 1
-item = "D09"
+item = "polars_refused"
 decision = "direct_arrow"
 preparation_path = "direct_arrow"
 polars_feature = "polars = []"

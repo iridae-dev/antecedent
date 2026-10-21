@@ -11,7 +11,8 @@
 //!
 //! `NumPy` is outside this crate. This module does not read Arrow arrays. A
 //! float64 column that already borrows a foreign buffer is reused through its
-//! contiguous `f64` slice.
+//! contiguous `f64` slice. A nanosecond-epoch column is not cast into that
+//! layout: [`DesignLayout::with_time_index`] keeps the selected epochs as `i64`.
 
 use std::borrow::Cow;
 use std::fmt;
@@ -32,6 +33,8 @@ pub struct DesignLayout<'a> {
     n_rows: usize,
     columns: Vec<Cow<'a, [f64]>>,
     receipt: OwnershipReceipt,
+    /// Selected nanosecond epochs. Not an `f64` column and not a cast.
+    time_index_ns: Option<Cow<'a, [i64]>>,
 }
 
 /// Every ownership copy the layout still performed.
@@ -51,8 +54,8 @@ pub struct OwnershipCopy {
     column: usize,
 }
 
-/// A row id is past a column, the column is not numeric, or an `i64` level is not an
-/// exact `f64`.
+/// A row id is past a column, the column is not numeric, an `i64` level is not an
+/// exact `f64`, or a nanosecond epoch was offered as a design cast.
 ///
 /// The error is `Copy` and holds no buffer. [`DesignLayout::from_views`]
 /// returns it before building any column vector.
@@ -64,9 +67,22 @@ pub struct LayoutError {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LayoutFailure {
-    PastColumn { id: GlobalId, len: usize },
+    PastColumn {
+        id: GlobalId,
+        len: usize,
+    },
     NotNumeric,
-    InexactInteger { value: i64 },
+    InexactInteger {
+        value: i64,
+    },
+    /// Timestamp column passed to [`DesignLayout::from_views`].
+    EpochColumn,
+    /// [`DesignLayout::with_time_index`] was not given an epoch column.
+    NotAnEpoch,
+    /// A selected time-index row is invalid.
+    InvalidEpoch {
+        id: GlobalId,
+    },
 }
 
 /// Largest magnitude below which every `i64` is an exact `f64`.
@@ -135,12 +151,28 @@ impl LayoutError {
         Self { column: 0, kind: LayoutFailure::InexactInteger { value } }
     }
 
+    const fn epoch_column(column: usize) -> Self {
+        Self { column, kind: LayoutFailure::EpochColumn }
+    }
+
+    const fn not_an_epoch() -> Self {
+        Self { column: 0, kind: LayoutFailure::NotAnEpoch }
+    }
+
+    const fn invalid_epoch(id: GlobalId) -> Self {
+        Self { column: 0, kind: LayoutFailure::InvalidEpoch { id } }
+    }
+
     /// The `i64` value that is not an exact `f64`, when that is the refusal.
     #[must_use]
     pub const fn inexact_value(self) -> Option<i64> {
         match self.kind {
             LayoutFailure::InexactInteger { value } => Some(value),
-            LayoutFailure::PastColumn { .. } | LayoutFailure::NotNumeric => None,
+            LayoutFailure::PastColumn { .. }
+            | LayoutFailure::NotNumeric
+            | LayoutFailure::EpochColumn
+            | LayoutFailure::NotAnEpoch
+            | LayoutFailure::InvalidEpoch { .. } => None,
         }
     }
 
@@ -155,12 +187,15 @@ impl LayoutError {
         self.column
     }
 
-    /// Row id that does not fit the column, when the refusal is a past-the-end id.
+    /// Row id that does not fit the column, or the invalid time-index row.
     #[must_use]
     pub const fn global_id(self) -> Option<GlobalId> {
         match self.kind {
-            LayoutFailure::PastColumn { id, .. } => Some(id),
-            LayoutFailure::NotNumeric | LayoutFailure::InexactInteger { .. } => None,
+            LayoutFailure::PastColumn { id, .. } | LayoutFailure::InvalidEpoch { id } => Some(id),
+            LayoutFailure::NotNumeric
+            | LayoutFailure::InexactInteger { .. }
+            | LayoutFailure::EpochColumn
+            | LayoutFailure::NotAnEpoch => None,
         }
     }
 
@@ -169,7 +204,11 @@ impl LayoutError {
     pub const fn column_len(self) -> Option<usize> {
         match self.kind {
             LayoutFailure::PastColumn { len, .. } => Some(len),
-            LayoutFailure::NotNumeric | LayoutFailure::InexactInteger { .. } => None,
+            LayoutFailure::NotNumeric
+            | LayoutFailure::InexactInteger { .. }
+            | LayoutFailure::EpochColumn
+            | LayoutFailure::NotAnEpoch
+            | LayoutFailure::InvalidEpoch { .. } => None,
         }
     }
 }
@@ -190,7 +229,29 @@ impl fmt::Display for LayoutError {
                 let column = self.column;
                 write!(
                     formatter,
-                    "int64 value {value} in column {column} is not exact as f64 (limit 2^53)"
+                    "int64 value {value} in column {column} is not exact as f64 (limit 2^53); \
+                     a nanosecond-epoch column uses DesignLayout::with_time_index and is not cast"
+                )
+            }
+            LayoutFailure::EpochColumn => {
+                let column = self.column;
+                write!(
+                    formatter,
+                    "column {column} is a nanosecond-epoch timestamp; use \
+                     DesignLayout::with_time_index instead of casting it into the design"
+                )
+            }
+            LayoutFailure::NotAnEpoch => write!(
+                formatter,
+                "DesignLayout::with_time_index takes a nanosecond-epoch \
+                 int64 or timestamp column"
+            ),
+            LayoutFailure::InvalidEpoch { id } => {
+                let id = id.get();
+                write!(
+                    formatter,
+                    "time-index row {id} is invalid; DesignLayout::with_time_index does not cast \
+                     a missing epoch"
                 )
             }
         }
@@ -211,9 +272,10 @@ impl<'a> DesignLayout<'a> {
     ///
     /// # Errors
     ///
-    /// [`LayoutError`] when a [`GlobalId`] is past a column or a column is not
-    /// `f64`, `i64`, or boolean, or when a valid `i64` value has magnitude above 2^53 and
-    /// would round when cast (an id would silently collapse onto its neighbour). That
+    /// [`LayoutError`] when a [`GlobalId`] is past a column, a column is not
+    /// `f64`, `i64`, or boolean, a timestamp column is passed here, or a valid
+    /// `i64` value has magnitude above 2^53 and would round when cast. A
+    /// nanosecond epoch uses [`Self::with_time_index`] and is not cast. The
     /// refusal allocates no layout buffer.
     #[must_use = "a row past the column is refused before any layout allocation"]
     pub fn from_views(columns: &[ColumnView<'a>], rows: &[GlobalId]) -> Result<Self, LayoutError> {
@@ -223,7 +285,35 @@ impl<'a> DesignLayout<'a> {
         for (column_index, view) in columns.iter().copied().enumerate() {
             stored.push(place_column(view, rows, column_index, &mut copies)?);
         }
-        Ok(Self { n_rows: rows.len(), columns: stored, receipt: OwnershipReceipt { copies } })
+        Ok(Self {
+            n_rows: rows.len(),
+            columns: stored,
+            receipt: OwnershipReceipt { copies },
+            time_index_ns: None,
+        })
+    }
+
+    /// Numeric design plus a nanosecond-epoch time index.
+    ///
+    /// `time_index` is an `i64` or timestamp column. Selected epochs stay `i64`
+    /// nanoseconds. They are not cast into the `f64` columns, and a value above
+    /// 2^53 is kept exactly. A contiguous in-order run of valid epochs is borrowed.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::from_views`] refuses `columns`. `time_index` is not an epoch
+    /// column, a selected epoch row is invalid, or a row id is past that column.
+    /// An invalid epoch allocates no layout buffer.
+    #[must_use = "an epoch that is not a time index is refused before any layout allocation"]
+    pub fn with_time_index(
+        columns: &[ColumnView<'a>],
+        rows: &[GlobalId],
+        time_index: ColumnView<'a>,
+    ) -> Result<Self, LayoutError> {
+        let time_index_ns = place_time_index(time_index, rows)?;
+        let mut layout = Self::from_views(columns, rows)?;
+        layout.time_index_ns = Some(time_index_ns);
+        Ok(layout)
     }
 
     /// Selected row count. Every column has this length.
@@ -261,6 +351,14 @@ impl<'a> DesignLayout<'a> {
     pub const fn receipt(&self) -> &OwnershipReceipt {
         &self.receipt
     }
+
+    /// Selected nanosecond epochs, when [`Self::with_time_index`] supplied them.
+    ///
+    /// This is not an `f64` design column.
+    #[must_use]
+    pub fn time_index_ns(&self) -> Option<&[i64]> {
+        self.time_index_ns.as_deref()
+    }
 }
 
 /// Check every column before any layout vector exists.
@@ -275,7 +373,8 @@ fn validate(columns: &[ColumnView<'_>], rows: &[GlobalId]) -> Result<(), LayoutE
 const fn ensure_numeric(view: ColumnView<'_>, column_index: usize) -> Result<(), LayoutError> {
     match view {
         ColumnView::Float64(_) | ColumnView::Int64(_) | ColumnView::Boolean(_) => Ok(()),
-        ColumnView::Categorical(_) | ColumnView::Timestamp(_) | ColumnView::FixedVector(_) => {
+        ColumnView::Timestamp(_) => Err(LayoutError::epoch_column(column_index)),
+        ColumnView::Categorical(_) | ColumnView::FixedVector(_) => {
             Err(LayoutError::not_numeric(column_index))
         }
     }
@@ -335,7 +434,8 @@ fn place_column<'a>(
             copies.push(OwnershipCopy::cast(column_index));
             Ok(Cow::Owned(owned))
         }
-        ColumnView::Categorical(_) | ColumnView::Timestamp(_) | ColumnView::FixedVector(_) => {
+        ColumnView::Timestamp(_) => Err(LayoutError::epoch_column(column_index)),
+        ColumnView::Categorical(_) | ColumnView::FixedVector(_) => {
             Err(LayoutError::not_numeric(column_index))
         }
     }
@@ -381,6 +481,56 @@ fn borrow_contiguous(values: &[f64], start: usize, n_rows: usize) -> Result<&[f6
 
 fn gather_f64(values: &[f64], rows: &[GlobalId]) -> Result<Vec<f64>, LayoutError> {
     selected_f64(values.len(), rows, |index| values.get(index).copied().unwrap_or(f64::NAN))
+}
+
+fn place_time_index<'a>(
+    view: ColumnView<'a>,
+    rows: &[GlobalId],
+) -> Result<Cow<'a, [i64]>, LayoutError> {
+    let (values, validity) = epoch_values(view)?;
+    if rows.is_empty() {
+        return Ok(Cow::Borrowed(&values[..0]));
+    }
+    for id in rows {
+        let index = row_index(*id, values.len())?;
+        if !validity.is_valid(index) {
+            return Err(LayoutError::invalid_epoch(*id));
+        }
+    }
+    let run = row_run(values.len(), rows)?;
+    match run {
+        RowRun::Contiguous { start } => Ok(Cow::Borrowed(borrow_epoch(values, start, rows.len())?)),
+        RowRun::Gather => {
+            let mut owned = Vec::with_capacity(rows.len());
+            for id in rows {
+                let index = row_index(*id, values.len())?;
+                let Some(value) = values.get(index).copied() else {
+                    return Err(LayoutError::past_column(*id, values.len()));
+                };
+                owned.push(value);
+            }
+            Ok(Cow::Owned(owned))
+        }
+    }
+}
+
+fn epoch_values(view: ColumnView<'_>) -> Result<(&[i64], &ValidityBitmap), LayoutError> {
+    match view {
+        ColumnView::Int64(column) => Ok((column.values.as_ref(), &column.validity)),
+        ColumnView::Timestamp(column) => Ok((column.values_ns.as_ref(), &column.validity)),
+        ColumnView::Float64(_)
+        | ColumnView::Boolean(_)
+        | ColumnView::Categorical(_)
+        | ColumnView::FixedVector(_) => Err(LayoutError::not_an_epoch()),
+    }
+}
+
+fn borrow_epoch(values: &[i64], start: usize, n_rows: usize) -> Result<&[i64], LayoutError> {
+    let end = start
+        .checked_add(n_rows)
+        .ok_or_else(|| LayoutError::past_column(GlobalId::new(u64::MAX), values.len()))?;
+    let id = GlobalId::new(u64::try_from(start).unwrap_or(u64::MAX));
+    values.get(start..end).ok_or_else(|| LayoutError::past_column(id, values.len()))
 }
 
 fn cast_i64(
@@ -434,7 +584,9 @@ mod tests {
     use antecedent_core::VariableId;
 
     use super::{DesignLayout, OwnershipCopy};
-    use crate::column::{BooleanColumn, ColumnView, Float64Column, Int64Column, ValidityBitmap};
+    use crate::column::{
+        BooleanColumn, ColumnView, Float64Column, Int64Column, TimestampColumn, ValidityBitmap,
+    };
     use crate::global_index::GlobalId;
 
     fn float_column(values: &[f64]) -> Float64Column {
@@ -543,6 +695,9 @@ mod tests {
             .expect_err("2^53 + 1 is not an exact f64");
         assert_eq!(error.inexact_value(), Some(exact + 1));
         assert_eq!(error.column_index(), 0);
+        let message = error.to_string();
+        assert!(message.contains("DesignLayout::with_time_index"), "{message}");
+        assert!(message.contains("is not cast"), "{message}");
         let negative = ints(vec![-exact - 1, 0]);
         assert_eq!(
             DesignLayout::from_views(&[ColumnView::Int64(&negative)], &rows)
@@ -603,5 +758,69 @@ mod tests {
         assert_eq!(layout.receipt().copies()[0].name(), OwnershipCopy::CAST);
         assert_eq!(layout.column(0).expect("bool").first().copied(), Some(0.0));
         assert_eq!(layout.column(0).expect("bool").get(1).copied(), Some(1.0));
+    }
+
+    #[test]
+    fn nanosecond_epoch_uses_the_time_index_path_and_is_not_cast() {
+        let epoch = 1_700_000_000_000_000_000_i64;
+        let beyond = (1_i64 << 53) + 1;
+        let stamps = TimestampColumn::new(
+            VariableId::from_raw(3),
+            vec![epoch, epoch + 1, epoch + 2],
+            ValidityBitmap::all_valid(3),
+        )
+        .expect("timestamp column");
+        let rows = [GlobalId::new(0), GlobalId::new(1), GlobalId::new(2)];
+        let refused = DesignLayout::from_views(&[ColumnView::Timestamp(&stamps)], &rows)
+            .expect_err("timestamp is not a design cast");
+        let message = refused.to_string();
+        assert!(message.contains("DesignLayout::with_time_index"), "{message}");
+        assert!(message.contains("instead of casting"), "{message}");
+        assert_eq!(refused.column_index(), 0);
+
+        let ints = Int64Column::new(
+            VariableId::from_raw(1),
+            vec![beyond, epoch],
+            ValidityBitmap::all_valid(2),
+        )
+        .expect("epoch ints");
+        let int_rows = [GlobalId::new(0)];
+        let cast_refused = DesignLayout::from_views(&[ColumnView::Int64(&ints)], &int_rows)
+            .expect_err("above 2^53");
+        assert!(cast_refused.to_string().contains("DesignLayout::with_time_index"));
+
+        let kept = DesignLayout::with_time_index(&[], &rows, ColumnView::Timestamp(&stamps))
+            .expect("time index");
+        assert!(kept.receipt().is_empty());
+        assert_eq!(kept.n_columns(), 0);
+        assert_eq!(kept.time_index_ns(), Some(stamps.values_ns.as_ref()));
+        assert_eq!(kept.time_index_ns().expect("epochs").as_ptr(), stamps.values_ns.as_ptr());
+
+        let gathered_rows = [GlobalId::new(2), GlobalId::new(0)];
+        let gathered =
+            DesignLayout::with_time_index(&[], &gathered_rows, ColumnView::Timestamp(&stamps))
+                .expect("gathered epochs");
+        assert_eq!(gathered.time_index_ns(), Some(&[epoch + 2, epoch][..]));
+        assert!(gathered.column(0).is_none());
+        let int_kept =
+            DesignLayout::with_time_index(&[], &int_rows, ColumnView::Int64(&ints)).expect("ints");
+        assert_eq!(int_kept.time_index_ns(), Some(&[beyond][..]));
+
+        let masked = TimestampColumn::new(
+            VariableId::from_raw(3),
+            vec![epoch, epoch + 1],
+            ValidityBitmap::from_bytes(vec![0b01], 2).expect("validity"),
+        )
+        .expect("masked timestamp");
+        let invalid = [GlobalId::new(1)];
+        let error = DesignLayout::with_time_index(&[], &invalid, ColumnView::Timestamp(&masked))
+            .expect_err("missing epoch");
+        assert_eq!(error.global_id(), Some(GlobalId::new(1)));
+        assert!(error.to_string().contains("does not cast"));
+
+        let floats = float_column(&[1.0, 2.0]);
+        let wrong = DesignLayout::with_time_index(&[], &int_rows, ColumnView::Float64(&floats))
+            .expect_err("float is not an epoch");
+        assert!(wrong.to_string().contains("DesignLayout::with_time_index"));
     }
 }

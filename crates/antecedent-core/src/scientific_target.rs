@@ -35,7 +35,10 @@ use crate::value_expr::{ArithOp, CompareOp, LogicOp, PolicyReads, ValueExpr};
 pub const SCIENTIFIC_TARGET_IDENTITY_TAG: &str = "antecedent.scientific_target.v1";
 
 /// Payload version written after the domain tag. Bump when the canonical fields change.
-pub const SCIENTIFIC_TARGET_FORMAT: u16 = 2;
+///
+/// Format 3 identifies a world, a world collection, and a dose × time surface by
+/// scientific content. A caller-chosen world id and a reference flag do not enter.
+pub const SCIENTIFIC_TARGET_FORMAT: u16 = 3;
 
 /// Refusal from a scientific-target constructor.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -1787,9 +1790,12 @@ impl ScientificTarget {
     /// BLAKE3 digest of the scientific fields via [`CanonicalWriter`].
     ///
     /// Population, worlds, horizon, history, initial law, quantity, conditioning,
-    /// graph, and the set of assumptions and scopes enter the digest. A contrast
-    /// is hashed by the content of its signed worlds, not by their labels. Inference
-    /// selection, assumption source and status, and record order do not.
+    /// graph, and the set of assumptions and scopes enter the digest. A world, a
+    /// world collection, a dose × time surface, and a contrast are hashed by
+    /// scientific content. A caller-chosen world id or a reference flag does not.
+    /// A world collection is that set of contents. A dose × time surface hashes
+    /// each cell's content in grid order. Inference selection, assumption source
+    /// and status, and record order do not.
     #[must_use]
     pub fn identity(&self) -> SemanticDigest {
         let mut writer = CanonicalWriter::new(SCIENTIFIC_TARGET_IDENTITY_TAG);
@@ -1853,7 +1859,6 @@ fn write_form(writer: &mut CanonicalWriter, form: &TargetForm) {
 }
 
 fn write_world(writer: &mut CanonicalWriter, world: &InterventionWorld) {
-    writer.word(u64::from(world.id.raw())).word(flag(world.reference));
     write_world_content(writer, world);
 }
 
@@ -1865,10 +1870,18 @@ fn write_world_content(writer: &mut CanonicalWriter, world: &InterventionWorld) 
 }
 
 fn write_worlds(writer: &mut CanonicalWriter, worlds: &WorldCollection) {
-    writer.word(count(worlds.worlds.len()));
-    for world in &worlds.worlds {
-        write_world(writer, world);
+    let mut digests: Vec<[u8; 32]> = worlds.worlds.iter().map(world_content_digest).collect();
+    digests.sort_unstable();
+    writer.word(count(digests.len()));
+    for digest in &digests {
+        writer.bytes(digest);
     }
+}
+
+fn world_content_digest(world: &InterventionWorld) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new("antecedent.scientific_target.world");
+    write_world_content(&mut writer, world);
+    writer.finish()
 }
 
 fn write_binding(writer: &mut CanonicalWriter, binding: &WorldBinding) {
@@ -2266,9 +2279,16 @@ fn write_surface(writer: &mut CanonicalWriter, surface: &DoseTimeSurface) {
     }
     writer.word(count(surface.cells.len()));
     for id in surface.cells.as_ref() {
-        writer.word(u64::from(id.raw()));
+        match surface.worlds.get(*id) {
+            Some(world) => {
+                writer.word(1);
+                write_world_content(writer, world);
+            }
+            None => {
+                writer.word(0);
+            }
+        }
     }
-    write_worlds(writer, &surface.worlds);
 }
 
 fn write_mediation(writer: &mut CanonicalWriter, mediation: &MediationTarget) {
@@ -3365,6 +3385,76 @@ mod tests {
         let original =
             static_contrast(TargetPopulation::AllObserved, Conditioning::unconditional());
         assert_eq!(relabelled.identity(), original.identity());
+    }
+
+    fn static_world(id: u32, reference: bool, level: f64) -> InterventionWorld {
+        InterventionWorld::new(
+            world_id(id),
+            WorldAction::at_decision([set_level(vid(0), level)]).unwrap(),
+            reference,
+            binding(TargetPopulation::AllObserved, Conditioning::unconditional()),
+            TimeFrame::static_decision(),
+        )
+        .unwrap()
+    }
+
+    fn dose_surface(id_base: u32, high: f64, mark_first: bool) -> ScientificTarget {
+        let shared = binding(TargetPopulation::AllObserved, Conditioning::unconditional());
+        let law = InitialLaw::named("observed_origin").unwrap();
+        let mut built = Vec::new();
+        let mut cells = Vec::new();
+        for (dose_index, level) in [0.0_f64, high].into_iter().enumerate() {
+            for (horizon_index, horizon) in [1_u32, 2].into_iter().enumerate() {
+                let slot = dose_index * 2 + horizon_index;
+                let id = world_id(id_base + u32::try_from(slot).unwrap());
+                let time =
+                    TimeFrame::temporal(horizon, HistoryWindow::max_lag(1), law.clone()).unwrap();
+                let action =
+                    WorldAction::schedule(set_level(vid(0), level), TemporalPolicy::pulse(0))
+                        .unwrap();
+                let reference = mark_first && slot == 0;
+                built.push(
+                    InterventionWorld::new(id, action, reference, shared.clone(), time).unwrap(),
+                );
+                cells.push(id);
+            }
+        }
+        let worlds = WorldCollection::new(built).unwrap();
+        let surface = DoseTimeSurface::new(worlds, vid(0), [0.0, high], [1, 2], cells).unwrap();
+        target(TargetForm::DoseTime(surface), model(GraphFamily::Dag))
+    }
+
+    #[test]
+    fn world_id_and_reference_flag_do_not_change_content_identity() {
+        let assumptions = model(GraphFamily::Dag);
+        let world = |id: u32, reference: bool, level: f64| {
+            target(TargetForm::World(static_world(id, reference, level)), assumptions.clone())
+        };
+        let baseline = world(0, true, 0.0);
+        let relabelled = world(7, false, 0.0);
+        assert_ne!(baseline, relabelled);
+        assert_eq!(baseline.identity(), relabelled.identity());
+        assert_ne!(baseline.identity(), world(0, true, 1.0).identity());
+
+        let bundle = |ids: [u32; 2], flags: [bool; 2], high: f64| {
+            let worlds = WorldCollection::new([
+                static_world(ids[0], flags[0], 0.0),
+                static_world(ids[1], flags[1], high),
+            ])
+            .unwrap();
+            target(TargetForm::Worlds(worlds), assumptions.clone())
+        };
+        let ordered = bundle([0, 1], [true, false], 1.0);
+        let swapped = bundle([9, 4], [false, true], 1.0);
+        assert_ne!(ordered, swapped);
+        assert_eq!(ordered.identity(), swapped.identity());
+        assert_ne!(ordered.identity(), bundle([0, 1], [true, false], 2.0).identity());
+
+        let surface = dose_surface(0, 1.0, true);
+        let relabelled_surface = dose_surface(10, 1.0, false);
+        assert_ne!(surface, relabelled_surface);
+        assert_eq!(surface.identity(), relabelled_surface.identity());
+        assert_ne!(surface.identity(), dose_surface(0, 2.0, true).identity());
     }
 
     #[test]

@@ -47,14 +47,12 @@ The checked AIPW row digest hashes the CBOR body of the row binding. This note d
 
 ### Scientific target digest
 
-The previous release has no scientific-target digest to translate. The current digest is the canonical payload under `antecedent.scientific_target.v1` at payload format 2. Recompute it from the target. A carried digest that is not that value is refused.
+The previous release has no scientific-target digest to translate. The current digest is the canonical payload under `antecedent.scientific_target.v1` at payload format 3. Recompute it from the target. A carried digest that is not that value is refused. Format 2 is not format 3: the payload version is inside the digest, so every scientific-target digest moves, including a contrast whose worlds were already hashed by content.
 
-What the digest still contains:
+What the digest contains:
 
-- A world, a world collection, and a dose × time surface still hash the caller's world id and the reference flag. A dose × time surface also hashes each cell id.
+- A world, a world collection, and a dose × time surface are content-based. A caller-chosen world id or a reference flag does not enter. A world collection is the set of those contents, so id order does not enter. A dose × time surface hashes each cell's content in grid order and does not hash the cell id.
 - A contrast hashes the content of its signed worlds. Caller-chosen world labels and the reference flag do not enter that digest. The reference is the baseline term of the formula.
-
-World ids are not content-only on those three shapes.
 
 ## Changed refusal reasons
 

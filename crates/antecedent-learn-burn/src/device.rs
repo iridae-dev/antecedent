@@ -597,6 +597,9 @@ fn spec_tag(spec: &MlpSpec, fold: u32) -> u64 {
 }
 
 /// Two independently seeded 64-bit hashes of the training rows, width, design, and target.
+///
+/// This cache is process-local. The crate depends only on `burn`, so the tag stays on
+/// `DefaultHasher` rather than the domain-separated blake3 helper in `antecedent-core`.
 fn content_tag(rows: &[usize], ncols: usize, x: &[f64], y: &[f64]) -> [u64; 2] {
     let lane = |salt: u64| {
         let mut hasher = DefaultHasher::new();

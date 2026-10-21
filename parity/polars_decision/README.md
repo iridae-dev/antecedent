@@ -1,4 +1,4 @@
-# Polars scope (D09)
+# Polars scope
 
 Direct Arrow remains the preparation path. `crates/antecedent-data` keeps the off-by-default feature `polars = []`. No Polars crate dependency was added.
 

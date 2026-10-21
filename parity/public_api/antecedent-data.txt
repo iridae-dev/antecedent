@@ -24,6 +24,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelUnit [au
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PooledLaggedFrame [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TabularData [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeSeriesData [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowFrameView [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowLoadResult [auto]
@@ -41,6 +42,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelUnit [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::PooledLaggedFrame [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::TabularData [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeSeriesData [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
 impl antecedent_data::TableView for antecedent_data::EventData
 impl antecedent_data::TableView for antecedent_data::OwnedColumnarStorage
@@ -117,10 +119,34 @@ impl core::clone::Clone for antecedent_data::VectorVariableGroups
 impl core::clone::Clone for antecedent_data::WindowBoundary
 impl core::clone::Clone for antecedent_data::WindowChunk
 impl core::clone::Clone for antecedent_data::WindowNextAttempt
+impl core::clone::Clone for antecedent_data::arrow_adapter::EstimatorFrame
 impl core::clone::Clone for antecedent_data::arrow_adapter::FrozenArrowStudy
+impl core::clone::Clone for antecedent_data::backend_boundary::LazyBackendRefusal
+impl core::clone::Clone for antecedent_data::backend_boundary::PreparationBackend
+impl core::clone::Clone for antecedent_data::categorical::CategoryConversion
+impl core::clone::Clone for antecedent_data::categorical::ExpandedContrast
 impl core::clone::Clone for antecedent_data::design_layout::LayoutError
 impl core::clone::Clone for antecedent_data::design_layout::OwnershipCopy
 impl core::clone::Clone for antecedent_data::design_layout::OwnershipReceipt
+impl core::clone::Clone for antecedent_data::materialize::AdmissionRecord
+impl core::clone::Clone for antecedent_data::materialize::CategoryLevels
+impl core::clone::Clone for antecedent_data::materialize::DeliveryRecord
+impl core::clone::Clone for antecedent_data::materialize::EstimatorStreamNeed
+impl core::clone::Clone for antecedent_data::materialize::PreparationBudget
+impl core::clone::Clone for antecedent_data::materialize::PreparationControls
+impl core::clone::Clone for antecedent_data::materialize::PreparationProduct
+impl core::clone::Clone for antecedent_data::materialize::PreparationReceipt
+impl core::clone::Clone for antecedent_data::materialize::PreparationStep
+impl core::clone::Clone for antecedent_data::materialize::ReceiptSource
+impl core::clone::Clone for antecedent_data::materialize::RouteBound
+impl core::clone::Clone for antecedent_data::materialize::SchemaColumn
+impl core::clone::Clone for antecedent_data::materialize::SchemaConversion
+impl core::clone::Clone for antecedent_data::materialize::SchemaValueKind
+impl core::clone::Clone for antecedent_data::materialize::StreamDelivery
+impl core::clone::Clone for antecedent_data::materialize::StreamQuote
+impl core::clone::Clone for antecedent_data::materialize::StreamingScan
+impl core::clone::Clone for antecedent_data::missing::ChunkMissing
+impl core::clone::Clone for antecedent_data::missing::MissingConversion
 impl core::cmp::Eq for antecedent_data::BooleanColumn
 impl core::cmp::Eq for antecedent_data::BorrowError
 impl core::cmp::Eq for antecedent_data::CalendarSpan
@@ -166,9 +192,30 @@ impl core::cmp::Eq for antecedent_data::VectorVariableGroups
 impl core::cmp::Eq for antecedent_data::WindowBoundary
 impl core::cmp::Eq for antecedent_data::WindowChunk
 impl core::cmp::Eq for antecedent_data::WindowNextAttempt
+impl core::cmp::Eq for antecedent_data::backend_boundary::LazyBackendRefusal
+impl core::cmp::Eq for antecedent_data::backend_boundary::PreparationBackend
+impl core::cmp::Eq for antecedent_data::categorical::CategoryConversion
 impl core::cmp::Eq for antecedent_data::design_layout::LayoutError
 impl core::cmp::Eq for antecedent_data::design_layout::OwnershipCopy
 impl core::cmp::Eq for antecedent_data::design_layout::OwnershipReceipt
+impl core::cmp::Eq for antecedent_data::materialize::AdmissionRecord
+impl core::cmp::Eq for antecedent_data::materialize::CategoryLevels
+impl core::cmp::Eq for antecedent_data::materialize::DeliveryRecord
+impl core::cmp::Eq for antecedent_data::materialize::EstimatorStreamNeed
+impl core::cmp::Eq for antecedent_data::materialize::PreparationBudget
+impl core::cmp::Eq for antecedent_data::materialize::PreparationControls
+impl core::cmp::Eq for antecedent_data::materialize::PreparationReceipt
+impl core::cmp::Eq for antecedent_data::materialize::PreparationStep
+impl core::cmp::Eq for antecedent_data::materialize::ReceiptSource
+impl core::cmp::Eq for antecedent_data::materialize::RouteBound
+impl core::cmp::Eq for antecedent_data::materialize::SchemaColumn
+impl core::cmp::Eq for antecedent_data::materialize::SchemaConversion
+impl core::cmp::Eq for antecedent_data::materialize::SchemaValueKind
+impl core::cmp::Eq for antecedent_data::materialize::StreamDelivery
+impl core::cmp::Eq for antecedent_data::materialize::StreamQuote
+impl core::cmp::Eq for antecedent_data::materialize::StreamingScan
+impl core::cmp::Eq for antecedent_data::missing::ChunkMissing
+impl core::cmp::Eq for antecedent_data::missing::MissingConversion
 impl core::cmp::Ord for antecedent_data::CategoryCode
 impl core::cmp::Ord for antecedent_data::ChunkIndex
 impl core::cmp::Ord for antecedent_data::GlobalId
@@ -225,9 +272,30 @@ impl core::cmp::PartialEq for antecedent_data::VectorVariableGroups
 impl core::cmp::PartialEq for antecedent_data::WindowBoundary
 impl core::cmp::PartialEq for antecedent_data::WindowChunk
 impl core::cmp::PartialEq for antecedent_data::WindowNextAttempt
+impl core::cmp::PartialEq for antecedent_data::backend_boundary::LazyBackendRefusal
+impl core::cmp::PartialEq for antecedent_data::backend_boundary::PreparationBackend
+impl core::cmp::PartialEq for antecedent_data::categorical::CategoryConversion
 impl core::cmp::PartialEq for antecedent_data::design_layout::LayoutError
 impl core::cmp::PartialEq for antecedent_data::design_layout::OwnershipCopy
 impl core::cmp::PartialEq for antecedent_data::design_layout::OwnershipReceipt
+impl core::cmp::PartialEq for antecedent_data::materialize::AdmissionRecord
+impl core::cmp::PartialEq for antecedent_data::materialize::CategoryLevels
+impl core::cmp::PartialEq for antecedent_data::materialize::DeliveryRecord
+impl core::cmp::PartialEq for antecedent_data::materialize::EstimatorStreamNeed
+impl core::cmp::PartialEq for antecedent_data::materialize::PreparationBudget
+impl core::cmp::PartialEq for antecedent_data::materialize::PreparationControls
+impl core::cmp::PartialEq for antecedent_data::materialize::PreparationReceipt
+impl core::cmp::PartialEq for antecedent_data::materialize::PreparationStep
+impl core::cmp::PartialEq for antecedent_data::materialize::ReceiptSource
+impl core::cmp::PartialEq for antecedent_data::materialize::RouteBound
+impl core::cmp::PartialEq for antecedent_data::materialize::SchemaColumn
+impl core::cmp::PartialEq for antecedent_data::materialize::SchemaConversion
+impl core::cmp::PartialEq for antecedent_data::materialize::SchemaValueKind
+impl core::cmp::PartialEq for antecedent_data::materialize::StreamDelivery
+impl core::cmp::PartialEq for antecedent_data::materialize::StreamQuote
+impl core::cmp::PartialEq for antecedent_data::materialize::StreamingScan
+impl core::cmp::PartialEq for antecedent_data::missing::ChunkMissing
+impl core::cmp::PartialEq for antecedent_data::missing::MissingConversion
 impl core::cmp::PartialOrd for antecedent_data::CategoryCode
 impl core::cmp::PartialOrd for antecedent_data::ChunkIndex
 impl core::cmp::PartialOrd for antecedent_data::GlobalId
@@ -252,6 +320,7 @@ impl core::error::Error for antecedent_data::BorrowError
 impl core::error::Error for antecedent_data::DataError
 impl core::error::Error for antecedent_data::GlobalIndexError
 impl core::error::Error for antecedent_data::LagRefusal
+impl core::error::Error for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::error::Error for antecedent_data::design_layout::LayoutError
 impl core::fmt::Debug for antecedent_data::ArrowFrameView
 impl core::fmt::Debug for antecedent_data::ArrowLoadResult
@@ -323,15 +392,40 @@ impl core::fmt::Debug for antecedent_data::VectorVariableGroups
 impl core::fmt::Debug for antecedent_data::WindowBoundary
 impl core::fmt::Debug for antecedent_data::WindowChunk
 impl core::fmt::Debug for antecedent_data::WindowNextAttempt
+impl core::fmt::Debug for antecedent_data::arrow_adapter::EstimatorFrame
 impl core::fmt::Debug for antecedent_data::arrow_adapter::FrozenArrowStudy
+impl core::fmt::Debug for antecedent_data::backend_boundary::LazyBackendRefusal
+impl core::fmt::Debug for antecedent_data::backend_boundary::PreparationBackend
+impl core::fmt::Debug for antecedent_data::categorical::CategoryConversion
+impl core::fmt::Debug for antecedent_data::categorical::ExpandedContrast
 impl core::fmt::Debug for antecedent_data::design_layout::LayoutError
 impl core::fmt::Debug for antecedent_data::design_layout::OwnershipCopy
 impl core::fmt::Debug for antecedent_data::design_layout::OwnershipReceipt
+impl core::fmt::Debug for antecedent_data::materialize::AdmissionRecord
+impl core::fmt::Debug for antecedent_data::materialize::CategoryLevels
+impl core::fmt::Debug for antecedent_data::materialize::DeliveryRecord
+impl core::fmt::Debug for antecedent_data::materialize::EstimatorStreamNeed
+impl core::fmt::Debug for antecedent_data::materialize::PreparationBudget
+impl core::fmt::Debug for antecedent_data::materialize::PreparationControls
+impl core::fmt::Debug for antecedent_data::materialize::PreparationProduct
+impl core::fmt::Debug for antecedent_data::materialize::PreparationReceipt
+impl core::fmt::Debug for antecedent_data::materialize::PreparationStep
+impl core::fmt::Debug for antecedent_data::materialize::ReceiptSource
+impl core::fmt::Debug for antecedent_data::materialize::RouteBound
+impl core::fmt::Debug for antecedent_data::materialize::SchemaColumn
+impl core::fmt::Debug for antecedent_data::materialize::SchemaConversion
+impl core::fmt::Debug for antecedent_data::materialize::SchemaValueKind
+impl core::fmt::Debug for antecedent_data::materialize::StreamDelivery
+impl core::fmt::Debug for antecedent_data::materialize::StreamQuote
+impl core::fmt::Debug for antecedent_data::materialize::StreamingScan
+impl core::fmt::Debug for antecedent_data::missing::ChunkMissing
+impl core::fmt::Debug for antecedent_data::missing::MissingConversion
 impl core::fmt::Display for antecedent_data::BorrowError
 impl core::fmt::Display for antecedent_data::DataError
 impl core::fmt::Display for antecedent_data::GlobalIndexError
 impl core::fmt::Display for antecedent_data::LagRefusal
 impl core::fmt::Display for antecedent_data::PopulationUnit
+impl core::fmt::Display for antecedent_data::backend_boundary::LazyBackendRefusal
 impl core::fmt::Display for antecedent_data::design_layout::LayoutError
 impl core::hash::Hash for antecedent_data::CalendarSpan
 impl core::hash::Hash for antecedent_data::CategoryCode
@@ -351,6 +445,16 @@ impl core::hash::Hash for antecedent_data::TimeDummyEncoding
 impl core::hash::Hash for antecedent_data::TimeRange
 impl core::hash::Hash for antecedent_data::UnknownCategoryPolicy
 impl core::hash::Hash for antecedent_data::WindowBoundary
+impl core::hash::Hash for antecedent_data::backend_boundary::PreparationBackend
+impl core::hash::Hash for antecedent_data::materialize::AdmissionRecord
+impl core::hash::Hash for antecedent_data::materialize::DeliveryRecord
+impl core::hash::Hash for antecedent_data::materialize::EstimatorStreamNeed
+impl core::hash::Hash for antecedent_data::materialize::PreparationBudget
+impl core::hash::Hash for antecedent_data::materialize::PreparationControls
+impl core::hash::Hash for antecedent_data::materialize::PreparationStep
+impl core::hash::Hash for antecedent_data::materialize::ReceiptSource
+impl core::hash::Hash for antecedent_data::materialize::RouteBound
+impl core::hash::Hash for antecedent_data::materialize::SchemaValueKind
 impl core::marker::Copy for antecedent_data::CalendarSpan
 impl core::marker::Copy for antecedent_data::CategoryCode
 impl core::marker::Copy for antecedent_data::ChunkIndex
@@ -374,8 +478,19 @@ impl core::marker::Copy for antecedent_data::TimeRange
 impl core::marker::Copy for antecedent_data::UnitAccounting
 impl core::marker::Copy for antecedent_data::UnknownCategoryPolicy
 impl core::marker::Copy for antecedent_data::WindowBoundary
+impl core::marker::Copy for antecedent_data::backend_boundary::LazyBackendRefusal
+impl core::marker::Copy for antecedent_data::backend_boundary::PreparationBackend
 impl core::marker::Copy for antecedent_data::design_layout::LayoutError
 impl core::marker::Copy for antecedent_data::design_layout::OwnershipCopy
+impl core::marker::Copy for antecedent_data::materialize::AdmissionRecord
+impl core::marker::Copy for antecedent_data::materialize::DeliveryRecord
+impl core::marker::Copy for antecedent_data::materialize::EstimatorStreamNeed
+impl core::marker::Copy for antecedent_data::materialize::PreparationBudget
+impl core::marker::Copy for antecedent_data::materialize::PreparationControls
+impl core::marker::Copy for antecedent_data::materialize::PreparationStep
+impl core::marker::Copy for antecedent_data::materialize::ReceiptSource
+impl core::marker::Copy for antecedent_data::materialize::RouteBound
+impl core::marker::Copy for antecedent_data::materialize::SchemaValueKind
 impl core::marker::Freeze for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Freeze for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Freeze for antecedent_data::ArrowLoadResult [auto]
@@ -447,11 +562,35 @@ impl core::marker::Freeze for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Freeze for antecedent_data::WindowBoundary [auto]
 impl core::marker::Freeze for antecedent_data::WindowChunk [auto]
 impl core::marker::Freeze for antecedent_data::WindowNextAttempt [auto]
+impl core::marker::Freeze for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl core::marker::Freeze for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
 impl core::marker::Freeze for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl core::marker::Freeze for antecedent_data::backend_boundary::LazyBackendRefusal [auto]
+impl core::marker::Freeze for antecedent_data::backend_boundary::PreparationBackend [auto]
+impl core::marker::Freeze for antecedent_data::categorical::CategoryConversion [auto]
+impl core::marker::Freeze for antecedent_data::categorical::ExpandedContrast [auto]
 impl core::marker::Freeze for antecedent_data::design_layout::LayoutError [auto]
 impl core::marker::Freeze for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Freeze for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::marker::Freeze for antecedent_data::materialize::AdmissionRecord [auto]
+impl core::marker::Freeze for antecedent_data::materialize::CategoryLevels [auto]
+impl core::marker::Freeze for antecedent_data::materialize::DeliveryRecord [auto]
+impl core::marker::Freeze for antecedent_data::materialize::EstimatorStreamNeed [auto]
+impl core::marker::Freeze for antecedent_data::materialize::PreparationBudget [auto]
+impl core::marker::Freeze for antecedent_data::materialize::PreparationControls [auto]
+impl core::marker::Freeze for antecedent_data::materialize::PreparationProduct [auto]
+impl core::marker::Freeze for antecedent_data::materialize::PreparationReceipt [auto]
+impl core::marker::Freeze for antecedent_data::materialize::PreparationStep [auto]
+impl core::marker::Freeze for antecedent_data::materialize::ReceiptSource [auto]
+impl core::marker::Freeze for antecedent_data::materialize::RouteBound [auto]
+impl core::marker::Freeze for antecedent_data::materialize::SchemaColumn [auto]
+impl core::marker::Freeze for antecedent_data::materialize::SchemaConversion [auto]
+impl core::marker::Freeze for antecedent_data::materialize::SchemaValueKind [auto]
+impl core::marker::Freeze for antecedent_data::materialize::StreamDelivery [auto]
+impl core::marker::Freeze for antecedent_data::materialize::StreamQuote [auto]
+impl core::marker::Freeze for antecedent_data::materialize::StreamingScan [auto]
+impl core::marker::Freeze for antecedent_data::missing::ChunkMissing [auto]
+impl core::marker::Freeze for antecedent_data::missing::MissingConversion [auto]
 impl core::marker::Send for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Send for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Send for antecedent_data::ArrowLoadResult [auto]
@@ -523,11 +662,35 @@ impl core::marker::Send for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Send for antecedent_data::WindowBoundary [auto]
 impl core::marker::Send for antecedent_data::WindowChunk [auto]
 impl core::marker::Send for antecedent_data::WindowNextAttempt [auto]
+impl core::marker::Send for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl core::marker::Send for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
 impl core::marker::Send for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl core::marker::Send for antecedent_data::backend_boundary::LazyBackendRefusal [auto]
+impl core::marker::Send for antecedent_data::backend_boundary::PreparationBackend [auto]
+impl core::marker::Send for antecedent_data::categorical::CategoryConversion [auto]
+impl core::marker::Send for antecedent_data::categorical::ExpandedContrast [auto]
 impl core::marker::Send for antecedent_data::design_layout::LayoutError [auto]
 impl core::marker::Send for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Send for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::marker::Send for antecedent_data::materialize::AdmissionRecord [auto]
+impl core::marker::Send for antecedent_data::materialize::CategoryLevels [auto]
+impl core::marker::Send for antecedent_data::materialize::DeliveryRecord [auto]
+impl core::marker::Send for antecedent_data::materialize::EstimatorStreamNeed [auto]
+impl core::marker::Send for antecedent_data::materialize::PreparationBudget [auto]
+impl core::marker::Send for antecedent_data::materialize::PreparationControls [auto]
+impl core::marker::Send for antecedent_data::materialize::PreparationProduct [auto]
+impl core::marker::Send for antecedent_data::materialize::PreparationReceipt [auto]
+impl core::marker::Send for antecedent_data::materialize::PreparationStep [auto]
+impl core::marker::Send for antecedent_data::materialize::ReceiptSource [auto]
+impl core::marker::Send for antecedent_data::materialize::RouteBound [auto]
+impl core::marker::Send for antecedent_data::materialize::SchemaColumn [auto]
+impl core::marker::Send for antecedent_data::materialize::SchemaConversion [auto]
+impl core::marker::Send for antecedent_data::materialize::SchemaValueKind [auto]
+impl core::marker::Send for antecedent_data::materialize::StreamDelivery [auto]
+impl core::marker::Send for antecedent_data::materialize::StreamQuote [auto]
+impl core::marker::Send for antecedent_data::materialize::StreamingScan [auto]
+impl core::marker::Send for antecedent_data::missing::ChunkMissing [auto]
+impl core::marker::Send for antecedent_data::missing::MissingConversion [auto]
 impl core::marker::StructuralPartialEq for antecedent_data::BooleanColumn
 impl core::marker::StructuralPartialEq for antecedent_data::BorrowError
 impl core::marker::StructuralPartialEq for antecedent_data::CalendarSpan
@@ -579,9 +742,30 @@ impl core::marker::StructuralPartialEq for antecedent_data::VectorVariableGroups
 impl core::marker::StructuralPartialEq for antecedent_data::WindowBoundary
 impl core::marker::StructuralPartialEq for antecedent_data::WindowChunk
 impl core::marker::StructuralPartialEq for antecedent_data::WindowNextAttempt
+impl core::marker::StructuralPartialEq for antecedent_data::backend_boundary::LazyBackendRefusal
+impl core::marker::StructuralPartialEq for antecedent_data::backend_boundary::PreparationBackend
+impl core::marker::StructuralPartialEq for antecedent_data::categorical::CategoryConversion
 impl core::marker::StructuralPartialEq for antecedent_data::design_layout::LayoutError
 impl core::marker::StructuralPartialEq for antecedent_data::design_layout::OwnershipCopy
 impl core::marker::StructuralPartialEq for antecedent_data::design_layout::OwnershipReceipt
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::AdmissionRecord
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::CategoryLevels
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::DeliveryRecord
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::EstimatorStreamNeed
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::PreparationBudget
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::PreparationControls
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::PreparationReceipt
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::PreparationStep
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::ReceiptSource
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::RouteBound
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::SchemaColumn
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::SchemaConversion
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::SchemaValueKind
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::StreamDelivery
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::StreamQuote
+impl core::marker::StructuralPartialEq for antecedent_data::materialize::StreamingScan
+impl core::marker::StructuralPartialEq for antecedent_data::missing::ChunkMissing
+impl core::marker::StructuralPartialEq for antecedent_data::missing::MissingConversion
 impl core::marker::Sync for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Sync for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Sync for antecedent_data::BooleanColumn [auto]
@@ -652,10 +836,34 @@ impl core::marker::Sync for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Sync for antecedent_data::WindowBoundary [auto]
 impl core::marker::Sync for antecedent_data::WindowChunk [auto]
 impl core::marker::Sync for antecedent_data::WindowNextAttempt [auto]
+impl core::marker::Sync for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl core::marker::Sync for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
+impl core::marker::Sync for antecedent_data::backend_boundary::LazyBackendRefusal [auto]
+impl core::marker::Sync for antecedent_data::backend_boundary::PreparationBackend [auto]
+impl core::marker::Sync for antecedent_data::categorical::CategoryConversion [auto]
+impl core::marker::Sync for antecedent_data::categorical::ExpandedContrast [auto]
 impl core::marker::Sync for antecedent_data::design_layout::LayoutError [auto]
 impl core::marker::Sync for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Sync for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::marker::Sync for antecedent_data::materialize::AdmissionRecord [auto]
+impl core::marker::Sync for antecedent_data::materialize::CategoryLevels [auto]
+impl core::marker::Sync for antecedent_data::materialize::DeliveryRecord [auto]
+impl core::marker::Sync for antecedent_data::materialize::EstimatorStreamNeed [auto]
+impl core::marker::Sync for antecedent_data::materialize::PreparationBudget [auto]
+impl core::marker::Sync for antecedent_data::materialize::PreparationControls [auto]
+impl core::marker::Sync for antecedent_data::materialize::PreparationProduct [auto]
+impl core::marker::Sync for antecedent_data::materialize::PreparationReceipt [auto]
+impl core::marker::Sync for antecedent_data::materialize::PreparationStep [auto]
+impl core::marker::Sync for antecedent_data::materialize::ReceiptSource [auto]
+impl core::marker::Sync for antecedent_data::materialize::RouteBound [auto]
+impl core::marker::Sync for antecedent_data::materialize::SchemaColumn [auto]
+impl core::marker::Sync for antecedent_data::materialize::SchemaConversion [auto]
+impl core::marker::Sync for antecedent_data::materialize::SchemaValueKind [auto]
+impl core::marker::Sync for antecedent_data::materialize::StreamDelivery [auto]
+impl core::marker::Sync for antecedent_data::materialize::StreamQuote [auto]
+impl core::marker::Sync for antecedent_data::materialize::StreamingScan [auto]
+impl core::marker::Sync for antecedent_data::missing::ChunkMissing [auto]
+impl core::marker::Sync for antecedent_data::missing::MissingConversion [auto]
 impl core::marker::Unpin for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Unpin for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Unpin for antecedent_data::ArrowLoadResult [auto]
@@ -727,11 +935,35 @@ impl core::marker::Unpin for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Unpin for antecedent_data::WindowBoundary [auto]
 impl core::marker::Unpin for antecedent_data::WindowChunk [auto]
 impl core::marker::Unpin for antecedent_data::WindowNextAttempt [auto]
+impl core::marker::Unpin for antecedent_data::arrow_adapter::EstimatorFrame [auto]
 impl core::marker::Unpin for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
 impl core::marker::Unpin for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl core::marker::Unpin for antecedent_data::backend_boundary::LazyBackendRefusal [auto]
+impl core::marker::Unpin for antecedent_data::backend_boundary::PreparationBackend [auto]
+impl core::marker::Unpin for antecedent_data::categorical::CategoryConversion [auto]
+impl core::marker::Unpin for antecedent_data::categorical::ExpandedContrast [auto]
 impl core::marker::Unpin for antecedent_data::design_layout::LayoutError [auto]
 impl core::marker::Unpin for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::marker::Unpin for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::marker::Unpin for antecedent_data::materialize::AdmissionRecord [auto]
+impl core::marker::Unpin for antecedent_data::materialize::CategoryLevels [auto]
+impl core::marker::Unpin for antecedent_data::materialize::DeliveryRecord [auto]
+impl core::marker::Unpin for antecedent_data::materialize::EstimatorStreamNeed [auto]
+impl core::marker::Unpin for antecedent_data::materialize::PreparationBudget [auto]
+impl core::marker::Unpin for antecedent_data::materialize::PreparationControls [auto]
+impl core::marker::Unpin for antecedent_data::materialize::PreparationProduct [auto]
+impl core::marker::Unpin for antecedent_data::materialize::PreparationReceipt [auto]
+impl core::marker::Unpin for antecedent_data::materialize::PreparationStep [auto]
+impl core::marker::Unpin for antecedent_data::materialize::ReceiptSource [auto]
+impl core::marker::Unpin for antecedent_data::materialize::RouteBound [auto]
+impl core::marker::Unpin for antecedent_data::materialize::SchemaColumn [auto]
+impl core::marker::Unpin for antecedent_data::materialize::SchemaConversion [auto]
+impl core::marker::Unpin for antecedent_data::materialize::SchemaValueKind [auto]
+impl core::marker::Unpin for antecedent_data::materialize::StreamDelivery [auto]
+impl core::marker::Unpin for antecedent_data::materialize::StreamQuote [auto]
+impl core::marker::Unpin for antecedent_data::materialize::StreamingScan [auto]
+impl core::marker::Unpin for antecedent_data::missing::ChunkMissing [auto]
+impl core::marker::Unpin for antecedent_data::missing::MissingConversion [auto]
 impl core::ops::deref::Deref for antecedent_data::F64Buffer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BooleanColumn [auto]
@@ -789,9 +1021,32 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowBoundary
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowChunk [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowNextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::backend_boundary::LazyBackendRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::backend_boundary::PreparationBackend [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::categorical::CategoryConversion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::categorical::ExpandedContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::LayoutError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::AdmissionRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::CategoryLevels [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::DeliveryRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::EstimatorStreamNeed [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::PreparationBudget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::PreparationControls [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::PreparationProduct [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::PreparationReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::PreparationStep [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::ReceiptSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::RouteBound [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::SchemaColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::SchemaConversion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::SchemaValueKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::StreamDelivery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::StreamQuote [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::materialize::StreamingScan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::missing::ChunkMissing [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::missing::MissingConversion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BooleanColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BorrowError [auto]
@@ -848,9 +1103,32 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowBoundary [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowChunk [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowNextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::backend_boundary::LazyBackendRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::backend_boundary::PreparationBackend [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::categorical::CategoryConversion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::categorical::ExpandedContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::LayoutError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::OwnershipCopy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::OwnershipReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::AdmissionRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::CategoryLevels [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::DeliveryRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::EstimatorStreamNeed [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::PreparationBudget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::PreparationControls [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::PreparationProduct [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::PreparationReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::PreparationStep [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::ReceiptSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::RouteBound [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::SchemaColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::SchemaConversion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::SchemaValueKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::StreamDelivery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::StreamQuote [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::materialize::StreamingScan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::missing::ChunkMissing [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::missing::MissingConversion [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ColumnView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_data::ColumnView<'a> [auto]
@@ -906,7 +1184,10 @@ pub const <antecedent_data::design_layout::OwnershipCopy>::CAST: &'static str
 pub const <antecedent_data::design_layout::OwnershipCopy>::GATHER: &'static str
 pub const antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS: usize
 pub const antecedent_data::LONGER_SPAN_OF_SAME_UNIT: &str
+pub const antecedent_data::backend_boundary::ACCEPTED_PREPARATION_PATH: &str
+pub const antecedent_data::backend_boundary::LAZY_BACKEND_ADOPTED: bool
 pub const antecedent_data::backend_boundary::POLARS_IS_INTERNAL_CONTRACT_BACKEND: bool
+pub const antecedent_data::materialize::PREPARATION_ORDER: [antecedent_data::materialize::PreparationStep; 5]
 pub enum antecedent_data::BorrowError
 pub enum antecedent_data::ColumnView<'a>
 pub enum antecedent_data::Contrast
@@ -919,6 +1200,16 @@ pub enum antecedent_data::TimeDummyEncoding
 pub enum antecedent_data::UnknownCategoryPolicy
 pub enum antecedent_data::WindowBoundary
 pub enum antecedent_data::WindowNextAttempt
+pub enum antecedent_data::arrow_adapter::EstimatorFrame
+pub enum antecedent_data::backend_boundary::PreparationBackend
+pub enum antecedent_data::materialize::AdmissionRecord
+pub enum antecedent_data::materialize::DeliveryRecord
+pub enum antecedent_data::materialize::EstimatorStreamNeed
+pub enum antecedent_data::materialize::PreparationStep
+pub enum antecedent_data::materialize::ReceiptSource
+pub enum antecedent_data::materialize::RouteBound
+pub enum antecedent_data::materialize::SchemaValueKind
+pub enum antecedent_data::materialize::StreamDelivery
 pub field antecedent_data::ArrowCColumn::name: alloc::string::String
 pub field antecedent_data::ArrowLoadResult::bytes_borrowed: u64
 pub field antecedent_data::ArrowLoadResult::bytes_copied: u64
@@ -1019,6 +1310,36 @@ pub field antecedent_data::TimestampColumn::validity: antecedent_data::ValidityB
 pub field antecedent_data::TimestampColumn::values_ns: alloc::sync::Arc<[i64]>
 pub field antecedent_data::UnitAccounting::dropped: usize
 pub field antecedent_data::UnitAccounting::total: usize
+pub field antecedent_data::categorical::CategoryConversion::coding: &'static str
+pub field antecedent_data::categorical::CategoryConversion::domain: antecedent_core::ids::CategoryDomainId
+pub field antecedent_data::categorical::CategoryConversion::n_columns: usize
+pub field antecedent_data::categorical::CategoryConversion::n_remapped_unknown: usize
+pub field antecedent_data::categorical::CategoryConversion::ordered: bool
+pub field antecedent_data::categorical::CategoryConversion::variable: antecedent_core::ids::VariableId
+pub field antecedent_data::categorical::ExpandedContrast::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_data::categorical::ExpandedContrast::conversion: antecedent_data::categorical::CategoryConversion
+pub field antecedent_data::categorical::ExpandedContrast::variable: antecedent_core::ids::VariableId
+pub field antecedent_data::materialize::CategoryLevels::labels: alloc::sync::Arc<[alloc::sync::Arc<str>]>
+pub field antecedent_data::materialize::CategoryLevels::variable: antecedent_core::ids::VariableId
+pub field antecedent_data::materialize::PreparationControls::backend: antecedent_data::backend_boundary::PreparationBackend
+pub field antecedent_data::materialize::PreparationControls::budget: core::option::Option<antecedent_data::materialize::PreparationBudget>
+pub field antecedent_data::materialize::PreparationControls::stream: antecedent_data::materialize::EstimatorStreamNeed
+pub field antecedent_data::materialize::PreparationProduct::expanded: alloc::vec::Vec<antecedent_data::categorical::ExpandedContrast>
+pub field antecedent_data::materialize::PreparationProduct::receipt: antecedent_data::materialize::PreparationReceipt
+pub field antecedent_data::materialize::PreparationProduct::row_mask: alloc::vec::Vec<bool>
+pub field antecedent_data::materialize::SchemaColumn::id: antecedent_core::ids::VariableId
+pub field antecedent_data::materialize::SchemaColumn::name: alloc::sync::Arc<str>
+pub field antecedent_data::materialize::SchemaColumn::value_kind: antecedent_data::materialize::SchemaValueKind
+pub field antecedent_data::materialize::SchemaConversion::columns: alloc::sync::Arc<[antecedent_data::materialize::SchemaColumn]>
+pub field antecedent_data::materialize::StreamQuote::chunk_rows: alloc::vec::Vec<u64>
+pub field antecedent_data::materialize::StreamQuote::materialize_bytes: core::option::Option<u64>
+pub field antecedent_data::materialize::StreamQuote::scratch_bytes: core::option::Option<u64>
+pub field antecedent_data::missing::ChunkMissing::dropped_digest: alloc::sync::Arc<str>
+pub field antecedent_data::missing::ChunkMissing::rows_kept: usize
+pub field antecedent_data::missing::ChunkMissing::rows_total: usize
+pub field antecedent_data::missing::MissingConversion::chunks: alloc::sync::Arc<[antecedent_data::missing::ChunkMissing]>
+pub field antecedent_data::missing::MissingConversion::policy: antecedent_data::MissingPolicy
+pub field antecedent_data::missing::MissingConversion::population_bound: bool
 pub fn <antecedent_data::ArrowCColumn>::fn from_arrow_array(name: impl core::convert::Into<alloc::string::String>, array: &dyn arrow_array::array::Array) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::fn into_array(self) -> core::result::Result<arrow_array::array::ArrayRef, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::fn into_chunk_arrays(self) -> core::result::Result<alloc::vec::Vec<arrow_array::array::ArrayRef>, antecedent_data::DataError>
@@ -1034,6 +1355,7 @@ pub fn <antecedent_data::ArrowFrameView>::fn from_stream(stream: antecedent_data
 pub fn <antecedent_data::ArrowFrameView>::fn n_chunks(&self) -> usize
 pub fn <antecedent_data::ArrowFrameView>::fn n_columns(&self) -> usize
 pub fn <antecedent_data::ArrowFrameView>::fn names(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
+pub fn <antecedent_data::ArrowFrameView>::fn open_for_estimator(&self, order: &[usize], missing: antecedent_data::MissingPolicy, categories: &[(antecedent_core::ids::VariableId, antecedent_data::Contrast)], controls: antecedent_data::materialize::PreparationControls) -> core::result::Result<antecedent_data::arrow_adapter::EstimatorFrame, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowFrameView>::fn row_count(&self) -> core::result::Result<usize, antecedent_data::DataError>
 pub fn <antecedent_data::BooleanColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::BooleanColumn>::fn len(&self) -> usize
@@ -1060,6 +1382,7 @@ pub fn <antecedent_data::ColumnView<'a>>::fn is_empty(self) -> bool
 pub fn <antecedent_data::ColumnView<'a>>::fn len(self) -> usize
 pub fn <antecedent_data::ColumnView<'a>>::fn validity(self) -> &'a antecedent_data::ValidityBitmap
 pub fn <antecedent_data::ContrastMatrix>::fn try_new(n_levels: usize, n_columns: usize, values: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::DataError>::const fn route_diagnostic(&self) -> core::option::Option<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_data::DeclaredSplit>::const fn rows(&self) -> core::ops::range::Range<usize>
 pub fn <antecedent_data::DeclaredSplit>::fn name(&self) -> &str
 pub fn <antecedent_data::DeclaredSplit>::fn try_new(name: impl core::convert::Into<alloc::sync::Arc<str>>, rows: core::ops::range::Range<usize>) -> core::result::Result<Self, antecedent_data::DataError>
@@ -1196,6 +1519,7 @@ pub fn <antecedent_data::PopulationUnit>::const fn panel(unit_id: u32) -> Self
 pub fn <antecedent_data::ReferencePointPolicy>::fn base_and_n(self, series_len: usize, max_lag: u32) -> core::result::Result<(usize, usize), antecedent_data::DataError>
 pub fn <antecedent_data::ResamplingPlan>::const fn is_weight_plan(self) -> bool
 pub fn <antecedent_data::ResamplingPlan>::const fn needs_clusters(self) -> bool
+pub fn <antecedent_data::ResamplingPlan>::const fn resampling_rule(self) -> antecedent_core::sampling_design::ResamplingRule
 pub fn <antecedent_data::RowAccounting>::fn complete_case<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::RowAccounting>::fn from_dropped(policy: antecedent_data::MissingPolicy, rows_total: usize, dropped_rows: alloc::vec::Vec<u64>, missing_by_variable: alloc::vec::Vec<(alloc::sync::Arc<str>, usize)>) -> Self
 pub fn <antecedent_data::RowAccounting>::fn from_selection<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, policy: antecedent_data::MissingPolicy, variables: &[antecedent_core::ids::VariableId], keep: &[bool]) -> core::result::Result<Self, antecedent_data::DataError>
@@ -1261,12 +1585,18 @@ pub fn <antecedent_data::arrow_adapter::FrozenArrowStudy>::fn row_count(&self) -
 pub fn <antecedent_data::arrow_ffi::ArrowCStream>::fn from_reader(reader: alloc::boxed::Box<dyn arrow_array::record_batch::RecordBatchReader + core::marker::Send>) -> Self
 pub fn <antecedent_data::arrow_ffi::ArrowCStream>::fn into_batches(self) -> core::result::Result<(arrow_schema::schema::SchemaRef, alloc::vec::Vec<arrow_array::record_batch::RecordBatch>), antecedent_data::DataError>
 pub fn <antecedent_data::arrow_ffi::ArrowCStream>::unsafe fn from_ffi(stream: arrow_array::ffi_stream::FFI_ArrowArrayStream) -> Self
+pub fn <antecedent_data::backend_boundary::PreparationBackend>::const fn accepted() -> Self
+pub fn <antecedent_data::backend_boundary::PreparationBackend>::const fn admit(self) -> core::result::Result<Self, antecedent_data::backend_boundary::LazyBackendRefusal>
+pub fn <antecedent_data::backend_boundary::PreparationBackend>::const fn as_str(self) -> &'static str
+pub fn <antecedent_data::categorical::CategoryConversion>::const fn coding_name(contrast: &antecedent_data::Contrast) -> &'static str
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn n_rows(&self) -> usize
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn receipt(&self) -> &antecedent_data::design_layout::OwnershipReceipt
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn column(&self, index: usize) -> core::option::Option<&[f64]>
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn from_views(columns: &[antecedent_data::ColumnView<'a>], rows: &[antecedent_data::GlobalId]) -> core::result::Result<Self, antecedent_data::design_layout::LayoutError>
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn get(&self, column_major_index: usize) -> core::option::Option<f64>
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn n_columns(&self) -> usize
+pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn time_index_ns(&self) -> core::option::Option<&[i64]>
+pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn with_time_index(columns: &[antecedent_data::ColumnView<'a>], rows: &[antecedent_data::GlobalId], time_index: antecedent_data::ColumnView<'a>) -> core::result::Result<Self, antecedent_data::design_layout::LayoutError>
 pub fn <antecedent_data::design_layout::LayoutError>::const fn column_index(self) -> usize
 pub fn <antecedent_data::design_layout::LayoutError>::const fn column_len(self) -> core::option::Option<usize>
 pub fn <antecedent_data::design_layout::LayoutError>::const fn global_id(self) -> core::option::Option<antecedent_data::GlobalId>
@@ -1275,18 +1605,58 @@ pub fn <antecedent_data::design_layout::OwnershipCopy>::const fn column(self) ->
 pub fn <antecedent_data::design_layout::OwnershipCopy>::const fn name(self) -> &'static str
 pub fn <antecedent_data::design_layout::OwnershipReceipt>::fn copies(&self) -> &[antecedent_data::design_layout::OwnershipCopy]
 pub fn <antecedent_data::design_layout::OwnershipReceipt>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::materialize::AdmissionRecord>::const fn materialized_bytes(self) -> core::option::Option<u64>
+pub fn <antecedent_data::materialize::PreparationBudget>::const fn bytes(self) -> u64
+pub fn <antecedent_data::materialize::PreparationBudget>::const fn new(bytes: u64) -> Self
+pub fn <antecedent_data::materialize::PreparationBudget>::fn from_lease(lease: &antecedent_core::execution::AdmissionLease) -> Self
+pub fn <antecedent_data::materialize::PreparationBudget>::fn from_limits(ctx: &antecedent_core::execution::ExecutionContext) -> Self
+pub fn <antecedent_data::materialize::PreparationControls>::const fn finite_resident() -> Self
+pub fn <antecedent_data::materialize::PreparationControls>::const fn finite_within(budget: antecedent_data::materialize::PreparationBudget) -> Self
+pub fn <antecedent_data::materialize::PreparationProduct>::fn into_materialized_from_scan(self) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn admission(&self) -> antecedent_data::materialize::AdmissionRecord
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn delivery(&self) -> antecedent_data::materialize::DeliveryRecord
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn estimator_sees_unbounded_stream(&self) -> bool
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn is_bounded_end_to_end_route(&self) -> bool
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn materialized_from_scan(&self) -> bool
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn missing(&self) -> core::option::Option<&antecedent_data::missing::MissingConversion>
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn path(&self) -> antecedent_data::backend_boundary::PreparationBackend
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn proved_rows(&self) -> core::option::Option<u64>
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn route_bound(&self) -> antecedent_data::materialize::RouteBound
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn schema(&self) -> &antecedent_data::materialize::SchemaConversion
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn source(&self) -> antecedent_data::materialize::ReceiptSource
+pub fn <antecedent_data::materialize::PreparationReceipt>::const fn steps(&self) -> &'static [antecedent_data::materialize::PreparationStep]
+pub fn <antecedent_data::materialize::PreparationReceipt>::fn categories(&self) -> &[antecedent_data::categorical::CategoryConversion]
+pub fn <antecedent_data::materialize::PreparationReceipt>::fn category_levels(&self) -> &[antecedent_data::materialize::CategoryLevels]
+pub fn <antecedent_data::materialize::PreparationReceipt>::fn composed_finite(rows: usize) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::materialize::PreparationReceipt>::fn digest(&self) -> &str
+pub fn <antecedent_data::materialize::PreparationReceipt>::fn into_materialized_from_scan(self) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::materialize::PreparationReceipt>::fn prove_bound_hides_stream(&self) -> core::result::Result<(), antecedent_data::DataError>
+pub fn <antecedent_data::materialize::PreparationStep>::const fn as_str(self) -> &'static str
+pub fn <antecedent_data::materialize::ReceiptSource>::const fn as_str(self) -> &'static str
+pub fn <antecedent_data::materialize::RouteBound>::const fn is_bounded_end_to_end_route(self) -> bool
+pub fn <antecedent_data::materialize::SchemaValueKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_data::materialize::StreamingScan>::fn chunk_rows(&self) -> &[u64]
+pub fn <antecedent_data::materialize::StreamingScan>::fn receipt(&self) -> &antecedent_data::materialize::PreparationReceipt
+pub fn <antecedent_data::missing::MissingConversion>::fn convert<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, variables: &[antecedent_core::ids::VariableId], policy: antecedent_data::MissingPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::missing::MissingConversion>::fn from_scan(policy: antecedent_data::MissingPolicy, chunks: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::missing::ChunkMissing]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::missing::MissingConversion>::fn proved_rows_kept(&self) -> core::option::Option<usize>
 pub fn antecedent_data::arrow_adapter::tabular_from_arrow_c_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::arrow_adapter::tabular_from_record_batch(batch: &arrow_array::record_batch::RecordBatch) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::categorical::compile_contrast_matrix(domain: &antecedent_data::CategoryDomain, contrast: &antecedent_data::Contrast) -> core::result::Result<antecedent_data::ContrastMatrix, antecedent_data::DataError>
+pub fn antecedent_data::categorical::expand_contrast(column: &antecedent_data::CategoricalColumn, contrast: &antecedent_data::Contrast) -> core::result::Result<antecedent_data::categorical::ExpandedContrast, antecedent_data::DataError>
 pub fn antecedent_data::circular_block_length(structural_span: usize, n: usize) -> usize
 pub fn antecedent_data::column_blocks_for_frame(groups: &antecedent_data::VectorVariableGroups, frame: &antecedent_data::LaggedFrame) -> core::result::Result<alloc::sync::Arc<[alloc::sync::Arc<[usize]>]>, antecedent_data::DataError>
 pub fn antecedent_data::complete_rows<T: antecedent_data::TableView>(table: &T, analysis_mask: core::option::Option<&antecedent_data::ValidityBitmap>, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<alloc::vec::Vec<bool>, antecedent_data::DataError>
 pub fn antecedent_data::dedupe_variable_ids(ids: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::VariableId>) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn antecedent_data::dropped_row_digest(rows_total: usize, dropped: &[u64]) -> alloc::string::String
 pub fn antecedent_data::fill_circular_block_indexes(n: usize, length: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut [usize]) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_declared_plan(declaration: antecedent_core::sampling_design::SamplingDesignDeclaration, plan: antecedent_data::ResamplingPlan, n: usize, cluster_ids: core::option::Option<&[u32]>, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::fill_resample_index_batch(plan: antecedent_data::ResamplingPlan, n: usize, n_replicates: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, out: &mut [antecedent_data::GlobalId]) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::fill_resample_indexes(plan: antecedent_data::ResamplingPlan, n: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::first_missing_cell<T: antecedent_data::TableView>(table: &T, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::option::Option<antecedent_data::MissingCell>, antecedent_data::DataError>
+pub fn antecedent_data::materialize::deliver_stream(quote: &antecedent_data::materialize::StreamQuote, budget: antecedent_data::materialize::PreparationBudget, controls: antecedent_data::materialize::PreparationControls) -> core::result::Result<antecedent_data::materialize::StreamDelivery, antecedent_data::DataError>
+pub fn antecedent_data::materialize::finish_scan(schema: antecedent_data::materialize::SchemaConversion, categories: &[antecedent_data::categorical::CategoryConversion], missing: antecedent_data::missing::MissingConversion, chunk_rows: &[u64], scratch: u64, budget: u64) -> core::result::Result<antecedent_data::materialize::StreamingScan, antecedent_data::DataError>
+pub fn antecedent_data::materialize::prepare_table(table: &antecedent_data::TabularData, order: &[antecedent_core::ids::VariableId], missing: antecedent_data::MissingPolicy, categories: &[(antecedent_core::ids::VariableId, antecedent_data::Contrast)], controls: antecedent_data::materialize::PreparationControls) -> core::result::Result<antecedent_data::materialize::PreparationProduct, antecedent_data::DataError>
 pub fn antecedent_data::missing::policy_required_text(cell: &antecedent_data::MissingCell, route: &str, available: &[antecedent_data::MissingPolicy]) -> alloc::string::String
 pub fn antecedent_data::pool_multi_env_lagged_frame(data: &antecedent_data::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], frame_depth: u32, dummies: antecedent_data::DummyOptions, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_data::PooledLaggedFrame, antecedent_data::DataError>
 pub fn antecedent_data::resample::fill_declared_resample(declaration: antecedent_core::sampling_design::SamplingDesignDeclaration, n: usize, cluster_ids: core::option::Option<&[u32]>, block_length: usize, embargo: u32, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
@@ -1420,6 +1790,9 @@ pub struct antecedent_data::arrow_adapter::FrozenArrowStudy
 pub struct antecedent_data::arrow_adapter::FrozenArrowStudy has private fields
 pub struct antecedent_data::arrow_ffi::ArrowCStream
 pub struct antecedent_data::arrow_ffi::ArrowCStream has private fields
+pub struct antecedent_data::backend_boundary::LazyBackendRefusal
+pub struct antecedent_data::categorical::CategoryConversion
+pub struct antecedent_data::categorical::ExpandedContrast
 pub struct antecedent_data::design_layout::DesignLayout has private fields
 pub struct antecedent_data::design_layout::DesignLayout<'a>
 pub struct antecedent_data::design_layout::LayoutError
@@ -1428,6 +1801,20 @@ pub struct antecedent_data::design_layout::OwnershipCopy
 pub struct antecedent_data::design_layout::OwnershipCopy has private fields
 pub struct antecedent_data::design_layout::OwnershipReceipt
 pub struct antecedent_data::design_layout::OwnershipReceipt has private fields
+pub struct antecedent_data::materialize::CategoryLevels
+pub struct antecedent_data::materialize::PreparationBudget
+pub struct antecedent_data::materialize::PreparationBudget has private fields
+pub struct antecedent_data::materialize::PreparationControls
+pub struct antecedent_data::materialize::PreparationProduct
+pub struct antecedent_data::materialize::PreparationReceipt
+pub struct antecedent_data::materialize::PreparationReceipt has private fields
+pub struct antecedent_data::materialize::SchemaColumn
+pub struct antecedent_data::materialize::SchemaConversion
+pub struct antecedent_data::materialize::StreamQuote
+pub struct antecedent_data::materialize::StreamingScan
+pub struct antecedent_data::materialize::StreamingScan has private fields
+pub struct antecedent_data::missing::ChunkMissing
+pub struct antecedent_data::missing::MissingConversion
 pub trait antecedent_data::ForeignBufferOwner: core::marker::Send + core::marker::Sync + core::fmt::Debug
 pub trait antecedent_data::TableView
 pub trait fn fn antecedent_data::TableView::column(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_data::ColumnView<'_>, antecedent_data::DataError>
@@ -1514,6 +1901,7 @@ pub use antecedent_data::resample::PermutationScheme = antecedent_data::Permutat
 pub use antecedent_data::resample::ResamplingPlan = antecedent_data::ResamplingPlan
 pub use antecedent_data::resample::circular_block_length = antecedent_data::circular_block_length
 pub use antecedent_data::resample::fill_circular_block_indexes = antecedent_data::fill_circular_block_indexes
+pub use antecedent_data::resample::fill_declared_plan = antecedent_data::fill_declared_plan
 pub use antecedent_data::resample::fill_resample_index_batch = antecedent_data::fill_resample_index_batch
 pub use antecedent_data::resample::fill_resample_indexes = antecedent_data::fill_resample_indexes
 pub use antecedent_data::resample_timeseries = antecedent_data::resample::resample_timeseries
@@ -1564,6 +1952,7 @@ pub variant antecedent_data::DataError::InvalidArgument { message: alloc::string
 pub variant antecedent_data::DataError::InvalidValidity { message: &'static str }
 pub variant antecedent_data::DataError::InvalidWeights { index: core::option::Option<usize>, reason: &'static str }
 pub variant antecedent_data::DataError::LengthMismatch { expected: usize, actual: usize, context: &'static str }
+pub variant antecedent_data::DataError::SamplingDesign(antecedent_core::sampling_design::SamplingDesignError)
 pub variant antecedent_data::DataError::Schema(alloc::string::String)
 pub variant antecedent_data::DataError::TypeMismatch { id: antecedent_core::ids::VariableId, expected: &'static str }
 pub variant antecedent_data::DataError::UnknownVariable { id: antecedent_core::ids::VariableId }
@@ -1609,3 +1998,39 @@ pub variant antecedent_data::WindowBoundary::Unit
 pub variant antecedent_data::WindowNextAttempt::LongerSpanOfSameUnit { unit: antecedent_data::PopulationUnit }
 pub variant antecedent_data::WindowNextAttempt::StayInsideCalendarSegment
 pub variant antecedent_data::WindowNextAttempt::StayInsideSplit { name: alloc::sync::Arc<str> }
+pub variant antecedent_data::arrow_adapter::EstimatorFrame::Finite { table: antecedent_data::TabularData, product: antecedent_data::materialize::PreparationProduct, diagnostics: antecedent_core::diagnostic::DiagnosticSet }
+pub variant antecedent_data::arrow_adapter::EstimatorFrame::Scan(antecedent_data::materialize::StreamingScan)
+pub variant antecedent_data::backend_boundary::PreparationBackend::DirectArrow
+pub variant antecedent_data::backend_boundary::PreparationBackend::Lazy
+pub variant antecedent_data::materialize::AdmissionRecord::Materialized { bytes: u64, budget: u64 }
+pub variant antecedent_data::materialize::AdmissionRecord::Streaming { scratch_bytes: u64, budget: u64 }
+pub variant antecedent_data::materialize::AdmissionRecord::Unmetered { bytes: u64 }
+pub variant antecedent_data::materialize::DeliveryRecord::Finite { rows: u64 }
+pub variant antecedent_data::materialize::DeliveryRecord::MaterializedFromScan { rows: u64 }
+pub variant antecedent_data::materialize::DeliveryRecord::Scan
+pub variant antecedent_data::materialize::EstimatorStreamNeed::CanStream
+pub variant antecedent_data::materialize::EstimatorStreamNeed::CannotStream
+pub variant antecedent_data::materialize::PreparationStep::Admission
+pub variant antecedent_data::materialize::PreparationStep::Category
+pub variant antecedent_data::materialize::PreparationStep::Delivery
+pub variant antecedent_data::materialize::PreparationStep::MissingValue
+pub variant antecedent_data::materialize::PreparationStep::Schema
+pub variant antecedent_data::materialize::ReceiptSource::ComposedFinite
+pub variant antecedent_data::materialize::ReceiptSource::PreparedPath
+pub variant antecedent_data::materialize::RouteBound::NotAnEndToEndRoute
+pub variant antecedent_data::materialize::RouteBound::Proved { rows: u64 }
+pub variant antecedent_data::materialize::RouteBound::RowsOnly { rows: u64 }
+pub variant antecedent_data::materialize::SchemaValueKind::Binary
+pub variant antecedent_data::materialize::SchemaValueKind::Boolean
+pub variant antecedent_data::materialize::SchemaValueKind::Categorical
+pub variant antecedent_data::materialize::SchemaValueKind::Continuous
+pub variant antecedent_data::materialize::SchemaValueKind::Count
+pub variant antecedent_data::materialize::SchemaValueKind::Empty
+pub variant antecedent_data::materialize::SchemaValueKind::Float64
+pub variant antecedent_data::materialize::SchemaValueKind::Int64
+pub variant antecedent_data::materialize::SchemaValueKind::Ordinal
+pub variant antecedent_data::materialize::SchemaValueKind::Timestamp
+pub variant antecedent_data::materialize::SchemaValueKind::Unspecified
+pub variant antecedent_data::materialize::SchemaValueKind::Vector
+pub variant antecedent_data::materialize::StreamDelivery::MaterializeRequired { bytes: u64 }
+pub variant antecedent_data::materialize::StreamDelivery::Scan(antecedent_data::materialize::StreamingScan)

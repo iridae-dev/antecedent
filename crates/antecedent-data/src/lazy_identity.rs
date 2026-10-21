@@ -3,12 +3,12 @@
 //! Full content identity is version 1 of [`crate::storage::OwnedColumnarStorage::content_digest`]:
 //! the digest of columns, masks, and weights, not a second hash of those bytes. A chunk or
 //! lazy view uses its own domain and records the parent digest, a digest of the parent
-//! contract (modality, validity policy, cohort order, unit, splits, row count, and schema
-//! names), the row range, and a version. Byte-identical storage under a different column
-//! name, modality, cohort, or split is therefore a different parent and a different view.
-//! The contract of this module has no time index, so a time index is not bound here.
-//! A projected column set has no full-source identity. An incremental digest is accepted only
-//! after a base scan has been checked; skipping that scan fails closed.
+//! contract (modality, validity policy, cohort order, unit, splits, row count, schema
+//! names, and time index), the row range, and a version. Byte-identical storage under a
+//! different column name, modality, cohort, split, or time index is therefore a different
+//! parent and a different view. A projected column set has no full-source identity. An
+//! incremental digest is accepted only after a base scan has been checked, and it is bound
+//! to that same contract; skipping the scan fails closed.
 //!
 //! This is not another owned snapshot. Callers keep [`OwnedSource`].
 //!
@@ -25,6 +25,7 @@ use crate::source::{
     CohortOrder, OwnedSource, RowChunk, SnapshotContract, SourceIdentity, SourceModality,
     ValidityPolicy,
 };
+use crate::temporal::SamplingRegularity;
 
 /// Version of the full-content binding.
 ///
@@ -80,7 +81,7 @@ pub(crate) enum VersionedIdentity {
     Lazy(LazyViewIdentity),
 }
 
-/// Incremental continuation bound to a verified parent digest.
+/// Incremental continuation bound to a verified parent digest and its contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct IncrementalDigest {
     version: u16,
@@ -232,18 +233,18 @@ impl LazyViewIdentity {
 }
 
 impl IncrementalDigest {
-    /// Stream `parts` under the increment domain, bound to `parent`.
-    fn stream(parent: &[u8; 32], parts: &[&[u8]]) -> [u8; 32] {
-        let mut hasher = incremental_hasher(parent);
+    /// Stream `parts` under the increment domain, bound to `parent` and its contract.
+    fn stream(parent: &[u8; 32], binding: &[u8; 32], parts: &[&[u8]]) -> [u8; 32] {
+        let mut hasher = incremental_hasher(parent, binding);
         for part in parts {
             hasher.update(part);
         }
         finish(&hasher)
     }
 
-    /// One-shot digest of `bytes` under the same domain and parent as [`Self::stream`].
-    fn recompute(parent: &[u8; 32], bytes: &[u8]) -> [u8; 32] {
-        let mut hasher = incremental_hasher(parent);
+    /// One-shot digest of `bytes` under the same domain, parent, and contract as [`Self::stream`].
+    fn recompute(parent: &[u8; 32], binding: &[u8; 32], bytes: &[u8]) -> [u8; 32] {
+        let mut hasher = incremental_hasher(parent, binding);
         hasher.update(bytes);
         finish(&hasher)
     }
@@ -301,8 +302,8 @@ impl BaseScan {
         let Self::Verified(full) = self else {
             return Err(scan_required());
         };
-        let streamed = IncrementalDigest::stream(&full.digest, parts);
-        let recomputed = IncrementalDigest::recompute(&full.digest, bytes);
+        let streamed = IncrementalDigest::stream(&full.digest, &full.binding, parts);
+        let recomputed = IncrementalDigest::recompute(&full.digest, &full.binding, bytes);
         if streamed != recomputed {
             return Err(DataError::InvalidArgument {
                 message: "incremental digest does not match a recomputation of the same bytes"
@@ -388,13 +389,32 @@ fn contract_binding(contract: &SnapshotContract) -> [u8; 32] {
     for name in contract.schema_names.iter() {
         text(&mut hasher, name);
     }
+    match &contract.time_index {
+        None => {
+            hasher.update(&[0]);
+        }
+        Some(index) => {
+            hasher.update(&[1]);
+            match index.regularity {
+                SamplingRegularity::Irregular => {
+                    hasher.update(&[0]);
+                }
+                SamplingRegularity::Regular { interval_ns } => {
+                    hasher.update(&[1]);
+                    hasher.update(&interval_ns.to_le_bytes());
+                }
+            }
+            word(&mut hasher, index.length);
+        }
+    }
     finish(&hasher)
 }
 
-fn incremental_hasher(parent: &[u8; 32]) -> blake3::Hasher {
+fn incremental_hasher(parent: &[u8; 32], binding: &[u8; 32]) -> blake3::Hasher {
     let mut hasher = blake3::Hasher::new_derive_key(INCREMENT_DOMAIN);
     hasher.update(&INCREMENTAL_VERSION.to_le_bytes());
     hasher.update(parent);
+    hasher.update(binding);
     hasher
 }
 
@@ -516,11 +536,44 @@ mod tests {
 
         let scan = BaseScan::verify(&owned).unwrap();
         let accepted = scan.accept(parts, bytes).unwrap();
+        let binding = FullContentIdentity::try_from_source(&owned).unwrap().binding();
         assert_eq!(accepted.version(), INCREMENTAL_VERSION);
         assert_eq!(accepted.parent(), parent);
-        assert_eq!(accepted.digest(), IncrementalDigest::recompute(&parent, bytes));
-        assert_eq!(accepted.digest(), IncrementalDigest::stream(&parent, parts));
+        assert_eq!(accepted.digest(), IncrementalDigest::recompute(&parent, &binding, bytes));
+        assert_eq!(accepted.digest(), IncrementalDigest::stream(&parent, &binding, parts));
         assert_ne!(accepted.digest(), parent);
         assert!(scan.accept(parts, b"scan-other").is_err());
+    }
+
+    #[test]
+    fn time_index_changes_the_lazy_view_and_the_incremental_digest() {
+        use crate::temporal::{SamplingRegularity, TimeIndex};
+
+        let owned = source(&[("x", &[1.0, 2.0, 3.0, 4.0])]);
+        let timed = owned
+            .clone()
+            .with_time_index(TimeIndex {
+                regularity: SamplingRegularity::Regular { interval_ns: 5 },
+                length: 4,
+            })
+            .unwrap();
+        let view = |source: &OwnedSource| {
+            let full = FullContentIdentity::try_from_source(source).unwrap();
+            let lazy = LazyViewIdentity::from_chunk(&full, &source.chunk(0, 2).unwrap()).unwrap();
+            (full, lazy)
+        };
+        let (base_full, base_view) = view(&owned);
+        let (timed_full, timed_view) = view(&timed);
+        assert_eq!(base_full.digest(), timed_full.digest());
+        assert_ne!(base_full.binding(), timed_full.binding());
+        assert_ne!(base_view.digest(), timed_view.digest());
+        assert_ne!(base_view.binding(), timed_view.binding());
+
+        let parts: &[&[u8]] = &[b"scan"];
+        let bytes = b"scan";
+        let base_inc = BaseScan::verify(&owned).unwrap().accept(parts, bytes).unwrap();
+        let timed_inc = BaseScan::verify(&timed).unwrap().accept(parts, bytes).unwrap();
+        assert_eq!(base_inc.parent(), timed_inc.parent());
+        assert_ne!(base_inc.digest(), timed_inc.digest());
     }
 }
