@@ -832,6 +832,7 @@ pub fn <antecedent_graph::CpdagReview>::fn from_cpdag(graph: antecedent_graph::C
 pub fn <antecedent_graph::CpdagReview>::fn is_complete(&self) -> bool
 pub fn <antecedent_graph::CpdagReview>::fn orient_edge(self, from: antecedent_core::ids::VariableId, to: antecedent_core::ids::VariableId) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::CpdagReview>::fn try_into_dag(self) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicDagRefusal>::const fn new(operation: antecedent_graph::DagOperation, next_attempt: antecedent_graph::CyclicNextAttempt) -> Self
 pub fn <antecedent_graph::CyclicDigraph>::const fn empty() -> Self
 pub fn <antecedent_graph::CyclicDigraph>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::CyclicDigraph>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
@@ -1114,6 +1115,7 @@ pub fn antecedent_graph::cpdag_completion::is_mec_member(cpdag: &antecedent_grap
 pub fn antecedent_graph::directed_edges_contain_cycle(node_count: usize, edges: &[(u32, u32)]) -> bool
 pub fn antecedent_graph::ensure_lagged(graph: &mut antecedent_graph::TemporalDag, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn antecedent_graph::error::refuse_directed_cycle(operation: antecedent_graph::DagOperation, next_attempt: antecedent_graph::CyclicNextAttempt, node_count: usize, edges: &[(u32, u32)]) -> core::result::Result<(), antecedent_graph::CyclicDagRefusal>
+pub fn antecedent_graph::error::sparse_directed_edges_contain_cycle(edges: &[(u32, u32)]) -> bool
 pub fn antecedent_graph::latent_project(dag: &antecedent_graph::Dag, observed: &[antecedent_graph::DenseNodeId]) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
 pub fn antecedent_graph::projection::projection_preserves_msep_sample(dag: &antecedent_graph::Dag, observed: &[antecedent_graph::DenseNodeId], queries: &[(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId, alloc::vec::Vec<antecedent_graph::DenseNodeId>)]) -> core::result::Result<bool, antecedent_graph::GraphError>
 pub fn antecedent_graph::sigma_separates(graph: &antecedent_graph::CyclicMixedGraph, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, conditioning: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::SigmaSeparationWorkspace) -> core::result::Result<antecedent_graph::SigmaSeparation, antecedent_graph::GraphError>

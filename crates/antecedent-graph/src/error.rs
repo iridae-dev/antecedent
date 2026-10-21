@@ -224,6 +224,17 @@ pub struct CyclicDagRefusal {
     pub next_attempt: CyclicNextAttempt,
 }
 
+impl CyclicDagRefusal {
+    /// Refusal of `operation`, naming `next_attempt`.
+    ///
+    /// [`Display`](std::fmt::Display) is the prose a DAG consumer returns. Copy
+    /// that text from here rather than writing another sentence.
+    #[must_use]
+    pub const fn new(operation: DagOperation, next_attempt: CyclicNextAttempt) -> Self {
+        Self { operation, next_attempt }
+    }
+}
+
 /// Whether `edges` contain a directed cycle on nodes `0..node_count`.
 ///
 /// A self-loop is a cycle. An endpoint at or past `node_count` is ignored here;
@@ -278,6 +289,37 @@ pub fn directed_edges_contain_cycle(node_count: usize, edges: &[(u32, u32)]) -> 
     placed != node_count
 }
 
+/// Whether `edges` contain a directed cycle when the ids are not `0..n`.
+///
+/// Each distinct endpoint is a node. The ids are remapped onto `0..k` and
+/// [`directed_edges_contain_cycle`] decides. A self-loop is a cycle. An empty
+/// list is acyclic. This check does not return an order.
+#[must_use = "a directed cycle must be refused before a DAG algorithm runs"]
+pub fn sparse_directed_edges_contain_cycle(edges: &[(u32, u32)]) -> bool {
+    if edges.iter().any(|&(from, to)| from == to) {
+        return true;
+    }
+    if edges.is_empty() {
+        return false;
+    }
+    let mut ids = Vec::with_capacity(edges.len().saturating_mul(2));
+    for &(from, to) in edges {
+        ids.push(from);
+        ids.push(to);
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    let mut dense = Vec::with_capacity(edges.len());
+    for &(from, to) in edges {
+        let from_at = ids.binary_search(&from).expect("endpoint was collected");
+        let to_at = ids.binary_search(&to).expect("endpoint was collected");
+        let from_id = u32::try_from(from_at).expect("distinct endpoint count fits u32");
+        let to_id = u32::try_from(to_at).expect("distinct endpoint count fits u32");
+        dense.push((from_id, to_id));
+    }
+    directed_edges_contain_cycle(ids.len(), &dense)
+}
+
 /// Refuse `operation` when `edges` contain a directed cycle.
 ///
 /// `Ok(())` means the caller's existing acyclic algorithm may run. `Err` means
@@ -294,7 +336,7 @@ pub fn refuse_directed_cycle(
     edges: &[(u32, u32)],
 ) -> Result<(), CyclicDagRefusal> {
     if directed_edges_contain_cycle(node_count, edges) {
-        Err(CyclicDagRefusal { operation, next_attempt })
+        Err(CyclicDagRefusal::new(operation, next_attempt))
     } else {
         Ok(())
     }
@@ -303,7 +345,8 @@ pub fn refuse_directed_cycle(
 #[cfg(test)]
 mod tests {
     use super::{
-        CyclicNextAttempt, DagOperation, directed_edges_contain_cycle, refuse_directed_cycle,
+        CyclicDagRefusal, CyclicNextAttempt, DagOperation, directed_edges_contain_cycle,
+        refuse_directed_cycle, sparse_directed_edges_contain_cycle,
     };
 
     /// Cycle test by repeated reachability: a cycle exists exactly when some node reaches
@@ -374,6 +417,27 @@ mod tests {
         assert!(!directed_edges_contain_cycle(n as usize, &edges));
         edges.push((n - 1, 0));
         assert!(directed_edges_contain_cycle(n as usize, &edges));
+    }
+
+    #[test]
+    fn sparse_ids_remap_onto_the_dense_cycle_test() {
+        assert!(!sparse_directed_edges_contain_cycle(&[]));
+        assert!(!sparse_directed_edges_contain_cycle(&[(10, 20), (20, 40)]));
+        assert!(!sparse_directed_edges_contain_cycle(&[(4, 8), (4, 8)]));
+        assert!(sparse_directed_edges_contain_cycle(&[(7, 7)]));
+        assert!(sparse_directed_edges_contain_cycle(&[(5, 9), (9, 5)]));
+        assert!(sparse_directed_edges_contain_cycle(&[(1, 1), (1, 2)]));
+        let sparse = [(100, 300), (300, 200), (200, 100)];
+        assert!(sparse_directed_edges_contain_cycle(&sparse));
+        assert!(!directed_edges_contain_cycle(3, &[(0, 1), (1, 2)]));
+        let refusal = CyclicDagRefusal::new(
+            DagOperation::Discovery,
+            CyclicNextAttempt::Condensation,
+        );
+        let text = refusal.to_string();
+        assert!(text.contains("discovery"), "{text}");
+        assert!(text.contains("condensation"), "{text}");
+        assert!(text.contains("CyclicDigraph"), "{text}");
     }
 
     #[test]

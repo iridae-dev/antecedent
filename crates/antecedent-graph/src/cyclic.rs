@@ -17,6 +17,7 @@
 
 use antecedent_core::VariableId;
 
+use crate::directed::DirectedStore;
 use crate::error::GraphError;
 use crate::scc::Condensation;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
@@ -39,16 +40,14 @@ use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 /// [`Self::directed_edge_pairs_sorted`] is the canonical edge list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CyclicDigraph {
-    nodes: Vec<NodeRef>,
-    children: Vec<Vec<DenseNodeId>>,
-    parents: Vec<Vec<DenseNodeId>>,
+    store: DirectedStore,
 }
 
 impl CyclicDigraph {
     /// Empty graph.
     #[must_use]
     pub const fn empty() -> Self {
-        Self { nodes: Vec::new(), children: Vec::new(), parents: Vec::new() }
+        Self { store: DirectedStore::empty() }
     }
 
     /// One static node per variable `0..n`, in that dense order.
@@ -65,9 +64,8 @@ impl CyclicDigraph {
 
     /// Static nodes for `schema`, then named directed edges.
     ///
-    /// Names resolve through the schema (`VariableId` raw == dense id). A later
-    /// unknown name is reported only after earlier resolved edges have been
-    /// inserted.
+    /// Names resolve through the schema (`VariableId` raw == dense id). Every
+    /// edge is checked before any edge is inserted, so a failure returns no graph.
     ///
     /// # Errors
     ///
@@ -78,27 +76,30 @@ impl CyclicDigraph {
         edges: &[(&str, &str)],
     ) -> Result<Self, GraphError> {
         let n = crate::named::schema_node_count(schema)?;
+        let pending = named_directed_edges(schema, n, edges)?;
         let mut graph = Self::with_variables(n);
-        insert_named_directed(schema, edges, |from, to| graph.insert_directed(from, to))?;
+        for (from, to) in pending {
+            graph.insert_directed(from, to)?;
+        }
         Ok(graph)
     }
 
     /// Number of nodes.
     #[must_use]
     pub fn node_count(&self) -> usize {
-        self.nodes.len()
+        self.store.node_count()
     }
 
     /// Whether the node table is empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
+        self.store.is_empty()
     }
 
     /// Node labels in dense order.
     #[must_use]
     pub fn nodes(&self) -> &[NodeRef] {
-        &self.nodes
+        self.store.nodes()
     }
 
     /// Every dense node id in ascending order.
@@ -118,11 +119,7 @@ impl CyclicDigraph {
                 message: "CyclicDigraph accepts only Static or Unfolded nodes",
             });
         }
-        let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        self.nodes.push(node);
-        self.children.push(Vec::new());
-        self.parents.push(Vec::new());
-        Ok(DenseNodeId::from_raw(id))
+        self.store.push_labeled(node)
     }
 
     /// Insert directed edge `from -> to`.
@@ -138,31 +135,22 @@ impl CyclicDigraph {
         from: DenseNodeId,
         to: DenseNodeId,
     ) -> Result<(), GraphError> {
-        known(self.nodes.len(), from)?;
-        known(self.nodes.len(), to)?;
-        reject_self_loop(&self.nodes, from, to)?;
-        if !insert_sorted(&mut self.children[from.as_usize()], to) {
-            return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
-        }
-        if !insert_sorted(&mut self.parents[to.as_usize()], from) {
-            let kids = &mut self.children[from.as_usize()];
-            let at = kids.binary_search(&to).expect("child edge was just inserted");
-            kids.remove(at);
-            return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
-        }
-        Ok(())
+        DirectedStore::known(self.node_count(), from)?;
+        DirectedStore::known(self.node_count(), to)?;
+        reject_self_loop(self.nodes(), from, to)?;
+        self.store.link(from, to)
     }
 
     /// Directed children of `id` (empty when `id` is outside the graph).
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        self.children.get(id.as_usize()).map_or(&[], Vec::as_slice)
+        self.store.children_of(id)
     }
 
     /// Directed parents of `id` (empty when `id` is outside the graph).
     #[must_use]
     pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        self.parents.get(id.as_usize()).map_or(&[], Vec::as_slice)
+        self.store.parents_of(id)
     }
 
     /// Directed successors of `id`.
@@ -177,7 +165,7 @@ impl CyclicDigraph {
 
     /// Directed edges as marked edges, parent then child, in dense order.
     pub fn edges(&self) -> impl Iterator<Item = MarkedEdge> + '_ {
-        self.children.iter().enumerate().flat_map(|(i, kids)| {
+        self.store.child_rows().iter().enumerate().flat_map(|(i, kids)| {
             let from = DenseNodeId::from_index(i);
             kids.iter().copied().map(move |to| MarkedEdge::directed(from, to))
         })
@@ -189,7 +177,7 @@ impl CyclicDigraph {
     /// [`Eq`], it identifies the directed edge set.
     #[must_use]
     pub fn directed_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
-        directed_pairs(&self.children)
+        self.store.edge_pairs_sorted()
     }
 
     /// Check endpoints, self-loops, duplicate edges, and the parent index.
@@ -210,7 +198,7 @@ impl CyclicDigraph {
     /// and the schedule is the minimum-dense-id topological order.
     #[must_use = "the condensation is the directed solve-block schedule"]
     pub fn condensation(&self) -> Condensation {
-        crate::scc::decompose(&self.children, &self.parents)
+        crate::scc::decompose(self.store.child_rows(), self.store.parent_rows())
     }
 }
 
@@ -251,6 +239,9 @@ impl CyclicMixedGraph {
 
     /// Static nodes for `schema`, then named directed edges. No bidirected edges.
     ///
+    /// Every edge is checked before any edge is inserted, so a failure returns
+    /// no graph.
+    ///
     /// # Errors
     ///
     /// Unknown names, unknown nodes, duplicate directed edges, or self-loops.
@@ -260,8 +251,11 @@ impl CyclicMixedGraph {
         edges: &[(&str, &str)],
     ) -> Result<Self, GraphError> {
         let n = crate::named::schema_node_count(schema)?;
+        let pending = named_directed_edges(schema, n, edges)?;
         let mut graph = Self::with_variables(n);
-        insert_named_directed(schema, edges, |from, to| graph.insert_directed(from, to))?;
+        for (from, to) in pending {
+            graph.insert_directed(from, to)?;
+        }
         Ok(graph)
     }
 
@@ -335,13 +329,13 @@ impl CyclicMixedGraph {
     ///
     /// Unknown nodes, a self-loop, or a duplicate bidirected edge.
     pub fn insert_bidirected(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
-        known(self.node_count(), a)?;
-        known(self.node_count(), b)?;
+        DirectedStore::known(self.node_count(), a)?;
+        DirectedStore::known(self.node_count(), b)?;
         reject_self_loop(self.nodes(), a, b)?;
-        if !insert_sorted(&mut self.bidirected[a.as_usize()], b) {
+        if !DirectedStore::insert_sorted(&mut self.bidirected[a.as_usize()], b) {
             return Err(GraphError::DuplicateEdge { from: a.raw(), to: b.raw() });
         }
-        if !insert_sorted(&mut self.bidirected[b.as_usize()], a) {
+        if !DirectedStore::insert_sorted(&mut self.bidirected[b.as_usize()], a) {
             let row = &mut self.bidirected[a.as_usize()];
             let at = row.binary_search(&b).expect("bidirected edge was just inserted");
             row.remove(at);
@@ -426,10 +420,6 @@ impl CyclicMixedGraph {
     }
 }
 
-fn known(node_count: usize, id: DenseNodeId) -> Result<(), GraphError> {
-    if id.as_usize() >= node_count { Err(GraphError::UnknownNode { id: id.raw() }) } else { Ok(()) }
-}
-
 fn reject_self_loop(
     nodes: &[NodeRef],
     from: DenseNodeId,
@@ -441,48 +431,33 @@ fn reject_self_loop(
     Err(GraphError::ContemporaneousSelfEdge { variable: nodes[from.as_usize()].variable() })
 }
 
-/// Insert `id` in ascending order. Returns `false` when it is already present.
-fn insert_sorted(list: &mut Vec<DenseNodeId>, id: DenseNodeId) -> bool {
-    match list.binary_search(&id) {
-        Ok(_) => false,
-        Err(at) => {
-            list.insert(at, id);
-            true
-        }
-    }
-}
-
-fn insert_named_directed(
+/// Resolve and check every named edge before any of them is inserted.
+fn named_directed_edges(
     schema: &antecedent_core::CausalSchema,
+    node_count: u32,
     edges: &[(&str, &str)],
-    mut insert: impl FnMut(DenseNodeId, DenseNodeId) -> Result<(), GraphError>,
-) -> Result<(), GraphError> {
+) -> Result<Vec<(DenseNodeId, DenseNodeId)>, GraphError> {
+    let limit = node_count as usize;
     let mut pending = Vec::with_capacity(edges.len());
     for &(from_name, to_name) in edges {
-        match crate::named::resolve_named_edge(schema, from_name, to_name) {
-            Ok(pair) => pending.push(pair),
-            Err(err) => {
-                for &(from, to) in &pending {
-                    insert(from, to)?;
-                }
-                return Err(err);
-            }
+        let (from, to) = crate::named::resolve_named_edge(schema, from_name, to_name)?;
+        if from.as_usize() >= limit {
+            return Err(GraphError::UnknownNode { id: from.raw() });
         }
+        if to.as_usize() >= limit {
+            return Err(GraphError::UnknownNode { id: to.raw() });
+        }
+        if from == to {
+            return Err(GraphError::ContemporaneousSelfEdge {
+                variable: VariableId::from_raw(from.raw()),
+            });
+        }
+        if pending.contains(&(from, to)) {
+            return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
+        }
+        pending.push((from, to));
     }
-    for &(from, to) in &pending {
-        insert(from, to)?;
-    }
-    Ok(())
-}
-
-fn directed_pairs(children: &[Vec<DenseNodeId>]) -> Vec<(u32, u32)> {
-    let mut pairs = Vec::new();
-    for (i, kids) in children.iter().enumerate() {
-        let from = u32::try_from(i).expect("node fit");
-        pairs.extend(kids.iter().map(|to| (from, to.raw())));
-    }
-    pairs.sort_unstable();
-    pairs
+    Ok(pending)
 }
 
 fn bidirected_pairs(bidirected: &[Vec<DenseNodeId>]) -> Vec<(u32, u32)> {
@@ -496,21 +471,24 @@ fn bidirected_pairs(bidirected: &[Vec<DenseNodeId>]) -> Vec<(u32, u32)> {
 }
 
 fn validate_directed(graph: &CyclicDigraph) -> Result<(), GraphError> {
-    if graph.children.len() != graph.nodes.len() || graph.parents.len() != graph.nodes.len() {
+    let nodes = graph.nodes();
+    let children = graph.store.child_rows();
+    let parents = graph.store.parent_rows();
+    if children.len() != nodes.len() || parents.len() != nodes.len() {
         return Err(GraphError::InvalidEndpoints {
             message: "directed adjacency does not cover every node",
         });
     }
     let mut child_edges = 0usize;
-    for (i, kids) in graph.children.iter().enumerate() {
+    for (i, kids) in children.iter().enumerate() {
         let from = DenseNodeId::from_index(i);
         for (k, &to) in kids.iter().enumerate() {
-            known(graph.nodes.len(), to)?;
-            reject_self_loop(&graph.nodes, from, to)?;
+            DirectedStore::known(nodes.len(), to)?;
+            reject_self_loop(nodes, from, to)?;
             if kids[..k].contains(&to) {
                 return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
             }
-            if !graph.parents.get(to.as_usize()).is_some_and(|preds| preds.contains(&from)) {
+            if !parents.get(to.as_usize()).is_some_and(|preds| preds.contains(&from)) {
                 return Err(GraphError::InvalidEndpoints {
                     message: "directed edge is missing its parent entry",
                 });
@@ -519,11 +497,11 @@ fn validate_directed(graph: &CyclicDigraph) -> Result<(), GraphError> {
         }
     }
     let mut parent_edges = 0usize;
-    for (i, preds) in graph.parents.iter().enumerate() {
+    for (i, preds) in parents.iter().enumerate() {
         let to = DenseNodeId::from_index(i);
         for &from in preds {
-            known(graph.nodes.len(), from)?;
-            reject_self_loop(&graph.nodes, from, to)?;
+            DirectedStore::known(nodes.len(), from)?;
+            reject_self_loop(nodes, from, to)?;
             parent_edges += 1;
         }
     }
@@ -547,7 +525,7 @@ fn validate_bidirected(
     for (i, neighbors) in bidirected.iter().enumerate() {
         let a = DenseNodeId::from_index(i);
         for (k, &b) in neighbors.iter().enumerate() {
-            known(nodes.len(), b)?;
+            DirectedStore::known(nodes.len(), b)?;
             reject_self_loop(nodes, a, b)?;
             if neighbors[..k].contains(&b) {
                 return Err(GraphError::DuplicateEdge { from: a.raw(), to: b.raw() });
@@ -808,6 +786,29 @@ mod tests {
             CyclicMixedGraph::from_named_edges(&schema, &[("a", "missing")]).unwrap_err(),
             GraphError::UnknownVariableName { name: "missing".to_owned() },
         );
+    }
+
+    #[test]
+    fn named_edges_fail_before_any_edge_is_inserted() {
+        let schema = ab_schema();
+        assert_eq!(
+            CyclicDigraph::from_named_edges(&schema, &[("a", "b"), ("b", "b")]).unwrap_err(),
+            GraphError::ContemporaneousSelfEdge { variable: VariableId::from_raw(1) },
+        );
+        assert_eq!(
+            CyclicDigraph::from_named_edges(&schema, &[("a", "b"), ("a", "b")]).unwrap_err(),
+            GraphError::DuplicateEdge { from: 0, to: 1 },
+        );
+        assert_eq!(
+            CyclicDigraph::from_named_edges(&schema, &[("a", "b"), ("missing", "a")]).unwrap_err(),
+            GraphError::UnknownVariableName { name: "missing".to_owned() },
+        );
+        assert_eq!(
+            CyclicMixedGraph::from_named_edges(&schema, &[("a", "b"), ("nope", "b")]).unwrap_err(),
+            GraphError::UnknownVariableName { name: "nope".to_owned() },
+        );
+        let kept = CyclicDigraph::from_named_edges(&schema, &[("a", "b")]).unwrap();
+        assert_eq!(kept.directed_edge_pairs_sorted(), vec![(0, 1)]);
     }
 
     #[test]

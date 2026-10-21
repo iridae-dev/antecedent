@@ -158,12 +158,26 @@ impl SigmaSeparation {
 ///
 /// The adjacency stored here is the acyclification used as d-separation fuel.
 /// Those edges are not original direct mechanisms and are not exposed.
+/// Condensation and that adjacency are kept when the next query is on a graph
+/// with the same node count and the same directed and bidirected edges.
 #[derive(Clone, Debug, Default)]
 pub struct SigmaSeparationWorkspace {
     dsep: DSeparationWorkspace,
     parents: Vec<Vec<DenseNodeId>>,
     children: Vec<Vec<DenseNodeId>>,
     bidirected: Vec<Vec<DenseNodeId>>,
+    cache: Option<CachedAcyclification>,
+    rebuilds: u64,
+}
+
+/// Condensation and acyclification identity for one graph.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CachedAcyclification {
+    nodes: usize,
+    directed: Vec<(u32, u32)>,
+    bidirected: Vec<(u32, u32)>,
+    component_of: Vec<usize>,
+    components: Vec<Vec<DenseNodeId>>,
 }
 
 impl SigmaSeparationWorkspace {
@@ -290,13 +304,9 @@ fn acyclification_connects(
     ends: &QueryEnds,
     ws: &mut SigmaSeparationWorkspace,
 ) -> bool {
-    let n = graph.node_count();
-    reset_rows(&mut ws.parents, n);
-    reset_rows(&mut ws.children, n);
-    reset_rows(&mut ws.bidirected, n);
-    let (component_of, components) = component_parts(graph);
-    fill_directed(graph, &component_of, &components, &mut ws.children, &mut ws.parents);
-    fill_bidirected(graph, &component_of, &components, &mut ws.bidirected);
+    if !ws.same_graph(graph) {
+        ws.rebuild_acyclification(graph);
+    }
     bayes_ball_reaches(
         &mut ws.dsep,
         BayesBallGraph {
@@ -309,6 +319,48 @@ fn acyclification_connects(
         &[ends.y],
         &ends.conditioning,
     )
+}
+
+impl SigmaSeparationWorkspace {
+    fn same_graph(&self, graph: &CyclicMixedGraph) -> bool {
+        let Some(cache) = &self.cache else {
+            return false;
+        };
+        cache.nodes == graph.node_count()
+            && condensation_covers(cache)
+            && cache.directed == graph.directed_edge_pairs_sorted()
+            && cache.bidirected == graph.bidirected_edge_pairs_sorted()
+    }
+
+    fn rebuild_acyclification(&mut self, graph: &CyclicMixedGraph) {
+        self.rebuilds += 1;
+        let n = graph.node_count();
+        reset_rows(&mut self.parents, n);
+        reset_rows(&mut self.children, n);
+        reset_rows(&mut self.bidirected, n);
+        let condensation = graph.condensation();
+        let components = condensation.components().to_vec();
+        let mut component_of = vec![usize::MAX; n];
+        for (index, members) in components.iter().enumerate() {
+            for &node in members {
+                component_of[node.as_usize()] = index;
+            }
+        }
+        fill_directed(graph, &component_of, &components, &mut self.children, &mut self.parents);
+        fill_bidirected(graph, &component_of, &components, &mut self.bidirected);
+        self.cache = Some(CachedAcyclification {
+            nodes: n,
+            directed: graph.directed_edge_pairs_sorted(),
+            bidirected: graph.bidirected_edge_pairs_sorted(),
+            component_of,
+            components,
+        });
+    }
+}
+
+fn condensation_covers(cache: &CachedAcyclification) -> bool {
+    cache.component_of.len() == cache.nodes
+        && cache.components.iter().map(Vec::len).sum::<usize>() == cache.nodes
 }
 
 fn reset_rows(rows: &mut Vec<Vec<DenseNodeId>>, n: usize) {
@@ -739,6 +791,33 @@ mod tests {
             sigma_walk_oracle(&graph, n(0), n(1), &[n(3)]).unwrap_err(),
             GraphError::UnknownNode { id: 3 },
         );
+    }
+
+    #[test]
+    fn repeated_queries_reuse_one_graph_and_a_changed_graph_rebuilds() {
+        let mut graph = mixed(4, &[(0, 1), (1, 2), (2, 0), (2, 3)], &[(0, 3)]);
+        let mut ws = SigmaSeparationWorkspace::new();
+        let first = sigma_separates(&graph, n(0), n(3), &[], &mut ws).unwrap();
+        assert_eq!(ws.rebuilds, 1);
+        let again = sigma_separates(&graph, n(0), n(3), &[n(1)], &mut ws).unwrap();
+        assert_eq!(ws.rebuilds, 1);
+        assert_eq!(first.assumptions, again.assumptions);
+        let oracle = sigma_walk_oracle(&graph, n(0), n(3), &[n(1)]).unwrap();
+        assert_eq!(again, oracle);
+
+        graph.insert_directed(n(3), n(0)).unwrap();
+        let changed = sigma_separates(&graph, n(0), n(3), &[], &mut ws).unwrap();
+        assert_eq!(ws.rebuilds, 2);
+        assert_eq!(changed, sigma_walk_oracle(&graph, n(0), n(3), &[]).unwrap());
+
+        let other = mixed(3, &[(0, 1), (1, 2)], &[]);
+        let blocked = sigma_separates(&other, n(0), n(2), &[n(1)], &mut ws).unwrap();
+        assert_eq!(ws.rebuilds, 3);
+        assert!(blocked.separated());
+        assert_eq!(blocked, sigma_walk_oracle(&other, n(0), n(2), &[n(1)]).unwrap());
+        let reused = sigma_separates(&other, n(0), n(2), &[], &mut ws).unwrap();
+        assert_eq!(ws.rebuilds, 3);
+        assert!(!reused.separated());
     }
 
     fn exhaust(nodes: usize, bidirected: bool, include_endpoints: bool) {

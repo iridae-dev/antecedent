@@ -222,19 +222,8 @@ pub fn check_cross_world_edges(
     ) {
         return Err(CrossWorldRefusal::graph(refusal.to_string()));
     }
-    let Some(order) = topological_order(node_count, edges) else {
-        return Err(CrossWorldRefusal::graph(
-            antecedent_graph::error::CyclicDagRefusal {
-                operation: antecedent_graph::error::DagOperation::Identification,
-                next_attempt: antecedent_graph::error::CyclicNextAttempt::Unlicensed {
-                    consumer: "cross_world",
-                    attempt: "hold the edges as a CyclicDigraph and read feedback from condensation; \
-                              this cell does not identify a cyclic contrast",
-                },
-            }
-            .to_string(),
-        ));
-    };
+    let order = topological_order(node_count, edges)
+        .expect("a directed cycle was already refused");
     let mut sorted = edges.to_vec();
     sorted.sort_unstable();
     sorted.dedup();

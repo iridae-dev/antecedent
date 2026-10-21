@@ -353,31 +353,6 @@ fn describe_link(link: LaggedLink) -> String {
     )
 }
 
-/// Whether the directed graph with these `(from, to)` edges has a cycle (a self-loop counts).
-fn has_directed_cycle(edges: &[(u32, u32)]) -> bool {
-    let mut in_degree: std::collections::BTreeMap<u32, usize> = std::collections::BTreeMap::new();
-    for &(from, to) in edges {
-        in_degree.entry(from).or_insert(0);
-        *in_degree.entry(to).or_insert(0) += 1;
-    }
-    let mut ready: Vec<u32> = in_degree.iter().filter(|(_, d)| **d == 0).map(|(n, _)| *n).collect();
-    let mut removed = 0usize;
-    while let Some(node) = ready.pop() {
-        removed += 1;
-        for &(from, to) in edges {
-            if from == node {
-                if let Some(d) = in_degree.get_mut(&to) {
-                    *d -= 1;
-                    if *d == 0 {
-                        ready.push(to);
-                    }
-                }
-            }
-        }
-    }
-    removed < in_degree.len()
-}
-
 /// The background knowledge of a discovery request: what the analyst asserts about the graph
 /// before the data are consulted.
 ///
@@ -741,13 +716,12 @@ impl DiscoveryConstraints {
             .filter(|r| r.source_lag.is_contemporaneous() && r.target_lag.is_contemporaneous())
             .map(|r| (r.source.raw(), r.target.raw()))
             .collect();
-        if has_directed_cycle(&contemporaneous) {
-            return Err(KnowledgeFault::Contradictory(
-                "the required contemporaneous links form a directed cycle; DAG discovery refused \
-                 this attempt. Next attempt: hold those links as a CyclicDigraph and read \
-                 condensation. This search does not drop the cycle"
-                    .to_owned(),
-            ));
+        if antecedent_graph::error::sparse_directed_edges_contain_cycle(&contemporaneous) {
+            let refusal = antecedent_graph::error::CyclicDagRefusal::new(
+                antecedent_graph::error::DagOperation::Discovery,
+                antecedent_graph::error::CyclicNextAttempt::Condensation,
+            );
+            return Err(KnowledgeFault::Contradictory(refusal.to_string()));
         }
         Ok(())
     }
@@ -1048,6 +1022,25 @@ mod tests {
         assert!(text.contains("directed cycle"), "{text}");
         assert!(text.contains("condensation"), "{text}");
         assert!(text.contains("CyclicDigraph"), "{text}");
+        let chain = DiscoveryConstraints {
+            required: Arc::from([forward]),
+            ..DiscoveryConstraints::default()
+        };
+        assert!(chain.validate().is_ok());
+    }
+
+    #[test]
+    fn a_cycle_on_sparse_variable_ids_is_refused_and_a_gapped_chain_is_not() {
+        let vars = [VariableId::from_raw(10), VariableId::from_raw(40)];
+        let forward = contemp_link(vars[0], vars[1]);
+        let back = contemp_link(vars[1], vars[0]);
+        let cyclic = DiscoveryConstraints {
+            required: Arc::from([forward, back]),
+            ..DiscoveryConstraints::default()
+        };
+        let text = cyclic.validate().unwrap_err().to_string();
+        assert!(text.contains("directed cycle"), "{text}");
+        assert!(text.contains("condensation"), "{text}");
         let chain = DiscoveryConstraints {
             required: Arc::from([forward]),
             ..DiscoveryConstraints::default()

@@ -303,6 +303,20 @@ pub(super) fn closed_form_point(
 ) -> Option<f64> {
     let rows = columns.first()?.len();
     let rows_f = rows as f64;
+    if antecedent_graph::error::refuse_directed_cycle(
+        antecedent_graph::error::DagOperation::Identification,
+        antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+            consumer: "cross_world closed form",
+            attempt: "hold the edges as a CyclicDigraph and read feedback from condensation; \
+                      this recomputation does not evaluate a cyclic contrast",
+        },
+        n,
+        edges,
+    )
+    .is_err()
+    {
+        return None;
+    }
     let parents: Vec<Vec<usize>> = (0..n)
         .map(|v| edges.iter().filter(|e| e.1 as usize == v).map(|e| e.0 as usize).collect())
         .collect();
@@ -398,5 +412,56 @@ impl NodeMean {
             }
             Self::Spline(spline) => spline.mean(parent_values, z, cols),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::{CrossWorldQuery, VariableId};
+
+    use super::closed_form_point;
+    use crate::gcm::NestedOutcomeMechanism;
+
+    fn query() -> CrossWorldQuery {
+        CrossWorldQuery::natural_direct(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            0.0,
+            1.0,
+        )
+        .expect("three distinct variables")
+    }
+
+    #[test]
+    fn a_cycle_is_refused_before_the_order_and_a_chain_still_evaluates() {
+        let columns = vec![
+            vec![0.0, 1.0, 2.0, 3.0],
+            vec![1.0, 2.0, 3.0, 4.0],
+            vec![1.0, 3.0, 5.0, 7.0],
+        ];
+        let asked = query();
+        assert!(
+            closed_form_point(
+                3,
+                &[(0, 1), (1, 0), (1, 2)],
+                &columns,
+                &asked,
+                NestedOutcomeMechanism::LinearGaussian,
+                2,
+            )
+            .is_none()
+        );
+        assert!(
+            closed_form_point(
+                3,
+                &[(0, 1), (1, 2)],
+                &columns,
+                &asked,
+                NestedOutcomeMechanism::LinearGaussian,
+                2,
+            )
+            .is_some()
+        );
     }
 }

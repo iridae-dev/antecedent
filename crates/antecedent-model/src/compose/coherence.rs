@@ -583,7 +583,9 @@ fn check_cycles(spec: &ComposedModelSpec, known: &BTreeSet<&str>, out: &mut Vec<
     let mut edges: BTreeSet<(&str, &str)> = BTreeSet::new();
     for d in &spec.mechanisms {
         for p in &d.parents {
-            edges.insert((p.variable.as_str(), d.variable.as_str()));
+            if known.contains(p.variable.as_str()) && known.contains(d.variable.as_str()) {
+                edges.insert((p.variable.as_str(), d.variable.as_str()));
+            }
         }
     }
     for (p, c) in &spec.edges {
@@ -591,38 +593,39 @@ fn check_cycles(spec: &ComposedModelSpec, known: &BTreeSet<&str>, out: &mut Vec<
             edges.insert((p.as_str(), c.as_str()));
         }
     }
-    let mut indegree: BTreeMap<&str, usize> = known.iter().map(|v| (*v, 0)).collect();
-    for (_, c) in &edges {
-        if let Some(n) = indegree.get_mut(c) {
-            *n += 1;
-        }
-    }
-    let mut ready: Vec<&str> = indegree.iter().filter(|(_, n)| **n == 0).map(|(v, _)| *v).collect();
-    let mut removed = 0_usize;
-    while let Some(v) = ready.pop() {
-        removed += 1;
-        for (p, c) in &edges {
-            if *p == v {
-                if let Some(n) = indegree.get_mut(c) {
-                    *n -= 1;
-                    if *n == 0 {
-                        ready.push(*c);
-                    }
-                }
-            }
-        }
-    }
-    if removed < indegree.len() {
-        let stuck = indegree.iter().filter(|(_, n)| **n > 0).map(|(v, _)| (*v).to_owned());
-        out.push(CoherenceFinding::new(
-            CoherenceKind::Cycle,
-            "mechanism_composition.cycle_directed_cycle",
-            list(stuck),
-            "this acyclic composition refused the cycle; next attempt: \
-             CyclicDigraph::condensation for the feedback structure. The refusal is not an \
-             equilibrium solution",
-        ));
-    }
+    let ids: BTreeMap<&str, u32> = known
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, name)| (name, u32::try_from(index).expect("mechanism count fits u32")))
+        .collect();
+    let dense: Vec<(u32, u32)> = edges
+        .iter()
+        .filter_map(|&(parent, child)| {
+            let from = ids.get(parent)?;
+            let to = ids.get(child)?;
+            Some((*from, *to))
+        })
+        .collect();
+    let refusal = antecedent_graph::error::refuse_directed_cycle(
+        antecedent_graph::error::DagOperation::TopologicalOrder,
+        antecedent_graph::error::CyclicNextAttempt::Condensation,
+        ids.len(),
+        &dense,
+    );
+    let Err(_) = refusal else {
+        return;
+    };
+    let mut involved: Vec<String> =
+        edges.iter().flat_map(|&(parent, child)| [parent, child]).map(str::to_owned).collect();
+    involved.sort_unstable();
+    involved.dedup();
+    out.push(CoherenceFinding::new(
+        CoherenceKind::Cycle,
+        "mechanism_composition.cycle_directed_cycle",
+        list(involved),
+        "schedule the dependency feedback with CyclicDigraph::condensation, which does not execute the policies",
+    ));
 }
 
 fn check_parent_and_conditioning_sets(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {

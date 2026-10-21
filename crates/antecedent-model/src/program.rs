@@ -88,13 +88,20 @@ impl From<PolicyRefusal> for ModelError {
 }
 
 fn refusal_circular(subject: String) -> PolicyRefusal {
+    let _refusal = antecedent_graph::error::CyclicDagRefusal::new(
+        antecedent_graph::error::DagOperation::Simulation,
+        antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+            consumer: "this topological executor",
+            attempt: "schedule the dependency feedback with CyclicDigraph::condensation, which \
+                      does not execute the policies",
+        },
+    );
     PolicyRefusal {
         code: reason_code!("policy_dependency_circular"),
         detail: "intervention_program.dependency_circular",
         subject,
-        remedy: "this topological executor has no cyclic license; next attempt: schedule the \
-                 dependency feedback with CyclicDigraph::condensation, which does not execute \
-                 the policies",
+        remedy: "schedule the dependency feedback with CyclicDigraph::condensation, which does \
+                 not execute the policies",
     }
 }
 
@@ -948,7 +955,7 @@ pub(crate) fn execution_order(
         })
         .collect();
     if antecedent_graph::error::directed_edges_contain_cycle(n, &dependency_edges) {
-        let pending = nodes_left_by_a_cycle(n, &dependants, &waiting);
+        let pending = nodes_in_a_cycle(n, &dependency_edges);
         return Err(refusal_circular(describe_cycle(model, &deps, &pending, programs)));
     }
     let mut ready: BinaryHeap<Reverse<(usize, usize)>> = BinaryHeap::new();
@@ -981,23 +988,37 @@ pub(crate) fn execution_order(
     Err(refusal_circular(describe_cycle(model, &deps, &pending, programs)))
 }
 
-/// Nodes a source-peel cannot place. The peel's prefix is not returned: a cycle
-/// is not an execution order.
-fn nodes_left_by_a_cycle(n: usize, dependants: &[Vec<usize>], indegree: &[usize]) -> Vec<bool> {
-    let mut indegree = indegree.to_vec();
-    let mut ready: Vec<usize> =
-        indegree.iter().enumerate().filter(|(_, degree)| **degree == 0).map(|(i, _)| i).collect();
-    let mut placed = vec![false; n];
-    while let Some(node) = ready.pop() {
-        placed[node] = true;
-        for &next in &dependants[node] {
-            indegree[next] -= 1;
-            if indegree[next] == 0 {
-                ready.push(next);
+/// Nodes on a directed cycle. A self-loop is a cycle. Downstream nodes that are
+/// not in the cycle are omitted: the refusal names the cycle, not an order.
+fn nodes_in_a_cycle(n: usize, edges: &[(u32, u32)]) -> Vec<bool> {
+    let mut pending = vec![false; n];
+    let Ok(count) = u32::try_from(n) else {
+        return pending;
+    };
+    let mut graph = antecedent_graph::CyclicDigraph::with_variables(count);
+    for &(from, to) in edges {
+        let from_id = DenseNodeId::from_raw(from);
+        let to_id = DenseNodeId::from_raw(to);
+        if from_id.as_usize() >= n || to_id.as_usize() >= n {
+            continue;
+        }
+        if from == to {
+            pending[from_id.as_usize()] = true;
+            continue;
+        }
+        let inserted = graph.insert_directed(from_id, to_id);
+        if let Err(antecedent_graph::error::GraphError::DuplicateEdge { .. }) = inserted {
+            continue;
+        }
+    }
+    for component in graph.condensation().components() {
+        if component.len() > 1 {
+            for id in component {
+                pending[id.as_usize()] = true;
             }
         }
     }
-    placed.into_iter().map(|done| !done).collect()
+    pending
 }
 
 /// Walk unmet dependencies from any unprocessed node until a node repeats.
