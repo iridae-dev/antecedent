@@ -4894,7 +4894,6 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::z_transport_artifa
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::z_transport_artifact::ZTransportPointWire
 pub const <antecedent_io::release_migration::ManifestRouteStatus>::ALL: [Self; 5]
 pub const <antecedent_io::release_migration::RouteAxis>::ALL: [Self; 4]
-pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_DECOMPRESSED_BYTES: u64
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_RETAINED_BYTES: u64
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_SECTIONS: u32
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_SECTION_BYTES: u64
@@ -7056,7 +7055,6 @@ pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosterior
 pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire::min_local_rows: usize
 pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire::residual: antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 pub field antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire::seed: u64
-pub field antecedent_io::stream_artifact::StreamBounds::max_decompressed_bytes: u64
 pub field antecedent_io::stream_artifact::StreamBounds::max_retained_bytes: u64
 pub field antecedent_io::stream_artifact::StreamBounds::max_section_bytes: u64
 pub field antecedent_io::stream_artifact::StreamBounds::max_sections: u32
@@ -8044,7 +8042,6 @@ pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::overlap_declaration_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, bindings: &[(antecedent_estimate::counterfactual_transport_sampled::counts::SampledTableKey, antecedent_contract::evidence_ledger::ids::SourceId)]) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::overlap::OverlapDeclaration, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, request: &antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest, variable_names: &[alloc::string::String], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire, antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate), antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
-pub fn antecedent_io::stream_artifact::encode_compressed(metadata: &antecedent_io::stream_artifact::StreamMetadata, logical: &[u8], bounds: &antecedent_io::stream_artifact::StreamBounds) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::stream_artifact::StreamArtifactError>
 pub fn antecedent_io::temporal_refresh_artifact::expected_receipt(old: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, new: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, interval_invalidated: bool) -> antecedent_estimate::temporal_refresh::RefreshReceipt
 pub fn antecedent_io::temporal_refresh_artifact::panel_digest_hex(panel: &antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel) -> alloc::string::String
 pub fn antecedent_io::transport_effect_from_wire(value: &antecedent_io_core::transport_interference_wire::TransportEffectEstimateWire) -> core::result::Result<antecedent_estimate::transport::TransportEffectEstimate, antecedent_io_core::error::IoError>
@@ -9429,8 +9426,6 @@ pub variant antecedent_io::stream_artifact::Producer::Accelerator
 pub variant antecedent_io::stream_artifact::Producer::Cpu
 pub variant antecedent_io::stream_artifact::StreamArtifactError::Cancelled
 pub variant antecedent_io::stream_artifact::StreamArtifactError::ChecksumMismatch { section: &'static str }
-pub variant antecedent_io::stream_artifact::StreamArtifactError::Decompress
-pub variant antecedent_io::stream_artifact::StreamArtifactError::DecompressionBound { limit: u64 }
 pub variant antecedent_io::stream_artifact::StreamArtifactError::LiveDevicePointer
 pub variant antecedent_io::stream_artifact::StreamArtifactError::Malformed(&'static str)
 pub variant antecedent_io::stream_artifact::StreamArtifactError::NewerFormat { version: u16 }

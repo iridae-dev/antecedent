@@ -22,6 +22,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use thiserror::Error;
 
 use crate::migrate::{STABLE_FORMAT, is_supported_source};
@@ -35,11 +37,12 @@ pub const MIGRATION_SOURCE_MINORS: std::ops::RangeInclusive<u16> = 1..=4;
 
 /// Integer version of one artifact feature or family payload.
 ///
-/// `version` is not a package major, minor, or patch.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// `version` is not a package major, minor, or patch. `name` is owned so a
+/// caller can supply a name that is not a program literal.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FeatureVersion {
     /// Feature or family name the owning consumer recognizes.
-    pub name: &'static str,
+    pub name: Arc<str>,
     /// Version that consumer writes and accepts.
     pub version: u32,
 }
@@ -64,7 +67,7 @@ pub enum RequestedVersion<'a> {
 /// [`migrate_artifact`](crate::migrate::migrate_artifact) for a required
 /// migration, the caller hands the container to the consumer for
 /// [`FeatureVersion::name`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum FeatureRead {
     /// Container format is [`STABLE_FORMAT`]. The feature version is accepted.
@@ -155,8 +158,10 @@ pub fn classify_feature_read(
         }
         RequestedVersion::Feature { name, version } => (name, version),
     };
-    let Some(feature) =
-        accepted.iter().copied().find(|feature| feature.name == name && feature.version == version)
+    let Some(feature) = accepted
+        .iter()
+        .find(|feature| feature.name.as_ref() == name && feature.version == version)
+        .cloned()
     else {
         return Err(FeatureRefusal::UnknownFeature { name: name.to_owned(), version });
     };
@@ -174,11 +179,11 @@ mod tests {
     use super::*;
 
     fn family() -> FeatureVersion {
-        FeatureVersion { name: "family_payload", version: 1 }
+        FeatureVersion { name: Arc::from("family_payload"), version: 1 }
     }
 
-    fn request(feature: FeatureVersion) -> RequestedVersion<'static> {
-        RequestedVersion::Feature { name: feature.name, version: feature.version }
+    fn request(feature: &FeatureVersion) -> RequestedVersion<'_> {
+        RequestedVersion::Feature { name: feature.name.as_ref(), version: feature.version }
     }
 
     #[test]
@@ -204,10 +209,8 @@ mod tests {
         assert_eq!(STABLE_FORMAT, FormatVersion { major: 0, minor: 5 });
         assert!(!is_migration_source(STABLE_FORMAT));
         let feature = family();
-        assert_eq!(
-            classify_feature_read(STABLE_FORMAT, request(feature), &[feature]),
-            Ok(FeatureRead::Compatible { feature }),
-        );
+        let got = classify_feature_read(STABLE_FORMAT, request(&feature), &[feature.clone()]);
+        assert_eq!(got, Ok(FeatureRead::Compatible { feature }));
     }
 
     #[test]
@@ -218,8 +221,8 @@ mod tests {
             assert!(is_supported_source(from));
             assert!(is_migration_source(from));
             assert_eq!(
-                classify_feature_read(from, request(feature), &[feature]),
-                Ok(FeatureRead::RequiresMigration { from, feature }),
+                classify_feature_read(from, request(&feature), &[feature.clone()]),
+                Ok(FeatureRead::RequiresMigration { from, feature: feature.clone() }),
             );
         }
     }
@@ -234,7 +237,7 @@ mod tests {
         ] {
             assert!(!is_migration_source(container));
             assert_eq!(
-                classify_feature_read(container, request(feature), &[feature]),
+                classify_feature_read(container, request(&feature), &[feature.clone()]),
                 Err(FeatureRefusal::UnsupportedContainer {
                     major: container.major,
                     minor: container.minor,
@@ -246,7 +249,8 @@ mod tests {
     #[test]
     fn package_semver_is_not_a_feature_version() {
         let package = SemanticVersion::from_crate_version(antecedent_core::VERSION).unwrap();
-        let accepted = [FeatureVersion { name: "family_payload", version: package.major }];
+        let accepted =
+            [FeatureVersion { name: Arc::from("family_payload"), version: package.major }];
         assert_eq!(
             classify_feature_read(STABLE_FORMAT, RequestedVersion::Package(&package), &accepted),
             Err(FeatureRefusal::PackageSemVer {
@@ -260,18 +264,17 @@ mod tests {
     #[test]
     fn framing_word_is_not_a_feature_or_format_version() {
         assert_eq!(crate::CONTAINER_VERSION, 1);
-        let feature = FeatureVersion { name: "family_payload", version: crate::CONTAINER_VERSION };
+        let feature =
+            FeatureVersion { name: Arc::from("family_payload"), version: crate::CONTAINER_VERSION };
         assert_eq!(
             classify_feature_read(
                 FormatVersion { major: 1, minor: 0 },
-                request(feature),
-                &[feature],
+                request(&feature),
+                &[feature.clone()],
             ),
             Err(FeatureRefusal::UnsupportedContainer { major: 1, minor: 0 }),
         );
-        assert_eq!(
-            classify_feature_read(STABLE_FORMAT, request(feature), &[feature]),
-            Ok(FeatureRead::Compatible { feature }),
-        );
+        let got = classify_feature_read(STABLE_FORMAT, request(&feature), &[feature.clone()]);
+        assert_eq!(got, Ok(FeatureRead::Compatible { feature }));
     }
 }

@@ -182,12 +182,13 @@ impl ArrowCStream {
         Self { inner: FFI_ArrowArrayStream::new(reader) }
     }
 
-    /// Read every batch. Chunks are not concatenated.
+    /// Read every batch, up to 65_536. Chunks are not concatenated.
     ///
     /// # Errors
     ///
-    /// When the stream schema or a later batch cannot be imported. The stream
-    /// is released on both success and failure.
+    /// When the stream schema or a later batch cannot be imported, or the stream
+    /// yields more than 65_536 batches. The stream is released on both success
+    /// and failure.
     pub fn into_batches(self) -> Result<(SchemaRef, Vec<RecordBatch>), DataError> {
         let reader = ArrowArrayStreamReader::try_new(self.inner).map_err(|e| {
             DataError::InvalidArgument {
@@ -197,6 +198,11 @@ impl ArrowCStream {
         let schema = reader.schema();
         let mut batches = Vec::new();
         for batch in reader {
+            if batches.len() == MAX_STREAM_BATCHES {
+                return Err(DataError::InvalidArgument {
+                    message: format!("Arrow stream exceeds {MAX_STREAM_BATCHES} batches"),
+                });
+            }
             let batch = batch.map_err(|e| DataError::InvalidArgument {
                 message: format!("Arrow stream batch import failed: {e}"),
             })?;
@@ -205,6 +211,9 @@ impl ArrowCStream {
         Ok((schema, batches))
     }
 }
+
+/// Most record batches [`ArrowCStream::into_batches`] will read.
+const MAX_STREAM_BATCHES: usize = 65_536;
 
 /// Import a single Arrow array via CDI.
 ///
@@ -436,5 +445,38 @@ mod tests {
         let loaded = tabular_from_arrow_c_columns(vec![good, bad]);
         assert!(loaded.is_err());
         assert!(flag.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn stream_batch_count_is_bounded() {
+        use arrow_array::{RecordBatch, RecordBatchReader};
+        use arrow_schema::{ArrowError, DataType, Field, Schema, SchemaRef};
+
+        use crate::error::DataError;
+
+        struct Endless {
+            schema: SchemaRef,
+        }
+        impl Iterator for Endless {
+            type Item = Result<RecordBatch, ArrowError>;
+            fn next(&mut self) -> Option<Self::Item> {
+                Some(Ok(RecordBatch::new_empty(Arc::clone(&self.schema))))
+            }
+        }
+        impl RecordBatchReader for Endless {
+            fn schema(&self) -> SchemaRef {
+                Arc::clone(&self.schema)
+            }
+        }
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Float64, true)]));
+        let err = ArrowCStream::from_reader(Box::new(Endless { schema }))
+            .into_batches()
+            .expect_err("batch cap");
+        match err {
+            DataError::InvalidArgument { message } => {
+                assert!(message.contains(&MAX_STREAM_BATCHES.to_string()));
+            }
+            other => panic!("expected the batch cap, got {other}"),
+        }
     }
 }

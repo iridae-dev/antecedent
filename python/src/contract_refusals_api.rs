@@ -8,13 +8,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::Arc;
 
 use antecedent_contract::rewrite_legality::{
-    ColumnFilterPushdown, FrameContents, NuisanceEffect, NuisanceReuse, PreparationEffect,
-    PreservationAxis, PreservedIdentities, PushdownEffect, RewriteKind, RewriteRefusal,
-    SharedRowDesignPreparation, SufficientStatistics, SummaryEffect, TileEffect, TiledEvaluation,
+    FrameContents, NuisanceEffect, PreparationEffect, PreservationAxis, PreservedIdentities,
+    PushdownEffect, Rewrite, RewriteRefusal, SummaryEffect, TileEffect,
 };
 use antecedent_contract::summary_observation::{
     Dependence, FrequentistSummary, LikelihoodUpdateAdmission, Origin, SamplingApproximation,
@@ -103,34 +101,6 @@ fn unknown_effect(family: &str, name: &str) -> PyErr {
         reason_code!("invalid_argument"),
         format!("unknown {family} effect `{name}`"),
     )
-}
-
-/// Most distinct feature names the interner will own.
-const MAX_INTERNED_FEATURE_NAMES: usize = 1024;
-
-/// `FeatureVersion::name` is `&'static str`, so each distinct Python name is
-/// leaked once with `Box::leak` and reused afterwards.
-///
-/// The leak is bounded: at most `MAX_INTERNED_FEATURE_NAMES` distinct names
-/// (each as long as the caller's string) are ever leaked. Further new names are
-/// refused with a validation error. Removing the leak needs `FeatureVersion` to
-/// hold an owned name, which is a change in another crate.
-fn intern_feature_name(name: &str) -> PyResult<&'static str> {
-    static NAMES: OnceLock<Mutex<HashMap<String, &'static str>>> = OnceLock::new();
-    let table = NAMES.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut guard = table.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(found) = guard.get(name) {
-        return Ok(found);
-    }
-    if guard.len() >= MAX_INTERNED_FEATURE_NAMES {
-        return Err(crate::value_err_code(
-            reason_code!("invalid_argument"),
-            format!("more than {MAX_INTERNED_FEATURE_NAMES} distinct feature names were declared"),
-        ));
-    }
-    let leaked: &'static str = Box::leak(name.to_owned().into_boxed_str());
-    guard.insert(leaked.to_owned(), leaked);
-    Ok(leaked)
 }
 
 /// Define `fn $name(&str) -> Option<$ty>` from a snake_case name table.
@@ -236,7 +206,7 @@ fn accepted_features(
         .iter()
         .map(|item| {
             let view = item.borrow(py);
-            Ok(FeatureVersion { name: intern_feature_name(&view.name)?, version: view.version })
+            Ok(FeatureVersion { name: Arc::<str>::from(view.name.as_str()), version: view.version })
         })
         .collect()
 }
@@ -427,39 +397,9 @@ impl PyPreservedIdentities {
     }
 }
 
-enum HeldRewrite {
-    Pushdown(Box<ColumnFilterPushdown>),
-    Preparation(Box<SharedRowDesignPreparation>),
-    Nuisance(Box<NuisanceReuse>),
-    Statistics(Box<SufficientStatistics>),
-    Tile(Box<TiledEvaluation>),
-}
-
-impl HeldRewrite {
-    fn check(&self) -> Result<(), RewriteRefusal> {
-        match self {
-            Self::Pushdown(rewrite) => rewrite.check(),
-            Self::Preparation(rewrite) => rewrite.check(),
-            Self::Nuisance(rewrite) => rewrite.check(),
-            Self::Statistics(rewrite) => rewrite.check(),
-            Self::Tile(rewrite) => rewrite.check(),
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Pushdown(rewrite) => rewrite.name(),
-            Self::Preparation(rewrite) => rewrite.name(),
-            Self::Nuisance(rewrite) => rewrite.name(),
-            Self::Statistics(rewrite) => rewrite.name(),
-            Self::Tile(rewrite) => rewrite.name(),
-        }
-    }
-}
-
 #[pyclass(name = "FrameRewrite", frozen)]
 struct PyFrameRewrite {
-    inner: HeldRewrite,
+    inner: Rewrite,
 }
 
 #[pymethods]
@@ -475,11 +415,7 @@ impl PyFrameRewrite {
         let effect = pushdown_effect(effect).ok_or_else(|| unknown_effect("pushdown", effect))?;
         let cohort = cohort.borrow(py).inner.clone();
         let pushed = pushed.borrow(py).inner.clone();
-        Ok(Self {
-            inner: HeldRewrite::Pushdown(Box::new(ColumnFilterPushdown::new(
-                cohort, pushed, effect,
-            ))),
-        })
+        Ok(Self { inner: Rewrite::column_filter_pushdown(cohort, pushed, effect) })
     }
 
     #[classmethod]
@@ -496,14 +432,7 @@ impl PyFrameRewrite {
         let preparation = preparation.borrow(py).inner.clone();
         let left = left.borrow(py).inner.clone();
         let right = right.borrow(py).inner.clone();
-        Ok(Self {
-            inner: HeldRewrite::Preparation(Box::new(SharedRowDesignPreparation::new(
-                preparation,
-                left,
-                right,
-                effect,
-            ))),
-        })
+        Ok(Self { inner: Rewrite::shared_row_design_preparation(preparation, left, right, effect) })
     }
 
     #[classmethod]
@@ -517,9 +446,7 @@ impl PyFrameRewrite {
         let effect = nuisance_effect(effect).ok_or_else(|| unknown_effect("nuisance", effect))?;
         let fit = fit.borrow(py).inner.clone();
         let consumer = consumer.borrow(py).inner.clone();
-        Ok(Self {
-            inner: HeldRewrite::Nuisance(Box::new(NuisanceReuse::new(fit, consumer, effect))),
-        })
+        Ok(Self { inner: Rewrite::nuisance_reuse(fit, consumer, effect) })
     }
 
     #[classmethod]
@@ -534,11 +461,7 @@ impl PyFrameRewrite {
             statistics_effect(effect).ok_or_else(|| unknown_effect("statistics", effect))?;
         let rows = rows.borrow(py).inner.clone();
         let summary = summary.borrow(py).inner.clone();
-        Ok(Self {
-            inner: HeldRewrite::Statistics(Box::new(SufficientStatistics::new(
-                rows, summary, effect,
-            ))),
-        })
+        Ok(Self { inner: Rewrite::sufficient_statistics(rows, summary, effect) })
     }
 
     #[classmethod]
@@ -552,7 +475,7 @@ impl PyFrameRewrite {
         let effect = tile_effect(effect).ok_or_else(|| unknown_effect("tile", effect))?;
         let full = full.borrow(py).inner.clone();
         let tile = tile.borrow(py).inner.clone();
-        Ok(Self { inner: HeldRewrite::Tile(Box::new(TiledEvaluation::new(full, tile, effect))) })
+        Ok(Self { inner: Rewrite::tiled_evaluation(full, tile, effect) })
     }
 
     fn name(&self) -> &'static str {
@@ -573,23 +496,12 @@ impl PyFrameRewrite {
         let folds: Vec<&str> = fold_ids.iter().map(String::as_str).collect();
         let frame =
             FrameContents::try_new(&rows, &folds, population, history).map_err(rewrite_err)?;
-        let inner = match &self.inner {
-            HeldRewrite::Pushdown(rewrite) => {
-                HeldRewrite::Pushdown(Box::new(rewrite.clone().with_frames(&frame, &frame)))
-            }
-            HeldRewrite::Preparation(rewrite) => HeldRewrite::Preparation(Box::new(
-                rewrite.clone().with_frames(&frame, &frame, &frame),
-            )),
-            HeldRewrite::Nuisance(rewrite) => {
-                HeldRewrite::Nuisance(Box::new(rewrite.clone().with_frames(&frame, &frame)))
-            }
-            HeldRewrite::Statistics(rewrite) => {
-                HeldRewrite::Statistics(Box::new(rewrite.clone().with_frames(&frame, &frame)))
-            }
-            HeldRewrite::Tile(rewrite) => {
-                HeldRewrite::Tile(Box::new(rewrite.clone().with_frames(&frame, &frame)))
-            }
+        let claims = if self.inner.name() == Rewrite::SHARED_ROW_DESIGN_PREPARATION {
+            vec![&frame, &frame]
+        } else {
+            vec![&frame]
         };
+        let inner = self.inner.clone().with_frames(&frame, &claims).map_err(rewrite_err)?;
         Ok(Self { inner })
     }
 
@@ -758,14 +670,14 @@ impl PyFeatureRead {
         match read {
             FeatureRead::Compatible { feature } => Ok(Self {
                 kind: "compatible",
-                name: feature.name.to_owned(),
+                name: feature.name.to_string(),
                 version: feature.version,
                 source_major: None,
                 source_minor: None,
             }),
             FeatureRead::RequiresMigration { from, feature } => Ok(Self {
                 kind: "requires_migration",
-                name: feature.name.to_owned(),
+                name: feature.name.to_string(),
                 version: feature.version,
                 source_major: Some(from.major),
                 source_minor: Some(from.minor),
@@ -850,6 +762,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use antecedent_contract::rewrite_legality::{FrameContents, PreservationAxis};
     use antecedent_contract::summary_observation::{
         FrequentistSummary, FrequentistSummaryKind, SummaryNextAttempt, SummaryUse,
@@ -859,10 +773,8 @@ mod tests {
     use antecedent_state::retention::{RetainedOperation, RetentionMode, RetentionPolicy};
 
     use super::{
-        ColumnFilterPushdown, NuisanceReuse, RewriteKind, SharedRowDesignPreparation,
-        SufficientStatistics, TiledEvaluation, adapt_summary, intern_feature_name, nuisance_effect,
-        preparation_effect, pushdown_effect, read_feature, read_package, statistics_effect,
-        tile_effect,
+        Rewrite, adapt_summary, nuisance_effect, preparation_effect, pushdown_effect, read_feature,
+        read_package, statistics_effect, tile_effect,
     };
 
     fn frame_contents() -> FrameContents {
@@ -910,13 +822,13 @@ mod tests {
     fn rewrite_that_changes_the_frame_is_refused() {
         let frame = frame();
         let altered = pushdown_effect("undeclared_population_cut").expect("effect");
-        let refusal = ColumnFilterPushdown::new(frame.clone(), frame.clone(), altered)
+        let refusal = Rewrite::column_filter_pushdown(frame.clone(), frame.clone(), altered)
             .check()
             .expect_err("effect");
         assert_eq!(refusal.axis(), PreservationAxis::Population);
         assert_eq!(refusal.next_attempt(), PreservationAxis::Population.next_attempt());
         assert_eq!(refusal.code(), "invalid_argument");
-        assert_eq!(refusal.kind(), Some(ColumnFilterPushdown::NAME));
+        assert_eq!(refusal.kind(), Some(Rewrite::COLUMN_FILTER_PUSHDOWN));
 
         let moved = super::PreservedIdentities::try_new(
             "sample",
@@ -928,14 +840,15 @@ mod tests {
         )
         .expect("moved");
         let declared = pushdown_effect("declared").expect("declared");
-        let refusal = ColumnFilterPushdown::new(frame.clone(), moved, declared)
+        let refusal = Rewrite::column_filter_pushdown(frame.clone(), moved, declared)
             .check()
             .expect_err("identity");
         assert_eq!(refusal.axis(), PreservationAxis::Population);
         let same = frame_contents();
         assert!(
-            ColumnFilterPushdown::new(frame.clone(), frame.clone(), declared)
-                .with_frames(&same, &same)
+            Rewrite::column_filter_pushdown(frame.clone(), frame.clone(), declared)
+                .with_frames(&same, &[&same])
+                .expect("frames")
                 .check()
                 .is_ok()
         );
@@ -943,7 +856,7 @@ mod tests {
 
         let population = preparation_effect("mixes_populations").expect("preparation");
         assert_eq!(
-            SharedRowDesignPreparation::new(
+            Rewrite::shared_row_design_preparation(
                 frame.clone(),
                 frame.clone(),
                 frame.clone(),
@@ -957,15 +870,21 @@ mod tests {
         let shared = preparation_effect("shared").expect("shared");
         let same = frame_contents();
         assert!(
-            SharedRowDesignPreparation::new(frame.clone(), frame.clone(), frame.clone(), shared)
-                .with_frames(&same, &same, &same)
-                .check()
-                .is_ok()
+            Rewrite::shared_row_design_preparation(
+                frame.clone(),
+                frame.clone(),
+                frame.clone(),
+                shared
+            )
+            .with_frames(&same, &[&same, &same])
+            .expect("frames")
+            .check()
+            .is_ok()
         );
 
         let history = nuisance_effect("fit_on_other_history").expect("nuisance");
         assert_eq!(
-            NuisanceReuse::new(frame.clone(), frame.clone(), history)
+            Rewrite::nuisance_reuse(frame.clone(), frame.clone(), history)
                 .check()
                 .expect_err("nuisance")
                 .axis(),
@@ -974,15 +893,16 @@ mod tests {
         let certified = nuisance_effect("certified").expect("certified");
         let same = frame_contents();
         assert!(
-            NuisanceReuse::new(frame.clone(), frame.clone(), certified)
-                .with_frames(&same, &same)
+            Rewrite::nuisance_reuse(frame.clone(), frame.clone(), certified)
+                .with_frames(&same, &[&same])
+                .expect("frames")
                 .check()
                 .is_ok()
         );
 
         let uncertainty = statistics_effect("drops_sampling_law").expect("statistics");
         assert_eq!(
-            SufficientStatistics::new(frame.clone(), frame.clone(), uncertainty)
+            Rewrite::sufficient_statistics(frame.clone(), frame.clone(), uncertainty)
                 .check()
                 .expect_err("statistics")
                 .axis(),
@@ -991,15 +911,16 @@ mod tests {
         let sufficient = statistics_effect("sufficient").expect("sufficient");
         let same = frame_contents();
         assert!(
-            SufficientStatistics::new(frame.clone(), frame.clone(), sufficient)
-                .with_frames(&same, &same)
+            Rewrite::sufficient_statistics(frame.clone(), frame.clone(), sufficient)
+                .with_frames(&same, &[&same])
+                .expect("frames")
                 .check()
                 .is_ok()
         );
 
         let draws = tile_effect("drops_failed_draws").expect("tile");
         assert_eq!(
-            TiledEvaluation::new(frame.clone(), frame.clone(), draws)
+            Rewrite::tiled_evaluation(frame.clone(), frame.clone(), draws)
                 .check()
                 .expect_err("tile")
                 .axis(),
@@ -1008,8 +929,9 @@ mod tests {
         let faithful = tile_effect("faithful").expect("faithful");
         let same = frame_contents();
         assert!(
-            TiledEvaluation::new(frame.clone(), frame, faithful)
-                .with_frames(&same, &same)
+            Rewrite::tiled_evaluation(frame.clone(), frame, faithful)
+                .with_frames(&same, &[&same])
+                .expect("frames")
                 .check()
                 .is_ok()
         );
@@ -1067,16 +989,13 @@ mod tests {
 
     #[test]
     fn container_0_5_is_compatible_and_unknown_or_semver_is_refused() {
-        let name = intern_feature_name("family_payload").expect("interned");
-        assert_eq!(intern_feature_name("family_payload").expect("interned"), name);
-        let feature = FeatureVersion { name, version: 1 };
+        let feature = FeatureVersion { name: Arc::from("family_payload"), version: 1 };
         assert_eq!(STABLE_FORMAT, FormatVersion { major: 0, minor: 5 });
+        let got =
+            read_feature(STABLE_FORMAT, feature.name.as_ref(), feature.version, &[feature.clone()]);
+        assert_eq!(got, Ok(FeatureRead::Compatible { feature: feature.clone() }));
         assert_eq!(
-            read_feature(STABLE_FORMAT, feature.name, feature.version, &[feature]),
-            Ok(FeatureRead::Compatible { feature }),
-        );
-        assert_eq!(
-            read_feature(STABLE_FORMAT, "family_payload", 2, &[feature]),
+            read_feature(STABLE_FORMAT, "family_payload", 2, &[feature.clone()]),
             Err(FeatureRefusal::UnknownFeature { name: "family_payload".to_owned(), version: 2 }),
         );
         let package = SemanticVersion { major: feature.version, minor: 1, patch: 4 };

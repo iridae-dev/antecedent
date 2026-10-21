@@ -25,6 +25,7 @@ use crate::arrow_ffi::{
     ArrowCColumn, ArrowCStream, float64_column_from_array, validity_from_array,
 };
 use crate::buffer::F64Buffer;
+use crate::categorical::Contrast;
 use crate::categorical::{
     CategoricalColumn, CategoryCode, CategoryDomain, CategoryLevel, UnknownCategoryPolicy,
 };
@@ -32,7 +33,6 @@ use crate::column::{
     FixedVectorColumn, Float64Column, Int64Column, OwnedColumn, TimestampColumn, ValidityBitmap,
 };
 use crate::dataset::TabularData;
-use crate::categorical::Contrast;
 use crate::error::DataError;
 use crate::materialize::{
     EstimatorStreamNeed, MaterializationReason, PreparationControls, PreparationProduct,
@@ -249,27 +249,37 @@ fn fixed_vector_from_list(
         .as_any()
         .downcast_ref::<Float64Array>()
         .ok_or(DataError::TypeMismatch { id, expected: "FixedSizeList<float64>" })?;
+    let span = || DataError::InvalidArgument {
+        message: "FixedSizeList value span does not fit the child buffer".into(),
+    };
+    let cells = n_rows.checked_mul(dim).ok_or_else(span)?;
     // Validity is per row, so a vector with any null component is a missing row;
     // every component of a missing row holds NaN.
-    let mut flat = Vec::with_capacity(n_rows.saturating_mul(dim));
+    let mut flat = Vec::with_capacity(cells);
     let mut validity_bytes = vec![0u8; n_rows.div_ceil(8)];
+    let raw = floats.values();
+    let list_offset = list.offset();
+    let child_offset = floats.offset();
     for row in 0..n_rows {
-        let start = row.saturating_mul(dim);
-        if list.is_null(row) || (start..start + dim).any(|idx| floats.is_null(idx)) {
+        let start = list_offset
+            .checked_mul(dim)
+            .and_then(|base| row.checked_mul(dim).and_then(|step| base.checked_add(step)))
+            .ok_or_else(span)?;
+        let end = start.checked_add(dim).ok_or_else(span)?;
+        if end > floats.len() {
+            return Err(span());
+        }
+        if list.is_null(row) || (start..end).any(|idx| floats.is_null(idx)) {
             flat.extend(std::iter::repeat_n(f64::NAN, dim));
             continue;
         }
         validity_bytes[row / 8] |= 1 << (row % 8);
-        // `value` is logical; the buffer is addressed from the array offset.
-        let raw = floats.values();
-        let phys = floats.offset() + start;
-        let end = phys + dim;
-        if end > raw.len() {
-            return Err(DataError::InvalidArgument {
-                message: "FixedSizeList value buffer is shorter than its row width".into(),
-            });
+        let phys = child_offset.checked_add(start).ok_or_else(span)?;
+        let phys_end = phys.checked_add(dim).ok_or_else(span)?;
+        if phys_end > raw.len() {
+            return Err(span());
         }
-        flat.extend_from_slice(&raw[phys..end]);
+        flat.extend_from_slice(&raw[phys..phys_end]);
     }
     let copied = (flat.len() * core::mem::size_of::<f64>() + validity_bytes.len()) as u64;
     let col = FixedVectorColumn::new(
@@ -409,8 +419,8 @@ impl ArrowFrameView {
     ///
     /// # Errors
     ///
-    /// When the stream cannot be read, a batch disagrees with the stream
-    /// schema, or a column type cannot be kept exact.
+    /// When the stream cannot be read, it exceeds the batch cap, a batch
+    /// disagrees with the stream schema, or a column type cannot be kept exact.
     pub fn from_stream(stream: ArrowCStream) -> Result<Self, DataError> {
         let (schema, batches) = stream.into_batches()?;
         Self::from_schema_batches(&schema, batches)
@@ -1215,9 +1225,10 @@ impl ArrowFrameView {
         categories: &[(VariableId, Contrast)],
         controls: PreparationControls,
     ) -> Result<EstimatorFrame, DataError> {
-        controls.backend.admit().map_err(|refusal| DataError::InvalidArgument {
-            message: refusal.to_string(),
-        })?;
+        controls
+            .backend
+            .admit()
+            .map_err(|refusal| DataError::InvalidArgument { message: refusal.to_string() })?;
         let order = resolve_order(self.n_columns(), order)?;
         let bytes = frame_payload_bytes(self)?;
         let budget = controls.budget.map_or(bytes, crate::materialize::PreparationBudget::bytes);
@@ -1354,14 +1365,15 @@ fn chunk_missing(
     order: &[usize],
     index: usize,
 ) -> Result<ChunkMissing, DataError> {
-    let rows = frame.columns.first().map_or(0, |column| {
-        column.chunks.get(index).map_or(0, OwnedColumn::len)
-    });
+    let rows = frame
+        .columns
+        .first()
+        .map_or(0, |column| column.chunks.get(index).map_or(0, OwnedColumn::len));
     let mut dropped = Vec::new();
     for row in 0..rows {
-        let invalid = order.iter().any(|&column| {
-            !frame.columns[column].chunks[index].as_view().validity().is_valid(row)
-        });
+        let invalid = order
+            .iter()
+            .any(|&column| !frame.columns[column].chunks[index].as_view().validity().is_valid(row));
         if invalid {
             let row = u64::try_from(row).map_err(|_| DataError::InvalidArgument {
                 message: "chunk row does not fit u64".into(),
@@ -1369,9 +1381,9 @@ fn chunk_missing(
             dropped.push(row);
         }
     }
-    let rows_kept = rows.checked_sub(dropped.len()).ok_or_else(|| DataError::InvalidArgument {
-        message: "chunk kept rows overflow".into(),
-    })?;
+    let rows_kept = rows
+        .checked_sub(dropped.len())
+        .ok_or_else(|| DataError::InvalidArgument { message: "chunk kept rows overflow".into() })?;
     Ok(ChunkMissing {
         rows_total: rows,
         rows_kept,
@@ -1410,10 +1422,8 @@ fn materialize_frame(
     if frame.n_chunks() > 1 {
         product = product.into_materialized_from_scan()?;
         let copied = product.receipt.admission().materialized_bytes().unwrap_or(budget);
-        diagnostics.push(materialization_diagnostic(
-            MaterializationReason::EstimatorCannotStream,
-            copied,
-        ));
+        diagnostics
+            .push(materialization_diagnostic(MaterializationReason::EstimatorCannotStream, copied));
     }
     Ok(EstimatorFrame::Finite { table: loaded.data, product, diagnostics })
 }
@@ -1586,6 +1596,46 @@ mod tests {
                 assert!(!c.validity.is_valid(1));
                 assert!(!c.validity.is_valid(2));
                 assert!(c.values[2..].iter().all(|v| v.is_nan()));
+            }
+            _ => panic!("expected FixedVector"),
+        }
+    }
+
+    #[test]
+    fn sliced_fixed_size_list_reads_the_logical_window() {
+        use arrow_array::FixedSizeListArray;
+        use arrow_buffer::NullBuffer;
+
+        let values = Float64Array::from(vec![
+            Some(9.0),
+            Some(8.0),
+            Some(1.0),
+            Some(2.0),
+            Some(3.0),
+            None,
+            Some(5.0),
+            Some(6.0),
+        ]);
+        let item = Arc::new(Field::new("item", DataType::Float64, true));
+        let list = FixedSizeListArray::new(
+            Arc::clone(&item),
+            2,
+            Arc::new(values),
+            Some(NullBuffer::from(vec![true, true, true, false])),
+        );
+        let window = list.slice(1, 2);
+        let schema = Schema::new(vec![Field::new("v", DataType::FixedSizeList(item, 2), true)]);
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(window)]).unwrap();
+        let loaded = tabular_from_record_batch(&batch).unwrap();
+        match loaded.data.column(VariableId::from_raw(0)).unwrap() {
+            crate::column::ColumnView::FixedVector(c) => {
+                assert_eq!(c.dim, 2);
+                assert_eq!(c.len(), 2);
+                assert!(c.validity.is_valid(0));
+                assert_eq!(&c.values[0..2], &[1.0, 2.0]);
+                assert!(!c.validity.is_valid(1));
+                assert!(c.values[2].is_nan() && c.values[3].is_nan());
+                assert!(c.values.iter().all(|v| *v != 9.0 && *v != 8.0));
             }
             _ => panic!("expected FixedVector"),
         }
@@ -1877,9 +1927,12 @@ mod tests {
         assert!(product.receipt.materialized_from_scan());
         // No budget was given, so the copy is recorded as unmetered rather than admitted.
         assert!(!product.receipt.is_bounded_end_to_end_route());
-        assert!(diagnostics.entries.iter().any(|entry| {
-            entry.code.contains("materialize.estimator")
-        }));
+        assert!(
+            diagnostics
+                .entries
+                .iter()
+                .any(|entry| { entry.code.contains("materialize.estimator") })
+        );
 
         controls.stream = EstimatorStreamNeed::CanStream;
         let scan =

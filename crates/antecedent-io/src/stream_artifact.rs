@@ -1,9 +1,9 @@
 //! Checksummed stream artifact: bounds, cheap metadata, and shared payloads.
 //!
 //! The reader validates a byte stream the caller already holds. It does not open files, map
-//! them, sleep, or spawn threads. [`StreamBounds`] records the decompression, section, and
-//! retained-output limits and both the writer and the reader enforce them. A truncated stream,
-//! a checksum mismatch, and a format newer than [`STREAM_ARTIFACT_VERSION`] are refusals.
+//! them, sleep, or spawn threads. [`StreamBounds`] records the section and retained-output
+//! limits and both the writer and the reader enforce them. A truncated stream, a checksum
+//! mismatch, and a format newer than [`STREAM_ARTIFACT_VERSION`] are refusals.
 //!
 //! Cancellation is a caller [`CancellationToken`] checked between sections, not inside a
 //! section. An accelerator-produced artifact is consumable on CPU when its device payload is
@@ -18,9 +18,9 @@
 //! ```
 //!
 //! The checksum is the domain-separated BLAKE3 of the on-wire bytes
-//! (`antecedent.stream_artifact.section.v1`). Codec `0` stores the logical bytes. Codec `1` is
-//! a run-length frame whose expansion is capped at the declared logical length. The first
-//! section is `meta`; an optional second section is `payload`.
+//! (`antecedent.stream_artifact.section.v1`). The codec byte is `0`: the on-wire bytes are the
+//! logical bytes. Any other codec is refused. The first section is `meta`; an optional second
+//! section is `payload`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -40,20 +40,17 @@ const PAYLOAD_SECTION: &str = "payload";
 const MAX_SECTION_NAME_LEN: usize = 64;
 const MAX_ARTIFACT_ID_LEN: usize = 256;
 const STORED: u8 = 0;
-const RLE: u8 = 1;
 const PRODUCER_CPU: u8 = 1;
 const PRODUCER_ACCELERATOR: u8 = 2;
 const DEVICE_ABSENT: u8 = 0;
 const DEVICE_MATERIALIZED: u8 = 1;
 const DEVICE_LIVE: u8 = 2;
 
-/// Limits recorded for a stream and enforced before a section is expanded or retained.
+/// Limits recorded for a stream and enforced before a section is retained.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StreamBounds {
     /// Largest on-wire or declared logical size of one section.
     pub max_section_bytes: u64,
-    /// Largest logical size a compressed section may expand to.
-    pub max_decompressed_bytes: u64,
     /// Largest payload a reader may keep. Metadata does not count.
     pub max_retained_bytes: u64,
     /// Most sections, including metadata.
@@ -63,8 +60,6 @@ pub struct StreamBounds {
 impl StreamBounds {
     /// Default section cap: 16 MiB.
     pub const DEFAULT_MAX_SECTION_BYTES: u64 = 16 * 1024 * 1024;
-    /// Default decompression cap: 16 MiB.
-    pub const DEFAULT_MAX_DECOMPRESSED_BYTES: u64 = 16 * 1024 * 1024;
     /// Default retained-payload cap: 16 MiB.
     pub const DEFAULT_MAX_RETAINED_BYTES: u64 = 16 * 1024 * 1024;
     /// Default section count cap.
@@ -75,7 +70,6 @@ impl Default for StreamBounds {
     fn default() -> Self {
         Self {
             max_section_bytes: Self::DEFAULT_MAX_SECTION_BYTES,
-            max_decompressed_bytes: Self::DEFAULT_MAX_DECOMPRESSED_BYTES,
             max_retained_bytes: Self::DEFAULT_MAX_RETAINED_BYTES,
             max_sections: Self::DEFAULT_MAX_SECTIONS,
         }
@@ -176,12 +170,6 @@ pub enum StreamArtifactError {
         /// The limit that was recorded.
         limit: u64,
     },
-    /// A declared logical size is over [`StreamBounds::max_decompressed_bytes`].
-    #[error("stream artifact decompression exceeds {limit} bytes")]
-    DecompressionBound {
-        /// The limit that was recorded.
-        limit: u64,
-    },
     /// Keeping the payload would pass [`StreamBounds::max_retained_bytes`].
     #[error("stream artifact retained output exceeds {limit} bytes")]
     RetainedOutput {
@@ -194,9 +182,6 @@ pub enum StreamArtifactError {
         /// The limit that was recorded.
         limit: u32,
     },
-    /// A compressed frame does not expand to its declared logical size.
-    #[error("stream artifact decompression failed")]
-    Decompress,
     /// [`DevicePayload::LivePointer`] cannot be read on CPU.
     #[error("accelerator artifact holds a live device pointer")]
     LiveDevicePointer,
@@ -209,22 +194,21 @@ pub enum StreamArtifactError {
 enum PayloadBytes<'a> {
     Borrowed(&'a [u8]),
     Shared(Arc<[u8]>),
-    Owned(Arc<[u8]>),
 }
 
 impl PayloadBytes<'_> {
     fn as_slice(&self) -> &[u8] {
         match self {
             Self::Borrowed(bytes) => bytes,
-            Self::Shared(bytes) | Self::Owned(bytes) => bytes.as_ref(),
+            Self::Shared(bytes) => bytes.as_ref(),
         }
     }
 }
 
 /// A validated stream artifact.
 ///
-/// Uncompressed payload bytes are borrowed from the caller buffer (the lifetime a mapped
-/// file would have). Compressed bytes are owned. A shared payload aliases the caller's `Arc`.
+/// Payload bytes are borrowed from the caller buffer (the lifetime a mapped file would have).
+/// A shared payload aliases the caller's `Arc`.
 #[derive(Clone, Debug)]
 pub struct StreamArtifact<'a> {
     metadata: StreamMetadata,
@@ -292,8 +276,8 @@ impl<'a> StreamArtifact<'a> {
 
     /// Validate the stream and return metadata. The payload is not retained.
     ///
-    /// Declared section and decompression sizes are still refused. Retained-output limits are
-    /// not charged, because the payload is not kept.
+    /// Declared section sizes are still refused. Retained-output limits are not charged, because
+    /// the payload is not kept.
     pub fn read_metadata(
         stream: &[u8],
         bounds: &StreamBounds,
@@ -541,22 +525,15 @@ fn read_payload_section<'a>(
     if !retain_payload {
         return Ok(None);
     }
+    if section.codec != STORED {
+        return Err(StreamArtifactError::Malformed("codec"));
+    }
+    if section.on_wire.len() != section.logical_len {
+        return Err(StreamArtifactError::Malformed("stored length"));
+    }
     let logical_len = u64_len(section.logical_len)?;
     charge(0, logical_len, bounds.max_retained_bytes)?;
-    let body = match section.codec {
-        STORED => {
-            if section.on_wire.len() != section.logical_len {
-                return Err(StreamArtifactError::Malformed("stored length"));
-            }
-            adopt_stored(section.on_wire, shared)
-        }
-        RLE => {
-            let owned = decompress(section.on_wire, section.logical_len)?;
-            adopt_owned(owned, shared)
-        }
-        _ => return Err(StreamArtifactError::Malformed("codec")),
-    };
-    Ok(Some(body))
+    Ok(Some(adopt_stored(section.on_wire, shared)))
 }
 
 fn adopt_stored<'a>(on_wire: &'a [u8], shared: Option<&Arc<[u8]>>) -> PayloadBytes<'a> {
@@ -564,13 +541,6 @@ fn adopt_stored<'a>(on_wire: &'a [u8], shared: Option<&Arc<[u8]>>) -> PayloadByt
         return PayloadBytes::Shared(Arc::clone(shared));
     }
     PayloadBytes::Borrowed(on_wire)
-}
-
-fn adopt_owned<'a>(owned: Vec<u8>, shared: Option<&Arc<[u8]>>) -> PayloadBytes<'a> {
-    if let Some(shared) = shared.filter(|held| held.as_ref() == owned.as_slice()) {
-        return PayloadBytes::Shared(Arc::clone(shared));
-    }
-    PayloadBytes::Owned(Arc::from(owned))
 }
 
 fn read_section<'a>(
@@ -589,12 +559,7 @@ fn read_section<'a>(
     let on_wire_len = reader.u64()?;
     check_section_size(logical_len, bounds)?;
     check_section_size(on_wire_len, bounds)?;
-    if codec == RLE && logical_len > bounds.max_decompressed_bytes {
-        return Err(StreamArtifactError::DecompressionBound {
-            limit: bounds.max_decompressed_bytes,
-        });
-    }
-    if codec != STORED && codec != RLE {
+    if codec != STORED {
         return Err(StreamArtifactError::Malformed("codec"));
     }
     let checksum_bytes = reader.take(32)?;
@@ -641,72 +606,6 @@ fn decode_metadata(bytes: &[u8]) -> Result<StreamMetadata, StreamArtifactError> 
     let metadata = StreamMetadata { artifact_id, producer, device };
     validate_identity(&metadata)?;
     Ok(metadata)
-}
-
-fn decompress(on_wire: &[u8], logical_len: usize) -> Result<Vec<u8>, StreamArtifactError> {
-    // `logical_len` was checked against the decompressed-size bound when the
-    // section header was parsed, so this allocation is already capped.
-    let mut out = Vec::with_capacity(logical_len);
-    let mut at = 0usize;
-    while out.len() < logical_len {
-        let op = *on_wire.get(at).ok_or(StreamArtifactError::Decompress)?;
-        at = at.checked_add(1).ok_or(StreamArtifactError::Decompress)?;
-        match op {
-            0 => copy_literal(on_wire, &mut at, &mut out, logical_len)?,
-            1 => copy_repeat(on_wire, &mut at, &mut out, logical_len)?,
-            _ => return Err(StreamArtifactError::Decompress),
-        }
-    }
-    if at != on_wire.len() || out.len() != logical_len {
-        return Err(StreamArtifactError::Decompress);
-    }
-    Ok(out)
-}
-
-fn copy_literal(
-    on_wire: &[u8],
-    at: &mut usize,
-    out: &mut Vec<u8>,
-    logical_len: usize,
-) -> Result<(), StreamArtifactError> {
-    let len =
-        usize::try_from(read_u32(on_wire, at)?).map_err(|_| StreamArtifactError::Decompress)?;
-    let end = at.checked_add(len).ok_or(StreamArtifactError::Decompress)?;
-    let literal = on_wire.get(*at..end).ok_or(StreamArtifactError::Decompress)?;
-    let new_len = out.len().checked_add(literal.len()).ok_or(StreamArtifactError::Decompress)?;
-    if new_len > logical_len {
-        return Err(StreamArtifactError::Decompress);
-    }
-    out.extend_from_slice(literal);
-    *at = end;
-    Ok(())
-}
-
-fn copy_repeat(
-    on_wire: &[u8],
-    at: &mut usize,
-    out: &mut Vec<u8>,
-    logical_len: usize,
-) -> Result<(), StreamArtifactError> {
-    let byte = *on_wire.get(*at).ok_or(StreamArtifactError::Decompress)?;
-    *at = at.checked_add(1).ok_or(StreamArtifactError::Decompress)?;
-    let count =
-        usize::try_from(read_u32(on_wire, at)?).map_err(|_| StreamArtifactError::Decompress)?;
-    let new_len = out.len().checked_add(count).ok_or(StreamArtifactError::Decompress)?;
-    if new_len > logical_len {
-        return Err(StreamArtifactError::Decompress);
-    }
-    out.resize(new_len, byte);
-    Ok(())
-}
-
-fn read_u32(bytes: &[u8], at: &mut usize) -> Result<u32, StreamArtifactError> {
-    let end = at.checked_add(4).ok_or(StreamArtifactError::Decompress)?;
-    let word = bytes.get(*at..end).ok_or(StreamArtifactError::Decompress)?;
-    let mut buf = [0u8; 4];
-    buf.copy_from_slice(word);
-    *at = end;
-    Ok(u32::from_le_bytes(buf))
 }
 
 fn observe(cancel: &CancellationToken) -> Result<(), StreamArtifactError> {
@@ -778,51 +677,6 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// Encode a compressed payload.
-///
-/// The run-length frame is owned, so it cannot borrow `logical` for the life of the returned
-/// stream. [`StreamArtifact::encode`] keeps stored sections borrowed; this path is the one
-/// that records a decompression.
-pub fn encode_compressed(
-    metadata: &StreamMetadata,
-    logical: &[u8],
-    bounds: &StreamBounds,
-) -> Result<Vec<u8>, StreamArtifactError> {
-    validate_declaration(metadata, true)?;
-    if bounds.max_sections < 2 {
-        return Err(StreamArtifactError::TooManySections { limit: bounds.max_sections });
-    }
-    let logical_len = u64_len(logical.len())?;
-    check_section_size(logical_len, bounds)?;
-    if logical_len > bounds.max_decompressed_bytes {
-        return Err(StreamArtifactError::DecompressionBound {
-            limit: bounds.max_decompressed_bytes,
-        });
-    }
-    charge(0, logical_len, bounds.max_retained_bytes)?;
-    let frame = encode_rle(logical)?;
-    check_section_size(u64_len(frame.len())?, bounds)?;
-    let meta = encode_metadata(metadata)?;
-    check_section_size(u64_len(meta.len())?, bounds)?;
-    let mut out = Vec::new();
-    out.extend_from_slice(&STREAM_ARTIFACT_MAGIC);
-    out.extend_from_slice(&STREAM_ARTIFACT_VERSION.to_le_bytes());
-    out.extend_from_slice(&2u32.to_le_bytes());
-    write_section(&mut out, META_SECTION, STORED, &meta, &meta)?;
-    write_section(&mut out, PAYLOAD_SECTION, RLE, logical, &frame)?;
-    Ok(out)
-}
-
-fn encode_rle(logical: &[u8]) -> Result<Vec<u8>, StreamArtifactError> {
-    let len = u32::try_from(logical.len())
-        .map_err(|_| StreamArtifactError::SectionBound { limit: u64::from(u32::MAX) })?;
-    let mut frame = Vec::with_capacity(logical.len().saturating_add(5));
-    frame.push(0);
-    frame.extend_from_slice(&len.to_le_bytes());
-    frame.extend_from_slice(logical);
-    Ok(frame)
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -831,7 +685,7 @@ mod tests {
 
     use super::{
         CpuPayload, DevicePayload, PayloadSource, Producer, STREAM_ARTIFACT_MAGIC, StreamArtifact,
-        StreamArtifactError, StreamBounds, StreamMetadata, encode_compressed,
+        StreamArtifactError, StreamBounds, StreamMetadata,
     };
 
     fn bounds() -> StreamBounds {
@@ -991,34 +845,12 @@ mod tests {
     }
 
     #[test]
-    fn decompression_bound_is_enforced_before_expansion() {
-        let wide = StreamBounds {
-            max_section_bytes: u64::MAX,
-            max_decompressed_bytes: 32,
-            max_retained_bytes: u64::MAX,
-            max_sections: 8,
-        };
-        let err = encode_compressed(
-            &metadata(Producer::Cpu, DevicePayload::Materialized),
-            &[1u8; 33],
-            &wide,
-        )
-        .expect_err("declared expansion");
-        assert_eq!(err, StreamArtifactError::DecompressionBound { limit: 32 });
-
-        let bytes = encode_compressed(
-            &metadata(Producer::Cpu, DevicePayload::Materialized),
-            b"abc",
-            &bounds(),
-        )
-        .expect("compressed");
-        let mut hostile = bytes;
-        // Rewrite the payload logical length to 33 while leaving a short frame, after raising
-        // the section cap so the refusal is the decompression bound.
-        let logical_at = payload_logical_offset(&hostile);
-        hostile[logical_at..logical_at + 8].copy_from_slice(&33u64.to_le_bytes());
-        let err = StreamArtifact::open(&hostile, &wide, &token(), None).expect_err("bound");
-        assert_eq!(err, StreamArtifactError::DecompressionBound { limit: 32 });
+    fn unknown_codec_is_refused() {
+        let mut bytes = host(b"payload-bytes");
+        let codec_at = payload_logical_offset(&bytes) - 1;
+        bytes[codec_at] = 1;
+        let err = StreamArtifact::open(&bytes, &bounds(), &token(), None).expect_err("codec");
+        assert_eq!(err, StreamArtifactError::Malformed("codec"));
     }
 
     #[test]
@@ -1033,49 +865,11 @@ mod tests {
     }
 
     #[test]
-    fn stored_and_compressed_payloads_round_trip() {
+    fn stored_payload_round_trips() {
         let stored = host(b"stored");
         let opened = StreamArtifact::open(&stored, &bounds(), &token(), None).expect("stored");
         assert_eq!(opened.payload(), Some(&b"stored"[..]));
-
-        let compressed = encode_compressed(
-            &metadata(Producer::Accelerator, DevicePayload::Materialized),
-            b"compressed",
-            &bounds(),
-        )
-        .expect("rle");
-        let opened = StreamArtifact::open(&compressed, &bounds(), &token(), None).expect("rle");
-        assert_eq!(opened.payload(), Some(&b"compressed"[..]));
-        assert!(opened.borrowed_payload().is_none());
-        assert_eq!(opened.consume_on_cpu().expect("cpu"), CpuPayload::Bytes(b"compressed"));
-    }
-
-    #[test]
-    fn expanding_frame_stops_at_the_declared_logical_length() {
-        let logical = [0xab, 0xab, 0xab, 0xab];
-        let bytes = encode_compressed(
-            &metadata(Producer::Cpu, DevicePayload::Materialized),
-            &logical,
-            &bounds(),
-        )
-        .expect("frame");
-        let mut hostile = bytes;
-        let on_wire_at = payload_logical_offset(&hostile) + 8;
-        let on_wire_len = u64::from_le_bytes(
-            hostile[on_wire_at..on_wire_at + 8].try_into().expect("on-wire length"),
-        );
-        let checksum_at = on_wire_at + 8;
-        let body_at = checksum_at + 32;
-        assert_eq!(on_wire_len, 1 + 4 + 4);
-        hostile.truncate(body_at);
-        hostile.extend_from_slice(&[1, 0xab, 100, 0, 0, 0]);
-        let digest = super::checksum(&hostile[body_at..]);
-        hostile[checksum_at..body_at].copy_from_slice(&digest);
-        let on_wire_len_bytes =
-            u64::try_from(hostile.len() - body_at).expect("frame length").to_le_bytes();
-        hostile[on_wire_at..on_wire_at + 8].copy_from_slice(&on_wire_len_bytes);
-        let err = StreamArtifact::open(&hostile, &bounds(), &token(), None).expect_err("expand");
-        assert_eq!(err, StreamArtifactError::Decompress);
+        assert_eq!(opened.borrowed_payload(), Some(&b"stored"[..]));
     }
 
     fn payload_logical_offset(bytes: &[u8]) -> usize {

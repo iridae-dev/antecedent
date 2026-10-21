@@ -3,9 +3,7 @@
 //! [`inspect`] copies declarations the caller already holds. It has no callback
 //! parameter and does not fit, scan, enumerate, or simulate. Execution facts
 //! record a run that already happened. Physical identity, the stored scientific
-//! digest, the numerical-policy flag, and resumability stay separate. Loading
-//! these records does not resume a live study. Family interchange consumers are
-//! not this binding.
+//! digest, and the numerical-policy flag stay separate.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -19,20 +17,12 @@ use antecedent_core::inspect::{
 };
 use antecedent_core::reason_code;
 use antecedent_core::{
-    Assumption, AssumptionSet, ByteEstimates, Conditioning, GraphFamily, InferenceSelection,
-    Intervention, InterventionWorld, KernelPolicy, MemoryBudget, ModelAssumptions, ObservationUnit,
-    OutcomeQuantity, PhysicalEffect, PhysicalOperator, QuantityUnits, RealizationKind,
-    ScientificTarget, ScientificWorldId, SemanticDigest, SourceDependencyId, TargetForm,
-    TargetPopulation, TimeFrame, Value, VariableId, WorldAction, WorldBinding,
+    Assumption, ByteEstimates, InferenceSelection, KernelPolicy, MemoryBudget, PhysicalEffect,
+    PhysicalOperator, RealizationKind, SemanticDigest, SourceDependencyId,
 };
 use pyo3::prelude::*;
 
 use crate::name_errors::unknown_name;
-
-const LIVE_STUDY: &str = concat!(
-    "loading inspect and execution-receipt facts does not resume a live study ",
-    "and does not invoke callbacks"
-);
 
 fn inspection_err(refusal: InspectionRefusal) -> PyErr {
     crate::unsupported_message(refusal.to_string())
@@ -155,45 +145,6 @@ fn inference_name(selection: InferenceSelection) -> &'static str {
     }
 }
 
-fn live_study_refusal() -> PyErr {
-    crate::unsupported_message(LIVE_STUDY)
-}
-
-/// Static mean world used by the Rust inspection fixture.
-///
-/// Outcome variable 1, treatment variable 0 set to 0, unit `subject`,
-/// dimensionless units, all observed rows, unconditional conditioning, world 0
-/// as the reference, a static frame, an empty model-assumption set, a DAG, and
-/// frequentist selection. Construction does not identify or fit.
-fn static_mean_target() -> PyResult<ScientificTarget> {
-    let outcome = VariableId::from_raw(1);
-    let treatment = VariableId::from_raw(0);
-    let binding = WorldBinding::new(
-        TargetPopulation::AllObserved,
-        ObservationUnit::new("subject")
-            .map_err(|err| crate::unsupported_message(err.to_string()))?,
-        OutcomeQuantity::mean(outcome, QuantityUnits::dimensionless())
-            .map_err(|err| crate::unsupported_message(err.to_string()))?,
-        Conditioning::unconditional(),
-    )
-    .map_err(|err| crate::unsupported_message(err.to_string()))?;
-    let action = WorldAction::at_decision([Intervention::set(treatment, Value::f64(0.0))])
-        .map_err(|err| crate::unsupported_message(err.to_string()))?;
-    let world = InterventionWorld::new(
-        ScientificWorldId::from_raw(0),
-        action,
-        true,
-        binding,
-        TimeFrame::static_decision(),
-    )
-    .map_err(|err| crate::unsupported_message(err.to_string()))?;
-    Ok(ScientificTarget::new(
-        TargetForm::World(world),
-        ModelAssumptions::new(GraphFamily::Dag, AssumptionSet::new()),
-        InferenceSelection::Frequentist,
-    ))
-}
-
 fn read_operators(rows: &[(u64, u64, u64, u64)]) -> PyResult<Vec<PhysicalOperator>> {
     let mut operators = Vec::with_capacity(rows.len());
     for &(source, scratch, retained, output) in rows {
@@ -308,8 +259,6 @@ struct PyNumericalReplay {
     kernel: &'static str,
     status: &'static str,
     contract_changed: bool,
-    invoked_callback: bool,
-    reexecuted: bool,
 }
 
 #[pymethods]
@@ -341,27 +290,14 @@ impl PyNumericalReplay {
     fn contract_changed(&self) -> bool {
         self.contract_changed
     }
-
-    /// Always false. Reading the record does not invoke a callback.
-    fn invoked_callback(&self) -> bool {
-        self.invoked_callback
-    }
-
-    /// Always false. The record is the run that was measured, not a second execution.
-    fn reexecuted(&self) -> bool {
-        self.reexecuted
-    }
 }
 
-/// Integrity, stored scientific digest, numerical record, and resumability.
-///
-/// Resumability is refused. These facts are not a live study.
+/// Physical digest, stored scientific digest, and numerical record.
 #[pyclass(name = "ExecutionFactStanding", frozen)]
 struct PyExecutionFactStanding {
     integrity: Vec<u8>,
     semantic: Option<Vec<u8>>,
     replay: PyNumericalReplay,
-    resumable: bool,
 }
 
 #[pymethods]
@@ -386,14 +322,7 @@ impl PyExecutionFactStanding {
             kernel: self.replay.kernel,
             status: self.replay.status,
             contract_changed: self.replay.contract_changed,
-            invoked_callback: false,
-            reexecuted: false,
         }
-    }
-
-    /// Refused. Execution-receipt facts do not reconstruct a live study.
-    fn resumability(&self) -> PyResult<()> {
-        if self.resumable { Ok(()) } else { Err(live_study_refusal()) }
     }
 }
 
@@ -574,75 +503,37 @@ impl PyExecutionFacts {
                 kernel: kernel_name(measured.backend().kernel()),
                 status: measured.status().as_str(),
                 contract_changed: self.inner.scientific_contract_changed(),
-                invoked_callback: false,
-                reexecuted: false,
             },
-            resumable: false,
         }
     }
 }
 
-/// The four readings of a plan inspection.
-///
-/// Semantic verification is the target identity the caller already held.
-/// A payload checksum, a numerical replay, and a live study are not this record.
+/// Scientific identity of the target copied into the inspection.
 #[pyclass(name = "InspectionStanding", frozen)]
 struct PyInspectionStanding {
     identity: Vec<u8>,
-    has_payload_checksum: bool,
-    replays_fit: bool,
-    resumable: bool,
 }
 
 #[pymethods]
 impl PyInspectionStanding {
-    /// Refused. Inspection does not carry a payload checksum separate from the target.
-    fn integrity(&self) -> PyResult<()> {
-        if self.has_payload_checksum {
-            Ok(())
-        } else {
-            Err(crate::unsupported_message(concat!(
-                "plan inspection has no payload checksum distinct from ",
-                "the scientific target identity",
-            )))
-        }
-    }
-
     /// Scientific identity of the target copied into the inspection.
     fn semantic_verification(&self) -> &[u8] {
         &self.identity
-    }
-
-    /// Refused. Inspection copies held declarations and does not replay a fit.
-    fn numerical_replay(&self) -> PyResult<()> {
-        if self.replays_fit {
-            Ok(())
-        } else {
-            Err(crate::unsupported_message(
-                "plan inspection copies held declarations and does not numerically replay a fit",
-            ))
-        }
-    }
-
-    /// Refused. Inspection does not reconstruct a live study.
-    fn resumability(&self) -> PyResult<()> {
-        if self.resumable { Ok(()) } else { Err(live_study_refusal()) }
     }
 }
 
 /// Parts [`PlanInspection`] may copy. Every part starts absent.
 ///
-/// Absence is not an empty list or a default policy. The static mean target is
-/// the inspection fixture; supplying it does not identify or fit.
+/// Absence is not an empty list or a default policy. Supplying a part does not
+/// identify or fit.
 #[pyclass(name = "InspectionInputs", frozen)]
 struct PyInspectionInputs {
     inner: InspectionInputs,
-    target: Option<ScientificTarget>,
 }
 
 impl PyInspectionInputs {
     fn copied(&self, inner: InspectionInputs) -> Self {
-        Self { inner, target: self.target.clone() }
+        Self { inner }
     }
 }
 
@@ -650,13 +541,7 @@ impl PyInspectionInputs {
 impl PyInspectionInputs {
     #[new]
     fn new() -> Self {
-        Self { inner: InspectionInputs::new(), target: None }
-    }
-
-    /// Supply the static mean world from the Rust inspection fixture.
-    fn with_static_mean_target(&self) -> PyResult<Self> {
-        let target = static_mean_target()?;
-        Ok(Self { inner: self.inner.clone().target(target.clone()), target: Some(target) })
+        Self { inner: InspectionInputs::new() }
     }
 
     fn with_assumptions(&self, names: Vec<String>) -> PyResult<Self> {
@@ -724,11 +609,6 @@ impl PyInspectionInputs {
     fn with_read_operators(&self, operators: Vec<(u64, u64, u64, u64)>) -> PyResult<Self> {
         let operators = read_operators(&operators)?;
         Ok(self.copied(self.inner.clone().operators(operators)))
-    }
-
-    /// Scientific identity of the supplied target, before inspection.
-    fn target_identity(&self) -> Option<Vec<u8>> {
-        self.target.as_ref().map(|target| digest_bytes(target.identity()))
     }
 
     /// Copy the held parts. Missing parts are refused. This method takes no callback.
@@ -830,29 +710,8 @@ impl PyPlanInspection {
     }
 
     fn standing(&self) -> PyInspectionStanding {
-        PyInspectionStanding {
-            identity: digest_bytes(self.inner.target().identity()),
-            has_payload_checksum: false,
-            replays_fit: false,
-            resumable: false,
-        }
+        PyInspectionStanding { identity: digest_bytes(self.inner.target().identity()) }
     }
-}
-
-/// Refused. These bindings do not reconstruct a live study or invoke `loaded`.
-#[pyfunction]
-#[allow(unused_variables)] // the argument is part of the Python signature and is never called
-fn resume_live_study(loaded: &Bound<'_, PyAny>) -> PyResult<()> {
-    Err(live_study_refusal())
-}
-
-/// Refused. Inspect and execution-receipt facts do not complete a family consumer.
-#[pyfunction]
-fn consume_interchange_family(family: &str) -> PyResult<()> {
-    Err(crate::unsupported_message(format!(
-        "interchange family `{family}` has no bound consumer; \
-         inspect and execution-receipt facts do not complete family interchange"
-    )))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -864,8 +723,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyInspectionStanding>()?;
     module.add_class::<PyInspectionInputs>()?;
     module.add_class::<PyPlanInspection>()?;
-    module.add_function(wrap_pyfunction!(resume_live_study, module)?)?;
-    module.add_function(wrap_pyfunction!(consume_interchange_family, module)?)?;
     Ok(())
 }
 

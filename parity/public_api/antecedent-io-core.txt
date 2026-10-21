@@ -2838,8 +2838,6 @@ impl core::marker::Copy for antecedent_io_core::distribution_artifact::Distribut
 impl core::marker::Copy for antecedent_io_core::distribution_artifact::DistributionTrust
 impl core::marker::Copy for antecedent_io_core::distribution_artifact::DrawAlignment
 impl core::marker::Copy for antecedent_io_core::external_claim_artifact::ExternalClaimTrust
-impl core::marker::Copy for antecedent_io_core::feature_version::FeatureRead
-impl core::marker::Copy for antecedent_io_core::feature_version::FeatureVersion
 impl core::marker::Copy for antecedent_io_core::graphless_support::GraphlessAssignmentSupport
 impl core::marker::Copy for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::marker::Copy for antecedent_io_core::measurement_model_wire::ReplayedValues
@@ -11482,7 +11480,7 @@ pub field antecedent_io_core::external_column_claim_artifact::ExternalColumnClai
 pub field antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata::version: u16
 pub field antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity::claim: antecedent_io_core::external_claim_artifact::ExternalClaimIdentity
 pub field antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity::column: antecedent_io_core::external_column_claim_artifact::ColumnIdentityWire
-pub field antecedent_io_core::feature_version::FeatureVersion::name: &'static str
+pub field antecedent_io_core::feature_version::FeatureVersion::name: alloc::sync::Arc<str>
 pub field antecedent_io_core::feature_version::FeatureVersion::version: u32
 pub field antecedent_io_core::frozen_scores_artifact::FrozenScoreParts::declared: antecedent_core::recalc::StageIdentities
 pub field antecedent_io_core::frozen_scores_artifact::FrozenScoreParts::estimator: alloc::string::String

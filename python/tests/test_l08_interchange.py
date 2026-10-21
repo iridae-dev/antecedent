@@ -1,41 +1,16 @@
 """Python parity for plan inspection and execution-receipt facts.
 
-The cases follow the Rust fixtures in ``crates/antecedent-core/src/inspect.rs``
-and ``crates/antecedent-core/src/execution_facts.rs``. Integrity, semantic
-verification, numerical replay, and resumability stay separate. Loading these
-records does not resume a live study. Family interchange is not bound.
+The static-mean inspection fixture lives in ``crates/antecedent-core/src/inspect.rs``.
+Execution-receipt cases follow ``crates/antecedent-core/src/execution_facts.rs``.
+Physical identity, the stored scientific digest, and the numerical record stay separate.
 """
 
 from __future__ import annotations
-
-import struct
 
 import pytest
 from antecedent import _native, errors
 
 _LIMIT = (1 << 64) - 1
-
-
-def _level_bits(level: float) -> int:
-    return struct.unpack(">Q", struct.pack(">d", level))[0]
-
-
-def _held(*, uncertainty: bool) -> _native.InspectionInputs:
-    inputs = (
-        _native.InspectionInputs()
-        .with_static_mean_target()
-        .with_assumptions(["positivity", "consistency"])
-        .with_realization("score_frequentist")
-        .with_evidence(["standardize"])
-        .with_reuse("frozen_nuisance", True)
-        .with_materialization("design_matrix", 4096)
-        .with_resources(10, 20, 30)
-        .with_backend("scalar_only")
-        .with_read_operators([(7, 1, 2, 3)])
-    )
-    if uncertainty:
-        inputs = inputs.with_uncertainty(True, 0.95)
-    return inputs
 
 
 def _counts(
@@ -77,60 +52,13 @@ def _facts(
     )
 
 
-def test_complete_inspection_round_trips_fields():
-    held = _held(uncertainty=True)
-    before = held.target_identity()
-    plan = held.inspect()
-    assert before is not None
-    assert plan.target_identity() == before
-    assert plan.target_inference() == "frequentist"
-    assert plan.assumptions() == ["positivity", "consistency"]
-    assert plan.realization() == "score_frequentist"
-    assert plan.evidence() == ["standardize"]
-    assert plan.uncertainty_joint() is True
-    assert plan.uncertainty_level() == 0.95
-    assert plan.uncertainty_level_bits() == _level_bits(0.95)
-    assert plan.reuse_name() == "frozen_nuisance"
-    assert plan.reuse_frozen_fit() is True
-    assert plan.materialization_name() == "design_matrix"
-    assert plan.materialization_copy_bytes() == 4096
-    assert plan.memory_soft_bytes() == 10
-    assert plan.memory_hard_bytes() == 20
-    assert plan.estimated_bytes() == 30
-    assert plan.backend() == "scalar_only"
-    assert plan.operators() == [("read", [7], 1, 2, 3)]
-    assert plan.standing().semantic_verification() == before
-
-
-def test_missing_uncertainty_demand_is_refused():
-    with pytest.raises(
-        errors.CausalUnsupportedError, match="uncertainty demand is missing"
-    ) as caught:
-        _held(uncertainty=False).inspect()
-    assert type(caught.value) is errors.CausalUnsupportedError
-
+def test_missing_target_and_blank_declarations_are_refused():
     with pytest.raises(errors.CausalUnsupportedError, match="scientific target is missing"):
         _native.InspectionInputs().inspect()
     with pytest.raises(errors.CausalUnsupportedError, match="declaration name must be non-blank"):
-        _held(uncertainty=True).with_evidence([" "])
+        _native.InspectionInputs().with_evidence([" "])
     with pytest.raises(errors.CausalValueError, match="unknown assumption"):
-        _held(uncertainty=True).with_assumptions(["not_an_assumption"])
-
-
-def test_inspect_accepts_no_fit_or_scan_callback():
-    called: list[str] = []
-
-    def callback() -> None:
-        called.append("called")
-
-    plan = _held(uncertainty=True).inspect()
-    assert plan.realization() == "score_frequentist"
-    with pytest.raises(
-        errors.CausalUnsupportedError, match="does not resume a live study"
-    ) as caught:
-        _native.resume_live_study(callback)
-    assert called == []
-    assert type(caught.value) is errors.CausalUnsupportedError
+        _native.InspectionInputs().with_assumptions(["not_an_assumption"])
 
 
 def test_counts_record_what_was_passed():
@@ -270,18 +198,7 @@ def test_numerical_policy_flag_is_the_only_scientific_contract_change():
     assert explicit.scientific_identity() == original.scientific_identity()
 
 
-def test_standings_distinguish_integrity_semantic_verification_numerical_replay_and_resumability():
-    plan = _held(uncertainty=True).inspect()
-    inspected = plan.standing()
-    assert inspected.semantic_verification() == plan.target_identity()
-    with pytest.raises(errors.CausalUnsupportedError, match="payload checksum") as checksum:
-        inspected.integrity()
-    assert type(checksum.value) is errors.CausalUnsupportedError
-    with pytest.raises(errors.CausalUnsupportedError, match="does not numerically replay"):
-        inspected.numerical_replay()
-    with pytest.raises(errors.CausalUnsupportedError, match="does not resume a live study"):
-        inspected.resumability()
-
+def test_execution_standing_keeps_integrity_apart_from_the_scientific_digest():
     digest = bytes([7]) * 32
     facts = _facts(scientific=digest)
     standing = facts.standing()
@@ -295,23 +212,12 @@ def test_standings_distinguish_integrity_semantic_verification_numerical_replay_
     assert replay.kernel() == facts.kernel()
     assert replay.status() == facts.status()
     assert replay.contract_changed() is False
-    assert replay.invoked_callback() is False
-    assert replay.reexecuted() is False
-    with pytest.raises(
-        errors.CausalUnsupportedError, match="does not resume a live study"
-    ) as resume:
-        standing.resumability()
-    assert type(resume.value) is errors.CausalUnsupportedError
     assert facts.standing().semantic_verification() == digest
     bare = _facts(retention="disk_backed", backend="portable", kernel="scalar_only")
     assert bare.standing().semantic_verification() is None
     assert bare.standing().integrity() != standing.integrity()
 
 
-def test_family_interchange_consumer_is_refused():
-    with pytest.raises(errors.CausalUnsupportedError, match="no bound consumer") as caught:
-        _native.consume_interchange_family("adjustment")
-    assert type(caught.value) is errors.CausalUnsupportedError
-    assert "adjustment" in str(caught.value)
+def test_scientific_identity_must_be_32_bytes():
     with pytest.raises(errors.CausalValueError, match="32 bytes"):
         _facts(scientific=b"\x03" * 31)
