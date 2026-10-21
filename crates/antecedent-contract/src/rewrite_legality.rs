@@ -4,14 +4,14 @@
 //!
 //! A column or filter pushdown, a shared row and design preparation, a
 //! nuisance reuse, a sufficient-statistics lowering, and a tiled evaluation
-//! are separate types. [`RewriteKind::check`] admits a rewrite only when it
-//! preserves sample selection, folds, population, history, dependence, and
-//! uncertainty. The check compares a fingerprint of the frame contents and
-//! the effect the caller attributes to the rewrite. The fingerprint is the
-//! selected row ids, each row's fold id, the population id, and the history.
-//! An identity string the caller copies onto both sides is not that
-//! fingerprint. The check does not execute the rewrite, scan rows, or number
-//! them.
+//! are one [`Rewrite`]. The effect enums name what the caller attributes to
+//! that rewrite. [`Rewrite::check`] admits it only when the effect alters no
+//! axis and an executed fingerprint of the frame matches: selected rows,
+//! folds, population, and history. Dependence and uncertainty stay
+//! declarations. Those declarations do not admit a rewrite without that
+//! fingerprint. An identity string the caller copies onto both sides is not
+//! that fingerprint. The check does not execute the rewrite, scan rows, or
+//! number them.
 //!
 //! An altered axis is a counterexample. The [`RewriteRefusal`] names that axis
 //! and the next attempt that keeps it. Copying the same identity text onto an
@@ -31,10 +31,11 @@ const TAG_POPULATION: &str = "rewrite_legality.population_id";
 const TAG_HISTORY: &str = "rewrite_legality.history";
 const NO_FINGERPRINT: &str =
     "it carries no fingerprint of the selected rows, folds, population, and history";
+const FRAME_BINDING: &str = "rewrite_legality.frame_binding";
 
 /// An axis a legal rewrite leaves unchanged.
 ///
-/// Declaration order is the order [`RewriteKind::check`] reports alterations.
+/// Declaration order is the order [`Rewrite::check`] reports alterations.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum PreservationAxis {
@@ -328,7 +329,10 @@ impl FrameContents {
             ));
         }
         if is_blank(population_id) {
-            return Err(content_refusal(PreservationAxis::Population, "the population id is blank"));
+            return Err(content_refusal(
+                PreservationAxis::Population,
+                "the population id is blank",
+            ));
         }
         if is_blank(history) {
             return Err(content_refusal(PreservationAxis::History, "the history is blank"));
@@ -433,707 +437,589 @@ impl FrameFingerprint {
     }
 }
 
-/// What a column or filter pushdown would do to the frame.
+/// Shared defect table.
 ///
-/// [`Self::Declared`] names a pushdown that alters no axis. Naming it does not
-/// admit the rewrite. [`RewriteKind::check`] admits it only with an executed
-/// fingerprint of the rewritten frame: selected rows, folds, population, and
-/// history. Equal identity strings are not that fingerprint. Dependence and
-/// uncertainty stay caller-supplied identity declarations; the fingerprint does
-/// not cover them, and those declarations do not admit the rewrite alone. Each
-/// other effect alters one axis even when the identity strings match.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-#[non_exhaustive]
-pub enum PushdownEffect {
-    /// Required columns stay, and the filter is the query's declared predicate.
-    Declared,
-    /// The projection omits a column that decides which rows remain.
-    OmitsRequiredColumn,
-    /// The pushdown omits or rewrites fold membership.
-    ReassignsFolds,
-    /// The filter is a population cut the query did not declare.
-    UndeclaredPopulationCut,
-    /// The filter cuts the history window.
-    CutsHistory,
-    /// The projection drops a cluster or other dependence factor.
-    DropsDependenceFactor,
-    /// The selected rows stay, but a weight or uncertainty column is dropped.
-    DropsUncertainty,
-}
-
-impl PushdownEffect {
-    /// Axis this effect alters, with the reason, when it alters one.
-    #[must_use]
-    pub const fn defect(self) -> Option<(PreservationAxis, &'static str)> {
-        match self {
-            Self::Declared => None,
-            Self::OmitsRequiredColumn => Some((
-                PreservationAxis::SampleSelection,
-                "the projection omits a column the cohort closure requires",
-            )),
-            Self::ReassignsFolds => {
-                Some((PreservationAxis::Folds, "the pushdown reassigns fold membership"))
-            }
-            Self::UndeclaredPopulationCut => Some((
-                PreservationAxis::Population,
-                "the filter is a population cut the query did not declare",
-            )),
-            Self::CutsHistory => {
-                Some((PreservationAxis::History, "the filter cuts the history window"))
-            }
-            Self::DropsDependenceFactor => {
-                Some((PreservationAxis::Dependence, "the projection drops a dependence factor"))
-            }
-            Self::DropsUncertainty => Some((
-                PreservationAxis::Uncertainty,
-                "the pushdown drops a weight or uncertainty column",
-            )),
-        }
+/// Index 0 is the preserving declaration and admits no axis by itself. Each
+/// later index is one [`PreservationAxis`], in refusal order, and the reason
+/// the effect gives for altering it. Dependence and uncertainty are rows of
+/// this table. They stay declarations: a row here does not supply the executed
+/// fingerprint of selected rows, folds, population, and history.
+const fn defect_at<const N: usize>(
+    index: usize,
+    reasons: &[&'static str; N],
+) -> Option<(PreservationAxis, &'static str)> {
+    if index == 0 {
+        return None;
     }
+    let axis_index = index - 1;
+    if axis_index >= PreservationAxis::ALL.len() {
+        return Some((PreservationAxis::SampleSelection, MISSING_DEFECT));
+    }
+    if axis_index >= N {
+        return Some((PreservationAxis::ALL[axis_index], MISSING_DEFECT));
+    }
+    Some((PreservationAxis::ALL[axis_index], reasons[axis_index]))
 }
 
-/// What sharing one row and design preparation would do.
-///
-/// [`Self::Shared`] names a preparation that alters no axis. Naming it does not
-/// admit the share. [`RewriteKind::check`] admits it only with an executed
-/// fingerprint of the preparation and of each consumer: selected rows, folds,
-/// population, and history. Equal identity strings are not that fingerprint.
-/// Dependence and uncertainty stay caller-supplied identity declarations; the
-/// fingerprint does not cover them, and those declarations do not admit the
-/// share alone. Each other effect mixes one axis even when the strings match.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-#[non_exhaustive]
-pub enum PreparationEffect {
-    /// Both consumers use the preparation's sample, folds, population, history,
-    /// dependence, and uncertainty.
-    Shared,
-    /// The preparation mixes two sample selections.
-    MixesSamples,
-    /// The preparation mixes two fold assignments.
-    MixesFolds,
-    /// The preparation mixes two populations.
-    MixesPopulations,
-    /// The preparation mixes two histories.
-    MixesHistories,
-    /// The preparation mixes two dependence declarations.
-    MixesDependence,
-    /// The preparation mixes two uncertainty procedures.
-    MixesUncertainty,
-}
+const MISSING_DEFECT: &str = "the effect table has no row for this variant";
 
-impl PreparationEffect {
-    /// Axis this effect alters, with the reason, when it alters one.
-    #[must_use]
-    pub const fn defect(self) -> Option<(PreservationAxis, &'static str)> {
-        match self {
-            Self::Shared => None,
-            Self::MixesSamples => Some((
-                PreservationAxis::SampleSelection,
-                "the shared preparation mixes sample selections",
-            )),
-            Self::MixesFolds => {
-                Some((PreservationAxis::Folds, "the shared preparation mixes fold assignments"))
+macro_rules! effect_enum {
+    (
+        $(#[$enum_meta:meta])*
+        $name:ident {
+            $(#[$preserve_meta:meta])*
+            $preserve:ident => $preserve_name:literal,
+            $(
+                $(#[$variant_meta:meta])*
+                $variant:ident => $variant_name:literal, $because:literal
+            ),+ $(,)?
+        }
+    ) => {
+        $(#[$enum_meta])*
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+        #[non_exhaustive]
+        pub enum $name {
+            $(#[$preserve_meta])*
+            $preserve,
+            $(
+                $(#[$variant_meta])*
+                $variant,
+            )+
+        }
+
+        impl $name {
+            /// Every effect: the preserving declaration, then one alteration per
+            /// [`PreservationAxis`], in refusal order.
+            ///
+            /// [`Self::as_str`] and [`Self::from_name`] both use this list. A
+            /// new variant has to be added here; a hand-written match is not
+            /// the list.
+            pub const ALL: [Self; { PreservationAxis::ALL.len() + 1 }] =
+                [Self::$preserve, $( Self::$variant, )+];
+
+            /// Stable `snake_case` name.
+            #[must_use]
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    Self::$preserve => $preserve_name,
+                    $( Self::$variant => $variant_name, )+
+                }
             }
-            Self::MixesPopulations => {
-                Some((PreservationAxis::Population, "the shared preparation mixes populations"))
+
+            /// Parse the spelling of [`Self::as_str`].
+            #[must_use = "an unknown name is not an effect"]
+            pub fn from_name(name: &str) -> Option<Self> {
+                Self::ALL.into_iter().find(|effect| effect.as_str() == name)
             }
-            Self::MixesHistories => {
-                Some((PreservationAxis::History, "the shared preparation mixes histories"))
+
+            /// Axis this effect alters, with the reason, when it alters one.
+            ///
+            /// The preserving declaration has no defect. Dependence and
+            /// uncertainty are declarations in the shared defect table. They
+            /// are not an executed fingerprint.
+            #[must_use]
+            pub const fn defect(self) -> Option<(PreservationAxis, &'static str)> {
+                const REASONS: [&str; { PreservationAxis::ALL.len() }] = [ $( $because, )+ ];
+                defect_at(self.index(), &REASONS)
             }
-            Self::MixesDependence => {
-                Some((PreservationAxis::Dependence, "the shared preparation mixes dependence"))
-            }
-            Self::MixesUncertainty => {
-                Some((PreservationAxis::Uncertainty, "the shared preparation mixes uncertainty"))
+
+            const fn index(self) -> usize {
+                self as usize
             }
         }
-    }
+    };
 }
 
-/// What reusing a nuisance fit would do.
-///
-/// [`Self::Certified`] names reuse that alters no axis, with the evaluation fold
-/// held out of training. Naming it does not admit the reuse. [`RewriteKind::check`]
-/// admits it only with an executed fingerprint of the fit and of the consumer:
-/// selected rows, folds, population, and history. Equal identity strings are not
-/// that fingerprint. Dependence and uncertainty stay caller-supplied identity
-/// declarations; the fingerprint does not cover them, and those declarations do
-/// not admit the reuse alone. Each other effect is a counterexample.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-#[non_exhaustive]
-pub enum NuisanceEffect {
-    /// The fit and the consumer name one frame, and training excludes the
-    /// evaluation fold.
-    Certified,
-    /// Reuse adds or drops rows from the estimation sample.
-    ChangesEstimationSample,
-    /// Predictions trained on a fold are reused on that same fold.
-    TrainsOnEvaluationFold,
-    /// The nuisance was fit on a different population.
-    FitOnOtherPopulation,
-    /// The nuisance was fit on a different history.
-    FitOnOtherHistory,
-    /// Reuse drops a shared dependence factor.
-    DropsSharedFactor,
-    /// Reuse replaces the consumer's uncertainty procedure.
-    ReplacesUncertainty,
-}
-
-impl NuisanceEffect {
-    /// Axis this effect alters, with the reason, when it alters one.
-    #[must_use]
-    pub const fn defect(self) -> Option<(PreservationAxis, &'static str)> {
-        match self {
-            Self::Certified => None,
-            Self::ChangesEstimationSample => Some((
-                PreservationAxis::SampleSelection,
-                "reuse changes which rows the estimation sample contains",
-            )),
-            Self::TrainsOnEvaluationFold => {
-                Some((PreservationAxis::Folds, "the nuisance was trained on the evaluation fold"))
-            }
-            Self::FitOnOtherPopulation => {
-                Some((PreservationAxis::Population, "the nuisance was fit on another population"))
-            }
-            Self::FitOnOtherHistory => {
-                Some((PreservationAxis::History, "the nuisance was fit on another history"))
-            }
-            Self::DropsSharedFactor => {
-                Some((PreservationAxis::Dependence, "reuse drops a shared dependence factor"))
-            }
-            Self::ReplacesUncertainty => {
-                Some((PreservationAxis::Uncertainty, "reuse replaces the uncertainty procedure"))
-            }
-        }
-    }
-}
-
-/// What lowering a frame to sufficient statistics would do.
-///
-/// [`Self::Sufficient`] names a summary that alters no axis. Naming it does not
-/// admit the lowering. [`RewriteKind::check`] admits it only with an executed
-/// fingerprint of the rows and of the summary: selected rows, folds, population,
-/// and history. Equal identity strings are not that fingerprint. Dependence and
-/// uncertainty stay caller-supplied identity declarations; the fingerprint does
-/// not cover them, and those declarations do not admit the lowering alone. A
-/// summary that evicts a row, pools folds, or drops the sampling law is a
-/// counterexample, including when the summary still carries the original text.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-#[non_exhaustive]
-pub enum SummaryEffect {
-    /// The summary is sufficient for the declared likelihood and names every axis.
+effect_enum! {
+    /// What a column or filter pushdown would do to the frame.
     ///
-    /// The executed fingerprint still has to match. This variant does not admit
-    /// the lowering by itself.
-    Sufficient,
-    /// The summary evicts a row or inserts a column the rows did not have.
-    EvictsRow,
-    /// The summary pools distinct folds into one fit.
-    PoolsFolds,
-    /// The summary marginalizes to a different population.
-    MarginalizesPopulation,
-    /// The summary collapses history.
-    CollapsesHistory,
-    /// The summary drops a cluster or other dependence factor.
-    DropsCluster,
-    /// The summary keeps a point and drops the sampling law.
-    DropsSamplingLaw,
-}
-
-impl SummaryEffect {
-    /// Axis this effect alters, with the reason, when it alters one.
-    #[must_use]
-    pub const fn defect(self) -> Option<(PreservationAxis, &'static str)> {
-        match self {
-            Self::Sufficient => None,
-            Self::EvictsRow => Some((
-                PreservationAxis::SampleSelection,
-                "the summary evicts a row from the sample",
-            )),
-            Self::PoolsFolds => Some((PreservationAxis::Folds, "the summary pools distinct folds")),
-            Self::MarginalizesPopulation => Some((
-                PreservationAxis::Population,
-                "the summary marginalizes to another population",
-            )),
-            Self::CollapsesHistory => {
-                Some((PreservationAxis::History, "the summary collapses history"))
-            }
-            Self::DropsCluster => Some((
-                PreservationAxis::Dependence,
-                "the summary drops a cluster from the dependence",
-            )),
-            Self::DropsSamplingLaw => {
-                Some((PreservationAxis::Uncertainty, "the summary drops the sampling law"))
-            }
-        }
+    /// [`Self::Declared`] names a pushdown that alters no axis. Naming it does not
+    /// admit the rewrite. [`Rewrite::check`] admits it only with an executed
+    /// fingerprint of the rewritten frame: selected rows, folds, population, and
+    /// history. Equal identity strings are not that fingerprint. Dependence and
+    /// uncertainty stay caller-supplied identity declarations; the fingerprint does
+    /// not cover them, and those declarations do not admit the rewrite alone. Each
+    /// other effect alters one axis even when the identity strings match.
+    PushdownEffect {
+        /// Required columns stay, and the filter is the query's declared predicate.
+        Declared => "declared",
+        /// The projection omits a column that decides which rows remain.
+        OmitsRequiredColumn => "omits_required_column",
+            "the projection omits a column the cohort closure requires",
+        /// The pushdown omits or rewrites fold membership.
+        ReassignsFolds => "reassigns_folds",
+            "the pushdown reassigns fold membership",
+        /// The filter is a population cut the query did not declare.
+        UndeclaredPopulationCut => "undeclared_population_cut",
+            "the filter is a population cut the query did not declare",
+        /// The filter cuts the history window.
+        CutsHistory => "cuts_history",
+            "the filter cuts the history window",
+        /// The projection drops a cluster or other dependence factor.
+        DropsDependenceFactor => "drops_dependence_factor",
+            "the projection drops a dependence factor",
+        /// The selected rows stay, but a weight or uncertainty column is dropped.
+        DropsUncertainty => "drops_uncertainty",
+            "the pushdown drops a weight or uncertainty column",
     }
 }
 
-/// What evaluating one tile would do to the full frame.
-///
-/// [`Self::Faithful`] names a tile that alters no axis and keeps failed draws.
-/// Naming it does not admit the tile. [`RewriteKind::check`] admits it only with
-/// an executed fingerprint of the full frame and of the tile: selected rows,
-/// folds, population, and history. Equal identity strings are not that
-/// fingerprint. Dependence and uncertainty stay caller-supplied identity
-/// declarations; the fingerprint does not cover them, and those declarations do
-/// not admit the tile alone. A tile that drops rows, splits a fold, or drops
-/// failed draws is a counterexample.
+effect_enum! {
+    /// What sharing one row and design preparation would do.
+    ///
+    /// [`Self::Shared`] names a preparation that alters no axis. Naming it does not
+    /// admit the share. [`Rewrite::check`] admits it only with an executed
+    /// fingerprint of the preparation and of each consumer: selected rows, folds,
+    /// population, and history. Equal identity strings are not that fingerprint.
+    /// Dependence and uncertainty stay caller-supplied identity declarations; the
+    /// fingerprint does not cover them, and those declarations do not admit the
+    /// share alone. Each other effect mixes one axis even when the strings match.
+    PreparationEffect {
+        /// Both consumers use the preparation's sample, folds, population, history,
+        /// dependence, and uncertainty.
+        Shared => "shared",
+        /// The preparation mixes two sample selections.
+        MixesSamples => "mixes_samples",
+            "the shared preparation mixes sample selections",
+        /// The preparation mixes two fold assignments.
+        MixesFolds => "mixes_folds",
+            "the shared preparation mixes fold assignments",
+        /// The preparation mixes two populations.
+        MixesPopulations => "mixes_populations",
+            "the shared preparation mixes populations",
+        /// The preparation mixes two histories.
+        MixesHistories => "mixes_histories",
+            "the shared preparation mixes histories",
+        /// The preparation mixes two dependence declarations.
+        MixesDependence => "mixes_dependence",
+            "the shared preparation mixes dependence",
+        /// The preparation mixes two uncertainty procedures.
+        MixesUncertainty => "mixes_uncertainty",
+            "the shared preparation mixes uncertainty",
+    }
+}
+
+effect_enum! {
+    /// What reusing a nuisance fit would do.
+    ///
+    /// [`Self::Certified`] names reuse that alters no axis, with the evaluation fold
+    /// held out of training. Naming it does not admit the reuse. [`Rewrite::check`]
+    /// admits it only with an executed fingerprint of the fit and of the consumer:
+    /// selected rows, folds, population, and history. Equal identity strings are not
+    /// that fingerprint. Dependence and uncertainty stay caller-supplied identity
+    /// declarations; the fingerprint does not cover them, and those declarations do
+    /// not admit the reuse alone. Each other effect is a counterexample.
+    NuisanceEffect {
+        /// The fit and the consumer name one frame, and training excludes the
+        /// evaluation fold.
+        Certified => "certified",
+        /// Reuse adds or drops rows from the estimation sample.
+        ChangesEstimationSample => "changes_estimation_sample",
+            "reuse changes which rows the estimation sample contains",
+        /// Predictions trained on a fold are reused on that same fold.
+        TrainsOnEvaluationFold => "trains_on_evaluation_fold",
+            "the nuisance was trained on the evaluation fold",
+        /// The nuisance was fit on a different population.
+        FitOnOtherPopulation => "fit_on_other_population",
+            "the nuisance was fit on another population",
+        /// The nuisance was fit on a different history.
+        FitOnOtherHistory => "fit_on_other_history",
+            "the nuisance was fit on another history",
+        /// Reuse drops a shared dependence factor.
+        DropsSharedFactor => "drops_shared_factor",
+            "reuse drops a shared dependence factor",
+        /// Reuse replaces the consumer's uncertainty procedure.
+        ReplacesUncertainty => "replaces_uncertainty",
+            "reuse replaces the uncertainty procedure",
+    }
+}
+
+effect_enum! {
+    /// What lowering a frame to sufficient statistics would do.
+    ///
+    /// [`Self::Sufficient`] names a summary that alters no axis. Naming it does not
+    /// admit the lowering. [`Rewrite::check`] admits it only with an executed
+    /// fingerprint of the rows and of the summary: selected rows, folds, population,
+    /// and history. Equal identity strings are not that fingerprint. Dependence and
+    /// uncertainty stay caller-supplied identity declarations; the fingerprint does
+    /// not cover them, and those declarations do not admit the lowering alone. A
+    /// summary that evicts a row, pools folds, or drops the sampling law is a
+    /// counterexample, including when the summary still carries the original text.
+    SummaryEffect {
+        /// The summary is sufficient for the declared likelihood and names every axis.
+        ///
+        /// The executed fingerprint still has to match. This variant does not admit
+        /// the lowering by itself.
+        Sufficient => "sufficient",
+        /// The summary evicts a row or inserts a column the rows did not have.
+        EvictsRow => "evicts_row",
+            "the summary evicts a row from the sample",
+        /// The summary pools distinct folds into one fit.
+        PoolsFolds => "pools_folds",
+            "the summary pools distinct folds",
+        /// The summary marginalizes to a different population.
+        MarginalizesPopulation => "marginalizes_population",
+            "the summary marginalizes to another population",
+        /// The summary collapses history.
+        CollapsesHistory => "collapses_history",
+            "the summary collapses history",
+        /// The summary drops a cluster or other dependence factor.
+        DropsCluster => "drops_cluster",
+            "the summary drops a cluster from the dependence",
+        /// The summary keeps a point and drops the sampling law.
+        DropsSamplingLaw => "drops_sampling_law",
+            "the summary drops the sampling law",
+    }
+}
+
+effect_enum! {
+    /// What evaluating one tile would do to the full frame.
+    ///
+    /// [`Self::Faithful`] names a tile that alters no axis and keeps failed draws.
+    /// Naming it does not admit the tile. [`Rewrite::check`] admits it only with
+    /// an executed fingerprint of the full frame and of the tile: selected rows,
+    /// folds, population, and history. Equal identity strings are not that
+    /// fingerprint. Dependence and uncertainty stay caller-supplied identity
+    /// declarations; the fingerprint does not cover them, and those declarations do
+    /// not admit the tile alone. A tile that drops rows, splits a fold, or drops
+    /// failed draws is a counterexample.
+    TileEffect {
+        /// The tile covers the full frame and keeps joint alignment and failed draws.
+        Faithful => "faithful",
+        /// The tile drops rows from the sample.
+        DropsRows => "drops_rows",
+            "a tile drops rows from the sample",
+        /// The tile splits a fold or reorders fold membership.
+        SplitsFold => "splits_fold",
+            "a tile splits a fold",
+        /// The tile evaluates a different population.
+        RetargetsPopulation => "retargets_population",
+            "a tile evaluates another population",
+        /// The tile cuts the history horizon.
+        CutsHorizon => "cuts_horizon",
+            "a tile cuts the history horizon",
+        /// The tile drops dependence cross terms.
+        DropsCrossTerms => "drops_cross_terms",
+            "a tile drops dependence cross terms",
+        /// The tile drops failed draws, so uncertainty mass changes.
+        DropsFailedDraws => "drops_failed_draws",
+            "a tile drops failed draws from the uncertainty",
+    }
+}
+
+/// Effect a [`Rewrite`] carries into the shared defect table.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-#[non_exhaustive]
-pub enum TileEffect {
-    /// The tile covers the full frame and keeps joint alignment and failed draws.
-    Faithful,
-    /// The tile drops rows from the sample.
-    DropsRows,
-    /// The tile splits a fold or reorders fold membership.
-    SplitsFold,
-    /// The tile evaluates a different population.
-    RetargetsPopulation,
-    /// The tile cuts the history horizon.
-    CutsHorizon,
-    /// The tile drops dependence cross terms.
-    DropsCrossTerms,
-    /// The tile drops failed draws, so uncertainty mass changes.
-    DropsFailedDraws,
+enum AttributedEffect {
+    Pushdown(PushdownEffect),
+    Preparation(PreparationEffect),
+    Nuisance(NuisanceEffect),
+    Summary(SummaryEffect),
+    Tile(TileEffect),
 }
 
-impl TileEffect {
-    /// Axis this effect alters, with the reason, when it alters one.
-    #[must_use]
-    pub const fn defect(self) -> Option<(PreservationAxis, &'static str)> {
+impl AttributedEffect {
+    const fn defect(self) -> Option<(PreservationAxis, &'static str)> {
         match self {
-            Self::Faithful => None,
-            Self::DropsRows => {
-                Some((PreservationAxis::SampleSelection, "a tile drops rows from the sample"))
-            }
-            Self::SplitsFold => Some((PreservationAxis::Folds, "a tile splits a fold")),
-            Self::RetargetsPopulation => {
-                Some((PreservationAxis::Population, "a tile evaluates another population"))
-            }
-            Self::CutsHorizon => {
-                Some((PreservationAxis::History, "a tile cuts the history horizon"))
-            }
-            Self::DropsCrossTerms => {
-                Some((PreservationAxis::Dependence, "a tile drops dependence cross terms"))
-            }
-            Self::DropsFailedDraws => Some((
-                PreservationAxis::Uncertainty,
-                "a tile drops failed draws from the uncertainty",
-            )),
+            Self::Pushdown(effect) => effect.defect(),
+            Self::Preparation(effect) => effect.defect(),
+            Self::Nuisance(effect) => effect.defect(),
+            Self::Summary(effect) => effect.defect(),
+            Self::Tile(effect) => effect.defect(),
+        }
+    }
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pushdown(effect) => effect.as_str(),
+            Self::Preparation(effect) => effect.as_str(),
+            Self::Nuisance(effect) => effect.as_str(),
+            Self::Summary(effect) => effect.as_str(),
+            Self::Tile(effect) => effect.as_str(),
         }
     }
 }
 
-/// Column projection or declared filter pushdown.
+/// Identities a rewrite compares, after the source frame.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ColumnFilterPushdown {
-    cohort: PreservedIdentities,
-    pushed: PreservedIdentities,
-    effect: PushdownEffect,
-    frames: Option<Box<BoundFrames>>,
+enum Claims {
+    /// One rewritten frame: pushed, consumer, summary, or tile.
+    One(PreservedIdentities),
+    /// Left consumer, then right consumer, of a shared preparation.
+    Two(PreservedIdentities, PreservedIdentities),
 }
 
-impl ColumnFilterPushdown {
-    /// Stable name of this rewrite.
-    pub const NAME: &'static str = "column_filter_pushdown";
+/// Executed fingerprints of the source and of each claim.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ExecutedFrames {
+    /// Source and the one rewritten frame.
+    Pair { source: FrameFingerprint, rewritten: FrameFingerprint },
+    /// Preparation and its left and right consumers.
+    Share { source: FrameFingerprint, left: FrameFingerprint, right: FrameFingerprint },
+}
+
+/// A physical rewrite checked against the scientific frame.
+///
+/// Column or filter pushdown, shared row and design preparation, nuisance
+/// reuse, sufficient statistics, and tiled evaluation share this shape. The
+/// effect is one of the effect enums. [`Self::check`] reads that effect from
+/// the shared defect table. Dependence and uncertainty stay declarations in
+/// that table. They do not admit the rewrite without an executed fingerprint
+/// of selected rows, folds, population, and history.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Rewrite {
+    name: &'static str,
+    source: PreservedIdentities,
+    claims: Claims,
+    effect: AttributedEffect,
+    frames: Option<ExecutedFrames>,
+}
+
+impl Rewrite {
+    /// Stable name of a column or filter pushdown.
+    pub const COLUMN_FILTER_PUSHDOWN: &'static str = "column_filter_pushdown";
+
+    /// Stable name of a shared row and design preparation.
+    pub const SHARED_ROW_DESIGN_PREPARATION: &'static str = "shared_row_design_preparation";
+
+    /// Stable name of nuisance reuse.
+    pub const NUISANCE_REUSE: &'static str = "nuisance_reuse";
+
+    /// Stable name of a sufficient-statistics lowering.
+    pub const SUFFICIENT_STATISTICS: &'static str = "sufficient_statistics";
+
+    /// Stable name of a tiled evaluation.
+    pub const TILED_EVALUATION: &'static str = "tiled_evaluation";
 
     /// Push `cohort` down to `pushed` with `effect`.
+    ///
+    /// [`Self::check`] compares `cohort` with `pushed`.
     #[must_use]
-    pub const fn new(
+    pub const fn column_filter_pushdown(
         cohort: PreservedIdentities,
         pushed: PreservedIdentities,
         effect: PushdownEffect,
     ) -> Self {
-        Self { cohort, pushed, effect, frames: None }
+        Self::new(
+            Self::COLUMN_FILTER_PUSHDOWN,
+            cohort,
+            Claims::One(pushed),
+            AttributedEffect::Pushdown(effect),
+        )
     }
-
-    /// Bind the contents of the cohort and of the pushed frame.
-    ///
-    /// [`RewriteKind::check`] compares their fingerprints. Matching identity
-    /// strings are not those fingerprints.
-    #[must_use]
-    pub fn with_frames(mut self, cohort: &FrameContents, pushed: &FrameContents) -> Self {
-        self.frames = Some(Box::new(BoundFrames {
-            original: cohort.fingerprint(),
-            rewritten: pushed.fingerprint(),
-        }));
-        self
-    }
-
-    /// Frame before the pushdown.
-    #[must_use]
-    pub const fn cohort(&self) -> &PreservedIdentities {
-        &self.cohort
-    }
-
-    /// Frame the pushdown would leave.
-    #[must_use]
-    pub const fn pushed(&self) -> &PreservedIdentities {
-        &self.pushed
-    }
-
-    /// Effect the caller attributes to the pushdown.
-    #[must_use]
-    pub const fn effect(&self) -> PushdownEffect {
-        self.effect
-    }
-}
-
-/// One row and design preparation shared by two consumers.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SharedRowDesignPreparation {
-    preparation: PreservedIdentities,
-    left: PreservedIdentities,
-    right: PreservedIdentities,
-    effect: PreparationEffect,
-    frames: Option<Box<BoundPreparation>>,
-}
-
-impl SharedRowDesignPreparation {
-    /// Stable name of this rewrite.
-    pub const NAME: &'static str = "shared_row_design_preparation";
 
     /// Share `preparation` with `left` and `right` under `effect`.
+    ///
+    /// [`Self::check`] compares `preparation` with `left`, then with `right`.
     #[must_use]
-    pub const fn new(
+    pub const fn shared_row_design_preparation(
         preparation: PreservedIdentities,
         left: PreservedIdentities,
         right: PreservedIdentities,
         effect: PreparationEffect,
     ) -> Self {
-        Self { preparation, left, right, effect, frames: None }
+        Self::new(
+            Self::SHARED_ROW_DESIGN_PREPARATION,
+            preparation,
+            Claims::Two(left, right),
+            AttributedEffect::Preparation(effect),
+        )
     }
-
-    /// Bind the contents of the preparation and of both consumers.
-    ///
-    /// [`RewriteKind::check`] compares the preparation's fingerprint with each
-    /// consumer. Matching identity strings are not those fingerprints.
-    #[must_use]
-    pub fn with_frames(
-        mut self,
-        preparation: &FrameContents,
-        left: &FrameContents,
-        right: &FrameContents,
-    ) -> Self {
-        self.frames = Some(Box::new(BoundPreparation {
-            preparation: preparation.fingerprint(),
-            left: left.fingerprint(),
-            right: right.fingerprint(),
-        }));
-        self
-    }
-
-    /// Identities of the shared preparation.
-    #[must_use]
-    pub const fn preparation(&self) -> &PreservedIdentities {
-        &self.preparation
-    }
-
-    /// First consumer. Compared before [`Self::right`] on a shared axis.
-    #[must_use]
-    pub const fn left(&self) -> &PreservedIdentities {
-        &self.left
-    }
-
-    /// Second consumer.
-    #[must_use]
-    pub const fn right(&self) -> &PreservedIdentities {
-        &self.right
-    }
-
-    /// Effect the caller attributes to the share.
-    #[must_use]
-    pub const fn effect(&self) -> PreparationEffect {
-        self.effect
-    }
-}
-
-/// Reuse of a fitted nuisance on a consumer frame.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct NuisanceReuse {
-    fit: PreservedIdentities,
-    consumer: PreservedIdentities,
-    effect: NuisanceEffect,
-    frames: Option<Box<BoundFrames>>,
-}
-
-impl NuisanceReuse {
-    /// Stable name of this rewrite.
-    pub const NAME: &'static str = "nuisance_reuse";
 
     /// Reuse a nuisance fit on `fit` for `consumer` under `effect`.
+    ///
+    /// [`Self::check`] compares `fit` with `consumer`.
     #[must_use]
-    pub const fn new(
+    pub const fn nuisance_reuse(
         fit: PreservedIdentities,
         consumer: PreservedIdentities,
         effect: NuisanceEffect,
     ) -> Self {
-        Self { fit, consumer, effect, frames: None }
+        Self::new(
+            Self::NUISANCE_REUSE,
+            fit,
+            Claims::One(consumer),
+            AttributedEffect::Nuisance(effect),
+        )
     }
-
-    /// Bind the contents of the fit and of the consumer.
-    ///
-    /// [`RewriteKind::check`] compares their fingerprints. Matching identity
-    /// strings are not those fingerprints.
-    #[must_use]
-    pub fn with_frames(mut self, fit: &FrameContents, consumer: &FrameContents) -> Self {
-        self.frames = Some(Box::new(BoundFrames {
-            original: fit.fingerprint(),
-            rewritten: consumer.fingerprint(),
-        }));
-        self
-    }
-
-    /// Frame the nuisance was fit on.
-    #[must_use]
-    pub const fn fit(&self) -> &PreservedIdentities {
-        &self.fit
-    }
-
-    /// Frame that would reuse the fit.
-    #[must_use]
-    pub const fn consumer(&self) -> &PreservedIdentities {
-        &self.consumer
-    }
-
-    /// Effect the caller attributes to the reuse.
-    #[must_use]
-    pub const fn effect(&self) -> NuisanceEffect {
-        self.effect
-    }
-}
-
-/// Lowering a row frame to a sufficient summary.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SufficientStatistics {
-    rows: PreservedIdentities,
-    summary: PreservedIdentities,
-    effect: SummaryEffect,
-    frames: Option<Box<BoundFrames>>,
-}
-
-impl SufficientStatistics {
-    /// Stable name of this rewrite.
-    pub const NAME: &'static str = "sufficient_statistics";
 
     /// Lower `rows` to `summary` under `effect`.
+    ///
+    /// [`Self::check`] compares `rows` with `summary`.
     #[must_use]
-    pub const fn new(
+    pub const fn sufficient_statistics(
         rows: PreservedIdentities,
         summary: PreservedIdentities,
         effect: SummaryEffect,
     ) -> Self {
-        Self { rows, summary, effect, frames: None }
+        Self::new(
+            Self::SUFFICIENT_STATISTICS,
+            rows,
+            Claims::One(summary),
+            AttributedEffect::Summary(effect),
+        )
     }
-
-    /// Bind the contents of the rows and of the summary.
-    ///
-    /// [`RewriteKind::check`] compares their fingerprints. Matching identity
-    /// strings are not those fingerprints.
-    #[must_use]
-    pub fn with_frames(mut self, rows: &FrameContents, summary: &FrameContents) -> Self {
-        self.frames = Some(Box::new(BoundFrames {
-            original: rows.fingerprint(),
-            rewritten: summary.fingerprint(),
-        }));
-        self
-    }
-
-    /// Frame of the rows.
-    #[must_use]
-    pub const fn rows(&self) -> &PreservedIdentities {
-        &self.rows
-    }
-
-    /// Frame the summary claims.
-    #[must_use]
-    pub const fn summary(&self) -> &PreservedIdentities {
-        &self.summary
-    }
-
-    /// Effect the caller attributes to the lowering.
-    #[must_use]
-    pub const fn effect(&self) -> SummaryEffect {
-        self.effect
-    }
-}
-
-/// One tile of a row, draw, grid, or horizon evaluation.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TiledEvaluation {
-    full: PreservedIdentities,
-    tile: PreservedIdentities,
-    effect: TileEffect,
-    frames: Option<Box<BoundFrames>>,
-}
-
-impl TiledEvaluation {
-    /// Stable name of this rewrite.
-    pub const NAME: &'static str = "tiled_evaluation";
 
     /// Evaluate `tile` as a piece of `full` under `effect`.
+    ///
+    /// [`Self::check`] compares `full` with `tile`. A faithful tile claims the
+    /// full frame.
     #[must_use]
-    pub const fn new(
+    pub const fn tiled_evaluation(
         full: PreservedIdentities,
         tile: PreservedIdentities,
         effect: TileEffect,
     ) -> Self {
-        Self { full, tile, effect, frames: None }
+        Self::new(Self::TILED_EVALUATION, full, Claims::One(tile), AttributedEffect::Tile(effect))
     }
 
-    /// Bind the contents of the full frame and of the tile.
+    const fn new(
+        name: &'static str,
+        source: PreservedIdentities,
+        claims: Claims,
+        effect: AttributedEffect,
+    ) -> Self {
+        Self { name, source, claims, effect, frames: None }
+    }
+
+    /// Bind the executed contents of the source and of each claim.
     ///
-    /// [`RewriteKind::check`] compares their fingerprints. Matching identity
-    /// strings are not those fingerprints.
-    #[must_use]
-    pub fn with_frames(mut self, full: &FrameContents, tile: &FrameContents) -> Self {
-        self.frames = Some(Box::new(BoundFrames {
-            original: full.fingerprint(),
-            rewritten: tile.fingerprint(),
-        }));
-        self
-    }
-
-    /// Frame of the full evaluation.
-    #[must_use]
-    pub const fn full(&self) -> &PreservedIdentities {
-        &self.full
-    }
-
-    /// Frame the tile claims. A faithful tile claims the full frame.
-    #[must_use]
-    pub const fn tile(&self) -> &PreservedIdentities {
-        &self.tile
-    }
-
-    /// Effect the caller attributes to the tile.
-    #[must_use]
-    pub const fn effect(&self) -> TileEffect {
-        self.effect
-    }
-}
-
-mod seal {
-    /// Marker for the five rewrite types this crate defines.
-    pub trait Sealed {}
-}
-
-impl seal::Sealed for ColumnFilterPushdown {}
-impl seal::Sealed for SharedRowDesignPreparation {}
-impl seal::Sealed for NuisanceReuse {}
-impl seal::Sealed for SufficientStatistics {}
-impl seal::Sealed for TiledEvaluation {}
-
-/// A rewrite whose legality [`Self::check`] can decide.
-///
-/// Only the five rewrite types in this module implement the trait.
-pub trait RewriteKind: seal::Sealed {
-    /// Stable `snake_case` name of this rewrite.
-    #[must_use]
-    fn name(&self) -> &'static str;
-
-    /// Admit this rewrite when every preservation axis is unchanged.
-    ///
-    /// Axes are examined in [`PreservationAxis`] order. Within one axis, pairs
-    /// are examined in the order the rewrite type documents. An effect that
-    /// names the axis is a refusal even when every identity string matches. A
-    /// fingerprint of the frame contents that differs is a refusal even when
-    /// the identity strings match. Equal identity strings without a fingerprint
-    /// are a refusal.
+    /// `source` is the cohort, preparation, fit, rows, or full frame. `claims`
+    /// follow comparison order and are one rewritten frame, or the left and
+    /// right consumers of a shared preparation. [`Self::check`] compares
+    /// fingerprints of selected rows, folds, population, and history.
+    /// Dependence and uncertainty are not in that fingerprint. Matching
+    /// identity strings are not those fingerprints.
     ///
     /// # Errors
     ///
-    /// The first altered axis. [`RewriteRefusal::next_attempt`] keeps that axis.
+    /// `claims` does not have one frame for each compared identity. The detail
+    /// is `rewrite_legality.frame_binding`.
+    #[must_use = "a mismatched frame binding is a refusal"]
+    pub fn with_frames(
+        mut self,
+        source: &FrameContents,
+        claims: &[&FrameContents],
+    ) -> Result<Self, RewriteRefusal> {
+        self.frames = Some(match (&self.claims, claims) {
+            (Claims::One(_), [rewritten]) => ExecutedFrames::Pair {
+                source: source.fingerprint(),
+                rewritten: rewritten.fingerprint(),
+            },
+            (Claims::Two(_, _), [left, right]) => ExecutedFrames::Share {
+                source: source.fingerprint(),
+                left: left.fingerprint(),
+                right: right.fingerprint(),
+            },
+            _ => return Err(frame_binding(self.name)),
+        });
+        Ok(self)
+    }
+
+    /// Stable name of this rewrite.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// Frame the rewrite starts from.
+    ///
+    /// The cohort, the shared preparation, the nuisance fit, the rows, or the
+    /// full evaluation.
+    #[must_use]
+    pub const fn source(&self) -> &PreservedIdentities {
+        &self.source
+    }
+
+    /// First claim [`Self::check`] compares with [`Self::source`].
+    ///
+    /// The pushed frame, the left consumer, the nuisance consumer, the
+    /// summary, or the tile.
+    #[must_use]
+    pub const fn primary_claim(&self) -> &PreservedIdentities {
+        match &self.claims {
+            Claims::One(claim) | Claims::Two(claim, _) => claim,
+        }
+    }
+
+    /// Right consumer of a shared preparation.
+    ///
+    /// [`None`] for a rewrite that compares one claim.
+    #[must_use]
+    pub const fn secondary_claim(&self) -> Option<&PreservedIdentities> {
+        match &self.claims {
+            Claims::One(_) => None,
+            Claims::Two(_, claim) => Some(claim),
+        }
+    }
+
+    /// Stable name of the effect the caller attributed to this rewrite.
+    #[must_use]
+    pub const fn effect_name(&self) -> &'static str {
+        self.effect.as_str()
+    }
+
+    /// Defect of the attributed effect, from the shared defect table.
+    ///
+    /// [`None`] is the preserving declaration. That declaration does not admit
+    /// the rewrite.
+    #[must_use]
+    pub const fn defect(&self) -> Option<(PreservationAxis, &'static str)> {
+        self.effect.defect()
+    }
+
+    /// Admit this rewrite when every preservation axis is unchanged.
+    ///
+    /// Axes are examined in [`PreservationAxis`] order. Within one axis, the
+    /// source is compared with each claim in claim order. An effect that names
+    /// the axis is a refusal even when every identity string matches. A
+    /// fingerprint of the frame contents that differs is a refusal even when
+    /// the identity strings match. Equal identity strings without a
+    /// fingerprint are a refusal. Dependence and uncertainty have no content
+    /// digest. They stay declarations, and those declarations do not admit the
+    /// rewrite without the executed fingerprint of selected rows, folds,
+    /// population, and history.
+    ///
+    /// # Errors
+    ///
+    /// The first altered axis. [`RewriteRefusal::next_attempt`] keeps that
+    /// axis. Stored fingerprints that do not match the claims are
+    /// `rewrite_legality.frame_binding`.
     #[must_use = "a refusal is the counterexample"]
-    fn check(&self) -> Result<(), RewriteRefusal>;
-}
-
-impl RewriteKind for ColumnFilterPushdown {
-    fn name(&self) -> &'static str {
-        Self::NAME
-    }
-
-    fn check(&self) -> Result<(), RewriteRefusal> {
-        let identities = &[(&self.cohort, &self.pushed)];
+    pub fn check(&self) -> Result<(), RewriteRefusal> {
         let defect = self.effect.defect();
-        match &self.frames {
-            Some(frames) => {
-                admit(Self::NAME, identities, defect, &[(&frames.original, &frames.rewritten)])
+        match (&self.claims, &self.frames) {
+            (Claims::One(claim), None) => admit(self.name, &[(&self.source, claim)], defect, &[]),
+            (Claims::One(claim), Some(ExecutedFrames::Pair { source, rewritten })) => {
+                admit(self.name, &[(&self.source, claim)], defect, &[(source, rewritten)])
             }
-            None => admit(Self::NAME, identities, defect, &[]),
-        }
-    }
-}
-
-impl RewriteKind for SharedRowDesignPreparation {
-    fn name(&self) -> &'static str {
-        Self::NAME
-    }
-
-    fn check(&self) -> Result<(), RewriteRefusal> {
-        let identities = &[(&self.preparation, &self.left), (&self.preparation, &self.right)];
-        let defect = self.effect.defect();
-        match &self.frames {
-            Some(frames) => admit(
-                Self::NAME,
-                identities,
+            (Claims::Two(left, right), None) => {
+                admit(self.name, &[(&self.source, left), (&self.source, right)], defect, &[])
+            }
+            (
+                Claims::Two(left, right),
+                Some(ExecutedFrames::Share { source, left: left_frame, right: right_frame }),
+            ) => admit(
+                self.name,
+                &[(&self.source, left), (&self.source, right)],
                 defect,
-                &[(&frames.preparation, &frames.left), (&frames.preparation, &frames.right)],
+                &[(source, left_frame), (source, right_frame)],
             ),
-            None => admit(Self::NAME, identities, defect, &[]),
+            (Claims::One(_), Some(ExecutedFrames::Share { .. }))
+            | (Claims::Two(_, _), Some(ExecutedFrames::Pair { .. })) => {
+                Err(frame_binding(self.name))
+            }
         }
     }
 }
 
-impl RewriteKind for NuisanceReuse {
-    fn name(&self) -> &'static str {
-        Self::NAME
-    }
-
-    fn check(&self) -> Result<(), RewriteRefusal> {
-        let identities = &[(&self.fit, &self.consumer)];
-        let defect = self.effect.defect();
-        match &self.frames {
-            Some(frames) => {
-                admit(Self::NAME, identities, defect, &[(&frames.original, &frames.rewritten)])
-            }
-            None => admit(Self::NAME, identities, defect, &[]),
-        }
-    }
-}
-
-impl RewriteKind for SufficientStatistics {
-    fn name(&self) -> &'static str {
-        Self::NAME
-    }
-
-    fn check(&self) -> Result<(), RewriteRefusal> {
-        let identities = &[(&self.rows, &self.summary)];
-        let defect = self.effect.defect();
-        match &self.frames {
-            Some(frames) => {
-                admit(Self::NAME, identities, defect, &[(&frames.original, &frames.rewritten)])
-            }
-            None => admit(Self::NAME, identities, defect, &[]),
-        }
-    }
-}
-
-impl RewriteKind for TiledEvaluation {
-    fn name(&self) -> &'static str {
-        Self::NAME
-    }
-
-    fn check(&self) -> Result<(), RewriteRefusal> {
-        let identities = &[(&self.full, &self.tile)];
-        let defect = self.effect.defect();
-        match &self.frames {
-            Some(frames) => {
-                admit(Self::NAME, identities, defect, &[(&frames.original, &frames.rewritten)])
-            }
-            None => admit(Self::NAME, identities, defect, &[]),
-        }
+fn frame_binding(kind: &'static str) -> RewriteRefusal {
+    RewriteRefusal {
+        code: INVALID_CODE,
+        detail: FRAME_BINDING,
+        message: format!("{kind} needs one executed fingerprint for each compared frame"),
+        kind: Some(kind),
+        axis: PreservationAxis::SampleSelection,
+        next: NextAttempt::RetainSampleSelection,
     }
 }
 
@@ -1273,21 +1159,6 @@ fn admit(
     Ok(())
 }
 
-/// Fingerprints of the two frames one rewrite compares.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct BoundFrames {
-    original: FrameFingerprint,
-    rewritten: FrameFingerprint,
-}
-
-/// Fingerprints of a shared preparation and its two consumers.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct BoundPreparation {
-    preparation: FrameFingerprint,
-    left: FrameFingerprint,
-    right: FrameFingerprint,
-}
-
 fn content_refusal(axis: PreservationAxis, message: &str) -> RewriteRefusal {
     RewriteRefusal {
         code: INVALID_CODE,
@@ -1322,13 +1193,12 @@ fn digest_assignment(rows: &[Arc<str>], folds: &[Arc<str>]) -> SemanticDigest {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::error::Error;
 
     use super::{
-        ColumnFilterPushdown, FrameContents, NextAttempt, NuisanceEffect, NuisanceReuse,
-        PreparationEffect, PreservationAxis, PreservedIdentities, PushdownEffect, RewriteKind,
-        SharedRowDesignPreparation, SufficientStatistics, SummaryEffect, TileEffect,
-        TiledEvaluation,
+        FrameContents, NextAttempt, NuisanceEffect, PreparationEffect, PreservationAxis,
+        PreservedIdentities, PushdownEffect, Rewrite, SummaryEffect, TileEffect,
     };
 
     fn identities() -> PreservedIdentities {
@@ -1374,8 +1244,16 @@ mod tests {
             .expect("frame contents")
     }
 
+    fn bind_pair(rewrite: Rewrite, rows: &FrameContents) -> Rewrite {
+        rewrite.with_frames(rows, &[rows]).expect("executed frame")
+    }
+
+    fn bind_share(rewrite: Rewrite, rows: &FrameContents) -> Rewrite {
+        rewrite.with_frames(rows, &[rows, rows]).expect("executed frame")
+    }
+
     #[track_caller]
-    fn expect_refusal(rewrite: &impl RewriteKind, axis: PreservationAxis, because: &str) {
+    fn expect_refusal(rewrite: &Rewrite, axis: PreservationAxis, because: &str) {
         let err = rewrite.check().expect_err(rewrite.name());
         assert_eq!(err.kind(), Some(rewrite.name()));
         assert_eq!(err.axis(), axis);
@@ -1392,92 +1270,121 @@ mod tests {
         let _: &dyn Error = &err;
     }
 
+    macro_rules! assert_effect_table {
+        ($ty:ident) => {{
+            assert!($ty::from_name("not_an_effect").is_none());
+            let mut effects = $ty::ALL.into_iter();
+            let preserving = effects.next().expect("preserving declaration");
+            assert!(preserving.defect().is_none());
+            assert_eq!($ty::from_name(preserving.as_str()), Some(preserving));
+            let mut names = BTreeSet::new();
+            assert!(names.insert(preserving.as_str()));
+            for axis in PreservationAxis::ALL {
+                let effect = effects.next().expect("alteration");
+                let (found, because) = effect.defect().expect("defect");
+                assert_eq!(found, axis);
+                assert!(!because.is_empty());
+                assert_eq!($ty::from_name(effect.as_str()), Some(effect));
+                assert!(names.insert(effect.as_str()), "{}", effect.as_str());
+            }
+            assert!(effects.next().is_none());
+        }};
+    }
+
+    #[test]
+    fn effect_tables_follow_the_preservation_axes() {
+        assert_effect_table!(PushdownEffect);
+        assert_effect_table!(PreparationEffect);
+        assert_effect_table!(NuisanceEffect);
+        assert_effect_table!(SummaryEffect);
+        assert_effect_table!(TileEffect);
+    }
+
     #[test]
     fn preserved_frame_is_legal_for_every_rewrite() {
         let frame = identities();
         let rows = contents();
-        let pushdown =
-            ColumnFilterPushdown::new(frame.clone(), frame.clone(), PushdownEffect::Declared)
-                .with_frames(&rows, &rows);
-        let preparation = SharedRowDesignPreparation::new(
-            frame.clone(),
-            frame.clone(),
-            frame.clone(),
-            PreparationEffect::Shared,
-        )
-        .with_frames(&rows, &rows, &rows);
-        let nuisance = NuisanceReuse::new(frame.clone(), frame.clone(), NuisanceEffect::Certified)
-            .with_frames(&rows, &rows);
-        let summary =
-            SufficientStatistics::new(frame.clone(), frame.clone(), SummaryEffect::Sufficient)
-                .with_frames(&rows, &rows);
-        let tiled = TiledEvaluation::new(frame.clone(), frame, TileEffect::Faithful)
-            .with_frames(&rows, &rows);
-        assert!(pushdown.effect().defect().is_none());
-        assert!(preparation.effect().defect().is_none());
-        assert!(nuisance.effect().defect().is_none());
-        assert!(summary.effect().defect().is_none());
-        assert!(tiled.effect().defect().is_none());
+        let pushdown = bind_pair(
+            Rewrite::column_filter_pushdown(frame.clone(), frame.clone(), PushdownEffect::Declared),
+            &rows,
+        );
+        let preparation = bind_share(
+            Rewrite::shared_row_design_preparation(
+                frame.clone(),
+                frame.clone(),
+                frame.clone(),
+                PreparationEffect::Shared,
+            ),
+            &rows,
+        );
+        let nuisance = bind_pair(
+            Rewrite::nuisance_reuse(frame.clone(), frame.clone(), NuisanceEffect::Certified),
+            &rows,
+        );
+        let summary = bind_pair(
+            Rewrite::sufficient_statistics(frame.clone(), frame.clone(), SummaryEffect::Sufficient),
+            &rows,
+        );
+        let tiled =
+            bind_pair(Rewrite::tiled_evaluation(frame.clone(), frame, TileEffect::Faithful), &rows);
+        assert!(pushdown.defect().is_none());
+        assert!(preparation.defect().is_none());
+        assert!(nuisance.defect().is_none());
+        assert!(summary.defect().is_none());
+        assert!(tiled.defect().is_none());
         assert!(matches!(pushdown.check(), Ok(())));
         assert!(matches!(preparation.check(), Ok(())));
         assert!(matches!(nuisance.check(), Ok(())));
         assert!(matches!(summary.check(), Ok(())));
         assert!(matches!(tiled.check(), Ok(())));
-        assert_eq!(pushdown.name(), ColumnFilterPushdown::NAME);
-        assert_eq!(preparation.name(), SharedRowDesignPreparation::NAME);
-        assert_eq!(nuisance.name(), NuisanceReuse::NAME);
-        assert_eq!(summary.name(), SufficientStatistics::NAME);
-        assert_eq!(tiled.name(), TiledEvaluation::NAME);
-        assert_eq!(pushdown.cohort().identity(PreservationAxis::Folds), "folds");
+        assert_eq!(pushdown.name(), Rewrite::COLUMN_FILTER_PUSHDOWN);
+        assert_eq!(preparation.name(), Rewrite::SHARED_ROW_DESIGN_PREPARATION);
+        assert_eq!(nuisance.name(), Rewrite::NUISANCE_REUSE);
+        assert_eq!(summary.name(), Rewrite::SUFFICIENT_STATISTICS);
+        assert_eq!(tiled.name(), Rewrite::TILED_EVALUATION);
+        assert_eq!(pushdown.effect_name(), PushdownEffect::Declared.as_str());
+        assert_eq!(preparation.effect_name(), PreparationEffect::Shared.as_str());
+        assert_eq!(nuisance.effect_name(), NuisanceEffect::Certified.as_str());
+        assert_eq!(summary.effect_name(), SummaryEffect::Sufficient.as_str());
+        assert_eq!(tiled.effect_name(), TileEffect::Faithful.as_str());
+        assert_eq!(pushdown.source().identity(PreservationAxis::Folds), "folds");
+        assert_eq!(pushdown.primary_claim().identity(PreservationAxis::Folds), "folds");
         assert_eq!(
-            preparation.left().identity(PreservationAxis::Population),
-            preparation.right().identity(PreservationAxis::Population),
+            preparation.primary_claim().identity(PreservationAxis::Population),
+            preparation
+                .secondary_claim()
+                .expect("right consumer")
+                .identity(PreservationAxis::Population),
         );
         assert_eq!(
-            nuisance.fit().identity(PreservationAxis::History),
-            nuisance.consumer().identity(PreservationAxis::History),
+            nuisance.source().identity(PreservationAxis::History),
+            nuisance.primary_claim().identity(PreservationAxis::History),
         );
         assert_eq!(
-            summary.rows().identity(PreservationAxis::Dependence),
-            summary.summary().identity(PreservationAxis::Dependence),
+            summary.source().identity(PreservationAxis::Dependence),
+            summary.primary_claim().identity(PreservationAxis::Dependence),
         );
         assert_eq!(
-            tiled.full().identity(PreservationAxis::Uncertainty),
-            tiled.tile().identity(PreservationAxis::Uncertainty),
+            tiled.source().identity(PreservationAxis::Uncertainty),
+            tiled.primary_claim().identity(PreservationAxis::Uncertainty),
         );
     }
 
     #[test]
     fn matching_identities_do_not_admit_an_altering_effect() {
         let frame = identities();
-        let pushdown = [
-            (PushdownEffect::OmitsRequiredColumn, PreservationAxis::SampleSelection),
-            (PushdownEffect::ReassignsFolds, PreservationAxis::Folds),
-            (PushdownEffect::UndeclaredPopulationCut, PreservationAxis::Population),
-            (PushdownEffect::CutsHistory, PreservationAxis::History),
-            (PushdownEffect::DropsDependenceFactor, PreservationAxis::Dependence),
-            (PushdownEffect::DropsUncertainty, PreservationAxis::Uncertainty),
-        ];
-        for (effect, axis) in pushdown {
-            let because = effect.defect().expect("altering pushdown").1;
+        for effect in PushdownEffect::ALL {
+            let Some((axis, because)) = effect.defect() else { continue };
             expect_refusal(
-                &ColumnFilterPushdown::new(frame.clone(), frame.clone(), effect),
+                &Rewrite::column_filter_pushdown(frame.clone(), frame.clone(), effect),
                 axis,
                 because,
             );
         }
-        let preparation = [
-            (PreparationEffect::MixesSamples, PreservationAxis::SampleSelection),
-            (PreparationEffect::MixesFolds, PreservationAxis::Folds),
-            (PreparationEffect::MixesPopulations, PreservationAxis::Population),
-            (PreparationEffect::MixesHistories, PreservationAxis::History),
-            (PreparationEffect::MixesDependence, PreservationAxis::Dependence),
-            (PreparationEffect::MixesUncertainty, PreservationAxis::Uncertainty),
-        ];
-        for (effect, axis) in preparation {
-            let because = effect.defect().expect("altering preparation").1;
+        for effect in PreparationEffect::ALL {
+            let Some((axis, because)) = effect.defect() else { continue };
             expect_refusal(
-                &SharedRowDesignPreparation::new(
+                &Rewrite::shared_row_design_preparation(
                     frame.clone(),
                     frame.clone(),
                     frame.clone(),
@@ -1487,50 +1394,26 @@ mod tests {
                 because,
             );
         }
-        let nuisance = [
-            (NuisanceEffect::ChangesEstimationSample, PreservationAxis::SampleSelection),
-            (NuisanceEffect::TrainsOnEvaluationFold, PreservationAxis::Folds),
-            (NuisanceEffect::FitOnOtherPopulation, PreservationAxis::Population),
-            (NuisanceEffect::FitOnOtherHistory, PreservationAxis::History),
-            (NuisanceEffect::DropsSharedFactor, PreservationAxis::Dependence),
-            (NuisanceEffect::ReplacesUncertainty, PreservationAxis::Uncertainty),
-        ];
-        for (effect, axis) in nuisance {
-            let because = effect.defect().expect("altering nuisance").1;
+        for effect in NuisanceEffect::ALL {
+            let Some((axis, because)) = effect.defect() else { continue };
             expect_refusal(
-                &NuisanceReuse::new(frame.clone(), frame.clone(), effect),
+                &Rewrite::nuisance_reuse(frame.clone(), frame.clone(), effect),
                 axis,
                 because,
             );
         }
-        let summary = [
-            (SummaryEffect::EvictsRow, PreservationAxis::SampleSelection),
-            (SummaryEffect::PoolsFolds, PreservationAxis::Folds),
-            (SummaryEffect::MarginalizesPopulation, PreservationAxis::Population),
-            (SummaryEffect::CollapsesHistory, PreservationAxis::History),
-            (SummaryEffect::DropsCluster, PreservationAxis::Dependence),
-            (SummaryEffect::DropsSamplingLaw, PreservationAxis::Uncertainty),
-        ];
-        for (effect, axis) in summary {
-            let because = effect.defect().expect("altering summary").1;
+        for effect in SummaryEffect::ALL {
+            let Some((axis, because)) = effect.defect() else { continue };
             expect_refusal(
-                &SufficientStatistics::new(frame.clone(), frame.clone(), effect),
+                &Rewrite::sufficient_statistics(frame.clone(), frame.clone(), effect),
                 axis,
                 because,
             );
         }
-        let tiled = [
-            (TileEffect::DropsRows, PreservationAxis::SampleSelection),
-            (TileEffect::SplitsFold, PreservationAxis::Folds),
-            (TileEffect::RetargetsPopulation, PreservationAxis::Population),
-            (TileEffect::CutsHorizon, PreservationAxis::History),
-            (TileEffect::DropsCrossTerms, PreservationAxis::Dependence),
-            (TileEffect::DropsFailedDraws, PreservationAxis::Uncertainty),
-        ];
-        for (effect, axis) in tiled {
-            let because = effect.defect().expect("altering tile").1;
+        for effect in TileEffect::ALL {
+            let Some((axis, because)) = effect.defect() else { continue };
             expect_refusal(
-                &TiledEvaluation::new(frame.clone(), frame.clone(), effect),
+                &Rewrite::tiled_evaluation(frame.clone(), frame.clone(), effect),
                 axis,
                 because,
             );
@@ -1544,7 +1427,7 @@ mod tests {
             let token = format!("{axis}-other");
             let moved = identities_with(axis, &token);
             expect_refusal(
-                &ColumnFilterPushdown::new(
+                &Rewrite::column_filter_pushdown(
                     original.clone(),
                     moved.clone(),
                     PushdownEffect::Declared,
@@ -1553,7 +1436,7 @@ mod tests {
                 &token,
             );
             expect_refusal(
-                &SharedRowDesignPreparation::new(
+                &Rewrite::shared_row_design_preparation(
                     original.clone(),
                     original.clone(),
                     moved.clone(),
@@ -1563,12 +1446,16 @@ mod tests {
                 &token,
             );
             expect_refusal(
-                &NuisanceReuse::new(original.clone(), moved.clone(), NuisanceEffect::Certified),
+                &Rewrite::nuisance_reuse(
+                    original.clone(),
+                    moved.clone(),
+                    NuisanceEffect::Certified,
+                ),
                 axis,
                 &token,
             );
             expect_refusal(
-                &SufficientStatistics::new(
+                &Rewrite::sufficient_statistics(
                     original.clone(),
                     moved.clone(),
                     SummaryEffect::Sufficient,
@@ -1577,7 +1464,7 @@ mod tests {
                 &token,
             );
             expect_refusal(
-                &TiledEvaluation::new(original.clone(), moved, TileEffect::Faithful),
+                &Rewrite::tiled_evaluation(original.clone(), moved, TileEffect::Faithful),
                 axis,
                 &token,
             );
@@ -1596,7 +1483,7 @@ mod tests {
             "uncertainty",
         )
         .expect("population");
-        let pushdown = ColumnFilterPushdown::new(
+        let pushdown = Rewrite::column_filter_pushdown(
             original.clone(),
             pushed,
             PushdownEffect::OmitsRequiredColumn,
@@ -1616,7 +1503,7 @@ mod tests {
             "uncertainty-other",
         )
         .expect("two axes");
-        let declared = ColumnFilterPushdown::new(original, both, PushdownEffect::Declared);
+        let declared = Rewrite::column_filter_pushdown(original, both, PushdownEffect::Declared);
         let err = declared.check().expect_err("sample selection is earlier than uncertainty");
         assert_eq!(err.axis(), PreservationAxis::SampleSelection);
         assert!(err.message().contains("sample-other"));
@@ -1628,8 +1515,12 @@ mod tests {
         let preparation = identities();
         let left = identities_with(PreservationAxis::Dependence, "left-dependence");
         let right = identities_with(PreservationAxis::Dependence, "right-dependence");
-        let shared =
-            SharedRowDesignPreparation::new(preparation, left, right, PreparationEffect::Shared);
+        let shared = Rewrite::shared_row_design_preparation(
+            preparation,
+            left,
+            right,
+            PreparationEffect::Shared,
+        );
         let err = shared.check().expect_err("left consumer");
         assert_eq!(err.axis(), PreservationAxis::Dependence);
         assert_eq!(err.next_attempt(), NextAttempt::RetainDependence);
@@ -1684,11 +1575,11 @@ mod tests {
         let frame = identities();
         let original = contents();
         let bare =
-            ColumnFilterPushdown::new(frame.clone(), frame.clone(), PushdownEffect::Declared);
+            Rewrite::column_filter_pushdown(frame.clone(), frame.clone(), PushdownEffect::Declared);
         expect_refusal(&bare, PreservationAxis::SampleSelection, "fingerprint");
         assert_eq!(
-            bare.cohort().identity(PreservationAxis::SampleSelection),
-            bare.pushed().identity(PreservationAxis::SampleSelection),
+            bare.source().identity(PreservationAxis::SampleSelection),
+            bare.primary_claim().identity(PreservationAxis::SampleSelection),
         );
 
         let cases = [
@@ -1726,16 +1617,14 @@ mod tests {
                 .expect("rewritten contents");
             let digest = rewritten.fingerprint().on_axis(axis).expect("content axis");
             assert_ne!(original.fingerprint().on_axis(axis), Some(digest));
-            let declared = ColumnFilterPushdown::new(
+            let declared = Rewrite::column_filter_pushdown(
                 frame.clone(),
                 frame.clone(),
                 PushdownEffect::Declared,
             )
-            .with_frames(&original, &rewritten);
-            assert_eq!(
-                declared.cohort().identity(axis),
-                declared.pushed().identity(axis),
-            );
+            .with_frames(&original, &[&rewritten])
+            .expect("executed frame");
+            assert_eq!(declared.source().identity(axis), declared.primary_claim().identity(axis));
             expect_refusal(&declared, axis, &digest.to_string());
         }
     }
@@ -1743,26 +1632,21 @@ mod tests {
     #[test]
     fn matching_frame_fingerprint_is_admitted() {
         let frame = identities();
-        let original = FrameContents::try_new(
-            &["row-b", "row-a"],
-            &["fold-1", "fold-2"],
-            "pop-1",
-            "hist-1",
-        )
-        .expect("crossed assignment");
-        let same = FrameContents::try_new(
-            &["row-a", "row-b"],
-            &["fold-2", "fold-1"],
-            "pop-1",
-            "hist-1",
-        )
-        .expect("listed assignment");
+        let original =
+            FrameContents::try_new(&["row-b", "row-a"], &["fold-1", "fold-2"], "pop-1", "hist-1")
+                .expect("crossed assignment");
+        let same =
+            FrameContents::try_new(&["row-a", "row-b"], &["fold-2", "fold-1"], "pop-1", "hist-1")
+                .expect("listed assignment");
         assert_eq!(original.fingerprint(), same.fingerprint());
+        assert!(original.fingerprint().on_axis(PreservationAxis::Dependence).is_none());
+        assert!(original.fingerprint().on_axis(PreservationAxis::Uncertainty).is_none());
         assert_eq!(original.row_ids().collect::<Vec<&str>>(), ["row-a", "row-b"]);
         assert_eq!(original.fold_ids().collect::<Vec<&str>>(), ["fold-2", "fold-1"]);
         let pushdown =
-            ColumnFilterPushdown::new(frame.clone(), frame, PushdownEffect::Declared)
-                .with_frames(&original, &same);
+            Rewrite::column_filter_pushdown(frame.clone(), frame, PushdownEffect::Declared)
+                .with_frames(&original, &[&same])
+                .expect("executed frame");
         assert!(matches!(pushdown.check(), Ok(())));
     }
 
@@ -1770,40 +1654,122 @@ mod tests {
     fn equal_declaration_strings_without_an_executed_fingerprint_are_refused() {
         let frame = identities();
         let pushdown =
-            ColumnFilterPushdown::new(frame.clone(), frame.clone(), PushdownEffect::Declared);
-        let preparation = SharedRowDesignPreparation::new(
+            Rewrite::column_filter_pushdown(frame.clone(), frame.clone(), PushdownEffect::Declared);
+        let preparation = Rewrite::shared_row_design_preparation(
             frame.clone(),
             frame.clone(),
             frame.clone(),
             PreparationEffect::Shared,
         );
-        let nuisance = NuisanceReuse::new(frame.clone(), frame.clone(), NuisanceEffect::Certified);
+        let nuisance =
+            Rewrite::nuisance_reuse(frame.clone(), frame.clone(), NuisanceEffect::Certified);
         let summary =
-            SufficientStatistics::new(frame.clone(), frame.clone(), SummaryEffect::Sufficient);
-        let tiled = TiledEvaluation::new(frame.clone(), frame.clone(), TileEffect::Faithful);
+            Rewrite::sufficient_statistics(frame.clone(), frame.clone(), SummaryEffect::Sufficient);
+        let tiled = Rewrite::tiled_evaluation(frame.clone(), frame.clone(), TileEffect::Faithful);
         for axis in PreservationAxis::ALL {
-            assert_eq!(pushdown.cohort().identity(axis), pushdown.pushed().identity(axis));
+            assert_eq!(pushdown.source().identity(axis), pushdown.primary_claim().identity(axis));
             assert_eq!(
-                preparation.preparation().identity(axis),
-                preparation.left().identity(axis),
+                preparation.source().identity(axis),
+                preparation.primary_claim().identity(axis),
             );
             assert_eq!(
-                preparation.preparation().identity(axis),
-                preparation.right().identity(axis),
+                preparation.source().identity(axis),
+                preparation.secondary_claim().expect("right consumer").identity(axis),
             );
-            assert_eq!(nuisance.fit().identity(axis), nuisance.consumer().identity(axis));
-            assert_eq!(summary.rows().identity(axis), summary.summary().identity(axis));
-            assert_eq!(tiled.full().identity(axis), tiled.tile().identity(axis));
+            assert_eq!(nuisance.source().identity(axis), nuisance.primary_claim().identity(axis));
+            assert_eq!(summary.source().identity(axis), summary.primary_claim().identity(axis));
+            assert_eq!(tiled.source().identity(axis), tiled.primary_claim().identity(axis));
         }
-        assert!(pushdown.effect().defect().is_none());
-        assert!(preparation.effect().defect().is_none());
-        assert!(nuisance.effect().defect().is_none());
-        assert!(summary.effect().defect().is_none());
-        assert!(tiled.effect().defect().is_none());
+        assert!(pushdown.defect().is_none());
+        assert!(preparation.defect().is_none());
+        assert!(nuisance.defect().is_none());
+        assert!(summary.defect().is_none());
+        assert!(tiled.defect().is_none());
         expect_refusal(&pushdown, PreservationAxis::SampleSelection, "fingerprint");
         expect_refusal(&preparation, PreservationAxis::SampleSelection, "fingerprint");
         expect_refusal(&nuisance, PreservationAxis::SampleSelection, "fingerprint");
         expect_refusal(&summary, PreservationAxis::SampleSelection, "fingerprint");
         expect_refusal(&tiled, PreservationAxis::SampleSelection, "fingerprint");
+    }
+
+    #[test]
+    fn dependence_and_uncertainty_declarations_do_not_replace_the_fingerprint() {
+        let rows = contents();
+        let original = identities();
+        for axis in [PreservationAxis::Dependence, PreservationAxis::Uncertainty] {
+            let moved = identities_with(axis, "other-declaration");
+            let declared = [
+                bind_pair(
+                    Rewrite::column_filter_pushdown(
+                        original.clone(),
+                        moved.clone(),
+                        PushdownEffect::Declared,
+                    ),
+                    &rows,
+                ),
+                bind_share(
+                    Rewrite::shared_row_design_preparation(
+                        original.clone(),
+                        original.clone(),
+                        moved.clone(),
+                        PreparationEffect::Shared,
+                    ),
+                    &rows,
+                ),
+                bind_pair(
+                    Rewrite::nuisance_reuse(
+                        original.clone(),
+                        moved.clone(),
+                        NuisanceEffect::Certified,
+                    ),
+                    &rows,
+                ),
+                bind_pair(
+                    Rewrite::sufficient_statistics(
+                        original.clone(),
+                        moved.clone(),
+                        SummaryEffect::Sufficient,
+                    ),
+                    &rows,
+                ),
+                bind_pair(
+                    Rewrite::tiled_evaluation(original.clone(), moved, TileEffect::Faithful),
+                    &rows,
+                ),
+            ];
+            for rewrite in &declared {
+                assert!(rewrite.defect().is_none());
+                assert_eq!(
+                    rewrite.source().identity(PreservationAxis::SampleSelection),
+                    rewrite.primary_claim().identity(PreservationAxis::SampleSelection),
+                );
+                assert!(rows.fingerprint().on_axis(axis).is_none());
+                expect_refusal(rewrite, axis, "other-declaration");
+            }
+        }
+    }
+
+    #[test]
+    fn a_fingerprint_must_cover_every_compared_frame() {
+        let frame = identities();
+        let rows = contents();
+        let pushdown =
+            Rewrite::column_filter_pushdown(frame.clone(), frame.clone(), PushdownEffect::Declared);
+        let err = pushdown.with_frames(&rows, &[&rows, &rows]).expect_err("two claims");
+        assert_eq!(err.detail(), "rewrite_legality.frame_binding");
+        assert_eq!(err.kind(), Some(Rewrite::COLUMN_FILTER_PUSHDOWN));
+        assert_eq!(err.axis(), PreservationAxis::SampleSelection);
+        assert_eq!(err.next_attempt(), NextAttempt::RetainSampleSelection);
+        assert!(err.message().contains("fingerprint"));
+
+        let preparation = Rewrite::shared_row_design_preparation(
+            frame.clone(),
+            frame.clone(),
+            frame,
+            PreparationEffect::Shared,
+        );
+        let err = preparation.with_frames(&rows, &[&rows]).expect_err("one claim");
+        assert_eq!(err.detail(), "rewrite_legality.frame_binding");
+        assert_eq!(err.kind(), Some(Rewrite::SHARED_ROW_DESIGN_PREPARATION));
     }
 }
