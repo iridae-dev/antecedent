@@ -46,7 +46,9 @@ use antecedent_data::TabularData;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
-use antecedent_design::decision_eval::{DecisionEvalError, DecisionResult, MeanSource};
+use antecedent_design::decision_eval::{
+    DecisionEvalError, DecisionResult, MeanEstimate, MeanSource,
+};
 use antecedent_estimate::temporal_dependent_interval::{DependentIntervalConfig, IntervalMethod};
 
 use super::{
@@ -1144,6 +1146,7 @@ fn evaluate_mean(mean: f64) -> Result<DecisionResult, FlagshipError> {
         snapshot_id: "mixed-decision".to_owned(),
         causal_contract_id: "flagship-joint".to_owned(),
         rng_id: "none:joint-mean".to_owned(),
+        estimate: MeanEstimate::Frequentist,
     };
     Ok(antecedent_design::decision_eval::evaluate_contract_on_means(
         &decision_contract(quantity),

@@ -439,13 +439,10 @@ impl TransportedResponse {
         {
             return Err(TransportedRefusal::InvalidValue("one finite mean per coordinate"));
         }
-        for (position, coordinate) in coordinates.iter().enumerate() {
-            if coordinates[..position]
-                .iter()
-                .any(|earlier| earlier.require_same_coordinate(coordinate).is_ok())
-            {
-                return Err(TransportedRefusal::InvalidValue("coordinates are distinct"));
-            }
+        if antecedent_contract::quantity::deduped_coordinate_positions(&coordinates).len()
+            != coordinates.len()
+        {
+            return Err(TransportedRefusal::InvalidValue("coordinates are distinct"));
         }
         let receipt = finalize(declaration, TransportedRepresentation::PointOnly);
         receipt.validate()?;
@@ -458,6 +455,7 @@ impl TransportedResponse {
                 snapshot_id: declaration.snapshot_id.clone(),
                 causal_contract_id: declaration.causal_contract_id.clone(),
                 rng_id: "none:transported_point".to_owned(),
+                estimate: crate::decision_eval::MeanEstimate::Frequentist,
             }),
             receipt,
         })
@@ -882,13 +880,10 @@ impl TransportedResponse {
         {
             return Err(TransportedRefusal::InvalidValue("one finite mean per coordinate"));
         }
-        for (position, coordinate) in mean.coordinates.iter().enumerate() {
-            if mean.coordinates[..position]
-                .iter()
-                .any(|earlier| earlier.require_same_coordinate(coordinate).is_ok())
-            {
-                return Err(TransportedRefusal::InvalidValue("coordinates are distinct"));
-            }
+        if antecedent_contract::quantity::deduped_coordinate_positions(&mean.coordinates).len()
+            != mean.coordinates.len()
+        {
+            return Err(TransportedRefusal::InvalidValue("coordinates are distinct"));
         }
         receipt.validate()?;
         check_in_target(&mean.coordinates, &receipt.target_population)?;

@@ -384,6 +384,7 @@ fn affine_output(
         snapshot_id: source.snapshot.clone(),
         causal_contract_id: source.digest.clone(),
         rng_id: "no_sampling".into(),
+        estimate: crate::decision_eval::MeanEstimate::Frequentist,
     };
     if let Some(action_id) = selected {
         return affine_functional_output(&contract, action_id, means, &source.supported);

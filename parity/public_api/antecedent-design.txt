@@ -255,6 +255,7 @@ impl core::clone::Clone for antecedent_design::decision_eval::ConstraintExclusio
 impl core::clone::Clone for antecedent_design::decision_eval::DecisionEvalError
 impl core::clone::Clone for antecedent_design::decision_eval::DecisionResult
 impl core::clone::Clone for antecedent_design::decision_eval::FunctionalValue
+impl core::clone::Clone for antecedent_design::decision_eval::MeanEstimate
 impl core::clone::Clone for antecedent_design::decision_eval::MeanSource
 impl core::clone::Clone for antecedent_design::decision_eval::SourceReceipt
 impl core::clone::Clone for antecedent_design::decision_eval::Verdict
@@ -730,6 +731,7 @@ impl core::cmp::Eq for antecedent_design::decision_contract::ProgramSearchSpace
 impl core::cmp::Eq for antecedent_design::decision_contract::SupportRule
 impl core::cmp::Eq for antecedent_design::decision_contract::UncertaintyKind
 impl core::cmp::Eq for antecedent_design::decision_contract::UncertaintyRequirement
+impl core::cmp::Eq for antecedent_design::decision_eval::MeanEstimate
 impl core::cmp::Eq for antecedent_design::decision_eval::SourceReceipt
 impl core::cmp::Eq for antecedent_design::decision_evaluation::BatchRecord
 impl core::cmp::Eq for antecedent_design::decision_evaluation::MissingCarrier
@@ -1055,6 +1057,7 @@ impl core::cmp::PartialEq for antecedent_design::decision_eval::ConstraintExclus
 impl core::cmp::PartialEq for antecedent_design::decision_eval::DecisionEvalError
 impl core::cmp::PartialEq for antecedent_design::decision_eval::DecisionResult
 impl core::cmp::PartialEq for antecedent_design::decision_eval::FunctionalValue
+impl core::cmp::PartialEq for antecedent_design::decision_eval::MeanEstimate
 impl core::cmp::PartialEq for antecedent_design::decision_eval::MeanSource
 impl core::cmp::PartialEq for antecedent_design::decision_eval::SourceReceipt
 impl core::cmp::PartialEq for antecedent_design::decision_eval::Verdict
@@ -1719,6 +1722,7 @@ impl core::fmt::Debug for antecedent_design::decision_eval::ConstraintExclusion
 impl core::fmt::Debug for antecedent_design::decision_eval::DecisionEvalError
 impl core::fmt::Debug for antecedent_design::decision_eval::DecisionResult
 impl core::fmt::Debug for antecedent_design::decision_eval::FunctionalValue
+impl core::fmt::Debug for antecedent_design::decision_eval::MeanEstimate
 impl core::fmt::Debug for antecedent_design::decision_eval::MeanSource
 impl core::fmt::Debug for antecedent_design::decision_eval::SourceReceipt
 impl core::fmt::Debug for antecedent_design::decision_eval::Verdict
@@ -2117,6 +2121,7 @@ impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedC
 impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedSynthesis
 impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedSynthesisMethod
 impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedSynthesisRefusal
+impl core::fmt::Display for antecedent_design::DecisionContractError
 impl core::fmt::Display for antecedent_design::DecisionProblemId
 impl core::fmt::Display for antecedent_design::DesignError
 impl core::fmt::Display for antecedent_design::RepairArtifactError
@@ -2125,6 +2130,7 @@ impl core::fmt::Display for antecedent_design::StudyCandidateError
 impl core::fmt::Display for antecedent_design::StudyPlanError
 impl core::fmt::Display for antecedent_design::ZTransportPlanningError
 impl core::fmt::Display for antecedent_design::composition_bundle::BundleError
+impl core::fmt::Display for antecedent_design::decision_eval::DecisionEvalError
 impl core::fmt::Display for antecedent_design::decision_evaluation::EvaluationError
 impl core::fmt::Display for antecedent_design::decision_reliability::ReliabilityError
 impl core::fmt::Display for antecedent_design::decision_transported_source::TransportedRefusal
@@ -2228,6 +2234,7 @@ impl core::marker::Copy for antecedent_design::decision_adapters::ClaimProbabili
 impl core::marker::Copy for antecedent_design::decision_contract::UncertaintyKind
 impl core::marker::Copy for antecedent_design::decision_contract::UncertaintyRequirement
 impl core::marker::Copy for antecedent_design::decision_eval::FunctionalValue
+impl core::marker::Copy for antecedent_design::decision_eval::MeanEstimate
 impl core::marker::Copy for antecedent_design::decision_evaluation::BatchRecord
 impl core::marker::Copy for antecedent_design::decision_evaluation::MissingCarrier
 impl core::marker::Copy for antecedent_design::decision_evaluation::RequestedCarrier
@@ -2527,6 +2534,7 @@ impl core::marker::Freeze for antecedent_design::decision_eval::ConstraintExclus
 impl core::marker::Freeze for antecedent_design::decision_eval::DecisionEvalError [auto]
 impl core::marker::Freeze for antecedent_design::decision_eval::DecisionResult [auto]
 impl core::marker::Freeze for antecedent_design::decision_eval::FunctionalValue [auto]
+impl core::marker::Freeze for antecedent_design::decision_eval::MeanEstimate [auto]
 impl core::marker::Freeze for antecedent_design::decision_eval::MeanSource [auto]
 impl core::marker::Freeze for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::marker::Freeze for antecedent_design::decision_eval::Verdict [auto]
@@ -3113,6 +3121,7 @@ impl core::marker::Send for antecedent_design::decision_eval::ConstraintExclusio
 impl core::marker::Send for antecedent_design::decision_eval::DecisionEvalError [auto]
 impl core::marker::Send for antecedent_design::decision_eval::DecisionResult [auto]
 impl core::marker::Send for antecedent_design::decision_eval::FunctionalValue [auto]
+impl core::marker::Send for antecedent_design::decision_eval::MeanEstimate [auto]
 impl core::marker::Send for antecedent_design::decision_eval::MeanSource [auto]
 impl core::marker::Send for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::marker::Send for antecedent_design::decision_eval::Verdict [auto]
@@ -3660,6 +3669,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::Con
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::DecisionEvalError
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::DecisionResult
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::FunctionalValue
+impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::MeanEstimate
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::MeanSource
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::SourceReceipt
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::Verdict
@@ -4218,6 +4228,7 @@ impl core::marker::Sync for antecedent_design::decision_eval::ConstraintExclusio
 impl core::marker::Sync for antecedent_design::decision_eval::DecisionEvalError [auto]
 impl core::marker::Sync for antecedent_design::decision_eval::DecisionResult [auto]
 impl core::marker::Sync for antecedent_design::decision_eval::FunctionalValue [auto]
+impl core::marker::Sync for antecedent_design::decision_eval::MeanEstimate [auto]
 impl core::marker::Sync for antecedent_design::decision_eval::MeanSource [auto]
 impl core::marker::Sync for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::marker::Sync for antecedent_design::decision_eval::Verdict [auto]
@@ -4805,6 +4816,7 @@ impl core::marker::Unpin for antecedent_design::decision_eval::ConstraintExclusi
 impl core::marker::Unpin for antecedent_design::decision_eval::DecisionEvalError [auto]
 impl core::marker::Unpin for antecedent_design::decision_eval::DecisionResult [auto]
 impl core::marker::Unpin for antecedent_design::decision_eval::FunctionalValue [auto]
+impl core::marker::Unpin for antecedent_design::decision_eval::MeanEstimate [auto]
 impl core::marker::Unpin for antecedent_design::decision_eval::MeanSource [auto]
 impl core::marker::Unpin for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::marker::Unpin for antecedent_design::decision_eval::Verdict [auto]
@@ -5391,6 +5403,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eva
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eval::DecisionEvalError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eval::DecisionResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eval::FunctionalValue [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eval::MeanEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eval::MeanSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eval::Verdict [auto]
@@ -5970,6 +5983,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::DecisionEvalError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::DecisionResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::FunctionalValue [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::MeanEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::MeanSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::SourceReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eval::Verdict [auto]
@@ -6385,6 +6399,7 @@ impl serde_core::ser::Serialize for antecedent_design::ZTransportFailureSnapshot
 impl serde_core::ser::Serialize for antecedent_design::ZTransportFailureStatus
 impl serde_core::ser::Serialize for antecedent_design::ZTransportProposalWire
 impl serde_core::ser::Serialize for antecedent_design::composition_bundle::ProviderOrData
+impl serde_core::ser::Serialize for antecedent_design::decision_eval::MeanEstimate
 impl serde_core::ser::Serialize for antecedent_design::decision_reliability::BatchPlan
 impl serde_core::ser::Serialize for antecedent_design::decision_reliability::BoundKind
 impl serde_core::ser::Serialize for antecedent_design::decision_reliability::CalibrationCoordinate
@@ -6650,6 +6665,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::ZTransportFail
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::ZTransportFailureStatus
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::ZTransportProposalWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::composition_bundle::ProviderOrData
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_eval::MeanEstimate
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_reliability::BatchPlan
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_reliability::BoundKind
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_reliability::CalibrationCoordinate
@@ -7049,6 +7065,7 @@ pub enum antecedent_design::decision_contract::ProgramObjective
 pub enum antecedent_design::decision_contract::UncertaintyKind
 pub enum antecedent_design::decision_contract::UncertaintyRequirement
 pub enum antecedent_design::decision_eval::DecisionEvalError
+pub enum antecedent_design::decision_eval::MeanEstimate
 pub enum antecedent_design::decision_eval::Verdict
 pub enum antecedent_design::decision_evaluation::EvaluationError
 pub enum antecedent_design::decision_evaluation::MissingCarrier
@@ -7650,6 +7667,7 @@ pub field antecedent_design::decision_eval::DecisionResult::actions: alloc::vec:
 pub field antecedent_design::decision_eval::DecisionResult::assumptions: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::decision_eval::DecisionResult::contract_identity: alloc::string::String
 pub field antecedent_design::decision_eval::DecisionResult::criterion: antecedent_design::DecisionCriterion
+pub field antecedent_design::decision_eval::DecisionResult::criterion_label: alloc::string::String
 pub field antecedent_design::decision_eval::DecisionResult::effective_draws: f64
 pub field antecedent_design::decision_eval::DecisionResult::evpi: core::option::Option<f64>
 pub field antecedent_design::decision_eval::DecisionResult::n_draws: usize
@@ -7660,6 +7678,7 @@ pub field antecedent_design::decision_eval::FunctionalValue::standard_error: cor
 pub field antecedent_design::decision_eval::FunctionalValue::value: f64
 pub field antecedent_design::decision_eval::MeanSource::causal_contract_id: alloc::string::String
 pub field antecedent_design::decision_eval::MeanSource::coordinates: alloc::vec::Vec<antecedent_contract::quantity::ScientificQuantity>
+pub field antecedent_design::decision_eval::MeanSource::estimate: antecedent_design::decision_eval::MeanEstimate
 pub field antecedent_design::decision_eval::MeanSource::means: alloc::vec::Vec<f64>
 pub field antecedent_design::decision_eval::MeanSource::provider_id: alloc::string::String
 pub field antecedent_design::decision_eval::MeanSource::rng_id: alloc::string::String
@@ -8390,6 +8409,7 @@ pub field antecedent_design::inverse_query_artifact::InverseResultWire::selectio
 pub field antecedent_design::inverse_query_artifact::LawWire::metadata: antecedent_io_core::distribution_artifact::DistributionMetadata
 pub field antecedent_design::inverse_query_artifact::MeansWire::causal_contract_id: alloc::string::String
 pub field antecedent_design::inverse_query_artifact::MeansWire::coordinates: alloc::vec::Vec<antecedent_io_core::quantity_wire::ScientificQuantityWire>
+pub field antecedent_design::inverse_query_artifact::MeansWire::estimate: antecedent_design::decision_eval::MeanEstimate
 pub field antecedent_design::inverse_query_artifact::MeansWire::provider_id: alloc::string::String
 pub field antecedent_design::inverse_query_artifact::MeansWire::rng_id: alloc::string::String
 pub field antecedent_design::inverse_query_artifact::MeansWire::snapshot_id: alloc::string::String
@@ -10843,6 +10863,8 @@ pub variant antecedent_design::decision_eval::DecisionEvalError::NonFiniteUtilit
 pub variant antecedent_design::decision_eval::DecisionEvalError::QuantityNotFound { action: alloc::string::String, input: usize }
 pub variant antecedent_design::decision_eval::DecisionEvalError::StructureInputsRequired(&'static str)
 pub variant antecedent_design::decision_eval::DecisionEvalError::UnsupportedCoordinate { action: alloc::string::String, input: usize }
+pub variant antecedent_design::decision_eval::MeanEstimate::Frequentist
+pub variant antecedent_design::decision_eval::MeanEstimate::Posterior
 pub variant antecedent_design::decision_eval::Verdict::Indistinguishable(alloc::vec::Vec<alloc::string::String>)
 pub variant antecedent_design::decision_eval::Verdict::NoAdmissibleAction
 pub variant antecedent_design::decision_eval::Verdict::UniquelyOptimal(alloc::string::String)

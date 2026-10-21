@@ -19,7 +19,7 @@ use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
-use antecedent_design::decision_eval::{DecisionEvalError, MeanSource};
+use antecedent_design::decision_eval::{DecisionEvalError, MeanEstimate, MeanSource};
 use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
 use antecedent_design::inverse_query::{
     Comparison, ExistenceClaim, FeasibilityStatus, ForwardClaim, ForwardEvidence, GridScope,
@@ -244,6 +244,7 @@ fn artifact_embeds_means_and_a_probability_on_them_refuses() {
         snapshot_id: "snap-9".into(),
         causal_contract_id: "checked-contract".into(),
         rng_id: "none:mean_grid".into(),
+        estimate: MeanEstimate::Frequentist,
     };
     let evidence =
         ForwardEvidence { point: Some(ForwardClaim::Means(means)), ..ForwardEvidence::default() };

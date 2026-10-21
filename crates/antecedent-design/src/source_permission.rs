@@ -245,7 +245,9 @@ mod tests {
         ActionKind, DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion,
         StructuralPolicy, UtilityExpr,
     };
-    use crate::decision_eval::{DecisionEvalError, MeanSource, evaluate_contract_on_means};
+    use crate::decision_eval::{
+        DecisionEvalError, MeanEstimate, MeanSource, evaluate_contract_on_means,
+    };
     use crate::preposterior::DecisionPrior;
     use crate::prior_signal::{
         CandidateSignalSource, NativeSignalFamily, PriorSignalRequest, PriorSourceInput,
@@ -696,6 +698,7 @@ mod tests {
             snapshot_id: "snap".into(),
             causal_contract_id: "checked".into(),
             rng_id: "none:mean_grid".into(),
+            estimate: MeanEstimate::Frequentist,
         };
         let error = evaluate_contract_on_means(&contract, &source).unwrap_err();
         let DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration(message)) = error

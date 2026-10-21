@@ -1,11 +1,10 @@
 //! Decision evaluation against the source demand a contract already declares.
 //!
-//! [`DecisionContract::source_requirement`] is that demand. This module evaluates
-//! it on a mean source. The expectation of an affine utility is the utility of
-//! the means, so that evaluation requests neither predictions nor draws. A
-//! nonlinear utility, a threshold, a quantile, a hard constraint, or regret,
-//! given only means, is refused, and the refusal names the missing predictions
-//! or draws.
+//! [`crate::decision_eval::evaluate_contract_on_means`] classifies that demand.
+//! This module does not classify it again. It names the missing predictions or
+//! draws on the refusal that classification already returned. The expectation of
+//! an affine utility is the utility of the means, so that evaluation requests
+//! neither predictions nor draws.
 //!
 //! [`BatchRecord`] and [`RetentionRecord`] are records of what was requested.
 //! They are not a thread pool, not a scratch pool, and not a fit. Nothing here
@@ -17,13 +16,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::ScientificQuantity;
 use antecedent_core::execution_facts::OutputRetention;
 use thiserror::Error;
 
-use crate::decision_contract::{
-    DecisionContract, DecisionContractError, SourceRepresentation, SourceRequirement,
-};
+use crate::decision_contract::{DecisionContract, DecisionContractError, SourceRepresentation};
 use crate::decision_eval::{
     DecisionEvalError, DecisionResult, MeanSource, evaluate_contract_on_means,
 };
@@ -140,10 +136,10 @@ pub struct DemandEvaluation {
 #[derive(Clone, Debug, PartialEq, Error)]
 pub enum EvaluationError {
     /// The contract is invalid.
-    #[error("decision contract refused: {0:?}")]
+    #[error("decision contract refused: {0}")]
     Contract(DecisionContractError),
     /// The demand accepts means, and the mean source itself refused.
-    #[error("decision evaluation refused: {0:?}")]
+    #[error("decision evaluation refused: {0}")]
     Evaluation(DecisionEvalError),
     /// Means cannot answer the declared demand.
     ///
@@ -181,17 +177,6 @@ pub fn evaluate_on_means(
     contract: &DecisionContract,
     source: &MeanSource,
 ) -> Result<DemandEvaluation, EvaluationError> {
-    let requirement = declared_requirement(contract)?;
-    if requirement.is_identified_set() {
-        return Err(EvaluationError::IdentifiedSet);
-    }
-    match requirement.check(&[SourceRepresentation::Mean]) {
-        Ok(_) => {}
-        Err(DecisionContractError::MissingSource { needed }) => {
-            return Err(means_insufficient(needed));
-        }
-        Err(other) => return Err(EvaluationError::Contract(other)),
-    }
     let decision = evaluate_contract_on_means(contract, source).map_err(lift_eval)?;
     Ok(DemandEvaluation {
         decision,
@@ -202,18 +187,12 @@ pub fn evaluate_on_means(
     })
 }
 
-fn declared_requirement(contract: &DecisionContract) -> Result<SourceRequirement, EvaluationError> {
-    match contract.source_requirement().map_err(EvaluationError::Contract)? {
-        Some(requirement) => Ok(requirement),
-        None => Err(EvaluationError::Contract(DecisionContractError::InvalidDeclaration(
-            "a decision compares at least two actions",
-        ))),
-    }
-}
-
 fn means_insufficient(needed: Vec<SourceRepresentation>) -> EvaluationError {
     let predictions = needed.iter().any(|representation| {
-        matches!(representation, SourceRepresentation::Cdf | SourceRepresentation::QuantileFunction)
+        matches!(
+            representation,
+            SourceRepresentation::Cdf | SourceRepresentation::QuantileFunction
+        )
     });
     let draws = needed.iter().any(|representation| {
         matches!(
@@ -239,34 +218,32 @@ fn means_insufficient(needed: Vec<SourceRepresentation>) -> EvaluationError {
 fn lift_eval(error: DecisionEvalError) -> EvaluationError {
     match error {
         DecisionEvalError::Contract(error) => EvaluationError::Contract(error),
+        DecisionEvalError::MeanSourceInsufficient { needed } if needed.is_empty() => {
+            EvaluationError::IdentifiedSet
+        }
         DecisionEvalError::MeanSourceInsufficient { needed } => means_insufficient(needed),
         other => EvaluationError::Evaluation(other),
     }
 }
 
 fn distinct_inputs(contract: &DecisionContract) -> usize {
-    let mut seen: Vec<&ScientificQuantity> = Vec::new();
+    let mut coordinates = Vec::new();
     for action in &contract.actions {
-        for quantity in &action.inputs {
-            let already = seen.iter().any(|kept| kept.require_same_coordinate(quantity).is_ok());
-            if !already {
-                seen.push(quantity);
-            }
-        }
+        coordinates.extend(action.inputs.iter().cloned());
     }
-    seen.len()
+    antecedent_contract::quantity::deduped_coordinate_positions(&coordinates).len()
 }
 
 #[cfg(test)]
 mod tests {
-    use antecedent_contract::QuantityRole;
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
 
     use super::*;
     use crate::decision_contract::{
         ActionKind, DecisionAction, DecisionCriterion, HardConstraint, StructuralPolicy,
         UtilityExpr,
     };
-    use crate::decision_eval::Verdict;
+    use crate::decision_eval::{MeanEstimate, Verdict};
 
     fn quantity(regime: &str) -> ScientificQuantity {
         ScientificQuantity {
@@ -292,6 +269,7 @@ mod tests {
             snapshot_id: "snap-9".into(),
             causal_contract_id: "checked-contract".into(),
             rng_id: "none:mean_grid".into(),
+            estimate: MeanEstimate::Frequentist,
         }
     }
 

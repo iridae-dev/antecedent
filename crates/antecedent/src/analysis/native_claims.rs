@@ -34,7 +34,7 @@ use antecedent_core::{
 use antecedent_design::decision_contract::{
     DecisionContractError, SourceRepresentation, SourceRequirement,
 };
-use antecedent_design::decision_eval::MeanSource;
+use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
@@ -552,6 +552,7 @@ impl NativeResponseClaim {
             snapshot_id: self.snapshot_id.clone(),
             causal_contract_id: self.contract_id.clone(),
             rng_id: "none:mean_grid".to_owned(),
+            estimate: MeanEstimate::Frequentist,
         };
         let status = kept.iter().map(|i| self.point_status[*i]).collect();
         (NativeDecisionSource::Mean(source), coordinates, status)

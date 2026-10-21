@@ -11,7 +11,7 @@ use antecedent_design::decision_artifact::contract_to_json;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
-use antecedent_design::decision_eval::MeanSource;
+use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 use antecedent_design::inverse_query::{
     Comparison, ForwardClaim, ForwardEvidence, GridScope, InverseConstraint, InverseQuery,
     SelectionRule,
@@ -177,6 +177,7 @@ fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_chang
         snapshot_id: snapshot,
         causal_contract_id: "source-contract".into(),
         rng_id: "native:seed:51".into(),
+        estimate: MeanEstimate::Frequentist,
     };
     let query = InverseQuery {
         contract: contract.clone(),

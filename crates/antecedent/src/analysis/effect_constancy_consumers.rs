@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_contract::{DecisionContract, UtilityExpr};
 use antecedent_design::decision_eval::{
-    DecisionResult, MeanSource, Verdict, evaluate_contract_on_means,
+    DecisionResult, MeanEstimate, MeanSource, Verdict, evaluate_contract_on_means,
 };
 use antecedent_estimate::effect_constancy::{ContrastReport, PartitionReport, PartitionSupport};
 use antecedent_io::prior_bank::{CompatibilityReport, PriorCatalog, TargetDesign};
@@ -342,6 +342,7 @@ impl ConstancyConsumers {
                 ),
                 causal_contract_id: self.original.identity().estimand_id.clone(),
                 rng_id: "no_draws_point_effect".into(),
+                estimate: MeanEstimate::Frequentist,
             };
             let result = evaluate_contract_on_means(contract, &source).map_err(|error| {
                 invalid("effect_constancy_consumer.decision_unsupported", format!("{error:?}"))

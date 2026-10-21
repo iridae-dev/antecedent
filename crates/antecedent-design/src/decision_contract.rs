@@ -600,6 +600,28 @@ pub enum DecisionContractError {
     },
 }
 
+impl std::fmt::Display for DecisionContractError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidDeclaration(why) => write!(formatter, "{why}"),
+            Self::DuplicateId(id) => write!(formatter, "duplicate id {id}"),
+            Self::InvalidQuantity { action, input } => {
+                write!(formatter, "invalid quantity on {action} input {input}")
+            }
+            Self::OutsideDecisionScope { action, input } => {
+                write!(formatter, "{action} input {input} is outside the decision scope")
+            }
+            Self::UnknownInput(position) => write!(formatter, "unknown input {position}"),
+            Self::UnknownAction(id) => write!(formatter, "unknown action {id}"),
+            Self::InvalidParameter(name) => write!(formatter, "invalid parameter {name}"),
+            Self::MissingSource { needed } => {
+                let names = needed.iter().map(|source| source.label()).collect::<Vec<_>>();
+                write!(formatter, "missing source; needed {}", names.join(", "))
+            }
+        }
+    }
+}
+
 const MAX_ACTIONS: usize = 1_024;
 const MAX_INPUTS: usize = 256;
 const MAX_DEPTH: usize = 64;

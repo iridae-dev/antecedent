@@ -85,11 +85,19 @@ struct Body {
     snapshot_id: String,
     causal_contract_id: String,
     rng_id: String,
+    /// Posterior mean or frequentist point estimate. Absent on an older artifact,
+    /// which is read as a frequentist point estimate.
+    #[serde(default = "frequentist_estimate")]
+    estimate: crate::decision_eval::MeanEstimate,
     receipt: TransportReceipt,
     unsupported: String,
     weakest_support: String,
     decision_identity: String,
     outcomes: Vec<OutcomeWire>,
+}
+
+fn frequentist_estimate() -> crate::decision_eval::MeanEstimate {
+    crate::decision_eval::MeanEstimate::Frequentist
 }
 
 fn refused(code: &'static str, detail: &str, message: impl std::fmt::Display) -> IoError {
@@ -167,6 +175,7 @@ pub fn export_transported_decision(
         snapshot_id: mean.snapshot_id.clone(),
         causal_contract_id: mean.causal_contract_id.clone(),
         rng_id: mean.rng_id.clone(),
+        estimate: mean.estimate,
         receipt: response.receipt().clone(),
         unsupported: unsupported_name(policy.unsupported).to_owned(),
         weakest_support: policy.weakest_support.as_str().to_owned(),
@@ -279,6 +288,7 @@ pub fn consume_transported_decision(
         snapshot_id: body.snapshot_id.clone(),
         causal_contract_id: body.causal_contract_id.clone(),
         rng_id: body.rng_id.clone(),
+        estimate: body.estimate,
     };
     let response = TransportedResponse::from_stored_point(mean, body.receipt.clone())
         .map_err(|error| from_transported(&error))?;

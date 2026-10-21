@@ -20,7 +20,7 @@ use antecedent_design::composition_boundary::{
     TrustRequirement, UnsupportedActionPolicy, evaluate_with_support,
 };
 use antecedent_design::decision_contract::{DecisionContract, SourceRepresentation};
-use antecedent_design::decision_eval::MeanSource;
+use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 use antecedent_io::distribution_artifact::DistributionCalibration;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -457,6 +457,7 @@ fn decision_inputs(
             snapshot_id: external.descriptor.identity.snapshot_id.clone(),
             causal_contract_id: external.program.contract_id.clone(),
             rng_id: format!("callback.seed:{}", external.seed),
+            estimate: MeanEstimate::Frequentist,
         };
         let evidence = TrustEvidence::External(ExternalTrustState::ExternallyAttested {
             attestor: external.descriptor.identity.provider_id.clone(),

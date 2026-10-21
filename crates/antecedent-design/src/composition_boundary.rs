@@ -178,6 +178,9 @@ pub struct SupportMap {
 impl SupportMap {
     /// Pair each coordinate with its status.
     ///
+    /// A later coordinate that matches an earlier one is dropped. The first
+    /// coordinate and its status are kept.
+    ///
     /// # Errors
     /// The two slices must have the same length.
     pub fn new(
@@ -187,7 +190,11 @@ impl SupportMap {
         if coordinates.len() != statuses.len() {
             return Err(BoundaryError::InvalidInput("one support status per coordinate"));
         }
-        Ok(Self { entries: coordinates.iter().cloned().zip(statuses.iter().copied()).collect() })
+        let entries = antecedent_contract::quantity::deduped_coordinate_positions(coordinates)
+            .into_iter()
+            .map(|index| (coordinates[index].clone(), statuses[index]))
+            .collect();
+        Ok(Self { entries })
     }
 
     /// Status of `wanted`, or `None` when the source has no such coordinate.
@@ -230,6 +237,7 @@ impl ScalarClaim {
             snapshot_id: self.snapshot_id.clone(),
             causal_contract_id: self.causal_contract_id.clone(),
             rng_id: "none:scalar_claim".to_owned(),
+            estimate: crate::decision_eval::MeanEstimate::Frequentist,
         }
     }
 }

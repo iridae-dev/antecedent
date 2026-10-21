@@ -18,7 +18,7 @@ use antecedent_design::decision_artifact::{
 };
 use antecedent_design::decision_contract::{AdmissibleDecisionContract, StructuralPolicy};
 use antecedent_design::decision_eval::{
-    DecisionEvalError, MeanSource, evaluate_contract, evaluate_contract_on_means,
+    DecisionEvalError, MeanEstimate, MeanSource, evaluate_contract, evaluate_contract_on_means,
 };
 use antecedent_design::decision_robust_artifact::{
     AdmissibleContractArtifact, ExternalCallbackReceipt, ExternalTrustLimit, RobustResultArtifact,
@@ -132,6 +132,7 @@ fn evaluate_decision_means(
         snapshot_id: snapshot_id.to_owned(),
         causal_contract_id: causal_contract_id.to_owned(),
         rng_id: "none:mean_grid".to_owned(),
+        estimate: MeanEstimate::Frequentist,
     };
     match evaluate_contract_on_means(&contract, &source) {
         Ok(result) => {

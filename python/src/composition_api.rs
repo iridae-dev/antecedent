@@ -47,7 +47,7 @@ use antecedent_design::decision_artifact::{
     MAX_DECISION_ARTIFACT_BYTES, contract_from_json_refusal,
 };
 use antecedent_design::decision_contract::{DecisionFunctional, StructuralPolicy, Tail};
-use antecedent_design::decision_eval::{ActionOutcome, MeanSource, Verdict};
+use antecedent_design::decision_eval::{ActionOutcome, MeanEstimate, MeanSource, Verdict};
 use antecedent_design::decision_robust_artifact::admissible_contract_from_json_refusal;
 use antecedent_design::decision_robustness::{AtomSupport, InputSupport, RobustVerdict};
 use antecedent_design::decision_structural::{
@@ -602,6 +602,7 @@ fn composition_input_from_external_claim(
         snapshot_id: identity.snapshot_id.clone(),
         causal_contract_id: identity.causal_contract_id.clone(),
         rng_id: "none:mean_grid".to_owned(),
+        estimate: MeanEstimate::Frequentist,
     };
     Ok(input_pair(DecisionInput::from_mean_source(
         input_id,
@@ -636,6 +637,7 @@ fn composition_input_from_means(
         snapshot_id: snapshot_id.to_owned(),
         causal_contract_id: causal_contract_id.to_owned(),
         rng_id: "none:mean_grid".to_owned(),
+        estimate: MeanEstimate::Frequentist,
     };
     Ok(input_pair(DecisionInput::from_mean_source(
         input_id,

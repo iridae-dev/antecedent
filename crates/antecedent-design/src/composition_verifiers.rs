@@ -424,6 +424,7 @@ pub fn mean_source_of(claim: &ExternalClaimArtifact) -> Result<MeanSource, IoErr
         snapshot_id: identity.snapshot_id.clone(),
         causal_contract_id: identity.causal_contract_id.clone(),
         rng_id: "none:mean_grid".to_owned(),
+        estimate: crate::decision_eval::MeanEstimate::Frequentist,
     })
 }
 

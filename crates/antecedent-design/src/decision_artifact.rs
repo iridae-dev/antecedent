@@ -25,7 +25,7 @@ use crate::decision_contract::{
 };
 use crate::decision_eval::{
     ActionOutcome, ConstraintExclusion, DecisionResult, MeanSource, SourceReceipt, Verdict,
-    evaluate_contract,
+    criterion_label_of, evaluate_contract,
 };
 
 /// Maximum artifact bytes accepted before any decode allocation.
@@ -629,9 +629,12 @@ fn body_to_result(body: ResultBody) -> Result<DecisionResult, IoError> {
     if body.version != 1 {
         return Err(IoError::UnsupportedVersion { version: u32::from(body.version) });
     }
+    let criterion = body.criterion.into();
+    let criterion_label = criterion_label_of(criterion, &body.assumptions);
     Ok(DecisionResult {
         contract_identity: body.contract_identity,
-        criterion: body.criterion.into(),
+        criterion,
+        criterion_label,
         actions: body
             .actions
             .into_iter()

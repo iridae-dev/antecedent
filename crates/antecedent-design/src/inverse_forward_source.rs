@@ -861,6 +861,7 @@ pub fn composed_forward_source_accepting(
                     snapshot_id: identity.clone(),
                     causal_contract_id,
                     rng_id: "none:composed_closed_form".to_owned(),
+                    estimate: crate::decision_eval::MeanEstimate::Frequentist,
                 })),
                 ForwardRepresentation::PointOnly,
             )

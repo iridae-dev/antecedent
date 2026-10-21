@@ -53,7 +53,7 @@ use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
-    DecisionResult, MeanSource, Verdict, evaluate_contract_on_means,
+    DecisionResult, MeanEstimate, MeanSource, Verdict, evaluate_contract_on_means,
 };
 use antecedent_model::compose::{Domain, TabularRow};
 use serde_json::Value;
@@ -468,6 +468,7 @@ pub fn mean_source(units: &str, mean: f64, snapshot: &str, plan: &str) -> MeanSo
         snapshot_id: snapshot.into(),
         causal_contract_id: plan.into(),
         rng_id: "none:mean_grid".into(),
+        estimate: MeanEstimate::Frequentist,
     }
 }
 

@@ -6,7 +6,7 @@ use antecedent_design::decision_contract::{
     SourceRepresentation, StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
-    DecisionEvalError, MeanSource, Verdict, evaluate_contract_on_means,
+    DecisionEvalError, MeanEstimate, MeanSource, Verdict, evaluate_contract_on_means,
 };
 
 mod common;
@@ -32,6 +32,7 @@ fn source(functional: &str) -> MeanSource {
         snapshot_id: "snap-9".into(),
         causal_contract_id: "checked-contract".into(),
         rng_id: "none:mean_grid".into(),
+        estimate: MeanEstimate::Frequentist,
     }
 }
 
@@ -221,5 +222,22 @@ fn negative_and_positive_zero_utilities_are_tied() {
     zero.actions[1].inputs = zero.actions[0].inputs.clone();
     let result = evaluate_contract_on_means(&zero, &source("mean")).unwrap();
     assert_eq!(result.verdict, Verdict::Indistinguishable(vec!["wait".into(), "treat".into()]));
-    assert!(result.assumptions.iter().any(|a| a.contains("does not assert a posterior")));
+    assert_eq!(
+        result.criterion_label,
+        "expected utility of a frequentist point estimate",
+    );
+}
+
+#[test]
+fn posterior_and_frequentist_means_do_not_share_a_criterion_label() {
+    let mut posterior = source("mean");
+    posterior.estimate = MeanEstimate::Posterior;
+    let frequentist = source("mean");
+    let posterior = evaluate_contract_on_means(&contract(), &posterior).unwrap();
+    let frequentist = evaluate_contract_on_means(&contract(), &frequentist).unwrap();
+    assert_eq!(posterior.actions[0].value.to_bits(), frequentist.actions[0].value.to_bits());
+    assert_eq!(posterior.actions[1].value.to_bits(), frequentist.actions[1].value.to_bits());
+    assert_ne!(posterior.criterion_label, frequentist.criterion_label);
+    assert!(posterior.criterion_label.contains("posterior"));
+    assert!(frequentist.criterion_label.contains("frequentist"));
 }

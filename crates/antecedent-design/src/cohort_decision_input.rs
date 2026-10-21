@@ -23,7 +23,7 @@ use antecedent_io_core::cohort_decision::{CohortDecisionSource, CohortRefusal};
 use crate::composition_boundary::{
     BoundaryError, DecisionInput, NativeExecutionRecord, TrustEvidence, TrustRequirement,
 };
-use crate::decision_eval::MeanSource;
+use crate::decision_eval::{MeanEstimate, MeanSource};
 use crate::inverse_query::ForwardClaim;
 
 /// The cohort-mean contrast as a mean source with exactly one coordinate.
@@ -39,6 +39,7 @@ pub fn cohort_mean_source(source: &CohortDecisionSource) -> MeanSource {
         snapshot_id: source.cohort().digest(),
         causal_contract_id: source.model().parent().claim_id.clone(),
         rng_id: "none:cohort_mean".to_owned(),
+        estimate: MeanEstimate::Frequentist,
     }
 }
 

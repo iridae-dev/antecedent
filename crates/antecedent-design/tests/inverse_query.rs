@@ -20,7 +20,9 @@ use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, DecisionFunctional,
     StructuralPolicy, Tail, UtilityExpr,
 };
-use antecedent_design::decision_eval::{DecisionEvalError, MeanSource, evaluate_functional};
+use antecedent_design::decision_eval::{
+    DecisionEvalError, MeanEstimate, MeanSource, evaluate_functional,
+};
 use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
 use antecedent_design::inverse_query::{
     Comparison, EnumeratedForwardValue, ExistenceClaim, FeasibilityStatus, ForwardClaim,
@@ -349,6 +351,7 @@ fn mean_claim() -> ForwardClaim {
         snapshot_id: "snap-9".into(),
         causal_contract_id: "checked-contract".into(),
         rng_id: "none:mean_grid".into(),
+        estimate: MeanEstimate::Frequentist,
     })
 }
 

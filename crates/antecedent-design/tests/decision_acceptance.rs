@@ -15,7 +15,7 @@ use antecedent_design::decision_contract::{
     DecisionFunctional, HardConstraint, SourceRepresentation, StructuralPolicy, Tail, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
-    DecisionEvalError, DecisionResult, MeanSource, Verdict, evaluate_contract,
+    DecisionEvalError, DecisionResult, MeanEstimate, MeanSource, Verdict, evaluate_contract,
     evaluate_contract_on_means, evaluate_functional,
 };
 use antecedent_design::decision_structural::{
@@ -653,6 +653,7 @@ fn mean_source() -> MeanSource {
         snapshot_id: "snap".into(),
         causal_contract_id: "checked-contract".into(),
         rng_id: "none:mean_grid".into(),
+        estimate: MeanEstimate::Frequentist,
     }
 }
 

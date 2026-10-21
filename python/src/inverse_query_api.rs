@@ -15,6 +15,7 @@ use antecedent::analysis::inverse_query::{
     finite_enumeration_baseline,
 };
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
+use antecedent_design::decision_eval::MeanEstimate;
 use antecedent_core::reason_code;
 use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use antecedent_io::IoError;
@@ -82,6 +83,12 @@ struct MeansIn {
     snapshot_id: String,
     causal_contract_id: String,
     rng_id: String,
+    #[serde(default = "frequentist_estimate")]
+    estimate: MeanEstimate,
+}
+
+fn frequentist_estimate() -> MeanEstimate {
+    MeanEstimate::Frequentist
 }
 
 /// A native law, or a JSON mean grid.
@@ -139,6 +146,7 @@ fn claim_from(object: &Bound<'_, PyAny>) -> PyResult<ForwardClaim> {
             snapshot_id: means.snapshot_id,
             causal_contract_id: means.causal_contract_id,
             rng_id: means.rng_id,
+            estimate: means.estimate,
         }));
     }
     Err(crate::value_err("a forward claim is a native law artifact or a mean grid"))

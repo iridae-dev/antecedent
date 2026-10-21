@@ -225,6 +225,7 @@ fn source_backed_native_mean(
             snapshot_id: wire.snapshot_id,
             causal_contract_id: wire.causal_contract_id,
             rng_id: wire.rng_id,
+            estimate: antecedent_design::decision_eval::MeanEstimate::Frequentist,
         },
         original: original.clone(),
     })

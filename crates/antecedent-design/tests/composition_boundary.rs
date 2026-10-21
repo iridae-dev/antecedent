@@ -24,7 +24,7 @@ use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, DecisionFunctional,
     StructuralPolicy, Tail, UtilityExpr,
 };
-use antecedent_design::decision_eval::{DecisionEvalError, MeanSource, Verdict};
+use antecedent_design::decision_eval::{DecisionEvalError, MeanEstimate, MeanSource, Verdict};
 use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
 use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
@@ -158,6 +158,7 @@ fn mean_input(
             snapshot_id: snapshot.into(),
             causal_contract_id: "checked-contract".into(),
             rng_id: "none:mean_grid".into(),
+            estimate: MeanEstimate::Frequentist,
         },
         statuses,
         &attested(),
@@ -718,6 +719,7 @@ fn boundary_mean_sources_leave_nonlinear_and_outcome_law_actions_unevaluated() {
             snapshot_id: "snap-y".into(),
             causal_contract_id: "checked-contract".into(),
             rng_id: "none:mean_grid".into(),
+            estimate: MeanEstimate::Frequentist,
         },
         &SUPPORTED_TWO,
         &attested(),

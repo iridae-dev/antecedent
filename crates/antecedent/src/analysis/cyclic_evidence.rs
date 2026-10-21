@@ -1130,6 +1130,7 @@ impl CyclicEvidence {
         let source = antecedent_design::decision_eval::MeanSource {
             coordinates,
             means,
+            estimate: antecedent_design::decision_eval::MeanEstimate::Frequentist,
             provider_id: "native:cyclic_model_conditional".into(),
             snapshot_id: self.report.source_identity.clone(),
             causal_contract_id: self.report.identity.clone(),

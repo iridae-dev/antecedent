@@ -752,6 +752,14 @@ pub struct MeansWire {
     pub causal_contract_id: String,
     /// RNG identity.
     pub rng_id: String,
+    /// Posterior mean or frequentist point estimate. Absent on an older grid,
+    /// which did not name one and is read as a frequentist point estimate.
+    #[serde(default = "frequentist_estimate")]
+    pub estimate: crate::decision_eval::MeanEstimate,
+}
+
+fn frequentist_estimate() -> crate::decision_eval::MeanEstimate {
+    crate::decision_eval::MeanEstimate::Frequentist
 }
 
 /// One embedded forward claim.
@@ -866,6 +874,7 @@ impl Encoded {
                     snapshot_id: means.snapshot_id.clone(),
                     causal_contract_id: means.causal_contract_id.clone(),
                     rng_id: means.rng_id.clone(),
+                    estimate: means.estimate,
                 }));
                 wide(self.claims.len() - 1)
             }
@@ -964,6 +973,7 @@ fn decode_claims(claims: &[ClaimWire], data: &[u8]) -> Result<Vec<ForwardClaim>,
                     snapshot_id: means.snapshot_id.clone(),
                     causal_contract_id: means.causal_contract_id.clone(),
                     rng_id: means.rng_id.clone(),
+                    estimate: means.estimate,
                 })
             }
         });

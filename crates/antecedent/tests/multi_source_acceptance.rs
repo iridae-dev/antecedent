@@ -69,7 +69,7 @@ use antecedent_design::decision_contract::{
     StructuralPolicy, Tail, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
-    MeanSource, Verdict, evaluate_contract, evaluate_contract_on_means,
+    MeanEstimate, MeanSource, Verdict, evaluate_contract, evaluate_contract_on_means,
 };
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
@@ -273,6 +273,7 @@ fn mean_source(provider: &str, snapshot: &str, means: &[f64]) -> MeanSource {
         snapshot_id: snapshot.into(),
         causal_contract_id: CONTRACT.into(),
         rng_id: "none:mean_grid".into(),
+        estimate: MeanEstimate::Frequentist,
     }
 }
 
