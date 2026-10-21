@@ -234,6 +234,7 @@ impl LogicalAnalysisPlan {
             expected_python_crossings: 1,
         };
         Ok(PhysicalExecutionPlan {
+            linear: None,
             choice,
             record,
             logical: self.clone(),
@@ -247,6 +248,7 @@ impl LogicalAnalysisPlan {
 /// Physical plan ready for execution.
 #[derive(Clone, Debug)]
 pub struct PhysicalExecutionPlan {
+    pub(crate) linear: Option<Arc<crate::analysis::compiled_linear::CompiledLinearExecution>>,
     /// Executable backend selection, with rejected alternatives and reasons.
     pub choice: antecedent_core::physical_choice::PhysicalChoice,
     /// Record for results.
@@ -262,6 +264,13 @@ pub struct PhysicalExecutionPlan {
 }
 
 impl PhysicalExecutionPlan {
+    /// Checked scientific and statistical program shared with prepared execution, when applicable.
+    #[must_use]
+    pub fn compiled_linear_program(
+        &self,
+    ) -> Option<&crate::analysis::compiled_linear::CompiledLinearProgram> {
+        self.linear.as_ref().map(|linear| linear.program.as_ref())
+    }
     /// Borrow the resolved temporal graph when present.
     #[must_use]
     pub fn temporal_graph(&self) -> Option<&TemporalDag> {

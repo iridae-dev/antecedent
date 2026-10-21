@@ -41,7 +41,17 @@ fn prepared_gaussian_retains_the_compiled_program_after_builder_drop() {
         antecedent_core::execution_attempt::observe_execution(|| study.prepare(&ctx))
     });
     assert_eq!(preparation_solves, 0, "compilation must not fit");
-    let plan = study.compile(&ctx).unwrap();
+    let public_compilation =
+        antecedent_core::execution_attempt::observe_execution(|| study.compile(&ctx));
+    assert_eq!(
+        public_compilation
+            .report
+            .counts(antecedent_core::execution_attempt::Operation::Identification)
+            .attempted,
+        1
+    );
+    let plan = public_compilation.result.unwrap();
+    assert!(plan.compiled_linear_program().is_some());
     assert_eq!(
         compilation
             .report
@@ -57,6 +67,10 @@ fn prepared_gaussian_retains_the_compiled_program_after_builder_drop() {
         antecedent_core::physical_choice::PhysicalAlternative::DirectPreparedNumericViews
     );
     let program = prepared.compiled_linear_program().unwrap();
+    assert!(
+        std::ptr::eq(program, prepared.plan().compiled_linear_program().unwrap()),
+        "inspection and execution must retain the identical compiled product"
+    );
     assert!(matches!(program.target().form(), TargetForm::Contrast(_)));
     assert_eq!(program.identification().world_obligations().len(), 2);
     assert_eq!(

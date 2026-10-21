@@ -167,7 +167,7 @@ impl Study {
     /// Mirrors `execute_static`'s (and, for `bayesian.gcomp`, `execute_bayesian`'s)
     /// stage-1 inputs exactly. Sharp RD and PAG envelopes dispatch to separate
     /// preparation paths. Graph posteriors use their per-atom caches.
-    pub(super) fn prepare_static_identification(
+    pub(crate) fn prepare_static_identification(
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
@@ -585,11 +585,13 @@ impl Study {
                 )?))
             }
             CausalQuery::TemporalEffect(query)
-                if self.identifier == Some(crate::strategy_table::IdentifierId::TemporalIvUnfolded) =>
+                if self.identifier
+                    == Some(crate::strategy_table::IdentifierId::TemporalIvUnfolded) =>
             {
-                let found = crate::analysis::temporal_iv_identification::identify_temporal_instrument(
-                    graph, query,
-                )?;
+                let found =
+                    crate::analysis::temporal_iv_identification::identify_temporal_instrument(
+                        graph, query,
+                    )?;
                 Ok(Some(CachedTemporalIdentification {
                     by_horizon: Arc::from([CachedTemporalHorizonIdentification {
                         horizon: query.horizon_steps,

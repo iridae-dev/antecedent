@@ -15,6 +15,51 @@ use std::sync::Arc;
 const CONTROL_WORLD: u32 = 0;
 const ACTIVE_WORLD: u32 = 1;
 
+/// The single checked compilation product consumed by physical inspection and execution.
+#[derive(Clone, Debug)]
+pub(crate) struct CompiledLinearExecution {
+    pub(crate) program: Arc<CompiledLinearProgram>,
+    pub(crate) identification: Arc<super::prepared::CachedStaticIdentification>,
+    pub(crate) fitter: antecedent_estimate::LinearAdjustmentAte,
+    pub(crate) preparation: CheckedLinearAdjustmentAte,
+    pub(crate) default_id: bool,
+}
+impl CompiledLinearExecution {
+    pub(crate) fn compile(
+        source: &crate::Study,
+        data: &antecedent_data::TabularData,
+        query: &AverageEffectQuery,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Self, CausalError> {
+        let identification =
+            Arc::new(source.prepare_static_identification(plan)?.ok_or_else(|| {
+                CausalError::Compile { message: "linear compilation omitted identification".into() }
+            })?);
+        let (mut fitter, default_id) = match source.estimator_spec.as_deref() {
+            Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(config)) => {
+                ((**config).clone(), false)
+            }
+            _ => (
+                antecedent_estimate::LinearAdjustmentAte::new()
+                    .with_bootstrap_replicates(source.bootstrap_replicates),
+                true,
+            ),
+        };
+        if fitter.population_registry.is_none() {
+            fitter.population_registry.clone_from(&source.population_registry);
+        }
+        let preparation = fitter.prepare_checked(data, &identification.identification, 0)?;
+        let program = Arc::new(CompiledLinearProgram::compile(
+            query,
+            &identification.identification,
+            &preparation,
+            plan,
+            fitter.bootstrap_replicates > 0,
+        )?);
+        Ok(Self { program, identification, fitter, preparation, default_id })
+    }
+}
+
 /// The scientific and execution contracts retained with a production linear operation.
 #[derive(Clone, Debug)]
 pub struct CompiledLinearProgram {
@@ -183,6 +228,8 @@ fn obligation_detail(record: &AssumptionRecord) -> String {
 pub(crate) fn can_retain(source: &crate::Study, query: &AverageEffectQuery) -> bool {
     source.graph_posterior.is_none()
         && source.tiered.is_none()
+        && source.inference.is_frequentist()
+        && source.custom_validators.is_empty()
         && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
         && matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
 }

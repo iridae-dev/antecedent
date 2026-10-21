@@ -10476,6 +10476,7 @@ pub fn <antecedent::planner::LogicalAnalysisPlan>::fn compile_physical_with_all_
 pub fn <antecedent::planner::LogicalAnalysisPlan>::fn compile_physical_with_graph(&self, ctx: &antecedent_core::execution::ExecutionContext, resolved_temporal_graph: core::option::Option<antecedent_graph::temporal::TemporalDag>) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::planner::LogicalAnalysisPlan>::fn compile_physical_with_graphs(&self, ctx: &antecedent_core::execution::ExecutionContext, resolved_temporal_graph: core::option::Option<antecedent_graph::temporal::TemporalDag>, resolved_static_graph: core::option::Option<antecedent_graph::dag::Dag>) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::planner::LogicalAnalysisPlan>::fn validate(&self) -> core::result::Result<(), antecedent::CausalError>
+pub fn <antecedent::planner::PhysicalExecutionPlan>::fn compiled_linear_program(&self) -> core::option::Option<&antecedent::analysis::compiled_linear::CompiledLinearProgram>
 pub fn <antecedent::planner::PhysicalExecutionPlan>::fn static_graph(&self) -> core::option::Option<&antecedent_graph::dag::Dag>
 pub fn <antecedent::planner::PhysicalExecutionPlan>::fn static_pag(&self) -> core::option::Option<&antecedent_graph::pag::Pag>
 pub fn <antecedent::planner::PhysicalExecutionPlan>::fn temporal_graph(&self) -> core::option::Option<&antecedent_graph::temporal::TemporalDag>
@@ -11637,6 +11638,7 @@ pub struct antecedent::period_refresh::SummaryOnlyFit
 pub struct antecedent::period_refresh::SummaryOnlyFit has private fields
 pub struct antecedent::planner::LogicalAnalysisPlan
 pub struct antecedent::planner::PhysicalExecutionPlan
+pub struct antecedent::planner::PhysicalExecutionPlan has private fields
 pub struct antecedent::result::InterferenceInference
 pub struct antecedent::result::InterferencePointwiseInterval
 pub struct antecedent::result::StructuralResponseAtom

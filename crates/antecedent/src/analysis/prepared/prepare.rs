@@ -323,8 +323,10 @@ impl Study {
                 }
             }
             (DataInput::Tabular(_), _) => {
-                analysis.identification_cache =
-                    self.prepare_static_identification(plan)?.map(Arc::new);
+                analysis.identification_cache = match &plan.linear {
+                    Some(linear) => Some(Arc::clone(&linear.identification)),
+                    None => self.prepare_static_identification(plan)?.map(Arc::new),
+                };
                 analysis.pag_identification_cache =
                     self.prepare_pag_identification(plan)?.map(Arc::new);
                 analysis.cpdag_identification_cache =

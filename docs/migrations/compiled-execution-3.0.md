@@ -3,8 +3,13 @@
 The production checked linear operation retains its scientific target,
 identification product, world obligations and scientific/physical operators.
 `PreparedStudy::compiled_linear_program()` inspects that binding without fitting.
-Compilation and preparation use the same checked lowering. The four-way Gaussian
-example now executes the public prepared handle; the separate demonstration
+Public compilation retains the checked identification, numerical preparation and
+scientific program as one product. Preparation consumes that exact product rather
+than identifying or preparing the design again. Both the physical plan and the
+prepared handle expose the same scientific program. Physical plans now contain a
+private compiled product and must be obtained through the compiler rather than
+constructed with a struct literal. All four Gaussian examples
+execute public prepared handles; the separate demonstration
 executor, reconstructed builder and lifecycle cache have been removed.
 
 A deterministic linear point fit is shared through synchronized immutable

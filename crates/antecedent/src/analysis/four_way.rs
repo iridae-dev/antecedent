@@ -407,7 +407,8 @@ pub(crate) fn same_target_slice(
         },
     });
 
-    let horizon_result = linear_study(FourWayCell::HorizonOneFrequentist)?.run(ctx)?;
+    let horizon_result =
+        linear_study(FourWayCell::HorizonOneFrequentist)?.prepare(ctx)?.estimate_retained(ctx)?;
     let horizon_estimate = effect_of(&horizon_result)?;
     let horizon_cell = frequentist_cell(FourWayCell::HorizonOneFrequentist, horizon_estimate)?;
     let static_bayes = bayesian_cell(FourWayCell::StaticBayesian, ctx, analytic_truth)?;
@@ -495,7 +496,7 @@ fn bayesian_cell(
     if !cell.is_bayesian() {
         return Err(compile("a Bayesian cell was requested for a frequentist realization"));
     }
-    let result = linear_study(cell)?.run(ctx)?;
+    let result = linear_study(cell)?.prepare(ctx)?.estimate_retained(ctx)?;
     bayesian_fit(cell, &result, truth)
 }
 

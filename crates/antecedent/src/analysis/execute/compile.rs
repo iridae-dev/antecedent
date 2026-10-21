@@ -1327,8 +1327,8 @@ impl super::Study {
     /// Compile logical → physical plan.
     ///
     /// An admitted static ordinary-least-squares study returns the lowered
-    /// linear/Gaussian physical plan. Identification and the checked program
-    /// stay on [`Study::prepare`]; this function does not build them again.
+    /// linear/Gaussian physical plan. Its checked scientific and statistical program
+    /// is the same retained product consumed by [`Study::prepare`]. No fitting occurs.
     ///
     /// # Errors
     ///
@@ -1340,18 +1340,24 @@ impl super::Study {
     /// class/accessor invariant applies here, and it is checked inside
     /// [`Study::route_input`], not again below.
     pub fn compile(&self, ctx: &ExecutionContext) -> Result<PhysicalExecutionPlan, CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "compile" });
+        }
         if self.graph_posterior.is_some() {
             return self.compile_graph_posterior(ctx);
         }
         let input = self.route_input()?;
         let mut plan = self.compile_with_route(&input, ctx)?;
-        if let RouteInput::StaticAteDag { query, .. } = input {
+        if let RouteInput::StaticAteDag { data, query, .. } = input {
             if crate::analysis::compiled_linear::can_retain(self, query)
                 && self.resolve_static_ids().1 == EstimatorId::LinearAdjustmentAte
-                && matches!(self.inference, InferenceMode::Frequentist)
-                && self.custom_validators.is_empty()
             {
                 plan.bind_prepared_linear_views()?;
+                plan.linear = Some(std::sync::Arc::new(
+                    crate::analysis::compiled_linear::CompiledLinearExecution::compile(
+                        self, data, query, &plan,
+                    )?,
+                ));
             }
         }
         Ok(plan)

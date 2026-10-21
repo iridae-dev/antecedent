@@ -43,36 +43,17 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
                     EstimatorId::LinearAdjustmentAte,
                 ) =>
         {
-            let default_id = !matches!(
-                source.estimator_spec.as_deref(),
-                Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(_))
-            );
-            let mut fitter = match source.estimator_spec.as_deref() {
-                Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(cfg)) => {
-                    (**cfg).clone()
-                }
-                _ => antecedent_estimate::LinearAdjustmentAte::new(),
-            };
-            if default_id {
-                fitter.bootstrap_replicates = analysis.bootstrap_replicates;
-            }
-            let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
+            let product = plan.linear.as_ref().ok_or_else(|| CausalError::Compile {
+                message: "checked linear execution requires its compiled product".into(),
+            })?;
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
-            let compiled =
-                Arc::new(crate::analysis::compiled_linear::CompiledLinearProgram::compile(
-                    query,
-                    &cache.identification,
-                    &preparation,
-                    plan,
-                    fitter.bootstrap_replicates > 0,
-                )?);
             Some(CheckedLinearOperation {
                 frozen_fit: Arc::new(std::sync::Mutex::new(None)),
-                compiled,
+                compiled: Arc::clone(&product.program),
                 source: data.clone(),
-                fitter,
-                preparation,
-                default_id,
+                fitter: product.fitter.clone(),
+                preparation: product.preparation.clone(),
+                default_id: product.default_id,
                 query: query.clone(),
                 cache: Arc::clone(cache),
                 stage_sink: analysis.stage_sink.clone(),
