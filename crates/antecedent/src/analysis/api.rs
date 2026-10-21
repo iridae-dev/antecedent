@@ -56,15 +56,16 @@ pub use super::{
     CandidateSelection, CausalContract, CellFamilyContrast, CheckedAdmgGraphPosteriorResponseInfo,
     CheckedBayesianSpecialistInfo, CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo,
     CheckedStaticClassResponseInfo, CheckedTemporalClassMediationInfo,
-    CheckedTemporalMediationInfo, CheckedTransportTrialInfo, CheckedUnknownTieredAverageInfo,
-    ComputeBudget, ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities,
-    ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode, LearnedTrialResult,
-    LearnedTrialState, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
-    OperationReport, PremiseChange, PreparedBatch, PreparedStudy, PreparedZTransport, RdConfig,
-    RefuteSuite, SemanticApplicability, SharedBatchDesign, SharedCovariateDesign, StageEvent,
-    StageResultSink, StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
-    StatisticalStudyInspection, StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
-    ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
+    CheckedTemporalMediationInfo, CheckedTemporalMediationTargetInfo, CheckedTransportTrialInfo,
+    CheckedUnknownTieredAverageInfo, ComputeBudget, ExactFactorRequirement, ExactPreparedState,
+    ExactStudyIdentities, ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode,
+    LearnedTrialResult, LearnedTrialState, LicensedNeighbor, NextAction, OperationKind,
+    OperationReadiness, OperationReport, PremiseChange, PreparedBatch, PreparedStudy,
+    PreparedZTransport, RdConfig, RefuteSuite, SemanticApplicability, SharedBatchDesign,
+    SharedCovariateDesign, StageEvent, StageResultSink, StatisticalBindingView,
+    StatisticalContrast, StatisticalPreparedState, StatisticalStudyInspection,
+    StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec, ZTransportResult,
+    ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
 pub use super::{
     BetweenStudy, BorrowingRequest, ConsumedEvidenceLedger, DependenceRangeRequest,
@@ -100,9 +101,9 @@ pub use super::{
 };
 pub use super::{CpdagEvaluation, EmpiricalScenarioInput, EvidenceSearch, SequenceEndpoints};
 pub use super::{
-    IntervalEstimand, TemporalInitialState, TemporalWindow,
-    consume_period_refresh_artifact, consume_temporal_initial_state_artifact,
-    consume_temporal_refresh_artifact, temporal_dependent_interval,
+    IntervalEstimand, TemporalInitialState, TemporalWindow, consume_period_refresh_artifact,
+    consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
+    temporal_dependent_interval,
 };
 pub use super::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,
@@ -135,3 +136,5 @@ pub use super::{
     TierDesign, TierDiagnostics, TierDiagnosticsError, TierEvalue, TierPointEvalue, TierScenario,
     tier_diagnostics,
 };
+
+pub use super::{JointResponseResult, PreparedJointResponse};

@@ -489,6 +489,7 @@ mod tests {
             panic!("the theorem target must remain mediation");
         };
         assert_eq!(target.time().horizon_steps(), Some(1));
+        assert_eq!(target.schedule(), Some(&antecedent_core::TemporalPolicy::pulse(-1)));
         assert_eq!(
             target.time().history().unwrap().max_lag_steps(),
             Some(operation.horizons[0].indexer.history())

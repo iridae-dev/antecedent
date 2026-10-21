@@ -264,7 +264,8 @@ pub(super) fn theorem_mediation_target(
                 InitialLaw::contemporaneous_observed(),
             )
             .map_err(target_error)?,
-            Some(TemporalPolicy::pulse(0)),
+            // TemporalMediationIdentifier sets T at -1 and Y at h-1 (estimator lag h).
+            Some(TemporalPolicy::pulse(-1)),
         ),
     };
     let binding = WorldBinding::new(

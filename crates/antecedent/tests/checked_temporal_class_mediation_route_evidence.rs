@@ -148,6 +148,40 @@ fn inferences() -> [(InferenceMode, EstimatorId, f64); 2] {
     ]
 }
 
+fn assert_theorem_targets(
+    plan: &antecedent::CheckedTemporalClassMediationInfo,
+    query: &MediationQuery,
+) {
+    assert!(!plan.scientific_targets.is_empty());
+    for binding in plan.scientific_targets.iter() {
+        assert!(query.horizons.contains(&binding.horizon));
+        let Some(target) = &binding.scientific_target else {
+            assert_eq!(binding.atom_identified, Some(false));
+            assert!(binding.identification_status.is_none());
+            continue;
+        };
+        assert!(binding.identification_status.is_some());
+        let antecedent_core::TargetForm::Mediation(mediation) = target.form() else {
+            panic!("a mediation completion must retain its own theorem target");
+        };
+        assert_eq!(mediation.arms().control(), &query.control);
+        assert_eq!(mediation.arms().active(), &query.active);
+        assert_eq!(mediation.arms().mediators(), query.mediators.as_ref());
+        assert_eq!(mediation.binding().outcome().outcome(), query.outcome);
+        assert_eq!(mediation.binding().population(), &query.target_population);
+        assert_eq!(mediation.schedule(), Some(&antecedent_core::TemporalPolicy::pulse(-1)));
+        assert_eq!(mediation.time().horizon_steps(), Some(binding.horizon));
+        assert!(mediation.time().history().unwrap().max_lag_steps().is_some());
+        assert_eq!(
+            mediation.time().initial_law(),
+            Some(&antecedent_core::InitialLaw::contemporaneous_observed())
+        );
+        assert!(
+            mediation.premises().contains(&antecedent_core::CrossWorldPremise::PathSpecificNested)
+        );
+    }
+}
+
 fn has_cached_identification(result: &antecedent::StudyResult) -> bool {
     result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached")
 }
@@ -178,6 +212,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                     .checked_temporal_class_mediation_info()
                     .expect("TemporalCpdag mediation must retain its checked operation");
                 assert_eq!(plan.query, query, "{case}");
+                assert_theorem_targets(&plan, &query);
                 assert_eq!(plan.graph_class, antecedent::GraphClass::TemporalCpdag, "{case}");
                 assert_eq!(plan.identifier.as_ref(), "generalized.adjustment", "{case}");
                 assert_eq!(plan.estimator, expected_estimator, "{case}");
@@ -398,12 +433,28 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                     .checked_temporal_class_mediation_info()
                     .expect("graph-posterior mediation must retain its checked operation");
                 assert_eq!(plan.query, query, "{case}");
+                assert_theorem_targets(&plan, &query);
                 assert_eq!(plan.graph_class, graph_class, "{case}");
                 assert_eq!(plan.identifier.as_ref(), "temporal.mediation", "{case}");
                 assert_eq!(plan.estimator, expected_estimator, "{case}");
                 assert_eq!(plan.validation, suite, "{case}");
                 assert_eq!(plan.bootstrap_replicates, 8, "{case}");
                 assert_eq!(plan.atom_count, 2, "{case}: both posterior atoms retained");
+                let atom_weights = plan
+                    .scientific_targets
+                    .iter()
+                    .map(|binding| {
+                        (binding.atom_key.expect("posterior slot key"), binding.atom_weight)
+                    })
+                    .collect::<std::collections::BTreeMap<_, _>>();
+                assert_eq!(atom_weights.len(), 2);
+                assert!((atom_weights.values().sum::<f64>() - 1.0).abs() < 1e-12);
+                assert!(
+                    plan.scientific_targets
+                        .iter()
+                        .any(|binding| binding.atom_identified == Some(false))
+                );
+
                 assert!(
                     (plan.unidentified_mass - pin.unidentified_mass).abs() < 1e-12,
                     "{case}: unidentified mass {} vs pin {}",

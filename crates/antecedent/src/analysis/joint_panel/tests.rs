@@ -1,0 +1,723 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+use super::*;
+use antecedent_core::{InferenceSelection, ScientificWorldId, ValueExpr};
+use antecedent_data::{PanelUnit, TableView, TimeSeriesData};
+use antecedent_estimate::joint_panel::{PanelInference, PanelOptimizerOptions, PanelScenario};
+fn fixture() -> (PanelData, JointPanelRequest) {
+    let units = (0..4)
+        .map(|unit_id| {
+            let a = vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 2.0, 1.0];
+            let b = vec![0.0, 0.0, 1.0, 2.0, 3.0, 1.0, 0.0, 2.0];
+            let y = vec![f64::NAN, f64::NAN, 1.0, 2.0, 3.0, 4.0, 3.0, 2.0];
+            let z = vec![f64::NAN, f64::NAN, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+            let season = vec![0.0; 8];
+            PanelUnit {
+                unit_id,
+                series: TimeSeriesData::from_f64_columns(
+                    [
+                        ("a", a.as_slice()),
+                        ("b", b.as_slice()),
+                        ("y", y.as_slice()),
+                        ("z", z.as_slice()),
+                        ("season", season.as_slice()),
+                    ],
+                    100,
+                )
+                .unwrap(),
+            }
+        })
+        .collect::<Vec<_>>();
+    let source = PanelData::try_new(Arc::from(units)).unwrap();
+    let columns = JointPanelColumns {
+        channels: vec![VariableId::from_raw(0), VariableId::from_raw(1)],
+        outcome: VariableId::from_raw(2),
+        confounder: VariableId::from_raw(3),
+        season: VariableId::from_raw(4),
+    };
+    let scenarios = (0..4)
+        .map(|id| PanelScenario {
+            group: id.to_string(),
+            history: vec![
+                engine::PanelChannelHistory { id: "0".into(), values: [0.0; 2] },
+                engine::PanelChannelHistory { id: "1".into(), values: [0.0; 2] },
+            ],
+            confounder: vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+            season: vec![0; 6],
+        })
+        .collect::<Vec<_>>();
+    let worlds = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (a, b))| JointPanelWorld {
+            world: ScientificWorldId::from_raw(u32::try_from(index).unwrap()),
+            reference: index == 0,
+            program: PanelProgram {
+                id: format!("p{index}"),
+                channels: vec![
+                    engine::PanelChannelProgram { id: "0".into(), values: vec![a; 6] },
+                    engine::PanelChannelProgram { id: "1".into(), values: vec![b; 6] },
+                ],
+                scenarios: scenarios.clone(),
+            },
+        })
+        .collect::<Vec<_>>();
+    let target = joint_panel_target(
+        source.schema(),
+        &columns,
+        2,
+        &worlds,
+        JointPanelFunctional::Interaction {
+            joint: ScientificWorldId::from_raw(3),
+            a_at_reference: ScientificWorldId::from_raw(1),
+            b_at_reference: ScientificWorldId::from_raw(2),
+            reference: ScientificWorldId::from_raw(0),
+        },
+        InferenceSelection::Frequentist,
+    )
+    .unwrap();
+    let request = JointPanelRequest {
+        columns,
+        interactions: vec![
+            engine::PanelInteractionSpec::from_saturated_features(
+                "ab",
+                &ValueExpr::var(VariableId::from_raw(0))
+                    .mul(ValueExpr::var(VariableId::from_raw(1))),
+            )
+            .unwrap(),
+        ],
+        seasons: 1,
+        lag_order: 2,
+        options: PanelFitOptions {
+            optimizer: PanelOptimizerOptions { max_iterations: 2, gradient_tolerance: 1e-4 },
+            inference: PanelInference::Frequentist { draws: 0 },
+            initial: None,
+        },
+        worlds,
+        target,
+        assignment: None,
+        temporal: None,
+    };
+    (source, request)
+}
+#[test]
+fn inspection_retains_actual_failed_design_and_exact_history_without_fitting() {
+    let (source, request) = fixture();
+    let prepared =
+        Study::prepare_joint_panel(source, request, &ExecutionContext::for_tests(1)).unwrap();
+    let info = prepared.inspect();
+    assert_eq!(info.fits_performed, 0);
+    assert!(!info.identification.is_identified_claim());
+    assert_eq!(info.design_attempts.len(), 3);
+    assert!(info.design_attempts[0].detail.contains("static"));
+    assert!(info.design_attempts[2].next_attempt.is_some());
+    assert_eq!(
+        prepared.model_data().groups[0].history[0].map(f64::to_bits),
+        [0.0_f64.to_bits(); 2]
+    );
+}
+#[test]
+fn changed_program_cannot_borrow_old_scientific_target() {
+    let (source, mut request) = fixture();
+    request.worlds[3].program.channels[0].values[0] = 2.0;
+    assert!(Study::prepare_joint_panel(source, request, &ExecutionContext::for_tests(1)).is_err());
+}
+#[test]
+fn memory_refusal_precedes_source_materialization() {
+    let (source, request) = fixture();
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.memory.hard_limit_bytes = Some(8);
+    assert!(matches!(
+        Study::prepare_joint_panel(source, request, &ctx),
+        Err(JointPanelError::Engine(engine::PanelError::Resource(_)))
+    ));
+}
+
+fn three_channel_data() -> PanelData {
+    let units = (0..4)
+        .map(|unit_id| {
+            let channel = vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 2.0, 1.0];
+            let outcome = vec![f64::NAN, f64::NAN, 1.0, 2.0, 3.0, 4.0, 3.0, 2.0];
+            let confounder = vec![f64::NAN, f64::NAN, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+            let seasons = vec![0.0; 8];
+            PanelUnit {
+                unit_id,
+                series: TimeSeriesData::from_f64_columns(
+                    [
+                        ("a", channel.as_slice()),
+                        ("b", channel.as_slice()),
+                        ("c", channel.as_slice()),
+                        ("y", outcome.as_slice()),
+                        ("z", confounder.as_slice()),
+                        ("season", seasons.as_slice()),
+                    ],
+                    100,
+                )
+                .unwrap(),
+            }
+        })
+        .collect::<Vec<_>>();
+    PanelData::try_new(Arc::from(units)).unwrap()
+}
+fn three_channel_prepared() -> PreparedStudy<JointPanelState> {
+    let source = three_channel_data();
+    let columns = JointPanelColumns {
+        channels: (0..3).map(VariableId::from_raw).collect(),
+        outcome: VariableId::from_raw(3),
+        confounder: VariableId::from_raw(4),
+        season: VariableId::from_raw(5),
+    };
+    let scenarios = (0..4)
+        .map(|group| PanelScenario {
+            group: group.to_string(),
+            history: (0..3)
+                .map(|channel| engine::PanelChannelHistory {
+                    id: channel.to_string(),
+                    values: [0.0; 2],
+                })
+                .collect(),
+            confounder: vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+            season: vec![0; 6],
+        })
+        .collect::<Vec<_>>();
+    let worlds = (0..8_u32)
+        .map(|subset| JointPanelWorld {
+            world: ScientificWorldId::from_raw(subset),
+            reference: subset == 0,
+            program: PanelProgram {
+                id: format!("subset_{subset}"),
+                channels: (0..3)
+                    .map(|channel| engine::PanelChannelProgram {
+                        id: channel.to_string(),
+                        values: vec![f64::from((subset >> channel) & 1); 6],
+                    })
+                    .collect(),
+                scenarios: scenarios.clone(),
+            },
+        })
+        .collect::<Vec<_>>();
+    let terms = (0..8_u32)
+        .map(|subset| {
+            (
+                ScientificWorldId::from_raw(subset),
+                if subset.count_ones() % 2 == 1 { 1.0 } else { -1.0 },
+            )
+        })
+        .collect();
+    let target = joint_panel_target(
+        source.schema(),
+        &columns,
+        2,
+        &worlds,
+        JointPanelFunctional::Linear { terms, reference: ScientificWorldId::from_raw(0) },
+        InferenceSelection::Frequentist,
+    )
+    .unwrap();
+    let (_, base) = fixture();
+    Study::prepare_joint_panel(
+        source,
+        JointPanelRequest {
+            columns,
+            interactions: vec![
+                engine::PanelInteractionSpec::from_saturated_features(
+                    "ab",
+                    &ValueExpr::var(VariableId::from_raw(0))
+                        .mul(ValueExpr::var(VariableId::from_raw(1))),
+                )
+                .unwrap(),
+                engine::PanelInteractionSpec::from_saturated_features(
+                    "abc",
+                    &ValueExpr::var(VariableId::from_raw(0))
+                        .mul(ValueExpr::var(VariableId::from_raw(1)))
+                        .mul(ValueExpr::var(VariableId::from_raw(2))),
+                )
+                .unwrap(),
+            ],
+            seasons: 1,
+            lag_order: 2,
+            options: base.options,
+            worlds,
+            target,
+            assignment: None,
+            temporal: None,
+        },
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap()
+}
+#[test]
+fn three_channel_third_order_contrast_uses_the_same_public_compiler() {
+    let prepared = three_channel_prepared();
+    assert_eq!(prepared.model_data().channels.len(), 3);
+    let interaction = prepared.model_data().interactions[1].expression.to_domain();
+    let axis = (0..3).map(VariableId::from_raw).collect::<Vec<_>>();
+    let program =
+        antecedent_model::program::NodeProgram::compile_columns(&axis, &interaction).unwrap();
+    assert_eq!(
+        program.evaluate_columns(&[0.5, 0.25, 0.75], None).unwrap().to_bits(),
+        (0.5_f64 * 0.25 * 0.75).to_bits()
+    );
+    assert_eq!(prepared.inspect().fits_performed, 0);
+    assert_eq!(prepared.inspect().design_attempts[2].worlds.len(), 8);
+    assert!(!prepared.inspect().identification.is_identified_claim());
+}
+
+fn assert_temporal_projection_binding(result: &JointPanelResult) {
+    let pool = result.context.admission();
+    let before = pool.available().bytes();
+    let terminal = result.project_mean_source(&JointPanelResponseFunctional::TerminalMean).unwrap();
+    let retained = pool.available().bytes();
+    assert!(retained < before);
+    let shared = terminal.clone();
+    assert!(std::ptr::eq(terminal.as_numerical_source(), shared.as_numerical_source()));
+    drop(terminal);
+    assert_eq!(pool.available().bytes(), retained);
+    drop(shared);
+    assert_eq!(pool.available().bytes(), before);
+    let full = result.mean_source().unwrap();
+    let window = result
+        .project_mean_source(&JointPanelResponseFunctional::WindowAverage { from: 0, until: 2 })
+        .unwrap();
+    let later = result
+        .project_mean_source(&JointPanelResponseFunctional::WindowAverage { from: 3, until: 5 })
+        .unwrap();
+    assert_ne!(window.target().identity(), result.request().target.identity());
+    assert_ne!(window.question_identity(), later.question_identity());
+    assert_eq!(window.projection().unwrap().basis.len(), 48);
+    assert_eq!(window.projection().unwrap().outputs.len(), 8);
+    assert!(
+        window
+            .projection()
+            .unwrap()
+            .outputs
+            .iter()
+            .all(|row| row.terms.len() == 3 && row.quantity.horizon == 3)
+    );
+    assert_eq!(full.projection().unwrap().outputs.len(), 48);
+    assert_eq!(full.projection().unwrap().basis[0].quantity.horizon, 1);
+    assert!(window.authorize(JointPanelScientificScope::IdentifiedCausal).is_err());
+    let mut malformed = window.projection().unwrap().clone();
+    malformed.basis[0].quantity.horizon = 6;
+    assert!(
+        antecedent_design::scientific_source::ScientificDecisionSource::new_projected(
+            window.target().clone(),
+            window.identification().clone(),
+            window.dependency_identity(),
+            window.as_numerical_source().clone(),
+            malformed
+        )
+        .is_err()
+    );
+    let mut tiny_projection = result.clone();
+    tiny_projection.context.memory.hard_limit_bytes = Some(8);
+    assert!(matches!(
+        tiny_projection.mean_source(),
+        Err(JointPanelError::Engine(engine::PanelError::Resource(_)))
+    ));
+}
+
+#[test]
+fn continuous_three_channel_search_reuses_fit_and_improves_a_budget_feasible_nonbinary_program() {
+    use antecedent_design::decision_contract::{
+        ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr,
+    };
+    use antecedent_design::program_search::{
+        FiniteProgramDomain, ProgramControl, continuous::ContinuousSearchOptions,
+    };
+    let ctx = ExecutionContext::for_tests(1);
+    let prepared = three_channel_prepared();
+    let result = prepared.estimate(&ctx).unwrap();
+    assert_temporal_projection_binding(&result);
+    let domain = FiniteProgramDomain {
+        controls: (0..6)
+            .flat_map(|offset| {
+                (0..3).map(move |channel| ProgramControl {
+                    variable: VariableId::from_raw(channel),
+                    offset,
+                    lower: 0.0,
+                    upper: 2.5,
+                    unit_cost: 1.0,
+                })
+            })
+            .collect(),
+        budget: Some(3.0),
+        restrictions: vec![],
+    };
+    let contract = ProgramSearchContract {
+        space: ProgramSearchSpace {
+            id: "panel_response".into(),
+            variables: vec!["response".into()],
+        },
+        objective: ProgramObjective::ExpectedUtility(UtilityExpr::Input(0)),
+        constraints: vec![],
+    };
+    let search = result
+        .compile_continuous_search(
+            JointPanelContinuousSearchRequest {
+                base_world: ScientificWorldId::from_raw(0),
+                scope: JointPanelScientificScope::ModelConditional,
+                functional: JointPanelResponseFunctional::TerminalMean,
+                uncertainty: JointPanelSearchUncertainty::PointMeans,
+                contract,
+                domain,
+                utility_units: "response".into(),
+                options: ContinuousSearchOptions {
+                    max_evaluations: 40,
+                    max_iterations: 3,
+                    initial_step: 0.35,
+                    step_tolerance: 1e-4,
+                    objective_tolerance: 1e-10,
+                },
+                initial: vec![0.0; 18],
+            },
+            &ctx,
+        )
+        .unwrap();
+    let found = search.execute(&ctx).unwrap();
+    let first = found.search.attempts[0].row.as_ref().unwrap().value.unwrap();
+    let best = found.search.best.as_ref().unwrap();
+    assert!(best.value.unwrap() > first, "{:?}", found.search);
+    assert!(best.cost <= 3.0);
+    assert!(best.controls.iter().any(|value| value.fract() != 0.0));
+    assert!(!found.search.global_certificate);
+    assert_eq!(found.search.gap, None);
+    assert_eq!(prepared.fits_performed(), 1);
+    assert!(
+        found
+            .best_source
+            .as_ref()
+            .unwrap()
+            .authorize(JointPanelScientificScope::IdentifiedCausal)
+            .is_err()
+    );
+    let mut tiny = ctx.clone();
+    tiny.memory.hard_limit_bytes = Some(8);
+    assert!(matches!(
+        search.execute(&tiny),
+        Err(JointPanelError::Engine(engine::PanelError::Resource(_)))
+    ));
+    let cancelled = ctx.clone();
+    cancelled.cancellation.cancel();
+    assert!(matches!(
+        search.execute(&cancelled),
+        Err(JointPanelError::Engine(engine::PanelError::Cancelled))
+    ));
+}
+
+fn static_source_data() -> (PanelData, antecedent_data::TabularData) {
+    use antecedent_data::TabularData;
+    let mut all = [vec![], vec![], vec![], vec![], vec![]];
+    let mut units = Vec::new();
+    for group in 0..4_u32 {
+        let mut columns = [vec![], vec![], vec![], vec![], vec![]];
+        for index in 0..40_u32 {
+            let a = f64::from(index % 2);
+            let b = f64::from((index / 2) % 2);
+            let y = 1.0
+                + 2.0 * a
+                + 0.5 * b
+                + 0.1 * f64::from(group)
+                + 0.01 * (f64::from(index) * 0.31).sin();
+            for (column, value) in columns.iter_mut().zip([a, b, y, 0.0, 0.0]) {
+                column.push(value);
+            }
+        }
+        for (target, values) in all.iter_mut().zip(&columns) {
+            target.extend_from_slice(values);
+        }
+        units.push(PanelUnit {
+            unit_id: group,
+            series: TimeSeriesData::from_f64_columns(
+                ["a", "b", "y", "z", "season"].into_iter().zip(columns.iter().map(Vec::as_slice)),
+                100,
+            )
+            .unwrap(),
+        });
+    }
+    let data = PanelData::try_new(Arc::from(units)).unwrap();
+    let tabular = TabularData::from_f64_columns(
+        ["a", "b", "y", "z", "season"].into_iter().zip(all.iter().map(Vec::as_slice)),
+    )
+    .unwrap();
+    (data, tabular)
+}
+fn static_source_fixture()
+-> (PreparedStudy<JointPanelState>, crate::PreparedJointResponse, antecedent_data::TabularData) {
+    use antecedent_core::{
+        AssumptionSet, Conditioning, GraphFamily, Intervention, InterventionWorld,
+        ModelAssumptions, ObservationUnit, ScientificTarget, TargetForm, TimeFrame, Value,
+        WorldBinding, WorldCollection,
+    };
+    let (data, tabular) = static_source_data();
+    let (_, mut request) = fixture();
+    request.lag_order = 0;
+    for world in &mut request.worlds {
+        for channel in &mut world.program.channels {
+            channel.values.truncate(1);
+        }
+        for scenario in &mut world.program.scenarios {
+            scenario.confounder = vec![0.0];
+            scenario.season = vec![0];
+        }
+    }
+    request.target = joint_panel_target(
+        data.schema(),
+        &request.columns,
+        0,
+        &request.worlds,
+        JointPanelFunctional::Worlds,
+        InferenceSelection::Frequentist,
+    )
+    .unwrap();
+    let source_worlds = contracts::target_worlds(&request.target)
+        .unwrap()
+        .iter()
+        .map(|world| {
+            InterventionWorld::new(
+                world.id(),
+                world.action().clone(),
+                world.is_reference(),
+                WorldBinding::new(
+                    world.binding().population().clone(),
+                    ObservationUnit::new("row").unwrap(),
+                    world.binding().outcome().clone(),
+                    Conditioning::unconditional(),
+                )
+                .unwrap(),
+                TimeFrame::static_decision(),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let source_target = ScientificTarget::new(
+        TargetForm::Worlds(WorldCollection::new(source_worlds).unwrap()),
+        ModelAssumptions::new(GraphFamily::Unspecified, AssumptionSet::default()),
+        InferenceSelection::Frequentist,
+    );
+    let ctx = ExecutionContext::for_tests(1);
+    let graph =
+        antecedent_graph::Dag::from_named_edges(tabular.schema(), &[("a", "y"), ("b", "y")])
+            .unwrap();
+    let query = antecedent_core::ResponseQuery::new(
+        antecedent_core::ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(2),
+            interventions: Arc::from([
+                Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+                Intervention::set(VariableId::from_raw(1), Value::f64(1.0)),
+            ]),
+        },
+    );
+    let proof = Study::tabular(tabular.clone())
+        .graph(graph)
+        .query(query)
+        .inference(crate::InferenceMode::Frequentist)
+        .refute(crate::RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .compile_joint_response(&source_target, &ctx)
+        .unwrap();
+    (Study::prepare_joint_panel(data, request, &ctx).unwrap(), proof, tabular)
+}
+#[test]
+fn static_panel_reuses_independent_graph_proof_without_gaussian_restriction_or_extra_work() {
+    use antecedent_core::execution_attempt::{Operation, observe_with_context};
+    let (panel, proof, data) = static_source_fixture();
+    let ctx = ExecutionContext::for_tests(1);
+    let result = observe_with_context(&ctx, || panel.with_static_source_proof(proof, &data, &ctx));
+    assert_eq!(result.report.counts(Operation::Identification).attempted, 0);
+    assert_eq!(result.report.counts(Operation::AdjustedFit).attempted, 0);
+    let bound = result.result.unwrap();
+    assert!(bound.inspect().identification.is_identified_claim());
+    assert!(!bound.static_source_proof().unwrap().numerical_program().has_fit());
+    assert!(!bound.inspect().identification.assumptions().entries.iter().any(|record|matches!(&record.assumption,antecedent_core::Assumption::ParametricRestriction(premise) if premise.id.as_ref()=="response.joint.gaussian_linear")));
+}
+#[test]
+fn static_panel_refuses_source_proof_for_another_future_context_law() {
+    let (panel, proof, data) = static_source_fixture();
+    let ctx = ExecutionContext::for_tests(1);
+    let mut worlds = panel.request().worlds.clone();
+    worlds[0].program.scenarios[0].confounder[0] = 1.0;
+    let target = joint_panel_target(
+        panel.source_data().schema(),
+        &panel.request().columns,
+        0,
+        &worlds,
+        JointPanelFunctional::Worlds,
+        InferenceSelection::Frequentist,
+    )
+    .unwrap();
+    let changed = panel.retarget(worlds, target, &ctx).unwrap();
+    let error = changed.with_static_source_proof(proof, &data, &ctx).unwrap_err();
+    assert!(
+        matches!(error,JointPanelError::Unsupported(message) if message.contains("context law differs"))
+    );
+}
+
+#[test]
+fn retarget_admits_changed_programs_retains_and_releases_their_lease_without_fitting() {
+    let (data, request) = fixture();
+    let ctx = ExecutionContext::for_tests(3);
+    let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    let before = ctx.admission().available().bytes();
+    let next = prepared
+        .retarget(prepared.request().worlds.clone(), prepared.request().target.clone(), &ctx)
+        .unwrap();
+    let retained = ctx.admission().available().bytes();
+    assert!(retained < before);
+    let copy = next.clone();
+    drop(next);
+    assert_eq!(ctx.admission().available().bytes(), retained);
+    drop(copy);
+    assert_eq!(ctx.admission().available().bytes(), before);
+    let mut worlds = prepared.request().worlds.clone();
+    for world in &mut worlds {
+        for channel in &mut world.program.channels {
+            channel.values.resize(600, 0.0);
+        }
+        for scenario in &mut world.program.scenarios {
+            scenario.confounder.resize(600, 0.0);
+            scenario.season.resize(600, 0);
+        }
+    }
+    let target = joint_panel_target(
+        prepared.source_data().schema(),
+        &prepared.request().columns,
+        2,
+        &worlds,
+        JointPanelFunctional::Worlds,
+        InferenceSelection::Frequentist,
+    )
+    .unwrap();
+    let mut limited = ctx.clone();
+    limited.memory.hard_limit_bytes = Some(before - retained);
+    assert!(matches!(
+        prepared.retarget(worlds, target, &limited),
+        Err(JointPanelError::Engine(engine::PanelError::Resource(_)))
+    ));
+    assert_eq!(ctx.admission().available().bytes(), before);
+    assert_eq!(prepared.fits_performed(), 0);
+}
+
+fn dose_time_fixture(
+    multiple_channels: bool,
+    policy: &antecedent_core::TemporalPolicy,
+) -> (PanelData, JointPanelRequest, antecedent_core::ScientificTarget) {
+    use antecedent_core::{
+        DoseTimeSurface, Intervention, InterventionWorld, ScientificTarget, TargetForm, Value,
+        WorldAction, WorldCollection,
+    };
+    let (data, mut request) = fixture();
+    request.interactions.clear();
+    if !multiple_channels {
+        request.columns.channels.truncate(1);
+    }
+    for (index, world) in request.worlds.iter_mut().enumerate() {
+        let horizon = index % 2 + 1;
+        let level = if index < 2 { 0.0 } else { 1.0 };
+        if !multiple_channels {
+            world.program.channels.truncate(1);
+        }
+        for channel in &mut world.program.channels {
+            channel.values = vec![level; horizon];
+        }
+        for scenario in &mut world.program.scenarios {
+            if !multiple_channels {
+                scenario.history.truncate(1);
+            }
+            scenario.confounder.truncate(horizon);
+            scenario.season.truncate(horizon);
+        }
+    }
+    request.options.optimizer =
+        PanelOptimizerOptions { max_iterations: 1, gradient_tolerance: 1e-30 };
+    request.options.inference = PanelInference::Frequentist { draws: 2 };
+    request.target = joint_panel_target(
+        data.schema(),
+        &request.columns,
+        2,
+        &request.worlds,
+        JointPanelFunctional::Worlds,
+        InferenceSelection::Frequentist,
+    )
+    .unwrap();
+    let worlds = contracts::target_worlds(&request.target)
+        .unwrap()
+        .iter()
+        .enumerate()
+        .map(|(index, world)| {
+            InterventionWorld::new(
+                world.id(),
+                WorldAction::schedule(
+                    Intervention::set(
+                        request.columns.channels[0],
+                        Value::f64(if index < 2 { 0.0 } else { 1.0 }),
+                    ),
+                    policy.clone(),
+                )
+                .unwrap(),
+                world.is_reference(),
+                world.binding().clone(),
+                world.time().clone(),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let surface = DoseTimeSurface::new(
+        WorldCollection::new(worlds).unwrap(),
+        request.columns.channels[0],
+        [0.0, 1.0],
+        [1, 2],
+        (0..4).map(ScientificWorldId::from_raw),
+    )
+    .unwrap();
+    let target = ScientificTarget::new(
+        TargetForm::DoseTime(surface),
+        request.target.assumptions().clone(),
+        request.target.inference(),
+    );
+    (data, request, target)
+}
+#[test]
+fn prepared_scalar_dose_time_surface_reuses_frozen_fit_and_retains_failed_slots() {
+    let (data, request, target) =
+        dose_time_fixture(false, &antecedent_core::TemporalPolicy::sustained(0, 1));
+    let ctx = ExecutionContext::for_tests(9);
+    let frozen = {
+        let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+        prepared.estimate(&ctx).unwrap()
+    };
+    assert_eq!(frozen.draws.len(), 2);
+    assert!(frozen.draws.iter().all(Option::is_none));
+    let worlds = frozen.request().worlds.clone();
+    let result = frozen.retarget_frozen(worlds, target.clone(), &ctx).unwrap();
+    drop(frozen);
+    assert_eq!(result.prepared().fits_performed(), 1);
+    assert_eq!(result.request().target.identity(), target.identity());
+    assert_eq!(result.point.iter().map(|row| row.means.len()).collect::<Vec<_>>(), [1, 2, 1, 2]);
+    assert!(result.identification().assembled_obligation().is_some());
+    assert!(result.draws.iter().all(Option::is_none));
+    assert!(result.law_source().is_err());
+    let window = result
+        .project_mean_source(&JointPanelResponseFunctional::WindowAverage { from: 0, until: 0 })
+        .unwrap();
+    assert_ne!(window.target().identity(), target.identity());
+    assert!(window.projection().unwrap().outputs.iter().all(|output| output.quantity.horizon == 1));
+    assert!(window.authorize(JointPanelScientificScope::IdentifiedCausal).is_err());
+    assert_eq!(result.prepared().fits_performed(), 1);
+}
+#[test]
+fn dose_time_refuses_implicit_extra_channel_and_unassigned_exposure_continuation() {
+    for (multiple_channels, policy) in [
+        (true, antecedent_core::TemporalPolicy::sustained(0, 1)),
+        (false, antecedent_core::TemporalPolicy::pulse(0)),
+    ] {
+        let (data, mut request, target) = dose_time_fixture(multiple_channels, &policy);
+        request.target = target;
+        assert!(matches!(
+            Study::prepare_joint_panel(data, request, &ExecutionContext::for_tests(9)),
+            Err(JointPanelError::Unsupported(_))
+        ));
+    }
+}

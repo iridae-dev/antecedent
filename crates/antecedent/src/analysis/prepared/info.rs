@@ -41,6 +41,7 @@ pub use crate::analysis::execute::{
     CheckedStaticDagResponseInfo, CheckedStaticMediationInfo, CheckedTemporalClassEffectInfo,
     CheckedTemporalClassMediationInfo, CheckedTemporalDagEffectInfo,
     CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo,
+    CheckedTemporalMediationTargetInfo,
 };
 
 /// Binds each public `checked_*_info` accessor to the sealed route whose

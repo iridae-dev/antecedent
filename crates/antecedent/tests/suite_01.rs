@@ -49,10 +49,10 @@ mod batch_retarget_known_truth;
 mod bayesian;
 #[path = "bayesian_design_posterior_routes.rs"]
 mod bayesian_design_posterior_routes;
-#[path = "bayesian_functional_routes.rs"]
-mod bayesian_functional_routes;
 #[path = "bayesian_design_routes.rs"]
 mod bayesian_design_routes;
+#[path = "bayesian_functional_routes.rs"]
+mod bayesian_functional_routes;
 #[path = "bayesian_iv_rd_staged.rs"]
 mod bayesian_iv_rd_staged;
 #[path = "bayesian_likelihood.rs"]
@@ -75,3 +75,6 @@ mod callback_nested_overlap_facade;
 mod cancellation_expansion_cells;
 #[path = "categorical_treatment_posterior_facade.rs"]
 mod categorical_treatment_posterior_facade;
+
+#[path = "joint_panel_workflow.rs"]
+mod joint_panel_workflow;

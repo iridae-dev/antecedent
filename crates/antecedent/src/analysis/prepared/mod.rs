@@ -12,6 +12,8 @@ mod execute_checked;
 mod execution;
 mod execution_accessors;
 mod info;
+mod joint_response;
+pub use joint_response::{JointResponseResult, PreparedJointResponse};
 mod lifecycle;
 mod operations;
 mod period_refresh_entry;
@@ -48,7 +50,7 @@ pub use info::{
     CheckedTemporalClassEffectInfo, CheckedTemporalClassMediationInfo,
     CheckedTemporalClassResponseInfo, CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo,
     CheckedTemporalGraphPosteriorEffectInfo, CheckedTemporalGraphPosteriorResponseInfo,
-    CheckedTemporalMediationInfo,
+    CheckedTemporalMediationInfo, CheckedTemporalMediationTargetInfo,
 };
 pub(crate) use operations::{
     CheckedAdmgResponseCurveOperation, CheckedAipwOperation, CheckedDistributionOperation,
@@ -195,3 +197,5 @@ impl PreparedStudy {
         self.checked_linear_operation().map(|operation| operation.compiled.as_ref())
     }
 }
+
+pub(crate) use joint_response::joint_target_admission;

@@ -56,6 +56,7 @@ impl CheckedTemporalMediationProof {
 pub(crate) struct CheckedTemporalClassMediationOperation {
     proof: CheckedTemporalMediationProof,
     query: antecedent_core::MediationQuery,
+    target_bindings: Arc<[CheckedTemporalMediationTargetInfo]>,
     inference: InferenceMode,
     bootstrap_replicates: u32,
     validation: RefuteSuite,
@@ -169,9 +170,12 @@ impl CheckedTemporalClassMediationOperation {
             }
             Some(posterior) => Self::dbn_posterior_proof(study, physical, posterior)?,
         };
+        let target_bindings =
+            retained_mediation_targets(&proof, query, data.schema(), &study.inference)?;
         Ok(Self {
             proof,
             query: query.clone(),
+            target_bindings: target_bindings.into(),
             inference: study.inference.clone(),
             bootstrap_replicates: study.bootstrap_replicates,
             validation: study.refute,
@@ -246,9 +250,15 @@ impl CheckedTemporalClassMediationOperation {
             });
         }
 
+        let CausalQuery::Mediation(query) = &study.query else {
+            return Err(CausalError::Compile {
+                message: "class posterior requires a mediation target".into(),
+            });
+        };
+        let cache = retain_class_mediation_proofs(cache, query)?;
         Ok(CheckedTemporalMediationProof::ClassPosterior {
             posterior: posterior.clone(),
-            cache: Arc::clone(cache),
+            cache: Arc::new(cache),
             max_completions: study.max_completions,
         })
     }
@@ -414,10 +424,21 @@ impl CheckedTemporalClassMediationOperation {
     }
 
     pub(crate) fn rebind(&self, data: &TimeSeriesData) -> Result<(), CausalError> {
-        if data.schema() != &self.schema {
+        if data.schema() != &self.schema
+            || CausalQuery::Mediation(self.query.clone()) != self.physical.logical.query
+            || self.target_bindings.as_ref()
+                != retained_mediation_targets(
+                    &self.proof,
+                    &self.query,
+                    &self.schema,
+                    &self.inference,
+                )?
+                .as_slice()
+        {
             return Err(CausalError::Compile {
-                message: "temporal class mediation refresh changed the semantic variable schema"
-                    .into(),
+                message:
+                    "temporal class mediation refresh changed its schema or theorem target bindings"
+                        .into(),
             });
         }
         Ok(())
@@ -644,12 +665,308 @@ fn middle_tag(middle: antecedent_graph::MiddleMark) -> char {
     }
 }
 
+/// Bind the requested mediation theorem once, then execute from that same retained cache.
+fn retain_class_mediation_proofs(
+    cache: &CachedTemporalClassPosteriorIdentification,
+    query: &antecedent_core::MediationQuery,
+) -> Result<CachedTemporalClassPosteriorIdentification, CausalError> {
+    let [horizon] = query.horizons.as_ref() else {
+        return Err(CausalError::Compile {
+            message: "class posterior requires one mediation horizon".into(),
+        });
+    };
+    let mut atoms = Vec::with_capacity(cache.class_atoms.len());
+    for original in cache.class_atoms.iter() {
+        let mut atom = original.clone();
+        let mut envelope = (*original.envelope).clone();
+        crate::identify_api::refine_temporal_class_identification(
+            &mut envelope,
+            &CausalQuery::Mediation(query.clone()),
+            *horizon,
+        )?;
+        atom.identification = super::envelope_to_identification_result_for(
+            &envelope.envelope,
+            CausalQuery::Mediation(query.clone()),
+        );
+        atom.invariant.clone_from(&envelope.envelope.invariant);
+        atom.identified_weight = envelope.envelope.identified_weight.0;
+        atom.truncated_completions = envelope.envelope.truncated_completions;
+        atom.envelope = Arc::new(envelope);
+        // Keep a failed refinement's proof and completion weights for inspection.
+        atoms.push(atom);
+    }
+    let eligible = atoms
+        .iter()
+        .filter(|atom| atom.identified_weight > 0.0)
+        .map(|atom| atom.key)
+        .collect::<std::collections::BTreeSet<_>>();
+    let flags = cache
+        .graphs
+        .graph_keys
+        .iter()
+        .map(|key| {
+            if eligible.contains(key) {
+                antecedent_prob::GraphIdentFlag::Identified
+            } else {
+                antecedent_prob::GraphIdentFlag::Unidentified
+            }
+        })
+        .collect::<Vec<_>>();
+    let graphs = antecedent_prob::WeightedGraphSamples::new(
+        Arc::clone(&cache.graphs.weights),
+        flags,
+        Arc::clone(&cache.graphs.graph_keys),
+    )
+    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    Ok(CachedTemporalClassPosteriorIdentification { graphs, class_atoms: atoms.into() })
+}
+
+fn retained_mediation_targets(
+    proof: &CheckedTemporalMediationProof,
+    query: &antecedent_core::MediationQuery,
+    schema: &antecedent_core::CausalSchema,
+    inference: &InferenceMode,
+) -> Result<Vec<CheckedTemporalMediationTargetInfo>, CausalError> {
+    let selection = match inference {
+        InferenceMode::Frequentist => antecedent_core::InferenceSelection::Frequentist,
+        InferenceMode::Bayesian(_) => antecedent_core::InferenceSelection::Bayesian,
+    };
+    let mut targets = Vec::new();
+    match proof {
+        CheckedTemporalMediationProof::ClassEnvelope { cache, .. } => {
+            for &horizon in query.horizons.iter() {
+                let envelope = cache
+                    .by_horizon
+                    .iter()
+                    .find(|(h, _)| *h == horizon)
+                    .map(|(_, envelope)| envelope)
+                    .ok_or_else(|| CausalError::Compile {
+                        message: format!("temporal mediation target missing horizon {horizon}"),
+                    })?;
+                append_completion_targets(
+                    &mut targets,
+                    envelope,
+                    query,
+                    schema,
+                    selection,
+                    horizon,
+                    None,
+                )?;
+            }
+        }
+        CheckedTemporalMediationProof::ClassPosterior { cache, .. } => {
+            let [horizon] = query.horizons.as_ref() else {
+                return Err(CausalError::Compile {
+                    message: "class-posterior mediation target requires its one retained horizon"
+                        .into(),
+                });
+            };
+            let atoms = cache
+                .class_atoms
+                .iter()
+                .map(|atom| (atom.key, atom))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            for index in 0..cache.graphs.n_samples {
+                let (key, weight, identified) = posterior_slot(&cache.graphs, index)?;
+                if let Some(atom) = atoms.get(&key) {
+                    append_completion_targets(
+                        &mut targets,
+                        &atom.envelope,
+                        query,
+                        schema,
+                        selection,
+                        *horizon,
+                        Some((key, weight, identified)),
+                    )?;
+                } else {
+                    targets.push(unresolved_target(*horizon, key, weight, identified)?);
+                }
+            }
+        }
+        CheckedTemporalMediationProof::DbnPosterior { cache, .. } => {
+            for &horizon in query.horizons.iter() {
+                // The existing projection owns per-horizon eligibility and preserves failed mass.
+                let projected = cache.mediation_horizon(horizon)?;
+                let atoms = projected
+                    .atoms
+                    .iter()
+                    .map(|atom| (atom.key, atom))
+                    .collect::<std::collections::BTreeMap<_, _>>();
+                for index in 0..projected.graphs.n_samples {
+                    let (key, weight, identified) = posterior_slot(&projected.graphs, index)?;
+                    if let Some(atom) = atoms.get(&key) {
+                        if !mediation_query_matches(&atom.identification.query, query, horizon)
+                            || atom.indexer.horizon() != horizon
+                        {
+                            return Err(CausalError::Compile {
+                                message: "DBN mediation target belongs to another query or horizon"
+                                    .into(),
+                            });
+                        }
+                        let target = super::checked_static_mediation::theorem_mediation_target(
+                            query,
+                            schema,
+                            &atom.identification.required_assumptions,
+                            selection,
+                            Some((horizon, atom.indexer.history())),
+                        )?;
+                        targets.push(CheckedTemporalMediationTargetInfo {
+                            horizon,
+                            atom_key: Some(key),
+                            completion_index: None,
+                            atom_weight: weight,
+                            completion_weight: None,
+                            atom_identified: Some(identified),
+                            identification_status: Some(atom.identification.status),
+                            scientific_target: Some(target),
+                        });
+                    } else {
+                        targets.push(unresolved_target(horizon, key, weight, identified)?);
+                    }
+                }
+            }
+        }
+    }
+    Ok(targets)
+}
+
+fn mediation_query_matches(
+    actual: &CausalQuery,
+    requested: &antecedent_core::MediationQuery,
+    horizon: u32,
+) -> bool {
+    let CausalQuery::Mediation(actual) = actual else { return false };
+    if !actual.horizons.contains(&horizon) {
+        return false;
+    }
+    let mut actual = actual.clone();
+    let mut requested = requested.clone();
+    actual.horizons = Arc::from([horizon]);
+    requested.horizons = Arc::from([horizon]);
+    actual == requested
+}
+
+fn posterior_slot(
+    graphs: &antecedent_prob::WeightedGraphSamples,
+    index: usize,
+) -> Result<(u64, f64, bool), CausalError> {
+    let missing = || CausalError::Compile {
+        message: "temporal mediation posterior target arrays are misaligned".into(),
+    };
+    let key = *graphs.graph_keys.get(index).ok_or_else(missing)?;
+    let weight = *graphs.weights.get(index).ok_or_else(missing)?;
+    let flag = *graphs.identified.get(index).ok_or_else(missing)?;
+    Ok((key, weight, flag == antecedent_prob::GraphIdentFlag::Identified))
+}
+
+fn unresolved_target(
+    horizon: u32,
+    key: u64,
+    weight: f64,
+    identified: bool,
+) -> Result<CheckedTemporalMediationTargetInfo, CausalError> {
+    if identified {
+        return Err(CausalError::Compile {
+            message: "identified temporal mediation atom has no retained theorem proof".into(),
+        });
+    }
+    Ok(CheckedTemporalMediationTargetInfo {
+        horizon,
+        atom_key: Some(key),
+        completion_index: None,
+        atom_weight: weight,
+        completion_weight: None,
+        atom_identified: Some(false),
+        identification_status: None,
+        scientific_target: None,
+    })
+}
+
+fn append_completion_targets(
+    targets: &mut Vec<CheckedTemporalMediationTargetInfo>,
+    envelope: &antecedent_identify::TemporalClassEnvelope,
+    query: &antecedent_core::MediationQuery,
+    schema: &antecedent_core::CausalSchema,
+    inference: antecedent_core::InferenceSelection,
+    horizon: u32,
+    atom: Option<(u64, f64, bool)>,
+) -> Result<(), CausalError> {
+    if envelope.envelope.cases.is_empty()
+        || envelope.envelope.cases.len() != envelope.indexers.len()
+    {
+        return Err(CausalError::Compile {
+            message: "temporal mediation completion targets lack aligned proof indexers".into(),
+        });
+    }
+    for (index, (case, indexer)) in
+        envelope.envelope.cases.iter().zip(&envelope.indexers).enumerate()
+    {
+        let is_mediation = mediation_query_matches(&case.result.query, query, horizon)
+            && indexer.horizon() == horizon;
+        if !is_mediation && antecedent_identify::carries_identified_mass(case.result.status) {
+            return Err(CausalError::Compile {
+                message: "temporal mediation target cannot inherit another functional's proof"
+                    .into(),
+            });
+        }
+        let target = if is_mediation {
+            Some(super::checked_static_mediation::theorem_mediation_target(
+                query,
+                schema,
+                &case.result.required_assumptions,
+                inference,
+                Some((horizon, indexer.history())),
+            )?)
+        } else {
+            None
+        };
+        targets.push(CheckedTemporalMediationTargetInfo {
+            horizon,
+            atom_key: atom.map(|(key, _, _)| key),
+            completion_index: Some(index),
+            atom_weight: atom.map_or(1.0, |(_, weight, _)| weight),
+            completion_weight: Some(case.weight.0),
+            atom_identified: atom.map(|(_, _, identified)| identified),
+            identification_status: is_mediation.then_some(case.result.status),
+            scientific_target: target,
+        });
+    }
+    Ok(())
+}
+
+/// One theorem-scoped target retained for a temporal mediation proof slot.
+///
+/// Posterior atom weights and completion enumeration weights remain separate. A slot
+/// without a retained proof keeps its original atom weight but has no fabricated target,
+/// history bound or scientific identification verdict.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedTemporalMediationTargetInfo {
+    /// Requested outcome horizon.
+    pub horizon: u32,
+    /// Position-derived key in the frozen posterior, absent for a fixed class.
+    pub atom_key: Option<u64>,
+    /// Completion position within a class envelope, absent for a DAG or missing proof.
+    pub completion_index: Option<usize>,
+    /// Original posterior atom weight; one for a fixed source class.
+    pub atom_weight: f64,
+    /// Original completion enumeration weight, never a posterior probability.
+    pub completion_weight: Option<f64>,
+    /// Per-horizon atom eligibility, absent for a fixed class.
+    pub atom_identified: Option<bool>,
+    /// Actual retained proof status; absent when no proof was retained.
+    pub identification_status: Option<antecedent_core::IdentificationStatus>,
+    /// Exact conditional target using this proof's history and assumptions.
+    pub scientific_target: Option<antecedent_core::ScientificTarget>,
+}
+
 /// Read-only target, structural proof, and procedure for a checked
 /// `TemporalCpdag` class-envelope or temporal graph-posterior mediation family.
 #[derive(Clone, Debug)]
 pub struct CheckedTemporalClassMediationInfo {
     /// Exact mediation target and requested horizon family.
     pub query: antecedent_core::MediationQuery,
+    /// Per-horizon, per-atom and per-completion theorem targets, including unresolved slots.
+    pub scientific_targets: Arc<[CheckedTemporalMediationTargetInfo]>,
     /// Class of the fixed source graph or of the posterior's atoms.
     pub graph_class: crate::accepted::GraphClass,
     /// How the structure was supplied: explicit, accepted, or a graph posterior.
@@ -682,6 +999,7 @@ impl Inspect for CheckedTemporalClassMediationOperation {
         let (atom_count, identified_mass, unidentified_mass) = self.proof_mass();
         CheckedTemporalClassMediationInfo {
             query: self.query().clone(),
+            scientific_targets: Arc::clone(&self.target_bindings),
             graph_class: self.graph_class(),
             structure_source: self.structure_source(),
             identifier: self.identifier(),

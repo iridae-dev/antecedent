@@ -563,6 +563,27 @@ fn single_mediation_horizon(query: &antecedent_core::MediationQuery) -> Result<u
     }
 }
 
+/// Checked preparation has already bound the actual mediation functional. One-shot
+/// callers with an enumeration witness still use the same refinement before fitting.
+fn retained_or_refined_mediation_envelope<'a>(
+    atom: &'a CachedTemporalClassPosteriorAtomIdentification,
+    query: &antecedent_core::MediationQuery,
+    horizon: u32,
+) -> Result<std::borrow::Cow<'a, antecedent_identify::TemporalClassEnvelope>, CausalError> {
+    if atom.identification.query == CausalQuery::Mediation(query.clone())
+        && atom.envelope.indexers.iter().all(|indexer| indexer.horizon() == horizon)
+    {
+        return Ok(std::borrow::Cow::Borrowed(&atom.envelope));
+    }
+    let mut envelope = (*atom.envelope).clone();
+    crate::identify_api::refine_temporal_class_identification(
+        &mut envelope,
+        &CausalQuery::Mediation(query.clone()),
+        horizon,
+    )?;
+    Ok(std::borrow::Cow::Owned(envelope))
+}
+
 fn evaluate_temporal_class_mediation_atom_frequentist(
     _study: &Study,
     data: &TimeSeriesData,
@@ -572,12 +593,7 @@ fn evaluate_temporal_class_mediation_atom_frequentist(
     estimator: &TemporalMediationEstimator,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassMediationAtomEval, CausalError> {
-    let mut class_envelope = antecedent_identify::TemporalClassEnvelope::clone(&atom.envelope);
-    crate::identify_api::refine_temporal_class_identification(
-        &mut class_envelope,
-        &CausalQuery::Mediation(query.clone()),
-        horizon,
-    )?;
+    let class_envelope = retained_or_refined_mediation_envelope(atom, query, horizon)?;
     let envelope = &class_envelope.envelope;
     let mut horizon_query = query.clone();
     horizon_query.horizons = Arc::from([horizon]);
@@ -673,12 +689,7 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassMediationAtomEval, CausalError> {
     let bayes = bayesian_gcomp(cfg, ctx);
-    let mut class_envelope = antecedent_identify::TemporalClassEnvelope::clone(&atom.envelope);
-    crate::identify_api::refine_temporal_class_identification(
-        &mut class_envelope,
-        &CausalQuery::Mediation(query.clone()),
-        horizon,
-    )?;
+    let class_envelope = retained_or_refined_mediation_envelope(atom, query, horizon)?;
     let envelope = &class_envelope.envelope;
     let mut horizon_query = query.clone();
     horizon_query.horizons = Arc::from([horizon]);
@@ -690,7 +701,7 @@ fn evaluate_temporal_class_mediation_atom_bayesian(
     let mut primary_estimand = None;
     let mut atom_posterior = None;
     let mut refute_atom = None;
-    for (case, indexer) in envelope.cases.iter().zip(atom.envelope.indexers.iter()) {
+    for (case, indexer) in envelope.cases.iter().zip(class_envelope.indexers.iter()) {
         if !identification_status_ok_for_case(case.result.status)
             || case.result.estimands.is_empty()
         {

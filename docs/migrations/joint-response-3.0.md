@@ -30,3 +30,36 @@ Model-conditional results require explicit conditional decision/search use;
 complete aligned uncertainty and current evidence authority remain prerequisites
 where the requested consumer needs them. Calibration and release acceptance do
 not follow from transporting a fitted law.
+
+Prepared panel callers use `Study::prepare_joint_panel` or the existing prepared
+study's `compile_joint_panel`. Retarget worlds on the prepared program to reuse a
+compatible fit. Reuse follows the caller's `CachePolicy`; test contexts that
+explicitly disable caching do not promise reuse. Inspection does not fit.
+
+Use `mean_source`, `law_source`, or `project_*_source` for decision/search input.
+They retain scientific permission and the exact projected question. Choose
+model-conditional consumption explicitly when the design has not identified the
+question. `numerical_*` accessors expose component values without granting that
+permission. Nonterminal windows and window changes carry actual prefix-world
+targets and their own question identity.
+
+Frozen-fit artifact replay preserves aligned draw slots, failures and uncertainty
+meaning. Historical replay grants no current decision authorization. Current
+experiment-update consumers supply the expected compiled program/frozen law and
+current ledger authority; withdrawal, supersession and trust changes can refuse
+current use while historical numerical replay remains available.
+
+Frequentist local Gaussian/cluster-sandwich realizations are approximations, not
+posterior draws. Bayesian laws must pass their actual convergence checks. Search
+certificates are scoped to an explicitly enumerated finite domain; continuous
+search reports a best-found feasible point. Neither artifact interchange nor a
+successful fit promotes unmeasured calibration or release permission.
+
+The new Gaussian `compile_joint_response` and `retarget` methods borrow
+`&ScientificTarget`. The prepared program owns the retained target/proof; callers
+need not allocate a second public builder to execute it.
+
+`PanelExperimentResult::law_source` returns a retained experimental source whose
+`authorize`, `evaluate` and `search` require the caller's current evidence ledger.
+Keeping that source does not keep withdrawn or superseded evidence authorized.
+Explicit historical numerical extraction remains available.

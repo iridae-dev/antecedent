@@ -404,7 +404,6 @@ fn signed_worlds(target: &ScientificTarget) -> Result<SignedWorlds, JointContras
         TargetForm::World(_) => Err(JointContrastError::SingleWorld),
         TargetForm::Mediation(_) => Err(JointContrastError::Mediation),
         TargetForm::Contrast(contrast) => match contrast.form() {
-            ContrastForm::Linear => Err(JointContrastError::NotTheJointContrast),
             ContrastForm::Difference { .. } => Err(JointContrastError::TwoWorldDifference),
             ContrastForm::Interaction { .. } => coefficients_of(contrast),
             _ => Err(JointContrastError::NotTheJointContrast),
@@ -422,7 +421,9 @@ fn coefficients_of(contrast: &InterventionContrast) -> Result<SignedWorlds, Join
     let mut coefficients = [0.0_f64; 4];
     for (index, term) in terms.iter().enumerate() {
         ids[index] = term.world;
-        if term.coefficient != 1.0 && term.coefficient != -1.0 {
+        if term.coefficient.to_bits() != 1.0_f64.to_bits()
+            && term.coefficient.to_bits() != (-1.0_f64).to_bits()
+        {
             return Err(JointContrastError::NotTheJointContrast);
         }
         coefficients[index] = term.coefficient;

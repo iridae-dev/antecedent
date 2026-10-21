@@ -180,6 +180,26 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     let mut injected = study.clone();
     injected.dbn_posterior_identification_cache = Some(Arc::new(cache));
     let injected_plan = injected.compile(&ctx).unwrap();
+    let checked = CheckedTemporalClassMediationOperation::checked(
+        &injected,
+        &series,
+        &Arc::new(injected_plan.clone()),
+    )
+    .unwrap();
+    let info = checked.info();
+    assert_eq!(
+        info.scientific_targets.len(),
+        4,
+        "each posterior atom keeps a slot at each horizon"
+    );
+    let failed = info
+        .scientific_targets
+        .iter()
+        .filter(|binding| binding.horizon == 2 && binding.atom_identified == Some(false))
+        .collect::<Vec<_>>();
+    assert_eq!(failed.len(), 1);
+    assert!((failed[0].atom_weight - 0.3).abs() < 1e-12);
+    assert!(failed[0].scientific_target.is_none(), "no fabricated history for a missing proof");
     let mixed = injected.execute(&injected_plan, &ctx).unwrap();
     let repeated = injected.execute(&injected_plan, &ctx).unwrap();
     let grid = mixed.mediation_grid().unwrap();
@@ -297,4 +317,45 @@ fn dbn_posterior_mediation_refuses_a_proof_over_other_posterior_weights() {
             .contains("DBN posterior mediation proof does not bind the frozen posterior"),
         "{error}"
     );
+}
+
+#[test]
+fn dbn_mediation_refuses_a_retained_proof_for_other_intervention_levels() {
+    let (series, query) = mediation_series(32);
+    let posterior = graph_posterior();
+    let ctx = ExecutionContext::for_tests(812);
+    let study = Study::series(series.clone())
+        .graph_posterior(posterior.clone())
+        .query(CausalQuery::Mediation(query.clone()))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let mut foreign_query = query;
+    foreign_query.active = antecedent_core::Intervention::set(
+        foreign_query.treatment,
+        antecedent_core::Value::f64(2.0),
+    );
+    let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let foreign = build_dbn_mediation_cache_with_identifier(
+        &posterior,
+        &variables,
+        &foreign_query,
+        &ctx,
+        |_, _, graph, horizon_query| {
+            identify_temporal_mediation_horizons(
+                graph,
+                horizon_query,
+                crate::strategy_table::EstimatorId::BayesianTemporalMediation,
+            )
+        },
+    )
+    .unwrap();
+    let mut injected = prepared.analysis.clone();
+    injected.dbn_posterior_identification_cache = Some(Arc::new(foreign));
+    let error = CheckedTemporalClassMediationOperation::checked(&injected, &series, &prepared.plan)
+        .expect_err("a proof with the same graph weights must still match the intervention levels");
+    assert!(error.to_string().contains("another query or horizon"), "{error}");
 }

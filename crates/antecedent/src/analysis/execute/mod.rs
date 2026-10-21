@@ -254,8 +254,8 @@ pub(crate) use checked_bayesian_dag_conditional::{
     CheckedBayesianConditionalOperation, CheckedBayesianConditionalOperationPremises,
 };
 mod bayesian_path;
-mod bayesian_robust_ate_path;
 mod bayesian_quantile_path;
+mod bayesian_robust_ate_path;
 mod bayesian_specialist_path;
 mod checked_bayesian_static_mediation;
 mod checked_continuous_dose;
@@ -323,9 +323,9 @@ mod identified_set_diagnostics;
 mod multi_env_path;
 mod pag_path;
 mod panel_link_path;
-mod temporal_iv_path;
 mod panel_path;
 mod response_path;
+mod temporal_iv_path;
 pub(crate) use checked_static_response::{
     CheckedDerivativeResponseOperation, CheckedStaticDagResponseOperation,
     CheckedStaticDagResponseOperationPremises,
@@ -417,7 +417,9 @@ pub use checked_static_class_response::CheckedStaticClassResponseInfo;
 pub use checked_static_mediation::CheckedStaticMediationInfo;
 pub use checked_static_response::{CheckedDerivativeResponseInfo, CheckedStaticDagResponseInfo};
 pub use checked_temporal_class_effect::CheckedTemporalClassEffectInfo;
-pub use checked_temporal_class_mediation::CheckedTemporalClassMediationInfo;
+pub use checked_temporal_class_mediation::{
+    CheckedTemporalClassMediationInfo, CheckedTemporalMediationTargetInfo,
+};
 pub use checked_temporal_effect::CheckedTemporalDagEffectInfo;
 pub use checked_temporal_mediation::CheckedTemporalMediationInfo;
 pub use checked_transport_trial::CheckedTransportTrialInfo;

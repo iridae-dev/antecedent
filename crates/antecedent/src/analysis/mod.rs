@@ -423,7 +423,7 @@ pub use prepared::{
     CheckedStaticClassEffectInfo, CheckedStaticClassResponseInfo, CheckedStaticMediationInfo,
     CheckedTemporalClassEffectInfo, CheckedTemporalClassMediationInfo,
     CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo,
-    CheckedUnknownTieredAverageInfo, PreparedStudy,
+    CheckedTemporalMediationTargetInfo, CheckedUnknownTieredAverageInfo, PreparedStudy,
 };
 pub use prepared::{
     CheckedBayesianTemporalClassEffectInfo, CheckedTemporalGraphPosteriorEffectInfo,
@@ -472,3 +472,8 @@ pub use antecedent_io::cyclic_family_artifact::{
 /// Cyclic specialization of the common retained prepared-analysis handle.
 pub mod cyclic;
 pub mod cyclic_evidence;
+
+/// Checked nonlinear two-channel panel compiler and retained programs.
+pub mod joint_panel;
+
+pub use prepared::{JointResponseResult, PreparedJointResponse};
