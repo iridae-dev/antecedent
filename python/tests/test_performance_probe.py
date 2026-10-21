@@ -109,3 +109,40 @@ def test_wide_gaussian_probe_profiles_complete_prepared_calls(repo_root, tmp_pat
         assert len(cell["samples"]) == 2
         assert all(sample["posterior_draws"] == 16 for sample in cell["samples"])
     assert pstats.Stats(str(profile)).total_calls > 0
+
+
+def test_capability_preflight_checks_science_without_collecting_timings(repo_root, tmp_path):
+    script = repo_root / "benchmarks/performance/capability_workflows.py"
+    names = subprocess.check_output([sys.executable, str(script)], text=True).splitlines()
+    output = tmp_path / "capabilities.json"
+    subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--validate",
+            "--rows",
+            "512",
+            "--units",
+            "8",
+            "--grid-points",
+            "9",
+            "--draws",
+            "32",
+            "--output",
+            str(output),
+            *[part for name in names for part in ("--case", name)],
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    report = json.loads(output.read_text())
+    assert report["timed"] is False
+    assert report["warmups"] == 0
+    assert {cell["capability"] for cell in report["cells"]} == set(names)
+    assert len(report["cells"]) == 24
+    for cell in report["cells"]:
+        assert "median_ns" not in cell
+        assert len(cell["samples"]) == 1
+        assert "elapsed_ns" not in cell["samples"][0]
+        assert cell["samples"][0]["observed"]

@@ -75,3 +75,31 @@ immutable table binding. Eligible OLS bootstraps prepare an orthonormal QR basis
 accumulate exact resample multiplicities, and solve the small conditioned system.
 Rejected preparations and replicates use the original coefficient-only pivoted
 QR. The resampling law, replicate count and rank-failure accounting are unchanged.
+
+The capability matrix adds logit Laplace, Gaussian HMC, cross-fitted DML,
+nonlinear dose grids, cyclic joint interventions and shared-world counterfactuals,
+nonlinear interventional fitting and refresh, cyclic identification/oracle
+discovery, ODE trajectories, OU stationary laws, bounded constraint solutions,
+and artifact replay including a fresh CPU process. Each capability has its own
+known-truth checks, dimensions and effort record. A failure aborts the run.
+`--threads` controls the static fitting cases; other cases explicitly record
+that they use their public API's default thread policy.
+
+```sh
+python/.venv/bin/python benchmarks/performance/capability_workflows.py --validate --output /tmp/capability-preflight.json
+```
+
+The default invocation only lists capabilities. `--validate` executes correctness
+preflight without collecting timings. After builds and preflight finish, use
+`--measure --repeats 9 --output benchmarks/performance/investigations/capabilities.json`
+on a quiet machine. Keep before/after cases and dimensions matched and retain
+every repeat. HMC reports its actual draws, including the backend's publication
+floor. Cold, prepared, refresh, replay and process-startup cells are separate;
+the prepared cyclic lanes can reuse fitted/precomputed products. Artifact
+creation and Python result construction belong to their complete public calls.
+
+This is an initial diagnostic matrix, not full performance acceptance for every
+3.0 family. The existing `user_path` and `transport` Rust benches remain separate
+controls; temporal/panel inference, transport, matching, mediation and posterior
+response grids need their own representative workload sizes. No aggregate score
+substitutes for a capability's own correctness and effort checks.

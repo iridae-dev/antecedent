@@ -249,7 +249,9 @@ pub fn identify_cyclic(
     ctx: &ExecutionContext,
 ) -> Result<CyclicIdentification, CyclicIdError> {
     let (all, y, x) = query_sets(graph, outcomes, treatments, premises)?;
-    if !premises.scc_product_density { return Err(invalid("generalized ID requires the SCC-product-density premise")); }
+    if !premises.scc_product_density {
+        return Err(invalid("generalized ID requires the SCC-product-density premise"));
+    }
     if max_steps > 10_000 {
         return Err(invalid("identification step cap"));
     }
@@ -452,7 +454,10 @@ mod numerical_tests {
                     .iter()
                     .enumerate()
                     .filter(|(cell, _)| {
-                        constraints.iter().all(|(i, v)| f64::from(((cell >> i) & 1) as u8) == *v)
+                        constraints.iter().all(|(i, v)| {
+                            f64::from(u8::try_from((cell >> i) & 1).unwrap()).to_bits()
+                                == v.to_bits()
+                        })
                     })
                     .map(|(_, p)| p)
                     .sum())
@@ -470,7 +475,7 @@ mod numerical_tests {
             Ok((0..(1usize << vars.len()))
                 .map(|cell| {
                     (0..vars.len())
-                        .map(|i| Value::f64(f64::from(((cell >> i) & 1) as u8)))
+                        .map(|i| Value::f64(f64::from(u8::try_from((cell >> i) & 1).unwrap())))
                         .collect()
                 })
                 .collect())

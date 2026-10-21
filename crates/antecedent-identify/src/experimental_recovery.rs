@@ -846,9 +846,8 @@ fn recover(nodes: &BTreeSet<VariableId>, set: &ClampExperimentSet) -> Experiment
         let missing = missing_clamps(nodes, &set.experiments, *target);
         if !missing.is_empty() {
             if set.equation_ranks.iter().any(|rank| rank.target == *target) {
-                warnings.push(RecoveryWarning::RankDeclarationOnUncoveredTarget {
-                    target: *target,
-                });
+                warnings
+                    .push(RecoveryWarning::RankDeclarationOnUncoveredTarget { target: *target });
             }
             unresolved.push(UnresolvedDirection {
                 support: incoming(nodes, *target),
@@ -914,9 +913,10 @@ pub fn regime_is_identified(
     }
     regime.clamped.iter().all(|from| {
         regime.passive.iter().all(|into| {
-            recovery.recoverable.iter().any(|coefficient| {
-                coefficient.into == *into && coefficient.from == *from
-            })
+            recovery
+                .recoverable
+                .iter()
+                .any(|coefficient| coefficient.into == *into && coefficient.from == *from)
         })
     })
 }
@@ -1552,8 +1552,9 @@ mod tests {
         PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability, RecoveredCoefficientPoint,
         RecoveredCoefficientUncertainty, RecoveryAttempt, RecoveryDrawInput, RecoveryWarning,
         RefusalReason, RegimeAssumption, UncertaintyFault, UniquenessRestriction, UnresolvedReason,
-        WeakStability, as_recovered_mechanism, decide_experimental_recovery, joint_draw_from_blocks,
-        recover_assembled_coefficients, recover_declared_coefficients, regime_is_identified,
+        WeakStability, as_recovered_mechanism, decide_experimental_recovery,
+        joint_draw_from_blocks, recover_assembled_coefficients, recover_declared_coefficients,
+        regime_is_identified,
     };
     use crate::experiment_moments::{
         ConstraintRow, RegimeSample, TargetConstraintBlock, UnitColumn,
@@ -2380,7 +2381,7 @@ mod tests {
 
     impl Lcg {
         fn next_u64(&mut self) -> u64 {
-            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1);
+            self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
             self.0
         }
 
@@ -2416,6 +2417,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one held-out regime fixture and its independent coefficient uncertainty comparison"
+    )]
     fn held_out_joint_regime_uses_coefficient_uncertainty() {
         let rows = 2_000_u16;
         let row_count = usize::from(rows);
@@ -2425,11 +2430,8 @@ mod tests {
             simulate_chain(3, row_count, &[2]),
         ];
         let experiments = vec![single_clamp(0), single_clamp(1), single_clamp(2)];
-        let decision = decide_experimental_recovery(&clamp_design(
-            three(),
-            experiments.clone(),
-            Vec::new(),
-        ));
+        let decision =
+            decide_experimental_recovery(&clamp_design(three(), experiments.clone(), Vec::new()));
         let ExperimentalRecoveryDecision::Recovered(report) = &decision else {
             panic!("single-node clamps are generic identification");
         };
@@ -2490,10 +2492,8 @@ mod tests {
             let solved = recover_assembled_coefficients(block, None, WeakStability::NotDeclared);
             let values = solved.coefficients().expect("a covered block is a mechanism row");
             for (source, value) in block.sources.iter().zip(values) {
-                coefficients.push((
-                    DirectCoefficient { into: block.target, from: *source },
-                    *value,
-                ));
+                coefficients
+                    .push((DirectCoefficient { into: block.target, from: *source }, *value));
             }
         }
         let close_to = |into: u32, from: u32, truth: f64| {

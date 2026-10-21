@@ -405,6 +405,22 @@ impl BackdoorIdentifier {
                  ({} variables) does not separate T from Y, so no admissible set exists",
                 constructive.len()
             ));
+        } else if self.config.minimal_only
+            && constructive.iter().all(|z| {
+                candidates.contains(z) && dag.parents(t).contains(z) && dag.parents(y).contains(z)
+            })
+        {
+            // Each fork T <- Z -> Y has exactly one internal vertex. Every
+            // adjustment set must contain Z, regardless of the other variables
+            // it conditions on. If these mandatory vertices already separate
+            // T and Y, they are the unique inclusion-minimal set. This also
+            // covers the empty set without enumerating its supersets.
+            derivation_notes.push(
+                "backdoor.mandatory_forks: the ancestral adjustment set An({T,Y}) minus forbidden consists entirely \
+                 of mandatory common parents of T and Y; it is the unique minimal set"
+                    .to_owned(),
+            );
+            valid.push(constructive.clone());
         } else if candidates.len() > cap {
             // Screen to An({T,Y}) \ forbidden when over the exact-enumeration cap.
             derivation_notes.push(format!(
@@ -712,6 +728,84 @@ mod tests {
     use antecedent_core::AverageEffectQuery;
 
     #[test]
+    fn mandatory_forks_certify_a_wide_unique_minimal_set() {
+        let mut graph = Dag::with_variables(32);
+        let t = DenseNodeId::from_raw(30);
+        let y = DenseNodeId::from_raw(31);
+        for index in 0..30 {
+            let z = DenseNodeId::from_raw(index);
+            graph.insert_directed(z, t).unwrap();
+            graph.insert_directed(z, y).unwrap();
+        }
+        graph.insert_directed(t, y).unwrap();
+        let mut identifier = BackdoorIdentifier::new();
+        identifier.config.max_examinations = 1;
+        let query = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(30),
+            VariableId::from_raw(31),
+        ));
+        let result = identifier
+            .identify(
+                &identifier.prepare(&graph).unwrap(),
+                &query,
+                &mut IdentificationWorkspace::default(),
+            )
+            .unwrap();
+        assert_eq!(result.estimands.len(), 1);
+        assert_eq!(result.estimands[0].adjustment_set.len(), 30);
+        assert_eq!(result.performance.candidates_examined, 1);
+        assert!(!crate::envelope::search_truncated(&result));
+    }
+
+    #[test]
+    fn minimal_sets_match_exhaustive_all_sets_on_every_five_node_ordered_dag() {
+        let edges: Vec<_> = (0..5).flat_map(|a| ((a + 1)..5).map(move |b| (a, b))).collect();
+        let query = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(3),
+            VariableId::from_raw(4),
+        ));
+        for mask in 0u32..(1 << edges.len()) {
+            let mut graph = Dag::with_variables(5);
+            for (index, &(a, b)) in edges.iter().enumerate() {
+                if mask & (1 << index) != 0 {
+                    graph
+                        .insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+                        .unwrap();
+                }
+            }
+            let identifier = BackdoorIdentifier::new();
+            let prepared = identifier.prepare(&graph).unwrap();
+            let actual = identifier
+                .identify(&prepared, &query, &mut IdentificationWorkspace::default())
+                .unwrap();
+            let mut exhaustive = BackdoorIdentifier::new();
+            exhaustive.config.minimal_only = false;
+            let all = exhaustive
+                .identify(&prepared, &query, &mut IdentificationWorkspace::default())
+                .unwrap();
+            let mut expected: Vec<Vec<_>> = all
+                .estimands
+                .iter()
+                .filter(|candidate| {
+                    !all.estimands.iter().any(|other| {
+                        other.adjustment_set.len() < candidate.adjustment_set.len()
+                            && other
+                                .adjustment_set
+                                .iter()
+                                .all(|v| candidate.adjustment_set.contains(v))
+                    })
+                })
+                .map(|e| e.adjustment_set.to_vec())
+                .collect();
+            let mut got: Vec<_> =
+                actual.estimands.iter().map(|e| e.adjustment_set.to_vec()).collect();
+            expected.sort();
+            got.sort();
+            assert_eq!(got, expected, "graph mask {mask}");
+        }
+    }
+
+    #[test]
     fn var_to_dense_respects_node_labels_not_raw_ids() {
         // Nodes labeled with non-dense VariableIds (raw 10, 20, 30 at dense 0,1,2).
         let mut g = Dag::empty();
@@ -949,6 +1043,9 @@ mod tests {
         g.insert_directed(u, y).unwrap();
         g.insert_directed(t, y).unwrap();
         let mut id = BackdoorIdentifier::new();
+        // Request all sets: the mandatory-fork certificate only closes the
+        // unique minimal-set query, not enumeration of valid supersets.
+        id.config.minimal_only = false;
         id.config.max_examinations = 4;
         let prep = id.prepare(&g).unwrap();
         let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
