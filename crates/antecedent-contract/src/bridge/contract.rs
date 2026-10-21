@@ -459,6 +459,22 @@ impl BridgeContract {
         Ok(())
     }
 
+    /// Check an explicitly finite joint law of affine mapping and source draws.
+    ///
+    /// Every original slot is retained; the declared finite-law moments and dependence
+    /// must agree. This check grants no posterior or causal permission beyond licensing.
+    /// # Errors
+    /// Native licensing, missing/failed slots, unsupported mapping or conflicting moments.
+    pub fn validate_finite_affine_mapping(
+        &self,
+        intercepts: &[f64],
+        slopes: &[f64],
+        source: &[f64],
+    ) -> Result<(), BridgeRefusal> {
+        self.check_licensing()?;
+        propagation::validate_finite_affine_mapping(self, intercepts, slopes, source)
+    }
+
     /// Delta-method mean and variance of this contract's affine map.
     ///
     /// # Errors

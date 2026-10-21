@@ -858,6 +858,76 @@ pub(super) fn write_extension(
     }
 }
 
+pub(super) fn validate_finite_affine_mapping(
+    contract: &BridgeContract,
+    intercepts: &[f64],
+    slopes: &[f64],
+    source: &[f64],
+) -> Result<(), BridgeRefusal> {
+    if source.is_empty()
+        || intercepts.len() != source.len()
+        || slopes.len() != source.len()
+        || source.iter().chain(intercepts).any(|value| !value.is_finite())
+        || slopes.iter().any(|value| !value.is_finite() || *value == 0.0)
+    {
+        return Err(mapping_uncertainty_invalid(
+            "finite_joint_slots",
+            "retain every finite aligned source/mapping slot with a nonzero slope",
+        ));
+    }
+    let (a, b) = match &contract.mapping {
+        BridgeMapping::Identity => (0.0, 1.0),
+        BridgeMapping::Affine { intercept, slope } => (*intercept, *slope),
+        _ => return Err(uncertain_mapping_not_affine("non_affine")),
+    };
+    let n = source.len() as f64;
+    let mean = |values: &[f64]| values.iter().map(|value| value / n).sum::<f64>();
+    let close = |left: f64, right: f64| {
+        left.is_finite()
+            && right.is_finite()
+            && (left - right).abs() <= 1e-10 + 1e-10 * left.abs() + 1e-10 * right.abs()
+    };
+    if !close(mean(intercepts), a) || !close(mean(slopes), b) {
+        return Err(mapping_uncertainty_invalid(
+            "finite_mapping_mean",
+            "declare the affine means of the retained finite joint mapping law",
+        ));
+    }
+    let covariance = |left: &[f64], right: &[f64]| {
+        let lm = mean(left);
+        let rm = mean(right);
+        left.iter().zip(right).map(|(l, r)| (l - lm) * (r - rm)).sum::<f64>() / n
+    };
+    let (va, vb, cab) =
+        contract.mapping_uncertainty.as_ref().map_or((0.0, 0.0, 0.0), |uncertainty| {
+            (
+                uncertainty.intercept_variance,
+                uncertainty.slope_variance,
+                uncertainty.intercept_slope_covariance,
+            )
+        });
+    if !close(covariance(intercepts, intercepts), va)
+        || !close(covariance(slopes, slopes), vb)
+        || !close(covariance(intercepts, slopes), cab)
+    {
+        return Err(mapping_uncertainty_invalid(
+            "finite_mapping_covariance",
+            "declare the moments of the retained finite paired mapping law",
+        ));
+    }
+    if let Some(SourceMappingDependence::SlopeCovariance { covariance: declared, .. }) =
+        &contract.source_dependence
+    {
+        if !close(covariance(slopes, source), *declared) {
+            return Err(source_dependence_invalid(
+                "finite_source_mapping_covariance",
+                "retain the declared finite source/mapping covariance in the paired slots",
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -937,6 +1007,20 @@ mod tests {
             source_dependence: None,
             estimand_bridge: None,
         }
+    }
+
+    #[test]
+    fn finite_mapping_moment_overflow_cannot_pass_as_matching_finite_moments() {
+        let contract = preference(BridgeMapping::Affine { intercept: 0.0, slope: 1.0 }, vec![]);
+        assert!(
+            super::validate_finite_affine_mapping(
+                &contract,
+                &[0.0, 0.0],
+                &[f64::MAX, f64::MAX],
+                &[0.0, 0.0],
+            )
+            .is_err()
+        );
     }
 
     fn uncertainty(slope_variance: f64) -> MappingUncertainty {

@@ -804,3 +804,177 @@ impl ScientificBridgeArtifact {
         }
     }
 }
+
+/// Complete licensed bridge declaration, including uncertain estimand translation.
+/// This versioned request wire extends the existing point-claim artifact owner; it
+/// grants no posterior, interval or causal permission by serialization alone.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FullBridgeContractWire {
+    version: u16,
+    identity: [u8; 32],
+    base: ContractWire,
+    uncertainty: Option<MappingUncertaintyWire>,
+    dependence: Option<DependenceWire>,
+    estimand: Option<EstimandWire>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MappingUncertaintyWire {
+    id: String,
+    intercept: u64,
+    slope: u64,
+    covariance: u64,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum DependenceWire {
+    Independent { evidence: String },
+    SlopeCovariance { covariance: u64, evidence: String },
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExposureWire {
+    population: String,
+    start: String,
+    end: String,
+    dose: u64,
+    dose_units: String,
+    duration: u64,
+    duration_units: String,
+    regime: String,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EstimandWire {
+    id: String,
+    experiment_id: String,
+    experiment: ExposureWire,
+    target: ExposureWire,
+    recency: u64,
+    recency_units: String,
+    spend: u64,
+    spend_units: String,
+}
+impl FullBridgeContractWire {
+    /// Encode all fields of an actually licensed contract, preserving IEEE values.
+    /// # Errors
+    /// Every native bridge licensing refusal and existing mapping conversion failure.
+    pub fn from_domain(contract: &BridgeContract) -> Result<Self, ScientificBridgeArtifactError> {
+        use antecedent_contract::bridge::SourceMappingDependence;
+        contract.check_licensing().map_err(refused)?;
+        Ok(Self {
+            version: 2,
+            identity: *contract.identity().as_bytes(),
+            base: contract_to_wire(contract)?,
+            uncertainty: contract.mapping_uncertainty.as_ref().map(|value| {
+                MappingUncertaintyWire {
+                    id: value.id.clone(),
+                    intercept: value.intercept_variance.to_bits(),
+                    slope: value.slope_variance.to_bits(),
+                    covariance: value.intercept_slope_covariance.to_bits(),
+                }
+            }),
+            dependence: contract
+                .source_dependence
+                .as_ref()
+                .map(|value| match value {
+                    SourceMappingDependence::Independent { evidence } => {
+                        Ok(DependenceWire::Independent { evidence: evidence.clone() })
+                    }
+                    SourceMappingDependence::SlopeCovariance { covariance, evidence } => {
+                        Ok(DependenceWire::SlopeCovariance {
+                            covariance: covariance.to_bits(),
+                            evidence: evidence.clone(),
+                        })
+                    }
+                    _ => Err(ScientificBridgeArtifactError::UnsupportedSemantics(
+                        "source mapping dependence",
+                    )),
+                })
+                .transpose()?,
+            estimand: contract.estimand_bridge.as_ref().map(|value| EstimandWire {
+                id: value.id.clone(),
+                experiment_id: value.experiment_id.clone(),
+                experiment: exposure_wire(&value.experiment),
+                target: exposure_wire(&value.target),
+                recency: value.recency_delta.to_bits(),
+                recency_units: value.recency_units.clone(),
+                spend: value.spend_delta.to_bits(),
+                spend_units: value.spend_units.clone(),
+            }),
+        })
+    }
+    /// Reconstruct the exact contract and repeat all licensing and identity checks.
+    /// # Errors
+    /// Unknown versions, malformed native declarations, unsupported mappings or mismatch.
+    pub fn to_domain(&self) -> Result<BridgeContract, ScientificBridgeArtifactError> {
+        use antecedent_contract::bridge::{
+            EstimandBridge, MappingUncertainty, SourceMappingDependence,
+        };
+        if self.version != 2 {
+            return Err(ScientificBridgeArtifactError::UnsupportedSemantics(
+                "full bridge contract version",
+            ));
+        }
+        let mut contract = contract_from_wire(&self.base)?;
+        contract.mapping_uncertainty = self.uncertainty.as_ref().map(|value| MappingUncertainty {
+            id: value.id.clone(),
+            intercept_variance: f64::from_bits(value.intercept),
+            slope_variance: f64::from_bits(value.slope),
+            intercept_slope_covariance: f64::from_bits(value.covariance),
+        });
+        contract.source_dependence = self.dependence.as_ref().map(|value| match value {
+            DependenceWire::Independent { evidence } => {
+                SourceMappingDependence::Independent { evidence: evidence.clone() }
+            }
+            DependenceWire::SlopeCovariance { covariance, evidence } => {
+                SourceMappingDependence::SlopeCovariance {
+                    covariance: f64::from_bits(*covariance),
+                    evidence: evidence.clone(),
+                }
+            }
+        });
+        contract.estimand_bridge = self.estimand.as_ref().map(|value| EstimandBridge {
+            id: value.id.clone(),
+            experiment_id: value.experiment_id.clone(),
+            experiment: exposure_domain(&value.experiment),
+            target: exposure_domain(&value.target),
+            recency_delta: f64::from_bits(value.recency),
+            recency_units: value.recency_units.clone(),
+            spend_delta: f64::from_bits(value.spend),
+            spend_units: value.spend_units.clone(),
+        });
+        contract.check_licensing().map_err(refused)?;
+        if self.identity != *contract.identity().as_bytes() {
+            return Err(ScientificBridgeArtifactError::ReplayMismatch(
+                "full bridge contract identity",
+            ));
+        }
+        Ok(contract)
+    }
+}
+fn exposure_wire(value: &antecedent_contract::bridge::ExposureSetting) -> ExposureWire {
+    ExposureWire {
+        population: value.population_id.clone(),
+        start: value.time_start.clone(),
+        end: value.time_end.clone(),
+        dose: value.dose.to_bits(),
+        dose_units: value.dose_units.clone(),
+        duration: value.duration.to_bits(),
+        duration_units: value.duration_units.clone(),
+        regime: value.exposure_regime.clone(),
+    }
+}
+fn exposure_domain(value: &ExposureWire) -> antecedent_contract::bridge::ExposureSetting {
+    antecedent_contract::bridge::ExposureSetting {
+        population_id: value.population.clone(),
+        time_start: value.start.clone(),
+        time_end: value.end.clone(),
+        dose: f64::from_bits(value.dose),
+        dose_units: value.dose_units.clone(),
+        duration: f64::from_bits(value.duration),
+        duration_units: value.duration_units.clone(),
+        exposure_regime: value.regime.clone(),
+    }
+}
