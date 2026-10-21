@@ -21,5 +21,5 @@ test_sources = [
   "crates/antecedent/tests/joint_panel_workflow.rs (actual public fitted execution, reuse, support refusal, temporal attempts and independent replay)",
   "conformance/response/joint_panel/reference.py (independent standard-library truth and whole-program assignment fixture)",
   "scripts/check_joint_gaussian_interchange.py (independent Python consumption of the actual Gaussian posterior law)",
-  "docs/guides/joint-response-progress.md (scope and acceptance evidence; no calibration promotion)",
+  "docs/guides/joint-intervention-responses.md (scope and acceptance evidence; no calibration promotion)",
 ]

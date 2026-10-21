@@ -8,7 +8,7 @@ public_workflow = "crates/antecedent/tests/joint_panel_workflow.rs"
 status = "unmeasured"
 measurement_owner = "Q09"
 decision_measurement_owner = "E14"
-implementation_evidence = "docs/guides/joint-response-progress.md"
+implementation_evidence = "docs/guides/joint-intervention-responses.md"
 
 [[procedure]]
 id = "joint_panel.frequentist.whole_contrast"

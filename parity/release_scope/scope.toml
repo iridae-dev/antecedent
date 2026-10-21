@@ -1293,7 +1293,7 @@ attempt_order = 1
 end_state = "Each of the four worlds of Delta_AB = E[Y(a,b)]-E[Y(a,0)]-E[Y(0,b)]+E[Y(0,0)] is identified from a design with support there, using the existing licensed linear or g-computation intervention route, and the fitted mechanism carries parameter uncertainty only inside supported worlds."
 implementation_status = "implemented_unmeasured"
 implementation_outcome = "Implemented exact retained static-source proof transfer after independent nonparametric graph/support and empirical-context checks; the Gaussian numerical restriction is not transferred. Unsupported observational designs are recorded and start the assignment attempt."
-evidence = "docs/guides/joint-response-progress.md"
+evidence = "docs/guides/joint-intervention-responses.md"
 acceptance = "Statistical calibration, scientific promotion and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
 
 [[entry]]
@@ -1306,7 +1306,7 @@ attempt_order = 2
 end_state = "A world the observational panel leaves unsupported is identified by an experimental or quasi-experimental joint assignment, and a world is model-conditional only after both designs leave it unsupported."
 implementation_status = "implemented_unmeasured"
 implementation_outcome = "Implemented whole-program randomized identification with exact declared trajectories, initial histories, context law and assignment probabilities. Per-period-only or unsupported/confounded trajectories withhold the causal claim. Numerical uncertainty retains its own conditional/calibration meaning."
-evidence = "docs/guides/joint-response-progress.md"
+evidence = "docs/guides/joint-intervention-responses.md"
 acceptance = "Statistical calibration, scientific promotion and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
 
 [[entry]]
@@ -1319,7 +1319,7 @@ attempt_order = 1
 end_state = "Piecewise-constant change points are identified where the design supports them."
 implementation_status = "implemented_unmeasured"
 implementation_outcome = "Implemented candidate change-point likelihoods with prespecified selection, full-selection frequentist bootstrap and Bayesian model/path uncertainty. Finite fitting does not identify a unique causal mechanism change."
-evidence = "docs/guides/joint-response-progress.md"
+evidence = "docs/guides/joint-intervention-responses.md"
 acceptance = "Statistical calibration, scientific promotion and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
 
 [[entry]]
@@ -1332,7 +1332,7 @@ attempt_order = 2
 end_state = "Smoothly varying parameters follow a weakly identified change point."
 implementation_status = "implemented_unmeasured"
 implementation_outcome = "Implemented regularized smooth fallback under weak piecewise evidence, preserving smoothing/model uncertainty through the retained program."
-evidence = "docs/guides/joint-response-progress.md"
+evidence = "docs/guides/joint-intervention-responses.md"
 acceptance = "Statistical calibration, scientific promotion and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
 
 [[entry]]
@@ -1345,7 +1345,7 @@ attempt_order = 3
 end_state = "A unique attribution the design cannot support is followed by a coarser contrast that design can support."
 implementation_status = "implemented_unmeasured"
 implementation_outcome = "Unique exposure/saturation/composition/mechanism attribution refuses; explicit chosen-versus-reference window change is actually evaluated with real prefix-world targets and the same frozen fit."
-evidence = "docs/guides/joint-response-progress.md"
+evidence = "docs/guides/joint-intervention-responses.md"
 acceptance = "Statistical calibration, scientific promotion and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
 
 [[entry]]
@@ -1358,7 +1358,7 @@ attempt_order = 1
 end_state = "An exhaustive finite candidate set ships with an optimum certificate scoped to that set."
 implementation_status = "implemented_unmeasured"
 implementation_outcome = "Implemented actual program bounds, schedules, budgets, restrictions and existing decision/risk demands. Exhaustion certificates apply only to supplied finite candidates under the retained scientific law."
-evidence = "docs/guides/joint-response-progress.md"
+evidence = "docs/guides/joint-intervention-responses.md"
 acceptance = "Statistical calibration, scientific promotion and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
 
 [[entry]]
@@ -1371,7 +1371,7 @@ attempt_order = 2
 end_state = "A missing certificate starts continuous search, which ships as best-found until it earns a certificate."
 implementation_status = "implemented_unmeasured"
 implementation_outcome = "Implemented checked coordinate pattern search through the frozen-fit compiler adapter. Best feasible point, convergence/failure and missing global gap are explicit; unsupported coupled criteria retain finite/set fallback."
-evidence = "docs/guides/joint-response-progress.md"
+evidence = "docs/guides/joint-intervention-responses.md"
 acceptance = "Statistical calibration, scientific promotion and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
 
 [[entry]]
@@ -1384,7 +1384,7 @@ attempt_order = 1
 end_state = "One geo-experiment estimand is translated into the longitudinal model."
 implementation_status = "implemented_unmeasured"
 implementation_outcome = "Implemented complete licensed population/window/dose/duration/exposure/recency/spend/transport translation and paired affine mapping uncertainty with ledger origin/dependence checks. Unsupported translation refuses."
-evidence = "docs/guides/joint-response-progress.md"
+evidence = "docs/guides/joint-intervention-responses.md"
 acceptance = "Statistical calibration, scientific promotion and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
 
 [[entry]]
@@ -1397,7 +1397,7 @@ attempt_order = 2
 end_state = "An unsupported mapping ships the weaker conditional result and the update-to-decision chain continues."
 implementation_status = "implemented_unmeasured"
 implementation_outcome = "Implemented FrozenJointImportance conditional Bayesian update with changed responses and decision; it grants no new causal identification. Current extracted sources and artifact consumption recheck caller-current ledger authority; historical replay remains distinct."
-evidence = "docs/guides/joint-response-progress.md"
+evidence = "docs/guides/joint-intervention-responses.md"
 acceptance = "Statistical calibration, scientific promotion and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
 
 [[entry]]
@@ -1410,7 +1410,7 @@ attempt_order = 3
 end_state = "An unsupported ranking is followed by a smaller ranking the declared model can support."
 implementation_status = "implemented_unmeasured"
 implementation_outcome = "Unsupported new-regime ranking starts additional independent Gaussian sampling of the same mapped estimand, using the existing weighted preposterior engine and declared actions, utility and cost."
-evidence = "docs/guides/joint-response-progress.md"
+evidence = "docs/guides/joint-intervention-responses.md"
 acceptance = "Statistical calibration, scientific promotion and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
 
 [[entry]]
