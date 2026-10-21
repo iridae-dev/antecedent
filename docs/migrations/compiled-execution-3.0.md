@@ -17,20 +17,28 @@ ownership. Changed data replaces the fit, and a changed kernel policy requires
 another fit. Stochastic uncertainty still executes under caller policy.
 
 Physical planning invokes the capability-filtered cost chooser and retains its
-selection and rejection reasons. Eligible checked linear execution advertises
-borrowed direct execution and materialized design execution. Streamed weighted
-Gaussian reduction uses its existing streamed implementation and records that
-selection. Lazy and accelerator alternatives remain unavailable. Selection
-currently follows route eligibility: direct for the eligible checked linear
-route, materialized for other dense routes, and streamed for the capacity
-reduction. Cost-based switching of a prepared target between implementations
-still needs integration.
+selection and rejection reasons. Quotes use the selected design's row count,
+actual contrast width, requested resampling work, worker scratch and retained
+output. Raw numeric adjustment uses the direct preparation path; categorical
+adjustment requires materialized contrast columns. The selected preparation is
+what the checked estimator consumes. A full-row adjustment fit does not advertise
+a streamed summary as interchangeable with its influence and uncertainty outputs.
+The existing weighted Gaussian capacity reduction retains its streamed choice.
+Lazy and accelerator alternatives remain explicitly unavailable.
 
-Memory estimates use encoded schema widths instead of a fixed eight-column
-assumption. They remain estimates: complete categorical design expansion,
-uncertainty and retained-output accounting require further integration before
-H04 can close. These estimates are distinct from observed admission peaks and
-process resident memory. See [native execution observations](native-execution-3.0.md).
+Preparation reserves its design before allocation, and the compiled owner keeps
+that reservation. Execution reserves workspace under the caller's current worker
+policy. Frozen fits and returned results share the fitted buffer reservation; each
+returned result also reserves its own metadata. Dropping the builder or cancelling
+does not release memory still owned by a live result.
+`StudyResult::retained_admitted_bytes()` exposes that output reservation. Refresh
+rebinds the source digest (inspectable through `source_digest()`), design dimensions and resource plan without repeating
+identification. Failed refresh leaves the old handle intact.
+
+These are conservative allocation quotes and shared reservations, not process RSS.
+Already resident caller-supplied table buffers are borrowed; their allocation
+predates this execution account. Unknown measurements remain absent. See
+[native execution observations](native-execution-3.0.md).
 
 Public Gaussian and four-way behavioral tests replace demonstration-function-name
 checks in the checked-execution registry. Other family integration, complete

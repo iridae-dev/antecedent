@@ -71,7 +71,7 @@ impl SealedOperation for CheckedLinearOperation {
         if !self.sealed_for_direct_execution() {
             return Ok(None);
         }
-        let rebound = self.rebind(data)?;
+        let rebound = self.rebind_with_context(data, ctx)?;
         let result = rebound.execute(data, ctx)?;
         let result = handle.stamp_linear(
             &DataInput::Tabular(data.clone()),

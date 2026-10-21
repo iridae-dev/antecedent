@@ -508,6 +508,18 @@ pub struct RowWeightsBinding {
 }
 
 impl StudyResult {
+    /// Reservation held with this result's retained output, when accounted by its engine.
+    /// This is admitted capacity, not a measurement of process resident memory.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> Option<u64> {
+        if self.retained_resources.is_empty() {
+            return None;
+        }
+        self.retained_resources
+            .iter()
+            .try_fold(0_u64, |bytes, lease| bytes.checked_add(lease.remainder().bytes()))
+    }
+
     /// Target population a row-weight retarget recorded, when it differs from
     /// the prepared query.
     #[must_use]
@@ -1281,6 +1293,7 @@ impl ResultPayload {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct StudyResult {
+    pub(crate) retained_resources: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
     /// Logical plan record.
     pub logical_plan: LogicalAnalysisPlanRecord,
     /// Physical plan record.

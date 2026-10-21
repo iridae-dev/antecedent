@@ -760,7 +760,9 @@ pub struct AdmissionLease {
 }
 
 impl AdmissionLease {
-    pub(crate) fn belongs_to(&self, pool: &AdmissionPool) -> bool {
+    /// Whether this reservation is charged to the specified shared admission account.
+    #[must_use]
+    pub fn belongs_to(&self, pool: &AdmissionPool) -> bool {
         Arc::ptr_eq(&self.shared, &pool.shared)
     }
 

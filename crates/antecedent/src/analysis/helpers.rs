@@ -70,6 +70,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         .filter(|(_, m)| !matches!(m, BufferMaterialization::Borrowed))
         .count() as u64;
     let mut result = StudyResult {
+        retained_resources: Vec::new(),
         logical_plan: args.logical.clone(),
         physical_plan: args.physical.clone(),
         identification: args.identification,

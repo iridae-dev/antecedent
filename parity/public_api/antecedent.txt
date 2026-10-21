@@ -72,6 +72,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sample_s
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::FittedGcm [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::BatchStudy [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::InterferenceSpec [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::PreparedBatch [auto]
@@ -91,6 +92,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::sample_spli
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::gcm::FittedGcm [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl antecedent::IntoAccepted for antecedent_graph::cpdag::CpdagReview
 impl antecedent::IntoAccepted for antecedent_graph::dag::DagReview
 impl antecedent::IntoAccepted for antecedent_graph::pag::PagReview
@@ -5553,7 +5555,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::Ref
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::RefreshEvent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::SummaryOnlyFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::LogicalAnalysisPlan [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::InterferenceInference [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::InterferencePointwiseInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::IntervalBinding [auto]
@@ -6151,7 +6152,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::Refres
 impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::RefreshEvent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::SummaryOnlyFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::LogicalAnalysisPlan [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::InterferenceInference [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::InterferencePointwiseInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::IntervalBinding [auto]
@@ -9657,6 +9657,7 @@ pub fn <antecedent::StudyResult>::fn primary_interval_binding(&self, bayesian: b
 pub fn <antecedent::StudyResult>::fn randomized_effect(&self) -> core::option::Option<&antecedent::RandomizedEffectEstimate>
 pub fn <antecedent::StudyResult>::fn reported_interval_bindings(&self, bayesian: bool) -> alloc::vec::Vec<antecedent::result::IntervalBinding>
 pub fn <antecedent::StudyResult>::fn response(&self) -> core::option::Option<&antecedent_core::response::CausalResponse>
+pub fn <antecedent::StudyResult>::fn retained_admitted_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent::StudyResult>::fn retarget_population(&self) -> core::option::Option<antecedent_core::query::target::TargetPopulation>
 pub fn <antecedent::StudyResult>::fn sequential_contrast(&self) -> core::option::Option<&antecedent::SequentialContrastEstimate>
 pub fn <antecedent::StudyResult>::fn simultaneous_band_binding(&self, bayesian: bool) -> core::option::Option<antecedent::result::IntervalBinding>
@@ -9901,6 +9902,7 @@ pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn retained(&
 pub fn <antecedent::analysis::compiled_linear::CompiledLinearProgram>::fn identification(&self) -> &antecedent_identify::compiled_product::CompiledIdentificationProduct
 pub fn <antecedent::analysis::compiled_linear::CompiledLinearProgram>::fn operators(&self) -> &[antecedent_core::operator::Operator]
 pub fn <antecedent::analysis::compiled_linear::CompiledLinearProgram>::fn physical_operators(&self) -> &[antecedent_core::physical_operator::PhysicalOperator]
+pub fn <antecedent::analysis::compiled_linear::CompiledLinearProgram>::fn source_digest(&self) -> [u8; 32]
 pub fn <antecedent::analysis::compiled_linear::CompiledLinearProgram>::fn target(&self) -> &antecedent_core::scientific_target::ScientificTarget
 pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_artifact(&mut self, node_id: core::option::Option<&str>, kind: antecedent_design::composition_bundle::NodeKind, bytes: &[u8]) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>
 pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_detected_artifact(&mut self, node_id: core::option::Option<&str>, bytes: &[u8]) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>
@@ -11222,6 +11224,7 @@ pub struct antecedent::Study has private fields
 pub struct antecedent::StudyBuilder
 pub struct antecedent::StudyBuilder has private fields
 pub struct antecedent::StudyEstimate
+pub struct antecedent::StudyResult has private fields
 pub struct antecedent::StudySummary
 pub struct antecedent::SupportCell
 pub struct antecedent::SurvivalEstimate

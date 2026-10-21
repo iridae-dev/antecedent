@@ -191,6 +191,9 @@ impl PreparedStudy {
     /// never holds a second execution value.
     #[inline(never)]
     fn install_rebound(&mut self, rebound: Rebound) {
+        if let Rebound::Linear(operation) = &rebound {
+            self.plan = Arc::clone(&operation.common.physical);
+        }
         self.execution = rebound.into_execution();
     }
 

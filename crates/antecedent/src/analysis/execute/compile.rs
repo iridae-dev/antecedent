@@ -1347,15 +1347,22 @@ impl super::Study {
             return self.compile_graph_posterior(ctx);
         }
         let input = self.route_input()?;
-        let mut plan = self.compile_with_route(&input, ctx)?;
+        let checked_linear = matches!(&input, RouteInput::StaticAteDag { query, .. }
+            if crate::analysis::compiled_linear::can_retain(self, query)
+                && self.resolve_static_ids().1 == EstimatorId::LinearAdjustmentAte);
+        // Selected-role and contrast quotes below replace the conservative whole-schema bound.
+        let mut physical_context = ctx.clone();
+        if checked_linear {
+            physical_context.memory = antecedent_core::MemoryBudget::unlimited();
+        }
+        let mut plan = self.compile_with_route(&input, &physical_context)?;
         if let RouteInput::StaticAteDag { data, query, .. } = input {
             if crate::analysis::compiled_linear::can_retain(self, query)
                 && self.resolve_static_ids().1 == EstimatorId::LinearAdjustmentAte
             {
-                plan.bind_prepared_linear_views()?;
                 plan.linear = Some(std::sync::Arc::new(
                     crate::analysis::compiled_linear::CompiledLinearExecution::compile(
-                        self, data, query, &plan,
+                        self, data, query, &mut plan, ctx,
                     )?,
                 ));
             }

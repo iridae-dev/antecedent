@@ -1197,10 +1197,16 @@ impl CheckedAipwOperation {
 
 /// Checked linear adjustment target with its selected fit and uncertainty
 /// procedure. `default_id` preserves the progressive point/uncertainty stages.
+#[derive(Clone, Debug)]
+pub(crate) struct FrozenLinearFit {
+    kernel: antecedent_core::KernelPolicy,
+    estimate: EffectEstimate,
+    retention: Arc<antecedent_core::execution::AdmissionLease>,
+}
+
 #[derive(Clone)]
 pub(crate) struct CheckedLinearOperation {
-    pub(crate) frozen_fit:
-        Arc<std::sync::Mutex<Option<(antecedent_core::KernelPolicy, EffectEstimate)>>>,
+    pub(crate) frozen_fit: Arc<std::sync::Mutex<Option<FrozenLinearFit>>>,
     pub(crate) compiled: Arc<crate::analysis::compiled_linear::CompiledLinearProgram>,
     /// Immutable table binding of the retained checked design. Equal bindings
     /// need no new projection, missing-data pass, or design construction.
@@ -1387,24 +1393,43 @@ impl CheckedLinearOperation {
     }
 
     pub(super) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
+        let owner = self.physical.linear.as_ref().ok_or_else(|| CausalError::Compile {
+            message: "compiled linear owner missing".into(),
+        })?;
+        self.rebind_with_context(data, &owner.resource_context)
+    }
+
+    pub(super) fn rebind_with_context(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
         if self.source.schema() == data.schema()
             && self.source.storage().content_digest() == data.storage().content_digest()
         {
             self.check_checked_target()?;
             return Ok(self.clone());
         }
-        let preparation = self.fitter.rebind_checked(&self.preparation, data)?;
+        let owner = self.physical.linear.as_ref().ok_or_else(|| CausalError::Compile {
+            message: "compiled linear owner missing".into(),
+        })?;
+        let mut physical = self.physical.as_ref().clone();
+        physical.linear = None;
+        let product = Arc::new(owner.rebind(data, &self.query, &mut physical, ctx)?);
+        physical.linear = Some(Arc::clone(&product));
+        let mut common = self.common.as_ref().clone();
+        common.physical = Arc::new(physical);
         Ok(Self {
             frozen_fit: Arc::new(std::sync::Mutex::new(None)),
-            compiled: Arc::clone(&self.compiled),
+            compiled: Arc::clone(&product.program),
             source: data.clone(),
-            fitter: self.fitter.clone(),
-            preparation,
-            default_id: self.default_id,
+            fitter: product.fitter.clone(),
+            preparation: product.preparation.clone(),
+            default_id: product.default_id,
             query: self.query.clone(),
             cache: Arc::clone(&self.cache),
             stage_sink: self.stage_sink.clone(),
-            common: Arc::clone(&self.common),
+            common: Arc::new(common),
         })
     }
 
@@ -1426,23 +1451,19 @@ impl CheckedLinearOperation {
         );
 
         let mut workspace = EstimationWorkspace::default();
-        let bytes = self.physical.record.estimated_peak_memory_bytes.ok_or_else(|| {
-            CausalError::Resource {
-                message: "compiled linear program omitted its memory estimate".into(),
-            }
-        })?;
-        if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
-            return Err(CausalError::Resource {
-                message: "compiled linear execution exceeds the caller memory limit".into(),
-            });
-        }
-        let admission = Arc::new(
-            ctx.acquire_admission(0, bytes)
+        let (admission, output_bytes) = self.admit_workspace(ctx)?;
+        let envelope = Arc::new(
+            admission
+                .acquire_child(
+                    0,
+                    crate::analysis::compiled_linear::resources::RESULT_ENVELOPE_BYTES,
+                )
                 .map_err(|error| CausalError::Resource { message: error.to_string() })?,
         );
         // A deterministic point fit is reusable across downstream utility/world scoring.
         // Stochastic uncertainty still executes under each caller's requested policy.
-        let estimate = self.fit_retained(&mut clock, &mut workspace, &admission, ctx)?;
+        let (estimate, output_retention) =
+            self.fit_retained(&mut clock, &mut workspace, &admission, output_bytes, ctx)?;
         let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
         let (refutations, mut extra_diagnostics) =
             self.validate_stage(data, &estimate, cancelled, &mut clock, &mut workspace, ctx)?;
@@ -1497,6 +1518,7 @@ impl CheckedLinearOperation {
             early_stopped: bootstrap.early_stopped,
             bayesian: false,
         });
+        result.retained_resources = vec![output_retention, envelope];
         result.certificate = Some(crate::AnalysisIdentification {
             identification: crate::Identification::Point {
                 result: self.cache.identification.clone(),
@@ -1518,19 +1540,55 @@ impl CheckedLinearOperation {
         Ok(result)
     }
 
+    fn admit_workspace(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<(Arc<antecedent_core::execution::AdmissionLease>, u64), CausalError> {
+        let geometry = crate::analysis::compiled_linear::resources::LinearResources::prepared(
+            &self.preparation,
+            &self.fitter,
+            ctx,
+        )?;
+        geometry.check(ctx)?;
+        let owner = self.physical.linear.as_ref().ok_or_else(|| CausalError::Compile {
+            message: "compiled linear owner missing".into(),
+        })?;
+        let bytes = if owner.retention.belongs_to(&ctx.admission()) {
+            geometry.execution_bytes()?
+        } else {
+            geometry.peak()?
+        };
+        let admission = Arc::new(
+            ctx.acquire_admission(0, bytes)
+                .map_err(|error| CausalError::Resource { message: error.to_string() })?,
+        );
+        Ok((
+            admission,
+            geometry.output - crate::analysis::compiled_linear::resources::RESULT_ENVELOPE_BYTES,
+        ))
+    }
+
     fn fit_retained(
         &self,
         clock: &mut StageClock,
         workspace: &mut EstimationWorkspace,
         admission: &Arc<antecedent_core::execution::AdmissionLease>,
+        output_bytes: u64,
         ctx: &ExecutionContext,
-    ) -> Result<EffectEstimate, CausalError> {
+    ) -> Result<(EffectEstimate, Arc<antecedent_core::execution::AdmissionLease>), CausalError>
+    {
+        let retain = || {
+            admission
+                .acquire_child(0, output_bytes)
+                .map(Arc::new)
+                .map_err(|error| CausalError::Resource { message: error.to_string() })
+        };
         let estimate = if self.fitter.bootstrap_replicates == 0 {
             let mut frozen = self.frozen_fit.lock().map_err(|_| CausalError::Compile {
                 message: "retained linear fit lock poisoned".into(),
             })?;
-            if let Some((_, estimate)) =
-                frozen.as_ref().filter(|(kernel, _)| *kernel == ctx.kernel_policy)
+            if let Some(FrozenLinearFit { estimate, retention, .. }) =
+                frozen.as_ref().filter(|fit| fit.kernel == ctx.kernel_policy)
             {
                 antecedent_core::execution_attempt::record_physical(
                     antecedent_core::execution_attempt::PhysicalEvent::CacheHit,
@@ -1540,28 +1598,45 @@ impl CheckedLinearOperation {
                     antecedent_core::execution_attempt::PhysicalEvent::ModelFit,
                     0,
                 );
-                estimate.clone()
+                (
+                    estimate.clone(),
+                    if retention.belongs_to(&ctx.admission()) {
+                        Arc::clone(retention)
+                    } else {
+                        retain()?
+                    },
+                )
             } else {
+                let retention = retain()?;
                 let estimate = antecedent_core::numerical_admission::with_reservation(
                     Arc::clone(admission),
                     || self.fit_with_stages(clock, workspace, ctx),
                 )?;
                 if !ctx.cancellation.is_cancelled() {
-                    *frozen = Some((ctx.kernel_policy, estimate.clone()));
+                    *frozen = Some(FrozenLinearFit {
+                        kernel: ctx.kernel_policy,
+                        estimate: estimate.clone(),
+                        retention: Arc::clone(&retention),
+                    });
                 }
-                estimate
+                (estimate, retention)
             }
         } else {
-            antecedent_core::numerical_admission::with_reservation(Arc::clone(admission), || {
-                self.fit_with_stages(clock, workspace, ctx)
-            })?
+            let retention = retain()?;
+            let estimate = antecedent_core::numerical_admission::with_reservation(
+                Arc::clone(admission),
+                || self.fit_with_stages(clock, workspace, ctx),
+            )?;
+            (estimate, retention)
         };
         Ok(estimate)
     }
 
     /// Refuses execution when the retained fit no longer matches the checked target.
     fn check_checked_target(&self) -> Result<(), CausalError> {
-        if self.compiled.identification().assumptions() != self.preparation.required_assumptions()
+        if self.compiled.source_digest() != self.source.storage().content_digest()
+            || self.compiled.identification().assumptions()
+                != self.preparation.required_assumptions()
             || self.compiled.target()
                 != &crate::planner::linear_gaussian_scientific_problem(&self.query, false)?
             || self.preparation.source_functional() != self.cache.estimand.functional

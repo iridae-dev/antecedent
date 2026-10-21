@@ -314,38 +314,50 @@ pub fn reject_dag_only_on_pag(
 
 impl PhysicalExecutionPlan {
     /// Bind the direct immutable design implementation verified by checked linear preparation.
-    pub(crate) fn bind_prepared_linear_views(&mut self) -> Result<(), CausalError> {
+    pub(crate) fn bind_prepared_linear_views(
+        &mut self,
+        direct_eligible: bool,
+        work: u64,
+    ) -> Result<(), CausalError> {
         use antecedent_core::physical_choice::{
             AvailableCapabilities, CostQuotes, DeclaredCost, PhysicalAlternative, PhysicalChoice,
         };
         let direct = PhysicalAlternative::DirectPreparedNumericViews;
         let materialized = PhysicalAlternative::MaterializedDesign;
+        let backend = if direct_eligible { direct } else { materialized };
         let available = AvailableCapabilities::empty()
-            .with_operator(direct.required_operator())
-            .with_resource(direct.required_resource())
-            .with_operator(materialized.required_operator())
-            .with_resource(materialized.required_resource());
+            .with_operator(backend.required_operator())
+            .with_resource(backend.required_resource());
         let peak = self.record.estimated_peak_memory_bytes.ok_or_else(|| {
             CausalError::Resource { message: "prepared design omitted memory estimate".into() }
         })?;
         let copy = self.record.estimated_copy_bytes.ok_or_else(|| CausalError::Resource {
             message: "prepared design omitted copy estimate".into(),
         })?;
-        let repeated = peak.checked_add(copy).ok_or_else(|| CausalError::Resource {
+        let cost = peak.checked_add(work).ok_or_else(|| CausalError::Resource {
+            message: "linear execution work quote overflow".into(),
+        })?;
+        let repeated = cost.checked_add(copy).ok_or_else(|| CausalError::Resource {
             message: "materialized execution cost overflow".into(),
         })?;
         self.choice = PhysicalChoice::choose(
             CostQuotes::new(
-                DeclaredCost::from_raw(peak),
-                DeclaredCost::from_raw(peak),
+                DeclaredCost::from_raw(cost),
+                DeclaredCost::from_raw(cost),
                 DeclaredCost::from_raw(repeated),
-                DeclaredCost::from_raw(peak),
+                DeclaredCost::from_raw(cost),
             ),
             available,
         )
         .map_err(|error| CausalError::Resource { message: error.to_string() })?;
-        self.record.materializations =
-            Arc::from([(Arc::from("design.matrix"), BufferMaterialization::Borrowed)]);
+        self.record.materializations = Arc::from([(
+            Arc::from("design.matrix"),
+            if self.choice.selected() == direct {
+                BufferMaterialization::Borrowed
+            } else {
+                BufferMaterialization::CopiedContiguous
+            },
+        )]);
         Ok(())
     }
 }

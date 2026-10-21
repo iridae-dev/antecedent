@@ -7792,6 +7792,7 @@ pub fn <antecedent_core::diagnostic::RouteNativeDiagnostic>::fn to_diagnostic(se
 pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child(&self, threads: u32, bytes: u64) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child_product(&self, threads: u32, count: u64, width: u64) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child_request(&self, request: antecedent_core::execution::AdmissionRequest) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
+pub fn <antecedent_core::execution::AdmissionLease>::fn belongs_to(&self, pool: &antecedent_core::execution::AdmissionPool) -> bool
 pub fn <antecedent_core::execution::AdmissionLease>::fn release(self) -> antecedent_core::execution::AdmissionRemainder
 pub fn <antecedent_core::execution::AdmissionLease>::fn remainder(&self) -> antecedent_core::execution::AdmissionRemainder
 pub fn <antecedent_core::execution::AdmissionPool>::fn available(&self) -> antecedent_core::execution::AdmissionRemainder

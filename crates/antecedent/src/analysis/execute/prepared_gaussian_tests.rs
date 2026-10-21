@@ -115,3 +115,195 @@ fn prepared_gaussian_refuses_cancelled_and_insufficient_resource_execution() {
         antecedent_core::execution_facts::ExecutionFactStatus::Cancelled
     );
 }
+
+#[test]
+fn prepared_gaussian_reservations_follow_builder_cache_and_result_lifetimes() {
+    use antecedent_core::execution::AdmissionPool;
+    let pool = AdmissionPool::fixed(1, 1_000_000);
+    let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+    let prepared = contrast_study().prepare(&ctx).unwrap();
+    let prepared_bytes = pool.byte_budget() - pool.available().bytes();
+    assert!(prepared_bytes > 0);
+    let first = prepared.estimate_retained(&ctx).unwrap();
+    let held = pool.available().bytes();
+    assert!(held < pool.byte_budget() - prepared_bytes);
+    let again = prepared.estimate_retained(&ctx).unwrap();
+    let held_again = pool.available().bytes();
+    let first_output_charge = pool.byte_budget() - prepared_bytes - held;
+    let second_output_charge = held - held_again;
+    assert!(second_output_charge > 0, "each result has its own metadata");
+    assert!(second_output_charge < first_output_charge, "the fitted buffer is shared");
+    ctx.cancellation.cancel();
+    assert_eq!(pool.available().bytes(), held_again, "live outputs survive cancellation");
+    drop(prepared);
+    assert!(pool.available().bytes() > held_again);
+    assert!(pool.available().bytes() < pool.byte_budget());
+    drop(first);
+    assert!(pool.available().bytes() < pool.byte_budget());
+    drop(again);
+    assert_eq!(pool.available().bytes(), pool.byte_budget());
+}
+
+#[test]
+fn prepared_gaussian_quotes_selected_columns_and_resampling_work() {
+    let mut builder =
+        CausalSchemaBuilder::new().continuous("t").treatment().continuous("y").outcome();
+    for index in 0..512 {
+        builder = builder.continuous(format!("unused{index}")).context();
+    }
+    let schema = builder.build().unwrap();
+    let treatment: Vec<_> = (0..64).map(|i| f64::from(i % 2)).collect();
+    let outcome: Vec<_> = treatment.iter().map(|t| 1.0 + 2.0 * t).collect();
+    let mut columns = vec![("t".to_string(), treatment.clone()), ("y".to_string(), outcome)];
+    for index in 0..512 {
+        columns.push((format!("unused{index}"), treatment.clone()));
+    }
+    let data = TabularData::try_from_schema_f64(
+        schema.clone(),
+        columns.iter().map(|(name, values)| (name.as_str(), values.as_slice())),
+    )
+    .unwrap();
+    let graph = Dag::from_named_edges(&schema, &[("t", "y")]).unwrap();
+    let query =
+        AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
+    let study = Study::tabular(data)
+        .graph(graph)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.memory.hard_limit_bytes = Some(250_000);
+    let prepared = study.prepare(&ctx).unwrap();
+    assert_eq!(prepared.plan().logical.design_columns_hint, 2);
+    assert_eq!(prepared.plan().logical.row_count_hint, 64);
+    assert!((prepared.estimate_retained(&ctx).unwrap().effect() - 2.0).abs() < 1e-12);
+    let mut resampled = study;
+    resampled.bootstrap_replicates = 200;
+    let mut parallel = ExecutionContext::production(1, 4);
+    parallel.memory.hard_limit_bytes = Some(250_000);
+    assert!(matches!(resampled.compile(&parallel), Err(crate::CausalError::Resource { .. })));
+}
+
+#[test]
+fn prepared_gaussian_materializes_the_actual_categorical_design() {
+    use antecedent_core::physical_choice::PhysicalAlternative;
+    use antecedent_core::{CategoryDomainId, MeasurementSpec, SmallRoleSet, ValueType};
+    use antecedent_data::{
+        CategoricalColumn, CategoryCode, CategoryDomain, CategoryLevel, Contrast, Float64Column,
+        OwnedColumn, OwnedColumnarStorage, UnknownCategoryPolicy, ValidityBitmap,
+    };
+    use std::sync::Arc;
+    let mut builder =
+        CausalSchemaBuilder::new().continuous("t").treatment().continuous("y").outcome();
+    builder
+        .add_variable(
+            "z",
+            ValueType::Categorical,
+            SmallRoleSet::empty(),
+            None,
+            Some(CategoryDomainId::from_raw(2)),
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    let schema = builder.build().unwrap();
+    let t = schema.id_of("t").unwrap();
+    let y = schema.id_of("y").unwrap();
+    let z = schema.id_of("z").unwrap();
+    let domain = Arc::new(
+        CategoryDomain::try_new(
+            CategoryDomainId::from_raw(2),
+            (0..4)
+                .map(|i| CategoryLevel { label: Arc::from(format!("level{i}")) })
+                .collect::<Vec<_>>(),
+            false,
+            Some(CategoryCode::from_raw(0)),
+            UnknownCategoryPolicy::Fail,
+        )
+        .unwrap(),
+    );
+    let treatment: Vec<_> = (0..64).map(|i| f64::from(i % 2)).collect();
+    let category: Vec<_> = (0..64).map(|i| CategoryCode::from_raw((i / 2) % 4)).collect();
+    let outcome: Vec<_> = (0..64)
+        .map(|i| 2.0 * treatment[i] + f64::from(u32::try_from((i / 2) % 4).unwrap()))
+        .collect();
+    let columns = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(t, Arc::<[f64]>::from(treatment), ValidityBitmap::all_valid(64))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(y, Arc::<[f64]>::from(outcome), ValidityBitmap::all_valid(64))
+                .unwrap(),
+        ),
+        OwnedColumn::Categorical(
+            CategoricalColumn::try_new(z, category, ValidityBitmap::all_valid(64), domain).unwrap(),
+        ),
+    ];
+    let data = TabularData::new(
+        OwnedColumnarStorage::try_new(schema.clone(), columns, None, None).unwrap(),
+    );
+    let graph = Dag::from_named_edges(&schema, &[("t", "y"), ("z", "t"), ("z", "y")]).unwrap();
+    let fitter = antecedent_estimate::LinearAdjustmentAte::new()
+        .with_bootstrap_replicates(0)
+        .with_contrast(z, Contrast::Treatment { reference: CategoryCode::from_raw(0) });
+    let ctx = ExecutionContext::for_tests(1);
+    let prepared = Study::tabular(data)
+        .graph(graph)
+        .query(AverageEffectQuery::binary_ate(t, y))
+        .estimator(fitter)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    assert_eq!(prepared.plan().choice.selected(), PhysicalAlternative::MaterializedDesign);
+    assert_eq!(prepared.plan().logical.design_columns_hint, 5);
+    let checked = prepared.checked_linear_adjustment().unwrap();
+    assert_eq!(checked.problem().design.ncols, 5);
+    assert_eq!(checked.problem().preparation.categories()[0].n_columns, 3);
+    let result = prepared.estimate_retained(&ctx).unwrap();
+    assert!((result.effect() - 2.0).abs() < 1e-12);
+    assert_eq!(result.performance.native_execution.unwrap().observed_model_fits(), Some(1));
+}
+
+#[test]
+fn prepared_gaussian_refresh_replans_changed_rows_without_reidentifying() {
+    let ctx = ExecutionContext::for_tests(1);
+    let mut prepared = contrast_study().prepare(&ctx).unwrap();
+    let original = prepared.estimate_retained(&ctx).unwrap();
+    let original_source = prepared.compiled_linear_program().unwrap().source_digest();
+    let schema = CausalSchemaBuilder::new()
+        .continuous("t")
+        .treatment()
+        .continuous("y")
+        .outcome()
+        .build()
+        .unwrap();
+    let treatment: Vec<_> = (0..16).map(|i| f64::from(i % 2)).collect();
+    let outcome: Vec<_> = treatment.iter().map(|t| 1.0 + 3.0 * t).collect();
+    let data = TabularData::try_from_schema_f64(
+        schema,
+        [("t", treatment.as_slice()), ("y", outcome.as_slice())],
+    )
+    .unwrap();
+    let (observed, solves) = count_least_squares_solves(|| {
+        antecedent_core::execution_attempt::observe_execution(|| prepared.refresh(data, &ctx))
+    });
+    assert!(solves > 0);
+    assert_eq!(
+        observed
+            .report
+            .counts(antecedent_core::execution_attempt::Operation::Identification)
+            .attempted,
+        0
+    );
+    assert_eq!(prepared.plan().logical.row_count_hint, 16);
+    assert_ne!(prepared.compiled_linear_program().unwrap().source_digest(), original_source);
+    assert_eq!(prepared.plan().record.batch_size, Some(16));
+    assert!((observed.result.unwrap().effect() - 3.0).abs() < 1e-12);
+    assert!((original.effect() - 2.0).abs() < 1e-12);
+    let (_, solves) = count_least_squares_solves(|| prepared.estimate_retained(&ctx).unwrap());
+    assert_eq!(solves, 0);
+}

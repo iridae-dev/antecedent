@@ -12,6 +12,9 @@ use antecedent_identify::{
     UnresolvedObligation, WorldObligation,
 };
 use std::sync::Arc;
+#[path = "linear_resources.rs"]
+pub(crate) mod resources;
+
 const CONTROL_WORLD: u32 = 0;
 const ACTIVE_WORLD: u32 = 1;
 
@@ -23,13 +26,21 @@ pub(crate) struct CompiledLinearExecution {
     pub(crate) fitter: antecedent_estimate::LinearAdjustmentAte,
     pub(crate) preparation: CheckedLinearAdjustmentAte,
     pub(crate) default_id: bool,
+    pub(crate) retention: Arc<antecedent_core::execution::AdmissionLease>,
+    pub(crate) resource_context: antecedent_core::ExecutionContext,
+}
+struct LinearRecipe {
+    identification: Arc<super::prepared::CachedStaticIdentification>,
+    fitter: antecedent_estimate::LinearAdjustmentAte,
+    default_id: bool,
 }
 impl CompiledLinearExecution {
     pub(crate) fn compile(
         source: &crate::Study,
         data: &antecedent_data::TabularData,
         query: &AverageEffectQuery,
-        plan: &PhysicalExecutionPlan,
+        plan: &mut PhysicalExecutionPlan,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Self, CausalError> {
         let identification =
             Arc::new(source.prepare_static_identification(plan)?.ok_or_else(|| {
@@ -48,21 +59,96 @@ impl CompiledLinearExecution {
         if fitter.population_registry.is_none() {
             fitter.population_registry.clone_from(&source.population_registry);
         }
-        let preparation = fitter.prepare_checked(data, &identification.identification, 0)?;
+        Self::lower(
+            data,
+            query,
+            plan,
+            ctx,
+            LinearRecipe { identification, fitter, default_id },
+            None,
+        )
+    }
+
+    pub(crate) fn rebind(
+        &self,
+        data: &antecedent_data::TabularData,
+        query: &AverageEffectQuery,
+        plan: &mut PhysicalExecutionPlan,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        Self::lower(
+            data,
+            query,
+            plan,
+            ctx,
+            LinearRecipe {
+                identification: Arc::clone(&self.identification),
+                fitter: self.fitter.clone(),
+                default_id: self.default_id,
+            },
+            Some(&self.preparation),
+        )
+    }
+
+    fn lower(
+        data: &antecedent_data::TabularData,
+        query: &AverageEffectQuery,
+        plan: &mut PhysicalExecutionPlan,
+        ctx: &antecedent_core::ExecutionContext,
+        recipe: LinearRecipe,
+        previous: Option<&CheckedLinearAdjustmentAte>,
+    ) -> Result<Self, CausalError> {
+        let LinearRecipe { identification, fitter, default_id } = recipe;
+        let (_, preparation_bytes, direct) =
+            resources::source_layout(data, &identification.estimand.adjustment_set, &fitter, ctx)?;
+        let reservation = ctx
+            .acquire_admission(0, preparation_bytes)
+            .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        let preparation =
+            antecedent_core::numerical_admission::with_context(ctx, || match previous {
+                Some(previous) => fitter.rebind_checked(previous, data),
+                None => fitter.prepare_checked(data, &identification.identification, 0),
+            })?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "compile" });
+        }
+        let geometry = resources::LinearResources::prepared(&preparation, &fitter, ctx)?;
+        let retention = Arc::new(
+            reservation
+                .acquire_child(0, geometry.resident)
+                .map_err(|error| CausalError::Resource { message: error.to_string() })?,
+        );
+        plan.logical.row_count_hint = geometry.rows;
+        plan.logical.design_columns_hint = geometry.columns;
+        plan.record.batch_size = Some(preparation.problem().design.nrows);
+        plan.record.workspace_bytes = Some(geometry.workspace);
+        plan.record.estimated_peak_memory_bytes = Some(geometry.peak()?);
+        plan.record.estimated_copy_bytes = Some(geometry.resident);
+        plan.bind_prepared_linear_views(direct, geometry.work)?;
         let program = Arc::new(CompiledLinearProgram::compile(
             query,
             &identification.identification,
             &preparation,
             plan,
             fitter.bootstrap_replicates > 0,
+            data.storage().content_digest(),
         )?);
-        Ok(Self { program, identification, fitter, preparation, default_id })
+        Ok(Self {
+            program,
+            identification,
+            fitter,
+            preparation,
+            default_id,
+            retention,
+            resource_context: ctx.clone(),
+        })
     }
 }
 
 /// The scientific and execution contracts retained with a production linear operation.
 #[derive(Clone, Debug)]
 pub struct CompiledLinearProgram {
+    source_digest: [u8; 32],
     target: ScientificTarget,
     identification: CompiledIdentificationProduct,
     operators: Vec<Operator>,
@@ -75,13 +161,20 @@ impl CompiledLinearProgram {
         checked: &CheckedLinearAdjustmentAte,
         physical: &PhysicalExecutionPlan,
         resample: bool,
+        source_digest: [u8; 32],
     ) -> Result<Self, CausalError> {
         Ok(Self {
+            source_digest,
             target: crate::planner::linear_gaussian_scientific_problem(query, false)?,
             identification: retain_linear_gaussian(identification, checked)?,
             operators: crate::planner::linear_gaussian_program_operators()?,
             physical: crate::planner::linear_gaussian_physical_operators(physical, resample)?,
         })
+    }
+    /// Identity of the immutable source rows used to compile this statistical operation.
+    #[must_use]
+    pub fn source_digest(&self) -> [u8; 32] {
+        self.source_digest
     }
     /// The inference-independent target executed by this operation.
     #[must_use]
