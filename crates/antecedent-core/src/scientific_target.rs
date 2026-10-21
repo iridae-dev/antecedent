@@ -1182,9 +1182,9 @@ enum Coordinate {
     Schedule,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum Assigned<'a> {
-    Intervention(&'a Intervention),
+    Intervention(Intervention),
     Schedule(&'a TemporalPolicy),
 }
 
@@ -1196,19 +1196,56 @@ fn coordinates(world: &InterventionWorld) -> BTreeMap<Coordinate, Assigned<'_>> 
                 for variable in intervention.target_variables() {
                     map.insert(
                         Coordinate::Variable(variable),
-                        Assigned::Intervention(intervention),
+                        Assigned::Intervention(
+                            projected_intervention(intervention, variable)
+                                .expect("intervention declares this target"),
+                        ),
                     );
                 }
             }
         }
         ActionKind::Schedule { intervention, policy } => {
             for variable in intervention.target_variables() {
-                map.insert(Coordinate::Variable(variable), Assigned::Intervention(intervention));
+                map.insert(
+                    Coordinate::Variable(variable),
+                    Assigned::Intervention(
+                        projected_intervention(intervention, variable)
+                            .expect("intervention declares this target"),
+                    ),
+                );
             }
             map.insert(Coordinate::Schedule, Assigned::Schedule(policy));
         }
     }
     map
+}
+
+/// A sequence may set several channels at different times. Compare only the steps
+/// that set this coordinate, otherwise changing A incorrectly appears to change B too.
+fn projected_intervention(
+    intervention: &Intervention,
+    variable: VariableId,
+) -> Option<Intervention> {
+    match intervention {
+        Intervention::Sequence(sequence) => {
+            let steps = sequence
+                .steps
+                .iter()
+                .filter_map(|step| {
+                    projected_intervention(&step.intervention, variable).map(|intervention| {
+                        crate::intervention::SequencedIntervention {
+                            intervention,
+                            temporal: step.temporal.clone(),
+                        }
+                    })
+                })
+                .collect::<Vec<_>>();
+            (!steps.is_empty()).then(|| {
+                Intervention::Sequence(crate::intervention::InterventionSequence::new(steps))
+            })
+        }
+        _ => intervention.target_variables().contains(&variable).then(|| intervention.clone()),
+    }
 }
 
 fn incoherent(reason: &'static str) -> ScientificTargetError {
@@ -1261,11 +1298,11 @@ fn require_coherent_interaction(
     let mut moves_a = false;
     let mut moves_b = false;
     for (coordinate, at_reference) in &reference {
-        let a = a_world[coordinate];
-        let b = b_world[coordinate];
-        let both = joint[coordinate];
-        let a_moves = a != *at_reference;
-        let b_moves = b != *at_reference;
+        let a = &a_world[coordinate];
+        let b = &b_world[coordinate];
+        let both = &joint[coordinate];
+        let a_moves = a != at_reference;
+        let b_moves = b != at_reference;
         if a_moves && b_moves {
             return Err(incoherent("the two factors move the same variable or schedule"));
         }
@@ -1274,7 +1311,7 @@ fn require_coherent_interaction(
         } else if b_moves {
             b
         } else {
-            *at_reference
+            at_reference
         };
         if both != expected {
             return Err(incoherent("the joint world is not the reference moved by both factors"));
@@ -3094,6 +3131,67 @@ mod tests {
                 "{reference:?} {a:?} {b:?} {joint:?}: {err:?}"
             );
         }
+    }
+
+    #[test]
+    fn interaction_projects_multi_channel_sequences_onto_their_own_coordinates() {
+        use crate::intervention::{InterventionSequence, SequencedIntervention};
+        let shared = binding(TargetPopulation::AllObserved, Conditioning::unconditional());
+        let time = TimeFrame::temporal(
+            2,
+            HistoryWindow::max_lag(2),
+            InitialLaw::contemporaneous_observed(),
+        )
+        .unwrap();
+        let cell = |id: u32, a: [f64; 2], b: [f64; 2]| {
+            let steps = (0..2)
+                .flat_map(|index| {
+                    let at = i32::try_from(index).unwrap();
+                    [
+                        SequencedIntervention::new(
+                            set_level(vid(0), a[index]),
+                            TemporalPolicy::pulse(at),
+                        ),
+                        SequencedIntervention::new(
+                            set_level(vid(2), b[index]),
+                            TemporalPolicy::pulse(at),
+                        ),
+                    ]
+                })
+                .collect::<Vec<_>>();
+            let action = WorldAction::schedule(
+                Intervention::Sequence(InterventionSequence::new(steps)),
+                TemporalPolicy::sustained(0, 1),
+            )
+            .unwrap();
+            InterventionWorld::new(world_id(id), action, id == 0, shared.clone(), time.clone())
+                .unwrap()
+        };
+        let build = |joint_b: [f64; 2], a_world_b: [f64; 2]| {
+            let worlds = WorldCollection::new([
+                cell(0, [0.0; 2], [0.0; 2]),
+                cell(1, [1.0, 2.0], a_world_b),
+                cell(2, [0.0; 2], [3.0, 4.0]),
+                cell(3, [1.0, 2.0], joint_b),
+            ])
+            .unwrap();
+            InterventionContrast::interaction(
+                worlds,
+                world_id(3),
+                world_id(1),
+                world_id(2),
+                world_id(0),
+            )
+        };
+        build([3.0, 4.0], [0.0; 2]).unwrap();
+        assert!(matches!(
+            build([3.0, 5.0], [0.0; 2]),
+            Err(ScientificTargetError::IncoherentContrast { .. })
+        ));
+        assert!(matches!(
+            build([3.0, 4.0], [0.0, 1.0]),
+            Err(ScientificTargetError::IncoherentContrast { .. })
+        ));
     }
 
     #[test]

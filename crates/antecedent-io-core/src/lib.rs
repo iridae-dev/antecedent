@@ -94,6 +94,7 @@ pub mod query_wire;
 pub mod reader;
 pub mod recalc_receipt_artifact;
 pub mod response_wire;
+pub mod scientific_target_wire;
 pub mod score_wire;
 pub mod selective_discovery_artifact;
 pub mod sensitivity_artifact;

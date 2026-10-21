@@ -636,10 +636,27 @@ impl CompiledIdentificationProduct {
         parts: CompiledProductParts,
         target: &ScientificTarget,
     ) -> Result<Self, ProductRefusal> {
-        let mut product = Self::retain(result, parts)?;
-        product.target_identity = Some(target.identity());
-        product.validate_target(target)?;
-        Ok(product)
+        Self::retain(result, parts)?.bind_target(target)
+    }
+
+    /// Bind retained outcomes directly when an unsupported compilation has no source result.
+    ///
+    /// This uses the same world and assembled checks as [`Self::retain_for_target`]. It
+    /// does not identify a functional. An existing binding cannot be reassigned to a
+    /// different scientific question.
+    ///
+    /// # Errors
+    /// Missing support structure or a changed scientific target.
+    pub fn bind_target(mut self, target: &ScientificTarget) -> Result<Self, ProductRefusal> {
+        if let Some(expected) = self.target_identity {
+            let actual = target.identity();
+            if expected != actual {
+                return Err(ProductRefusal::TargetIdentityMismatch { expected, actual });
+            }
+        }
+        self.target_identity = Some(target.identity());
+        self.validate_target(target)?;
+        Ok(self)
     }
 
     /// Scientific target bound by [`Self::retain_for_target`].
@@ -1427,6 +1444,26 @@ mod tests {
         ));
         product.target_identity = Some(interaction_target().identity());
         product
+    }
+
+    #[test]
+    fn unsupported_target_binding_needs_no_fabricated_identification_and_cannot_rebind() {
+        let target = interaction_target();
+        let mut product = empty_product(IdentificationOutcome::Unidentified,
+            IdentificationClaimClass::ModelConditional, None);
+        product.world_obligations = (0..4).map(|id| WorldObligation::new(
+            ScientificWorldId::from_raw(id), IdentificationOutcome::Unidentified,
+            IdentificationClaimClass::ModelConditional, vec![], None)).collect();
+        product.assembled = Some(AssembledFunctionalObligation::new(
+            IdentificationOutcome::Unidentified, IdentificationClaimClass::ModelConditional, vec![], None));
+        let bound = product.bind_target(&target).unwrap();
+        assert!(bound.identified().is_empty());
+        assert!(!bound.is_identified_claim());
+        assert_eq!(bound.target_identity(), Some(target.identity()));
+        assert!(bound.clone().bind_target(&target).is_ok());
+        let changed = interaction_target_with(2.0, antecedent_core::TargetPopulation::AllObserved,
+            VariableId::from_raw(2));
+        assert!(matches!(bound.bind_target(&changed), Err(ProductRefusal::TargetIdentityMismatch {..})));
     }
 
     #[test]

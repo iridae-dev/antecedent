@@ -115,3 +115,24 @@ python3 scripts/gate_public_api.py --crate antecedent-identify --crate anteceden
 
 The reference generator uses only the Python standard library. Other existing
 reference generators require the repository's Python development environment.
+
+## Retained scheduled and unresolved questions
+
+Scheduled interaction validation now projects each channel's own sequence before
+checking the factorial worlds. Changing one channel no longer appears to change
+every channel. Unsupported compiler outcomes can bind their real scientific target
+without inventing an identified estimand; rebinding to another question is refused.
+
+The shared artifact owner now encodes the complete scientific target, including
+population, observation unit, outcome units and functional, conditioning, every
+world action, history/initial law, graph/model assumptions, inference selection,
+and theorem-scoped mediation premises. Decoding rebuilds domain constructors and
+checks the scientific identity. Transporting a target grants no identification.
+Unknown versions and fields, changed units, and missing mediation premises refuse.
+
+Checkpoint validation: 49 scientific-target, compiled-product and target-wire tests
+passed. Strict Clippy passed for `antecedent-core`, `antecedent-identify` and
+`antecedent-io-core` with `--no-deps --lib --tests -- -D warnings`. The broader
+component selection passed 100 tests before the additional unsupported-binding
+regression. This checkpoint does not close X01.1 or X01.2; production consumers,
+arbitrary-channel expansion, public interchange and acceptance remain in progress.
