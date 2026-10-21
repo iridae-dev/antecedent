@@ -226,12 +226,16 @@ fn encode_report(
     Ok(container)
 }
 
+type SharedCyclicFit = std::sync::Arc<
+    std::sync::Mutex<Option<(antecedent_core::KernelPolicy, std::sync::Arc<CyclicFit>)>>,
+>;
+
 /// Immutable compiled equilibrium product, sharing its fit across retargeted worlds.
 #[derive(Clone, Debug)]
 pub struct PreparedCyclicExecution {
     request: std::sync::Arc<CyclicExecutionRequest>,
-    fit: Option<std::sync::Arc<CyclicFit>>,
-    fits_performed: usize,
+    fit: SharedCyclicFit,
+    fits_performed: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     _retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
     resource_context: ExecutionContext,
 }
@@ -242,7 +246,7 @@ impl PreparedCyclicExecution {
         &self.request
     }
 
-    /// Validate the complete request and perform its optional statistical fit once.
+    /// Compile/retain the complete request; fitting starts only on execution.
     pub fn prepare(
         request: CyclicExecutionRequest,
         ctx: &ExecutionContext,
@@ -250,27 +254,18 @@ impl PreparedCyclicExecution {
         request.check_limits()?;
         let retention = retain_request(&request, ctx)?;
         request.identity()?;
-        let fit = request
-            .fit
-            .as_ref()
-            .map(|f| fit_cyclic_likelihood(&request.model, &f.parameters, &f.rows, f.options, ctx))
-            .transpose()?;
-        if fit.as_ref().is_some_and(|f| !f.converged) {
-            return Err(invalid("fit did not converge"));
-        }
-        let fits_performed = usize::from(fit.is_some());
         Ok(Self {
             request: std::sync::Arc::new(request),
-            fit: fit.map(std::sync::Arc::new),
-            fits_performed,
+            fit: std::sync::Arc::default(),
+            fits_performed: std::sync::Arc::default(),
             _retention: std::sync::Arc::new(retention),
             resource_context: ctx.clone(),
         })
     }
-    /// Number of causal fits performed while constructing this particular handle.
+    /// Number of causal fits performed by execution on this handle (zero at compilation).
     #[must_use]
     pub fn fits_performed(&self) -> usize {
-        self.fits_performed
+        self.fits_performed.load(std::sync::atomic::Ordering::Relaxed)
     }
     /// Request identity, including source data, target worlds and numerical policy.
     pub fn identity(&self) -> Result<String, CyclicArtifactError> {
@@ -278,7 +273,8 @@ impl PreparedCyclicExecution {
     }
     /// Compile/inspect the actual post-intervention SCC solve schedules.
     pub fn blocks(&self) -> Result<Vec<Vec<Vec<usize>>>, CyclicArtifactError> {
-        let model = self.fit.as_ref().map_or(&self.request.model, |f| &f.model);
+        let fit = self.fit.lock().map_err(|_| invalid("frozen fit lock poisoned"))?;
+        let model = fit.as_ref().map_or(&self.request.model, |(_, fit)| &fit.model);
         self.request
             .worlds
             .iter()
@@ -289,7 +285,8 @@ impl PreparedCyclicExecution {
     pub fn execution_plans(
         &self,
     ) -> Result<Vec<antecedent_model::compile::CompiledSystemPlan>, CyclicArtifactError> {
-        let model = self.fit.as_ref().map_or(&self.request.model, |fit| &fit.model);
+        let fit = self.fit.lock().map_err(|_| invalid("frozen fit lock poisoned"))?;
+        let model = fit.as_ref().map_or(&self.request.model, |(_, fit)| &fit.model);
         self.request
             .worlds
             .iter()
@@ -299,12 +296,47 @@ impl PreparedCyclicExecution {
             })
             .collect()
     }
-    /// Execute the retained program using its frozen fitted model; never refit.
+    /// Execute the retained program, fitting once per active kernel policy and reusing that fit.
     pub fn estimate(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicExecutionReport, CyclicArtifactError> {
-        self.request.execute_bound(self.fit.as_ref().map(|fit| fit.as_ref().clone()), ctx)
+        if ctx.cancellation.is_cancelled() {
+            return Err(invalid("cyclic execution cancelled"));
+        }
+        antecedent_core::numerical_admission::with_context(ctx, || {
+            let mut retained = self.fit.lock().map_err(|_| invalid("frozen fit lock poisoned"))?;
+            let fit = if let Some(recipe) = &self.request.fit {
+                if let Some((_, fit)) =
+                    retained.as_ref().filter(|(kernel, _)| *kernel == ctx.kernel_policy)
+                {
+                    antecedent_core::execution_attempt::record_physical(
+                        antecedent_core::execution_attempt::PhysicalEvent::CacheHit,
+                        1,
+                    );
+                    Some(std::sync::Arc::clone(fit))
+                } else {
+                    let fit = fit_cyclic_likelihood(
+                        &self.request.model,
+                        &recipe.parameters,
+                        &recipe.rows,
+                        recipe.options,
+                        ctx,
+                    )?;
+                    if !fit.converged {
+                        return Err(invalid("fit did not converge"));
+                    }
+                    let fit = std::sync::Arc::new(fit);
+                    *retained = Some((ctx.kernel_policy, std::sync::Arc::clone(&fit)));
+                    self.fits_performed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    Some(fit)
+                }
+            } else {
+                None
+            };
+            drop(retained);
+            self.request.execute_bound(fit.map(|fit| fit.as_ref().clone()), ctx)
+        })
     }
     /// Change only worlds/disturbance evaluation and numerical initial state.
     /// The model, training rows, fitting policy, and optional factual evidence stay frozen.
@@ -323,7 +355,7 @@ impl PreparedCyclicExecution {
         Ok(Self {
             request: std::sync::Arc::new(request),
             fit: self.fit.clone(),
-            fits_performed: 0,
+            fits_performed: std::sync::Arc::default(),
             _retention: std::sync::Arc::new(retention),
             resource_context: self.resource_context.clone(),
         })

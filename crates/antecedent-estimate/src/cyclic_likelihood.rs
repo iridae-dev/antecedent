@@ -171,6 +171,19 @@ pub fn fit_cyclic_likelihood(
     options: CyclicFitOptions,
     ctx: &ExecutionContext,
 ) -> Result<CyclicFit, EquilibriumError> {
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::AdjustedFit,
+        || fit_cyclic_likelihood_unobserved(template, parameters, rows, options, ctx),
+    )
+}
+
+fn fit_cyclic_likelihood_unobserved(
+    template: &EquilibriumModel,
+    parameters: &[CyclicParameter],
+    rows: &[RegimeRow],
+    options: CyclicFitOptions,
+    ctx: &ExecutionContext,
+) -> Result<CyclicFit, EquilibriumError> {
     if rows.is_empty()
         || !options.initial_step.is_finite()
         || options.initial_step <= 0.0

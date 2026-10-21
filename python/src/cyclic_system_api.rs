@@ -436,6 +436,23 @@ pub(crate) struct PyPreparedCyclicFamily {
 }
 #[pymethods]
 impl PyPreparedCyclicFamily {
+    #[pyo3(signature = (request_json, *, max_bytes=None, cancel=None))]
+    fn rebind(
+        &self,
+        py: Python<'_>,
+        request_json: &str,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Self> {
+        let ctx = execution_context(max_bytes, cancel);
+        let _input = input_admission(request_json, &ctx)?;
+        let request =
+            serde_json::from_str(request_json).map_err(|e| crate::value_err(e.to_string()))?;
+        let inner = py
+            .detach(|| self.inner.rebind(&request, &ctx))
+            .map_err(|e| crate::value_err(e.to_string()))?;
+        Ok(Self { inner })
+    }
     #[pyo3(signature = (*, max_bytes=None, cancel=None))]
     fn execute(
         &self,

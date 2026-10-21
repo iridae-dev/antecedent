@@ -21,7 +21,7 @@ pub struct CyclicPreparedState {
 pub struct CyclicPreparedInspection {
     /// Complete target/source/inference request identity.
     pub identity: String,
-    /// Fits actually performed when constructing this handle (zero on retarget).
+    /// Fits actually performed by execution on this handle (zero before execution).
     pub fits_performed: usize,
     /// Per-world SCC solve schedules, sources before sinks.
     pub solve_blocks: Vec<Vec<Vec<usize>>>,
@@ -64,7 +64,7 @@ impl PreparedStudy<CyclicPreparedState> {
             execution_plans: self.state.product.execution_plans()?,
         })
     }
-    /// Execute from the retained physical product, performing zero additional fits.
+    /// Execute from the retained physical product, reusing compatible fitted mechanisms.
     ///
     /// # Errors
     /// A refused numerical certificate, failed solve, cancellation or resource refusal.
@@ -73,6 +73,19 @@ impl PreparedStudy<CyclicPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<CyclicExecutionReport, CyclicArtifactError> {
         self.state.product.estimate(ctx)
+    }
+    /// Execute with native facts on success, refusal or cancellation.
+    #[must_use]
+    pub fn estimate_observed(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> antecedent_core::execution_attempt::ExecutionAttempt<
+        CyclicExecutionReport,
+        CyclicArtifactError,
+    > {
+        antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            self.state.product.estimate(ctx)
+        })
     }
     /// Retarget prespecified worlds while preserving the trained mechanisms.
     ///
@@ -156,9 +169,10 @@ mod tests {
             factual: None,
         };
         let ctx = ExecutionContext::for_tests(1);
-        let prepared = Study::prepare_cyclic(request, &ctx).unwrap();
-        assert_eq!(prepared.inspect().unwrap().fits_performed, 1);
+        let prepared = Study::prepare_cyclic(request.clone(), &ctx).unwrap();
+        assert_eq!(prepared.inspect().unwrap().fits_performed, 0);
         let original = prepared.estimate(&ctx).unwrap();
+        assert_eq!(prepared.inspect().unwrap().fits_performed, 1);
         let retargeted = prepared
             .retarget_worlds(
                 vec![vec![Clamp { variable: 0, value: 2.0 }]],
@@ -172,84 +186,155 @@ mod tests {
         assert_ne!(answer.identity, original.identity);
         assert!((answer.worlds[0][0].values[1] - 1.4).abs() < 1e-4);
         assert_eq!(consume_cyclic_artifact(&bytes, &answer.identity, &ctx).unwrap(), answer);
+
+        use antecedent_core::execution_attempt::Operation;
+        use antecedent_io::cyclic_family_artifact::{
+            CyclicFamilyAnswer, CyclicFamilyRequest, consume_cyclic_family,
+        };
+        let fit = request.fit.unwrap();
+        let mut family = CyclicFamilyRequest::FrequentistBootstrap {
+            design: Default::default(),
+            model: request.model,
+            parameters: fit.parameters,
+            rows: fit.rows,
+            policy: fit.options,
+            replicates: 2,
+            seed: 23,
+            worlds: request.worlds,
+            noise: request.noise,
+            initial: request.initial,
+            solve_policy: request.policy,
+        };
+        let preparation = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+            Study::prepare_cyclic_family(&family, &ctx)
+        });
+        assert_eq!(preparation.report.counts(Operation::AdjustedFit).attempted, 0);
+        let compiled = preparation.result.unwrap();
+        assert_eq!(compiled.inspect().preparation_evaluations, 0);
+        let first = compiled.estimate_observed(&ctx);
+        assert_eq!(first.report.counts(Operation::AdjustedFit).attempted, 2);
+        let first = first.result.unwrap();
+        if let CyclicFamilyRequest::FrequentistBootstrap { worlds, .. } = &mut family {
+            *worlds = vec![vec![Clamp { variable: 0, value: 2.0 }]];
+        }
+        let rebound = compiled.rebind(&family, &ctx).unwrap();
+        drop(compiled);
+        let reused = rebound.estimate_observed(&ctx);
+        assert_eq!(reused.report.counts(Operation::AdjustedFit).attempted, 0);
+        let reused = reused.result.unwrap();
+        if let (
+            CyclicFamilyAnswer::FrequentistBootstrap { parameters: a, .. },
+            CyclicFamilyAnswer::FrequentistBootstrap { parameters: b, .. },
+        ) = (&first.answer, &reused.answer)
+        {
+            assert_eq!(a, b);
+        } else {
+            panic!("expected retained bootstrap draws");
+        }
+        let (exported, bytes) = rebound.export(&ctx).unwrap();
+        assert_eq!(consume_cyclic_family(&bytes, &exported.identity, &ctx).unwrap(), exported);
+        if let CyclicFamilyRequest::FrequentistBootstrap { rows, .. } = &mut family {
+            for row in rows {
+                row.values[1] *= 0.5;
+            }
+        }
+        let refreshed = rebound.rebind(&family, &ctx).unwrap();
+        let changed = refreshed.estimate_observed(&ctx);
+        assert_eq!(changed.report.counts(Operation::AdjustedFit).attempted, 2);
+        assert_ne!(changed.result.unwrap().identity, reused.identity);
     }
 }
 
-/// Immutable retained answer/artifact of a typed cyclic family preparation.
+/// Retained typed cyclic family program, independent of report and artifact production.
 #[derive(Clone, Debug)]
 pub struct CyclicFamilyPreparedState {
-    pub(super) report: std::sync::Arc<antecedent_io::cyclic_family_artifact::CyclicFamilyReport>,
-    pub(super) request: std::sync::Arc<antecedent_io::cyclic_family_artifact::CyclicFamilyRequest>,
-    pub(super) artifact: std::sync::Arc<[u8]>,
-    family: String,
-    retained_bytes: u64,
-    _retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
+    pub(super) program:
+        std::sync::Arc<antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>,
 }
-/// Inspection of a typed family preparation, including retained work.
+/// Cheap inspection of a typed cyclic family preparation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CyclicFamilyPreparedInspection {
-    /// Complete source/target/semantics/numerical-policy identity.
+    /// Complete target/source/semantics/numerical-policy identity.
     pub identity: String,
-    /// Explicit equilibrium/dynamics/equation/graph operator family.
+    /// Explicit equilibrium/dynamics/equation/graph family.
     pub family: String,
-    /// One full execution constructs the immutable product; reuse performs zero.
+    /// Compilation performs zero statistical/numerical executions.
     pub preparation_evaluations: usize,
-    /// Reserved retained payload/answer bytes, released with the last handle.
+    /// Actual reservation held by the compiled owner.
     pub retained_bytes: u64,
+    /// Existing SCC, dynamic and equation compiler products, retaining their semantics.
+    pub execution_plans: Vec<antecedent_model::compile::CompiledSystemPlan>,
 }
 impl Study {
-    /// Prepare any typed cyclic family on the common retained handle. Statistical
-    /// fitting, abduction or numerical execution occurs once. New source/data,
-    /// target, initial law or policy requires a new preparation and identity.
+    /// Compile any typed cyclic family without fitting, sampling, solving or artifact encoding.
     ///
     /// # Errors
-    /// Malformed family programs, unsupported mathematical conditions, failed execution, cancellation or resource refusal.
+    /// Invalid model/program inputs, cancellation, or retained-resource refusal.
     pub fn prepare_cyclic_family(
         request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest,
         ctx: &ExecutionContext,
     ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
-        let family = request.family_name().to_owned();
-        let (report, artifact) = request.export(ctx)?;
-        let retained_bytes = (antecedent_io::cyclic_system_artifact::cyclic_serialized_size(
-            &(request, &report),
-            ctx,
-        )? as u64)
-            .saturating_mul(8)
-            .saturating_add((artifact.len() as u64) * 4 + 4096);
-        let retention = ctx
-            .acquire_admission(0, retained_bytes)
-            .map_err(|e| CyclicArtifactError::Invalid(e.to_string()))?;
+        let program = antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram::compile(
+            request, ctx,
+        )?;
         Ok(PreparedStudy {
-            state: CyclicFamilyPreparedState {
-                request: std::sync::Arc::new(request.clone()),
-                report: std::sync::Arc::new(report),
-                artifact: artifact.into(),
-                family,
-                retained_bytes,
-                _retention: std::sync::Arc::new(retention),
-            },
+            state: CyclicFamilyPreparedState { program: std::sync::Arc::new(program) },
         })
     }
 }
 impl PreparedStudy<CyclicFamilyPreparedState> {
-    /// Inspect the actual immutable family product without another fit/solve.
+    /// Inspect the frozen family and semantic program without executing its numerical engine.
     #[must_use]
-    ///
-    /// # Errors
-    /// Invalid intervention bindings or an invalid retained execution schedule.
     pub fn inspect(&self) -> CyclicFamilyPreparedInspection {
         CyclicFamilyPreparedInspection {
-            identity: self.state.report.identity.clone(),
-            family: self.state.family.clone(),
-            preparation_evaluations: 1,
-            retained_bytes: self.state.retained_bytes,
+            identity: self.state.program.identity().into(),
+            family: self.state.program.request().family_name().into(),
+            preparation_evaluations: 0,
+            retained_bytes: self.state.program.retained_bytes(),
+            execution_plans: self.state.program.execution_plans().to_vec(),
         }
     }
-    /// Reuse the retained answer and independent artifact; enforce cancellation
-    /// and output-copy admission even when no causal fitting is repeated.
+    /// Execute the retained typed program; compatible downstream worlds reuse frozen fits.
     ///
     /// # Errors
-    /// Invalid artifact requests, failed numerical execution, cancellation or resource refusal.
+    /// Failed model execution, cancellation, or resource refusal.
+    pub fn estimate(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_io::cyclic_family_artifact::CyclicFamilyReport, CyclicArtifactError>
+    {
+        self.state.program.execute(ctx)
+    }
+    /// Preserve native facts even on refusal and cancellation.
+    #[must_use]
+    pub fn estimate_observed(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> antecedent_core::execution_attempt::ExecutionAttempt<
+        antecedent_io::cyclic_family_artifact::CyclicFamilyReport,
+        CyclicArtifactError,
+    > {
+        antecedent_core::execution_attempt::observe_with_context(ctx, || self.estimate(ctx))
+    }
+    /// Recompile changed dependencies and share only unchanged statistical inputs.
+    ///
+    /// # Errors
+    /// Invalid dependencies or model inputs, cancellation, or resource refusal.
+    pub fn rebind(
+        &self,
+        request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CyclicArtifactError> {
+        Ok(Self {
+            state: CyclicFamilyPreparedState {
+                program: std::sync::Arc::new(self.state.program.rebind(request, ctx)?),
+            },
+        })
+    }
+    /// Execute and encode as separate steps through the same retained owner.
+    ///
+    /// # Errors
+    /// Failed execution or encoding, cancellation, or resource refusal.
     pub fn export(
         &self,
         ctx: &ExecutionContext,
@@ -257,9 +342,6 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         (antecedent_io::cyclic_family_artifact::CyclicFamilyReport, Vec<u8>),
         CyclicArtifactError,
     > {
-        let _output = ctx
-            .acquire_admission(0, self.state.retained_bytes)
-            .map_err(|e| CyclicArtifactError::Invalid(e.to_string()))?;
-        Ok((self.state.report.as_ref().clone(), self.state.artifact.to_vec()))
+        self.state.program.export(ctx)
     }
 }

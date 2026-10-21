@@ -114,6 +114,7 @@ impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::CpdagEvide
 impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::CpdagReportWire
 impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises
 impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram
 impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
 impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
 impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
@@ -1016,6 +1017,7 @@ impl core::fmt::Debug for antecedent_io::cpdag_completion_artifact::CpdagEvidenc
 impl core::fmt::Debug for antecedent_io::cpdag_completion_artifact::CpdagReportWire
 impl core::fmt::Debug for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises
 impl core::fmt::Debug for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram
 impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
 impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
 impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
@@ -1487,6 +1489,7 @@ impl core::marker::Freeze for antecedent_io::cpdag_completion_artifact::CpdagEvi
 impl core::marker::Freeze for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::marker::Freeze for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::marker::Freeze for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram [auto]
 impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
 impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
 impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
@@ -1886,6 +1889,7 @@ impl core::marker::Send for antecedent_io::cpdag_completion_artifact::CpdagEvide
 impl core::marker::Send for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::marker::Send for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::marker::Send for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram [auto]
 impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
 impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
 impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
@@ -2614,6 +2618,7 @@ impl core::marker::Sync for antecedent_io::cpdag_completion_artifact::CpdagEvide
 impl core::marker::Sync for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::marker::Sync for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::marker::Sync for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram [auto]
 impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
 impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
 impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
@@ -3013,6 +3018,7 @@ impl core::marker::Unpin for antecedent_io::cpdag_completion_artifact::CpdagEvid
 impl core::marker::Unpin for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::marker::Unpin for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::marker::Unpin for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram [auto]
 impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
 impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
 impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
@@ -3411,6 +3417,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cpdag_completion
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
@@ -3808,6 +3815,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cpdag_completion_ar
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cpdag_completion_artifact::CpdagReportWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cpdag_completion_artifact::SharedEvidenceWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicActionWorldReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
@@ -7500,6 +7508,14 @@ pub fn <antecedent_io::cpdag_completion_artifact::CpdagEvidenceWire>::fn from_ev
 pub fn <antecedent_io::cpdag_completion_artifact::CpdagEvidenceWire>::fn to_evidence(&self) -> core::result::Result<antecedent_identify::sid::cpdag_completion::CpdagEvidence, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::cpdag_completion_artifact::CpdagReportWire>::fn from_report(prepared: &antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios, report: &antecedent_estimate::cpdag_scenarios::CpdagScenarioReport) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises>::fn prepare(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>::fn compile(request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_family_artifact::CyclicFamilyReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>::fn execution_plans(&self) -> &[antecedent_model::system_compile::CompiledSystemPlan]
+pub fn <antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>::fn export(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_io::cyclic_family_artifact::CyclicFamilyReport, alloc::vec::Vec<u8>), antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>::fn identity(&self) -> &str
+pub fn <antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>::fn rebind(&self, request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>::fn request(&self) -> &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
+pub fn <antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>::fn retained_bytes(&self) -> u64
 pub fn <antecedent_io::cyclic_family_artifact::CyclicFamilyRequest>::const fn family_name(&self) -> &'static str
 pub fn <antecedent_io::cyclic_family_artifact::CyclicFamilyRequest>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_family_artifact::CyclicFamilyReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn <antecedent_io::cyclic_family_artifact::CyclicFamilyRequest>::fn export(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_io::cyclic_family_artifact::CyclicFamilyReport, alloc::vec::Vec<u8>), antecedent_io::cyclic_system_artifact::CyclicArtifactError>
@@ -8081,6 +8097,8 @@ pub struct antecedent_io::cpdag_completion_artifact::CpdagEvidenceWire
 pub struct antecedent_io::cpdag_completion_artifact::CpdagReportWire
 pub struct antecedent_io::cpdag_completion_artifact::CpdagScenarioPremises
 pub struct antecedent_io::cpdag_completion_artifact::SharedEvidenceWire
+pub struct antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram
+pub struct antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram has private fields
 pub struct antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
 pub struct antecedent_io::cyclic_family_artifact::CyclicFamilyReport
 pub struct antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy

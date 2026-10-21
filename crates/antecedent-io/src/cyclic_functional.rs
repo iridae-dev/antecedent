@@ -167,12 +167,21 @@ impl DistributionProvider for Provider<'_> {
         None
     }
 }
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedCyclicFunctionalSource {
+    pub(crate) nodes: usize,
+    pub(crate) continuous: bool,
+    pub(crate) derivation: Vec<String>,
+    pub(crate) identity: String,
+    pub(crate) calculus: bool,
+    pub(crate) program: antecedent_expr::FunctionalProgram,
+}
 pub(crate) fn checked_functional_source(
     source: &CyclicGraphRequest,
     source_identity: &str,
     program: &FunctionalProgramWire,
     ctx: &ExecutionContext,
-) -> Result<(usize, bool, Vec<String>), CyclicArtifactError> {
+) -> Result<CheckedCyclicFunctionalSource, CyclicArtifactError> {
     let (graph, continuous) = match source {
         CyclicGraphRequest::Identify { graph, continuous, .. }
         | CyclicGraphRequest::Adjust { graph, continuous, .. } => (graph, *continuous),
@@ -207,7 +216,16 @@ pub(crate) fn checked_functional_source(
     if expected != *program {
         return Err(invalid("functional differs from theorem-derived source"));
     }
-    Ok((graph.nodes as usize, continuous, derivation))
+    let checked =
+        functional_program_from_wire(program, ProgramLimits::default()).map_err(invalid)?;
+    Ok(CheckedCyclicFunctionalSource {
+        nodes: graph.nodes as usize,
+        continuous,
+        derivation,
+        identity: source_identity.into(),
+        calculus: matches!(source, CyclicGraphRequest::Calculus { .. }),
+        program: checked,
+    })
 }
 /// Recheck identification and consume its functional using a bounded finite law.
 /// Positive denominators are checked at evaluation, separately from graphical identification.
@@ -219,8 +237,20 @@ pub fn evaluate_cyclic_functional(
     assignments: &[Vec<(u32, f64)>],
     ctx: &ExecutionContext,
 ) -> Result<CyclicFunctionalReport, CyclicArtifactError> {
-    let (nodes, continuous, derivation) =
-        checked_functional_source(source, source_identity, program, ctx)?;
+    let checked = checked_functional_source(source, source_identity, program, ctx)?;
+    evaluate_cyclic_functional_checked(&checked, law, assignments, ctx)
+}
+
+pub(crate) fn evaluate_cyclic_functional_checked(
+    source: &CheckedCyclicFunctionalSource,
+    law: &FiniteCyclicLaw,
+    assignments: &[Vec<(u32, f64)>],
+    ctx: &ExecutionContext,
+) -> Result<CyclicFunctionalReport, CyclicArtifactError> {
+    let nodes = source.nodes;
+    let continuous = source.continuous;
+    let derivation = source.derivation.clone();
+    let source_identity = source.identity.as_str();
     if continuous {
         return Err(invalid("finite-law consumption requires discrete identification semantics"));
     }
@@ -251,10 +281,7 @@ pub fn evaluate_cyclic_functional(
         return Err(invalid("finite joint weights"));
     }
     let _lease = ctx.acquire_admission(1, (cells as u64).saturating_mul(256)).map_err(invalid)?;
-    let checked = functional_program_from_wire(program, ProgramLimits::default())
-        .map_err(invalid)?
-        .compile()
-        .map_err(invalid)?;
+    let checked = source.program.compile().map_err(invalid)?;
     let provider = Provider { law, strides, steps: Cell::new(0), ctx };
     let mut values = Vec::new();
     for pairs in assignments {

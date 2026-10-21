@@ -4,12 +4,12 @@
 //! continuous marginalization is analytic, without finite integration cutoffs.
 //! A fitted observational density is a parametric plug-in, not latent recovery
 //! or a statistical uncertainty certificate.
+use crate::FunctionalProgramWire;
 use crate::cyclic_functional::{CyclicFunctionalValue, checked_functional_source};
 use crate::cyclic_graph::CyclicGraphRequest;
 use crate::cyclic_system_artifact::CyclicArtifactError;
-use crate::{FunctionalProgramWire, functional_program_from_wire};
 use antecedent_core::ExecutionContext;
-use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode, ProgramLimits};
+use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use serde::{Deserialize, Serialize};
 /// Serializable observational law or IID Gaussian density estimation recipe.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -296,10 +296,6 @@ impl Compiler<'_> {
 /// analytically marginalize its canonical factors, and evaluate original assignments.
 /// # Errors
 /// Source/IR mismatch, wrong semantics, nonintegrability, malformed law, cancellation or resources.
-#[allow(
-    clippy::too_many_lines,
-    reason = "source checking, explicit density estimation and bounded canonical lowering are one retained scientific consumer"
-)]
 pub fn evaluate_gaussian_cyclic_functional(
     source: &CyclicGraphRequest,
     source_identity: &str,
@@ -308,9 +304,26 @@ pub fn evaluate_gaussian_cyclic_functional(
     assignments: &[Vec<(u32, f64)>],
     ctx: &ExecutionContext,
 ) -> Result<GaussianCyclicFunctionalReport, CyclicArtifactError> {
-    let (n, continuous, mut derivation) =
-        checked_functional_source(source, source_identity, program, ctx)?;
-    if (!continuous && !matches!(source, CyclicGraphRequest::Calculus { .. }))
+    let checked = checked_functional_source(source, source_identity, program, ctx)?;
+    evaluate_gaussian_cyclic_functional_checked(&checked, law, assignments, None, ctx)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "source checking, explicit density estimation and bounded canonical lowering are one retained scientific consumer"
+)]
+pub(crate) fn evaluate_gaussian_cyclic_functional_checked(
+    source: &crate::cyclic_functional::CheckedCyclicFunctionalSource,
+    law: &GaussianCyclicLaw,
+    assignments: &[Vec<(u32, f64)>],
+    frozen_density: Option<&crate::cyclic_family_artifact::FrozenGaussianDensity>,
+    ctx: &ExecutionContext,
+) -> Result<GaussianCyclicFunctionalReport, CyclicArtifactError> {
+    let n = source.nodes;
+    let continuous = source.continuous;
+    let mut derivation = source.derivation.clone();
+    let source_identity = source.identity.as_str();
+    if (!continuous && !source.calculus)
         || n == 0
         || n > 16
         || assignments.is_empty()
@@ -321,50 +334,54 @@ pub fn evaluate_gaussian_cyclic_functional(
             "Gaussian functional requires continuous semantics, at most 16 variables and 1024 assignments",
         ));
     }
-    let checked =
-        functional_program_from_wire(program, ProgramLimits::default()).map_err(invalid)?;
+    let checked = &source.program;
     if checked.arena().len() > 4096 {
         return Err(invalid("Gaussian canonical node limit"));
     }
     let _lease = ctx
         .acquire_admission(1, (checked.arena().len() * ((n * n + n) * 32 + 256) + 65536) as u64)
         .map_err(invalid)?;
-    let (mean, covariance, fitted_rows) = match law {
-        GaussianCyclicLaw::Specified { mean, covariance } => {
-            if mean.len() != n || covariance.len() != n * n {
-                return Err(invalid("Gaussian observational law shape"));
+    let (mean, covariance, fitted_rows) = if let Some(density) = frozen_density {
+        (density.mean.clone(), density.covariance.clone(), density.fitted_rows)
+    } else {
+        match law {
+            GaussianCyclicLaw::Specified { mean, covariance } => {
+                if mean.len() != n || covariance.len() != n * n {
+                    return Err(invalid("Gaussian observational law shape"));
+                }
+                (mean.clone(), covariance.clone(), None)
             }
-            (mean.clone(), covariance.clone(), None)
-        }
-        GaussianCyclicLaw::Fit { rows, independent_observational_replicates } => {
-            if !independent_observational_replicates || rows.len() <= n || rows.len() > 100_000 {
-                return Err(invalid(
-                    "Gaussian fit requires n+1..100000 IID observational replicates",
-                ));
-            }
-            let mut mean = vec![0.; n];
-            let mut scatter = vec![0.; n * n];
-            for (k, row) in rows.iter().enumerate() {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(invalid("Gaussian fit cancelled"));
+            GaussianCyclicLaw::Fit { rows, independent_observational_replicates } => {
+                if !independent_observational_replicates || rows.len() <= n || rows.len() > 100_000
+                {
+                    return Err(invalid(
+                        "Gaussian fit requires n+1..100000 IID observational replicates",
+                    ));
                 }
-                if row.len() != n || row.iter().any(|v| !v.is_finite()) {
-                    return Err(invalid("Gaussian fit row shape/nonfinite"));
-                }
-                let delta: Vec<_> = row.iter().zip(&mean).map(|(x, m)| x - m).collect();
-                for i in 0..n {
-                    mean[i] += delta[i] / (k + 1) as f64;
-                }
-                for i in 0..n {
-                    for j in 0..n {
-                        scatter[i * n + j] += delta[i] * (row[j] - mean[j]);
+                let mut mean = vec![0.; n];
+                let mut scatter = vec![0.; n * n];
+                for (k, row) in rows.iter().enumerate() {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(invalid("Gaussian fit cancelled"));
+                    }
+                    if row.len() != n || row.iter().any(|v| !v.is_finite()) {
+                        return Err(invalid("Gaussian fit row shape/nonfinite"));
+                    }
+                    let delta: Vec<_> = row.iter().zip(&mean).map(|(x, m)| x - m).collect();
+                    for i in 0..n {
+                        mean[i] += delta[i] / (k + 1) as f64;
+                    }
+                    for i in 0..n {
+                        for j in 0..n {
+                            scatter[i * n + j] += delta[i] * (row[j] - mean[j]);
+                        }
                     }
                 }
+                for value in &mut scatter {
+                    *value /= rows.len() as f64;
+                }
+                (mean, scatter, Some(rows.len()))
             }
-            for value in &mut scatter {
-                *value /= rows.len() as f64;
-            }
-            (mean, scatter, Some(rows.len()))
         }
     };
     if mean.iter().chain(&covariance).any(|v| !v.is_finite()) {

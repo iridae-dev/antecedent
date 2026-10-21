@@ -744,10 +744,11 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         selectors: Vec<CyclicEvidenceSelector>,
         ctx: &ExecutionContext,
     ) -> Result<CyclicEvidence, CyclicArtifactError> {
+        let (report, bytes) = self.export(ctx)?;
         CyclicEvidence::build(
-            &self.state.request,
-            &self.state.report,
-            self.state.artifact.clone(),
+            self.state.program.request(),
+            &report,
+            bytes.into(),
             schema,
             selectors,
             ctx,
@@ -1311,7 +1312,7 @@ mod tests {
         };
         let selectors = vec![CyclicEvidenceSelector::OuMean { time: None, variable: 0 }];
         let evidence = prepared.cyclic_evidence(schema.clone(), selectors.clone(), &ctx).unwrap();
-        assert_eq!(prepared.inspect().preparation_evaluations, 1);
+        assert_eq!(prepared.inspect().preparation_evaluations, 0);
         assert_eq!(evidence.report.columns[0].samples, vec![Some(3.0)]);
         assert_eq!(evidence.report.columns[0].port, "mean");
         assert!(matches!(

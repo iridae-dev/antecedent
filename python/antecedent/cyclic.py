@@ -434,13 +434,14 @@ class PreparedCyclicFamily:
         max_bytes: int | None = None,
         cancel: Any = None,
     ) -> CyclicEvidence:
-        """Project retained native evidence without fitting/sampling again.
+        """Execute the retained program and project its native evidence.
 
         Schema declares ``id``, ``population`` and ordered ``(name, units)``
         variables. Typed selectors bind the actual world, time and uncertainty
         port. Original diagnostics and failed slots remain part of the evidence.
         """
-        self.execute(max_bytes=max_bytes, cancel=cancel)
+        with self._lock:
+            self._prepare(max_bytes=max_bytes, cancel=cancel)
         return CyclicEvidence(
             self._handle.evidence(
                 json.dumps(schema, allow_nan=False),
@@ -477,20 +478,27 @@ class PreparedCyclicFamily:
         return IdentifiedCyclicFunctional(source["request"], result.identity, graph["program"])
 
     def refresh(self, request_json: str) -> PreparedCyclicFamily:
-        """Bind changed source/target/initial law/policy through a fresh preparation."""
-        return PreparedCyclicFamily(request_json)
+        """Recompile changed inputs, reusing only compatible statistical products."""
+        refreshed = PreparedCyclicFamily(request_json)
+        with self._lock:
+            if self._handle is not None:
+                object.__setattr__(refreshed, "_handle", self._handle.rebind(request_json))
+        return refreshed
+
+    def _prepare(self, *, max_bytes: int | None, cancel: Any) -> None:
+        if self._handle is None:
+            object.__setattr__(
+                self,
+                "_handle",
+                _native.prepare_cyclic_family(
+                    self.request_json, max_bytes=max_bytes, cancel=cancel
+                ),
+            )
 
     def execute(self, *, max_bytes: int | None = None, cancel: Any = None) -> CyclicResult:
-        """Prepare once, retain fitted/drawn products, and export without refitting."""
+        """Execute the retained program and encode its result, reusing compatible fits."""
         with self._lock:
-            if self._handle is None:
-                object.__setattr__(
-                    self,
-                    "_handle",
-                    _native.prepare_cyclic_family(
-                        self.request_json, max_bytes=max_bytes, cancel=cancel
-                    ),
-                )
+            self._prepare(max_bytes=max_bytes, cancel=cancel)
             report, artifact = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
         return CyclicResult(json.loads(report), artifact)
 

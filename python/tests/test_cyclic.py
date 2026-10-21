@@ -164,8 +164,9 @@ def test_prepared_fit_retarget_has_zero_refits_and_refresh_changes_identity() ->
     prepared = linear.prepare(
         [[]], [[0.0, 0.0]], parameters=[{"kind": "weight", "equation": 1, "parent": 0}], rows=rows
     )
-    assert prepared.inspect()["fits_performed"] == 1
+    assert prepared.inspect()["fits_performed"] == 0
     original = prepared.execute()
+    assert prepared.inspect()["fits_performed"] == 1
     retargeted = prepared.retarget([[{"variable": 0, "value": 2.0}]], [[0.0, 0.0]])
     assert retargeted.inspect()["fits_performed"] == 0
     result = retargeted.execute()
@@ -177,6 +178,8 @@ def test_prepared_fit_retarget_has_zero_refits_and_refresh_changes_identity() ->
     refreshed = prepared.refresh(
         [{"values": [x, 0.6 * x], "clamps": [{"variable": 0, "value": x}]} for x in [-1.0, 1.0]]
     )
+    assert refreshed.inspect()["fits_performed"] == 0
+    refreshed.execute()
     assert refreshed.inspect()["fits_performed"] == 1
     assert refreshed.inspect()["identity"] != prepared.inspect()["identity"]
 
@@ -537,8 +540,12 @@ def test_family_preparation_reuses_products_and_refresh_invalidates_binding() ->
     request = OrnsteinUhlenbeck((-2.0,), (1.0,), (4.0,)).stationary()
     assert request.inspect()["preparation_evaluations"] == 0
     first = request.execute()
-    assert request.inspect()["preparation_evaluations"] == 1
+    assert request.inspect()["preparation_evaluations"] == 0
     assert request.execute().report == first.report
+    # Refreshing an already compiled family preserves the same public contract.
+    same = request.refresh(request.request_json)
+    assert same.inspect()["preparation_evaluations"] == 0
+    assert same.execute().report == first.report
     with pytest.raises(ValueError, match="(?i)(memory|limit|budget|admission)"):
         request.execute(max_bytes=1)
     replacement = json.loads(request.request_json)
@@ -899,7 +906,7 @@ def test_native_cyclic_evidence_decision_and_fresh_process_replay(tmp_path):
     prepared = OrnsteinUhlenbeck((-2.0,), (3.0,), (4.0,)).stationary()
     schema = {"id": "physical-system", "population": "system", "variables": [["position", "meter"]]}
     evidence = prepared.evidence(schema, [{"kind": "ou_mean", "time": None, "variable": 0}])
-    assert prepared.inspect()["preparation_evaluations"] == 1
+    assert prepared.inspect()["preparation_evaluations"] == 0
     assert evidence.report["columns"][0]["samples"] == [3.0]
     assert evidence.report["columns"][0]["port"] == "mean"
     quantity = ScientificQuantity.from_wire(evidence.report["columns"][0]["quantity"])
@@ -1331,7 +1338,11 @@ def test_cyclic_logical_retention_and_projection_resource_limits():
 
     prepared = OrnsteinUhlenbeck((-2.0,), (3.0,), (4.0,)).stationary()
     result = prepared.execute()
-    assert prepared.inspect()["retained_bytes"] > len(result.artifact) * 4
+    # The prepared owner retains the compiled request, not the exported artifact.
+    retained = prepared.inspect()["retained_bytes"]
+    assert retained > 0
+    assert prepared.execute().artifact == result.artifact
+    assert prepared.inspect()["retained_bytes"] == retained
     schema = {"id": "physical", "population": "system", "variables": [["position", "meter"]]}
     selector = {"kind": "ou_mean", "time": None, "variable": 0}
     with pytest.raises(ValueError, match="schema"):

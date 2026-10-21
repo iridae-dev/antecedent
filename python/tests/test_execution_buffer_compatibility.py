@@ -163,7 +163,7 @@ def test_cyclic_refresh_buffers_match_json_refit_and_own_rows():
         {**row, "values": strided([row["values"][0], row["values"][1] / 2])} for row in rows
     ]
     refreshed = prepared.refresh(replacement)
-    assert refreshed.inspect()["fits_performed"] == 1
+    assert refreshed.inspect()["fits_performed"] == 0
     legacy_request = json.loads(prepared.request_json)
     legacy_request["fit"]["rows"] = [
         {**row, "values": row["values"].tolist()} for row in replacement
@@ -172,6 +172,7 @@ def test_cyclic_refresh_buffers_match_json_refit_and_own_rows():
     for row in replacement:
         row["values"][:] = 0.0
     actual = refreshed.execute()
+    assert refreshed.inspect()["fits_performed"] == 1
     assert actual.report == expected.report
     assert actual.export() == expected.export()
     assert prepared.execute().report["worlds"][0][0]["values"][1] == pytest.approx(1.4, abs=1e-4)

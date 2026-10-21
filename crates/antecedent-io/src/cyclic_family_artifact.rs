@@ -13,6 +13,12 @@ use antecedent_model::{
 };
 use serde::{Deserialize, Serialize};
 
+#[path = "cyclic_family_program.rs"]
+mod compiled;
+pub use compiled::CompiledCyclicFamilyProgram;
+use compiled::FrozenFamilyFitValue;
+pub(crate) use compiled::FrozenGaussianDensity;
+
 /// Explicit multi-chain sampling/replay policy.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -501,52 +507,53 @@ impl CyclicFamilyRequest {
         }
     }
     /// Execute on the common resource/cancellation context, preserving family semantics.
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicFamilyReport, CyclicArtifactError> {
+        CompiledCyclicFamilyProgram::compile(self, ctx)?.execute(ctx)
+    }
+
     #[allow(
         clippy::too_many_lines,
         reason = "typed scientific family dispatch retains distinct operator inputs and answer representations"
     )]
-    pub fn execute(
+    fn execute_bound(
         &self,
+        identity: &str,
+        frozen: Option<&FrozenFamilyFitValue>,
+        source_proof: Option<&crate::cyclic_functional::CheckedCyclicFunctionalSource>,
         ctx: &ExecutionContext,
     ) -> Result<CyclicFamilyReport, CyclicArtifactError> {
         if ctx.cancellation.is_cancelled() {
             return Err(invalid("cyclic execution cancelled"));
         }
-        // Validate recursive expression representations before serializing a typed
-        // Rust request; the Python parser independently bounds nesting during decode.
-        match self {
-            Self::AdamFit { model, .. }
-            | Self::EquilibriumRoots { model, .. }
-            | Self::GradientFit { model, .. }
-            | Self::EquilibriumActions { model, .. }
-            | Self::FrequentistBootstrap { model, .. }
-            | Self::ParameterPosterior { model, .. }
-            | Self::JointCounterfactual { model, .. }
-            | Self::PartialCounterfactual { model, .. }
-            | Self::StructureFit { model, .. } => model.validate()?,
-            Self::Ode { model, .. } | Self::OdeFit { model, .. } => model.validate()?,
-            _ => {}
-        }
-        let (request, _request_retention) = bounded_json(self, ctx)?;
-        let identity =
-            CanonicalWriter::digest_bytes_hex("antecedent.cyclic_family.request.v1", &request);
         let answer = match self {
-            Self::GaussianFunctional { source, source_identity, program, law, assignments } => {
+            Self::GaussianFunctional { law, assignments, .. } => {
                 CyclicFamilyAnswer::GaussianFunctional(
-                    crate::cyclic_gaussian_functional::evaluate_gaussian_cyclic_functional(
-                        source,
-                        source_identity,
-                        program,
+                    crate::cyclic_gaussian_functional::evaluate_gaussian_cyclic_functional_checked(
+                        source_proof
+                            .ok_or_else(|| invalid("compiled functional source missing"))?,
                         law,
                         assignments,
+                        match frozen {
+                            Some(FrozenFamilyFitValue::Gaussian(density)) => Some(density),
+                            _ => None,
+                        },
                         ctx,
                     )?,
                 )
             }
             Self::AdamFit { model, parameters, training, validation, policy } => {
-                CyclicFamilyAnswer::AdamFit(antecedent_estimate::cyclic_adam::fit_cyclic_adam(
-                    model, parameters, training, validation, *policy, ctx,
-                )?)
+                CyclicFamilyAnswer::AdamFit(
+                    if let Some(FrozenFamilyFitValue::Adam(retained)) = frozen {
+                        retained.clone()
+                    } else {
+                        antecedent_estimate::cyclic_adam::fit_cyclic_adam(
+                            model, parameters, training, validation, *policy, ctx,
+                        )?
+                    },
+                )
             }
 
             Self::EquilibriumRoots { model, domain, noise, clamps, policy } => {
@@ -566,6 +573,8 @@ impl CyclicFamilyRequest {
                 }
                 let fit = if parameters.is_empty() {
                     None
+                } else if let Some(FrozenFamilyFitValue::Ou(retained)) = frozen {
+                    retained.clone()
                 } else {
                     Some(antecedent_estimate::ou_mechanisms::fit_ou_mechanisms(
                         model, parameters, regimes, *policy, ctx,
@@ -579,23 +588,23 @@ impl CyclicFamilyRequest {
                 CyclicFamilyAnswer::OuMechanisms { fit, laws }
             }
 
-            Self::Functional { source, source_identity, program, law, assignments } => {
-                CyclicFamilyAnswer::Functional(
-                    crate::cyclic_functional::evaluate_cyclic_functional(
-                        source,
-                        source_identity,
-                        program,
-                        law,
-                        assignments,
-                        ctx,
-                    )?,
-                )
-            }
+            Self::Functional { law, assignments, .. } => CyclicFamilyAnswer::Functional(
+                crate::cyclic_functional::evaluate_cyclic_functional_checked(
+                    source_proof.ok_or_else(|| invalid("compiled functional source missing"))?,
+                    law,
+                    assignments,
+                    ctx,
+                )?,
+            ),
             Self::GradientFit { model, parameters, rows, policy } => {
                 CyclicFamilyAnswer::GradientFit(
-                    antecedent_estimate::cyclic_gradient::fit_cyclic_gradient(
-                        model, parameters, rows, *policy, ctx,
-                    )?,
+                    if let Some(FrozenFamilyFitValue::Gradient(retained)) = frozen {
+                        retained.clone()
+                    } else {
+                        antecedent_estimate::cyclic_gradient::fit_cyclic_gradient(
+                            model, parameters, rows, *policy, ctx,
+                        )?
+                    },
                 )
             }
             Self::PolynomialCausal { program } => {
@@ -632,7 +641,9 @@ impl CyclicFamilyRequest {
                     .map_err(invalid)?;
                 let mut context = ctx.clone();
                 context.rng = antecedent_core::RngFactory::from_seed(*seed);
-                let draws =
+                let draws = if let Some(FrozenFamilyFitValue::Bootstrap(retained)) = frozen {
+                    retained.clone()
+                } else {
                     antecedent_estimate::cyclic_likelihood::bootstrap_cyclic_fit_with_design(
                         model,
                         parameters,
@@ -641,7 +652,8 @@ impl CyclicFamilyRequest {
                         *replicates,
                         *design,
                         &context,
-                    )?;
+                    )?
+                };
                 let mut output = Vec::with_capacity(worlds.len());
                 for clamps in worlds {
                     let mut attempts = Vec::with_capacity(draws.len());
@@ -718,12 +730,16 @@ impl CyclicFamilyRequest {
             }
             Self::PolynomialFit { candidates, measurements, policy } => {
                 CyclicFamilyAnswer::PolynomialFit(
-                    antecedent_estimate::constraint_likelihood::fit_polynomial_candidates(
-                        candidates,
-                        measurements,
-                        *policy,
-                        ctx,
-                    )?,
+                    if let Some(FrozenFamilyFitValue::Polynomial(retained)) = frozen {
+                        retained.clone()
+                    } else {
+                        antecedent_estimate::constraint_likelihood::fit_polynomial_candidates(
+                            candidates,
+                            measurements,
+                            *policy,
+                            ctx,
+                        )?
+                    },
                 )
             }
             Self::ParameterPosterior {
@@ -750,14 +766,18 @@ impl CyclicFamilyRequest {
                     .acquire_admission(0, (count * (model.order() * 128 + 512)) as u64)
                     .map_err(invalid)?;
                 let context = sampling.context(ctx);
-                let posterior = antecedent_estimate::cyclic_likelihood::sample_cyclic_posterior(
-                    model,
-                    parameters,
-                    rows,
-                    *prior_sd,
-                    sampling.options(),
-                    &context,
-                )?;
+                let posterior = if let Some(FrozenFamilyFitValue::Parameter(retained)) = frozen {
+                    retained.clone()
+                } else {
+                    antecedent_estimate::cyclic_likelihood::sample_cyclic_posterior(
+                        model,
+                        parameters,
+                        rows,
+                        *prior_sd,
+                        sampling.options(),
+                        &context,
+                    )?
+                };
                 let mut output = Vec::with_capacity(worlds.len());
                 for clamps in worlds {
                     let mut by_parameter = Vec::new();
@@ -801,17 +821,21 @@ impl CyclicFamilyRequest {
                 let _retention = ctx
                     .acquire_admission(0, (count * (model.order() * 128 + 512)) as u64)
                     .map_err(invalid)?;
-                let posterior = antecedent_estimate::cyclic_likelihood::abduce_cyclic_joint(
-                    model,
-                    parameters,
-                    rows,
-                    *prior_sd,
-                    observations,
-                    measurement_variances,
-                    initial,
-                    sampling.options(),
-                    &sampling.context(ctx),
-                )?;
+                let posterior = if let Some(FrozenFamilyFitValue::Joint(retained)) = frozen {
+                    retained.clone()
+                } else {
+                    antecedent_estimate::cyclic_likelihood::abduce_cyclic_joint(
+                        model,
+                        parameters,
+                        rows,
+                        *prior_sd,
+                        observations,
+                        measurement_variances,
+                        initial,
+                        sampling.options(),
+                        &sampling.context(ctx),
+                    )?
+                };
                 let mut output = Vec::with_capacity(worlds.len());
                 for clamps in worlds {
                     let mut draws = Vec::with_capacity(posterior.parameter_draws.len());
@@ -857,14 +881,18 @@ impl CyclicFamilyRequest {
                     .acquire_admission(0, (count * (model.order() * 128 + 512)) as u64)
                     .map_err(invalid)?;
                 let context = sampling.context(ctx);
-                let abduction = antecedent_estimate::cyclic_likelihood::abduce_cyclic_partial(
-                    model,
-                    observations,
-                    measurement_variances,
-                    initial,
-                    sampling.options(),
-                    &context,
-                )?;
+                let abduction = if let Some(FrozenFamilyFitValue::Partial(retained)) = frozen {
+                    retained.clone()
+                } else {
+                    antecedent_estimate::cyclic_likelihood::abduce_cyclic_partial(
+                        model,
+                        observations,
+                        measurement_variances,
+                        initial,
+                        sampling.options(),
+                        &context,
+                    )?
+                };
                 let mut output = Vec::with_capacity(worlds.len());
                 for clamps in worlds {
                     output.push(
@@ -906,12 +934,18 @@ impl CyclicFamilyRequest {
                 threshold,
                 bootstrap_replicates,
             } => {
-                let fit = antecedent_estimate::cyclic_likelihood::learn_cyclic_structure(
-                    model, training, heldout, *policy, *threshold, ctx,
-                )?;
-                let mut context = ctx.clone();
-                context.rng = antecedent_core::RngFactory::from_seed(*seed);
-                let bootstrap =
+                if let Some(FrozenFamilyFitValue::Structure { fit, bootstrap }) = frozen {
+                    CyclicFamilyAnswer::StructureFit {
+                        fit: fit.clone(),
+                        bootstrap: bootstrap.clone(),
+                    }
+                } else {
+                    let fit = antecedent_estimate::cyclic_likelihood::learn_cyclic_structure(
+                        model, training, heldout, *policy, *threshold, ctx,
+                    )?;
+                    let mut context = ctx.clone();
+                    context.rng = antecedent_core::RngFactory::from_seed(*seed);
+                    let bootstrap =
                     antecedent_estimate::cyclic_likelihood::bootstrap_cyclic_structure_with_design(
                         model,
                         training,
@@ -922,45 +956,61 @@ impl CyclicFamilyRequest {
                         *design,
                         &context,
                     )?;
-                CyclicFamilyAnswer::StructureFit { fit, bootstrap }
+                    CyclicFamilyAnswer::StructureFit { fit, bootstrap }
+                }
             }
             Self::OdeFit { model, parameters, observations, integration, policy } => {
                 CyclicFamilyAnswer::OdeFit(
-                    antecedent_estimate::cyclic_dynamics::fit_ode_likelihood(
-                        model,
-                        parameters,
-                        observations,
-                        *integration,
-                        *policy,
-                        ctx,
-                    )?,
+                    if let Some(FrozenFamilyFitValue::Ode(retained)) = frozen {
+                        retained.clone()
+                    } else {
+                        antecedent_estimate::cyclic_dynamics::fit_ode_likelihood(
+                            model,
+                            parameters,
+                            observations,
+                            *integration,
+                            *policy,
+                            ctx,
+                        )?
+                    },
                 )
             }
-            Self::OuFit { model, parameters, rows, policy } => {
-                CyclicFamilyAnswer::OuFit(antecedent_estimate::cyclic_dynamics::fit_ou_likelihood(
-                    model, parameters, rows, *policy, ctx,
-                )?)
-            }
+            Self::OuFit { model, parameters, rows, policy } => CyclicFamilyAnswer::OuFit(
+                if let Some(FrozenFamilyFitValue::OuFit(retained)) = frozen {
+                    retained.clone()
+                } else {
+                    antecedent_estimate::cyclic_dynamics::fit_ou_likelihood(
+                        model, parameters, rows, *policy, ctx,
+                    )?
+                },
+            ),
             Self::Polynomial { model, policy } => {
                 CyclicFamilyAnswer::Polynomial(model.isolate(*policy, ctx)?)
             }
         };
-        Ok(CyclicFamilyReport { identity, answer })
+        Ok(CyclicFamilyReport { identity: identity.to_owned(), answer })
     }
     /// Execute and encode with the existing family-neutral artifact container.
     pub fn export(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(CyclicFamilyReport, Vec<u8>), CyclicArtifactError> {
+        CompiledCyclicFamilyProgram::compile(self, ctx)?.export(ctx)
+    }
+
+    fn encode_report(
+        &self,
+        report: &CyclicFamilyReport,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
         #[derive(Serialize)]
         struct View<'a> {
             version: u16,
             request: &'a CyclicFamilyRequest,
             report: &'a CyclicFamilyReport,
         }
-        let report = self.execute(ctx)?;
         let (bytes, _record_retention) =
-            bounded_json(&View { version: 1, request: self, report: &report }, ctx)?;
+            bounded_json(&View { version: 1, request: self, report }, ctx)?;
         let artifact = crate::encode_container(
             &crate::ArtifactContainer {
                 kind: "cyclic_family",
@@ -976,7 +1026,7 @@ impl CyclicFamilyRequest {
             }],
         )
         .map_err(|e| invalid(e.into_io("cyclic family layout")))?;
-        Ok((report, artifact))
+        Ok(artifact)
     }
 }
 
