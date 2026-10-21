@@ -196,7 +196,7 @@ fn positive(value: f64) -> bool {
 
 fn block_digest(block: &LinearOlsSuffStats) -> String {
     let mut writer = CanonicalWriter::new(BLOCK_TAG);
-    writer.word(block.n).reals(&block.xtx).reals(&block.xty).real(block.yty);
+    writer.word(block.n()).reals(block.xtx()).reals(block.xty()).real(block.yty());
     writer.finish_hex()
 }
 
@@ -282,10 +282,10 @@ impl ConjugateOlsPosterior {
                 "block summary is invalidated; recompute it from the retained rows".into(),
             ));
         }
-        if block.ncols != p {
-            return Err(StateError::Shape(format!("block ncols {} != {p}", block.ncols)));
+        if block.ncols() != p {
+            return Err(StateError::Shape(format!("block ncols {} != {p}", block.ncols())));
         }
-        if block.n == 0 {
+        if block.n() == 0 {
             return Err(StateError::InvalidEvent("block holds no observations".into()));
         }
         let digest = block_digest(block);
@@ -301,18 +301,18 @@ impl ConjugateOlsPosterior {
             )));
         }
         let mut precision = self.precision.clone();
-        for (slot, add) in precision.iter_mut().zip(&block.xtx) {
+        for (slot, add) in precision.iter_mut().zip(block.xtx()) {
             *slot += add;
         }
         let mut eta = self.eta.clone();
-        for (slot, add) in eta.iter_mut().zip(&block.xty) {
+        for (slot, add) in eta.iter_mut().zip(block.xty()) {
             *slot += add;
         }
         self.precision = precision;
         self.eta = eta;
-        self.sum_squares += block.yty;
-        self.shape += block.n as f64 / 2.0;
-        self.n = self.n.saturating_add(block.n);
+        self.sum_squares += block.yty();
+        self.shape += block.n() as f64 / 2.0;
+        self.n = self.n.saturating_add(block.n());
         self.used.insert(Arc::from(label), digest);
         Ok(())
     }

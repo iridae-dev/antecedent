@@ -79,13 +79,13 @@ pub fn run() -> Result<(), CausalError> {
 
     // Incremental OLS: append rows, then compare shape to a full design.
     let key: Arc<str> = Arc::from("m1");
-    state.suff_stats.ols.insert(Arc::clone(&key), LinearOlsSuffStats::new(2));
+    state.suff_stats.ols.insert(Arc::clone(&key), LinearOlsSuffStats::new(2).expect("dimension"));
     for (ti, yi) in t.iter().zip(y.iter()) {
         state.suff_stats.ols.get_mut(&key).unwrap().append_row(&[1.0, *ti], *yi)?;
     }
     let ols = &state.suff_stats.ols[&key];
-    println!("ols n={} ncols={}", ols.n, ols.ncols);
-    assert_eq!((ols.n as usize, ols.ncols as usize), (n, 2), "every appended row is counted");
+    println!("ols n={} ncols={}", ols.n(), ols.ncols());
+    assert_eq!((ols.n() as usize, ols.ncols()), (n, 2), "every appended row is counted");
 
     // Replace data → registered query becomes stale until explicit refresh.
     let new_ver = state.data_catalog.version.next();

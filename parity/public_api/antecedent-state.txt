@@ -631,11 +631,6 @@ pub field antecedent_state::InvalidationLog::entries: alloc::vec::Vec<antecedent
 pub field antecedent_state::LgssmParams::a: f64
 pub field antecedent_state::LgssmParams::obs_std: f64
 pub field antecedent_state::LgssmParams::process_std: f64
-pub field antecedent_state::LinearOlsSuffStats::n: u64
-pub field antecedent_state::LinearOlsSuffStats::ncols: usize
-pub field antecedent_state::LinearOlsSuffStats::xtx: alloc::vec::Vec<f64>
-pub field antecedent_state::LinearOlsSuffStats::xty: alloc::vec::Vec<f64>
-pub field antecedent_state::LinearOlsSuffStats::yty: f64
 pub field antecedent_state::ModelRecord::bytes: u64
 pub field antecedent_state::ModelRecord::fingerprint: u64
 pub field antecedent_state::ModelRecord::id: antecedent_core::ids::ModelId
@@ -736,13 +731,18 @@ pub fn <antecedent_state::InvalidationLog>::fn push_input(&mut self, at_version:
 pub fn <antecedent_state::InvalidationLog>::fn query_stale_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> bool
 pub fn <antecedent_state::InvalidationLog>::fn revalidation_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_state::LinearOlsSuffStats>::const fn is_invalidated(&self) -> bool
+pub fn <antecedent_state::LinearOlsSuffStats>::const fn n(&self) -> u64
+pub fn <antecedent_state::LinearOlsSuffStats>::const fn ncols(&self) -> usize
+pub fn <antecedent_state::LinearOlsSuffStats>::const fn yty(&self) -> f64
 pub fn <antecedent_state::LinearOlsSuffStats>::fn append_batch(&mut self, rows_rowmajor: &[f64], y: &[f64]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn append_row(&mut self, row: &[f64], y: f64) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn apply_delta(&mut self, delta: antecedent_state::LinearOlsDelta<'_>) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn merge(&mut self, other: &Self) -> core::result::Result<(), antecedent_state::StateError>
-pub fn <antecedent_state::LinearOlsSuffStats>::fn new(ncols: usize) -> Self
+pub fn <antecedent_state::LinearOlsSuffStats>::fn new(ncols: usize) -> core::result::Result<Self, antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn residual_variance(&self, beta: &[f64]) -> core::option::Option<f64>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn solve_beta(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_state::StateError>
+pub fn <antecedent_state::LinearOlsSuffStats>::fn xtx(&self) -> &[f64]
+pub fn <antecedent_state::LinearOlsSuffStats>::fn xty(&self) -> &[f64]
 pub fn <antecedent_state::LocalScoreCache>::fn clear(&mut self)
 pub fn <antecedent_state::LocalScoreCache>::fn delta_score(&mut self, data: &antecedent_state::GraphScoreData, op: antecedent_state::ParentSetOp) -> core::result::Result<(f64, f64), antecedent_state::StateError>
 pub fn <antecedent_state::LocalScoreCache>::fn local_score(&mut self, data: &antecedent_state::GraphScoreData, node: u32, parents: &alloc::sync::Arc<[u32]>) -> core::result::Result<f64, antecedent_state::StateError>
@@ -796,7 +796,7 @@ pub fn <antecedent_state::StreamingCovariance>::fn m2(&self) -> &[f64]
 pub fn <antecedent_state::StreamingCovariance>::fn mean(&self) -> &[f64]
 pub fn <antecedent_state::StreamingCovariance>::fn merge(&mut self, other: &Self) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::StreamingCovariance>::fn n(&self) -> u64
-pub fn <antecedent_state::StreamingCovariance>::fn new(dim: usize) -> Self
+pub fn <antecedent_state::StreamingCovariance>::fn new(dim: usize) -> core::result::Result<Self, antecedent_state::StateError>
 pub fn <antecedent_state::StreamingCovariance>::fn sample_covariance(&self) -> core::option::Option<alloc::vec::Vec<f64>>
 pub fn <antecedent_state::retention::RetainedOperation>::const fn as_str(self) -> &'static str
 pub fn <antecedent_state::retention::RetentionMode>::const fn as_str(self) -> &'static str

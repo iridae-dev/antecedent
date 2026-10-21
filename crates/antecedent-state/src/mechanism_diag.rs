@@ -73,7 +73,7 @@ impl RollingMechanismDiagnostics {
             max_abs_cusum: None,
             bytes: 0,
             charged_bytes: 0,
-            ols: LinearOlsSuffStats::new(ncols),
+            ols: LinearOlsSuffStats::new(ncols)?,
             ring: VecDeque::with_capacity(window),
         })
     }
@@ -81,7 +81,7 @@ impl RollingMechanismDiagnostics {
     /// Predictor dimension.
     #[must_use]
     pub fn ncols(&self) -> usize {
-        self.ols.ncols
+        self.ols.ncols()
     }
 
     /// Append one design row and response; drop the oldest row when over window.
@@ -90,11 +90,11 @@ impl RollingMechanismDiagnostics {
     ///
     /// Row length mismatch, or a non-finite entry (checked before the window is touched).
     pub fn append_row(&mut self, row: &[f64], y: f64) -> Result<(), StateError> {
-        if row.len() != self.ols.ncols {
+        if row.len() != self.ols.ncols() {
             return Err(StateError::Shape(format!(
                 "row len {} != ncols {}",
                 row.len(),
-                self.ols.ncols
+                self.ols.ncols()
             )));
         }
         if !y.is_finite() || row.iter().any(|v| !v.is_finite()) {
@@ -116,7 +116,7 @@ impl RollingMechanismDiagnostics {
     ///
     /// Shape mismatch.
     pub fn append_batch(&mut self, rows_rowmajor: &[f64], y: &[f64]) -> Result<(), StateError> {
-        let p = self.ols.ncols;
+        let p = self.ols.ncols();
         if rows_rowmajor.len() % p != 0 {
             return Err(StateError::Shape("rows not multiple of ncols".into()));
         }
@@ -154,7 +154,7 @@ impl RollingMechanismDiagnostics {
             residuals.push(e);
         }
         let n = self.ring.len() as f64;
-        let p = self.ols.ncols as f64;
+        let p = self.ols.ncols() as f64;
         self.beta = beta;
         self.residual_sse = sse;
         // Window σ² is SSE/(n−p) at the fit replayed from the ring.
@@ -176,11 +176,11 @@ impl RollingMechanismDiagnostics {
     /// ever hold, and what [`insert_mechanism_diag`] reserves.
     #[must_use]
     pub fn worst_case_bytes(&self) -> u64 {
-        self.bytes_for(self.window, self.ols.ncols)
+        self.bytes_for(self.window, self.ols.ncols())
     }
 
     fn bytes_for(&self, ring_rows: usize, beta_len: usize) -> u64 {
-        let p = self.ols.ncols;
+        let p = self.ols.ncols();
         let ring_bytes = ring_rows * (p * 8 + 8);
         let ols_bytes = p * p * 8 + p * 8 + 64;
         let beta_bytes = beta_len * 8;
@@ -202,7 +202,7 @@ impl RollingMechanismDiagnostics {
     /// Replay the retained window. The summary stays sufficient statistics:
     /// the rows live in the ring, and a Gram downdate is not an eviction.
     fn rebuild_ols_from_ring(&mut self) -> Result<(), StateError> {
-        let mut ols = LinearOlsSuffStats::new(self.ols.ncols);
+        let mut ols = LinearOlsSuffStats::new(self.ols.ncols())?;
         for (row, y) in &self.ring {
             ols.append_row(row, *y)?;
         }
@@ -278,7 +278,7 @@ mod tests {
         roll.refresh_summaries().unwrap();
 
         let start = all_y.len() - w;
-        let mut batch = LinearOlsSuffStats::new(p);
+        let mut batch = LinearOlsSuffStats::new(p).expect("dimension");
         batch.append_batch(&all_rows[start * p..], &all_y[start..]).unwrap();
         let beta_b = batch.solve_beta().unwrap();
         assert_eq!(roll.n, w as u64);
@@ -371,7 +371,7 @@ mod tests {
         }
         roll.refresh_summaries().unwrap();
         let start = responses.len() - roll.window;
-        let mut batch = LinearOlsSuffStats::new(2);
+        let mut batch = LinearOlsSuffStats::new(2).expect("dimension");
         batch.append_batch(&rows[start * 2..], &responses[start..]).unwrap();
         let beta = batch.solve_beta().unwrap();
         assert_eq!(roll.beta[0].to_bits(), beta[0].to_bits());

@@ -338,12 +338,10 @@ impl PyCausalState {
     }
 
     /// Ensure an OLS sufficient-stat slot exists with `ncols` predictors.
-    fn ols_ensure(&mut self, key: String, ncols: usize) {
-        self.inner
-            .suff_stats
-            .ols
-            .entry(Arc::from(key))
-            .or_insert_with(|| LinearOlsSuffStats::new(ncols));
+    fn ols_ensure(&mut self, key: String, ncols: usize) -> PyResult<()> {
+        let stats = LinearOlsSuffStats::new(ncols).map_err(py_err)?;
+        self.inner.suff_stats.ols.entry(Arc::from(key)).or_insert(stats);
+        Ok(())
     }
 
     /// Append one OLS design row / response under `key`.
@@ -367,21 +365,19 @@ impl PyCausalState {
             .get(key)
             .ok_or_else(|| crate::value_err(format!("unknown ols key `{key}`")))?;
         let d = PyDict::new(py);
-        d.set_item("n", stats.n)?;
-        d.set_item("ncols", stats.ncols)?;
-        d.set_item("xtx", stats.xtx.clone())?;
-        d.set_item("xty", stats.xty.clone())?;
-        d.set_item("yty", stats.yty)?;
+        d.set_item("n", stats.n())?;
+        d.set_item("ncols", stats.ncols())?;
+        d.set_item("xtx", stats.xtx().to_vec())?;
+        d.set_item("xty", stats.xty().to_vec())?;
+        d.set_item("yty", stats.yty())?;
         Ok(d)
     }
 
     /// Ensure a streaming-covariance slot of dimension `dim`.
-    fn cov_ensure(&mut self, key: String, dim: usize) {
-        self.inner
-            .suff_stats
-            .cov
-            .entry(Arc::from(key))
-            .or_insert_with(|| StreamingCovariance::new(dim));
+    fn cov_ensure(&mut self, key: String, dim: usize) -> PyResult<()> {
+        let cov = StreamingCovariance::new(dim).map_err(py_err)?;
+        self.inner.suff_stats.cov.entry(Arc::from(key)).or_insert(cov);
+        Ok(())
     }
 
     /// Observe one row into streaming covariance `key`.

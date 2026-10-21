@@ -9,7 +9,8 @@
 
 #![allow(clippy::similar_names, reason = "xtx / xty")]
 
-use antecedent_stats::{accumulate_xtx_xty_row, invert_square};
+use antecedent_kernels::{chol_solve_into, cholesky_spd_into};
+use antecedent_stats::accumulate_xtx_xty_row;
 
 use crate::error::StateError;
 use crate::retention::RetentionPolicy;
@@ -83,18 +84,23 @@ pub enum LinearOlsDelta<'a> {
 /// Summaries of the same columns merge in either order ([`Self::merge`]). Append a
 /// row or a window with [`Self::apply_delta`]. A weight or mask change invalidates
 /// the summary. An inserted column or an evicted row is refused.
+///
+/// The joint scatter of `[x | y]` is the source of the published moments. Those
+/// moments are not writable from outside this type. [`Self::solve_beta`],
+/// [`Self::merge`], [`Self::append_row`], and [`Self::residual_variance`] refuse a
+/// summary whose published moments no longer agree with that scatter.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LinearOlsSuffStats {
     /// Number of columns `p`.
-    pub ncols: usize,
+    ncols: usize,
     /// Row-major `p×p` Gram.
-    pub xtx: Vec<f64>,
+    xtx: Vec<f64>,
     /// `Xᵀy` length `p`.
-    pub xty: Vec<f64>,
+    xty: Vec<f64>,
     /// Sample count.
-    pub n: u64,
+    n: u64,
     /// Sum of squared responses (for residual variance).
-    pub yty: f64,
+    yty: f64,
     /// Welford scatter of `[x | y]` for a translation-stable residual scale.
     joint: StreamingCovariance,
     /// Retention declaration.
@@ -105,18 +111,55 @@ pub struct LinearOlsSuffStats {
 
 impl LinearOlsSuffStats {
     /// Empty stats for `ncols` predictors.
-    #[must_use]
-    pub fn new(ncols: usize) -> Self {
-        Self {
+    ///
+    /// # Errors
+    ///
+    /// `ncols²` or `(ncols + 1)²` does not fit in `usize`.
+    pub fn new(ncols: usize) -> Result<Self, StateError> {
+        let gram = square_len(ncols, "ols gram dimension overflow")?;
+        let joint_dim = ncols
+            .checked_add(1)
+            .ok_or_else(|| StateError::Shape("ols joint dimension overflow".into()))?;
+        Ok(Self {
             ncols,
-            xtx: vec![0.0; ncols * ncols],
+            xtx: vec![0.0; gram],
             xty: vec![0.0; ncols],
             n: 0,
             yty: 0.0,
-            joint: StreamingCovariance::new(ncols.saturating_add(1)),
+            joint: StreamingCovariance::new(joint_dim)?,
             retention: RetentionPolicy::SufficientStatisticsOnly,
             invalidated: false,
-        }
+        })
+    }
+
+    /// Number of columns `p`.
+    #[must_use]
+    pub const fn ncols(&self) -> usize {
+        self.ncols
+    }
+
+    /// Sample count.
+    #[must_use]
+    pub const fn n(&self) -> u64 {
+        self.n
+    }
+
+    /// Row-major `p×p` Gram published from the joint scatter.
+    #[must_use]
+    pub fn xtx(&self) -> &[f64] {
+        &self.xtx
+    }
+
+    /// `Xᵀy`, length `p`, published from the joint scatter.
+    #[must_use]
+    pub fn xty(&self) -> &[f64] {
+        &self.xty
+    }
+
+    /// Sum of squared responses, published from the joint scatter.
+    #[must_use]
+    pub const fn yty(&self) -> f64 {
+        self.yty
     }
 
     /// Whether a weight or mask change has cleared this summary.
@@ -148,6 +191,9 @@ impl LinearOlsSuffStats {
         }
         if !y.is_finite() || row.iter().any(|v| !v.is_finite()) {
             return Err(StateError::Numerical("design row and response must be finite".into()));
+        }
+        if !self.published_matches_scatter() {
+            return Err(unsupported("summary is out of step with its scatter"));
         }
         let mut joint_row = Vec::with_capacity(self.ncols.saturating_add(1));
         joint_row.extend_from_slice(row);
@@ -183,11 +229,15 @@ impl LinearOlsSuffStats {
         Ok(())
     }
 
-    /// Solve OLS coefficients `β = (XᵀX)⁻¹ Xᵀy`.
+    /// Solve OLS coefficients from `XᵀX β = Xᵀy` by Cholesky.
+    ///
+    /// The factorisation solves the Gram system directly. It does not form
+    /// `(XᵀX)⁻¹`, so the solve does not square the conditioning of the Gram.
     ///
     /// # Errors
     ///
-    /// The summary was invalidated, there are no observations, or the Gram is singular.
+    /// The summary was invalidated, its published moments disagree with the joint
+    /// scatter, there are no observations, or the Gram is singular.
     pub fn solve_beta(&self) -> Result<Vec<f64>, StateError> {
         if self.invalidated {
             return Err(unsupported("summary invalidated"));
@@ -195,17 +245,10 @@ impl LinearOlsSuffStats {
         if self.n == 0 {
             return Err(StateError::Numerical("no observations".into()));
         }
-        let inv = invert_square(&self.xtx, self.ncols)
-            .ok_or_else(|| StateError::Numerical("singular XtX".into()))?;
-        let mut beta = vec![0.0; self.ncols];
-        for i in 0..self.ncols {
-            let mut s = 0.0;
-            for j in 0..self.ncols {
-                s += inv[i * self.ncols + j] * self.xty[j];
-            }
-            beta[i] = s;
+        if !self.published_matches_scatter() {
+            return Err(unsupported("summary is out of step with its scatter"));
         }
-        Ok(beta)
+        solve_gram(&self.xtx, &self.xty, self.ncols)
     }
 
     /// Residual variance estimate `σ² = SSE / (n − p)` when `n > p`.
@@ -215,11 +258,13 @@ impl LinearOlsSuffStats {
     /// a large common offset but only equals `SSE` when the residuals average to zero:
     /// `Σ r² = Σ (r − r̄)² + n r̄²` with `r̄ = ȳ − x̄ᵀβ`. For OLS on a design containing an
     /// intercept `r̄ = 0` and the second term vanishes; through-origin designs and
-    /// externally supplied coefficients need it. `r̄` is taken as zero when it is below the
-    /// round-off of its own evaluation, so a huge offset does not turn rounding noise into
-    /// variance.
+    /// externally supplied coefficients need it. The `n r̄²` term is kept whenever it
+    /// is finite, including when `|r̄|` is only a few units in the last place of the
+    /// means. A non-finite correction means the residual scale is not representable
+    /// and the variance is `None`.
     ///
-    /// Returns `None` when a weight or mask change has invalidated this summary.
+    /// Returns `None` when a weight or mask change has invalidated this summary, or
+    /// when the published moments no longer agree with the joint scatter.
     #[must_use]
     pub fn residual_variance(&self, beta: &[f64]) -> Option<f64> {
         if self.invalidated {
@@ -228,7 +273,7 @@ impl LinearOlsSuffStats {
         if beta.len() != self.ncols || usize::try_from(self.n).is_ok_and(|n| n <= self.ncols) {
             return None;
         }
-        if self.joint.n != self.n || self.joint.dim != self.ncols.saturating_add(1) {
+        if !self.published_matches_scatter() {
             return None;
         }
         let p = self.ncols;
@@ -247,18 +292,17 @@ impl LinearOlsSuffStats {
         if !sse.is_finite() {
             return None;
         }
-        // Mean residual r̄ = ȳ − x̄ᵀβ and the magnitude of the terms it is a difference of.
+        // Mean residual r̄ = ȳ − x̄ᵀβ. Keep n r̄² whenever that product is finite.
         let means = &self.joint.mean;
         let mut r_bar = means[p];
-        let mut r_scale = means[p].abs();
         for i in 0..p {
-            let term = beta[i] * means[i];
-            r_bar -= term;
-            r_scale += term.abs();
+            r_bar -= beta[i] * means[i];
         }
-        if r_bar.abs() > 8.0 * f64::EPSILON * r_scale {
-            sse += self.n as f64 * r_bar * r_bar;
+        let correction = (self.n as f64) * r_bar * r_bar;
+        if !correction.is_finite() {
+            return None;
         }
+        sse += correction;
         if sse < 0.0 {
             let scale = s[p * dim + p].abs().max(1.0);
             if sse.abs() <= 1e-12 * scale {
@@ -282,8 +326,8 @@ impl LinearOlsSuffStats {
     ///
     /// # Errors
     ///
-    /// Column-count mismatch, a non-finite summary, an invalidated summary, a scatter
-    /// that does not match the row count, or a count that would overflow.
+    /// Column-count mismatch, a non-finite summary, an invalidated summary, published
+    /// moments that disagree with the joint scatter, or a count that would overflow.
     #[must_use = "a refused merge must be recomputed from the retained rows"]
     pub fn merge(&mut self, other: &Self) -> Result<(), StateError> {
         if self.invalidated || other.invalidated {
@@ -300,6 +344,9 @@ impl LinearOlsSuffStats {
         }
         if !self.entries_finite() || !other.entries_finite() {
             return Err(unsupported("summary is non-finite"));
+        }
+        if !self.published_matches_scatter() || !other.published_matches_scatter() {
+            return Err(unsupported("summary is out of step with its scatter"));
         }
         if other.n == 0 {
             return Ok(());
@@ -377,14 +424,86 @@ impl LinearOlsSuffStats {
             && self.joint.m2.iter().all(|value| value.is_finite())
     }
 
+    /// Published raw moments against `M2 + n μ μᵀ` from the joint scatter.
+    ///
+    /// Agreement is relative (`1e-6` of the larger magnitude, and at least `1e-6`).
+    /// That admits the rounding between the raw products and the centered scatter,
+    /// and still refuses a write that moves an O(1) moment by a unit.
+    fn published_matches_scatter(&self) -> bool {
+        let joint_dim = match self.ncols.checked_add(1) {
+            Some(dim) => dim,
+            None => return false,
+        };
+        if self.joint.dim != joint_dim || self.joint.n != self.n {
+            return false;
+        }
+        let Some(gram) = self.ncols.checked_mul(self.ncols) else {
+            return false;
+        };
+        if self.xtx.len() != gram || self.xty.len() != self.ncols {
+            return false;
+        }
+        let p = self.ncols;
+        for i in 0..p {
+            if !moments_close(self.xty[i], rebuilt_moment(&self.joint, i, p)) {
+                return false;
+            }
+            for j in 0..p {
+                if !moments_close(self.xtx[i * p + j], rebuilt_moment(&self.joint, i, j)) {
+                    return false;
+                }
+            }
+        }
+        moments_close(self.yty, rebuilt_moment(&self.joint, p, p))
+    }
+
     fn invalidate(&mut self, reason: &str) -> StateError {
         let ncols = self.ncols;
         let retention = self.retention;
-        *self = Self::new(ncols);
+        *self = Self::new(ncols).expect("ncols already fitted in the summary");
         self.retention = retention;
         self.invalidated = true;
         unsupported(reason)
     }
+}
+
+/// `XᵀX β = Xᵀy` from a Cholesky factor. `None` of an inverse is formed.
+fn solve_gram(xtx: &[f64], xty: &[f64], ncols: usize) -> Result<Vec<f64>, StateError> {
+    let singular = StateError::Numerical("singular XtX".into());
+    let Some(nn) = ncols.checked_mul(ncols) else {
+        return Err(StateError::Shape("ols gram dimension overflow".into()));
+    };
+    if ncols == 0 || xtx.len() < nn || xty.len() < ncols {
+        return Err(singular);
+    }
+    let mut factor = vec![0.0; nn];
+    if cholesky_spd_into(xtx, ncols, &mut factor).is_err() {
+        return Err(singular);
+    }
+    let mut scratch = vec![0.0; ncols];
+    let mut beta = vec![0.0; ncols];
+    chol_solve_into(&factor, ncols, xty, &mut scratch, &mut beta);
+    if beta.iter().any(|value| !value.is_finite()) {
+        return Err(singular);
+    }
+    Ok(beta)
+}
+
+fn rebuilt_moment(joint: &StreamingCovariance, row: usize, col: usize) -> f64 {
+    let dim = joint.dim;
+    joint.m2[row * dim + col] + (joint.n as f64) * joint.mean[row] * joint.mean[col]
+}
+
+fn moments_close(stored: f64, rebuilt: f64) -> bool {
+    if !stored.is_finite() || !rebuilt.is_finite() {
+        return false;
+    }
+    let scale = stored.abs().max(rebuilt.abs()).max(1.0);
+    (stored - rebuilt).abs() <= 1e-6 * scale
+}
+
+fn square_len(dim: usize, message: &str) -> Result<usize, StateError> {
+    dim.checked_mul(dim).ok_or_else(|| StateError::Shape(message.into()))
 }
 
 fn unsupported(reason: &str) -> StateError {
@@ -436,15 +555,19 @@ pub struct StreamingCovariance {
 
 impl StreamingCovariance {
     /// Empty streaming covariance for `dim`.
-    #[must_use]
-    pub fn new(dim: usize) -> Self {
-        Self {
+    ///
+    /// # Errors
+    ///
+    /// `dim²` does not fit in `usize`.
+    pub fn new(dim: usize) -> Result<Self, StateError> {
+        let cells = square_len(dim, "covariance dimension overflow")?;
+        Ok(Self {
             dim,
             n: 0,
             mean: vec![0.0; dim],
-            m2: vec![0.0; dim * dim],
+            m2: vec![0.0; cells],
             retention: RetentionPolicy::SufficientStatisticsOnly,
-        }
+        })
     }
 
     /// Observation count.
@@ -549,6 +672,7 @@ impl StreamingCovariance {
         let weight = n_add / n_f;
         let scale = n_base * n_add / n_f;
         let dim = self.dim;
+        let cells = square_len(dim, "covariance dimension overflow")?;
         let mut mean = vec![0.0; dim];
         let mut delta = vec![0.0; dim];
         let means = mean.iter_mut().zip(&mut delta);
@@ -558,7 +682,7 @@ impl StreamingCovariance {
             *gap = step;
             *slot = *base_mean + step * weight;
         }
-        let mut m2 = vec![0.0; dim * dim];
+        let mut m2 = vec![0.0; cells];
         for i in 0..dim {
             for j in i..dim {
                 let value = add_f64(base.m2[i * dim + j], add.m2[i * dim + j])
@@ -612,9 +736,17 @@ pub struct LagIndexCacheEntry {
 mod tests {
     use super::*;
 
+    fn ols(ncols: usize) -> LinearOlsSuffStats {
+        LinearOlsSuffStats::new(ncols).expect("dimension")
+    }
+
+    fn cov(dim: usize) -> StreamingCovariance {
+        StreamingCovariance::new(dim).expect("dimension")
+    }
+
     #[test]
     fn streaming_covariance_rejects_nonfinite_rows_without_poisoning_state() {
-        let mut stats = StreamingCovariance::new(2);
+        let mut stats = cov(2);
         stats.append(&[1.0, 2.0]).unwrap();
         let before = stats.clone();
         assert!(stats.append(&[3.0, f64::NAN]).is_err());
@@ -643,7 +775,7 @@ mod tests {
     fn residual_variance_is_exact_without_an_intercept_column() {
         let rows = [1.0, 2.0, 3.0];
         let y = [11.0, 12.0, 13.0];
-        let mut stats = LinearOlsSuffStats::new(1);
+        let mut stats = ols(1);
         stats.append_batch(&rows, &y).unwrap();
         let beta = stats.solve_beta().unwrap();
         assert!((beta[0] - 74.0 / 14.0).abs() < 1e-12);
@@ -653,7 +785,7 @@ mod tests {
 
         // x = [1,2,3], y = [2,3,5]: β = 23/14, Σr² = 38 − 23²/14 = 3/14, σ² = 3/28.
         let y2 = [2.0, 3.0, 5.0];
-        let mut s2 = LinearOlsSuffStats::new(1);
+        let mut s2 = ols(1);
         s2.append_batch(&rows, &y2).unwrap();
         let b2 = s2.solve_beta().unwrap();
         let v2 = s2.residual_variance(&b2).expect("variance");
@@ -667,7 +799,7 @@ mod tests {
     fn residual_variance_is_exact_for_a_non_ols_beta() {
         let rows = [1.0, 0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0];
         let y = [1.0, 3.0, 5.0, 7.0];
-        let mut stats = LinearOlsSuffStats::new(2);
+        let mut stats = ols(2);
         stats.append_batch(&rows, &y).unwrap();
         let wrong = [0.0, 2.0];
         let var = stats.residual_variance(&wrong).expect("variance");
@@ -682,7 +814,7 @@ mod tests {
     /// accumulate exactly as if the bad row had never been offered.
     #[test]
     fn nonfinite_row_is_rejected_atomically() {
-        let mut stats = LinearOlsSuffStats::new(2);
+        let mut stats = ols(2);
         stats.append_row(&[1.0, 0.0], 1.0).unwrap();
         stats.append_row(&[1.0, 1.0], 3.0).unwrap();
         let before = stats.clone();
@@ -690,7 +822,7 @@ mod tests {
         assert!(stats.append_row(&[1.0, 2.0], f64::INFINITY).is_err());
         assert_eq!(stats, before);
 
-        let mut clean = LinearOlsSuffStats::new(2);
+        let mut clean = ols(2);
         clean.append_row(&[1.0, 0.0], 1.0).unwrap();
         clean.append_row(&[1.0, 1.0], 3.0).unwrap();
         stats.append_row(&[1.0, 2.0], 5.0).unwrap();
@@ -709,9 +841,9 @@ mod tests {
             1.0, 3.0,
         ];
         let y = [1.0, 3.0, 5.0, 7.0];
-        let mut full = LinearOlsSuffStats::new(2);
+        let mut full = ols(2);
         full.append_batch(&rows, &y).expect("batch");
-        let mut inc = LinearOlsSuffStats::new(2);
+        let mut inc = ols(2);
         for i in 0..4 {
             inc.append_row(&rows[i * 2..(i + 1) * 2], y[i]).expect("row");
         }
@@ -734,14 +866,14 @@ mod tests {
         let eps = [-2.0, -1.0, 0.0, 1.0, 2.0];
         let y: Vec<f64> = eps.iter().map(|e| offset + e).collect();
         let rows = vec![1.0; 5];
-        let mut stats = LinearOlsSuffStats::new(1);
+        let mut stats = ols(1);
         stats.append_batch(&rows, &y).unwrap();
         let beta = stats.solve_beta().unwrap();
         let var = stats.residual_variance(&beta).expect("residual variance");
         assert!((var - 2.5).abs() < 1e-9, "got {var}");
 
         let shifted: Vec<f64> = y.iter().map(|yi| yi + 1e9).collect();
-        let mut shifted_stats = LinearOlsSuffStats::new(1);
+        let mut shifted_stats = ols(1);
         shifted_stats.append_batch(&rows, &shifted).unwrap();
         let shifted_var = shifted_stats.residual_variance(&shifted_stats.solve_beta().unwrap());
         assert!((shifted_var.unwrap() - var).abs() < 1e-9);
@@ -757,7 +889,7 @@ mod tests {
                 [x1, x2 * 2.0]
             })
             .collect();
-        let mut s = StreamingCovariance::new(2);
+        let mut s = cov(2);
         for row in &data {
             s.append(row).expect("append");
         }
@@ -794,7 +926,7 @@ mod tests {
     }
 
     fn batch(rows: &[f64], y: &[f64], ncols: usize) -> LinearOlsSuffStats {
-        let mut stats = LinearOlsSuffStats::new(ncols);
+        let mut stats = ols(ncols);
         stats.append_batch(rows, y).expect("batch");
         stats
     }
@@ -883,16 +1015,16 @@ mod tests {
         assert_merge_orders(&rows, &y, 2, 1);
         assert_merge_orders(&rows, &y, 2, 2);
         let full = batch(&rows, &y, 2);
-        let mut empty = LinearOlsSuffStats::new(2);
+        let mut empty = ols(2);
         empty.merge(&full).expect("merge into empty");
         assert_eq!(empty, full);
         let mut restored = full.clone();
-        restored.merge(&LinearOlsSuffStats::new(2)).expect("merge empty");
+        restored.merge(&ols(2)).expect("merge empty");
         assert_eq!(restored, full);
 
         let mut widened = full.clone();
         let snapshot = widened.clone();
-        let err = widened.merge(&LinearOlsSuffStats::new(1)).expect_err("ncols");
+        let err = widened.merge(&ols(1)).expect_err("ncols");
         assert!(matches!(err, StateError::Shape(_)));
         assert_eq!(widened, snapshot);
 
@@ -912,9 +1044,9 @@ mod tests {
         assert_merge_orders(&rows, &y, ncols, 2);
         assert_merge_orders(&rows, &y, ncols, 3);
 
-        let mut chained = LinearOlsSuffStats::new(ncols);
+        let mut chained = ols(ncols);
         for i in 0..y.len() {
-            let mut one = LinearOlsSuffStats::new(ncols);
+            let mut one = ols(ncols);
             one.append_row(&rows[i * ncols..(i + 1) * ncols], y[i]).expect("row");
             chained.apply_delta(LinearOlsDelta::AppendWindow { window: &one }).expect("window");
         }
@@ -942,9 +1074,9 @@ mod tests {
             [1e12 + 1.0, 3.0],
             [1e12 + 2.0, 1.5],
         ];
-        let mut left = StreamingCovariance::new(2);
-        let mut right = StreamingCovariance::new(2);
-        let mut full_cov = StreamingCovariance::new(2);
+        let mut left = cov(2);
+        let mut right = cov(2);
+        let mut full_cov = cov(2);
         for (i, row) in points.iter().enumerate() {
             full_cov.append(row).expect("cov row");
             if i < 2 {
@@ -1051,7 +1183,7 @@ mod tests {
         let mut downdated = full.clone();
         downdated.n = downdated.n.saturating_sub(1);
         let downdated_before = downdated.clone();
-        let err = downdated.merge(&LinearOlsSuffStats::new(2)).expect_err("partial downdate");
+        let err = downdated.merge(&ols(2)).expect_err("partial downdate");
         assert_recompute_refusal(&err);
         assert_eq!(downdated, downdated_before);
     }
@@ -1060,11 +1192,71 @@ mod tests {
     fn appended_rows_through_delta_match_recompute() {
         let rows = [1.0, 0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0];
         let y = [1.0, 3.0, 5.0, 7.0];
-        let mut via_delta = LinearOlsSuffStats::new(2);
+        let mut via_delta = ols(2);
         for i in 0..y.len() {
             let row = &rows[i * 2..(i + 1) * 2];
             via_delta.apply_delta(LinearOlsDelta::AppendRow { row, y: y[i] }).expect("append");
         }
         assert_eq!(via_delta, batch(&rows, &y, 2));
+    }
+
+    #[test]
+    fn dimension_product_overflow_is_an_error() {
+        let wide = 1usize << (usize::BITS / 2);
+        let err = StreamingCovariance::new(wide).expect_err("covariance");
+        assert!(matches!(err, StateError::Shape(_)), "{err}");
+        let err = LinearOlsSuffStats::new(usize::MAX).expect_err("ols");
+        assert!(matches!(err, StateError::Shape(_)), "{err}");
+    }
+
+    /// `|r̄| = 32` sits under the old gate `8 ε · scale` when the means are `2^54`,
+    /// but `n r̄²` is the whole residual sum of squares. Dropping it reports zero.
+    #[test]
+    fn residual_variance_keeps_a_finite_mean_residual_under_the_old_gate() {
+        let level = 2.0_f64.powi(54);
+        let shift = 32.0;
+        let rows = [level, level, level, level];
+        let y = [level + shift, level + shift, level + shift, level + shift];
+        let mut stats = ols(1);
+        stats.append_batch(&rows, &y).unwrap();
+        let var = stats.residual_variance(&[1.0]).expect("finite correction");
+        let expect = (4.0 * shift * shift) / 3.0;
+        assert!((var - expect).abs() <= 1e-6, "got {var} expect {expect}");
+    }
+
+    /// Gram `[[1, 1], [1, 1 + 2^-42]]`. The explicit inverse's pivot floor is
+    /// `1e-12`; Cholesky's relative floor still accepts the Schur complement.
+    #[test]
+    fn solve_beta_factors_a_gram_the_explicit_inverse_refuses() {
+        let h = 2.0_f64.powi(-21);
+        let rows = [1.0, 1.0, 0.0, h];
+        let y = [2.0, h];
+        let mut stats = ols(2);
+        stats.append_batch(&rows, &y).unwrap();
+        assert!(antecedent_kernels::invert_square(stats.xtx(), 2).is_none());
+        let beta = stats.solve_beta().expect("cholesky solve");
+        assert!((beta[0] - 1.0).abs() < 1e-6 && (beta[1] - 1.0).abs() < 1e-6, "{beta:?}");
+    }
+
+    #[test]
+    fn a_published_moment_that_leaves_the_scatter_is_refused() {
+        let rows = [1.0, 0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0];
+        let y = [1.0, 3.0, 5.0, 7.0];
+        let full = batch(&rows, &y, 2);
+        let mut poked = full.clone();
+        poked.xtx[0] += 1.0;
+        let before = poked.clone();
+        let err = poked.solve_beta().expect_err("drifted gram");
+        assert_recompute_refusal(&err);
+        assert!(poked.residual_variance(&[1.0, 2.0]).is_none());
+        let merge_err = poked.merge(&ols(2)).expect_err("drifted merge");
+        assert_recompute_refusal(&merge_err);
+        let append_err = poked.append_row(&[1.0, 4.0], 9.0).expect_err("drifted append");
+        assert_recompute_refusal(&append_err);
+        assert_eq!(poked, before);
+
+        let mut counted = full.clone();
+        counted.n = counted.n.saturating_sub(1);
+        assert!(counted.solve_beta().is_err());
     }
 }

@@ -17,7 +17,12 @@ pub(crate) trait PosteriorTarget {
     /// Dimension of the unconstrained state `q`.
     fn dim(&self) -> usize;
 
-    /// Evaluate `log π(q)` and write `∇_q log π` into `grad`.
+    /// Evaluate the density-difference kernel and write `∇_q log π` into `grad`.
+    ///
+    /// The value omits additive terms that do not depend on `q`. Differences of
+    /// it match the normalized log joint, which is what leapfrog and Laplace
+    /// compare. It is not model evidence: the normalized log joint, including
+    /// those terms, is [`GaussianTarget::log_evidence`].
     ///
     /// # Errors
     ///
@@ -537,6 +542,34 @@ impl PosteriorTarget for GaussianKnownTarget<'_> {
     }
 }
 
+impl GaussianKnownTarget<'_> {
+    /// Normalized log joint of `(y, β)` at known `σ²`.
+    ///
+    /// This is [`PosteriorTarget::logp_and_grad`] plus the Gaussian normalizing
+    /// constants in `β` and in the weighted observations. The gradient matches
+    /// the density-difference kernel. Weights are frequency weights: `n` in the
+    /// constant is `n_eff = Σ w_i`.
+    ///
+    /// # Errors
+    ///
+    /// The same failures as the density-difference kernel, or a prior precision
+    /// whose log determinant is not finite.
+    #[allow(
+        dead_code,
+        reason = "the HMC kernel stays the density difference; tests call the normalized joint"
+    )]
+    pub(crate) fn log_evidence(&mut self, q: &[f64], grad: &mut [f64]) -> Result<f64, ProbError> {
+        let kernel = self.logp_and_grad(q, grad)?;
+        let offset = known_evidence_offset(
+            self.stats.n_eff,
+            self.stats.p,
+            self.sigma2,
+            log_det_v0(&self.prec)?,
+        )?;
+        finish_evidence(kernel, offset)
+    }
+}
+
 /// Inverse-gamma residual target: state `q = [β, λ]` with `λ = log(σ²)`.
 #[derive(Clone, Debug)]
 pub(crate) struct GaussianInvGammaTarget<'a> {
@@ -643,7 +676,8 @@ impl PosteriorTarget for GaussianInvGammaTarget<'_> {
                 message: "non-finite InvGamma B(β) or exp(-λ)".into(),
             });
         }
-        // log π = -A λ - B(β) e^{-λ}  (+ const omitted)
+        // Density-difference kernel: -A λ - B(β) e^{-λ}. The normalizing
+        // constants that do not depend on (β, λ) are added by `log_evidence`.
         let logp = -self.a_const * lambda - b_beta * exp_neg_l;
         for i in 0..p {
             grad[i] = exp_neg_l * (self.xtwr[i] - self.p_diff[i]);
@@ -655,6 +689,37 @@ impl PosteriorTarget for GaussianInvGammaTarget<'_> {
             });
         }
         Ok(logp)
+    }
+}
+
+impl GaussianInvGammaTarget<'_> {
+    /// Normalized log joint of `(y, β, λ)` with `λ = log σ²`.
+    ///
+    /// This is [`PosteriorTarget::logp_and_grad`] plus the constants of the
+    /// Gaussian likelihood, the conditional coefficient prior, and the
+    /// inverse-gamma prior on `σ²` after the change of variables to `λ`. The
+    /// gradient matches the density-difference kernel. `n` in the Gaussian
+    /// constant is the frequency-weighted `n_eff`.
+    ///
+    /// # Errors
+    ///
+    /// The same failures as the density-difference kernel, or a prior precision
+    /// or inverse-gamma term whose constant is not finite.
+    #[allow(
+        dead_code,
+        reason = "the HMC kernel stays the density difference; tests call the normalized joint"
+    )]
+    pub(crate) fn log_evidence(&mut self, q: &[f64], grad: &mut [f64]) -> Result<f64, ProbError> {
+        let kernel = self.logp_and_grad(q, grad)?;
+        let shape = self.a_const - 0.5 * (self.stats.n_eff + self.stats.p as f64);
+        let offset = invgamma_evidence_offset(
+            self.stats.n_eff,
+            self.stats.p,
+            shape,
+            self.scale,
+            log_det_v0(&self.prec)?,
+        )?;
+        finish_evidence(kernel, offset)
     }
 }
 
@@ -718,6 +783,117 @@ impl PosteriorTarget for GaussianTarget<'_> {
             Self::InvGamma(t) => t.logp_and_grad(q, grad),
         }
     }
+}
+
+impl GaussianTarget<'_> {
+    /// Normalized log joint used as model evidence.
+    ///
+    /// [`PosteriorTarget::logp_and_grad`] stays the density-difference kernel.
+    /// This adds the constants that kernel omits. The gradient is the same.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the kernel and the normalizing-constant failures.
+    #[allow(
+        dead_code,
+        reason = "the HMC kernel stays the density difference; tests call the normalized joint"
+    )]
+    pub(crate) fn log_evidence(&mut self, q: &[f64], grad: &mut [f64]) -> Result<f64, ProbError> {
+        match self {
+            Self::Known(t) => t.log_evidence(q, grad),
+            Self::InvGamma(t) => t.log_evidence(q, grad),
+        }
+    }
+}
+
+/// `log det V0` from a precision `V0⁻¹`.
+#[allow(
+    dead_code,
+    reason = "the HMC kernel stays the density difference; tests call the normalized joint"
+)]
+fn log_det_v0(prec: &CoefficientPrecision) -> Result<f64, ProbError> {
+    let det = match prec {
+        CoefficientPrecision::Diagonal(diag) => {
+            let mut sum = 0.0;
+            for &precision in diag {
+                if !(precision > 0.0) || !precision.is_finite() {
+                    return Err(ProbError::Numerical {
+                        message: "coefficient precision is not a finite positive scale".into(),
+                    });
+                }
+                sum -= precision.ln();
+            }
+            sum
+        }
+        CoefficientPrecision::Dense { dim, matrix } => {
+            let chol = antecedent_stats::cholesky_spd(matrix, *dim).ok_or_else(|| {
+                ProbError::Numerical {
+                    message: "coefficient precision is not positive definite".into(),
+                }
+            })?;
+            -antecedent_stats::chol_log_det(&chol, *dim)
+        }
+    };
+    if !det.is_finite() {
+        return Err(ProbError::Numerical {
+            message: "log determinant of V0 is not finite".into(),
+        });
+    }
+    Ok(det)
+}
+
+#[allow(
+    dead_code,
+    reason = "the HMC kernel stays the density difference; tests call the normalized joint"
+)]
+fn known_evidence_offset(
+    n_eff: f64,
+    p: usize,
+    sigma2: f64,
+    log_det_v0: f64,
+) -> Result<f64, ProbError> {
+    let ln_2pi = (2.0 * std::f64::consts::PI).ln();
+    let offset = -0.5 * (n_eff + p as f64) * (ln_2pi + sigma2.ln()) - 0.5 * log_det_v0;
+    finite_offset(offset)
+}
+
+#[allow(
+    dead_code,
+    reason = "the HMC kernel stays the density difference; tests call the normalized joint"
+)]
+fn invgamma_evidence_offset(
+    n_eff: f64,
+    p: usize,
+    shape: f64,
+    scale: f64,
+    log_det_v0: f64,
+) -> Result<f64, ProbError> {
+    let ln_2pi = (2.0 * std::f64::consts::PI).ln();
+    let offset = -0.5 * (n_eff + p as f64) * ln_2pi - 0.5 * log_det_v0
+        + shape * scale.ln()
+        - antecedent_stats::ln_gamma(shape);
+    finite_offset(offset)
+}
+
+#[allow(
+    dead_code,
+    reason = "the HMC kernel stays the density difference; tests call the normalized joint"
+)]
+fn finite_offset(offset: f64) -> Result<f64, ProbError> {
+    if !offset.is_finite() {
+        return Err(ProbError::Numerical {
+            message: "Gaussian evidence constant is not finite".into(),
+        });
+    }
+    Ok(offset)
+}
+
+fn finish_evidence(kernel: f64, offset: f64) -> Result<f64, ProbError> {
+    let logp = kernel + offset;
+    if !logp.is_finite() {
+        return Err(ProbError::Numerical { message: "non-finite Gaussian evidence".into() });
+    }
+    Ok(logp)
 }
 
 #[cfg(test)]
@@ -1470,5 +1646,56 @@ mod tests {
         }
         let want_lambda = -a + b * (-lambda).exp();
         assert!((grad[2] - want_lambda).abs() < 1e-9 * (1.0 + want_lambda.abs()));
+    }
+
+    /// The density-difference kernel stays the pinned quadratic. Evidence adds
+    /// the normalizing constants, so it is not that kernel.
+    #[test]
+    fn evidence_adds_normalizing_constants_without_moving_the_kernel() {
+        let (x, y) = tiny_design();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let prior = GaussianCoefficientPrior::shared(2, 0.0, 4.0).unwrap();
+        let q = [0.2, 1.4];
+        let mut known = GaussianKnownTarget::new(design, prior.clone(), 2.5).unwrap();
+        let mut kernel_grad = [0.0; 2];
+        let kernel = known.logp_and_grad(&q, &mut kernel_grad).unwrap();
+        let mut evidence_grad = [0.0; 2];
+        let known_evidence = known.log_evidence(&q, &mut evidence_grad).unwrap();
+        assert_eq!(kernel_grad, evidence_grad);
+        let ln_2pi = (2.0 * std::f64::consts::PI).ln();
+        let log_det_v0 = 2.0 * 4.0_f64.ln();
+        let offset = -0.5 * (4.0 + 2.0) * (ln_2pi + 2.5_f64.ln()) - 0.5 * log_det_v0;
+        assert!(
+            (known_evidence - (kernel + offset)).abs() < 1e-9,
+            "{known_evidence} vs {}",
+            kernel + offset
+        );
+        assert!(
+            (known_evidence - kernel).abs() > 1.0,
+            "evidence collapsed to the density difference"
+        );
+
+        let mut joint = GaussianInvGammaTarget::new(design, prior, 2.0, 1.5).unwrap();
+        let state = [0.2, 1.4, 0.35];
+        let mut kernel_grad = [0.0; 3];
+        let kernel = joint.logp_and_grad(&state, &mut kernel_grad).unwrap();
+        let mut evidence_grad = [0.0; 3];
+        let evidence = joint.log_evidence(&state, &mut evidence_grad).unwrap();
+        assert_eq!(kernel_grad, evidence_grad);
+        let offset = -0.5 * (4.0 + 2.0) * ln_2pi - 0.5 * log_det_v0 + 2.0 * 1.5_f64.ln()
+            - antecedent_stats::ln_gamma(2.0);
+        assert!((evidence - (kernel + offset)).abs() < 1e-9, "{evidence} vs {}", kernel + offset);
+        assert!((evidence - kernel).abs() > 1.0, "evidence collapsed to the density difference");
+        let mut wrapped = GaussianTarget::Known(known);
+        let mut wrapped_grad = [0.0; 2];
+        let wrapped_evidence = wrapped.log_evidence(&q, &mut wrapped_grad).unwrap();
+        assert!((wrapped_evidence - known_evidence).abs() < 1e-9);
     }
 }

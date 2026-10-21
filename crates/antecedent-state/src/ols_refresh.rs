@@ -165,7 +165,7 @@ fn derive(
     source: &str,
     rows: &[RefreshRow],
 ) -> Result<(LinearOlsSuffStats, CanonicalWriter, OlsLedgerState), StateError> {
-    let mut stats = LinearOlsSuffStats::new(ncols);
+    let mut stats = LinearOlsSuffStats::new(ncols)?;
     let mut digest = digest_start(source, ncols);
     let mut ledger = OlsLedgerState { rows: 0, live_rows: 0, effective_n: 0 };
     for row in rows {
@@ -315,7 +315,7 @@ impl OlsRefresh {
     ) -> Result<RefreshOutcome, StateError> {
         self.check_source(source)?;
         checked_ids(self.ncols, rows, &self.ids)?;
-        let mut window = LinearOlsSuffStats::new(self.ncols);
+        let mut window = LinearOlsSuffStats::new(self.ncols)?;
         for row in rows {
             add_to_stats(&mut window, row)?;
         }
@@ -529,10 +529,10 @@ fn snapshot_of(
     let residual_variance = beta.as_deref().and_then(|beta| stats.residual_variance(beta));
     OlsSnapshot {
         source: Arc::clone(source),
-        n: stats.n,
-        xtx: stats.xtx.clone(),
-        xty: stats.xty.clone(),
-        yty: stats.yty,
+        n: stats.n(),
+        xtx: stats.xtx().to_vec(),
+        xty: stats.xty().to_vec(),
+        yty: stats.yty(),
         beta,
         residual_variance,
         source_digest: digest.finish_hex(),

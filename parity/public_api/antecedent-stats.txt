@@ -3979,7 +3979,6 @@ pub fn antecedent_stats::expand_bspline(x: &[f64], n_basis: usize, knots: core::
 pub fn antecedent_stats::exposure_probabilities(design: &antecedent_core::query::interference::AssignmentDesign, incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping, level: antecedent_core::query::interference::ExposureLevel, monte_carlo_draws: u32, seed: u64) -> core::result::Result<antecedent_stats::ExposureProbabilities, antecedent_stats::StatsError>
 pub fn antecedent_stats::exposures(assignment: &[bool], incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping) -> core::result::Result<alloc::vec::Vec<antecedent_core::query::interference::ExposureLevel>, antecedent_stats::StatsError>
 pub fn antecedent_stats::f_critical(level: f64, d1: usize, d2: usize) -> f64
-pub fn antecedent_stats::faer_scope::detached_serial_lease() -> antecedent_core::execution::AdmissionLease
 pub fn antecedent_stats::fdr::holm(p_values: &[f64]) -> alloc::vec::Vec<f64>
 pub fn antecedent_stats::first_col_is_exact_ones(x_colmajor: &[f64], nrows: usize) -> bool
 pub fn antecedent_stats::fit_2sls(blocks: &antecedent_stats::IvBlocks<'_>, endogenous: &[f64], y: &[f64], backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::TwoSlsFit, antecedent_stats::StatsError>

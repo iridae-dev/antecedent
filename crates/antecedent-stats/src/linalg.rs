@@ -55,6 +55,10 @@ pub struct LeastSquaresFit {
 pub trait DenseLinearAlgebra: Send + Sync {
     /// Solve `min ||X β − y||_2` for column-major `x` with `nrows` × `ncols`.
     ///
+    /// When `nrows < ncols` and the numerical rank equals `nrows`, the solution
+    /// is the minimum-norm coefficient vector. Rank deficiency is a numerical
+    /// rank below `min(nrows, ncols)`, not the rectangular shape by itself.
+    ///
     /// # Errors
     ///
     /// Shape or numerical failure.

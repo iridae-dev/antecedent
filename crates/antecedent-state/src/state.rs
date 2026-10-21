@@ -836,14 +836,17 @@ mod tests {
     fn incremental_ols_slot_matches_full_recompute() {
         let mut state = CausalState::new(CacheBudget::unlimited());
         let key: Arc<str> = Arc::from("ate_ols");
-        state.suff_stats.ols.insert(Arc::clone(&key), LinearOlsSuffStats::new(2));
+        state
+            .suff_stats
+            .ols
+            .insert(Arc::clone(&key), LinearOlsSuffStats::new(2).expect("dimension"));
         let rows_a = [1.0, 0.0, 1.0, 1.0];
         let y_a = [1.0, 3.0];
         let rows_b = [1.0, 2.0, 1.0, 3.0];
         let y_b = [5.0, 7.0];
         state.suff_stats.ols.get_mut(&key).unwrap().append_batch(&rows_a, &y_a).unwrap();
         state.suff_stats.ols.get_mut(&key).unwrap().append_batch(&rows_b, &y_b).unwrap();
-        let mut full = LinearOlsSuffStats::new(2);
+        let mut full = LinearOlsSuffStats::new(2).expect("dimension");
         let mut all_rows = rows_a.to_vec();
         all_rows.extend_from_slice(&rows_b);
         let mut all_y = y_a.to_vec();
@@ -925,8 +928,14 @@ mod tests {
             let mut state = CausalState::new(CacheBudget::unlimited());
             let ols: Arc<str> = Arc::from("ols");
             let cov: Arc<str> = Arc::from("cov");
-            state.suff_stats.ols.insert(Arc::clone(&ols), LinearOlsSuffStats::new(2));
-            state.suff_stats.cov.insert(Arc::clone(&cov), StreamingCovariance::new(2));
+            state
+                .suff_stats
+                .ols
+                .insert(Arc::clone(&ols), LinearOlsSuffStats::new(2).expect("dimension"));
+            state
+                .suff_stats
+                .cov
+                .insert(Arc::clone(&cov), StreamingCovariance::new(2).expect("dimension"));
             let event = if event_is_append {
                 StateEvent::AppendData(batch("b"))
             } else {

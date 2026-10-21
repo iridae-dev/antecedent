@@ -116,7 +116,7 @@ fn incremental_ols_match_conformance() {
         VariableId::from_raw(1),
     )));
     let key: Arc<str> = Arc::from("ols");
-    state.suff_stats.ols.insert(Arc::clone(&key), LinearOlsSuffStats::new(2));
+    state.suff_stats.ols.insert(Arc::clone(&key), LinearOlsSuffStats::new(2).expect("dimension"));
 
     let batch1_rows = [1.0, 0.0, 1.0, 1.0];
     let batch1_y = [1.0, 3.0];
@@ -139,7 +139,7 @@ fn incremental_ols_match_conformance() {
     assert!(state.is_stale(q));
     let beta_inc = state.suff_stats.ols[&key].solve_beta().unwrap();
 
-    let mut full = LinearOlsSuffStats::new(2);
+    let mut full = LinearOlsSuffStats::new(2).expect("dimension");
     let mut all_x = batch1_rows.to_vec();
     all_x.extend_from_slice(&batch2_rows);
     let mut all_y = batch1_y.to_vec();
@@ -296,7 +296,7 @@ fn rolling_mechanism_diag_match_conformance() {
     );
 
     let start = n_rows - window;
-    let mut batch = LinearOlsSuffStats::new(2);
+    let mut batch = LinearOlsSuffStats::new(2).expect("dimension");
     batch.append_batch(&all_rows[start * 2..], &all_y[start..]).unwrap();
     let beta = batch.solve_beta().unwrap();
     let slot = &state.suff_stats.mechanism_diags[&key];

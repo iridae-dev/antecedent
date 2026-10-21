@@ -147,7 +147,7 @@ fn lagged_rows(
 }
 
 fn window_stats(ncols: usize, rows: &[RefreshRow]) -> Result<LinearOlsSuffStats, StateError> {
-    let mut stats = LinearOlsSuffStats::new(ncols);
+    let mut stats = LinearOlsSuffStats::new(ncols)?;
     for row in rows {
         stats.append_row(&row.x, row.y)?;
     }
@@ -610,7 +610,7 @@ impl SummaryOnlyFit {
             )));
         }
         let snapshot = fit.snapshot();
-        let ncols = u32::try_from(fit.stats().ncols).map_err(|_| invalid("too many columns"))?;
+        let ncols = u32::try_from(fit.stats().ncols()).map_err(|_| invalid("too many columns"))?;
         let wire = PeriodRefreshSummaryWire {
             version: PERIOD_REFRESH_SUMMARY_VERSION,
             required_features: vec![PERIOD_REFRESH_SUMMARY_FEATURE.into()],

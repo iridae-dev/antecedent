@@ -12,7 +12,7 @@ const B: ([f64; 4], [f64; 4]) = ([-1.0, 0.8, 2.2, 0.1], [-0.9, 1.7, 4.6, 0.9]);
 const C: ([f64; 3], [f64; 3]) = ([1.7, -0.6, 0.3], [3.2, -0.1, 1.0]);
 
 fn block(x: &[f64], y: &[f64]) -> LinearOlsSuffStats {
-    let mut stats = LinearOlsSuffStats::new(2);
+    let mut stats = LinearOlsSuffStats::new(2).expect("dimension");
     for (x, y) in x.iter().zip(y) {
         stats.append_row(&[1.0, *x], *y).unwrap();
     }
@@ -158,13 +158,14 @@ fn an_invalidated_or_empty_or_wrong_width_block_is_refused() {
     let mut stale = a();
     let _ = stale.apply_delta(antecedent_state::LinearOlsDelta::MaskChanged);
     assert!(posterior.update(&prior, "stale", &stale).is_err());
-    assert!(posterior.update(&prior, "empty", &LinearOlsSuffStats::new(2)).is_err());
+    let empty = LinearOlsSuffStats::new(2).expect("dimension");
+    assert!(posterior.update(&prior, "empty", &empty).is_err());
     assert!(posterior.update(&prior, "wide", &a_wide()).is_err());
     assert_eq!(posterior.summary(&prior).unwrap().n, 0);
 }
 
 fn a_wide() -> LinearOlsSuffStats {
-    let mut stats = LinearOlsSuffStats::new(3);
+    let mut stats = LinearOlsSuffStats::new(3).expect("dimension");
     stats.append_row(&[1.0, 2.0, 3.0], 1.0).unwrap();
     stats
 }

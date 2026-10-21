@@ -153,7 +153,7 @@ fn summary_only_appends_but_refuses_every_change_that_needs_rows() {
 
 #[test]
 fn the_summary_type_agrees_with_the_route_contract_table() {
-    let mut stats = LinearOlsSuffStats::new(2);
+    let mut stats = LinearOlsSuffStats::new(2).expect("dimension");
     for id in 0..5 {
         stats.append_row(&[1.0, X[id]], Y[id]).unwrap();
     }
@@ -161,7 +161,7 @@ fn the_summary_type_agrees_with_the_route_contract_table() {
     let table = |change| route_contract(RefreshRoute::LinearOlsGram, change);
     assert_eq!(table(RefreshChange::AppendRows), RefreshDisposition::ExactUpdate);
     stats.apply_delta(LinearOlsDelta::AppendRow { row: &[1.0, X[5]], y: Y[5] }).unwrap();
-    assert_eq!(stats.n, 6);
+    assert_eq!(stats.n(), 6);
     // Evict is not applied in place, and the table says recompute.
     let mut evicted = kept.clone();
     assert!(evicted.apply_delta(LinearOlsDelta::EvictRow { row: &[1.0, X[0]], y: Y[0] }).is_err());
