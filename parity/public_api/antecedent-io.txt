@@ -77,6 +77,7 @@ impl core::clone::Clone for antecedent_io::array_fit_artifact::PenalizedScoreWir
 impl core::clone::Clone for antecedent_io::array_fit_artifact::PropensityDesignWire
 impl core::clone::Clone for antecedent_io::array_fit_artifact::PropensityPosteriorWire
 impl core::clone::Clone for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
+impl core::clone::Clone for antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow
 impl core::clone::Clone for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
 impl core::clone::Clone for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
 impl core::clone::Clone for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
@@ -974,6 +975,7 @@ impl core::fmt::Debug for antecedent_io::array_fit_artifact::PenalizedScoreWire
 impl core::fmt::Debug for antecedent_io::array_fit_artifact::PropensityDesignWire
 impl core::fmt::Debug for antecedent_io::array_fit_artifact::PropensityPosteriorWire
 impl core::fmt::Debug for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
+impl core::fmt::Debug for antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow
 impl core::fmt::Debug for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
 impl core::fmt::Debug for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
 impl core::fmt::Debug for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
@@ -1444,6 +1446,7 @@ impl core::marker::Freeze for antecedent_io::array_fit_artifact::PenalizedScoreW
 impl core::marker::Freeze for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
 impl core::marker::Freeze for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
 impl core::marker::Freeze for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::marker::Freeze for antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow [auto]
 impl core::marker::Freeze for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
 impl core::marker::Freeze for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
 impl core::marker::Freeze for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
@@ -1842,6 +1845,7 @@ impl core::marker::Send for antecedent_io::array_fit_artifact::PenalizedScoreWir
 impl core::marker::Send for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
 impl core::marker::Send for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
 impl core::marker::Send for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::marker::Send for antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow [auto]
 impl core::marker::Send for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
 impl core::marker::Send for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
 impl core::marker::Send for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
@@ -2569,6 +2573,7 @@ impl core::marker::Sync for antecedent_io::array_fit_artifact::PenalizedScoreWir
 impl core::marker::Sync for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
 impl core::marker::Sync for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
 impl core::marker::Sync for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::marker::Sync for antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow [auto]
 impl core::marker::Sync for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
 impl core::marker::Sync for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
 impl core::marker::Sync for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
@@ -2967,6 +2972,7 @@ impl core::marker::Unpin for antecedent_io::array_fit_artifact::PenalizedScoreWi
 impl core::marker::Unpin for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
 impl core::marker::Unpin for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
 impl core::marker::Unpin for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::marker::Unpin for antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow [auto]
 impl core::marker::Unpin for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
 impl core::marker::Unpin for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
 impl core::marker::Unpin for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
@@ -3364,6 +3370,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifa
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
@@ -3760,6 +3767,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::PropensityDesignWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::PropensityPosteriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::array_fit_artifact::PropensityScorePosteriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire [auto]
@@ -7445,14 +7453,23 @@ pub fn <antecedent_io::array_fit_artifact::ArrayFitArtifactWire>::fn export(&sel
 pub fn <antecedent_io::array_fit_artifact::ArrayFitArtifactWire>::fn seal(request: antecedent_io::array_fit_artifact::ArrayFitRequestWire) -> core::result::Result<Self, antecedent_io::array_fit_artifact::ArrayFitError>
 pub fn <antecedent_io::array_fit_artifact::ArrayFitError>::fn refusal(&self) -> (&'static str, alloc::string::String)
 pub fn <antecedent_io::array_fit_artifact::ArrayFitRequestWire>::const fn estimator_id(&self) -> &'static str
+pub fn <antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow>::fn artifact(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow>::fn compile(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io_core::analysis_result_artifact::PosteriorRowWire, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow>::fn identities(&self) -> (&str, &str)
+pub fn <antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow>::fn request(&self) -> &antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
+pub fn <antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow>::fn retarget(&self, grid: alloc::vec::Vec<f64>, functional: antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>::fn refusal(&self) -> (&'static str, alloc::string::String)
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn consume_prepared_with_context(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(Self, antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow), antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn consume_typed(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn consume_typed_with_context(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn seal(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire>::fn seal_with_context(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire>::const fn estimator(&self) -> &'static str
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn fit(&self) -> &antecedent_estimate::categorical_treatment::CategoricalTreatmentFit
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
@@ -8027,6 +8044,8 @@ pub struct antecedent_io::array_fit_artifact::PenalizedScoreWire
 pub struct antecedent_io::array_fit_artifact::PropensityDesignWire
 pub struct antecedent_io::array_fit_artifact::PropensityPosteriorWire
 pub struct antecedent_io::array_fit_artifact::PropensityScorePosteriorWire
+pub struct antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow
+pub struct antecedent_io::bayesian_posterior_row_artifact::CompiledPosteriorRow has private fields
 pub struct antecedent_io::bayesian_posterior_row_artifact::DoseGridPosteriorWire
 pub struct antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire
 pub struct antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits

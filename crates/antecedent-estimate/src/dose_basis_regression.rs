@@ -87,6 +87,40 @@ pub fn fit_basis_regression(
             "the basis regression needs a finite design with one column per prior scale and one outcome per row",
         ));
     }
+    let prior = checked_basis_prior(coefficient_scales, residual, draws)?;
+    let fit = fit_conjugate_gaussian(
+        BayesDesignRef {
+            x_colmajor: design_colmajor,
+            nrows: rows,
+            ncols: width,
+            y,
+            weights: None,
+            offsets: None,
+        },
+        &prior,
+        &BayesFitOptions { n_draws: draws, seed, ..BayesFitOptions::default() },
+        &mut LaplaceWorkspace::default(),
+    )?;
+    let mut coefficients = vec![0.0; draws * width];
+    for j in 0..width {
+        let column = fit.draws.column(j)?;
+        for (k, value) in column.iter().enumerate() {
+            coefficients[k * width + j] = *value;
+        }
+    }
+    Ok(BasisPosterior { width, mean: fit.map, covariance: fit.cov, draws, coefficients })
+}
+
+/// Shared prior/draw validation used by cheap compilation and numerical fitting.
+pub(crate) fn checked_basis_prior(
+    coefficient_scales: &[f64],
+    residual: ResidualPrior,
+    draws: usize,
+) -> Result<PriorSet, EstimationError> {
+    let width = coefficient_scales.len();
+    if width == 0 || width > MAX_BASIS_WIDTH {
+        return Err(EstimationError::data_msg("basis coefficient width must be between 1 and 64"));
+    }
     if coefficient_scales.iter().any(|scale| !scale.is_finite() || *scale <= 0.0) {
         return Err(EstimationError::data_msg(
             "coefficient prior scales must be finite and positive",
@@ -114,27 +148,7 @@ pub fn fit_basis_regression(
         variance: Arc::from(coefficient_scales.iter().map(|s| s * s).collect::<Vec<_>>()),
     }));
     prior.push(residual_spec);
-    let fit = fit_conjugate_gaussian(
-        BayesDesignRef {
-            x_colmajor: design_colmajor,
-            nrows: rows,
-            ncols: width,
-            y,
-            weights: None,
-            offsets: None,
-        },
-        &prior,
-        &BayesFitOptions { n_draws: draws, seed, ..BayesFitOptions::default() },
-        &mut LaplaceWorkspace::default(),
-    )?;
-    let mut coefficients = vec![0.0; draws * width];
-    for j in 0..width {
-        let column = fit.draws.column(j)?;
-        for (k, value) in column.iter().enumerate() {
-            coefficients[k * width + j] = *value;
-        }
-    }
-    Ok(BasisPosterior { width, mean: fit.map, covariance: fit.cov, draws, coefficients })
+    Ok(prior)
 }
 
 #[cfg(test)]

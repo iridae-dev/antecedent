@@ -6029,10 +6029,10 @@ def evaluate_dose_grid_functional(
     request_json: str, dose: list[float], outcome: list[float], *, threads: int | None = None, max_bytes: int | None = None, cancel: CancellationToken | None = None
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def evaluate_dose_grid_posterior(
-    request_json: str, dose: list[float], outcome: list[float]
+    request_json: str, dose: list[float], outcome: list[float], *, threads: int | None = None, max_bytes: int | None = None, cancel: CancellationToken | None = None
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_dose_grid_posterior_artifact(
-    artifact: bytes, *, max_rows: int = 100_000, max_grid: int = 1_024
+    artifact: bytes, *, max_rows: int = 100_000, max_grid: int = 1_024, threads: int | None = None, max_bytes: int | None = None, cancel: CancellationToken | None = None
 ) -> tuple[str | None, str | None]: ...
 def consume_dose_grid_artifact(
     artifact: bytes, *, max_rows: int = 100_000, max_grid: int = 1_024, threads: int | None = None, max_bytes: int | None = None, cancel: CancellationToken | None = None

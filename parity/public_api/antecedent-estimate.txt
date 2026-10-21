@@ -446,6 +446,7 @@ impl core::clone::Clone for antecedent_estimate::dose_grid_functional::IntervalC
 impl core::clone::Clone for antecedent_estimate::dose_grid_functional::NumericalReport
 impl core::clone::Clone for antecedent_estimate::dose_grid_functional::PointwiseInterval
 impl core::clone::Clone for antecedent_estimate::dose_grid_functional::SimultaneousBand
+impl core::clone::Clone for antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior
 impl core::clone::Clone for antecedent_estimate::dose_grid_posterior::DoseGridPosterior
 impl core::clone::Clone for antecedent_estimate::effect_constancy::CalibrationStatus
 impl core::clone::Clone for antecedent_estimate::effect_constancy::ConstancyConclusion
@@ -2191,6 +2192,7 @@ impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::IntervalCal
 impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::NumericalReport
 impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::PointwiseInterval
 impl core::fmt::Debug for antecedent_estimate::dose_grid_functional::SimultaneousBand
+impl core::fmt::Debug for antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior
 impl core::fmt::Debug for antecedent_estimate::dose_grid_posterior::DoseGridPosterior
 impl core::fmt::Debug for antecedent_estimate::effect_constancy::CalibrationStatus
 impl core::fmt::Debug for antecedent_estimate::effect_constancy::ConstancyConclusion
@@ -3287,6 +3289,7 @@ impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::Interva
 impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::NumericalReport [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::PointwiseInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_grid_functional::SimultaneousBand [auto]
+impl core::marker::Freeze for antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::dose_grid_posterior::DoseGridPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::effect_constancy::CalibrationStatus [auto]
 impl core::marker::Freeze for antecedent_estimate::effect_constancy::ConstancyConclusion [auto]
@@ -4055,6 +4058,7 @@ impl core::marker::Send for antecedent_estimate::dose_grid_functional::IntervalC
 impl core::marker::Send for antecedent_estimate::dose_grid_functional::NumericalReport [auto]
 impl core::marker::Send for antecedent_estimate::dose_grid_functional::PointwiseInterval [auto]
 impl core::marker::Send for antecedent_estimate::dose_grid_functional::SimultaneousBand [auto]
+impl core::marker::Send for antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior [auto]
 impl core::marker::Send for antecedent_estimate::dose_grid_posterior::DoseGridPosterior [auto]
 impl core::marker::Send for antecedent_estimate::effect_constancy::CalibrationStatus [auto]
 impl core::marker::Send for antecedent_estimate::effect_constancy::ConstancyConclusion [auto]
@@ -5446,6 +5450,7 @@ impl core::marker::Sync for antecedent_estimate::dose_grid_functional::IntervalC
 impl core::marker::Sync for antecedent_estimate::dose_grid_functional::NumericalReport [auto]
 impl core::marker::Sync for antecedent_estimate::dose_grid_functional::PointwiseInterval [auto]
 impl core::marker::Sync for antecedent_estimate::dose_grid_functional::SimultaneousBand [auto]
+impl core::marker::Sync for antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::dose_grid_posterior::DoseGridPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::effect_constancy::CalibrationStatus [auto]
 impl core::marker::Sync for antecedent_estimate::effect_constancy::ConstancyConclusion [auto]
@@ -6215,6 +6220,7 @@ impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::Interval
 impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::NumericalReport [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::PointwiseInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_grid_functional::SimultaneousBand [auto]
+impl core::marker::Unpin for antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::dose_grid_posterior::DoseGridPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::effect_constancy::CalibrationStatus [auto]
 impl core::marker::Unpin for antecedent_estimate::effect_constancy::ConstancyConclusion [auto]
@@ -6984,6 +6990,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::NumericalReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::PointwiseInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_functional::SimultaneousBand [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::dose_grid_posterior::DoseGridPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::effect_constancy::CalibrationStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::effect_constancy::ConstancyConclusion [auto]
@@ -7752,6 +7759,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_fun
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::NumericalReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::PointwiseInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_functional::SimultaneousBand [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::dose_grid_posterior::DoseGridPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::effect_constancy::CalibrationStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::effect_constancy::ConstancyConclusion [auto]
@@ -13091,6 +13099,10 @@ pub fn <antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios>::const fn 
 pub fn <antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios>::fn completions(&self) -> &[antecedent_identify::sid::cpdag_completion::CompletionRecord]
 pub fn <antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios>::fn cpdag_identity(&self) -> &str
 pub fn <antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios>::fn evaluate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::CpdagScenarioReport, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn compile(request: &antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::dose_grid_posterior::DoseGridPosterior, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn retained_source_bytes(&self) -> u64
+pub fn <antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior>::fn retarget(&self, grid: &[f64], functional: antecedent_estimate::dose_grid_functional::DoseFunctional, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn identities(&self) -> alloc::vec::Vec<antecedent_core::recalc::StageIdentity>
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn new() -> alloc::sync::Arc<Self>
 pub fn <antecedent_estimate::functional_distribution::EmpiricalFactorCache>::fn scope<R>(self: &alloc::sync::Arc<Self>, work: impl core::ops::function::FnOnce() -> R) -> R
@@ -14311,6 +14323,8 @@ pub struct antecedent_estimate::dose_grid_functional::DoseLevel
 pub struct antecedent_estimate::dose_grid_functional::NumericalReport
 pub struct antecedent_estimate::dose_grid_functional::PointwiseInterval
 pub struct antecedent_estimate::dose_grid_functional::SimultaneousBand
+pub struct antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior
+pub struct antecedent_estimate::dose_grid_posterior::CompiledDoseGridPosterior has private fields
 pub struct antecedent_estimate::dose_grid_posterior::DoseGridPosterior
 pub struct antecedent_estimate::dose_grid_posterior::DoseGridPosteriorRequest<'a>
 pub struct antecedent_estimate::effect_constancy::ContrastReport

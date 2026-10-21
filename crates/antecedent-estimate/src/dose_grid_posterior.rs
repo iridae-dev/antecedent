@@ -105,11 +105,24 @@ pub fn estimate_dose_grid_posterior(
     request: &DoseGridPosteriorRequest<'_>,
 ) -> Result<DoseGridPosterior, EstimationError> {
     let points = validate(request)?;
+    let posterior = fit_dose_basis(request)?;
+    evaluate_frozen_basis(request, points, &posterior)
+}
+
+fn fit_dose_basis(
+    request: &DoseGridPosteriorRequest<'_>,
+) -> Result<BasisPosterior, EstimationError> {
     let (lo, hi) = request.support;
     let width = request.coefficient_scales.len();
     let rows = request.dose.len();
     let mut design = vec![0.0; rows * width];
     for (i, dose) in request.dose.iter().enumerate() {
+        if antecedent_core::numerical_admission::is_cancelled() {
+            return Err(execution_refusal(
+                "dose_grid.cancelled",
+                "dose design construction cancelled",
+            ));
+        }
         let z = rescale(*dose, lo, hi);
         let mut power = 1.0;
         for j in 0..width {
@@ -117,7 +130,7 @@ pub fn estimate_dose_grid_posterior(
             power *= z;
         }
     }
-    let posterior = fit_basis_regression(
+    fit_basis_regression(
         &design,
         rows,
         request.outcome,
@@ -125,7 +138,16 @@ pub fn estimate_dose_grid_posterior(
         request.residual,
         request.draws,
         request.seed,
-    )?;
+    )
+}
+
+fn evaluate_frozen_basis(
+    request: &DoseGridPosteriorRequest<'_>,
+    points: Vec<f64>,
+    posterior: &BasisPosterior,
+) -> Result<DoseGridPosterior, EstimationError> {
+    let (lo, hi) = request.support;
+    let width = request.coefficient_scales.len();
     let derivative = matches!(request.functional, DoseFunctional::Derivative);
     let (coefficients, degree) = if derivative {
         (derivative_coefficients(&posterior.coefficients, width, lo, hi), width - 2)
@@ -163,7 +185,7 @@ pub fn estimate_dose_grid_posterior(
         })
         .collect();
     let rows_b = functional_rows(request.functional, &points, width, lo, hi);
-    let (exact_mean, exact_covariance) = exact_moments(&posterior, &rows_b);
+    let (exact_mean, exact_covariance) = exact_moments(posterior, &rows_b);
     Ok(DoseGridPosterior {
         functional: request.functional,
         points,
@@ -235,6 +257,11 @@ fn validate(request: &DoseGridPosteriorRequest<'_>) -> Result<Vec<f64>, Estimati
             &format!("dose {at} is outside the observed dose support"),
         ));
     }
+    crate::dose_basis_regression::checked_basis_prior(
+        request.coefficient_scales,
+        request.residual,
+        request.draws,
+    )?;
     Ok(points)
 }
 
@@ -570,5 +597,222 @@ mod tests {
         let mut thin = request(DoseFunctional::Level, &grid, &DOSE, &OUTCOME);
         thin.draws = 10;
         assert!(estimate_dose_grid_posterior(&thin).is_err());
+    }
+}
+
+/// Typed, checked randomized-dose posterior program. Compilation performs no fit or simulation.
+#[derive(Clone, Debug)]
+pub struct CompiledDoseGridPosterior {
+    dose: std::sync::Arc<[f64]>,
+    outcome: std::sync::Arc<[f64]>,
+    grid: std::sync::Arc<[f64]>,
+    scales: std::sync::Arc<[f64]>,
+    support: (f64, f64),
+    residual: ResidualPrior,
+    functional: DoseFunctional,
+    draws: usize,
+    seed: u64,
+    source_bytes: u64,
+    basis:
+        std::sync::Arc<std::sync::Mutex<Option<(antecedent_core::KernelPolicy, FrozenDoseBasis)>>>,
+    retention: Vec<std::sync::Arc<antecedent_core::execution::AdmissionLease>>,
+}
+#[derive(Debug)]
+struct FrozenDoseBasis {
+    posterior: std::sync::Arc<BasisPosterior>,
+    _retention: antecedent_core::execution::AdmissionLease,
+}
+fn execution_refusal(detail: &'static str, message: &str) -> EstimationError {
+    refuse(antecedent_core::reason_code!("transport_budget_cancel"), detail, message)
+}
+impl CompiledDoseGridPosterior {
+    /// Validate the scientific target, randomized-design premise, support and prior; retain inputs.
+    pub fn compile(
+        request: &DoseGridPosteriorRequest<'_>,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, EstimationError> {
+        validate(request)?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(execution_refusal("dose_grid.cancelled", "compilation cancelled"));
+        }
+        let cells = request
+            .dose
+            .len()
+            .checked_add(request.outcome.len())
+            .and_then(|n| n.checked_add(request.grid.len()))
+            .and_then(|n| n.checked_add(request.coefficient_scales.len()))
+            .ok_or_else(|| {
+                execution_refusal("dose_grid.resource_refused", "input size overflow")
+            })?;
+        let bytes = u64::try_from(cells).ok().and_then(|n| n.checked_mul(8)).ok_or_else(|| {
+            execution_refusal("dose_grid.resource_refused", "input byte size overflow")
+        })?;
+        if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
+            return Err(execution_refusal(
+                "dose_grid.resource_refused",
+                "retained inputs exceed memory limit",
+            ));
+        }
+        let retained = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        Ok(Self {
+            dose: request.dose.into(),
+            outcome: request.outcome.into(),
+            grid: request.grid.into(),
+            scales: request.coefficient_scales.into(),
+            support: request.support,
+            residual: request.residual,
+            functional: request.functional,
+            draws: request.draws,
+            seed: request.seed,
+            source_bytes: bytes,
+            basis: std::sync::Arc::default(),
+            retention: vec![std::sync::Arc::new(retained)],
+        })
+    }
+    /// Exact numeric input bytes retained by this program.
+    #[must_use]
+    pub fn retained_source_bytes(&self) -> u64 {
+        self.source_bytes
+    }
+    fn request(&self) -> DoseGridPosteriorRequest<'_> {
+        DoseGridPosteriorRequest {
+            dose: &self.dose,
+            outcome: &self.outcome,
+            grid: &self.grid,
+            coefficient_scales: &self.scales,
+            support: self.support,
+            residual: self.residual,
+            functional: self.functional,
+            draws: self.draws,
+            seed: self.seed,
+            design: DoseDesign::RandomizedDose,
+        }
+    }
+    /// Retarget grid/functionals without changing the frozen data, prior or draws.
+    pub fn retarget(
+        &self,
+        grid: &[f64],
+        functional: DoseFunctional,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, EstimationError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(execution_refusal("dose_grid.cancelled", "retargeting cancelled"));
+        }
+        let mut request = self.request();
+        request.grid = grid;
+        request.functional = functional;
+        validate(&request)?;
+        let bytes =
+            u64::try_from(grid.len()).ok().and_then(|n| n.checked_mul(8)).ok_or_else(|| {
+                execution_refusal("dose_grid.resource_refused", "grid byte size overflow")
+            })?;
+        let retained = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let mut next = self.clone();
+        next.source_bytes = self
+            .source_bytes
+            .checked_sub((self.grid.len() as u64) * 8)
+            .and_then(|n| n.checked_add(bytes))
+            .ok_or_else(|| {
+                execution_refusal("dose_grid.resource_refused", "retargeted input size overflow")
+            })?;
+        next.grid = grid.into();
+        next.functional = functional;
+        next.retention.push(std::sync::Arc::new(retained));
+        Ok(next)
+    }
+    /// Execute the original conjugate engine and retained polynomial lowering.
+    pub fn execute(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<DoseGridPosterior, EstimationError> {
+        use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
+        if ctx.cancellation.is_cancelled() {
+            return Err(execution_refusal("dose_grid.cancelled", "execution cancelled"));
+        }
+        let request = self.request();
+        let points = validate(&request)?;
+        let width = self.scales.len() as u64;
+        let draws = self.draws as u64;
+        let encoded = (self.dose.len() as u64).checked_mul(width);
+        let coefficients = draws.checked_mul(width).and_then(|n| n.checked_mul(4));
+        let prediction = draws.checked_mul(points.len() as u64).and_then(|n| n.checked_mul(4));
+        let scratch = width.checked_mul(width).and_then(|n| n.checked_mul(16));
+        let bytes = encoded
+            .and_then(|n| n.checked_add(coefficients?))
+            .and_then(|n| n.checked_add(prediction?))
+            .and_then(|n| n.checked_add(scratch?))
+            .and_then(|n| n.checked_mul(8))
+            .ok_or_else(|| {
+                execution_refusal("dose_grid.resource_refused", "execution byte estimate overflow")
+            })?;
+        if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
+            return Err(execution_refusal(
+                "dose_grid.resource_refused",
+                "execution exceeds memory limit",
+            ));
+        }
+        let reservation = std::sync::Arc::new(
+            ctx.acquire_admission(0, bytes)
+                .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?,
+        );
+        antecedent_core::numerical_admission::with_context(ctx, || {
+            antecedent_core::numerical_admission::with_reservation(
+                std::sync::Arc::clone(&reservation),
+                || {
+                    let mut frozen = self.basis.lock().map_err(|_| {
+                        execution_refusal(
+                            "dose_grid.resource_refused",
+                            "frozen basis lock poisoned",
+                        )
+                    })?;
+                    let posterior = if let Some((_, fit)) =
+                        frozen.as_ref().filter(|(kernel, _)| *kernel == ctx.kernel_policy)
+                    {
+                        record_physical(PhysicalEvent::CacheHit, 1);
+                        record_physical(PhysicalEvent::ModelFit, 0);
+                        std::sync::Arc::clone(&fit.posterior)
+                    } else {
+                        let fitted = fit_dose_basis(&request)?;
+                        let bytes = ((fitted.coefficients.len()
+                            + fitted.mean.len()
+                            + fitted.covariance.as_ref().map_or(0, Vec::len))
+                            as u64)
+                            .checked_mul(8)
+                            .ok_or_else(|| {
+                                execution_refusal(
+                                    "dose_grid.resource_refused",
+                                    "fit retention overflow",
+                                )
+                            })?;
+                        let retention = reservation.acquire_child(0, bytes).map_err(|e| {
+                            execution_refusal("dose_grid.resource_refused", &e.to_string())
+                        })?;
+                        record_physical(PhysicalEvent::RetainedBytes, bytes);
+                        let posterior = std::sync::Arc::new(fitted);
+                        *frozen = Some((
+                            ctx.kernel_policy,
+                            FrozenDoseBasis {
+                                posterior: std::sync::Arc::clone(&posterior),
+                                _retention: retention,
+                            },
+                        ));
+                        posterior
+                    };
+                    drop(frozen);
+                    let result = evaluate_frozen_basis(&request, points, &posterior)?;
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(execution_refusal(
+                            "dose_grid.cancelled",
+                            "execution cancelled",
+                        ));
+                    }
+                    Ok(result)
+                },
+            )
+        })
     }
 }

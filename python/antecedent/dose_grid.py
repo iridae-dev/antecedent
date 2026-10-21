@@ -680,6 +680,9 @@ def dose_grid_posterior(
     draws: int = 4_000,
     seed: int = 0,
     design: Design = "randomized_dose",
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: Any = None,
 ) -> DoseGridPosteriorResult:
     """Joint Bayesian posterior of a named functional of a randomized-dose response curve.
 
@@ -690,6 +693,9 @@ def dose_grid_posterior(
     (``residual_variance``) or its inverse-gamma prior (``residual_shape`` and
     ``residual_scale``). One coefficient draw gives every grid dose at once, so the covariance
     across the grid is preserved in ``posterior.covariance``.
+
+    ``threads``, ``max_bytes`` and ``cancel`` control execution policy. Refused resources
+    and cancellation raise ``CausalResourceError`` and ``CausalCancelledError``.
 
     Raises :class:`DoseGridRefusal` with ``detail`` one of ``dose_grid.graph_not_certified``
     (observational dose: this row does not adjust), ``dose_grid.unsupported_dose`` (a dose
@@ -745,7 +751,12 @@ def dose_grid_posterior(
         }
     }
     report, artifact, refusal = _evaluate_posterior(
-        json.dumps(request, allow_nan=False), _column(dose, "dose"), _column(outcome, "outcome")
+        json.dumps(request, allow_nan=False),
+        _column(dose, "dose"),
+        _column(outcome, "outcome"),
+        threads=threads,
+        max_bytes=max_bytes,
+        cancel=cancel,
     )
     raise_refusal(refusal, DoseGridRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
@@ -760,6 +771,9 @@ def consume_dose_grid_posterior_artifact(
     *,
     max_rows: int = 100_000,
     max_grid: int = 1_024,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: Any = None,
 ) -> DoseGridPosteriorResult:
     """Recompute an exported dose-grid posterior and accept only an identical one.
 
@@ -770,11 +784,15 @@ def consume_dose_grid_posterior_artifact(
     ``.data_identity_mismatch`` or ``.result_replay_mismatch``) even when the digests were
     resealed. Corruption and unknown versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
+    ``threads``, ``max_bytes`` and ``cancel`` apply to the independent replay.
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)
-    report, refusal = _consume_posterior(data, max_rows=max_rows, max_grid=max_grid)
+    report, refusal = _consume_posterior(
+        data, max_rows=max_rows, max_grid=max_grid,
+        threads=threads, max_bytes=max_bytes, cancel=cancel,
+    )
     raise_refusal(refusal, DoseGridRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")

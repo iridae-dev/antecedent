@@ -120,3 +120,25 @@ def test_refusals_are_typed():
     assert caught.value.detail == "dose_grid.unsupported_dose"
     with pytest.raises(Exception, match="residual"):
         _run(residual_variance=None)
+
+
+def test_caller_policy_bounds_evaluation_and_independent_consumption():
+    from antecedent import _native
+    from antecedent.errors import CausalCancelledError, CausalResourceError
+
+    serial = _run(draws=200, threads=1)
+    assert _run(draws=200, threads=2).posterior == serial.posterior
+    artifact = serial.export()
+    assert consume_dose_grid_posterior_artifact(artifact, threads=2).posterior == serial.posterior
+
+    with pytest.raises(CausalResourceError):
+        _run(draws=200, max_bytes=1)
+    with pytest.raises(CausalResourceError):
+        consume_dose_grid_posterior_artifact(artifact, max_bytes=1)
+
+    token = _native.CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalCancelledError):
+        _run(draws=200, cancel=token)
+    with pytest.raises(CausalCancelledError):
+        consume_dose_grid_posterior_artifact(artifact, cancel=token)

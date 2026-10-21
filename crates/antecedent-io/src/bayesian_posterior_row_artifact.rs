@@ -30,7 +30,7 @@ use antecedent_estimate::EstimationError;
 use antecedent_estimate::dose_basis_regression::ResidualPrior;
 use antecedent_estimate::dose_grid_functional::{DoseDesign, DoseFunctional};
 use antecedent_estimate::dose_grid_posterior::{
-    DoseGridPosteriorRequest, estimate_dose_grid_posterior,
+    CompiledDoseGridPosterior, DoseGridPosteriorRequest,
 };
 use antecedent_estimate::survival_posterior::IntervalHazardPosterior;
 use serde::{Deserialize, Serialize};
@@ -356,21 +356,6 @@ impl PosteriorRowRequestWire {
         }
         Ok(())
     }
-
-    /// Run the row on this request and render its result.
-    fn evaluate(&self) -> Result<PosteriorRowResultWire, PosteriorRowArtifactError> {
-        let result = match self {
-            Self::DoseGrid(w) => evaluate_dose_grid(w)?,
-        };
-        if !result.all_finite() {
-            return Err(PosteriorRowArtifactError::Refused {
-                code: antecedent_core::reason_code!("transport_numerical_failure"),
-                detail: "bayesian_row.non_finite_result".to_owned(),
-                message: "the posterior produced a non-finite value".to_owned(),
-            });
-        }
-        Ok(result)
-    }
 }
 
 fn dose_functional(w: &DoseGridPosteriorWire) -> Result<DoseFunctional, PosteriorRowArtifactError> {
@@ -418,16 +403,16 @@ pub fn dose_grid_row(
     result
 }
 
-fn evaluate_dose_grid(
+fn checked_dose_request(
     w: &DoseGridPosteriorWire,
-) -> Result<PosteriorRowResultWire, PosteriorRowArtifactError> {
+) -> Result<DoseGridPosteriorRequest<'_>, PosteriorRowArtifactError> {
     let design = match w.design.as_str() {
         DESIGN_RANDOMIZED => DoseDesign::RandomizedDose,
         DESIGN_OBSERVATIONAL => DoseDesign::Observational,
         _ => return Err(PosteriorRowArtifactError::UnsupportedSemantics("design spelling")),
     };
     let functional = dose_functional(w)?;
-    let request = DoseGridPosteriorRequest {
+    Ok(DoseGridPosteriorRequest {
         dose: &w.dose,
         outcome: &w.outcome,
         grid: &w.grid,
@@ -438,10 +423,7 @@ fn evaluate_dose_grid(
         design,
         draws: w.draws,
         seed: w.seed,
-    };
-    let posterior = estimate_dose_grid_posterior(&request)
-        .map_err(|error| from_estimation(error, "dose_grid"))?;
-    Ok(dose_grid_row(&w.functional.kind, functional, &posterior))
+    })
 }
 
 /// The retained row of a fixed group-dose policy posterior: policy, reference and their
@@ -598,8 +580,21 @@ impl PosteriorRowArtifactWire {
     /// The row's typed refusal, a stored collection above the default consumer bounds, or an
     /// unsupported spelling.
     pub fn seal(request: PosteriorRowRequestWire) -> Result<Self, PosteriorRowArtifactError> {
-        request.check_limits(&PosteriorRowConsumeLimits::default())?;
-        let result = request.evaluate()?;
+        Self::seal_with_context(request, &antecedent_core::ExecutionContext::production_default(0))
+    }
+
+    /// Compile and execute under caller resource and cancellation policy.
+    pub fn seal_with_context(
+        request: PosteriorRowRequestWire,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, PosteriorRowArtifactError> {
+        CompiledPosteriorRow::compile(request, ctx)?.artifact(ctx)
+    }
+
+    fn from_executed(
+        request: PosteriorRowRequestWire,
+        result: PosteriorRowResultWire,
+    ) -> Result<Self, PosteriorRowArtifactError> {
         let undecodable = |e: IoError| PosteriorRowArtifactError::Undecodable(e.to_string());
         let wire = Self {
             version: POSTERIOR_ROW_ARTIFACT_VERSION,
@@ -707,6 +702,43 @@ impl PosteriorRowArtifactWire {
         bytes: &[u8],
         limits: PosteriorRowConsumeLimits,
     ) -> Result<Self, PosteriorRowArtifactError> {
+        Self::consume_typed_with_context(
+            bytes,
+            limits,
+            &antecedent_core::ExecutionContext::production_default(0),
+        )
+    }
+
+    /// Independently compile/replay under caller-supplied execution authority.
+    pub fn consume_typed_with_context(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, PosteriorRowArtifactError> {
+        Self::consume_prepared_with_context(bytes, limits, ctx).map(|(wire, _program)| wire)
+    }
+
+    /// Replay once and retain the exact checked program used by the consumer.
+    pub fn consume_prepared_with_context(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<(Self, CompiledPosteriorRow), PosteriorRowArtifactError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(execution_refusal("dose_grid.cancelled", "artifact consumption cancelled"));
+        }
+        let bound = (bytes.len() as u64).checked_mul(8).ok_or_else(|| {
+            execution_refusal("dose_grid.resource_refused", "artifact byte size overflow")
+        })?;
+        if ctx.memory.hard_limit_bytes.is_some_and(|limit| bound > limit) {
+            return Err(execution_refusal(
+                "dose_grid.resource_refused",
+                "artifact decoding exceeds memory limit",
+            ));
+        }
+        let _decode = ctx
+            .acquire_admission(0, bound)
+            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
         let wire = Self::decode(bytes).map_err(|e| match e {
             IoError::Refused { .. } => PosteriorRowArtifactError::UnsupportedSemantics("shape"),
             other => PosteriorRowArtifactError::Undecodable(other.to_string()),
@@ -722,12 +754,135 @@ impl PosteriorRowArtifactWire {
         crate::require_digest(&wire.data_digest, wire.request.data_digest(), undecodable, || {
             PosteriorRowArtifactError::DataMismatch
         })?;
-        let fresh = wire.request.evaluate()?;
+        let program = CompiledPosteriorRow::compile(wire.request.clone(), ctx)?;
+        let fresh = program.execute(ctx)?;
         let stored = crate::to_cbor(&wire.result).map_err(undecodable)?;
         let recomputed = crate::to_cbor(&fresh).map_err(undecodable)?;
         if stored != recomputed {
             return Err(PosteriorRowArtifactError::ResultMismatch);
         }
-        Ok(wire)
+        Ok((wire, program))
+    }
+}
+
+fn execution_refusal(detail: &str, message: &str) -> PosteriorRowArtifactError {
+    PosteriorRowArtifactError::Refused {
+        code: antecedent_core::reason_code!("transport_budget_cancel"),
+        detail: detail.into(),
+        message: message.into(),
+    }
+}
+/// Retained scientific request and checked statistical program. Encoding never performs inference.
+#[derive(Clone, Debug)]
+pub struct CompiledPosteriorRow {
+    request: std::sync::Arc<PosteriorRowRequestWire>,
+    program: CompiledDoseGridPosterior,
+    premises_digest: String,
+    data_digest: String,
+    _source_retention: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
+}
+impl CompiledPosteriorRow {
+    /// Validate premises/support/prior and retain a typed numerical program without fitting.
+    pub fn compile(
+        request: PosteriorRowRequestWire,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, PosteriorRowArtifactError> {
+        let PosteriorRowRequestWire::DoseGrid(wire) = &request;
+        let program = CompiledDoseGridPosterior::compile(&checked_dose_request(wire)?, ctx)
+            .map_err(|e| from_estimation(e, "dose_grid"))?;
+        let premises_digest = request
+            .premises_digest()
+            .map_err(|e| PosteriorRowArtifactError::Undecodable(e.to_string()))?;
+        let data_digest = request
+            .data_digest()
+            .map_err(|e| PosteriorRowArtifactError::Undecodable(e.to_string()))?;
+        let bytes = program.retained_source_bytes().checked_mul(2).ok_or_else(|| {
+            execution_refusal("dose_grid.resource_refused", "retained wire size overflow")
+        })?;
+        let retention = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        Ok(Self {
+            request: std::sync::Arc::new(request),
+            program,
+            premises_digest,
+            data_digest,
+            _source_retention: std::sync::Arc::new(retention),
+        })
+    }
+    /// Frozen scientific/data identity pair; no fitting or simulation.
+    #[must_use]
+    pub fn identities(&self) -> (&str, &str) {
+        (&self.premises_digest, &self.data_digest)
+    }
+    /// Borrow the exact frozen request.
+    #[must_use]
+    pub fn request(&self) -> &PosteriorRowRequestWire {
+        &self.request
+    }
+    /// Execute the retained original numerical engine; compatible retargeting reuses its coefficient posterior.
+    pub fn execute(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<PosteriorRowResultWire, PosteriorRowArtifactError> {
+        let posterior = self.program.execute(ctx).map_err(|e| from_estimation(e, "dose_grid"))?;
+        let PosteriorRowRequestWire::DoseGrid(wire) = self.request.as_ref();
+        let result = dose_grid_row(&wire.functional.kind, posterior.functional, &posterior);
+        if !result.all_finite() {
+            return Err(PosteriorRowArtifactError::Refused {
+                code: antecedent_core::reason_code!("transport_numerical_failure"),
+                detail: "bayesian_row.non_finite_result".into(),
+                message: "posterior produced non-finite values".into(),
+            });
+        }
+        Ok(result)
+    }
+    /// Retarget evaluation coordinates with unchanged data/prior/seed/draws.
+    pub fn retarget(
+        &self,
+        grid: Vec<f64>,
+        functional: DoseFunctionalWire,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, PosteriorRowArtifactError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(execution_refusal("dose_grid.cancelled", "retargeting cancelled"));
+        }
+        let bytes = self
+            .program
+            .retained_source_bytes()
+            .checked_mul(2)
+            .and_then(|n| n.checked_add((grid.len() as u64).checked_mul(16)?))
+            .ok_or_else(|| {
+                execution_refusal("dose_grid.resource_refused", "retargeted wire size overflow")
+            })?;
+        let retention = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|e| execution_refusal("dose_grid.resource_refused", &e.to_string()))?;
+        let mut request = self.request.as_ref().clone();
+        let PosteriorRowRequestWire::DoseGrid(wire) = &mut request;
+        wire.grid = grid;
+        wire.functional = functional;
+        let numerical = checked_dose_request(wire)?;
+        let program = self
+            .program
+            .retarget(numerical.grid, numerical.functional, ctx)
+            .map_err(|e| from_estimation(e, "dose_grid"))?;
+        let premises_digest = request
+            .premises_digest()
+            .map_err(|e| PosteriorRowArtifactError::Undecodable(e.to_string()))?;
+        Ok(Self {
+            request: std::sync::Arc::new(request),
+            program,
+            premises_digest,
+            data_digest: self.data_digest.clone(),
+            _source_retention: std::sync::Arc::new(retention),
+        })
+    }
+    /// Execute and separately encode the original posterior artifact format.
+    pub fn artifact(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<PosteriorRowArtifactWire, PosteriorRowArtifactError> {
+        PosteriorRowArtifactWire::from_executed(self.request.as_ref().clone(), self.execute(ctx)?)
     }
 }

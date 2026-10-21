@@ -186,7 +186,11 @@ fn posterior_refusal_json(
     error: &PosteriorRowArtifactError,
     stage: &'static str,
 ) -> Option<String> {
-    if matches!(error, PosteriorRowArtifactError::Undecodable(_)) {
+    if matches!(
+        error,
+        PosteriorRowArtifactError::Undecodable(_)
+            | PosteriorRowArtifactError::Refused { code: "transport_budget_cancel", .. }
+    ) {
         return None;
     }
     let (code, detail) = error.refusal();
@@ -195,6 +199,18 @@ fn posterior_refusal_json(
         other => other.to_string(),
     };
     Some(RefusalJson::new(code, stage, &detail, &message).json())
+}
+
+fn posterior_execution_error(error: &PosteriorRowArtifactError) -> PyErr {
+    if let PosteriorRowArtifactError::Refused { code: "transport_budget_cancel", detail, message } =
+        error
+    {
+        if detail.ends_with(".cancelled") {
+            return crate::CausalCancelledError::new_err(message.clone());
+        }
+        return crate::CausalResourceError::new_err(message.clone());
+    }
+    serialization(error)
 }
 
 /// The posterior report: the premises with the table elided, the retained posterior and both
@@ -222,11 +238,15 @@ fn posterior_report_json(done: &BayesianPosteriorRow) -> PyResult<String> {
 /// `request_json` is the `dose_grid` request with empty `dose` and `outcome`; the table is
 /// passed as `dose` and `outcome`.
 #[pyfunction]
+#[pyo3(signature = (request_json, dose, outcome, *, threads=None, max_bytes=None, cancel=None))]
 fn evaluate_dose_grid_posterior(
     py: Python<'_>,
     request_json: &str,
     dose: Vec<f64>,
     outcome: Vec<f64>,
+    threads: Option<u32>,
+    max_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<EvaluatePayload> {
     check_declared_size(request_json, MAX_JSON_BYTES, "dose grid posterior")?;
     let mut request: PosteriorRowRequestWire = serde_json::from_str(request_json)
@@ -234,15 +254,18 @@ fn evaluate_dose_grid_posterior(
     let PosteriorRowRequestWire::DoseGrid(wire) = &mut request;
     wire.dose = dose;
     wire.outcome = outcome;
-    let payload = detach_catch(py, move || match BayesianPosteriorRow::evaluate(request) {
-        Ok(done) => {
-            let bytes = done.export().map_err(|e| serialization(&e))?;
-            Ok((Some(posterior_report_json(&done)?), Some(bytes), None))
+    let ctx = dose_context(threads, max_bytes, cancel)?;
+    let payload = detach_catch(py, move || {
+        match BayesianPosteriorRow::evaluate_with_context(request, &ctx) {
+            Ok(done) => {
+                let bytes = done.export().map_err(|e| serialization(&e))?;
+                Ok((Some(posterior_report_json(&done)?), Some(bytes), None))
+            }
+            Err(error) => match posterior_refusal_json(&error, "dose_grid") {
+                Some(json) => Ok((None, None, Some(json))),
+                None => Err(posterior_execution_error(&error)),
+            },
         }
-        Err(error) => match posterior_refusal_json(&error, "dose_grid") {
-            Some(json) => Ok((None, None, Some(json))),
-            None => Err(serialization(&error)),
-        },
     })?;
     let (report, bytes, refusal) = payload;
     Ok((report, bytes.map(|b| PyBytes::new(py, &b).unbind()), refusal))
@@ -250,20 +273,26 @@ fn evaluate_dose_grid_posterior(
 
 /// Consume a dose-grid posterior artifact by recomputation: `(report json, refusal json)`.
 #[pyfunction]
-#[pyo3(signature = (artifact, *, max_rows=100_000, max_grid=1_024))]
+#[pyo3(signature = (artifact, *, max_rows=100_000, max_grid=1_024, threads=None, max_bytes=None, cancel=None))]
 fn consume_dose_grid_posterior_artifact(
     py: Python<'_>,
     artifact: Vec<u8>,
     max_rows: usize,
     max_grid: usize,
+    threads: Option<u32>,
+    max_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<ConsumePayload> {
     let limits = PosteriorRowConsumeLimits { max_rows, max_points: max_grid };
-    detach_catch(py, move || match BayesianPosteriorRow::consume(&artifact, limits) {
-        Ok(done) => Ok((Some(posterior_report_json(&done)?), None)),
-        Err(error) => match posterior_refusal_json(&error, "consume") {
-            Some(json) => Ok((None, Some(json))),
-            None => Err(serialization(&error)),
-        },
+    let ctx = dose_context(threads, max_bytes, cancel)?;
+    detach_catch(py, move || {
+        match BayesianPosteriorRow::consume_with_context(&artifact, limits, &ctx) {
+            Ok(done) => Ok((Some(posterior_report_json(&done)?), None)),
+            Err(error) => match posterior_refusal_json(&error, "consume") {
+                Some(json) => Ok((None, Some(json))),
+                None => Err(posterior_execution_error(&error)),
+            },
+        }
     })
 }
 

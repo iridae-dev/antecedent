@@ -438,6 +438,7 @@ impl core::clone::Clone for antecedent::analysis::array_fits::TemporalScoreModel
 impl core::clone::Clone for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
 impl core::clone::Clone for antecedent::analysis::array_fits::TreatmentScoreSpec
 impl core::clone::Clone for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
+impl core::clone::Clone for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState
 impl core::clone::Clone for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::clone::Clone for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::clone::Clone for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -1707,6 +1708,7 @@ impl core::fmt::Debug for antecedent::analysis::array_fits::TemporalScoreModel
 impl core::fmt::Debug for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
 impl core::fmt::Debug for antecedent::analysis::array_fits::TreatmentScoreSpec
 impl core::fmt::Debug for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
+impl core::fmt::Debug for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState
 impl core::fmt::Debug for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::fmt::Debug for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::fmt::Debug for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -2460,6 +2462,7 @@ impl core::marker::Freeze for antecedent::analysis::array_fits::TemporalScoreMod
 impl core::marker::Freeze for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::marker::Freeze for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
 impl core::marker::Freeze for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
+impl core::marker::Freeze for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::marker::Freeze for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Freeze for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -3073,6 +3076,7 @@ impl core::marker::Send for antecedent::analysis::array_fits::TemporalScoreModel
 impl core::marker::Send for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::marker::Send for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
 impl core::marker::Send for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
+impl core::marker::Send for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::marker::Send for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Send for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Send for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -3564,7 +3568,6 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::Arr
 impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::TemporalScoreModel
 impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
 impl core::marker::StructuralPartialEq for antecedent::analysis::array_fits::TreatmentScoreSpec
-impl core::marker::StructuralPartialEq for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 impl core::marker::StructuralPartialEq for antecedent::analysis::categorical_treatment::CategoricalTreatment
 impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::ClosedPilotRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::closed_pilots::ClosedRegimeCounts
@@ -4066,6 +4069,7 @@ impl core::marker::Sync for antecedent::analysis::array_fits::TemporalScoreModel
 impl core::marker::Sync for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::marker::Sync for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
 impl core::marker::Sync for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
+impl core::marker::Sync for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::marker::Sync for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Sync for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -4682,6 +4686,7 @@ impl core::marker::Unpin for antecedent::analysis::array_fits::TemporalScoreMode
 impl core::marker::Unpin for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::marker::Unpin for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
 impl core::marker::Unpin for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
+impl core::marker::Unpin for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::marker::Unpin for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::marker::Unpin for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -5295,6 +5300,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fit
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -5892,6 +5898,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::TemporalTreatmentScoreSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::array_fits::TreatmentScoreSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::categorical_treatment::CategoricalTreatment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::ClosedPilotRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
@@ -9277,6 +9284,9 @@ pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn refresh(&mut self, input: antecedent::analysis::TransportGridData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::TransportGridResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn replace_snapshot(&mut self, input: antecedent::analysis::TransportGridData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::TransportGridState>>::fn statistical_options(&self) -> core::option::Option<antecedent_estimate::empirical_table::EmpiricalTableOptions>
+pub fn <antecedent::PreparedStudy<antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState>>::fn estimate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::PreparedStudy<antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState>>::fn inspect(&self) -> (&str, &str)
+pub fn <antecedent::PreparedStudy<antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState>>::fn retarget(&self, grid: alloc::vec::Vec<f64>, functional: antecedent_io::dose_grid_functional_artifact::DoseFunctionalWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>>::fn cyclic_evidence(&self, schema: antecedent::analysis::cyclic_evidence::CyclicEvidenceSchema, selectors: alloc::vec::Vec<antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::cyclic_evidence::CyclicEvidence, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>>::fn export(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_io::cyclic_family_artifact::CyclicFamilyReport, alloc::vec::Vec<u8>), antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn <antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>>::fn inspect(&self) -> antecedent::analysis::cyclic::CyclicFamilyPreparedInspection
@@ -9525,6 +9535,7 @@ pub fn <antecedent::Study>::fn plan(&self, ctx: &antecedent_core::execution::Exe
 pub fn <antecedent::Study>::fn prepare(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy, antecedent::CausalError>
 pub fn <antecedent::Study>::fn prepare_cyclic(request: antecedent_io::cyclic_system_artifact::CyclicExecutionRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn <antecedent::Study>::fn prepare_cyclic_family(request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent::Study>::fn prepare_posterior_row(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState>, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::Study>::fn run(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::Study>::fn run_observed(&self, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_core::execution_attempt::ExecutionAttempt<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::Study>::fn series(data: antecedent_data::dataset::TimeSeriesData) -> antecedent::StudyBuilder
@@ -9854,9 +9865,12 @@ pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::con
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::const fn request(&self) -> &antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::const fn result(&self) -> &antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn consume(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn consume_with_context(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn digests(&self) -> (&str, &str)
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn estimator(&self) -> &str
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn evaluate(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn evaluate_with_context(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
+pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn execution_facts(&self) -> core::option::Option<&antecedent_core::execution_facts::ExecutionFacts>
 pub fn <antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn artifact(&self) -> &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact
 pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn consume(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
@@ -11315,6 +11329,8 @@ pub struct antecedent::analysis::array_fits::TemporalTreatmentScoreSpec
 pub struct antecedent::analysis::array_fits::TreatmentScoreSpec
 pub struct antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow
 pub struct antecedent::analysis::bayesian_posterior_row::BayesianPosteriorRow has private fields
+pub struct antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState
+pub struct antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState has private fields
 pub struct antecedent::analysis::categorical_treatment::CategoricalTreatment
 pub struct antecedent::analysis::categorical_treatment::CategoricalTreatment has private fields
 pub struct antecedent::analysis::closed_pilots::ClosedPilotRefusal
