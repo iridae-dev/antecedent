@@ -56,3 +56,10 @@ The public IO `evaluate_cyclic_functional` and
 the retained family compiler and return `CyclicFamilyReport`. Match its `answer`
 field to access the finite or Gaussian numerical report. Keeping the outer report
 keeps the output reservation alive. Numerical component evaluation remains available from `antecedent-estimate` without acquiring causal authority.
+
+A recovered linear law uses the same prepared family owner. Preparation retains the
+draws and does not fit. Interventions execute from that law; failed and
+inadmissible draws stay in the result. An acyclic free support uses the DAG
+schedule. A directed cycle is still refused by that algorithm, with its existing
+next attempt, and only then compiled under the cyclic license. The recovered law
+stays model-conditional. Compilation grants no scientific license.

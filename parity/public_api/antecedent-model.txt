@@ -253,6 +253,8 @@ impl core::clone::Clone for antecedent_model::scc_compile::BlockDiagnostic
 impl core::clone::Clone for antecedent_model::scc_compile::CompileBudget
 impl core::clone::Clone for antecedent_model::scc_compile::CompiledEquilibrium
 impl core::clone::Clone for antecedent_model::scc_compile::GaussianDisturbance
+impl core::clone::Clone for antecedent_model::scc_compile::LinearSupportRoute
+impl core::clone::Clone for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::clone::Clone for antecedent_model::scc_compile::SccCompileError
 impl core::cmp::Eq for antecedent_model::BasisTerm
 impl core::cmp::Eq for antecedent_model::ComponentDependency
@@ -549,6 +551,8 @@ impl core::cmp::PartialEq for antecedent_model::scc_compile::BlockDiagnostic
 impl core::cmp::PartialEq for antecedent_model::scc_compile::CompileBudget
 impl core::cmp::PartialEq for antecedent_model::scc_compile::CompiledEquilibrium
 impl core::cmp::PartialEq for antecedent_model::scc_compile::GaussianDisturbance
+impl core::cmp::PartialEq for antecedent_model::scc_compile::LinearSupportRoute
+impl core::cmp::PartialEq for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::cmp::PartialEq for antecedent_model::scc_compile::SccCompileError
 impl core::cmp::PartialOrd for antecedent_model::compose::CoherenceKind
 impl core::cmp::PartialOrd for antecedent_model::compose::ContextCoordinate
@@ -818,6 +822,8 @@ impl core::fmt::Debug for antecedent_model::scc_compile::BlockDiagnostic
 impl core::fmt::Debug for antecedent_model::scc_compile::CompileBudget
 impl core::fmt::Debug for antecedent_model::scc_compile::CompiledEquilibrium
 impl core::fmt::Debug for antecedent_model::scc_compile::GaussianDisturbance
+impl core::fmt::Debug for antecedent_model::scc_compile::LinearSupportRoute
+impl core::fmt::Debug for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::fmt::Debug for antecedent_model::scc_compile::SccCompileError
 impl core::fmt::Display for antecedent_model::CycleGateError
 impl core::fmt::Display for antecedent_model::CyclicComponentError
@@ -1160,6 +1166,8 @@ impl core::marker::Freeze for antecedent_model::scc_compile::BlockDiagnostic [au
 impl core::marker::Freeze for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Freeze for antecedent_model::scc_compile::LinearSupportRoute [auto]
+impl core::marker::Freeze for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Freeze for antecedent_model::scc_compile::SccCompileError [auto]
 impl core::marker::Send for antecedent_model::BasisTerm [auto]
 impl core::marker::Send for antecedent_model::CompiledCausalModel [auto]
@@ -1385,6 +1393,8 @@ impl core::marker::Send for antecedent_model::scc_compile::BlockDiagnostic [auto
 impl core::marker::Send for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::marker::Send for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::marker::Send for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Send for antecedent_model::scc_compile::LinearSupportRoute [auto]
+impl core::marker::Send for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Send for antecedent_model::scc_compile::SccCompileError [auto]
 impl core::marker::StructuralPartialEq for antecedent_model::BasisTerm
 impl core::marker::StructuralPartialEq for antecedent_model::ComponentDependency
@@ -1570,6 +1580,8 @@ impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::BlockD
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::CompileBudget
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::CompiledEquilibrium
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::GaussianDisturbance
+impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::LinearSupportRoute
+impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::RoutedEquilibrium
 impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::SccCompileError
 impl core::marker::Sync for antecedent_model::BasisTerm [auto]
 impl core::marker::Sync for antecedent_model::CompiledCausalModel [auto]
@@ -1795,6 +1807,8 @@ impl core::marker::Sync for antecedent_model::scc_compile::BlockDiagnostic [auto
 impl core::marker::Sync for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Sync for antecedent_model::scc_compile::LinearSupportRoute [auto]
+impl core::marker::Sync for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Sync for antecedent_model::scc_compile::SccCompileError [auto]
 impl core::marker::Unpin for antecedent_model::BasisTerm [auto]
 impl core::marker::Unpin for antecedent_model::CompiledCausalModel [auto]
@@ -2020,6 +2034,8 @@ impl core::marker::Unpin for antecedent_model::scc_compile::BlockDiagnostic [aut
 impl core::marker::Unpin for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Unpin for antecedent_model::scc_compile::LinearSupportRoute [auto]
+impl core::marker::Unpin for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::marker::Unpin for antecedent_model::scc_compile::SccCompileError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::BasisTerm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ComponentDependency [auto]
@@ -2236,6 +2252,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::LinearSupportRoute [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::SccCompileError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::BasisTerm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ComponentDependency [auto]
@@ -2452,6 +2470,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::Blo
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::CompileBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::CompiledEquilibrium [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::LinearSupportRoute [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::RoutedEquilibrium [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::SccCompileError [auto]
 impl serde_core::ser::Serialize for antecedent_model::compile::CompiledSystemPlan
 impl serde_core::ser::Serialize for antecedent_model::compile::ExecutionBlock
@@ -2634,6 +2654,7 @@ pub const antecedent_model::compose::MAX_LEVELS_PER_VARIABLE: usize
 pub const antecedent_model::compose::MAX_PARENTS_PER_MECHANISM: usize
 pub const antecedent_model::compose::MAX_SAMPLE_CELLS: usize
 pub const antecedent_model::compose::MECHANISM_DESCRIPTOR_VERSION: u32
+pub const antecedent_model::cyclic_component::DAG_EQUILIBRIUM_ATTEMPT: &str
 pub const antecedent_model::cyclic_component::SCC_COMPILE_ATTEMPT: &str
 pub const antecedent_model::discretized_scm::BRIDGE_CALIBRATION: &str
 pub const antecedent_model::discretized_scm::BRIDGE_ERROR_SCOPE: &str
@@ -2741,6 +2762,7 @@ pub enum antecedent_model::nonlinear_equilibrium::Activation
 pub enum antecedent_model::nonlinear_equilibrium::EquilibriumError
 pub enum antecedent_model::nonlinear_equilibrium::EquilibriumOutcome
 pub enum antecedent_model::observation_query::Direction
+pub enum antecedent_model::scc_compile::LinearSupportRoute
 pub field antecedent_model::CompiledCausalModel::graph: alloc::sync::Arc<antecedent_graph::dag::Dag>
 pub field antecedent_model::CompiledCausalModel::mechanisms: antecedent_model::CompiledMechanismStore
 pub field antecedent_model::CompiledCausalModel::node_order: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>
@@ -3568,6 +3590,8 @@ pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn covariance(&self
 pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn dimension(&self) -> usize
 pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn mean(&self) -> &[f64]
 pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn try_new(mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_model::scc_compile::SccCompileError>
+pub fn <antecedent_model::scc_compile::RoutedEquilibrium>::fn equilibrium(&self) -> &antecedent_model::scc_compile::CompiledEquilibrium
+pub fn <antecedent_model::scc_compile::RoutedEquilibrium>::fn route(&self) -> &antecedent_model::scc_compile::LinearSupportRoute
 pub fn antecedent_model::affine_certificate::certifies_affine_bijection(weights: &[f64], order: usize) -> bool
 pub fn antecedent_model::apply_node_program(program: &antecedent_model::NodeProgram, values: &mut antecedent_model::ValueBatchMut<'_>, node: usize, scratch: &mut alloc::vec::Vec<f64>, ctx: core::option::Option<&antecedent_core::execution::ExecutionContext>) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::assess(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::SolutionAssessment, antecedent_model::LinearSolutionError>
@@ -3641,7 +3665,9 @@ pub fn antecedent_model::sample::sample_with_overlay(view: &antecedent_model::Mo
 pub fn antecedent_model::sample::sample_with_overlay_into(view: &antecedent_model::ModelView<'_>, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, values: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::sample::soft_to_slot(soft: &antecedent_core::intervention::MechanismOverride, n_parents: usize) -> core::result::Result<antecedent_model::MechanismSlot, antecedent_model::ModelError>
 pub fn antecedent_model::scc_compile::compile_gaussian_equilibrium(component: &antecedent_model::CyclicComponent, model: &antecedent_model::LinearStructuralMap, disturbance: &antecedent_model::scc_compile::GaussianDisturbance, clamp: &antecedent_model::HardClamp, clamp_values: &[f64], budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::scc_compile::CompiledEquilibrium, antecedent_model::scc_compile::SccCompileError>
+pub fn antecedent_model::scc_compile::compile_routed_gaussian_equilibrium(component: &antecedent_model::CyclicComponent, model: &antecedent_model::LinearStructuralMap, disturbance: &antecedent_model::scc_compile::GaussianDisturbance, clamp: &antecedent_model::HardClamp, clamp_values: &[f64], budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::scc_compile::RoutedEquilibrium, antecedent_model::scc_compile::SccCompileError>
 pub fn antecedent_model::scc_compile::gaussian_equilibrium_admission(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::scc_compile::AdmissionCost, antecedent_model::scc_compile::SccCompileError>
+pub fn antecedent_model::scc_compile::route_linear_support(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::scc_compile::LinearSupportRoute, antecedent_model::scc_compile::SccCompileError>
 pub mod antecedent_model::affine_certificate
 pub mod antecedent_model::basis
 pub mod antecedent_model::batch
@@ -3899,6 +3925,8 @@ pub struct antecedent_model::scc_compile::CompiledEquilibrium
 pub struct antecedent_model::scc_compile::CompiledEquilibrium has private fields
 pub struct antecedent_model::scc_compile::GaussianDisturbance
 pub struct antecedent_model::scc_compile::GaussianDisturbance has private fields
+pub struct antecedent_model::scc_compile::RoutedEquilibrium
+pub struct antecedent_model::scc_compile::RoutedEquilibrium has private fields
 pub trait antecedent_model::DynamicMechanism: core::marker::Send + core::marker::Sync
 pub trait antecedent_model::local_cyclic::LocalCyclicMechanism: core::marker::Send + core::marker::Sync
 pub trait fn fn antecedent_model::DynamicMechanism::evaluate_column(&self, parents: antecedent_model::ParentBatch<'_>, noise: &[f64], output: &mut [f64], workspace: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
@@ -4397,6 +4425,8 @@ pub variant antecedent_model::observation_query::ObservationQueryError::ZeroProb
 pub variant antecedent_model::observation_query::UnreachableBound::NoObservationCrosses
 pub variant antecedent_model::observation_query::UnreachableBound::ObservationBudget { max_observations: u64 }
 pub variant antecedent_model::observation_query::UnreachableBound::SignalDoesNotMove
+pub variant antecedent_model::scc_compile::LinearSupportRoute::Acyclic { order: alloc::vec::Vec<usize> }
+pub variant antecedent_model::scc_compile::LinearSupportRoute::Cyclic { next_attempt: alloc::string::String, blocks: alloc::vec::Vec<alloc::vec::Vec<usize>> }
 pub variant antecedent_model::scc_compile::SccCompileError::AsymmetricCovariance { row: usize, column: usize }
 pub variant antecedent_model::scc_compile::SccCompileError::Budget { resource: &'static str, requested: u64, limit: u64 }
 pub variant antecedent_model::scc_compile::SccCompileError::ClampDimension { clamp: usize, model: usize }

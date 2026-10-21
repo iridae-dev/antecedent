@@ -687,6 +687,7 @@ impl core::clone::Clone for antecedent_estimate::recovery::RecoveryEvidenceDecis
 impl core::clone::Clone for antecedent_estimate::recovery::RecoveryInterventionFault
 impl core::clone::Clone for antecedent_estimate::recovery::RecoveryPlanParts
 impl core::clone::Clone for antecedent_estimate::recovery::RetainedRecoveryPlan
+impl core::clone::Clone for antecedent_estimate::recovery::SolvedBy
 impl core::clone::Clone for antecedent_estimate::recovery::ThresholdChoice
 impl core::clone::Clone for antecedent_estimate::recovery_sampled::SampledBcaReceipt
 impl core::clone::Clone for antecedent_estimate::recovery_sampled::SampledIntervalMethod
@@ -1558,6 +1559,7 @@ impl core::cmp::PartialEq for antecedent_estimate::recovery::OutcomeMoments
 impl core::cmp::PartialEq for antecedent_estimate::recovery::RecoveryEvidenceDecision
 impl core::cmp::PartialEq for antecedent_estimate::recovery::RecoveryInterventionFault
 impl core::cmp::PartialEq for antecedent_estimate::recovery::RetainedRecoveryPlan
+impl core::cmp::PartialEq for antecedent_estimate::recovery::SolvedBy
 impl core::cmp::PartialEq for antecedent_estimate::recovery::ThresholdChoice
 impl core::cmp::PartialEq for antecedent_estimate::recovery_sampled::SampledBcaReceipt
 impl core::cmp::PartialEq for antecedent_estimate::recovery_sampled::SampledIntervalMethod
@@ -2445,6 +2447,7 @@ impl core::fmt::Debug for antecedent_estimate::recovery::RecoveryEvidenceDecisio
 impl core::fmt::Debug for antecedent_estimate::recovery::RecoveryInterventionFault
 impl core::fmt::Debug for antecedent_estimate::recovery::RecoveryPlanParts
 impl core::fmt::Debug for antecedent_estimate::recovery::RetainedRecoveryPlan
+impl core::fmt::Debug for antecedent_estimate::recovery::SolvedBy
 impl core::fmt::Debug for antecedent_estimate::recovery::ThresholdChoice
 impl core::fmt::Debug for antecedent_estimate::recovery_sampled::SampledBcaReceipt
 impl core::fmt::Debug for antecedent_estimate::recovery_sampled::SampledIntervalMethod
@@ -3547,6 +3550,7 @@ impl core::marker::Freeze for antecedent_estimate::recovery::RecoveryEvidenceDec
 impl core::marker::Freeze for antecedent_estimate::recovery::RecoveryInterventionFault [auto]
 impl core::marker::Freeze for antecedent_estimate::recovery::RecoveryPlanParts [auto]
 impl core::marker::Freeze for antecedent_estimate::recovery::RetainedRecoveryPlan [auto]
+impl core::marker::Freeze for antecedent_estimate::recovery::SolvedBy [auto]
 impl core::marker::Freeze for antecedent_estimate::recovery::ThresholdChoice [auto]
 impl core::marker::Freeze for antecedent_estimate::recovery_sampled::SampledBcaReceipt [auto]
 impl core::marker::Freeze for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
@@ -4323,6 +4327,7 @@ impl core::marker::Send for antecedent_estimate::recovery::RecoveryEvidenceDecis
 impl core::marker::Send for antecedent_estimate::recovery::RecoveryInterventionFault [auto]
 impl core::marker::Send for antecedent_estimate::recovery::RecoveryPlanParts [auto]
 impl core::marker::Send for antecedent_estimate::recovery::RetainedRecoveryPlan [auto]
+impl core::marker::Send for antecedent_estimate::recovery::SolvedBy [auto]
 impl core::marker::Send for antecedent_estimate::recovery::ThresholdChoice [auto]
 impl core::marker::Send for antecedent_estimate::recovery_sampled::SampledBcaReceipt [auto]
 impl core::marker::Send for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
@@ -4977,6 +4982,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::recovery::Outcom
 impl core::marker::StructuralPartialEq for antecedent_estimate::recovery::RecoveryEvidenceDecision
 impl core::marker::StructuralPartialEq for antecedent_estimate::recovery::RecoveryInterventionFault
 impl core::marker::StructuralPartialEq for antecedent_estimate::recovery::RetainedRecoveryPlan
+impl core::marker::StructuralPartialEq for antecedent_estimate::recovery::SolvedBy
 impl core::marker::StructuralPartialEq for antecedent_estimate::recovery::ThresholdChoice
 impl core::marker::StructuralPartialEq for antecedent_estimate::recovery_sampled::SampledBcaReceipt
 impl core::marker::StructuralPartialEq for antecedent_estimate::recovery_sampled::SampledIntervalMethod
@@ -5726,6 +5732,7 @@ impl core::marker::Sync for antecedent_estimate::recovery::RecoveryEvidenceDecis
 impl core::marker::Sync for antecedent_estimate::recovery::RecoveryInterventionFault [auto]
 impl core::marker::Sync for antecedent_estimate::recovery::RecoveryPlanParts [auto]
 impl core::marker::Sync for antecedent_estimate::recovery::RetainedRecoveryPlan [auto]
+impl core::marker::Sync for antecedent_estimate::recovery::SolvedBy [auto]
 impl core::marker::Sync for antecedent_estimate::recovery::ThresholdChoice [auto]
 impl core::marker::Sync for antecedent_estimate::recovery_sampled::SampledBcaReceipt [auto]
 impl core::marker::Sync for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
@@ -6502,6 +6509,7 @@ impl core::marker::Unpin for antecedent_estimate::recovery::RecoveryEvidenceDeci
 impl core::marker::Unpin for antecedent_estimate::recovery::RecoveryInterventionFault [auto]
 impl core::marker::Unpin for antecedent_estimate::recovery::RecoveryPlanParts [auto]
 impl core::marker::Unpin for antecedent_estimate::recovery::RetainedRecoveryPlan [auto]
+impl core::marker::Unpin for antecedent_estimate::recovery::SolvedBy [auto]
 impl core::marker::Unpin for antecedent_estimate::recovery::ThresholdChoice [auto]
 impl core::marker::Unpin for antecedent_estimate::recovery_sampled::SampledBcaReceipt [auto]
 impl core::marker::Unpin for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
@@ -7278,6 +7286,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery::RecoveryInterventionFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery::RecoveryPlanParts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery::RetainedRecoveryPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery::SolvedBy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery::ThresholdChoice [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery_sampled::SampledBcaReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
@@ -8053,6 +8062,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery::Rec
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery::RecoveryInterventionFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery::RecoveryPlanParts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery::RetainedRecoveryPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery::SolvedBy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery::ThresholdChoice [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery_sampled::SampledBcaReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
@@ -9231,6 +9241,7 @@ pub enum antecedent_estimate::posterior_mean::ScoreNamespace
 pub enum antecedent_estimate::randomized_posterior::ArmOutcomeModel
 pub enum antecedent_estimate::randomized_posterior::RandomizedEstimand
 pub enum antecedent_estimate::recovery::EvaluatedOutcome
+pub enum antecedent_estimate::recovery::SolvedBy
 pub enum antecedent_estimate::recovery::ThresholdChoice
 pub enum antecedent_estimate::recovery_sampled::SampledIntervalMethod
 pub enum antecedent_estimate::scenario_invariance_report::EnvelopeSide
@@ -15698,7 +15709,7 @@ pub variant antecedent_estimate::recovery::CertificationFault::FamilyNotAdmitted
 pub variant antecedent_estimate::recovery::CertificationFault::Mechanism(antecedent_estimate::recovery::MechanismFault)
 pub variant antecedent_estimate::recovery::CertificationFault::Request(antecedent_model::intervention_request::InterventionRequestError)
 pub variant antecedent_estimate::recovery::CertificationFault::StructuralMap(antecedent_model::linear_solution::LinearSolutionError)
-pub variant antecedent_estimate::recovery::EvaluatedOutcome::Equilibrium { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>, disturbance_mean: alloc::vec::Vec<f64>, disturbance_covariance: alloc::vec::Vec<f64> }
+pub variant antecedent_estimate::recovery::EvaluatedOutcome::Equilibrium { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>, disturbance_mean: alloc::vec::Vec<f64>, disturbance_covariance: alloc::vec::Vec<f64>, solved_by: antecedent_estimate::recovery::SolvedBy }
 pub variant antecedent_estimate::recovery::EvaluatedOutcome::Inadmissible(antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw)
 pub variant antecedent_estimate::recovery::EvaluatedOutcome::NotCertified(antecedent_estimate::recovery::CertificationFault)
 pub variant antecedent_estimate::recovery::EvidenceRefusal::Empty
@@ -15727,6 +15738,8 @@ pub variant antecedent_estimate::recovery::RecoveryInterventionFault::Uncertaint
 pub variant antecedent_estimate::recovery::RecoveryInterventionFault::UnsupportedVersion { found: u32 }
 pub variant antecedent_estimate::recovery::RecoveryInterventionFault::WeightNotMass { draw: usize }
 pub variant antecedent_estimate::recovery::RecoveryInterventionFault::WeightsNotNormalized { total: f64 }
+pub variant antecedent_estimate::recovery::SolvedBy::Acyclic
+pub variant antecedent_estimate::recovery::SolvedBy::Cyclic { next_attempt: alloc::string::String }
 pub variant antecedent_estimate::recovery::ThresholdChoice::Above
 pub variant antecedent_estimate::recovery::ThresholdChoice::AtOrBelow
 pub variant antecedent_estimate::recovery_sampled::SampledIntervalMethod::Bca

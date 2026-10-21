@@ -336,6 +336,111 @@ pub enum CyclicFamilyRequest {
         /// Root-isolation budget and minimum width.
         policy: IsolationPolicy,
     },
+    /// Experimentally recovered linear equilibrium, executed from the retained law.
+    ///
+    /// Preparation does not fit, sample, or treat the recovered draws as a new
+    /// estimate. Specified models remain model-conditional; compilation grants
+    /// no scientific license. Failed and inadmissible draws stay in the law.
+    RecoveredLinear {
+        /// Node ids, strictly increasing. Draw coordinates are positions in this list.
+        nodes: Vec<u32>,
+        /// Joint coefficient and disturbance draws, including failed and inadmissible draws.
+        draws: Vec<RecoveredDrawWire>,
+        /// Hard-clamp worlds. Indices are positions in `nodes`.
+        worlds: Vec<RecoveredInterventionWire>,
+        /// Outcome coordinate, a position in `nodes`.
+        outcome: usize,
+        /// Source of the recovered model. It does not certify the component.
+        source_id: String,
+        /// Evidence that may certify the component. Never a substitute for a draw.
+        certifying_evidence: Vec<String>,
+    },
+}
+
+/// One direct coefficient of a recovered linear law, `K[into, from]`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredCoefficientWire {
+    /// Target equation, a raw node id.
+    pub into: u32,
+    /// Source variable, a raw node id.
+    pub from: u32,
+    /// Direct mechanism value. A structural zero is exact.
+    pub value: f64,
+}
+
+/// Support coordinate of an unresolved recovered direction. It is not a filled entry of `K`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredSupportWire {
+    /// Target equation, a raw node id.
+    pub into: u32,
+    /// Source variable, a raw node id.
+    pub from: u32,
+}
+
+/// Why a recovered direction was left unresolved.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "reason", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RecoveredUnresolvedWire {
+    /// At least one ordered pair into `target` fails the pair condition.
+    IncompletePairCoverage {
+        /// Equation coverage does not pin down.
+        target: u32,
+        /// Sources that are never clamped while `target` is passive.
+        missing_clamps: Vec<u32>,
+    },
+    /// The pair condition holds and the declared constraint rank does not.
+    DeficientConstraintRank {
+        /// Equation whose constraint block is rank deficient.
+        target: u32,
+        /// Declared column rank.
+        column_rank: usize,
+        /// Number of incoming coefficients.
+        width: usize,
+    },
+}
+
+/// One unresolved direction retained with a draw. It does not complete `K`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredDirectionWire {
+    /// Coordinates the direction moves.
+    pub support: Vec<RecoveredSupportWire>,
+    /// Why the direction is unresolved.
+    pub reason: RecoveredUnresolvedWire,
+}
+
+/// One supplied draw of a recovered linear law.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredDrawWire {
+    /// Direct effects named by this draw. Missing coordinates stay missing.
+    pub coefficients: Vec<RecoveredCoefficientWire>,
+    /// Intercept in node order.
+    pub intercept: Vec<f64>,
+    /// Disturbance mean of this draw, in node order.
+    pub noise_mean: Vec<f64>,
+    /// Row-major disturbance covariance of this draw.
+    pub noise_covariance: Vec<f64>,
+    /// Directions rank-aware recovery left free.
+    #[serde(default)]
+    pub unresolved: Vec<RecoveredDirectionWire>,
+    /// Weight of this draw. The weights of the law sum to one.
+    pub weight: f64,
+    /// When set, the draw stays inadmissible even if the numbers would compile.
+    #[serde(default)]
+    pub marked_inadmissible: bool,
+}
+
+/// One hard-clamp intervention of a recovered linear law.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredInterventionWire {
+    /// Clamped positions in the node list.
+    pub clamp_nodes: Vec<usize>,
+    /// Clamp values, aligned with `clamp_nodes`.
+    pub clamp_values: Vec<f64>,
 }
 
 /// Distinct answer representations prevent equilibrium/dynamic/set coercions.
@@ -415,6 +520,91 @@ pub enum CyclicFamilyAnswer {
     OuFit(antecedent_estimate::cyclic_dynamics::OuFit),
     /// Certified roots and unresolved regions; no implicit selection law.
     Polynomial(IsolatedSolutions),
+    /// Interventions evaluated from a retained recovered linear law.
+    ///
+    /// Preparation did not fit this law. Failed and inadmissible draws remain.
+    /// Specified models stay model-conditional; compilation grants no scientific license.
+    RecoveredLinear(RecoveredLinearReport),
+}
+
+/// Which algorithm certified one recovered draw.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "algorithm", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RecoveredSolvedBy {
+    /// Topological DAG evaluation. The draw was not solved as a cyclic block.
+    Acyclic,
+    /// The DAG algorithm refused a directed cycle; the cyclic license compiled the draw.
+    Cyclic {
+        /// Existing next attempt named by the DAG refusal.
+        next_attempt: String,
+    },
+}
+
+/// One retained draw after intervention, including a failure slot.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RecoveredDrawAnswer {
+    /// Certified equilibrium under this draw's own disturbance.
+    Equilibrium {
+        /// Equilibrium mean, in node order.
+        mean: Vec<f64>,
+        /// Row-major equilibrium covariance.
+        covariance: Vec<f64>,
+        /// Disturbance mean of this draw.
+        disturbance_mean: Vec<f64>,
+        /// Row-major disturbance covariance of this draw.
+        disturbance_covariance: Vec<f64>,
+        /// Algorithm that produced the equilibrium.
+        solved_by: RecoveredSolvedBy,
+    },
+    /// The coefficient law kept the draw and did not compile it.
+    Inadmissible {
+        /// Stable reason name.
+        reason: String,
+    },
+    /// An admissible draw was not certified. The weight remains.
+    NotCertified {
+        /// Display of the certification fault.
+        fault: String,
+    },
+}
+
+/// Draws of one intervention world, in law order.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredWorldAnswer {
+    /// Law order, including failed and inadmissible draws.
+    pub draws: Vec<RecoveredEvaluatedDraw>,
+    /// Outcome coordinate.
+    pub outcome: usize,
+    /// Mass of every draw.
+    pub total_mass: f64,
+    /// Mass that did not enter the outcome mixture.
+    pub withheld_mass: f64,
+    /// Weighted mean of certified outcome means, when any exist.
+    pub mixture_mean: Option<f64>,
+    /// Total outcome variance across and within certified draws.
+    pub mixture_variance: Option<f64>,
+    /// Weighted variance of the certified draw means.
+    pub between_draw_variance: Option<f64>,
+}
+
+/// Weight and outcome of one recovered draw.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredEvaluatedDraw {
+    /// Weight copied from the recovered law.
+    pub weight: f64,
+    /// Equilibrium, inadmissible status, or certification failure.
+    pub outcome: RecoveredDrawAnswer,
+}
+
+/// Intervention results for every retained world.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoveredLinearReport {
+    /// Worlds in request order.
+    pub worlds: Vec<RecoveredWorldAnswer>,
 }
 
 /// Draw-aligned outcome of one named structural-action world.
@@ -520,6 +710,7 @@ impl CyclicFamilyRequest {
             Self::OdeFit { .. } => "ode_fit",
             Self::OuFit { .. } => "ou_fit",
             Self::Polynomial { .. } => "polynomial",
+            Self::RecoveredLinear { .. } => "recovered_linear",
         }
     }
     /// Execute on the common resource/cancellation context, preserving family semantics.
@@ -991,6 +1182,21 @@ impl CyclicFamilyRequest {
             Self::Polynomial { model, policy } => {
                 CyclicFamilyAnswer::Polynomial(model.isolate(*policy, ctx)?)
             }
+            Self::RecoveredLinear {
+                nodes,
+                draws,
+                worlds,
+                outcome,
+                source_id,
+                certifying_evidence,
+            } => compiled::execute_recovered_linear(
+                nodes,
+                draws,
+                worlds,
+                *outcome,
+                source_id,
+                certifying_evidence,
+            )?,
         };
         let required = crate::retained_allocation::allocation_bytes(&answer)
             .map_err(invalid)?

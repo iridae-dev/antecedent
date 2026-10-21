@@ -42,10 +42,13 @@ use antecedent_identify::{
 };
 use antecedent_model::cyclic_component::{CyclicComponent, CyclicComponentError};
 use antecedent_model::intervention_request::{
-    InterventionRequest, InterventionRequestError, compile_under_request, revalidate_solvability,
+    InterventionRequest, InterventionRequestError, hard_clamp_of, revalidate_solvability,
 };
 use antecedent_model::linear_solution::LinearSolutionError;
-use antecedent_model::scc_compile::{CompileBudget, GaussianDisturbance, SccCompileError};
+use antecedent_model::scc_compile::{
+    CompileBudget, GaussianDisturbance, LinearSupportRoute, SccCompileError,
+    compile_routed_gaussian_equilibrium,
+};
 use antecedent_model::{HardClamp, LinearStructuralMap, assess};
 use thiserror::Error;
 
@@ -746,6 +749,20 @@ impl EvaluatedRecoveryDraw {
     }
 }
 
+/// Which solver produced a certified equilibrium.
+///
+/// Specified models remain model-conditional. The label grants no scientific license.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SolvedBy {
+    /// Topological DAG evaluation of an acyclic free support.
+    Acyclic,
+    /// The DAG algorithm refused a directed cycle; the cyclic license then compiled it.
+    Cyclic {
+        /// Existing next attempt named by the DAG refusal.
+        next_attempt: String,
+    },
+}
+
 /// Result of compiling one draw. Failures stay attached to the draw.
 #[derive(Clone, Debug, PartialEq)]
 pub enum EvaluatedOutcome {
@@ -759,6 +776,8 @@ pub enum EvaluatedOutcome {
         disturbance_mean: Vec<f64>,
         /// Row-major disturbance covariance of this draw.
         disturbance_covariance: Vec<f64>,
+        /// Algorithm that produced the equilibrium. An acyclic support is not a cyclic block.
+        solved_by: SolvedBy,
     },
     /// The coefficient law marked the draw inadmissible. No matrix was completed.
     Inadmissible(InadmissibleCoefficientDraw),
@@ -1358,11 +1377,12 @@ fn evaluate_draw(plan: &RetainedRecoveryPlan, draw: &JointRecoveryDraw) -> Evalu
         return EvaluatedRecoveryDraw { weight, outcome: EvaluatedOutcome::Inadmissible(reason) };
     }
     let outcome = match compile_draw(plan, draw) {
-        Ok((mean, covariance)) => EvaluatedOutcome::Equilibrium {
+        Ok((mean, covariance, solved_by)) => EvaluatedOutcome::Equilibrium {
             mean,
             covariance,
             disturbance_mean: draw.noise_mean().to_vec(),
             disturbance_covariance: draw.noise_covariance().to_vec(),
+            solved_by,
         },
         Err(fault) => EvaluatedOutcome::NotCertified(fault),
     };
@@ -1371,10 +1391,14 @@ fn evaluate_draw(plan: &RetainedRecoveryPlan, draw: &JointRecoveryDraw) -> Evalu
 
 /// Compile one draw. A singular clamp is checked before the family certificate,
 /// so it is reported as a clamp fault and not as a failed certificate.
+///
+/// An acyclic free support uses the DAG algorithm. A directed cycle is refused
+/// by that algorithm and then compiled under the cyclic license. Specified
+/// models remain model-conditional; compilation grants no scientific license.
 fn compile_draw(
     plan: &RetainedRecoveryPlan,
     draw: &JointRecoveryDraw,
-) -> Result<(Vec<f64>, Vec<f64>), CertificationFault> {
+) -> Result<(Vec<f64>, Vec<f64>, SolvedBy), CertificationFault> {
     let (coefficients, intercept) =
         mechanism_matrix(plan.uncertainty.nodes(), draw.coefficients(), draw.intercept())
             .map_err(CertificationFault::Mechanism)?;
@@ -1403,15 +1427,25 @@ fn compile_draw(
         &assessment.family,
     )
     .map_err(CertificationFault::Component)?;
-    let equilibrium = compile_under_request(
+    let (clamp, values) = hard_clamp_of(&request).map_err(CertificationFault::Request)?;
+    let routed = compile_routed_gaussian_equilibrium(
         &component,
         &model,
         &disturbance,
-        &request,
+        clamp,
+        &values,
         CompileBudget::unlimited(),
     )
+    .map_err(InterventionRequestError::Compile)
     .map_err(CertificationFault::Request)?;
-    Ok((equilibrium.mean().to_vec(), equilibrium.covariance().to_vec()))
+    let solved_by = match routed.route() {
+        LinearSupportRoute::Acyclic { .. } => SolvedBy::Acyclic,
+        LinearSupportRoute::Cyclic { next_attempt, .. } => {
+            SolvedBy::Cyclic { next_attempt: next_attempt.clone() }
+        }
+    };
+    let equilibrium = routed.equilibrium();
+    Ok((equilibrium.mean().to_vec(), equilibrium.covariance().to_vec(), solved_by))
 }
 
 fn mechanism_matrix(

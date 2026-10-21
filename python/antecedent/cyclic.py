@@ -502,6 +502,39 @@ class PreparedCyclicFamily:
         return CyclicResult(json.loads(report), artifact, facts)
 
 
+def prepare_recovered_linear(
+    nodes: list[int],
+    draws: list[dict[str, Any]],
+    worlds: list[dict[str, Any]],
+    *,
+    outcome: int,
+    source_id: str,
+    certifying_evidence: list[str],
+) -> PreparedCyclicFamily:
+    """Prepare a recovered linear law on the existing cyclic family handle.
+
+    ``draws`` are the retained coefficient and disturbance law, including failed
+    and inadmissible draws. ``worlds`` are hard clamps ``{"clamp_nodes": [...],
+    "clamp_values": [...]}`` indexed into ``nodes``. Preparation does not fit.
+    The law stays conditional on the clamp-experiment recovery that produced it;
+    compilation grants no scientific license.
+    """
+    return PreparedCyclicFamily(
+        json.dumps(
+            {
+                "family": "recovered_linear",
+                "nodes": nodes,
+                "draws": draws,
+                "worlds": worlds,
+                "outcome": outcome,
+                "source_id": source_id,
+                "certifying_evidence": certifying_evidence,
+            },
+            allow_nan=False,
+        )
+    )
+
+
 def consume_family_artifact(
     artifact: bytes, *, expected_identity: str, max_bytes: int | None = None, cancel: Any = None
 ) -> CyclicResult:

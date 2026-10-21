@@ -120,6 +120,17 @@ impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicFamilyA
 impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
 impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
 impl core::clone::Clone for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredDrawWire
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredLinearReport
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredSupportWire
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire
+impl core::clone::Clone for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer
 impl core::clone::Clone for antecedent_io::cyclic_graph::CyclicGraphReport
 impl core::clone::Clone for antecedent_io::cyclic_graph::CyclicGraphRequest
 impl core::clone::Clone for antecedent_io::cyclic_graph::CyclicGraphSpec
@@ -596,6 +607,17 @@ impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::CyclicFamil
 impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
 impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
 impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredDrawWire
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredLinearReport
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredSupportWire
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire
+impl core::cmp::PartialEq for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer
 impl core::cmp::PartialEq for antecedent_io::cyclic_graph::CyclicGraphReport
 impl core::cmp::PartialEq for antecedent_io::cyclic_graph::CyclicGraphRequest
 impl core::cmp::PartialEq for antecedent_io::cyclic_graph::CyclicGraphSpec
@@ -1013,6 +1035,17 @@ impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicFamilyAns
 impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
 impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
 impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredDrawWire
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredLinearReport
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredSupportWire
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire
+impl core::fmt::Debug for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer
 impl core::fmt::Debug for antecedent_io::cyclic_graph::CyclicGraphReport
 impl core::fmt::Debug for antecedent_io::cyclic_graph::CyclicGraphRequest
 impl core::fmt::Debug for antecedent_io::cyclic_graph::CyclicGraphSpec
@@ -1480,6 +1513,17 @@ impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicFamil
 impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
 impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
 impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredDrawWire [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredLinearReport [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredSupportWire [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire [auto]
+impl core::marker::Freeze for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer [auto]
 impl core::marker::Freeze for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
 impl core::marker::Freeze for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
 impl core::marker::Freeze for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
@@ -1875,6 +1919,17 @@ impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicFamilyA
 impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
 impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
 impl core::marker::Send for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredDrawWire [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredLinearReport [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredSupportWire [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire [auto]
+impl core::marker::Send for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer [auto]
 impl core::marker::Send for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
 impl core::marker::Send for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
 impl core::marker::Send for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
@@ -2253,6 +2308,17 @@ impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact
 impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
 impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
 impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredDrawWire
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredLinearReport
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredSupportWire
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire
+impl core::marker::StructuralPartialEq for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer
 impl core::marker::StructuralPartialEq for antecedent_io::cyclic_graph::CyclicGraphReport
 impl core::marker::StructuralPartialEq for antecedent_io::cyclic_graph::CyclicGraphRequest
 impl core::marker::StructuralPartialEq for antecedent_io::cyclic_graph::CyclicGraphSpec
@@ -2594,6 +2660,17 @@ impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicFamilyA
 impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
 impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
 impl core::marker::Sync for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredDrawWire [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredLinearReport [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredSupportWire [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire [auto]
+impl core::marker::Sync for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer [auto]
 impl core::marker::Sync for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
 impl core::marker::Sync for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
 impl core::marker::Sync for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
@@ -2989,6 +3066,17 @@ impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicFamily
 impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
 impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
 impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredDrawWire [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredLinearReport [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredSupportWire [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire [auto]
+impl core::marker::Unpin for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer [auto]
 impl core::marker::Unpin for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
 impl core::marker::Unpin for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
 impl core::marker::Unpin for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
@@ -3383,6 +3471,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_ar
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredDrawWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredLinearReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredSupportWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
@@ -3776,6 +3875,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artif
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredDrawWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredLinearReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredSupportWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_graph::CyclicGraphReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_graph::CyclicGraphRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::cyclic_graph::CyclicGraphSpec [auto]
@@ -4141,6 +4251,17 @@ impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::Cycli
 impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
 impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
 impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredDrawWire
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredLinearReport
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredSupportWire
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire
+impl serde_core::ser::Serialize for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer
 impl serde_core::ser::Serialize for antecedent_io::cyclic_graph::CyclicGraphReport
 impl serde_core::ser::Serialize for antecedent_io::cyclic_graph::CyclicGraphRequest
 impl serde_core::ser::Serialize for antecedent_io::cyclic_graph::CyclicGraphSpec
@@ -4530,6 +4651,17 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_arti
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::CyclicFamilyReport
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredDirectionWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredDrawWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredInterventionWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredLinearReport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredSolvedBy
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredSupportWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_graph::CyclicGraphReport
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_graph::CyclicGraphRequest
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cyclic_graph::CyclicGraphSpec
@@ -4979,6 +5111,9 @@ pub enum antecedent_io::bayesian_posterior_row_artifact::ResidualPriorWire
 pub enum antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome
 pub enum antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer
 pub enum antecedent_io::cyclic_family_artifact::CyclicFamilyRequest
+pub enum antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer
+pub enum antecedent_io::cyclic_family_artifact::RecoveredSolvedBy
+pub enum antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire
 pub enum antecedent_io::cyclic_graph::CyclicGraphReport
 pub enum antecedent_io::cyclic_graph::CyclicGraphRequest
 pub enum antecedent_io::cyclic_system_artifact::CyclicArtifactError
@@ -5512,6 +5647,32 @@ pub field antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy::draws: us
 pub field antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy::proposal_scale: f64
 pub field antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy::seed: u64
 pub field antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy::warmup: usize
+pub field antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire::from: u32
+pub field antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire::into: u32
+pub field antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire::value: f64
+pub field antecedent_io::cyclic_family_artifact::RecoveredDirectionWire::reason: antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire
+pub field antecedent_io::cyclic_family_artifact::RecoveredDirectionWire::support: alloc::vec::Vec<antecedent_io::cyclic_family_artifact::RecoveredSupportWire>
+pub field antecedent_io::cyclic_family_artifact::RecoveredDrawWire::coefficients: alloc::vec::Vec<antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire>
+pub field antecedent_io::cyclic_family_artifact::RecoveredDrawWire::intercept: alloc::vec::Vec<f64>
+pub field antecedent_io::cyclic_family_artifact::RecoveredDrawWire::marked_inadmissible: bool
+pub field antecedent_io::cyclic_family_artifact::RecoveredDrawWire::noise_covariance: alloc::vec::Vec<f64>
+pub field antecedent_io::cyclic_family_artifact::RecoveredDrawWire::noise_mean: alloc::vec::Vec<f64>
+pub field antecedent_io::cyclic_family_artifact::RecoveredDrawWire::unresolved: alloc::vec::Vec<antecedent_io::cyclic_family_artifact::RecoveredDirectionWire>
+pub field antecedent_io::cyclic_family_artifact::RecoveredDrawWire::weight: f64
+pub field antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw::outcome: antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer
+pub field antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw::weight: f64
+pub field antecedent_io::cyclic_family_artifact::RecoveredInterventionWire::clamp_nodes: alloc::vec::Vec<usize>
+pub field antecedent_io::cyclic_family_artifact::RecoveredInterventionWire::clamp_values: alloc::vec::Vec<f64>
+pub field antecedent_io::cyclic_family_artifact::RecoveredLinearReport::worlds: alloc::vec::Vec<antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer>
+pub field antecedent_io::cyclic_family_artifact::RecoveredSupportWire::from: u32
+pub field antecedent_io::cyclic_family_artifact::RecoveredSupportWire::into: u32
+pub field antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer::between_draw_variance: core::option::Option<f64>
+pub field antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer::draws: alloc::vec::Vec<antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw>
+pub field antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer::mixture_mean: core::option::Option<f64>
+pub field antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer::mixture_variance: core::option::Option<f64>
+pub field antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer::outcome: usize
+pub field antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer::total_mass: f64
+pub field antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer::withheld_mass: f64
 pub field antecedent_io::cyclic_graph::CyclicGraphSpec::bidirected: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io::cyclic_graph::CyclicGraphSpec::directed: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io::cyclic_graph::CyclicGraphSpec::nodes: u32
@@ -8029,6 +8190,14 @@ pub struct antecedent_io::cyclic_family_artifact::CyclicActionWorldReport
 pub struct antecedent_io::cyclic_family_artifact::CyclicFamilyReport
 pub struct antecedent_io::cyclic_family_artifact::CyclicFamilyReport has private fields
 pub struct antecedent_io::cyclic_family_artifact::CyclicSamplingPolicy
+pub struct antecedent_io::cyclic_family_artifact::RecoveredCoefficientWire
+pub struct antecedent_io::cyclic_family_artifact::RecoveredDirectionWire
+pub struct antecedent_io::cyclic_family_artifact::RecoveredDrawWire
+pub struct antecedent_io::cyclic_family_artifact::RecoveredEvaluatedDraw
+pub struct antecedent_io::cyclic_family_artifact::RecoveredInterventionWire
+pub struct antecedent_io::cyclic_family_artifact::RecoveredLinearReport
+pub struct antecedent_io::cyclic_family_artifact::RecoveredSupportWire
+pub struct antecedent_io::cyclic_family_artifact::RecoveredWorldAnswer
 pub struct antecedent_io::cyclic_graph::CyclicGraphSpec
 pub struct antecedent_io::cyclic_system_artifact::CyclicExecutionReport
 pub struct antecedent_io::cyclic_system_artifact::CyclicExecutionReport has private fields
@@ -9048,6 +9217,7 @@ pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::PartialCo
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::Polynomial(antecedent_model::equation_system::IsolatedSolutions)
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::PolynomialCausal(antecedent_estimate::polynomial_scm::PolynomialCausalReport)
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::PolynomialFit(antecedent_estimate::constraint_likelihood::PolynomialFit)
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::RecoveredLinear(antecedent_io::cyclic_family_artifact::RecoveredLinearReport)
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyAnswer::StructureFit { fit: antecedent_estimate::cyclic_likelihood::CyclicStructureFit, bootstrap: alloc::vec::Vec<core::option::Option<antecedent_estimate::cyclic_likelihood::CyclicStructureFit>> }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::AdamFit { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, parameters: alloc::vec::Vec<antecedent_estimate::cyclic_likelihood::CyclicParameter>, training: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, validation: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, policy: antecedent_estimate::cyclic_adam::CyclicAdamPolicy }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::EquilibriumActions { model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, worlds: alloc::vec::Vec<antecedent_model::cyclic_actions::EquilibriumActionWorld>, noise: alloc::vec::Vec<alloc::vec::Vec<f64>>, initial: alloc::vec::Vec<f64>, factual: core::option::Option<alloc::vec::Vec<f64>>, policy: antecedent_model::nonlinear_equilibrium::SolvePolicy }
@@ -9069,7 +9239,15 @@ pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::PartialC
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::Polynomial { model: antecedent_model::equation_system::PolynomialSystem, policy: antecedent_model::equation_system::IsolationPolicy }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::PolynomialCausal { program: antecedent_estimate::polynomial_scm::PolynomialCausalProgram }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::PolynomialFit { candidates: alloc::vec::Vec<antecedent_estimate::constraint_likelihood::PolynomialCandidate>, measurements: alloc::vec::Vec<antecedent_estimate::constraint_likelihood::PolynomialMeasurement>, policy: antecedent_model::equation_system::IsolationPolicy }
+pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::RecoveredLinear { nodes: alloc::vec::Vec<u32>, draws: alloc::vec::Vec<antecedent_io::cyclic_family_artifact::RecoveredDrawWire>, worlds: alloc::vec::Vec<antecedent_io::cyclic_family_artifact::RecoveredInterventionWire>, outcome: usize, source_id: alloc::string::String, certifying_evidence: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::StructureFit { seed: u64, design: antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign, model: antecedent_model::nonlinear_equilibrium::EquilibriumModel, training: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, heldout: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>, policy: antecedent_estimate::cyclic_likelihood::CyclicFitOptions, threshold: f64, bootstrap_replicates: usize }
+pub variant antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer::Equilibrium { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>, disturbance_mean: alloc::vec::Vec<f64>, disturbance_covariance: alloc::vec::Vec<f64>, solved_by: antecedent_io::cyclic_family_artifact::RecoveredSolvedBy }
+pub variant antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer::Inadmissible { reason: alloc::string::String }
+pub variant antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer::NotCertified { fault: alloc::string::String }
+pub variant antecedent_io::cyclic_family_artifact::RecoveredSolvedBy::Acyclic
+pub variant antecedent_io::cyclic_family_artifact::RecoveredSolvedBy::Cyclic { next_attempt: alloc::string::String }
+pub variant antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire::DeficientConstraintRank { target: u32, column_rank: usize, width: usize }
+pub variant antecedent_io::cyclic_family_artifact::RecoveredUnresolvedWire::IncompletePairCoverage { target: u32, missing_clamps: alloc::vec::Vec<u32> }
 pub variant antecedent_io::cyclic_graph::CyclicGraphReport::Backdoor { valid: bool }
 pub variant antecedent_io::cyclic_graph::CyclicGraphReport::Bipartite { separated: bool, determined: alloc::vec::Vec<usize>, variable_clusters: alloc::vec::Vec<usize>, equation_clusters: alloc::vec::Vec<usize>, assumptions: alloc::string::String }
 pub variant antecedent_io::cyclic_graph::CyclicGraphReport::Calculus { status: alloc::string::String, fully_observational: bool, program: core::option::Option<antecedent_io_core::expr_wire::FunctionalProgramWire>, expression: core::option::Option<alloc::string::String>, sigma_checks: usize, derivation: alloc::vec::Vec<alloc::string::String> }

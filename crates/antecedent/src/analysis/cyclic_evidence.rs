@@ -646,6 +646,55 @@ fn project(
             p.diagnostics = serde_json::to_value(c).map_err(invalid)?;
             p
         }
+        (
+            _,
+            A::RecoveredLinear(report),
+            CyclicEvidenceSelector::Response { world, noise_row, variable },
+        ) => {
+            if *noise_row != 0 {
+                return Err(bad());
+            }
+            let found = report.worlds.get(*world).ok_or_else(bad)?;
+            let mut samples = Vec::with_capacity(found.draws.len());
+            let mut masses = Vec::with_capacity(found.draws.len());
+            for draw in &found.draws {
+                masses.push(draw.weight);
+                let value = match &draw.outcome {
+                    antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer::Equilibrium {
+                        mean,
+                        ..
+                    } => Some(*mean.get(*variable).ok_or_else(bad)?),
+                    antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer::Inadmissible {
+                        ..
+                    }
+                    | antecedent_io::cyclic_family_artifact::RecoveredDrawAnswer::NotCertified {
+                        ..
+                    } => None,
+                };
+                samples.push(value);
+            }
+            let mut p = point(
+                None,
+                *variable,
+                format!("world:{world}"),
+                "equilibrium".into(),
+                "recovered_intervention",
+                EvidencePort::InterventionalLaw,
+            );
+            p.samples = samples;
+            p.masses = Some(
+                masses
+                    .into_iter()
+                    .map(|weight| antecedent_estimate::polynomial_scm::MassBounds {
+                        lower: weight,
+                        upper: weight,
+                    })
+                    .collect(),
+            );
+            p.axes = vec!["predictive".into()];
+            p.diagnostics = serde_json::to_value(found).map_err(invalid)?;
+            p
+        }
         (_, A::Graph(graph), CyclicEvidenceSelector::Graph) => {
             let mut p = point(
                 None,
@@ -731,6 +780,7 @@ fn source_order(request: &R) -> usize {
         }
         R::Graph { request } => graph_order(request),
         R::Functional { source, .. } | R::GaussianFunctional { source, .. } => graph_order(source),
+        R::RecoveredLinear { nodes, .. } => nodes.len(),
     }
 }
 
@@ -797,6 +847,9 @@ impl CyclicEvidence {
                 worlds.first().map_or(0, Vec::len)
             }
             A::PolynomialCausal(report) => report.atoms.len(),
+            A::RecoveredLinear(report) => {
+                report.worlds.first().map_or(0, |world| world.draws.len())
+            }
             A::Polynomial(report) => report.roots.len().saturating_add(report.unresolved.len()),
             _ => 1,
         };

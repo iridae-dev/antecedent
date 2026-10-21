@@ -329,6 +329,65 @@ def test_cyclic_execution_honors_resource_and_cancellation_controls() -> None:
         family.execute(cancel=token)
 
 
+def test_recovered_linear_keeps_failed_draws_and_replays_in_a_fresh_process(tmp_path: Path) -> None:
+    from antecedent.cyclic import prepare_recovered_linear
+
+    def draw(into_from, weight, marked):
+        return {
+            "coefficients": [
+                {"into": 0, "from": 1, "value": into_from[0]},
+                {"into": 1, "from": 0, "value": into_from[1]},
+            ],
+            "intercept": [0.0, 0.0],
+            "noise_mean": [1.0, 0.0],
+            "noise_covariance": [1.0, 0.0, 0.0, 1.0],
+            "unresolved": [],
+            "weight": weight,
+            "marked_inadmissible": marked,
+        }
+
+    prepared = prepare_recovered_linear(
+        [0, 1],
+        [draw((0.4, 0.5), 0.5, False), draw((0.4, 0.5), 0.25, True), draw((1.0, 1.0), 0.25, False)],
+        [{"clamp_nodes": [], "clamp_values": []}, {"clamp_nodes": [0], "clamp_values": [2.0]}],
+        outcome=1,
+        source_id="clamp-experiments",
+        certifying_evidence=["held-out-regime"],
+    )
+    assert prepared.inspect()["preparation_evaluations"] == 0
+    assert prepared.inspect()["family"] == "recovered_linear"
+    result = prepared.execute()
+    assert prepared.inspect()["preparation_evaluations"] == 0
+    worlds = result.report["answer"]["result"]["worlds"]
+    open_draw, marked, failed = worlds[0]["draws"]
+    assert open_draw["outcome"]["solved_by"]["algorithm"] == "cyclic"
+    assert "condensation" in open_draw["outcome"]["solved_by"]["next_attempt"]
+    assert open_draw["outcome"]["mean"] == pytest.approx([1.25, 0.625])
+    assert marked["outcome"]["status"] == "inadmissible"
+    assert marked["outcome"]["reason"] == "marked"
+    assert failed["outcome"]["status"] == "not_certified"
+    clamped = worlds[1]["draws"][0]["outcome"]
+    assert clamped["solved_by"]["algorithm"] == "acyclic"
+    assert clamped["mean"] == pytest.approx([2.0, 1.0])
+    assert len(worlds[0]["draws"]) == 3
+    path = tmp_path / "recovered-linear.ant"
+    path.write_bytes(result.artifact)
+    program = (
+        "import json,pathlib; from antecedent.cyclic import consume_family_artifact; "
+        + f"print(json.dumps(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(),"
+        + f"expected_identity={result.identity!r}).report,sort_keys=True))"
+    )
+    replay = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert json.loads(replay.stdout) == result.report
+
+
 def test_all_cyclic_family_artifacts_replay_in_fresh_process(tmp_path: Path) -> None:
     from antecedent.cyclic import BipartiteCausalGraph, CyclicGraph
 

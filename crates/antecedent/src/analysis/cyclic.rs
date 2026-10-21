@@ -353,3 +353,111 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         self.state.program.export(ctx)
     }
 }
+
+#[cfg(test)]
+mod recovered_linear {
+    use super::*;
+    use antecedent_core::execution_attempt::Operation;
+    use antecedent_io::cyclic_family_artifact::{
+        CyclicFamilyAnswer, CyclicFamilyRequest, RecoveredCoefficientWire, RecoveredDrawAnswer,
+        RecoveredDrawWire, RecoveredInterventionWire, RecoveredSolvedBy, consume_cyclic_family,
+    };
+    use antecedent_model::compile::{ExecutionBlock, SystemSemantics};
+
+    fn draw(into_from: (f64, f64), weight: f64, marked: bool) -> RecoveredDrawWire {
+        RecoveredDrawWire {
+            coefficients: vec![
+                RecoveredCoefficientWire { into: 0, from: 1, value: into_from.0 },
+                RecoveredCoefficientWire { into: 1, from: 0, value: into_from.1 },
+            ],
+            intercept: vec![0.0, 0.0],
+            noise_mean: vec![1.0, 0.0],
+            noise_covariance: vec![1.0, 0.0, 0.0, 1.0],
+            unresolved: Vec::new(),
+            weight,
+            marked_inadmissible: marked,
+        }
+    }
+
+    #[test]
+    fn recovered_linear_prepares_without_a_fit_and_keeps_failed_draws() {
+        let request = CyclicFamilyRequest::RecoveredLinear {
+            nodes: vec![0, 1],
+            draws: vec![
+                draw((0.4, 0.5), 0.5, false),
+                draw((0.4, 0.5), 0.25, true),
+                draw((1.0, 1.0), 0.25, false),
+            ],
+            worlds: vec![
+                RecoveredInterventionWire { clamp_nodes: vec![], clamp_values: vec![] },
+                RecoveredInterventionWire { clamp_nodes: vec![0], clamp_values: vec![2.0] },
+            ],
+            outcome: 1,
+            source_id: "clamp-experiments".into(),
+            certifying_evidence: vec!["held-out-regime".into()],
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let prepared = observe(&ctx, || Study::prepare_cyclic_family(&request, &ctx));
+        assert_eq!(prepared.report.counts(Operation::AdjustedFit).attempted, 0);
+        let prepared = prepared.result.unwrap();
+        let inspection = prepared.inspect();
+        assert_eq!(inspection.preparation_evaluations, 0);
+        assert_eq!(inspection.family, "recovered_linear");
+        assert_eq!(inspection.execution_plans[0].semantics, SystemSemantics::EquilibriumScm);
+        assert!(inspection.execution_plans[0].blocks.iter().any(|block| {
+            matches!(block, ExecutionBlock::SimultaneousEquations { .. })
+        }));
+        assert_eq!(inspection.execution_plans[1].semantics, SystemSemantics::AcyclicScm);
+        assert!(inspection.execution_plans[1].blocks.iter().all(|block| {
+            matches!(block, ExecutionBlock::Mechanism { .. })
+        }));
+        let executed = prepared.estimate_observed(&ctx);
+        assert_eq!(executed.report.counts(Operation::AdjustedFit).attempted, 0);
+        let report = executed.result.unwrap();
+        let CyclicFamilyAnswer::RecoveredLinear(answer) = &report.answer else {
+            panic!("recovered linear answer");
+        };
+        let open = &answer.worlds[0].draws;
+        let clamped = &answer.worlds[1].draws;
+        match &open[0].outcome {
+            RecoveredDrawAnswer::Equilibrium {
+                solved_by: RecoveredSolvedBy::Cyclic { next_attempt },
+                mean,
+                ..
+            } => {
+                assert!(next_attempt.contains("condensation"), "{next_attempt}");
+                assert!((mean[0] - 1.25).abs() < 1e-8);
+                assert!((mean[1] - 0.625).abs() < 1e-8);
+            }
+            other => panic!("open draw was {other:?}"),
+        }
+        match &clamped[0].outcome {
+            RecoveredDrawAnswer::Equilibrium {
+                solved_by: RecoveredSolvedBy::Acyclic,
+                mean,
+                ..
+            } => {
+                assert!((mean[0] - 2.0).abs() < 1e-8);
+                assert!((mean[1] - 1.0).abs() < 1e-8);
+            }
+            other => panic!("clamped draw was {other:?}"),
+        }
+        assert!(matches!(
+            &open[1].outcome,
+            RecoveredDrawAnswer::Inadmissible { reason } if reason == "marked"
+        ));
+        assert!(matches!(&open[2].outcome, RecoveredDrawAnswer::NotCertified { .. }));
+        assert_eq!(open.len(), 3);
+        assert!((answer.worlds[0].withheld_mass - 0.5).abs() < 1e-12);
+        let (exported, bytes) = prepared.export(&ctx).unwrap();
+        assert_eq!(consume_cyclic_family(&bytes, &exported.identity, &ctx).unwrap(), exported);
+        assert_eq!(prepared.inspect().preparation_evaluations, 0);
+    }
+
+    fn observe<T, E>(
+        ctx: &ExecutionContext,
+        body: impl FnOnce() -> Result<T, E>,
+    ) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E> {
+        antecedent_core::execution_attempt::observe_with_context(ctx, body)
+    }
+}

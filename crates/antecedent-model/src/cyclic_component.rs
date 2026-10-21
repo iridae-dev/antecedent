@@ -50,6 +50,14 @@ pub const SCC_COMPILE_ATTEMPT: &str = concat!(
     "and keep the cross-block disturbance covariance",
 );
 
+/// Topological evaluation of an acyclic linear equilibrium.
+///
+/// This names the DAG schedule. It does not factor a cyclic block, admit a
+/// model, or identify it. Specified models remain model-conditional;
+/// compilation grants no scientific license.
+pub const DAG_EQUILIBRIUM_ATTEMPT: &str =
+    "evaluate the acyclic linear equilibrium in topological order";
+
 /// One component and the components that must precede it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ComponentDependency {

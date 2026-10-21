@@ -11,7 +11,8 @@ use antecedent_core::{
     execution_attempt::{PhysicalEvent, record_physical},
 };
 use antecedent_model::compile::{
-    CompiledSystemPlan, compile_constraints, compile_equilibrium, compile_ode, compile_ou,
+    CompiledSystemPlan, ExecutionBlock, SystemSemantics, compile_constraints, compile_equilibrium,
+    compile_ode, compile_ou,
 };
 use std::sync::{Arc, Mutex};
 
@@ -162,6 +163,7 @@ impl CompiledCyclicFamilyProgram {
             R::FrequentistBootstrap { .. } | R::ParameterPosterior { .. } => {
                 &["worlds", "noise", "initial", "solve_policy"]
             }
+            R::RecoveredLinear { .. } => &["worlds"],
             R::JointCounterfactual { .. } | R::PartialCounterfactual { .. } => {
                 &["worlds", "solve_policy"]
             }
@@ -378,6 +380,11 @@ pub(super) fn output_bytes(request: &R) -> Result<u64, CyclicArtifactError> {
         R::Functional { assignments, .. } | R::GaussianFunctional { assignments, .. } => {
             product(&[assignments.len(), 512])?
         }
+        R::RecoveredLinear { nodes, draws, worlds, .. } => product(&[
+            draws.len().max(1),
+            worlds.len().max(1),
+            width(&[(square(nodes.len())?, 32), (nodes.len(), 16)], 256)?,
+        ])?,
         _ => 0,
     };
     base.checked_add(extra).and_then(|n| n.checked_add(4096)).ok_or_else(overflow)
@@ -430,8 +437,332 @@ fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactE
             vec![]
         }
         R::Functional { .. } | R::GaussianFunctional { .. } | R::Graph { .. } => vec![],
+        R::RecoveredLinear { nodes, draws, worlds, outcome, source_id, certifying_evidence } => {
+            recovered_plans(nodes, draws, worlds, *outcome, source_id, certifying_evidence)?
+        }
     };
     Ok(plans)
+}
+
+fn recovered_plans(
+    nodes: &[u32],
+    draws: &[super::RecoveredDrawWire],
+    worlds: &[super::RecoveredInterventionWire],
+    outcome: usize,
+    source_id: &str,
+    certifying_evidence: &[String],
+) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactError> {
+    // Retention checks the supplied law. It does not fit, sample, or estimate.
+    validate_recovered_law(nodes, draws, worlds, outcome, source_id, certifying_evidence)?;
+    let support = support_map(nodes, draws)?;
+    worlds
+        .iter()
+        .map(|world| {
+            if world.clamp_values.len() != world.clamp_nodes.len()
+                || world.clamp_values.iter().any(|value| !value.is_finite())
+            {
+                return Err(invalid("recovered clamp"));
+            }
+            let clamp = antecedent_model::HardClamp::try_new(nodes.len(), &world.clamp_nodes)
+                .map_err(invalid)?;
+            let route = antecedent_model::scc_compile::route_linear_support(&support, &clamp)
+                .map_err(invalid)?;
+            Ok(plan_from_route(&route))
+        })
+        .collect()
+}
+
+/// Execute interventions from the retained recovered law.
+///
+/// Preparation has already retained that law. This does not fit. Specified
+/// models remain model-conditional; compilation grants no scientific license.
+pub(super) fn execute_recovered_linear(
+    nodes: &[u32],
+    draws: &[super::RecoveredDrawWire],
+    worlds: &[super::RecoveredInterventionWire],
+    outcome: usize,
+    source_id: &str,
+    certifying_evidence: &[String],
+) -> Result<A, CyclicArtifactError> {
+    validate_recovered_law(nodes, draws, worlds, outcome, source_id, certifying_evidence)?;
+    let law = retain_recovered(nodes, draws)?;
+    let mut answers = Vec::with_capacity(worlds.len());
+    for world in worlds {
+        let plan = antecedent_estimate::recovery::RetainedRecoveryPlan::try_new(
+            antecedent_estimate::recovery::RecoveryPlanParts {
+                uncertainty: law.clone(),
+                clamp_nodes: world.clamp_nodes.clone(),
+                clamp_values: world.clamp_values.clone(),
+                outcome,
+                source_id: source_id.to_owned(),
+                certifying_evidence: certifying_evidence.to_vec(),
+            },
+        )
+        .map_err(invalid)?;
+        let evaluation = antecedent_estimate::recovery::consume_retained_recovery_plan(&plan);
+        answers.push(world_answer(&evaluation));
+    }
+    Ok(A::RecoveredLinear(super::RecoveredLinearReport { worlds: answers }))
+}
+
+fn validate_recovered_law(
+    nodes: &[u32],
+    draws: &[super::RecoveredDrawWire],
+    worlds: &[super::RecoveredInterventionWire],
+    outcome: usize,
+    source_id: &str,
+    certifying_evidence: &[String],
+) -> Result<(), CyclicArtifactError> {
+    if nodes.is_empty()
+        || nodes.len() > 64
+        || draws.is_empty()
+        || draws.len() > 10_000
+        || worlds.is_empty()
+        || worlds.len() > 256
+        || outcome >= nodes.len()
+        || source_id.is_empty()
+        || certifying_evidence.is_empty()
+        || certifying_evidence.iter().any(|item| item.is_empty() || item == source_id)
+    {
+        return Err(invalid("recovered linear law"));
+    }
+    let law = retain_recovered(nodes, draws)?;
+    let first = &worlds[0];
+    let plan = antecedent_estimate::recovery::RetainedRecoveryPlan::try_new(
+        antecedent_estimate::recovery::RecoveryPlanParts {
+            uncertainty: law,
+            clamp_nodes: first.clamp_nodes.clone(),
+            clamp_values: first.clamp_values.clone(),
+            outcome,
+            source_id: source_id.to_owned(),
+            certifying_evidence: certifying_evidence.to_vec(),
+        },
+    )
+    .map_err(invalid)?;
+    drop(plan);
+    Ok(())
+}
+
+fn retain_recovered(
+    nodes: &[u32],
+    draws: &[super::RecoveredDrawWire],
+) -> Result<
+    antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty,
+    CyclicArtifactError,
+> {
+    let ids: Vec<antecedent_core::VariableId> =
+        nodes.iter().copied().map(antecedent_core::VariableId::from_raw).collect();
+    let inputs = draws.iter().map(draw_input).collect();
+    let retained =
+        antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty::retain(
+            &ids, inputs,
+        );
+    retained.map_err(invalid)
+}
+
+fn draw_input(
+    draw: &super::RecoveredDrawWire,
+) -> antecedent_identify::experimental_recovery::RecoveryDrawInput {
+    use antecedent_core::VariableId;
+    use antecedent_identify::experimental_recovery::{
+        DirectCoefficient, RecoveryDrawInput, UnresolvedDirection, UnresolvedReason,
+    };
+    RecoveryDrawInput {
+        coefficients: draw
+            .coefficients
+            .iter()
+            .map(|coef| {
+                (
+                    DirectCoefficient {
+                        into: VariableId::from_raw(coef.into),
+                        from: VariableId::from_raw(coef.from),
+                    },
+                    coef.value,
+                )
+            })
+            .collect(),
+        intercept: draw.intercept.clone(),
+        noise_mean: draw.noise_mean.clone(),
+        noise_covariance: draw.noise_covariance.clone(),
+        unresolved: draw
+            .unresolved
+            .iter()
+            .map(|wire| UnresolvedDirection {
+                support: wire
+                    .support
+                    .iter()
+                    .map(|item| DirectCoefficient {
+                        into: VariableId::from_raw(item.into),
+                        from: VariableId::from_raw(item.from),
+                    })
+                    .collect(),
+                reason: match &wire.reason {
+                    super::RecoveredUnresolvedWire::IncompletePairCoverage {
+                        target,
+                        missing_clamps,
+                    } => UnresolvedReason::IncompletePairCoverage {
+                        target: VariableId::from_raw(*target),
+                        missing_clamps: missing_clamps
+                            .iter()
+                            .copied()
+                            .map(VariableId::from_raw)
+                            .collect(),
+                    },
+                    super::RecoveredUnresolvedWire::DeficientConstraintRank {
+                        target,
+                        column_rank,
+                        width,
+                    } => UnresolvedReason::DeficientConstraintRank {
+                        target: VariableId::from_raw(*target),
+                        column_rank: *column_rank,
+                        width: *width,
+                    },
+                },
+            })
+            .collect(),
+        weight: draw.weight,
+        marked_inadmissible: draw.marked_inadmissible,
+    }
+}
+
+fn support_map(
+    nodes: &[u32],
+    draws: &[super::RecoveredDrawWire],
+) -> Result<antecedent_model::LinearStructuralMap, CyclicArtifactError> {
+    let n = nodes.len();
+    let len = n.checked_mul(n).ok_or_else(|| invalid("recovered support overflow"))?;
+    let mut coefficients = vec![0.0; len];
+    for draw in draws {
+        for coef in &draw.coefficients {
+            if !coef.value.is_finite() || coef.into == coef.from {
+                continue;
+            }
+            #[allow(clippy::float_cmp, reason = "a structural zero is not a support edge")]
+            if coef.value == 0.0 {
+                continue;
+            }
+            let Some(into) = nodes.iter().position(|node| *node == coef.into) else {
+                continue;
+            };
+            let Some(from) = nodes.iter().position(|node| *node == coef.from) else {
+                continue;
+            };
+            coefficients[into * n + from] = coef.value;
+        }
+    }
+    antecedent_model::LinearStructuralMap::try_new(coefficients, vec![0.0; n]).map_err(invalid)
+}
+
+fn plan_from_route(
+    route: &antecedent_model::scc_compile::LinearSupportRoute,
+) -> CompiledSystemPlan {
+    use antecedent_model::scc_compile::LinearSupportRoute;
+    match route {
+        LinearSupportRoute::Acyclic { order } => CompiledSystemPlan {
+            semantics: SystemSemantics::AcyclicScm,
+            blocks: order
+                .iter()
+                .map(|&variable| ExecutionBlock::Mechanism {
+                    variable,
+                    mechanism: format!("node:{variable}"),
+                })
+                .collect(),
+        },
+        LinearSupportRoute::Cyclic { blocks, .. } => CompiledSystemPlan {
+            semantics: SystemSemantics::EquilibriumScm,
+            blocks: blocks
+                .iter()
+                .map(|variables| {
+                    if variables.len() == 1 {
+                        ExecutionBlock::Mechanism {
+                            variable: variables[0],
+                            mechanism: format!("node:{}", variables[0]),
+                        }
+                    } else {
+                        ExecutionBlock::SimultaneousEquations {
+                            variables: variables.clone(),
+                            equations: variables
+                                .iter()
+                                .map(|variable| format!("node:{variable}"))
+                                .collect(),
+                        }
+                    }
+                })
+                .collect(),
+        },
+    }
+}
+
+fn world_answer(
+    evaluation: &antecedent_estimate::recovery::CertifiedInterventionEvaluation,
+) -> super::RecoveredWorldAnswer {
+    use antecedent_estimate::recovery::{EvaluatedOutcome, SolvedBy};
+    use antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw;
+    let mixture = evaluation.outcome_mixture();
+    let mixture_mean = mixture.as_ref().map(|item| item.mean);
+    let mixture_variance =
+        mixture.as_ref().map(antecedent_estimate::recovery::OutcomeMixture::variance);
+    let between_draw_variance = mixture.as_ref().map(|item| item.between_draw_variance);
+    super::RecoveredWorldAnswer {
+        draws: evaluation
+            .draws()
+            .iter()
+            .map(|draw| super::RecoveredEvaluatedDraw {
+                weight: draw.weight(),
+                outcome: match draw.outcome() {
+                    EvaluatedOutcome::Equilibrium {
+                        mean,
+                        covariance,
+                        disturbance_mean,
+                        disturbance_covariance,
+                        solved_by,
+                    } => super::RecoveredDrawAnswer::Equilibrium {
+                        mean: mean.clone(),
+                        covariance: covariance.clone(),
+                        disturbance_mean: disturbance_mean.clone(),
+                        disturbance_covariance: disturbance_covariance.clone(),
+                        solved_by: match solved_by {
+                            SolvedBy::Acyclic => super::RecoveredSolvedBy::Acyclic,
+                            SolvedBy::Cyclic { next_attempt } => super::RecoveredSolvedBy::Cyclic {
+                                next_attempt: next_attempt.clone(),
+                            },
+                        },
+                    },
+                    EvaluatedOutcome::Inadmissible(reason) => {
+                        super::RecoveredDrawAnswer::Inadmissible {
+                            reason: match reason {
+                                InadmissibleCoefficientDraw::Marked => "marked",
+                                InadmissibleCoefficientDraw::WeightNotMass => "weight_not_mass",
+                                InadmissibleCoefficientDraw::UnresolvedDirections => {
+                                    "unresolved_directions"
+                                }
+                                InadmissibleCoefficientDraw::StructuralDiagonal => {
+                                    "structural_diagonal"
+                                }
+                                InadmissibleCoefficientDraw::NonFiniteParameter => {
+                                    "non_finite_parameter"
+                                }
+                                InadmissibleCoefficientDraw::NoiseNotJoint => "noise_not_joint",
+                                InadmissibleCoefficientDraw::IncompleteMechanism => {
+                                    "incomplete_mechanism"
+                                }
+                            }
+                            .to_owned(),
+                        }
+                    }
+                    EvaluatedOutcome::NotCertified(fault) => {
+                        super::RecoveredDrawAnswer::NotCertified { fault: fault.to_string() }
+                    }
+                },
+            })
+            .collect(),
+        outcome: evaluation.outcome(),
+        total_mass: evaluation.total_mass(),
+        withheld_mass: evaluation.withheld_mass(),
+        mixture_mean,
+        mixture_variance,
+        between_draw_variance,
+    }
 }
 
 fn same_source(left: &R, right: &R) -> bool {
