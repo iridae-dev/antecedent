@@ -2,6 +2,7 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[doc(hidden)] pub fn <antecedent_core::CancellationToken>::fn cancel_after_checks(checks: usize) -> Self
+#[doc(hidden)] pub fn <antecedent_core::execution::AdmissionLease>::fn observe_current(&self)
 #[doc(hidden)] pub fn <antecedent_core::execution_attempt::ObservationToken>::fn capture() -> Self
 #[doc(hidden)] pub fn <antecedent_core::execution_attempt::ObservationToken>::fn execute<T>(&self, execute: impl core::ops::function::FnOnce() -> T) -> T
 #[doc(hidden)] pub fn <antecedent_core::execution_attempt::ObservationToken>::fn is_empty(&self) -> bool

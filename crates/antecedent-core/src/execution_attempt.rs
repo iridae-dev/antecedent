@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use std::cell::{Cell, RefCell};
 use std::sync::{
-    Arc, Mutex,
+    Arc, Mutex, Weak,
     atomic::{AtomicU64, Ordering},
 };
 
@@ -159,11 +159,39 @@ pub fn record_physical(event: PhysicalEvent, amount: u64) {
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct ObservedAdmission {
-    counters: Vec<Arc<Counters>>,
+    counters: Vec<Weak<Counters>>,
     threads: u64,
     bytes: u64,
 }
+fn add_admitted(counter: &Counters, threads: u64, bytes: u64) {
+    let mut held = counter.admitted.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    held.0 += u128::from(bytes);
+    held.1 += u128::from(threads);
+    for (slot, value) in [(6, held.0), (7, held.1)] {
+        if let Ok(value) = u64::try_from(value) {
+            counter.physical[slot].fetch_max(value, Ordering::Relaxed);
+            counter.physical_seen.fetch_or(1 << slot, Ordering::Relaxed);
+        } else {
+            counter.physical_unavailable.fetch_or(1 << slot, Ordering::Relaxed);
+        }
+    }
+}
 impl ObservedAdmission {
+    fn contains(&self, counter: &Arc<Counters>) -> bool {
+        let weak = Arc::downgrade(counter);
+        self.counters.iter().any(|existing| Weak::ptr_eq(existing, &weak))
+    }
+    pub(crate) fn attach_current(&mut self) {
+        self.counters.retain(|counter| counter.strong_count() > 0);
+        OBSERVERS.with(|observers| {
+            for counter in observers.borrow().iter() {
+                if !self.contains(counter) {
+                    add_admitted(counter, self.threads, self.bytes);
+                    self.counters.push(Arc::downgrade(counter));
+                }
+            }
+        });
+    }
     pub(crate) fn split(&mut self, threads: u32, bytes: u64) -> Self {
         self.threads =
             self.threads.checked_sub(u64::from(threads)).expect("admission split threads");
@@ -171,33 +199,33 @@ impl ObservedAdmission {
         Self { counters: self.counters.clone(), threads: u64::from(threads), bytes }
     }
     pub(crate) fn merge(&mut self, child: &mut Self) {
+        // An observer can attach after a split. Transfer its complete balance,
+        // including the previously unobserved side, before coalescing the slots.
+        for counter in self.counters.iter().filter_map(Weak::upgrade) {
+            if !child.contains(&counter) {
+                add_admitted(&counter, child.threads, child.bytes);
+            }
+        }
+        for counter in child.counters.iter().filter_map(Weak::upgrade) {
+            if !self.contains(&counter) {
+                add_admitted(&counter, self.threads, self.bytes);
+                self.counters.push(Arc::downgrade(&counter));
+            }
+        }
         self.threads = self.threads.checked_add(child.threads).expect("admission merge threads");
         self.bytes = self.bytes.checked_add(child.bytes).expect("admission merge bytes");
         child.threads = 0;
         child.bytes = 0;
     }
     pub(crate) fn new(threads: u32, bytes: u64) -> Self {
-        let counters = OBSERVERS.with(|observers| observers.borrow().clone());
-        for counter in &counters {
-            let mut held =
-                counter.admitted.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            held.0 += u128::from(bytes);
-            held.1 += u128::from(threads);
-            for (slot, value) in [(6, held.0), (7, held.1)] {
-                if let Ok(value) = u64::try_from(value) {
-                    counter.physical[slot].fetch_max(value, Ordering::Relaxed);
-                    counter.physical_seen.fetch_or(1 << slot, Ordering::Relaxed);
-                } else {
-                    counter.physical_unavailable.fetch_or(1 << slot, Ordering::Relaxed);
-                }
-            }
-        }
-        Self { counters, threads: u64::from(threads), bytes }
+        let mut admission = Self { counters: Vec::new(), threads: u64::from(threads), bytes };
+        admission.attach_current();
+        admission
     }
 }
 impl Drop for ObservedAdmission {
     fn drop(&mut self) {
-        for counter in &self.counters {
+        for counter in self.counters.iter().filter_map(Weak::upgrade) {
             let mut held =
                 counter.admitted.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             held.0 = held
@@ -558,5 +586,52 @@ mod physical_observation_tests {
             .report
             .execution_facts(&ctx, crate::execution_facts::ExecutionFactStatus::Cancelled);
         assert!(facts.is_native());
+    }
+    #[test]
+    fn retained_reservations_are_observed_once_without_retaining_old_recorders() {
+        let ctx = crate::ExecutionContext::for_tests(1);
+        let retained = ctx.acquire_admission(0, 100).unwrap();
+        let observed = observe_execution(|| {
+            retained.observe_current();
+            retained.observe_current();
+            let child = retained.acquire_child(0, 30)?;
+            child.observe_current();
+            drop(child);
+            let weak =
+                OBSERVERS.with(|observers| Arc::downgrade(observers.borrow().last().unwrap()));
+            Ok::<_, crate::execution::AdmissionError>(weak)
+        });
+        assert_eq!(observed.report.peak_admitted_bytes(), Some(100));
+        assert!(
+            observed.result.unwrap().upgrade().is_none(),
+            "a retained buffer must not retain completed recorders"
+        );
+        let again = observe_execution(|| {
+            retained.observe_current();
+            Ok::<_, ()>(())
+        });
+        assert_eq!(again.report.peak_admitted_bytes(), Some(100));
+    }
+
+    #[test]
+    fn attaching_after_a_split_preserves_balances_when_leases_merge() {
+        for observe_child in [false, true] {
+            let ctx = crate::ExecutionContext::for_tests(1);
+            let parent = ctx.acquire_admission(0, 100).unwrap();
+            let child = parent.acquire_child(0, 30).unwrap();
+            let observed = observe_execution(|| {
+                if observe_child {
+                    child.observe_current();
+                } else {
+                    parent.observe_current();
+                }
+                drop(child);
+                let _extra = ctx.acquire_admission(0, 50)?;
+                Ok::<_, crate::execution::AdmissionError>(())
+            });
+            assert!(observed.result.is_ok());
+            assert_eq!(observed.report.peak_admitted_bytes(), Some(150));
+            drop(parent);
+        }
     }
 }

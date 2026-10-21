@@ -770,6 +770,18 @@ impl AdmissionLease {
         Self { shared, id, flag, active: AtomicBool::new(true) }
     }
 
+    /// Include an existing reservation in the current native execution observation.
+    /// This neither grants resources nor changes cancellation or release behavior.
+    #[doc(hidden)]
+    pub fn observe_current(&self) {
+        let mut state = lock_mutex(&self.shared.state);
+        if let Some(index) = lease_index(&state.leases, self.id) {
+            if let Some(observation) = state.leases[index].observation.as_mut() {
+                observation.attach_current();
+            }
+        }
+    }
+
     /// Take a child lease from this lease's remainder.
     ///
     /// The child cannot use RAM or CPU the parent does not still hold, even when the pool has

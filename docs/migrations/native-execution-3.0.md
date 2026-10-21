@@ -32,3 +32,9 @@ no execution or scientific authority. Licensing and calibration are unchanged.
 
 This is the resource and observation foundation for the compiler integration
 repair. It does not close H03/H04 or establish complete workflow resource accounting.
+
+Execution observations now include retained source and frozen-fit reservations that
+were acquired before the observed call. Reattaching a live reservation is
+idempotent and does not reserve its bytes twice. Reservations keep weak links to
+observation recorders, so a long-lived prepared cache does not retain every past
+receipt. Split and merged leases preserve the observed account balance.

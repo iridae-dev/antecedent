@@ -1553,11 +1553,27 @@ impl CheckedLinearOperation {
         let owner = self.physical.linear.as_ref().ok_or_else(|| CausalError::Compile {
             message: "compiled linear owner missing".into(),
         })?;
-        let bytes = if owner.retention.belongs_to(&ctx.admission()) {
+        let pool = ctx.admission();
+        let mut bytes = if owner.retention.belongs_to(&pool) {
+            owner.retention.observe_current();
             geometry.execution_bytes()?
         } else {
             geometry.peak()?
         };
+        let cache = self.frozen_fit.lock().map_err(|_| CausalError::Compile {
+            message: "retained linear fit lock poisoned".into(),
+        })?;
+        if let Some(fit) = cache.as_ref().filter(|fit| fit.retention.belongs_to(&pool)) {
+            fit.retention.observe_current();
+            if fit.kernel == ctx.kernel_policy {
+                bytes = bytes.checked_sub(fit.retention.remainder().bytes()).ok_or_else(|| {
+                    CausalError::Resource {
+                        message: "cached linear output exceeds its allocation quote".into(),
+                    }
+                })?;
+            }
+        }
+        drop(cache);
         let admission = Arc::new(
             ctx.acquire_admission(0, bytes)
                 .map_err(|error| CausalError::Resource { message: error.to_string() })?,

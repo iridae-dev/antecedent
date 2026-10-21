@@ -85,7 +85,11 @@ fn prepared_gaussian_retains_the_compiled_program_after_builder_drop() {
     let facts = first.performance.native_execution.as_ref().unwrap();
     assert!(facts.is_native());
     assert_eq!(facts.observed_model_fits(), Some(1));
-    assert!(facts.peak_admitted_bytes().unwrap() > 0);
+    assert_eq!(
+        facts.peak_admitted_bytes(),
+        prepared.plan().record.estimated_peak_memory_bytes,
+        "the receipt includes the design retained before observation began"
+    );
     assert_eq!(first.performance.peak_rss_bytes, None);
     let (again, solves) = count_least_squares_solves(|| prepared.estimate_retained(&ctx).unwrap());
     assert_eq!(solves, 0);
