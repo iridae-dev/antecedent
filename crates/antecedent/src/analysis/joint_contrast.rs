@@ -404,6 +404,7 @@ fn signed_worlds(target: &ScientificTarget) -> Result<SignedWorlds, JointContras
         TargetForm::World(_) => Err(JointContrastError::SingleWorld),
         TargetForm::Mediation(_) => Err(JointContrastError::Mediation),
         TargetForm::Contrast(contrast) => match contrast.form() {
+            ContrastForm::Linear => Err(JointContrastError::NotTheJointContrast),
             ContrastForm::Difference { .. } => Err(JointContrastError::TwoWorldDifference),
             ContrastForm::Interaction { .. } => coefficients_of(contrast),
             _ => Err(JointContrastError::NotTheJointContrast),
@@ -421,10 +422,10 @@ fn coefficients_of(contrast: &InterventionContrast) -> Result<SignedWorlds, Join
     let mut coefficients = [0.0_f64; 4];
     for (index, term) in terms.iter().enumerate() {
         ids[index] = term.world;
-        if term.coefficient != 1 && term.coefficient != -1 {
+        if term.coefficient != 1.0 && term.coefficient != -1.0 {
             return Err(JointContrastError::NotTheJointContrast);
         }
-        coefficients[index] = f64::from(term.coefficient);
+        coefficients[index] = term.coefficient;
     }
     Ok(SignedWorlds { ids, coefficients })
 }
@@ -655,8 +656,8 @@ mod tests {
         assert!(matches!(contrast.form(), ContrastForm::Interaction { .. }));
         assert_eq!(contrast.reference(), REFERENCE_WORLD);
         assert_eq!(
-            contrast.terms().iter().map(|term| term.coefficient).collect::<Vec<_>>(),
-            vec![1_i8, -1, -1, 1]
+            contrast.terms().iter().map(|term| term.coefficient.to_bits()).collect::<Vec<_>>(),
+            [1.0_f64, -1.0, -1.0, 1.0].map(f64::to_bits).to_vec()
         );
         let worlds = contrast.worlds().worlds();
         let references: Vec<_> = worlds.iter().filter(|world| world.is_reference()).collect();

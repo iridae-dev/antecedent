@@ -1449,21 +1449,42 @@ mod tests {
     #[test]
     fn unsupported_target_binding_needs_no_fabricated_identification_and_cannot_rebind() {
         let target = interaction_target();
-        let mut product = empty_product(IdentificationOutcome::Unidentified,
-            IdentificationClaimClass::ModelConditional, None);
-        product.world_obligations = (0..4).map(|id| WorldObligation::new(
-            ScientificWorldId::from_raw(id), IdentificationOutcome::Unidentified,
-            IdentificationClaimClass::ModelConditional, vec![], None)).collect();
+        let mut product = empty_product(
+            IdentificationOutcome::Unidentified,
+            IdentificationClaimClass::ModelConditional,
+            None,
+        );
+        product.world_obligations = (0..4)
+            .map(|id| {
+                WorldObligation::new(
+                    ScientificWorldId::from_raw(id),
+                    IdentificationOutcome::Unidentified,
+                    IdentificationClaimClass::ModelConditional,
+                    vec![],
+                    None,
+                )
+            })
+            .collect();
         product.assembled = Some(AssembledFunctionalObligation::new(
-            IdentificationOutcome::Unidentified, IdentificationClaimClass::ModelConditional, vec![], None));
+            IdentificationOutcome::Unidentified,
+            IdentificationClaimClass::ModelConditional,
+            vec![],
+            None,
+        ));
         let bound = product.bind_target(&target).unwrap();
         assert!(bound.identified().is_empty());
         assert!(!bound.is_identified_claim());
         assert_eq!(bound.target_identity(), Some(target.identity()));
         assert!(bound.clone().bind_target(&target).is_ok());
-        let changed = interaction_target_with(2.0, antecedent_core::TargetPopulation::AllObserved,
-            VariableId::from_raw(2));
-        assert!(matches!(bound.bind_target(&changed), Err(ProductRefusal::TargetIdentityMismatch {..})));
+        let changed = interaction_target_with(
+            2.0,
+            antecedent_core::TargetPopulation::AllObserved,
+            VariableId::from_raw(2),
+        );
+        assert!(matches!(
+            bound.bind_target(&changed),
+            Err(ProductRefusal::TargetIdentityMismatch { .. })
+        ));
     }
 
     #[test]

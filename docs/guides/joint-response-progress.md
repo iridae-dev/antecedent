@@ -136,3 +136,30 @@ passed. Strict Clippy passed for `antecedent-core`, `antecedent-identify` and
 component selection passed 100 tests before the additional unsupported-binding
 regression. This checkpoint does not close X01.1 or X01.2; production consumers,
 arbitrary-channel expansion, public interchange and acceptance remain in progress.
+
+
+## Expanded channel and interaction scope
+
+The current implementation work removes the two-channel implementation ceiling.
+Channels have explicit stable identities and common declared time axes. Users
+supply a sparse list of interaction features; fitting does not automatically
+expand every subset of channels. A three-channel product, higher-order product,
+or another supported expression uses the existing `ValueExpr` syntax and shared
+`NodeProgram` compiler/executor. Python uses the same portable `Expr` expression
+representation. The feature binding explicitly means lag-weighted, saturated
+channel inputs; it does not silently reinterpret raw exposure as transformed
+exposure. This expands model expressiveness without expanding identification or
+calibration permission.
+
+General linear scientific contrasts retain every selected world, its finite
+nonzero coefficient and an explicit reference. They cover arbitrary-order
+factorial contrasts and explicitly weighted time-window functionals. Fixed
+pairwise difference/interaction identities retain their earlier encoding.
+General linear artifacts use the versioned target wire, preserve coefficients
+exactly and refuse unsupported versions. The legacy four-cell batch helper
+continues to require its actual two-factor contract.
+
+New numerical and public workflow implementations are undergoing combined
+validation in the isolated X-series worktree. Their existence alone does not
+close X02, X03, X04, X05 or X06.2; the item evidence and status are updated after
+public execution and downstream enforcement have been checked.

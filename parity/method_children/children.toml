@@ -2592,7 +2592,7 @@ missing = "broader mechanism families have no identification proof and no module
 owner = "crates/antecedent-estimate"
 fixtures = "unlisted"
 consumer = "unlisted"
-notes = "Promotion candidate, not the B04 slice and not admitted. Broader families: geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, extra interactions."
+notes = "Promotion candidate, not the B04 slice and not admitted. Broader families: geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals."
 
 [[child]]
 id = "X02.broader.static.bayesian"
@@ -2606,7 +2606,7 @@ missing = "broader mechanism families have no identification proof and no module
 owner = "crates/antecedent-estimate"
 fixtures = "unlisted"
 consumer = "unlisted"
-notes = "Promotion candidate, not the B04 slice and not admitted. Broader families: geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, extra interactions."
+notes = "Promotion candidate, not the B04 slice and not admitted. Broader families: geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals."
 
 [[child]]
 id = "X02.broader.temporal.frequentist"
@@ -2620,7 +2620,7 @@ missing = "broader mechanism families have no identification proof and no module
 owner = "crates/antecedent-estimate"
 fixtures = "unlisted"
 consumer = "unlisted"
-notes = "Promotion candidate, not the B04 slice and not admitted. Broader families: geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, extra interactions."
+notes = "Promotion candidate, not the B04 slice and not admitted. Broader families: geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals."
 
 [[child]]
 id = "X02.broader.temporal.bayesian"
@@ -2634,7 +2634,7 @@ missing = "broader mechanism families have no identification proof and no module
 owner = "crates/antecedent-estimate"
 fixtures = "unlisted"
 consumer = "unlisted"
-notes = "Promotion candidate, not the B04 slice and not admitted. Broader families: geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, extra interactions."
+notes = "Promotion candidate, not the B04 slice and not admitted. Broader families: geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals."
 
 [[child]]
 id = "X03.static.frequentist"

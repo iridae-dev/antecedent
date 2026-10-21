@@ -4,7 +4,7 @@
 
 This is not the support-matrix product in `parity/support_axes.toml` (queries × graph classes × structures × inferences × validations). Route ids are from `parity/capabilities/route_manifest.toml`. A field that the manifest does not state is `unlisted`. `module = "none"` means no implementation module. `gap = "none"` means that counterpart already exists. No child is `not_applicable`.
 
-X01 and X06 are core. The X02 finite-lag slice is a proposal for B04. It is not admitted. X02.broader, X03, X04.1, X04.2, and X05 are promotion candidates, not release scope.
+X01 and X06 are core. B05 retains the X02 finite-lag fit and the X03/X04/X05 attempts as mandatory work; implementation and acceptance evidence remain separate. The user-approved channel/interaction expansion uses configurable channel counts and existing programmable expressions. The X02.broader research rows now cover the remaining lag, saturation, pooling and spatial extensions; arbitrary channel counts and sparse higher-order expressions are part of the required slice. The original B04 failure of identification from fitting alone remains valid.
 
 ## Counts by parent
 

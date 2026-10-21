@@ -2408,7 +2408,7 @@ assumptions = "unlisted"
 sampling_units = "unlisted"
 estimator = "unlisted"
 diagnostics = "unlisted"
-failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, and extra interactions are outside the reviewed slice and have no identification proof."
+failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals are outside the reviewed slice and have no identification proof."
 references = [
   "Release scope and gates",
   "X02 — Estimate the mechanism, including its uncertainty",
@@ -2426,7 +2426,7 @@ assumptions = "unlisted"
 sampling_units = "unlisted"
 estimator = "unlisted"
 diagnostics = "unlisted"
-failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, and extra interactions are outside the reviewed slice and have no identification proof."
+failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals are outside the reviewed slice and have no identification proof."
 references = [
   "Release scope and gates",
   "X02 — Estimate the mechanism, including its uncertainty",
@@ -2444,7 +2444,7 @@ assumptions = "unlisted"
 sampling_units = "unlisted"
 estimator = "unlisted"
 diagnostics = "unlisted"
-failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, and extra interactions are outside the reviewed slice and have no identification proof."
+failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals are outside the reviewed slice and have no identification proof."
 references = [
   "Release scope and gates",
   "X02 — Estimate the mechanism, including its uncertainty",
@@ -2462,7 +2462,7 @@ assumptions = "unlisted"
 sampling_units = "unlisted"
 estimator = "unlisted"
 diagnostics = "unlisted"
-failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, and extra interactions are outside the reviewed slice and have no identification proof."
+failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals are outside the reviewed slice and have no identification proof."
 references = [
   "Release scope and gates",
   "X02 — Estimate the mechanism, including its uncertainty",

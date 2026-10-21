@@ -3678,7 +3678,6 @@ impl core::marker::StructuralPartialEq for antecedent_core::ContinuousDomain
 impl core::marker::StructuralPartialEq for antecedent_core::ContinuousDoseResponseQuery
 impl core::marker::StructuralPartialEq for antecedent_core::ContractIdentities
 impl core::marker::StructuralPartialEq for antecedent_core::ContrastForm
-impl core::marker::StructuralPartialEq for antecedent_core::ContrastTerm
 impl core::marker::StructuralPartialEq for antecedent_core::CounterfactualEvent
 impl core::marker::StructuralPartialEq for antecedent_core::CounterfactualEventQuery
 impl core::marker::StructuralPartialEq for antecedent_core::CounterfactualQuery
@@ -6298,7 +6297,7 @@ pub field antecedent_core::ContractIdentities::inference_binding: antecedent_cor
 pub field antecedent_core::ContractIdentities::observation: antecedent_core::SemanticDigest
 pub field antecedent_core::ContractIdentities::program: core::option::Option<antecedent_core::SemanticDigest>
 pub field antecedent_core::ContractIdentities::target: antecedent_core::SemanticDigest
-pub field antecedent_core::ContrastTerm::coefficient: i8
+pub field antecedent_core::ContrastTerm::coefficient: f64
 pub field antecedent_core::ContrastTerm::world: antecedent_core::ScientificWorldId
 pub field antecedent_core::CounterfactualQuery::allow_nested: bool
 pub field antecedent_core::CounterfactualQuery::control: antecedent_core::Intervention
@@ -7156,6 +7155,7 @@ pub fn <antecedent_core::InterventionContrast>::const fn reference(&self) -> ant
 pub fn <antecedent_core::InterventionContrast>::const fn worlds(&self) -> &antecedent_core::WorldCollection
 pub fn <antecedent_core::InterventionContrast>::fn difference(worlds: antecedent_core::WorldCollection, plus: antecedent_core::ScientificWorldId, minus: antecedent_core::ScientificWorldId, reference: antecedent_core::ScientificWorldId) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::InterventionContrast>::fn interaction(worlds: antecedent_core::WorldCollection, joint: antecedent_core::ScientificWorldId, a_at_reference: antecedent_core::ScientificWorldId, b_at_reference: antecedent_core::ScientificWorldId, reference: antecedent_core::ScientificWorldId) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
+pub fn <antecedent_core::InterventionContrast>::fn linear(worlds: antecedent_core::WorldCollection, terms: impl core::iter::traits::collect::IntoIterator<Item = (antecedent_core::ScientificWorldId, f64)>, reference: antecedent_core::ScientificWorldId) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::InterventionContrast>::fn terms(&self) -> alloc::vec::Vec<antecedent_core::ContrastTerm>
 pub fn <antecedent_core::InterventionSequence>::fn is_empty(&self) -> bool
 pub fn <antecedent_core::InterventionSequence>::fn len(&self) -> usize
@@ -9095,6 +9095,7 @@ pub variant antecedent_core::ComputeCapability::Cpu
 pub variant antecedent_core::ComputeCapability::Device(antecedent_core::DeviceName)
 pub variant antecedent_core::ContrastForm::Difference { plus: antecedent_core::ScientificWorldId, minus: antecedent_core::ScientificWorldId }
 pub variant antecedent_core::ContrastForm::Interaction { joint: antecedent_core::ScientificWorldId, a_at_reference: antecedent_core::ScientificWorldId, b_at_reference: antecedent_core::ScientificWorldId }
+pub variant antecedent_core::ContrastForm::Linear
 pub variant antecedent_core::CrossWorldPremise::Composition
 pub variant antecedent_core::CrossWorldPremise::CrossWorldIndependence
 pub variant antecedent_core::CrossWorldPremise::PathSpecificNested
@@ -9486,6 +9487,7 @@ pub variant antecedent_core::ScientificTargetError::IncompatibleBinding { field:
 pub variant antecedent_core::ScientificTargetError::IncompatibleTime
 pub variant antecedent_core::ScientificTargetError::InterventionVariableMismatch { expected: antecedent_core::VariableId, got: antecedent_core::VariableId }
 pub variant antecedent_core::ScientificTargetError::InvalidAction { reason: alloc::string::String }
+pub variant antecedent_core::ScientificTargetError::InvalidLinearContrast { reason: &'static str }
 pub variant antecedent_core::ScientificTargetError::MediationArmsNotDistinct
 pub variant antecedent_core::ScientificTargetError::MediationNeedsCrossWorldPremises
 pub variant antecedent_core::ScientificTargetError::MediatorOverlap

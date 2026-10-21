@@ -18,7 +18,7 @@ use antecedent_core::{
 use serde::{Deserialize, Serialize};
 
 /// Current scientific-target wire version.
-pub const SCIENTIFIC_TARGET_WIRE_VERSION: u16 = 1;
+pub const SCIENTIFIC_TARGET_WIRE_VERSION: u16 = 2;
 
 /// Complete portable question, including its inference realization and checked identity.
 ///
@@ -38,6 +38,11 @@ pub struct ScientificTargetWire {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum FormWire {
+    Linear {
+        worlds: Vec<WorldWire>,
+        terms: Vec<(u32, u64)>,
+        reference: u32,
+    },
     World {
         world: Box<WorldWire>,
     },
@@ -161,7 +166,9 @@ impl ScientificTargetWire {
     /// Unknown versions, malformed worlds, inconsistent contrasts, missing mediation
     /// premises, unsupported field values, or a changed scientific identity.
     pub fn to_domain(&self) -> Result<ScientificTarget, IoError> {
-        if self.version != SCIENTIFIC_TARGET_WIRE_VERSION {
+        if !matches!(self.version, 1 | SCIENTIFIC_TARGET_WIRE_VERSION)
+            || (self.version == 1 && matches!(self.target, FormWire::Linear { .. }))
+        {
             return Err(IoError::UnsupportedVersion { version: u32::from(self.version) });
         }
         let graph = match self.graph.as_str() {
@@ -198,6 +205,11 @@ impl ScientificTargetWire {
     }
 }
 
+fn decode_worlds(worlds: &[WorldWire]) -> Result<WorldCollection, IoError> {
+    WorldCollection::new(worlds.iter().map(WorldWire::to_domain).collect::<Result<Vec<_>, _>>()?)
+        .map_err(invalid)
+}
+
 impl FormWire {
     fn from_domain(form: &TargetForm) -> Result<Self, IoError> {
         let worlds = |collection: &WorldCollection| {
@@ -209,6 +221,15 @@ impl FormWire {
             }
             TargetForm::Worlds(collection) => FormWire::Worlds { worlds: worlds(collection)? },
             TargetForm::Contrast(contrast) => match contrast.form() {
+                ContrastForm::Linear => FormWire::Linear {
+                    worlds: worlds(contrast.worlds())?,
+                    terms: contrast
+                        .terms()
+                        .iter()
+                        .map(|term| (term.world.raw(), term.coefficient.to_bits()))
+                        .collect(),
+                    reference: contrast.reference().raw(),
+                },
                 ContrastForm::Difference { plus, minus } => FormWire::Difference {
                     worlds: worlds(contrast.worlds())?,
                     plus: plus.raw(),
@@ -277,18 +298,20 @@ impl FormWire {
     }
     fn to_domain(&self) -> Result<TargetForm, IoError> {
         let id = ScientificWorldId::from_raw;
-        let worlds = |worlds: &[WorldWire]| {
-            WorldCollection::new(
-                worlds.iter().map(WorldWire::to_domain).collect::<Result<Vec<_>, _>>()?,
-            )
-            .map_err(invalid)
-        };
         Ok(match self {
+            FormWire::Linear { worlds: items, terms, reference } => TargetForm::Contrast(
+                InterventionContrast::linear(
+                    decode_worlds(items)?,
+                    terms.iter().map(|(world, bits)| (id(*world), f64::from_bits(*bits))),
+                    id(*reference),
+                )
+                .map_err(invalid)?,
+            ),
             FormWire::World { world } => TargetForm::World(world.to_domain()?),
-            FormWire::Worlds { worlds: items } => TargetForm::Worlds(worlds(items)?),
+            FormWire::Worlds { worlds: items } => TargetForm::Worlds(decode_worlds(items)?),
             FormWire::Difference { worlds: items, plus, minus, reference } => TargetForm::Contrast(
                 InterventionContrast::difference(
-                    worlds(items)?,
+                    decode_worlds(items)?,
                     id(*plus),
                     id(*minus),
                     id(*reference),
@@ -303,7 +326,7 @@ impl FormWire {
                 reference,
             } => TargetForm::Contrast(
                 InterventionContrast::interaction(
-                    worlds(items)?,
+                    decode_worlds(items)?,
                     id(*joint),
                     id(*a_at_reference),
                     id(*b_at_reference),
@@ -314,7 +337,7 @@ impl FormWire {
             FormWire::DoseTime { worlds: items, dose, levels, horizons, cells } => {
                 TargetForm::DoseTime(
                     DoseTimeSurface::new(
-                        worlds(items)?,
+                        decode_worlds(items)?,
                         VariableId::from_raw(*dose),
                         levels.iter().map(|bits| f64::from_bits(*bits)),
                         horizons.iter().copied(),
@@ -681,5 +704,34 @@ mod tests {
         )
         .unwrap();
         roundtrip(&target(TargetForm::DoseTime(surface)));
+    }
+    #[test]
+    fn scientific_target_wire_roundtrips_general_weights_and_reads_previous_fixed_forms() {
+        let worlds = WorldCollection::new([
+            world(0, 0., 0., true),
+            world(1, 4., 0., false),
+            world(2, 0., 4., false),
+        ])
+        .unwrap();
+        let contrast = InterventionContrast::linear(
+            worlds,
+            [
+                (ScientificWorldId::from_raw(0), -0.5),
+                (ScientificWorldId::from_raw(1), 0.25),
+                (ScientificWorldId::from_raw(2), 0.25),
+            ],
+            ScientificWorldId::from_raw(0),
+        )
+        .unwrap();
+        let scientific_target = target(TargetForm::Contrast(contrast));
+        roundtrip(&scientific_target);
+        let mut wire = ScientificTargetWire::from_domain(&scientific_target).unwrap();
+        wire.version = 1;
+        assert!(matches!(wire.to_domain(), Err(IoError::UnsupportedVersion { version: 1 })));
+        let mut old =
+            ScientificTargetWire::from_domain(&target(TargetForm::World(world(0, 0., 0., true))))
+                .unwrap();
+        old.version = 1;
+        assert!(old.to_domain().is_ok());
     }
 }

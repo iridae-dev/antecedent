@@ -103,6 +103,12 @@ pub enum ScientificTargetError {
     /// The collection is not exactly the worlds the contrast formula names.
     #[error("a contrast's worlds are exactly the worlds in its formula")]
     ContrastWorldSet,
+    /// A general linear functional has missing, zero, repeated or nonfinite coefficients.
+    #[error("invalid linear world functional: {reason}")]
+    InvalidLinearContrast {
+        /// Exact invalid declaration.
+        reason: &'static str,
+    },
     /// The reference id is not flagged as the explicit reference intervention.
     #[error("reference world {id} is not marked as the explicit reference intervention")]
     ReferenceNotMarked {
@@ -975,19 +981,35 @@ fn binding_mismatch(left: &WorldBinding, right: &WorldBinding) -> Option<&'stati
     None
 }
 
-/// One term of a fixed contrast. Coefficients are only `+1` and `-1`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+/// One finite nonzero term of an explicitly declared linear world functional.
+#[derive(Clone, Copy, Debug)]
 pub struct ContrastTerm {
     /// World the coefficient multiplies.
     pub world: ScientificWorldId,
-    /// `+1` or `-1`.
-    pub coefficient: i8,
+    /// Finite nonzero coefficient; ordinary differences and interactions use `+1`/`-1`.
+    pub coefficient: f64,
+}
+
+impl PartialEq for ContrastTerm {
+    fn eq(&self, other: &Self) -> bool {
+        self.world == other.world && self.coefficient.to_bits() == other.coefficient.to_bits()
+    }
+}
+impl Eq for ContrastTerm {}
+impl Hash for ContrastTerm {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.world.hash(state);
+        self.coefficient.to_bits().hash(state);
+    }
 }
 
 /// Shape of an [`InterventionContrast`]. Not a mediation and not a dose × time grid.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ContrastForm {
+    /// Explicit finite linear combination, including higher-order factorial contrasts.
+    /// Per-world time frames remain declared; no exponential world expansion is implied.
+    Linear,
     /// `E[Y(plus)] − E[Y(minus)]`, with `minus` the reference world.
     Difference {
         /// World with coefficient `+1`.
@@ -1017,9 +1039,43 @@ pub struct InterventionContrast {
     worlds: WorldCollection,
     form: ContrastForm,
     reference: ScientificWorldId,
+    linear_terms: Arc<[ContrastTerm]>,
 }
 
 impl InterventionContrast {
+    /// Declare an arbitrary finite linear combination of intervention-world means.
+    ///
+    /// Every supplied world appears exactly once with a finite nonzero coefficient.
+    /// The reference is explicit. World quantities/populations/units/conditioning agree;
+    /// each world keeps its own declared time frame and history. This supports explicit
+    /// higher-order factorial contrasts and time-window functionals without generating
+    /// undeclared worlds, identifying them, or subtracting marginal intervals.
+    ///
+    /// # Errors
+    /// Missing/repeated worlds, an invalid coefficient, an empty functional, or a missing
+    /// reference. Statistical and scientific support remain the compiler's responsibility.
+    pub fn linear(
+        worlds: WorldCollection,
+        terms: impl IntoIterator<Item = (ScientificWorldId, f64)>,
+        reference: ScientificWorldId,
+    ) -> Result<Self, ScientificTargetError> {
+        let mut terms: Vec<_> = terms
+            .into_iter()
+            .map(|(world, coefficient)| ContrastTerm { world, coefficient })
+            .collect();
+        if terms.is_empty()
+            || terms.iter().any(|term| !term.coefficient.is_finite() || term.coefficient == 0.0)
+        {
+            return Err(ScientificTargetError::InvalidLinearContrast {
+                reason: "coefficients must be finite and nonzero",
+            });
+        }
+        terms.sort_by_key(|term| term.world);
+        require_ids(&worlds, &terms.iter().map(|term| term.world).collect::<Vec<_>>())?;
+        require_one_reference(&worlds, reference)?;
+        Ok(Self { worlds, form: ContrastForm::Linear, reference, linear_terms: terms.into() })
+    }
+
     /// Difference `E[Y(plus)] − E[Y(minus)]`.
     ///
     /// `reference` must be `minus`, and that world must be flagged. The two worlds
@@ -1044,7 +1100,12 @@ impl InterventionContrast {
         require_one_reference(&worlds, reference)?;
         require_same_time(&worlds)?;
         require_coherent_difference(&worlds, plus, minus)?;
-        Ok(Self { worlds, form: ContrastForm::Difference { plus, minus }, reference })
+        Ok(Self {
+            worlds,
+            form: ContrastForm::Difference { plus, minus },
+            reference,
+            linear_terms: Arc::from([]),
+        })
     }
 
     /// Interaction `E[Y(a,b)] − E[Y(a,0)] − E[Y(0,b)] + E[Y(0,0)]`.
@@ -1077,6 +1138,7 @@ impl InterventionContrast {
             worlds,
             form: ContrastForm::Interaction { joint, a_at_reference, b_at_reference },
             reference,
+            linear_terms: Arc::from([]),
         })
     }
 
@@ -1105,6 +1167,7 @@ impl InterventionContrast {
     #[must_use]
     pub fn terms(&self) -> Vec<ContrastTerm> {
         match self.form {
+            ContrastForm::Linear => self.linear_terms.to_vec(),
             ContrastForm::Difference { plus, minus } => {
                 vec![term(plus, 1), term(minus, -1)]
             }
@@ -1121,7 +1184,7 @@ impl InterventionContrast {
 }
 
 fn term(world: ScientificWorldId, coefficient: i8) -> ContrastTerm {
-    ContrastTerm { world, coefficient }
+    ContrastTerm { world, coefficient: f64::from(coefficient) }
 }
 
 fn require_ids(
@@ -2290,14 +2353,42 @@ fn write_callback_output(writer: &mut CanonicalWriter, output: &CallbackOutput) 
 /// labels and the reference flag are not written: the reference is the baseline term
 /// of the formula, so relabelling the worlds is the same target.
 fn write_contrast(writer: &mut CanonicalWriter, contrast: &InterventionContrast) {
+    if contrast.form == ContrastForm::Linear {
+        writer.word(3);
+        let mut terms: Vec<_> = contrast
+            .terms()
+            .iter()
+            .map(|term| {
+                let mut item = CanonicalWriter::new("antecedent.linear_world_term.v1");
+                item.real(term.coefficient);
+                if let Some(world) = contrast.worlds.get(term.world) {
+                    write_world_content(&mut item, world);
+                }
+                item.finish()
+            })
+            .collect();
+        terms.sort_unstable();
+        writer.word(count(terms.len()));
+        for term in terms {
+            writer.bytes(&term);
+        }
+        // Unlike the fixed difference/interaction forms, arbitrary coefficients do not
+        // determine a unique reference. Its scientific content is part of this question.
+        if let Some(reference) = contrast.worlds.get(contrast.reference) {
+            write_world_content(writer, reference);
+        }
+        return;
+    }
     writer.word(match contrast.form {
         ContrastForm::Difference { .. } => 1,
         ContrastForm::Interaction { .. } => 2,
+        ContrastForm::Linear => unreachable!("linear form encoded above"),
     });
     let terms = contrast.terms();
     writer.word(count(terms.len()));
     for term in terms {
-        writer.word(i64_bits(i64::from(term.coefficient)));
+        // Keep previous fixed-form identities byte-for-byte compatible.
+        writer.word(if term.coefficient.is_sign_negative() { u64::MAX } else { 1 });
         if let Some(world) = contrast.worlds.get(term.world) {
             write_world_content(writer, world);
         }
@@ -2878,10 +2969,10 @@ mod tests {
         assert_eq!(
             contrast.terms(),
             vec![
-                ContrastTerm { world: world_id(3), coefficient: 1 },
-                ContrastTerm { world: world_id(1), coefficient: -1 },
-                ContrastTerm { world: world_id(2), coefficient: -1 },
-                ContrastTerm { world: world_id(0), coefficient: 1 },
+                ContrastTerm { world: world_id(3), coefficient: 1.0 },
+                ContrastTerm { world: world_id(1), coefficient: -1.0 },
+                ContrastTerm { world: world_id(2), coefficient: -1.0 },
+                ContrastTerm { world: world_id(0), coefficient: 1.0 },
             ]
         );
         assert!(matches!(contrast.form(), ContrastForm::Interaction { .. }));
@@ -3582,9 +3673,136 @@ mod tests {
             panic!("static helper builds a contrast");
         };
         let label = match contrast.form() {
+            ContrastForm::Linear => "linear",
             ContrastForm::Difference { .. } => "difference",
             ContrastForm::Interaction { .. } => "interaction",
         };
         assert_eq!(label, "difference");
+    }
+    fn three_factor_linear(id_offset: u32, reverse: bool) -> ScientificTarget {
+        let binding = WorldBinding::new(
+            TargetPopulation::AllObserved,
+            ObservationUnit::new("group").unwrap(),
+            OutcomeQuantity::mean(vid(4), QuantityUnits::new("USD").unwrap()).unwrap(),
+            Conditioning::unconditional(),
+        )
+        .unwrap();
+        let worlds = WorldCollection::new((0_u32..8).map(|cell| {
+            InterventionWorld::new(
+                world_id(id_offset + cell),
+                WorldAction::at_decision(
+                    (0..3).map(|channel| set_level(vid(channel), f64::from((cell >> channel) & 1))),
+                )
+                .unwrap(),
+                cell == 0,
+                binding.clone(),
+                TimeFrame::static_decision(),
+            )
+            .unwrap()
+        }))
+        .unwrap();
+        let mut terms: Vec<_> = (0_u32..8)
+            .map(|cell| {
+                (
+                    world_id(id_offset + cell),
+                    if (3 - cell.count_ones()) % 2 == 0 { 1.0 } else { -1.0 },
+                )
+            })
+            .collect();
+        if reverse {
+            terms.reverse();
+        }
+        target(
+            TargetForm::Contrast(
+                InterventionContrast::linear(worlds, terms, world_id(id_offset)).unwrap(),
+            ),
+            model(GraphFamily::Dag),
+        )
+    }
+    #[test]
+    fn arbitrary_linear_contrast_retains_higher_order_interaction_and_common_uncertainty_coefficients()
+     {
+        let target = three_factor_linear(0, false);
+        let TargetForm::Contrast(contrast) = target.form() else { panic!("linear target") };
+        assert_eq!(contrast.form(), ContrastForm::Linear);
+        assert_eq!(contrast.terms().len(), 8);
+        let value = contrast
+            .terms()
+            .iter()
+            .map(|term| {
+                let cell = term.world.raw();
+                let a = f64::from(cell & 1);
+                let b = f64::from((cell >> 1) & 1);
+                let c = f64::from((cell >> 2) & 1);
+                term.coefficient * (a + b + c + 2.0 * a * b + 3.0 * a * b * c)
+            })
+            .sum::<f64>();
+        assert!((value - 3.0).abs() < 1e-12);
+        assert_eq!(target.identity(), three_factor_linear(0, true).identity());
+        assert_eq!(target.identity(), three_factor_linear(100, true).identity());
+    }
+    #[test]
+    fn arbitrary_linear_contrast_refuses_missing_duplicated_or_nonfinite_terms() {
+        let base = three_factor_linear(0, false);
+        let TargetForm::Contrast(contrast) = base.form() else { panic!("linear target") };
+        for invalid in [0.0, f64::NAN, f64::INFINITY] {
+            let mut terms: Vec<_> =
+                contrast.terms().iter().map(|term| (term.world, term.coefficient)).collect();
+            terms[0].1 = invalid;
+            assert!(
+                InterventionContrast::linear(contrast.worlds().clone(), terms, world_id(0))
+                    .is_err()
+            );
+        }
+        let mut terms: Vec<_> =
+            contrast.terms().iter().map(|term| (term.world, term.coefficient)).collect();
+        terms.pop();
+        assert!(matches!(
+            InterventionContrast::linear(contrast.worlds().clone(), terms, world_id(0)),
+            Err(ScientificTargetError::ContrastWorldSet)
+        ));
+        let mut terms: Vec<_> =
+            contrast.terms().iter().map(|term| (term.world, term.coefficient)).collect();
+        terms[1].0 = terms[0].0;
+        assert!(matches!(
+            InterventionContrast::linear(contrast.worlds().clone(), terms, world_id(0)),
+            Err(ScientificTargetError::WorldsNotDistinct)
+        ));
+    }
+    #[test]
+    fn arbitrary_linear_contrast_supports_explicit_window_weights_and_identity_changes() {
+        let binding = binding(TargetPopulation::AllObserved, Conditioning::unconditional());
+        let worlds = WorldCollection::new((1..=3).map(|horizon| {
+            InterventionWorld::new(
+                world_id(horizon),
+                WorldAction::schedule(set_level(vid(0), 1.0), TemporalPolicy::pulse(0)).unwrap(),
+                horizon == 1,
+                binding.clone(),
+                TimeFrame::temporal(
+                    horizon,
+                    HistoryWindow::max_lag(2),
+                    InitialLaw::named("same history law").unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap()
+        }))
+        .unwrap();
+        let mean = InterventionContrast::linear(
+            worlds.clone(),
+            [(world_id(1), 0.25), (world_id(2), 0.5), (world_id(3), 0.25)],
+            world_id(1),
+        )
+        .unwrap();
+        let changed = InterventionContrast::linear(
+            worlds,
+            [(world_id(1), 0.5), (world_id(2), 0.25), (world_id(3), 0.25)],
+            world_id(1),
+        )
+        .unwrap();
+        assert_ne!(
+            target(TargetForm::Contrast(mean), model(GraphFamily::TemporalDag)).identity(),
+            target(TargetForm::Contrast(changed), model(GraphFamily::TemporalDag)).identity()
+        );
     }
 }
