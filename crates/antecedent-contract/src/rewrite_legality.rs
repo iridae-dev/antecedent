@@ -435,9 +435,13 @@ impl FrameFingerprint {
 
 /// What a column or filter pushdown would do to the frame.
 ///
-/// [`Self::Declared`] is the only effect that preserves every axis by itself.
-/// The other effects are counterexamples: each alters one axis even when the
-/// identity strings were copied.
+/// [`Self::Declared`] names a pushdown that alters no axis. Naming it does not
+/// admit the rewrite. [`RewriteKind::check`] admits it only with an executed
+/// fingerprint of the rewritten frame: selected rows, folds, population, and
+/// history. Equal identity strings are not that fingerprint. Dependence and
+/// uncertainty stay caller-supplied identity declarations; the fingerprint does
+/// not cover them, and those declarations do not admit the rewrite alone. Each
+/// other effect alters one axis even when the identity strings match.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum PushdownEffect {
@@ -490,8 +494,13 @@ impl PushdownEffect {
 
 /// What sharing one row and design preparation would do.
 ///
-/// [`Self::Shared`] preserves every axis when the preparation and both
-/// consumers carry the same identities. Each other effect mixes one axis.
+/// [`Self::Shared`] names a preparation that alters no axis. Naming it does not
+/// admit the share. [`RewriteKind::check`] admits it only with an executed
+/// fingerprint of the preparation and of each consumer: selected rows, folds,
+/// population, and history. Equal identity strings are not that fingerprint.
+/// Dependence and uncertainty stay caller-supplied identity declarations; the
+/// fingerprint does not cover them, and those declarations do not admit the
+/// share alone. Each other effect mixes one axis even when the strings match.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum PreparationEffect {
@@ -543,8 +552,13 @@ impl PreparationEffect {
 
 /// What reusing a nuisance fit would do.
 ///
-/// [`Self::Certified`] is reuse under the same frame, with the evaluation fold
-/// held out of training. Each other effect is a counterexample.
+/// [`Self::Certified`] names reuse that alters no axis, with the evaluation fold
+/// held out of training. Naming it does not admit the reuse. [`RewriteKind::check`]
+/// admits it only with an executed fingerprint of the fit and of the consumer:
+/// selected rows, folds, population, and history. Equal identity strings are not
+/// that fingerprint. Dependence and uncertainty stay caller-supplied identity
+/// declarations; the fingerprint does not cover them, and those declarations do
+/// not admit the reuse alone. Each other effect is a counterexample.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum NuisanceEffect {
@@ -596,13 +610,21 @@ impl NuisanceEffect {
 
 /// What lowering a frame to sufficient statistics would do.
 ///
-/// [`Self::Sufficient`] keeps every axis. A summary that evicts a row, pools
-/// folds, or drops the sampling law is a counterexample, including when the
-/// summary still carries the original identity text.
+/// [`Self::Sufficient`] names a summary that alters no axis. Naming it does not
+/// admit the lowering. [`RewriteKind::check`] admits it only with an executed
+/// fingerprint of the rows and of the summary: selected rows, folds, population,
+/// and history. Equal identity strings are not that fingerprint. Dependence and
+/// uncertainty stay caller-supplied identity declarations; the fingerprint does
+/// not cover them, and those declarations do not admit the lowering alone. A
+/// summary that evicts a row, pools folds, or drops the sampling law is a
+/// counterexample, including when the summary still carries the original text.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum SummaryEffect {
-    /// The summary is sufficient for the declared likelihood and keeps every axis.
+    /// The summary is sufficient for the declared likelihood and names every axis.
+    ///
+    /// The executed fingerprint still has to match. This variant does not admit
+    /// the lowering by itself.
     Sufficient,
     /// The summary evicts a row or inserts a column the rows did not have.
     EvictsRow,
@@ -649,9 +671,14 @@ impl SummaryEffect {
 
 /// What evaluating one tile would do to the full frame.
 ///
-/// [`Self::Faithful`] covers the same sample in the same order and keeps
-/// failed draws. A tile that drops rows, splits a fold, or drops failed draws
-/// is a counterexample.
+/// [`Self::Faithful`] names a tile that alters no axis and keeps failed draws.
+/// Naming it does not admit the tile. [`RewriteKind::check`] admits it only with
+/// an executed fingerprint of the full frame and of the tile: selected rows,
+/// folds, population, and history. Equal identity strings are not that
+/// fingerprint. Dependence and uncertainty stay caller-supplied identity
+/// declarations; the fingerprint does not cover them, and those declarations do
+/// not admit the tile alone. A tile that drops rows, splits a fold, or drops
+/// failed draws is a counterexample.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum TileEffect {
@@ -1236,6 +1263,10 @@ fn admit(
             }
         }
     }
+    // The preserving effect is the caller's declaration. Equal identity strings
+    // do not supply the executed fingerprint, so they do not admit the rewrite.
+    // Dependence and uncertainty have no content digest; they stay declarations
+    // and still require this fingerprint before the declaration can pass.
     if frames.is_empty() {
         return Err(altered(kind, PreservationAxis::SampleSelection, NO_FINGERPRINT));
     }
@@ -1733,5 +1764,46 @@ mod tests {
             ColumnFilterPushdown::new(frame.clone(), frame, PushdownEffect::Declared)
                 .with_frames(&original, &same);
         assert!(matches!(pushdown.check(), Ok(())));
+    }
+
+    #[test]
+    fn equal_declaration_strings_without_an_executed_fingerprint_are_refused() {
+        let frame = identities();
+        let pushdown =
+            ColumnFilterPushdown::new(frame.clone(), frame.clone(), PushdownEffect::Declared);
+        let preparation = SharedRowDesignPreparation::new(
+            frame.clone(),
+            frame.clone(),
+            frame.clone(),
+            PreparationEffect::Shared,
+        );
+        let nuisance = NuisanceReuse::new(frame.clone(), frame.clone(), NuisanceEffect::Certified);
+        let summary =
+            SufficientStatistics::new(frame.clone(), frame.clone(), SummaryEffect::Sufficient);
+        let tiled = TiledEvaluation::new(frame.clone(), frame.clone(), TileEffect::Faithful);
+        for axis in PreservationAxis::ALL {
+            assert_eq!(pushdown.cohort().identity(axis), pushdown.pushed().identity(axis));
+            assert_eq!(
+                preparation.preparation().identity(axis),
+                preparation.left().identity(axis),
+            );
+            assert_eq!(
+                preparation.preparation().identity(axis),
+                preparation.right().identity(axis),
+            );
+            assert_eq!(nuisance.fit().identity(axis), nuisance.consumer().identity(axis));
+            assert_eq!(summary.rows().identity(axis), summary.summary().identity(axis));
+            assert_eq!(tiled.full().identity(axis), tiled.tile().identity(axis));
+        }
+        assert!(pushdown.effect().defect().is_none());
+        assert!(preparation.effect().defect().is_none());
+        assert!(nuisance.effect().defect().is_none());
+        assert!(summary.effect().defect().is_none());
+        assert!(tiled.effect().defect().is_none());
+        expect_refusal(&pushdown, PreservationAxis::SampleSelection, "fingerprint");
+        expect_refusal(&preparation, PreservationAxis::SampleSelection, "fingerprint");
+        expect_refusal(&nuisance, PreservationAxis::SampleSelection, "fingerprint");
+        expect_refusal(&summary, PreservationAxis::SampleSelection, "fingerprint");
+        expect_refusal(&tiled, PreservationAxis::SampleSelection, "fingerprint");
     }
 }
