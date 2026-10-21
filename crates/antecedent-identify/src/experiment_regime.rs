@@ -9,10 +9,20 @@
 //! [`decide_experimental_recovery`](crate::experimental_recovery::decide_experimental_recovery),
 //! read a sample, or fit a mechanism.
 //!
-//! A [`UnitMask`] that drops a targeted unit is refused. A shared source identity
-//! contradicts a [`DependencePremise::Independence`] premise on either regime of
-//! a pair; that pair is refused. A [`DependencePremise::Dependence`] premise
-//! agrees with a shared source and is not, by itself, a contradiction. A
+//! A [`UnitMask`] that drops a targeted unit is refused by
+//! [`validate_regime_contract`]. A dropped unit that is not clamped in every
+//! regime would omit a passive term. [`validate_regime_contract_with_passive_units`]
+//! refuses that drop unless a [`PassiveUnitDeclaration`] names the unit, and
+//! accepts it when the declaration is present. The declaration says the unit is
+//! latent or passive. It is not a latent-variable model and it does not supply
+//! the omitted term. Each declared unit is removed from the accepted regimes, so
+//! a later assembly does not treat the omission as silent. Without the
+//! declaration the same drop is refused.
+//!
+//! A shared source identity contradicts a [`DependencePremise::Independence`]
+//! premise on either regime of a pair; that pair is refused. A
+//! [`DependencePremise::Dependence`] premise agrees with a shared source and is
+//! not, by itself, a contradiction. A
 //! dependence premise on a regime that shares its source with no other regime
 //! claims a shared disturbance with nothing, and is refused. A target
 //! outside the regime's sampling units is an incompatible regime and is refused.
@@ -147,12 +157,37 @@ pub struct ExperimentRegime {
 
 /// Units removed before a later recipe sees the regimes.
 ///
-/// Dropping a unit that a regime targets is illegal. Dropping a declared unit
-/// that no regime targets is allowed.
+/// Dropping a unit that a regime targets is illegal on [`validate_regime_contract`].
+/// Dropping a declared unit that no regime targets is allowed there. A unit that
+/// is not clamped in every regime needs [`PassiveUnitDeclaration`] before
+/// [`validate_regime_contract_with_passive_units`] will accept the drop.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct UnitMask {
     /// Sampling units the mask removes.
     pub dropped: Vec<VariableId>,
+}
+
+/// Explicit declaration that dropped units are latent or passive.
+///
+/// This is a declaration. It does not expand the model with a latent variable
+/// and it does not restore the experimental-effect term of a dropped unit.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct PassiveUnitDeclaration {
+    units: Vec<VariableId>,
+}
+
+impl PassiveUnitDeclaration {
+    /// Declare `units` as latent or passive.
+    #[must_use]
+    pub fn naming(units: impl Into<Vec<VariableId>>) -> Self {
+        Self { units: units.into() }
+    }
+
+    /// Units this declaration names, in the order supplied.
+    #[must_use]
+    pub fn units(&self) -> &[VariableId] {
+        &self.units
+    }
 }
 
 /// Regimes plus the mask judged against them.
@@ -217,6 +252,22 @@ pub enum RegimeRefusalReason {
         /// Unit absent from every regime's sampling units.
         unit: VariableId,
     },
+    /// The mask drops a unit that is not clamped in every regime, and no
+    /// [`PassiveUnitDeclaration`] names that unit.
+    DroppedUnitNotClamped {
+        /// Dropped unit that some regime leaves unclamped.
+        unit: VariableId,
+    },
+    /// A passive-unit declaration names a unit the mask does not drop.
+    PassiveUnitNotDropped {
+        /// Declared unit absent from the mask.
+        unit: VariableId,
+    },
+    /// The same unit was declared latent or passive twice.
+    DuplicatePassiveUnit {
+        /// Repeated declaration.
+        unit: VariableId,
+    },
     /// A regime claims dependence but no other regime shares its source.
     DependenceWithoutSharedSource {
         /// Index into [`RegimeContract::regimes`].
@@ -259,6 +310,15 @@ impl fmt::Display for RegimeRefusalReason {
             }
             Self::MaskDropsUnknownUnit { unit } => {
                 write!(f, "mask drops {unit}, which is not a declared sampling unit")
+            }
+            Self::DroppedUnitNotClamped { unit } => {
+                write!(f, "mask drops {unit}, which is not clamped in every regime")
+            }
+            Self::PassiveUnitNotDropped { unit } => {
+                write!(f, "{unit} is declared latent or passive but the mask does not drop it")
+            }
+            Self::DuplicatePassiveUnit { unit } => {
+                write!(f, "latent or passive unit {unit} is declared twice")
             }
             Self::DependenceWithoutSharedSource { regime, source } => {
                 write!(f, "regime {regime} claims dependence but no other regime shares {source}")
@@ -328,6 +388,7 @@ impl fmt::Display for RegimeRefusal {
 pub struct AcceptedRegimeContract {
     regimes: Vec<ExperimentRegime>,
     mask: UnitMask,
+    passive_units: Vec<VariableId>,
 }
 
 impl AcceptedRegimeContract {
@@ -341,6 +402,14 @@ impl AcceptedRegimeContract {
     #[must_use = "the accepted mask is part of the legal input"]
     pub const fn mask(&self) -> &UnitMask {
         &self.mask
+    }
+
+    /// Units declared latent or passive and omitted from the accepted regimes.
+    ///
+    /// Empty when the contract was accepted without [`PassiveUnitDeclaration`].
+    #[must_use = "the declaration is the license to omit these units"]
+    pub fn passive_units(&self) -> &[VariableId] {
+        &self.passive_units
     }
 }
 
@@ -379,7 +448,137 @@ pub fn validate_regime_contract(contract: &RegimeContract) -> RegimeContractDeci
     RegimeContractDecision::Accepted(AcceptedRegimeContract {
         regimes: contract.regimes.clone(),
         mask: contract.mask.clone(),
+        passive_units: Vec::new(),
     })
+}
+
+/// Judge `contract` when `passive` may license a dropped unit that is not clamped
+/// everywhere.
+///
+/// A dropped unit that is not a target of every regime is refused unless
+/// `passive` names it. A named unit is omitted from the accepted regimes and
+/// from the accepted mask; [`AcceptedRegimeContract::passive_units`] retains the
+/// declaration. A unit clamped in every regime is still a targeted drop and is
+/// refused. An empty declaration refuses every such drop.
+///
+/// The check does not build a latent-variable model.
+#[must_use = "a refusal must be repaired before any mechanism is fit"]
+pub fn validate_regime_contract_with_passive_units(
+    contract: &RegimeContract,
+    passive: &PassiveUnitDeclaration,
+) -> RegimeContractDecision {
+    if contract.regimes.is_empty() {
+        return refuse(RegimeRefusalReason::NoRegime);
+    }
+    for (index, regime) in contract.regimes.iter().enumerate() {
+        if let Some(reason) = regime_fault(index, regime) {
+            return refuse(reason);
+        }
+    }
+    let declared = match passive_set(passive) {
+        Ok(declared) => declared,
+        Err(reason) => return refuse(reason),
+    };
+    if let Some(reason) = passive_mask_fault(&contract.regimes, &contract.mask, &declared) {
+        return refuse(reason);
+    }
+    if let Some(reason) = shared_source_fault(&contract.regimes) {
+        return refuse(reason);
+    }
+    let regimes: Vec<ExperimentRegime> = contract
+        .regimes
+        .iter()
+        .map(|regime| omit_passive(regime, &declared))
+        .collect();
+    for (index, regime) in regimes.iter().enumerate() {
+        if regime.units.is_empty() {
+            return refuse(RegimeRefusalReason::EmptySamplingUnits { regime: index });
+        }
+    }
+    let dropped = contract
+        .mask
+        .dropped
+        .iter()
+        .copied()
+        .filter(|unit| !declared.contains(unit))
+        .collect();
+    RegimeContractDecision::Accepted(AcceptedRegimeContract {
+        regimes,
+        mask: UnitMask { dropped },
+        passive_units: passive.units.clone(),
+    })
+}
+
+fn passive_set(
+    passive: &PassiveUnitDeclaration,
+) -> Result<BTreeSet<VariableId>, RegimeRefusalReason> {
+    let mut declared = BTreeSet::new();
+    for &unit in &passive.units {
+        if !declared.insert(unit) {
+            return Err(RegimeRefusalReason::DuplicatePassiveUnit { unit });
+        }
+    }
+    Ok(declared)
+}
+
+fn omit_passive(regime: &ExperimentRegime, passive: &BTreeSet<VariableId>) -> ExperimentRegime {
+    ExperimentRegime {
+        targets: regime
+            .targets
+            .iter()
+            .filter(|target| !passive.contains(&target.unit))
+            .cloned()
+            .collect(),
+        units: regime
+            .units
+            .iter()
+            .copied()
+            .filter(|unit| !passive.contains(unit))
+            .collect(),
+        population: regime.population,
+        premise: regime.premise,
+        source: regime.source,
+    }
+}
+
+fn clamped_everywhere(regimes: &[ExperimentRegime], unit: VariableId) -> bool {
+    regimes.iter().all(|regime| regime.targets.iter().any(|target| target.unit == unit))
+}
+
+fn passive_mask_fault(
+    regimes: &[ExperimentRegime],
+    mask: &UnitMask,
+    passive: &BTreeSet<VariableId>,
+) -> Option<RegimeRefusalReason> {
+    for &unit in &mask.dropped {
+        let mut known = false;
+        let mut targeting = None;
+        for (regime, experiment) in regimes.iter().enumerate() {
+            if experiment.units.contains(&unit) {
+                known = true;
+            }
+            let targets_unit = experiment.targets.iter().any(|target| target.unit == unit);
+            if targets_unit && targeting.is_none() {
+                targeting = Some(regime);
+            }
+        }
+        if !known {
+            return Some(RegimeRefusalReason::MaskDropsUnknownUnit { unit });
+        }
+        if clamped_everywhere(regimes, unit) {
+            let regime = targeting.unwrap_or(0);
+            return Some(RegimeRefusalReason::MaskDropsTargetedUnit { regime, unit });
+        }
+        if !passive.contains(&unit) {
+            return Some(RegimeRefusalReason::DroppedUnitNotClamped { unit });
+        }
+    }
+    for &unit in passive {
+        if !mask.dropped.contains(&unit) {
+            return Some(RegimeRefusalReason::PassiveUnitNotDropped { unit });
+        }
+    }
+    None
 }
 
 fn refuse(reason: RegimeRefusalReason) -> RegimeContractDecision {
@@ -491,9 +690,10 @@ fn shared_source_fault(regimes: &[ExperimentRegime]) -> Option<RegimeRefusalReas
 #[cfg(test)]
 mod tests {
     use super::{
-        DependencePremise, ExperimentRegime, NextRegimeAttempt, PopulationId,
-        REPAIR_MASK_OR_PREMISE, RegimeContract, RegimeContractDecision, RegimeIntervention,
-        RegimeRefusalReason, SourceIdentity, UnitMask, validate_regime_contract,
+        DependencePremise, ExperimentRegime, NextRegimeAttempt, PassiveUnitDeclaration,
+        PopulationId, REPAIR_MASK_OR_PREMISE, RegimeContract, RegimeContractDecision,
+        RegimeIntervention, RegimeRefusalReason, SourceIdentity, UnitMask,
+        validate_regime_contract, validate_regime_contract_with_passive_units,
     };
     use antecedent_core::{Value, VariableId};
 
@@ -651,6 +851,88 @@ mod tests {
         };
         assert_eq!(accepted.regimes(), &[submitted]);
         assert_eq!(accepted.mask().dropped, vec![unit(1)]);
+        assert!(accepted.passive_units().is_empty());
+    }
+
+    #[test]
+    fn a_dropped_unit_that_is_not_clamped_everywhere_needs_a_declaration() {
+        let submitted = regime(&[0, 1], &[intervention(0, 1)], DependencePremise::Independence, 3);
+        let submitted_contract = contract(vec![submitted], &[1]);
+        let absent = validate_regime_contract_with_passive_units(
+            &submitted_contract,
+            &PassiveUnitDeclaration::naming(Vec::new()),
+        );
+        assert_refused(&absent, RegimeRefusalReason::DroppedUnitNotClamped { unit: unit(1) });
+
+        let declared = validate_regime_contract_with_passive_units(
+            &submitted_contract,
+            &PassiveUnitDeclaration::naming(vec![unit(1)]),
+        );
+        let RegimeContractDecision::Accepted(accepted) = &declared else {
+            panic!("a declared latent unit may be dropped");
+        };
+        assert!(accepted.mask().dropped.is_empty());
+        assert_eq!(accepted.passive_units(), &[unit(1)]);
+        assert_eq!(accepted.regimes()[0].units, vec![unit(0)]);
+        assert_eq!(accepted.regimes()[0].targets.len(), 1);
+    }
+
+    #[test]
+    fn a_unit_clamped_in_only_some_regimes_proceeds_when_declared_passive() {
+        let independent = DependencePremise::Independence;
+        let left = regime(&[0, 1], &[intervention(0, 1)], independent, 1);
+        let right = regime(&[0, 1], &[intervention(1, 2)], independent, 2);
+        let submitted = contract(vec![left, right], &[0]);
+        let absent = validate_regime_contract_with_passive_units(
+            &submitted,
+            &PassiveUnitDeclaration::naming(Vec::new()),
+        );
+        assert_refused(&absent, RegimeRefusalReason::DroppedUnitNotClamped { unit: unit(0) });
+
+        let declared = validate_regime_contract_with_passive_units(
+            &submitted,
+            &PassiveUnitDeclaration::naming(vec![unit(0)]),
+        );
+        let RegimeContractDecision::Accepted(accepted) = &declared else {
+            panic!("a declared passive unit is omitted from the observed regimes");
+        };
+        assert_eq!(accepted.passive_units(), &[unit(0)]);
+        assert!(accepted.regimes().iter().all(|regime| !regime.units.contains(&unit(0))));
+        assert!(accepted.regimes().iter().all(|regime| {
+            regime.targets.iter().all(|target| target.unit != unit(0))
+        }));
+        assert_eq!(accepted.regimes()[1].targets[0].unit, unit(1));
+    }
+
+    #[test]
+    fn a_unit_clamped_everywhere_stays_refused_when_declared_passive() {
+        let independent = DependencePremise::Independence;
+        let left = regime(&[0, 1], &[intervention(0, 1)], independent, 1);
+        let right = regime(&[0, 1], &[intervention(0, 2)], independent, 2);
+        let submitted = contract(vec![left, right], &[0]);
+        let declared = validate_regime_contract_with_passive_units(
+            &submitted,
+            &PassiveUnitDeclaration::naming(vec![unit(0)]),
+        );
+        assert_refused(
+            &declared,
+            RegimeRefusalReason::MaskDropsTargetedUnit { regime: 0, unit: unit(0) },
+        );
+    }
+
+    #[test]
+    fn a_passive_declaration_must_name_a_dropped_unit_once() {
+        let submitted = regime(&[0, 1], &[intervention(0, 1)], DependencePremise::Independence, 3);
+        let not_dropped = validate_regime_contract_with_passive_units(
+            &contract(vec![submitted.clone()], &[]),
+            &PassiveUnitDeclaration::naming(vec![unit(1)]),
+        );
+        assert_refused(&not_dropped, RegimeRefusalReason::PassiveUnitNotDropped { unit: unit(1) });
+        let repeated = validate_regime_contract_with_passive_units(
+            &contract(vec![submitted], &[1]),
+            &PassiveUnitDeclaration::naming(vec![unit(1), unit(1)]),
+        );
+        assert_refused(&repeated, RegimeRefusalReason::DuplicatePassiveUnit { unit: unit(1) });
     }
 
     #[test]

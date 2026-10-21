@@ -176,9 +176,6 @@ pub enum HistoryOperatorError {
     /// This is the same limit as [`crate::information_time::ObservedCadence`].
     #[error("cadence tick count does not fit in u32; next attempt: shorten the cadence")]
     CadenceUncountable,
-    /// No initial-state law was supplied.
-    #[error("initial law is missing; next attempt: supply it, a time column does not")]
-    MissingInitialLaw,
     /// A censoring or assignment weight was `NaN` or infinite.
     #[error("{role} weight {value} is not finite; next attempt: supply a finite weight")]
     NonFiniteWeight {
@@ -1134,8 +1131,8 @@ pub struct DelayedFeedbackRequest {
     pub cadence: TimeIndex,
     /// Exclusive horizon end.
     pub horizon: Horizon,
-    /// Initial-state law. Absence is refused.
-    pub initial_law: Option<InitialLaw>,
+    /// Initial-state law bound to the frame.
+    pub initial_law: InitialLaw,
     /// History window. An explicit cap shorter than the delay needs a certificate.
     pub history: HistoryWindow,
     /// Delay. [`None`] is a finite horizon with contemporaneous transmission.
@@ -1160,7 +1157,6 @@ impl DelayedFeedback {
     ///
     /// # Errors
     ///
-    /// [`HistoryOperatorError::MissingInitialLaw`] when `initial_law` is absent.
     /// The frame errors of [`OperatorFrame::try_new`].
     /// [`HistoryOperatorError::UncertifiedTruncation`] when an explicit history
     /// is shorter than the delay or the action lag and `truncation` does not
@@ -1190,9 +1186,6 @@ impl DelayedFeedback {
             search_cap,
             ancestry_steps,
         } = request;
-        let Some(initial_law) = initial_law else {
-            return Err(HistoryOperatorError::MissingInitialLaw);
-        };
         if let Some(change) = &initial_state_change {
             refuse_initial_state_change(&change.law_name, change.level)?;
         }
@@ -1825,14 +1818,6 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_initial_law_is_refused() {
-        let mut request = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
-        request.initial_law = None;
-        let error = DelayedFeedback::try_new(request).unwrap_err();
-        assert_eq!(error, HistoryOperatorError::MissingInitialLaw);
-    }
-
-    #[test]
     fn a_non_finite_weight_is_refused() {
         let (cadence, horizon, law) = frame_inputs();
         let cases = [
@@ -1961,7 +1946,7 @@ mod tests {
         DelayedFeedbackRequest {
             cadence: regular(1, 8),
             horizon: Horizon::ending_at(3),
-            initial_law: Some(origin()),
+            initial_law: origin(),
             history: HistoryWindow::planner_default(),
             delay: Some(FeedbackDelay::delayed(1).unwrap()),
             intervention,

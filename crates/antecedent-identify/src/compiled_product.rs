@@ -97,6 +97,26 @@ pub enum ProductRefusal {
         /// Position of the contradicted assumption in the retained set.
         index: usize,
     },
+    /// The outcome is [`IdentificationOutcome::Identified`] but an unresolved obligation remains.
+    ///
+    /// A declared assumption is a premise, not an unresolved obligation, and does not raise this.
+    #[error("an identified outcome carries unresolved obligation {index}")]
+    IdentifiedWithUnresolvedObligation {
+        /// Position of the unresolved obligation in the list that still carries it.
+        index: usize,
+    },
+    /// [`IdentificationOutcome::Unidentified`] states the identified-claim class.
+    #[error("an unidentified outcome cannot state the identified-claim class")]
+    UnidentifiedWithIdentifiedClaim,
+    /// A world obligation does not name its world.
+    #[error("a world obligation does not name a world")]
+    WorldObligationMissingWorld,
+    /// The assembled functional names a world. A world obligation carries that name.
+    #[error("the assembled functional names world {world:?}")]
+    AssembledObligationNamesWorld {
+        /// World named on the assembled functional.
+        world: ScientificWorldId,
+    },
     /// The outcome is [`IdentificationOutcome::Identified`] but the retained result's status
     /// is not an identified status.
     #[error("an identified product retains a result with status {status:?}")]
@@ -158,7 +178,7 @@ pub enum ProductRefusal {
         /// The outcome that cannot carry an estimand.
         outcome: IdentificationOutcome,
     },
-    /// An outcome other than identified or unidentified states the identified-claim class.
+    /// A failure outcome states the identified-claim class.
     #[error("outcome {outcome:?} cannot state the identified-claim class")]
     IdentifiedClaimClassBesideFailure {
         /// The outcome that cannot state that class.
@@ -181,6 +201,9 @@ const fn check_claim_class(
     outcome: IdentificationOutcome,
     claim_class: IdentificationClaimClass,
 ) -> Result<(), ProductRefusal> {
+    if matches!(outcome, IdentificationOutcome::Unidentified) && claim_class.is_identified_claim() {
+        return Err(ProductRefusal::UnidentifiedWithIdentifiedClaim);
+    }
     if is_failure_outcome(outcome) && claim_class.is_identified_claim() {
         return Err(ProductRefusal::IdentifiedClaimClassBesideFailure { outcome });
     }
@@ -241,20 +264,31 @@ impl UnresolvedObligation {
     }
 }
 
-/// Identification and support obligation for one intervention world.
+/// Identification and support obligation for one world or for the assembled functional.
 ///
-/// Equality ignores [`Self::numerical_value`]. A finite value is feasibility,
-/// not an identified claim.
+/// [`Self::for_world`] names the intervention world. [`Self::assembled`] does not:
+/// a contrast has one assembled obligation. Equality ignores [`Self::numerical_value`].
+/// A finite value is feasibility, not an identified claim.
 #[derive(Clone, Debug)]
-pub struct WorldObligation {
-    world: ScientificWorldId,
+pub struct IdentificationObligation {
+    world: Option<ScientificWorldId>,
     outcome: IdentificationOutcome,
     claim_class: IdentificationClaimClass,
     unresolved: Vec<UnresolvedObligation>,
     numerical_value: Option<f64>,
 }
 
-impl PartialEq for WorldObligation {
+/// Obligation for one intervention world.
+///
+/// This is [`IdentificationObligation`]. The name remains for existing imports.
+pub type WorldObligation = IdentificationObligation;
+
+/// Obligation for the assembled functional.
+///
+/// This is [`IdentificationObligation`]. The name remains for existing imports.
+pub type AssembledFunctionalObligation = IdentificationObligation;
+
+impl PartialEq for IdentificationObligation {
     fn eq(&self, other: &Self) -> bool {
         self.world == other.world
             && self.outcome == other.outcome
@@ -263,42 +297,55 @@ impl PartialEq for WorldObligation {
     }
 }
 
-impl Eq for WorldObligation {}
+impl Eq for IdentificationObligation {}
 
-impl WorldObligation {
+impl IdentificationObligation {
     /// Obligation for `world`.
     ///
     /// `numerical_value` is stored and does not select `outcome`.
     #[must_use]
-    pub const fn new(
+    pub const fn for_world(
         world: ScientificWorldId,
         outcome: IdentificationOutcome,
         claim_class: IdentificationClaimClass,
         unresolved: Vec<UnresolvedObligation>,
         numerical_value: Option<f64>,
     ) -> Self {
-        Self { world, outcome, claim_class, unresolved, numerical_value }
+        Self { world: Some(world), outcome, claim_class, unresolved, numerical_value }
     }
 
-    /// World this obligation names.
+    /// Assembled-functional obligation. It names no world.
+    ///
+    /// `numerical_value` is stored and does not select `outcome`.
     #[must_use]
-    pub const fn world(&self) -> ScientificWorldId {
+    pub const fn assembled(
+        outcome: IdentificationOutcome,
+        claim_class: IdentificationClaimClass,
+        unresolved: Vec<UnresolvedObligation>,
+        numerical_value: Option<f64>,
+    ) -> Self {
+        Self { world: None, outcome, claim_class, unresolved, numerical_value }
+    }
+
+    /// World this obligation names, or [`None`] for the assembled functional.
+    #[must_use]
+    pub const fn world(&self) -> Option<ScientificWorldId> {
         self.world
     }
 
-    /// Identification outcome for this world.
+    /// Identification outcome.
     #[must_use]
     pub const fn outcome(&self) -> IdentificationOutcome {
         self.outcome
     }
 
-    /// Claim class for this world.
+    /// Claim class.
     #[must_use]
     pub const fn claim_class(&self) -> IdentificationClaimClass {
         self.claim_class
     }
 
-    /// Support gaps still open for this world.
+    /// Support gaps still open.
     #[must_use]
     pub fn unresolved(&self) -> &[UnresolvedObligation] {
         &self.unresolved
@@ -313,81 +360,6 @@ impl WorldObligation {
     /// Whether `outcome` and `claim_class` are an identified claim.
     ///
     /// [`Self::numerical_value`] is not consulted.
-    #[must_use]
-    pub const fn is_identified_claim(&self) -> bool {
-        states_identified_claim(self.outcome, self.claim_class)
-    }
-
-    /// Whether a finite value is stored and the outcome is not numerical infeasibility.
-    #[must_use]
-    pub const fn is_numerically_feasible(&self) -> bool {
-        numerically_feasible(self.outcome, self.numerical_value)
-    }
-}
-
-/// Identification and support obligation for the assembled functional.
-///
-/// One contrast has one of these. Equality ignores [`Self::numerical_value`].
-#[derive(Clone, Debug)]
-pub struct AssembledFunctionalObligation {
-    outcome: IdentificationOutcome,
-    claim_class: IdentificationClaimClass,
-    unresolved: Vec<UnresolvedObligation>,
-    numerical_value: Option<f64>,
-}
-
-impl PartialEq for AssembledFunctionalObligation {
-    fn eq(&self, other: &Self) -> bool {
-        self.outcome == other.outcome
-            && self.claim_class == other.claim_class
-            && self.unresolved == other.unresolved
-    }
-}
-
-impl Eq for AssembledFunctionalObligation {}
-
-impl AssembledFunctionalObligation {
-    /// Assembled-functional obligation.
-    ///
-    /// `numerical_value` is stored and does not select `outcome`.
-    #[must_use]
-    pub const fn new(
-        outcome: IdentificationOutcome,
-        claim_class: IdentificationClaimClass,
-        unresolved: Vec<UnresolvedObligation>,
-        numerical_value: Option<f64>,
-    ) -> Self {
-        Self { outcome, claim_class, unresolved, numerical_value }
-    }
-
-    /// Identification outcome for the assembled functional.
-    #[must_use]
-    pub const fn outcome(&self) -> IdentificationOutcome {
-        self.outcome
-    }
-
-    /// Claim class for the assembled functional.
-    #[must_use]
-    pub const fn claim_class(&self) -> IdentificationClaimClass {
-        self.claim_class
-    }
-
-    /// Support gaps still open for the assembled functional.
-    #[must_use]
-    pub fn unresolved(&self) -> &[UnresolvedObligation] {
-        &self.unresolved
-    }
-
-    /// Stored numerical value, when a check produced one.
-    #[must_use]
-    pub const fn numerical_value(&self) -> Option<f64> {
-        self.numerical_value
-    }
-
-    /// Whether this assembled functional is an identified claim.
-    ///
-    /// [`Self::numerical_value`] is not consulted. World-level feasibility is
-    /// not available here and would not decide this either.
     #[must_use]
     pub const fn is_identified_claim(&self) -> bool {
         states_identified_claim(self.outcome, self.claim_class)
@@ -416,10 +388,10 @@ pub struct CompiledProductParts {
     pub unresolved_obligations: Vec<UnresolvedObligation>,
     /// Numerical value stored beside the outcome. Not an identified claim.
     pub numerical_value: Option<f64>,
-    /// Per-world identification and support obligations.
-    pub world_obligations: Vec<WorldObligation>,
+    /// Per-world identification and support obligations. Each one names its world.
+    pub world_obligations: Vec<IdentificationObligation>,
     /// The one assembled-functional obligation, when the target is a contrast.
-    pub assembled: Option<AssembledFunctionalObligation>,
+    pub assembled: Option<IdentificationObligation>,
 }
 
 impl CompiledProductParts {
@@ -460,8 +432,8 @@ pub struct CompiledIdentificationProduct {
     outcome: IdentificationOutcome,
     claim_class: IdentificationClaimClass,
     numerical_value: Option<f64>,
-    world_obligations: Vec<WorldObligation>,
-    assembled: Option<AssembledFunctionalObligation>,
+    world_obligations: Vec<IdentificationObligation>,
+    assembled: Option<IdentificationObligation>,
     target_identity: Option<SemanticDigest>,
 }
 
@@ -490,12 +462,14 @@ impl CompiledIdentificationProduct {
     /// does not change `parts.outcome`.
     ///
     /// The outcome, claim class, and retained pieces must agree. An
-    /// [`IdentificationOutcome::Identified`] product retains at least one estimand and relies on
-    /// no [`AssumptionStatus::Contradicted`] assumption. Unsupported, timed-out, numerically
-    /// infeasible, and uncalibrated products retain no estimand and do not state
+    /// [`IdentificationOutcome::Identified`] product retains at least one estimand, relies on
+    /// no [`AssumptionStatus::Contradicted`] assumption, and carries no unresolved obligation.
+    /// Declared assumptions are premises and may be carried. Unsupported, timed-out, numerically
+    /// infeasible, uncalibrated, and unidentified products do not state
     /// [`IdentificationClaimClass::IdentifiedClaim`], and neither do their world or assembled
-    /// obligations. Open obligations of a declared-assumption kind do not block an identified
-    /// outcome: identification holds under them.
+    /// obligations. A failure outcome retains no estimand. An identified world or assembled
+    /// obligation likewise carries no unresolved obligation, and a world obligation names its
+    /// world.
     ///
     /// # Errors
     ///
@@ -590,9 +564,20 @@ impl CompiledIdentificationProduct {
     }
 
     /// Assumptions the functional relies on.
+    ///
+    /// Declared entries are premises. They are not unresolved obligations.
     #[must_use]
     pub const fn assumptions(&self) -> &AssumptionSet {
         &self.assumptions
+    }
+
+    /// Declared assumptions. These are premises of the product.
+    #[must_use]
+    pub fn premises(&self) -> impl Iterator<Item = &AssumptionRecord> {
+        self.assumptions
+            .entries
+            .iter()
+            .filter(|record| matches!(record.status, AssumptionStatus::Declared))
     }
 
     /// Factors the functional requires.
@@ -667,13 +652,13 @@ impl CompiledIdentificationProduct {
 
     /// Per-world obligations. Empty for a target that names no worlds.
     #[must_use]
-    pub fn world_obligations(&self) -> &[WorldObligation] {
+    pub fn world_obligations(&self) -> &[IdentificationObligation] {
         &self.world_obligations
     }
 
     /// The assembled-functional obligation, when the target is a contrast.
     #[must_use]
-    pub const fn assembled_obligation(&self) -> Option<&AssembledFunctionalObligation> {
+    pub const fn assembled_obligation(&self) -> Option<&IdentificationObligation> {
         self.assembled.as_ref()
     }
 
@@ -714,7 +699,9 @@ impl CompiledIdentificationProduct {
             worlds.iter().map(antecedent_core::InterventionWorld::id).collect();
         let mut retained_worlds = BTreeSet::new();
         for obligation in &self.world_obligations {
-            let world = obligation.world;
+            let Some(world) = obligation.world else {
+                return Err(ProductRefusal::WorldObligationMissingWorld);
+            };
             if !target_worlds.contains(&world) {
                 return Err(ProductRefusal::UnexpectedWorldObligation { world });
             }
@@ -734,7 +721,10 @@ impl CompiledIdentificationProduct {
             if let Some(world) =
                 self.world_obligations.iter().find(|world| !world.is_identified_claim())
             {
-                return Err(ProductRefusal::IdentifiedWithoutWorldSupport { world: world.world });
+                let Some(world_id) = world.world else {
+                    return Err(ProductRefusal::WorldObligationMissingWorld);
+                };
+                return Err(ProductRefusal::IdentifiedWithoutWorldSupport { world: world_id });
             }
         }
         if identified_product && needs_assembled && !identified_assembled {
@@ -755,11 +745,8 @@ impl CompiledIdentificationProduct {
         if self.world_obligations.is_empty() && self.assembled.is_none() {
             return own;
         }
-        own && self.world_obligations.iter().all(WorldObligation::is_identified_claim)
-            && self
-                .assembled
-                .as_ref()
-                .is_some_and(AssembledFunctionalObligation::is_identified_claim)
+        own && self.world_obligations.iter().all(IdentificationObligation::is_identified_claim)
+            && self.assembled.as_ref().is_some_and(IdentificationObligation::is_identified_claim)
     }
 
     /// Whether the assembled functional is an identified claim.
@@ -823,6 +810,7 @@ fn check_coherence(
     if is_failure_outcome(parts.outcome) && !estimands.is_empty() {
         return Err(ProductRefusal::EstimandBesideNonIdentification { outcome: parts.outcome });
     }
+    check_obligation_scope(parts)?;
     if parts.outcome == IdentificationOutcome::Identified {
         if estimands.is_empty() {
             return Err(ProductRefusal::IdentifiedWithoutEstimand);
@@ -833,6 +821,41 @@ fn check_coherence(
             .position(|record| matches!(record.status, AssumptionStatus::Contradicted))
         {
             return Err(ProductRefusal::IdentifiedWithContradictedAssumption { index });
+        }
+        if let Some(index) = first_unresolved(&parts.unresolved_obligations) {
+            return Err(ProductRefusal::IdentifiedWithUnresolvedObligation { index });
+        }
+    }
+    for world in &parts.world_obligations {
+        if world.outcome == IdentificationOutcome::Identified {
+            if let Some(index) = first_unresolved(&world.unresolved) {
+                return Err(ProductRefusal::IdentifiedWithUnresolvedObligation { index });
+            }
+        }
+    }
+    if let Some(assembled) = &parts.assembled {
+        if assembled.outcome == IdentificationOutcome::Identified {
+            if let Some(index) = first_unresolved(&assembled.unresolved) {
+                return Err(ProductRefusal::IdentifiedWithUnresolvedObligation { index });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn first_unresolved(obligations: &[UnresolvedObligation]) -> Option<usize> {
+    if obligations.is_empty() { None } else { Some(0) }
+}
+
+fn check_obligation_scope(parts: &CompiledProductParts) -> Result<(), ProductRefusal> {
+    for obligation in &parts.world_obligations {
+        if obligation.world.is_none() {
+            return Err(ProductRefusal::WorldObligationMissingWorld);
+        }
+    }
+    if let Some(assembled) = &parts.assembled {
+        if let Some(world) = assembled.world {
+            return Err(ProductRefusal::AssembledObligationNamesWorld { world });
         }
     }
     Ok(())
@@ -1228,20 +1251,18 @@ fn write_obligations(writer: &mut CanonicalWriter, obligations: &[UnresolvedObli
     }
 }
 
-fn write_worlds(writer: &mut CanonicalWriter, worlds: &[WorldObligation]) {
+fn write_worlds(writer: &mut CanonicalWriter, worlds: &[IdentificationObligation]) {
     writer.word(count(worlds.len()));
     for world in worlds {
-        writer.word(u64::from(world.world.raw()));
+        let raw = world.world.map_or(0, |id| u64::from(id.raw()));
+        writer.word(raw);
         writer.word(outcome_code(world.outcome));
         writer.word(claim_code(world.claim_class));
         write_obligations(writer, &world.unresolved);
     }
 }
 
-fn write_assembled(
-    writer: &mut CanonicalWriter,
-    assembled: Option<&AssembledFunctionalObligation>,
-) {
+fn write_assembled(writer: &mut CanonicalWriter, assembled: Option<&IdentificationObligation>) {
     match assembled {
         None => {
             writer.word(0);
@@ -1259,6 +1280,7 @@ fn write_assembled(
 mod tests {
     use std::sync::Arc;
 
+    use super::IdentificationObligation;
     use antecedent_core::{
         Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
         AssumptionStatus, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind,
@@ -1388,7 +1410,7 @@ mod tests {
         );
         product.world_obligations = (0..4)
             .map(|id| {
-                WorldObligation::new(
+                IdentificationObligation::for_world(
                     ScientificWorldId::from_raw(id),
                     IdentificationOutcome::Identified,
                     IdentificationClaimClass::IdentifiedClaim,
@@ -1397,7 +1419,7 @@ mod tests {
                 )
             })
             .collect();
-        product.assembled = Some(AssembledFunctionalObligation::new(
+        product.assembled = Some(IdentificationObligation::assembled(
             IdentificationOutcome::Identified,
             IdentificationClaimClass::IdentifiedClaim,
             Vec::new(),
@@ -1425,7 +1447,7 @@ mod tests {
             Err(ProductRefusal::DuplicateWorldObligation { world: ScientificWorldId::from_raw(0) })
         );
         let mut foreign = product.clone();
-        foreign.world_obligations[0].world = ScientificWorldId::from_raw(9);
+        foreign.world_obligations[0].world = Some(ScientificWorldId::from_raw(9));
         assert_eq!(
             foreign.validate_target(&target),
             Err(ProductRefusal::UnexpectedWorldObligation {
@@ -1733,7 +1755,7 @@ mod tests {
     fn numerically_feasible_value_beside_unidentified_is_not_an_identified_claim() {
         let feasible = empty_product(
             IdentificationOutcome::Unidentified,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
             Some(1.25),
         );
         assert_eq!(feasible.numerical_value(), Some(1.25));
@@ -1801,6 +1823,19 @@ mod tests {
             ProductRefusal::IdentifiedWithContradictedAssumption { index: 1 }
         );
 
+        // An unidentified outcome may not state the identified-claim class.
+        assert_eq!(
+            refused(
+                Vec::new(),
+                AssumptionSet::new(),
+                CompiledProductParts::new(
+                    IdentificationOutcome::Unidentified,
+                    IdentificationClaimClass::IdentifiedClaim,
+                )
+            ),
+            ProductRefusal::UnidentifiedWithIdentifiedClaim
+        );
+
         // A failure outcome may not state the identified-claim class or retain an estimand.
         for outcome in [
             IdentificationOutcome::Unsupported,
@@ -1831,7 +1866,7 @@ mod tests {
             IdentificationOutcome::Unidentified,
             IdentificationClaimClass::ModelConditional,
         );
-        with_world.world_obligations = vec![WorldObligation::new(
+        with_world.world_obligations = vec![IdentificationObligation::for_world(
             ScientificWorldId::from_raw(1),
             IdentificationOutcome::TimedOut,
             IdentificationClaimClass::IdentifiedClaim,
@@ -1849,17 +1884,17 @@ mod tests {
     #[test]
     fn assembled_contrast_is_not_identified_when_each_world_is_only_feasible() {
         let world = |raw: u32| {
-            WorldObligation::new(
+            IdentificationObligation::for_world(
                 ScientificWorldId::from_raw(raw),
                 IdentificationOutcome::Unidentified,
-                IdentificationClaimClass::IdentifiedClaim,
+                IdentificationClaimClass::ModelConditional,
                 Vec::new(),
                 Some(f64::from(raw)),
             )
         };
-        let assembled = AssembledFunctionalObligation::new(
+        let assembled = IdentificationObligation::assembled(
             IdentificationOutcome::Unidentified,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
             Vec::new(),
             Some(4.0),
         );
@@ -1973,6 +2008,19 @@ mod tests {
                 status: IdentificationStatus::NotIdentified
             }
         );
+        // An identified outcome may carry declared premises and must not carry an open obligation.
+        assert_eq!(
+            CompiledIdentificationProduct::retain(&result, parts.clone()).unwrap_err(),
+            ProductRefusal::IdentifiedWithUnresolvedObligation { index: 0 }
+        );
+        let mut unidentified = parts.clone();
+        unidentified.outcome = IdentificationOutcome::Unidentified;
+        unidentified.claim_class = IdentificationClaimClass::ModelConditional;
+        let carrying = CompiledIdentificationProduct::retain(&result, unidentified).unwrap();
+        assert_eq!(carrying.unresolved_obligations().len(), 1);
+        assert_eq!(carrying.unresolved_obligations()[0].code(), "support.overlap");
+        assert!(!carrying.is_identified_claim());
+        parts.unresolved_obligations.clear();
         let product = CompiledIdentificationProduct::retain(&result, parts).unwrap();
 
         assert_eq!(product.identified().len(), 1);
@@ -1982,10 +2030,10 @@ mod tests {
         assert_eq!(product.derivation().steps.len(), 1);
         assert_eq!(product.derivation().steps[0].rule.as_ref(), "backdoor");
         assert_eq!(product.assumptions().len(), 1);
+        assert_eq!(product.premises().count(), 1);
+        assert!(product.unresolved_obligations().is_empty());
         assert_eq!(product.required_factors().len(), 1);
         assert_eq!(product.required_factors()[0].name(), "outcome_mean");
-        assert_eq!(product.unresolved_obligations().len(), 1);
-        assert_eq!(product.unresolved_obligations()[0].code(), "support.overlap");
         assert_eq!(product.bounded_search_diagnostics().len(), 3);
         assert!(product.bounded_search_diagnostics().iter().all(|diagnostic| {
             diagnostic.code.as_ref().ends_with(".search_bounded")
@@ -1999,12 +2047,12 @@ mod tests {
     fn scientific_identity_ignores_numerical_values_and_bounded_search_diagnostics() {
         let with_number = empty_product(
             IdentificationOutcome::Unidentified,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
             Some(0.0),
         );
         let without_number = empty_product(
             IdentificationOutcome::Unidentified,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
             None,
         );
         assert_eq!(with_number, without_number);
@@ -2013,7 +2061,7 @@ mod tests {
 
         let negative_zero = empty_product(
             IdentificationOutcome::Unidentified,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
             Some(-0.0),
         );
         assert_eq!(with_number, negative_zero);
@@ -2021,16 +2069,16 @@ mod tests {
 
         let mut parts = CompiledProductParts::new(
             IdentificationOutcome::Unidentified,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
         );
-        parts.world_obligations = vec![WorldObligation::new(
+        parts.world_obligations = vec![IdentificationObligation::for_world(
             ScientificWorldId::from_raw(7),
             IdentificationOutcome::Unidentified,
             IdentificationClaimClass::ModelConditional,
             Vec::new(),
             Some(9.0),
         )];
-        parts.assembled = Some(AssembledFunctionalObligation::new(
+        parts.assembled = Some(IdentificationObligation::assembled(
             IdentificationOutcome::TimedOut,
             IdentificationClaimClass::UnsupportedExtrapolation,
             Vec::new(),
@@ -2045,7 +2093,7 @@ mod tests {
             parts.clone(),
         )
         .unwrap();
-        parts.world_obligations[0] = WorldObligation::new(
+        parts.world_obligations[0] = IdentificationObligation::for_world(
             ScientificWorldId::from_raw(7),
             IdentificationOutcome::Unidentified,
             IdentificationClaimClass::ModelConditional,
@@ -2053,7 +2101,7 @@ mod tests {
             None,
         );
         if let Some(assembled) = parts.assembled.as_mut() {
-            *assembled = AssembledFunctionalObligation::new(
+            *assembled = IdentificationObligation::assembled(
                 IdentificationOutcome::TimedOut,
                 IdentificationClaimClass::UnsupportedExtrapolation,
                 Vec::new(),
@@ -2108,13 +2156,13 @@ mod tests {
             Vec::new(),
             CompiledProductParts::new(
                 IdentificationOutcome::Unidentified,
-                IdentificationClaimClass::IdentifiedClaim,
+                IdentificationClaimClass::ModelConditional,
             ),
         )
         .unwrap();
         let unidentified = empty_product(
             IdentificationOutcome::Unidentified,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
             None,
         );
         assert_ne!(different_derivation, unidentified);
@@ -2163,7 +2211,7 @@ mod tests {
         .unwrap();
         let empty = empty_product(
             IdentificationOutcome::Unidentified,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
             None,
         );
         assert_eq!(functional, same_functional);

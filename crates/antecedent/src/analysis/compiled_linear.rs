@@ -7,10 +7,10 @@ use antecedent_core::{
 };
 use antecedent_data::TableView;
 use antecedent_estimate::CheckedLinearAdjustmentAte;
+use antecedent_identify::compiled_product::IdentificationObligation;
 use antecedent_identify::{
-    AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
-    IdentificationClaimClass, IdentificationOutcome, IdentificationResult, RequiredFactor,
-    UnresolvedObligation, WorldObligation,
+    CompiledIdentificationProduct, CompiledProductParts, IdentificationClaimClass,
+    IdentificationOutcome, IdentificationResult, RequiredFactor, UnresolvedObligation,
 };
 use std::sync::Arc;
 #[path = "linear_resources.rs"]
@@ -224,7 +224,7 @@ fn retain_linear_gaussian(
     let (outcome, claim_class) = identification_claim(identification.status);
     let worlds = world_obligations(outcome, claim_class, &unresolved);
     let assembled =
-        AssembledFunctionalObligation::new(outcome, claim_class, unresolved.clone(), None);
+        IdentificationObligation::assembled(outcome, claim_class, unresolved.clone(), None);
     let mut parts = CompiledProductParts::new(outcome, claim_class);
     parts.required_factors = factors;
     parts.unresolved_obligations = unresolved;
@@ -249,11 +249,11 @@ fn world_obligations(
     outcome: IdentificationOutcome,
     claim_class: IdentificationClaimClass,
     unresolved: &[UnresolvedObligation],
-) -> Vec<WorldObligation> {
+) -> Vec<IdentificationObligation> {
     [CONTROL_WORLD, ACTIVE_WORLD]
         .into_iter()
         .map(|raw| {
-            WorldObligation::new(
+            IdentificationObligation::for_world(
                 antecedent_core::ScientificWorldId::from_raw(raw),
                 outcome,
                 claim_class,
@@ -276,19 +276,19 @@ fn identification_claim(
         antecedent_core::IdentificationStatus::PartiallyIdentified
         | antecedent_core::IdentificationStatus::GraphDependent
         | antecedent_core::IdentificationStatus::NotIdentified => {
-            (IdentificationOutcome::Unidentified, IdentificationClaimClass::IdentifiedClaim)
+            (IdentificationOutcome::Unidentified, IdentificationClaimClass::ModelConditional)
         }
     }
 }
 
+/// Contradicted assumptions remain open. Declared assumptions are premises of the
+/// identification and are not copied into unresolved obligations.
 fn unresolved_obligations(assumptions: &AssumptionSet) -> Vec<UnresolvedObligation> {
     assumptions
         .entries
         .iter()
         .enumerate()
-        .filter(|(_, record)| {
-            matches!(record.status, AssumptionStatus::Declared | AssumptionStatus::Contradicted)
-        })
+        .filter(|(_, record)| matches!(record.status, AssumptionStatus::Contradicted))
         .map(|(index, record)| {
             UnresolvedObligation::new(
                 obligation_code(&record.assumption, index),

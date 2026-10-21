@@ -439,7 +439,7 @@ fn admit_delayed_finite_horizon(
     DelayedFeedback::try_new(DelayedFeedbackRequest {
         cadence: cadence.clone(),
         horizon,
-        initial_law: Some(mechanism.dynamics.initial_law().clone()),
+        initial_law: mechanism.dynamics.initial_law().clone(),
         history,
         delay: Some(mechanism.delay),
         intervention: intervention.clone(),

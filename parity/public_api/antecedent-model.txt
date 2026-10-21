@@ -3100,7 +3100,7 @@ pub field antecedent_model::history_operators::DelayedFeedbackRequest::cadence: 
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::delay: core::option::Option<antecedent_model::history_operators::FeedbackDelay>
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::history: antecedent_core::scientific_target::HistoryWindow
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::horizon: antecedent_model::history_operators::Horizon
-pub field antecedent_model::history_operators::DelayedFeedbackRequest::initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>
+pub field antecedent_model::history_operators::DelayedFeedbackRequest::initial_law: antecedent_core::scientific_target::InitialLaw
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::initial_state_change: core::option::Option<antecedent_model::history_operators::InitialStateChange>
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::intervention: antecedent_core::intervention::Intervention
 pub field antecedent_model::history_operators::DelayedFeedbackRequest::search_cap: core::option::Option<antecedent_model::history_operators::FeedbackSearchCap>
@@ -4339,7 +4339,6 @@ pub variant antecedent_model::history_operators::HistoryOperatorError::HorizonSt
 pub variant antecedent_model::history_operators::HistoryOperatorError::InformationRefused { refusal: antecedent_model::information_time::InformationRefusal }
 pub variant antecedent_model::history_operators::HistoryOperatorError::InitialLawMismatch { frame: antecedent_core::scientific_target::InitialLaw, dynamics: antecedent_core::scientific_target::InitialLaw }
 pub variant antecedent_model::history_operators::HistoryOperatorError::InvertedWindow { from_step: i32, until_step: i32 }
-pub variant antecedent_model::history_operators::HistoryOperatorError::MissingInitialLaw
 pub variant antecedent_model::history_operators::HistoryOperatorError::NegativeInnovationVariance { value: f64 }
 pub variant antecedent_model::history_operators::HistoryOperatorError::NoFixedPoint
 pub variant antecedent_model::history_operators::HistoryOperatorError::NonFiniteLevel { value: f64 }

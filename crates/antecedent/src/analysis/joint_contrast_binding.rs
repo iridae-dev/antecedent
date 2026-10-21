@@ -17,9 +17,10 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{ScoreTable, effect_estimate::CompiledFamilyContrast};
+use antecedent_identify::compiled_product::IdentificationObligation;
 use antecedent_identify::{
-    AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
-    IdentificationClaimClass, IdentificationOutcome, RequiredFactor, WorldObligation,
+    CompiledIdentificationProduct, CompiledProductParts, IdentificationClaimClass,
+    IdentificationOutcome, RequiredFactor,
 };
 
 use super::batch::CellFamilyContrast;
@@ -55,7 +56,7 @@ pub(super) fn bind(
         .world_arms
         .iter()
         .map(|&world| {
-            WorldObligation::new(
+            IdentificationObligation::for_world(
                 ScientificWorldId::from_raw(world),
                 identified_outcome,
                 claim,
@@ -65,7 +66,7 @@ pub(super) fn bind(
         })
         .collect();
     parts.assembled =
-        Some(AssembledFunctionalObligation::new(identified_outcome, claim, vec![], None));
+        Some(IdentificationObligation::assembled(identified_outcome, claim, vec![], None));
     let mut variables = cells.treatments;
     variables.push(cells.outcome);
     variables.extend(table.adjustment_set.iter().copied());
