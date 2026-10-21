@@ -13,8 +13,9 @@
 //! [`ProviderDisposition::Isolated`] or [`ProviderDisposition::Refused`].
 //!
 //! [`BoundarySession::stop`] reports [`BoundaryReport::Stopped`] only after
-//! lease recovery and spill cleanup are both recorded. The lease id is a
-//! caller-supplied `u64`; recovery sets the flag on the receipt.
+//! lease recovery and spill cleanup are both recorded. Recovery releases a
+//! live [`DeviceReservationLease`](crate::device_reservation::DeviceReservationLease)
+//! and records that release. A caller-supplied flag or lease id is not recovery.
 //! [`BoundarySession::succeed`] is refused when a spill was opened and its
 //! cleanup was not recorded. An unrecorded call size or elapsed time is an
 //! absent measurement, not zero.

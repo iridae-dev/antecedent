@@ -104,6 +104,7 @@ impl !core::marker::Freeze for antecedent_core::device_reservation::DeviceReserv
 impl !core::marker::Freeze for antecedent_core::device_reservation::FoldAdmission [auto]
 impl !core::marker::Freeze for antecedent_core::device_reservation::LearnerAdmission [auto]
 impl !core::marker::Freeze for antecedent_core::execution::AdmissionLease [auto]
+impl !core::marker::Freeze for antecedent_core::scratch_pool::ScratchGuard [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExecutionContext [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_core::ExecutionContext [auto]
 impl core::clone::Clone for antecedent_core::AdaptiveBootstrapBudget
@@ -3135,7 +3136,6 @@ impl core::marker::Freeze for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageStatus [auto]
 impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchFull [auto]
-impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchGuard [auto]
 impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchKind [auto]
 impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchPool [auto]
 impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchPoolError [auto]
@@ -8041,7 +8041,7 @@ pub fn <antecedent_core::scratch_pool::ScratchPool>::fn capacity_buffers(&self) 
 pub fn <antecedent_core::scratch_pool::ScratchPool>::fn kind(&self) -> antecedent_core::scratch_pool::ScratchKind
 pub fn <antecedent_core::scratch_pool::ScratchPool>::fn live(&self) -> u64
 pub fn <antecedent_core::scratch_pool::ScratchPool>::fn peak_live(&self) -> u64
-pub fn <antecedent_core::scratch_pool::ScratchPool>::fn try_acquire(&self) -> core::result::Result<antecedent_core::scratch_pool::ScratchGuard, antecedent_core::scratch_pool::ScratchFull>
+pub fn <antecedent_core::scratch_pool::ScratchPool>::fn try_acquire(&self, parent: &antecedent_core::execution::AdmissionLease) -> core::result::Result<antecedent_core::scratch_pool::ScratchGuard, antecedent_core::scratch_pool::ScratchFull>
 pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn family(self) -> antecedent_core::search_budget::SearchFamily
 pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn memory_bytes(self) -> u64
 pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn work(self) -> u64

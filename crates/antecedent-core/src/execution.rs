@@ -512,6 +512,10 @@ struct LeaseSlot {
     threads: u32,
     bytes: u64,
     observation: Option<crate::execution_attempt::ObservedAdmission>,
+    /// Set when a test asks the cancellation scan to return this slot.
+    /// A live owner is not marked by [`CancellationToken::cancel`].
+    #[allow(dead_code)]
+    cancelled: bool,
 }
 
 enum GrantError {
@@ -673,6 +677,7 @@ fn push_lease(
         threads: request.threads,
         bytes: request.bytes,
         observation,
+        cancelled: false,
     });
     id
 }
@@ -734,6 +739,28 @@ fn close_slot(state: &mut AdmissionState, index: usize) -> AdmissionRemainder {
         }
     }
     AdmissionRemainder::new(threads, bytes)
+}
+
+/// Return every slot marked `cancelled`, visiting each slot once.
+///
+/// The index is not reset after a removal. Resetting it would rescan slots that
+/// were already kept and could miss a slot that slid into the removed index
+/// only on a later pass.
+#[cfg(test)]
+fn reap_cancelled(state: &mut AdmissionState) -> (usize, usize) {
+    let mut index = 0;
+    let mut removed = 0;
+    let mut visits = 0;
+    while index < state.leases.len() {
+        visits += 1;
+        if state.leases[index].cancelled {
+            close_slot(state, index);
+            removed += 1;
+        } else {
+            index += 1;
+        }
+    }
+    (removed, visits)
 }
 
 fn close_and_notify(shared: &SharedAdmission, id: u64) -> AdmissionRemainder {
@@ -830,6 +857,39 @@ impl AdmissionLease {
         Ok(Self::new(Arc::clone(&self.shared), id, Arc::clone(&self.flag)))
     }
 
+    /// Root lease on the pool that issued `self`.
+    ///
+    /// The new lease is not a portion of this remainder. This remainder stays
+    /// put. The pool's free counters pay for it, under the same cancellation flag.
+    ///
+    /// # Errors
+    ///
+    /// [`AdmissionError::ExceedsRemainder`] when the pool's free counters are short.
+    /// [`AdmissionError::Cancelled`] when the study was cancelled.
+    /// [`AdmissionError::Released`] when this lease is already gone.
+    /// [`AdmissionError::Overflow`] when naming another lease does not fit in `u64`.
+    pub(crate) fn acquire_from_pool(
+        &self,
+        threads: u32,
+        bytes: u64,
+    ) -> Result<Self, AdmissionError> {
+        let mut guard = lock_mutex(&self.shared.state);
+        if self.flag.load(Ordering::SeqCst) {
+            return Err(AdmissionError::Cancelled);
+        }
+        if lease_index(&guard.leases, self.id).is_none() {
+            self.active.store(false, Ordering::SeqCst);
+            return Err(AdmissionError::Released);
+        }
+        let request = AdmissionRequest::new(threads, bytes);
+        let id = match grant_root(&mut guard, request) {
+            Ok(id) => id,
+            Err(GrantError::Overflow) => return Err(AdmissionError::Overflow),
+            Err(GrantError::Short(error)) => return Err(error),
+        };
+        Ok(Self::new(Arc::clone(&self.shared), id, Arc::clone(&self.flag)))
+    }
+
     /// CPU and RAM this lease still holds, including during cancellation cleanup.
     #[must_use]
     pub fn remainder(&self) -> AdmissionRemainder {
@@ -874,24 +934,13 @@ impl fmt::Debug for AdmissionLease {
     }
 }
 
-struct CancelFlag {
+/// Shared wait state. A production token is this and nothing else.
+struct CancelWait {
     cancelled: Arc<AtomicBool>,
     waiters: Mutex<Vec<Weak<SharedAdmission>>>,
-    /// Observations left before this token cancels. `None` on a production token.
-    trip_after: Option<AtomicUsize>,
 }
 
-impl Default for CancelFlag {
-    fn default() -> Self {
-        Self {
-            cancelled: Arc::new(AtomicBool::new(false)),
-            waiters: Mutex::new(Vec::new()),
-            trip_after: None,
-        }
-    }
-}
-
-impl CancelFlag {
+impl CancelWait {
     fn register_pool(&self, shared: &Arc<SharedAdmission>) {
         let mut waiters = lock_mutex(&self.waiters);
         waiters.retain(|waiter| waiter.strong_count() > 0);
@@ -901,24 +950,84 @@ impl CancelFlag {
         }
     }
 
-    /// Set the cancelled flag and wake each registered pool while holding that pool's state lock.
+    /// Store the cancelled flag and notify each pool while holding that pool's state lock.
     ///
-    /// A waiter checks the flag and then sleeps on the same lock. Notifying after the lock is
-    /// dropped lets that waiter miss the wake and sleep until its bound.
+    /// The flag is stored again under the pool lock, before `notify_all`. A waiter holds
+    /// that same lock while it reads the flag and only then waits, so it cannot pass the
+    /// read, miss the notify, and sleep until its bound.
     fn wake(&self) {
-        self.cancelled.store(true, Ordering::SeqCst);
         let waiters = {
             let mut waiters = lock_mutex(&self.waiters);
             waiters.retain(|waiter| waiter.strong_count() > 0);
             waiters.clone()
         };
+        // Publish before notifying so a waiter that registers after this snapshot
+        // observes the flag under the pool lock and does not sleep.
+        self.cancelled.store(true, Ordering::SeqCst);
         for waiter in waiters {
             let Some(shared) = waiter.upgrade() else {
                 continue;
             };
             let _state = lock_mutex(&shared.state);
+            self.cancelled.store(true, Ordering::SeqCst);
             shared.released.notify_all();
         }
+    }
+}
+
+/// Test-only observation counter. It is not a field of [`CancelWait`].
+struct AfterChecks {
+    wait: CancelWait,
+    left: AtomicUsize,
+}
+
+enum CancelFlag {
+    Production(CancelWait),
+    AfterChecks(AfterChecks),
+}
+
+impl Default for CancelFlag {
+    fn default() -> Self {
+        Self::Production(CancelWait {
+            cancelled: Arc::new(AtomicBool::new(false)),
+            waiters: Mutex::new(Vec::new()),
+        })
+    }
+}
+
+impl CancelFlag {
+    fn wait(&self) -> &CancelWait {
+        match self {
+            Self::Production(wait) => wait,
+            Self::AfterChecks(checks) => &checks.wait,
+        }
+    }
+
+    fn register_pool(&self, shared: &Arc<SharedAdmission>) {
+        self.wait().register_pool(shared);
+    }
+
+    fn wake(&self) {
+        self.wait().wake();
+    }
+
+    fn is_requested(&self) -> bool {
+        self.wait().cancelled.load(Ordering::SeqCst)
+    }
+
+    /// Production reads the flag. [`CancellationToken::cancel_after_checks`] spends one
+    /// observation first. That counter lives only on [`Self::AfterChecks`].
+    fn is_cancelled(&self) -> bool {
+        if let Self::AfterChecks(checks) = self {
+            let expired = checks
+                .left
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+                .is_err();
+            if expired {
+                checks.wait.wake();
+            }
+        }
+        self.is_requested()
     }
 }
 
@@ -936,7 +1045,7 @@ impl fmt::Debug for CancellationToken {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("CancellationToken")
-            .field("cancelled", &self.flag.cancelled.load(Ordering::SeqCst))
+            .field("cancelled", &self.flag.is_requested())
             .finish()
     }
 }
@@ -950,17 +1059,20 @@ impl CancellationToken {
 
     /// A token that cancels itself on its `checks + 1`-th observation, so a
     /// test can stop a search deterministically in the middle (every budget
-    /// charge observes the token once). The counter is not part of a production token.
+    /// charge observes the token once). The counter is a separate flag body.
+    /// [`Self::new`] does not carry it.
     // doc(hidden): test helper called from integration tests across the workspace.
     #[doc(hidden)]
     #[must_use]
     pub fn cancel_after_checks(checks: usize) -> Self {
         Self {
-            flag: Arc::new(CancelFlag {
-                cancelled: Arc::new(AtomicBool::new(false)),
-                waiters: Mutex::new(Vec::new()),
-                trip_after: Some(AtomicUsize::new(checks)),
-            }),
+            flag: Arc::new(CancelFlag::AfterChecks(AfterChecks {
+                wait: CancelWait {
+                    cancelled: Arc::new(AtomicBool::new(false)),
+                    waiters: Mutex::new(Vec::new()),
+                },
+                left: AtomicUsize::new(checks),
+            })),
         }
     }
 
@@ -972,8 +1084,8 @@ impl CancellationToken {
 
     /// Request cancellation and wake admission waits bound to this token.
     ///
-    /// The cancelled flag is stored, then each registered pool is notified while that pool's
-    /// state lock is held.
+    /// The cancelled flag is stored while the pool state lock is held, and the
+    /// condvar is notified before that lock is released.
     pub fn cancel(&self) {
         self.flag.wake();
     }
@@ -985,7 +1097,7 @@ impl CancellationToken {
     /// number of checks a cell makes stays the cell's own planned count.
     #[must_use]
     pub fn is_requested(&self) -> bool {
-        self.flag.cancelled.load(Ordering::SeqCst)
+        self.flag.is_requested()
     }
 
     /// Whether cancellation was requested.
@@ -994,17 +1106,11 @@ impl CancellationToken {
     /// one observation first.
     #[must_use]
     pub fn is_cancelled(&self) -> bool {
-        if let Some(left) = &self.flag.trip_after {
-            if left.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1)).is_err()
-            {
-                self.cancel();
-            }
-        }
-        self.flag.cancelled.load(Ordering::SeqCst)
+        self.flag.is_cancelled()
     }
 
     fn cancel_flag(&self) -> Arc<AtomicBool> {
-        Arc::clone(&self.flag.cancelled)
+        Arc::clone(&self.flag.wait().cancelled)
     }
 }
 
@@ -2116,16 +2222,134 @@ mod tests {
                 parent: None,
                 threads: 1,
                 bytes: 0,
+                cancelled: false,
             }],
             next_id: 8,
             blocked_waiters: 0,
         };
+        let recorded = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let slot = std::sync::Arc::clone(&recorded);
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            *slot.lock().expect("panic text") = info.to_string();
+        }));
         let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             close_slot(&mut state, 0);
         }));
-        assert!(panicked.is_err());
+        std::panic::set_hook(previous);
+        assert!(panicked.is_err(), "credit overflow must panic");
+        let text = recorded.lock().expect("panic text").clone();
+        assert!(text.contains("overflow"), "{text}");
         assert_eq!(state.leases.len(), 1);
         assert_eq!(state.leases[0].id, 7);
+        assert!(!state.leases[0].cancelled);
+    }
+
+    #[test]
+    fn cancel_wakes_a_blocked_waiter() {
+        let shared = AdmissionPool::fixed(1, 8);
+        let study = ExecutionContext::for_tests(1).with_admission(shared.clone());
+        let held = study.acquire_admission(1, 8).unwrap();
+        let waiting_study = study.clone();
+        let started = Instant::now();
+        let waiting = thread::spawn(move || {
+            waiting_study.acquire_admission_bounded(1, 8, Duration::from_secs(30))
+        });
+        while shared.blocked_waiters() == 0 {
+            assert!(started.elapsed() < Duration::from_secs(2), "waiter did not block");
+            thread::yield_now();
+        }
+        study.cancellation.cancel();
+        let result = waiting.join().unwrap();
+        assert!(started.elapsed() < Duration::from_secs(2), "cancel left the waiter sleeping");
+        assert!(matches!(result, Err(AdmissionError::Cancelled)));
+        drop(held);
+        assert_eq!(shared.available(), AdmissionRemainder::new(1, 8));
+    }
+
+    #[test]
+    fn two_contexts_do_not_share_a_mutated_pool() {
+        let original = AdmissionPool::fixed(2, 10);
+        let first = ExecutionContext::for_tests(1).with_admission(original.clone());
+        let sibling = first.clone();
+        let replacement = AdmissionPool::fixed(4, 40);
+        let moved = sibling.with_admission(replacement.clone());
+        let held = first.acquire_admission(2, 10).unwrap();
+        assert_eq!(original.available().threads(), 0);
+        assert_eq!(original.available().bytes(), 0);
+        assert_eq!(replacement.available().threads(), 4);
+        let moved_hold = moved.acquire_admission(4, 40).unwrap();
+        assert_eq!(replacement.available().threads(), 0);
+        moved.cancellation.cancel();
+        assert!(first.cancellation.is_requested());
+        assert_eq!(first.admission().thread_budget(), 2);
+        assert_eq!(moved.admission().thread_budget(), 4);
+        drop(held);
+        drop(moved_hold);
+        assert_eq!(original.available().threads(), 2);
+        assert_eq!(replacement.available().threads(), 4);
+    }
+
+    #[test]
+    fn reap_removes_every_cancelled_lease_in_one_scan() {
+        let mut state = AdmissionState {
+            thread_budget: 10,
+            byte_budget: 100,
+            threads_free: 4,
+            bytes_free: 40,
+            leases: vec![
+                LeaseSlot {
+                    id: 3,
+                    parent: Some(1),
+                    threads: 1,
+                    bytes: 10,
+                    observation: None,
+                    cancelled: true,
+                },
+                LeaseSlot {
+                    id: 2,
+                    parent: None,
+                    threads: 3,
+                    bytes: 30,
+                    observation: None,
+                    cancelled: false,
+                },
+                LeaseSlot {
+                    id: 1,
+                    parent: None,
+                    threads: 2,
+                    bytes: 20,
+                    observation: None,
+                    cancelled: true,
+                },
+                LeaseSlot {
+                    id: 4,
+                    parent: Some(2),
+                    threads: 0,
+                    bytes: 0,
+                    observation: None,
+                    cancelled: false,
+                },
+            ],
+            next_id: 5,
+            blocked_waiters: 0,
+        };
+        let (removed, visits) = reap_cancelled(&mut state);
+        assert_eq!(removed, 2);
+        assert_eq!(visits, 4, "a restart would visit kept slots again");
+        assert_eq!(state.leases.iter().map(|slot| slot.id).collect::<Vec<_>>(), vec![2, 4]);
+        assert!(state.leases.iter().all(|slot| !slot.cancelled));
+        assert_eq!(state.leases[1].parent, Some(2));
+        assert_eq!(state.threads_free, 7);
+        assert_eq!(state.bytes_free, 70);
+        let mut threads = state.threads_free;
+        let mut bytes = state.bytes_free;
+        for slot in &state.leases {
+            threads += slot.threads;
+            bytes += slot.bytes;
+        }
+        assert_eq!(threads, state.thread_budget);
+        assert_eq!(bytes, state.byte_budget);
     }
 
     #[test]

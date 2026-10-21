@@ -1,14 +1,13 @@
-//! Bounded worker scratch for row, draw, grid, fold, and replicate batches.
+//! Scratch width for row, draw, grid, fold, and replicate batches.
 //!
-//! [`ScratchPool::try_acquire`] is the producer admission. The returned guard is
-//! the consumer's hold on one buffer. Dropping the guard returns that buffer
-//! and is the only release. A consumer that keeps the guard is stalled:
-//! further acquires return [`ScratchFull`] immediately.
+//! The admission account is an [`AdmissionLease`](crate::execution::AdmissionLease).
+//! [`ScratchPool::try_acquire`] draws one buffer from that lease. Dropping the
+//! guard drops the child lease, which is the release. Declared buffer capacity
+//! is not a second budget and does not refuse a lease that can pay.
 //!
-//! The pool accounts for `capacity_buffers * bytes_per_buffer` and does not
-//! allocate the numeric payload. [`ScratchPool::peak_live`] is the high-water
-//! mark of live guards. It is never greater than the capacity. Admission does
-//! not wait, sleep, or spawn workers.
+//! The pool does not allocate the numeric payload. [`ScratchPool::peak_live`]
+//! is the high-water mark of live guards. Admission does not wait, sleep, or
+//! spawn workers.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -16,6 +15,8 @@ use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use thiserror::Error;
+
+use crate::execution::AdmissionLease;
 
 /// Batch whose scratch buffers share one bounded pool.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -89,14 +90,14 @@ pub enum ScratchPoolError {
     },
 }
 
-/// The pool already holds `capacity` live buffers.
+/// The admission lease could not fund another buffer.
 ///
-/// This is the backpressure signal for a stalled consumer. The acquire did not
-/// wait for a guard to drop.
+/// This is the backpressure signal. The acquire did not wait, and the declared
+/// buffer capacity was not consulted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Error)]
 #[error(
-    "scratch pool `{kind}` is full with {live} live buffers at capacity {capacity}; next \
-     attempt: drop a held guard before acquiring another"
+    "scratch pool `{kind}` cannot draw a buffer from the admission lease ({live} live, declared \
+     capacity {capacity}); next attempt: release a lease or raise the pool"
 )]
 pub struct ScratchFull {
     kind: ScratchKind,
@@ -145,10 +146,10 @@ impl Shared {
     }
 }
 
-/// Bounded account of live scratch buffers for one batch kind.
+/// Scratch width for one batch kind.
 ///
-/// Clones share the live count, the high-water mark, and the byte account.
-/// The pool stores that account. It does not store the numeric payload.
+/// Clones share the live count and the high-water mark. Bytes are drawn from
+/// the admission lease passed to [`Self::try_acquire`], not from `capacity_buffers`.
 #[derive(Clone, Debug)]
 pub struct ScratchPool {
     shared: Arc<Shared>,
@@ -199,7 +200,7 @@ impl ScratchPool {
         self.shared.kind
     }
 
-    /// Most live guards this pool admits.
+    /// Declared buffer count. Admission does not consult it.
     #[must_use]
     pub fn capacity_buffers(&self) -> u64 {
         self.shared.capacity
@@ -226,45 +227,51 @@ impl ScratchPool {
     /// High-water mark of live buffers.
     ///
     /// The mark advances when a guard is admitted and stays when a guard is
-    /// dropped. It is never greater than [`Self::capacity_buffers`].
+    /// dropped. It can pass [`Self::capacity_buffers`] when the lease can pay.
     #[must_use]
     pub fn peak_live(&self) -> u64 {
         self.shared.lock().peak
     }
 
-    /// Admit one live buffer, or refuse because the pool is full.
+    /// Draw one buffer from `parent`'s pool.
     ///
-    /// A full pool is backpressure. This returns immediately. It does not wait
-    /// for a consumer to drop a guard, and it does not sleep.
+    /// The draw is a root lease on that same pool, so it does not shrink
+    /// `parent`'s own remainder. A declared capacity does not refuse the draw.
+    /// This returns immediately. It does not wait, sleep, or spawn.
     ///
     /// # Errors
     ///
-    /// [`ScratchFull`] when `capacity_buffers` guards are already live. Drop one
-    /// held guard to admit another. The high-water mark stays at capacity.
-    pub fn try_acquire(&self) -> Result<ScratchGuard, ScratchFull> {
+    /// [`ScratchFull`] when the pool cannot fund `bytes_per_buffer`. `parent`
+    /// is unchanged. Drop a held guard to return those bytes.
+    pub fn try_acquire(&self, parent: &AdmissionLease) -> Result<ScratchGuard, ScratchFull> {
+        let lease = match parent.acquire_from_pool(0, self.shared.bytes_per_buffer) {
+            Ok(lease) => lease,
+            Err(_error) => {
+                return Err(ScratchFull {
+                    kind: self.shared.kind,
+                    capacity: self.shared.capacity,
+                    live: self.live(),
+                });
+            }
+        };
         let mut state = self.shared.lock();
-        if state.live >= self.shared.capacity {
-            return Err(ScratchFull {
-                kind: self.shared.kind,
-                capacity: self.shared.capacity,
-                live: state.live,
-            });
-        }
         state.live += 1;
         state.peak = state.peak.max(state.live);
         drop(state);
-        Ok(ScratchGuard { shared: Arc::clone(&self.shared) })
+        Ok(ScratchGuard { shared: Arc::clone(&self.shared), _lease: lease })
     }
 }
 
-/// One admitted scratch buffer.
+/// One scratch buffer funded by an admission lease.
 ///
-/// Dropping the guard returns the buffer to the pool. The guard does not own
-/// a numeric payload; [`Self::bytes`] is the accounted width.
+/// Dropping the guard drops that lease. The guard does not own a numeric
+/// payload; [`Self::bytes`] is the accounted width.
 #[derive(Debug)]
-#[must_use = "dropping the guard releases the scratch buffer"]
+#[must_use = "dropping the guard releases the scratch lease"]
 pub struct ScratchGuard {
     shared: Arc<Shared>,
+    /// Returned to the pool when this guard drops.
+    _lease: AdmissionLease,
 }
 
 impl ScratchGuard {
@@ -294,12 +301,21 @@ mod tests {
     use std::thread;
 
     use super::*;
+    use crate::ExecutionContext;
+    use crate::execution::{AdmissionLease, AdmissionPool};
 
-    fn acquire_all(pool: &ScratchPool) -> Vec<ScratchGuard> {
+    fn open_parent(bytes: u64) -> AdmissionLease {
+        ExecutionContext::for_tests(1)
+            .with_admission(AdmissionPool::fixed(1, bytes))
+            .acquire_admission(0, 0)
+            .expect("parent lease")
+    }
+
+    fn acquire_all(pool: &ScratchPool, parent: &AdmissionLease) -> Vec<ScratchGuard> {
         let capacity = pool.capacity_buffers();
         let mut guards = Vec::new();
         for expected_live in 1..=capacity {
-            let guard = match pool.try_acquire() {
+            let guard = match pool.try_acquire(parent) {
                 Ok(guard) => guard,
                 Err(full) => {
                     panic!("{} full at {} while filling {expected_live}", full.kind(), full.live())
@@ -309,7 +325,6 @@ mod tests {
             assert_eq!(guard.bytes(), pool.bytes_per_buffer());
             assert_eq!(pool.live(), expected_live);
             assert_eq!(pool.peak_live(), expected_live);
-            assert!(pool.peak_live() <= capacity);
             guards.push(guard);
         }
         assert_eq!(pool.peak_live(), capacity);
@@ -330,19 +345,20 @@ mod tests {
     fn each_kind_peak_equals_capacity_when_consumer_holds_every_buffer() {
         for kind in ScratchKind::ALL {
             let pool = ScratchPool::bounded(kind, 5, 24).expect("pool");
+            let parent = open_parent(120);
             assert_eq!(pool.accounted_bytes(), 120);
-            let guards = acquire_all(&pool);
+            let guards = acquire_all(&pool, &parent);
             assert_eq!(guards.len(), 5);
-            match pool.try_acquire() {
+            match pool.try_acquire(&parent) {
                 Err(full) => {
                     assert_eq!(full.kind(), kind);
                     assert_eq!(full.capacity(), 5);
                     assert_eq!(full.live(), 5);
                     let text = full.to_string();
                     assert!(text.contains(kind.as_str()), "{text}");
-                    assert!(text.contains("capacity"), "{text}");
+                    assert!(text.contains("lease"), "{text}");
                 }
-                Ok(_) => panic!("{kind} admitted a buffer past capacity"),
+                Ok(_) => panic!("{kind} admitted a buffer past the lease"),
             }
             assert_eq!(pool.live(), 5);
             assert_eq!(pool.peak_live(), 5);
@@ -356,13 +372,14 @@ mod tests {
     fn each_kind_one_release_admits_one_more() {
         for kind in ScratchKind::ALL {
             let pool = ScratchPool::bounded(kind, 4, 16).expect("pool");
+            let parent = open_parent(64);
             let worker = pool.clone();
-            let mut guards = acquire_all(&worker);
-            assert!(pool.try_acquire().is_err());
+            let mut guards = acquire_all(&worker, &parent);
+            assert!(pool.try_acquire(&parent).is_err());
             drop(guards.remove(0));
             assert_eq!(pool.live(), 3);
             assert_eq!(pool.peak_live(), 4);
-            let admitted = match pool.try_acquire() {
+            let admitted = match pool.try_acquire(&parent) {
                 Ok(guard) => guard,
                 Err(full) => panic!("{kind} stayed full at {} after one release", full.live()),
             };
@@ -370,7 +387,7 @@ mod tests {
             assert_eq!(admitted.bytes(), 16);
             assert_eq!(pool.live(), 4);
             assert_eq!(pool.peak_live(), 4);
-            assert!(pool.try_acquire().is_err());
+            assert!(pool.try_acquire(&parent).is_err());
             assert_eq!(pool.peak_live(), 4);
             drop(admitted);
             drop(guards);
@@ -414,8 +431,9 @@ mod tests {
             assert_eq!(pool.accounted_bytes(), product);
             assert_eq!(pool.bytes_per_buffer(), bytes);
             let empty = ScratchPool::bounded(kind, 1, 0).expect("zero width is an account");
+            let parent = open_parent(0);
             assert_eq!(empty.accounted_bytes(), 0);
-            assert_eq!(empty.try_acquire().expect("empty buffer").bytes(), 0);
+            assert_eq!(empty.try_acquire(&parent).expect("empty buffer").bytes(), 0);
         }
     }
 
@@ -443,16 +461,18 @@ mod tests {
         const CAPACITY: u64 = 4;
         for kind in ScratchKind::ALL {
             let pool = ScratchPool::bounded(kind, CAPACITY, 32).expect("pool");
+            let parent = open_parent(CAPACITY * 32);
+            let parent_lease = &parent;
             let barrier = Arc::new(Barrier::new(WORKERS + 1));
             thread::scope(|scope| {
                 for _ in 0..WORKERS {
                     let pool = pool.clone();
                     let barrier = Arc::clone(&barrier);
                     scope.spawn(move || {
-                        let held = pool.try_acquire();
+                        let held = pool.try_acquire(parent_lease);
                         let _leader = barrier.wait();
                         let release = WaitOnDrop { barrier: &barrier };
-                        assert!(pool.try_acquire().is_err(), "{kind}");
+                        assert!(pool.try_acquire(parent_lease).is_err(), "{kind}");
                         assert!(pool.peak_live() <= CAPACITY, "{kind}");
                         // `held` stays live until the second wait, so the stall is visible.
                         drop(release);
@@ -463,7 +483,7 @@ mod tests {
                 let release = WaitOnDrop { barrier: &barrier };
                 assert_eq!(pool.live(), CAPACITY, "{kind}");
                 assert_eq!(pool.peak_live(), CAPACITY, "{kind}");
-                match pool.try_acquire() {
+                match pool.try_acquire(&parent) {
                     Err(full) => {
                         assert_eq!(full.kind(), kind);
                         assert_eq!(full.capacity(), CAPACITY);
@@ -476,5 +496,21 @@ mod tests {
             assert_eq!(pool.live(), 0, "{kind}");
             assert_eq!(pool.peak_live(), CAPACITY, "{kind}");
         }
+    }
+
+    #[test]
+    fn declared_capacity_does_not_refuse_a_lease_that_can_pay() {
+        let pool = ScratchPool::bounded(ScratchKind::Fold, 1, 8).expect("pool");
+        let parent = open_parent(16);
+        let first = pool.try_acquire(&parent).expect("first buffer");
+        let second = pool.try_acquire(&parent).expect("lease funds a second buffer");
+        assert_eq!(pool.capacity_buffers(), 1);
+        assert_eq!(pool.live(), 2);
+        assert_eq!(pool.peak_live(), 2);
+        assert!(pool.try_acquire(&parent).is_err());
+        drop(first);
+        drop(second);
+        assert_eq!(pool.live(), 0);
+        assert_eq!(pool.peak_live(), 2);
     }
 }

@@ -1,10 +1,11 @@
 //! CPU admission for a fold and its learner.
 //!
 //! No accelerator is promoted. Selecting one refuses and does not touch the
-//! device account. A granted fold draws CPU slots and RAM from the shared
-//! [`ExecutionContext`] admission pool and one scratch buffer. A learner draws
-//! its CPU and RAM from that fold. A request larger than the remainder is
-//! refused and leaves both accounts unchanged. Cancellation returns the scratch
+//! device account. A granted fold draws CPU slots, RAM, and one scratch buffer
+//! from the shared [`ExecutionContext`] admission pool. A learner draws its CPU
+//! and RAM from that fold and its scratch from the same pool. A request larger
+//! than the remainder is refused and leaves both accounts unchanged. Cancellation
+//! returns the scratch
 //! and the lease on the CPU path.
 //!
 //! Predictions are written by physical row. Non-neural values stay `f64`.
@@ -187,7 +188,7 @@ pub enum CpuAdmissionError {
     /// A size did not fit in `u64`.
     #[error("admission arithmetic overflowed and was refused")]
     Overflow,
-    /// The scratch pool had no free buffer. Any CPU lease taken for this attempt was returned.
+    /// The admission pool could not fund the scratch buffer. The CPU lease was returned.
     #[error("{0}")]
     Scratch(ScratchFull),
 }
@@ -216,9 +217,9 @@ impl FoldAdmission {
     /// [`CpuAdmissionError::LearnerExceedsLease`] when the request is larger
     /// than this fold's remainder. [`CpuAdmissionError::Cancelled`] when the
     /// study is cancelled. [`CpuAdmissionError::Released`] when this fold is
-    /// already gone. [`CpuAdmissionError::Scratch`] when `scratch` is full; the
-    /// child lease is returned. [`CpuAdmissionError::Overflow`] when the lease
-    /// id does not fit.
+    /// already gone. [`CpuAdmissionError::Scratch`] when the pool cannot fund the
+    /// scratch buffer; the child lease is returned. [`CpuAdmissionError::Overflow`]
+    /// when the lease id does not fit.
     #[must_use = "a refused learner is not permission to fit"]
     pub fn admit_learner(
         &self,
@@ -230,7 +231,7 @@ impl FoldAdmission {
             return Err(CpuAdmissionError::Released);
         };
         let child = parent.acquire_child(threads, bytes).map_err(learner_error)?;
-        match scratch.try_acquire() {
+        match scratch.try_acquire(&child) {
             Ok(guard) => Ok(LearnerAdmission { hold: Hold::from_parts(child, guard) }),
             Err(full) => {
                 drop(child);
@@ -267,15 +268,16 @@ impl LearnerAdmission {
 
 /// Take a fold lease and one scratch buffer.
 ///
-/// Cancellation and a short remainder grant nothing. A full scratch pool
-/// returns the lease it just took.
+/// Cancellation and a short remainder grant nothing. Scratch bytes are a second
+/// root lease on the same pool. If that draw fails, the CPU lease is returned.
 ///
 /// # Errors
 ///
 /// [`CpuAdmissionError::Cancelled`] when `ctx` is cancelled.
 /// [`CpuAdmissionError::FoldExceedsLease`] when `threads` or `bytes` exceed the
-/// shared remainder. [`CpuAdmissionError::Scratch`] when `scratch` is full.
-/// [`CpuAdmissionError::Overflow`] when the lease id does not fit.
+/// shared remainder. [`CpuAdmissionError::Scratch`] when the pool cannot fund
+/// `scratch`'s buffer width. [`CpuAdmissionError::Overflow`] when the lease id
+/// does not fit.
 #[must_use = "a refused fold is not permission to run it"]
 pub fn admit_fold(
     ctx: &ExecutionContext,
@@ -291,7 +293,7 @@ pub fn admit_fold(
         drop(lease);
         return Err(CpuAdmissionError::Cancelled);
     }
-    match scratch.try_acquire() {
+    match scratch.try_acquire(&lease) {
         Ok(guard) => Ok(FoldAdmission { hold: Hold::from_parts(lease, guard) }),
         Err(full) => {
             drop(lease);
@@ -418,25 +420,31 @@ fn admission_error(
 }
 
 fn fold_error(error: AdmissionError) -> CpuAdmissionError {
-    admission_error(error, |requested_threads, requested_bytes, remaining_threads, remaining_bytes| {
-        CpuAdmissionError::FoldExceedsLease {
-            requested_threads,
-            requested_bytes,
-            remaining_threads,
-            remaining_bytes,
-        }
-    })
+    admission_error(
+        error,
+        |requested_threads, requested_bytes, remaining_threads, remaining_bytes| {
+            CpuAdmissionError::FoldExceedsLease {
+                requested_threads,
+                requested_bytes,
+                remaining_threads,
+                remaining_bytes,
+            }
+        },
+    )
 }
 
 fn learner_error(error: AdmissionError) -> CpuAdmissionError {
-    admission_error(error, |requested_threads, requested_bytes, remaining_threads, remaining_bytes| {
-        CpuAdmissionError::LearnerExceedsLease {
-            requested_threads,
-            requested_bytes,
-            remaining_threads,
-            remaining_bytes,
-        }
-    })
+    admission_error(
+        error,
+        |requested_threads, requested_bytes, remaining_threads, remaining_bytes| {
+            CpuAdmissionError::LearnerExceedsLease {
+                requested_threads,
+                requested_bytes,
+                remaining_threads,
+                remaining_bytes,
+            }
+        },
+    )
 }
 
 #[cfg(test)]
@@ -477,7 +485,7 @@ mod tests {
                 requested_threads: 1,
                 requested_bytes: 20,
                 remaining_threads: 1,
-                remaining_bytes: 10,
+                remaining_bytes: 2,
             }
         );
         assert_eq!(scratch.live(), 1);
@@ -489,17 +497,14 @@ mod tests {
 
     #[test]
     fn scratch_refusal_returns_the_cpu_lease() {
-        let pool = AdmissionPool::fixed(2, 100);
+        let pool = AdmissionPool::fixed(2, 10);
         let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
-        let scratch = ScratchPool::bounded(ScratchKind::Fold, 1, 8).unwrap();
-        let held = admit_fold(&ctx, &scratch, 1, 10).unwrap();
+        let scratch = ScratchPool::bounded(ScratchKind::Fold, 4, 8).unwrap();
         let error = admit_fold(&ctx, &scratch, 1, 10).unwrap_err();
         assert!(matches!(error, CpuAdmissionError::Scratch(_)));
-        assert_eq!(scratch.live(), 1);
-        assert_eq!(pool.available().bytes(), 90);
-        drop(held);
         assert_eq!(scratch.live(), 0);
-        assert_eq!(pool.available().bytes(), 100);
+        assert_eq!(pool.available().bytes(), 10);
+        assert_eq!(pool.available().threads(), 2);
     }
 
     #[test]
@@ -539,7 +544,7 @@ mod tests {
         let mut hold = admit_fold(&ctx, &scratch, 1, 40).unwrap();
         assert!(!hold.observe_cancel(&ctx.cancellation));
         assert_eq!(scratch.live(), 1);
-        assert_eq!(pool.available().bytes(), 60);
+        assert_eq!(pool.available().bytes(), 44);
         ctx.cancellation.cancel();
         assert!(hold.observe_cancel(&ctx.cancellation));
         assert_eq!(scratch.live(), 0);

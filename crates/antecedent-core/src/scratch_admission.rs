@@ -19,7 +19,7 @@ pub enum ScratchRefusal {
     /// The byte product does not fit. It was not wrapped.
     #[error("scratch size overflows")]
     Overflow,
-    /// The scratch is larger than [`crate::MemoryBudget::hard_limit_bytes`].
+    /// Not produced. Scratch admission does not read [`crate::MemoryBudget`].
     #[error("scratch of {bytes} bytes exceeds the hard byte limit of {limit}")]
     HardLimit {
         /// Bytes requested.
@@ -103,7 +103,6 @@ impl ExecutionContext {
     /// # Errors
     ///
     /// [`ScratchRefusal::Overflow`] when `per_worker_bytes * workers` does not fit,
-    /// [`ScratchRefusal::HardLimit`] when it is above the hard byte limit,
     /// [`ScratchRefusal::PoolShort`] when the pool cannot fund it even for one worker's
     /// share of slots, and [`ScratchRefusal::Cancelled`] when the study is cancelled.
     pub fn admit_scratch(
