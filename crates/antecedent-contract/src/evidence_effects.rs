@@ -9,7 +9,10 @@
 //! operators applied to ledger subjects ([`SourceId`] and [`ResultId`]).
 //! [`EvidenceEffectLedger::try_combine`] admits a numerical combination only
 //! after that effect has been recorded. Until then the refusal's next attempt
-//! is to record the effect, then combine.
+//! is to record the effect, then combine. A pooling effect also consults a
+//! [`DependenceContract`] and the evidence ledger's observation overlap.
+//! Sources that share rows are refused as an independent pool, or recorded
+//! with [`EvidenceEffect::dependent_pooling`] and then combined.
 //!
 //! One operator does not stand in for another. A mixture is not a pool, a
 //! bridge is not transport, and an envelope is not a marginal. The five
@@ -25,8 +28,10 @@ use std::sync::Arc;
 
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 
+use crate::dependence::{DependenceContract, DependenceError, DependenceSource, SharedFactorKind};
 use crate::evidence_ledger::{
-    MAX_COMBINATION_SOURCES, MAX_RESULTS, MAX_TEXT_BYTES, ResultId, SourceId, SynthesisKind,
+    EvidenceLedger, LedgerError, MAX_COMBINATION_SOURCES, MAX_RESULTS, MAX_TEXT_BYTES, Overlap,
+    ResultId, SourceId, SynthesisKind,
 };
 
 const IDENTITY_TAG: &str = "antecedent.contract.evidence_effect.v1";
@@ -48,8 +53,15 @@ const SHARED_DETAIL: &str = "evidence_effects.shared_source";
 const BLANK_DETAIL: &str = "evidence_effects.blank_text";
 const TEXT_DETAIL: &str = "evidence_effects.text_too_long";
 const LIMIT_DETAIL: &str = "evidence_effects.limit";
+const NOT_CONSULTED_DETAIL: &str = "evidence_effects.dependence_not_consulted";
+const SHARED_ROWS_DETAIL: &str = "evidence_effects.shared_rows";
+const DEPENDENT_SOURCES_DETAIL: &str = "evidence_effects.dependent_sources";
+const OVERLAP_UNKNOWN_DETAIL: &str = "evidence_effects.overlap_unknown";
+const DEPENDENCE_ABSENT_DETAIL: &str = "evidence_effects.dependence_not_found";
+const LEDGER_OVERLAP_DETAIL: &str = "evidence_effects.ledger_overlap";
 
-const TOO_MANY_MESSAGE: &str = "a combination names too many sources";
+const TOO_MANY_MESSAGE: &str = "a combination names at most 64 sources";
+const _: () = assert!(MAX_COMBINATION_SOURCES == 64);
 const DUPLICATE_MESSAGE: &str = "a source is listed twice";
 const BLANK_MESSAGE: &str = "a label is blank";
 const TEXT_MESSAGE: &str = "a label is longer than the ledger allows";
@@ -179,16 +191,27 @@ impl fmt::Display for EvidenceOperator {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct NextAttempt {
     operator: EvidenceOperator,
+    dependent: bool,
 }
 
 impl NextAttempt {
     /// Wording of the next attempt.
     pub const PHRASE: &'static str = "record the effect, then combine";
 
+    /// Wording when the pool has to be recorded as dependent.
+    pub const DEPENDENT_PHRASE: &'static str =
+        "record the pooling effect as dependent, then combine";
+
     /// Record `operator`, then combine under that same operator.
     #[must_use]
     pub const fn record_then_combine(operator: EvidenceOperator) -> Self {
-        Self { operator }
+        Self { operator, dependent: false }
+    }
+
+    /// Record a pooling effect as dependent, then combine.
+    #[must_use]
+    pub const fn record_dependent_pooling() -> Self {
+        Self { operator: EvidenceOperator::Pooling, dependent: true }
     }
 
     /// The effect the next attempt records.
@@ -196,11 +219,23 @@ impl NextAttempt {
     pub const fn operator(self) -> EvidenceOperator {
         self.operator
     }
+
+    /// Whether the next attempt records the pool as dependent.
+    #[must_use]
+    pub const fn is_dependent(self) -> bool {
+        self.dependent
+    }
+
+    /// Wording of this attempt.
+    #[must_use]
+    pub const fn phrase(self) -> &'static str {
+        if self.dependent { Self::DEPENDENT_PHRASE } else { Self::PHRASE }
+    }
 }
 
 impl fmt::Display for NextAttempt {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(Self::PHRASE)
+        formatter.write_str(self.phrase())
     }
 }
 
@@ -230,7 +265,7 @@ impl fmt::Display for EffectId {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum EffectBody {
-    Pooling(Box<[SourceId]>),
+    Pooling { sources: Box<[SourceId]>, dependent: bool },
     HierarchicalBorrowing { priors: Box<[SourceId]>, likelihood: Box<[SourceId]> },
     Transport { transported: Box<[SourceId]>, native: Box<[SourceId]> },
     Bridge { source: SourceId, contract: Arc<str> },
@@ -263,7 +298,26 @@ impl EvidenceEffect {
         sources: impl IntoIterator<Item = SourceId>,
     ) -> Result<Self, EvidenceEffectError> {
         let sources = canonical_sources(sources, 2, "pooling needs at least two sources")?;
-        Ok(Self { body: EffectBody::Pooling(sources) })
+        Ok(Self { body: EffectBody::Pooling { sources, dependent: false } })
+    }
+
+    /// Pool `sources` and record that the pool is dependent.
+    ///
+    /// Use this when the sources share rows or another dependence factor.
+    /// [`EvidenceEffectLedger::try_combine`] admits it only after that
+    /// dependence was consulted. An independent pool of the same sources is a
+    /// different effect.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when fewer than two sources are named, a source is
+    /// listed twice, or the list exceeds [`MAX_COMBINATION_SOURCES`].
+    #[must_use = "an effect the ledger cannot record is refused"]
+    pub fn dependent_pooling(
+        sources: impl IntoIterator<Item = SourceId>,
+    ) -> Result<Self, EvidenceEffectError> {
+        let sources = canonical_sources(sources, 2, "pooling needs at least two sources")?;
+        Ok(Self { body: EffectBody::Pooling { sources, dependent: true } })
     }
 
     /// Hierarchically borrow `priors` into `likelihood`, or update that hierarchy.
@@ -398,7 +452,7 @@ impl EvidenceEffect {
     #[must_use]
     pub const fn operator(&self) -> EvidenceOperator {
         match &self.body {
-            EffectBody::Pooling(_) => EvidenceOperator::Pooling,
+            EffectBody::Pooling { .. } => EvidenceOperator::Pooling,
             EffectBody::HierarchicalBorrowing { .. } => EvidenceOperator::HierarchicalBorrowing,
             EffectBody::Transport { .. } => EvidenceOperator::Transport,
             EffectBody::Bridge { .. } => EvidenceOperator::Bridge,
@@ -416,9 +470,11 @@ impl EvidenceEffect {
         let mut writer = CanonicalWriter::new(IDENTITY_TAG);
         writer.word(EFFECT_IDENTITY_VERSION).text(self.operator().as_str());
         match &self.body {
-            EffectBody::Pooling(sources)
-            | EffectBody::Mixture(sources)
-            | EffectBody::Envelope(sources) => {
+            EffectBody::Pooling { sources, dependent } => {
+                writer.word(u64::from(*dependent));
+                write_sources(&mut writer, sources);
+            }
+            EffectBody::Mixture(sources) | EffectBody::Envelope(sources) => {
                 write_sources(&mut writer, sources);
             }
             EffectBody::HierarchicalBorrowing { priors, likelihood } => {
@@ -447,7 +503,7 @@ impl EvidenceEffect {
     #[must_use = "only a pooling effect has pooling sources"]
     pub fn pooling_sources(&self) -> Option<&[SourceId]> {
         match &self.body {
-            EffectBody::Pooling(sources) => Some(sources.as_ref()),
+            EffectBody::Pooling { sources, .. } => Some(sources.as_ref()),
             _ => None,
         }
     }
@@ -559,6 +615,15 @@ impl EvidenceEffect {
             _ => None,
         }
     }
+
+    /// Whether this pool was recorded as dependent.
+    #[must_use = "only a dependent pool records dependence"]
+    pub const fn is_dependent_pool(&self) -> bool {
+        match &self.body {
+            EffectBody::Pooling { dependent, .. } => *dependent,
+            _ => false,
+        }
+    }
 }
 
 /// An effect stored on the ledger, with the identity combination checks.
@@ -589,6 +654,7 @@ impl RecordedEffect {
 pub struct NumericalAdmission {
     effect: EffectId,
     operator: EvidenceOperator,
+    dependent: bool,
 }
 
 impl NumericalAdmission {
@@ -609,6 +675,50 @@ impl NumericalAdmission {
     pub const fn synthesis_kind(self) -> Option<SynthesisKind> {
         self.operator.synthesis_kind()
     }
+
+    /// Whether the admitted pool was recorded as dependent.
+    #[must_use]
+    pub const fn is_dependent(self) -> bool {
+        self.dependent
+    }
+}
+
+/// One ledger source and the dependence factors it declares.
+///
+/// [`EvidenceEffectLedger::consult`] pairs these with observation overlap on
+/// the evidence ledger. The source id is the ledger id. The dependence source
+/// names the factors.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PooledSource {
+    source: SourceId,
+    dependence: DependenceSource,
+}
+
+impl PooledSource {
+    /// Pair `source` with the factors in `dependence`.
+    #[must_use]
+    pub const fn new(source: SourceId, dependence: DependenceSource) -> Self {
+        Self { source, dependence }
+    }
+
+    /// Evidence-ledger identity.
+    #[must_use]
+    pub const fn source(&self) -> SourceId {
+        self.source
+    }
+
+    /// Factors this source declares.
+    #[must_use]
+    pub const fn dependence(&self) -> &DependenceSource {
+        &self.dependence
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct StoredOverlap {
+    left: SourceId,
+    right: SourceId,
+    overlap: Overlap,
 }
 
 /// Effects recorded before numerical combination.
@@ -619,13 +729,64 @@ impl NumericalAdmission {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EvidenceEffectLedger {
     recorded: Vec<RecordedEffect>,
+    consulted: Vec<PooledSource>,
+    overlaps: Vec<StoredOverlap>,
 }
 
 impl EvidenceEffectLedger {
     /// An empty effect ledger.
     #[must_use]
     pub fn new() -> Self {
-        Self { recorded: Vec::new() }
+        Self { recorded: Vec::new(), consulted: Vec::new(), overlaps: Vec::new() }
+    }
+
+    /// Consult `sources` against `ledger` before a pool is recorded or combined.
+    ///
+    /// Stores the dependence factors and the pairwise observation overlap.
+    /// A later consult replaces this one. Pooling reads it from
+    /// [`Self::record`] and [`Self::try_combine`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when more than [`MAX_COMBINATION_SOURCES`] sources are
+    /// named, a source id is repeated, the dependence assessment is refused, or
+    /// a source is not on `ledger`.
+    #[must_use = "pooling is refused until dependence and ledger overlap are consulted"]
+    pub fn consult(
+        &mut self,
+        sources: &[PooledSource],
+        ledger: &EvidenceLedger,
+    ) -> Result<(), EvidenceEffectError> {
+        if sources.len() > MAX_COMBINATION_SOURCES {
+            return Err(EvidenceEffectError::invalid(TOO_MANY_DETAIL, TOO_MANY_MESSAGE));
+        }
+        let mut seen = BTreeSet::new();
+        for source in sources {
+            if !seen.insert(source.source()) {
+                return Err(EvidenceEffectError::shared(DUPLICATE_DETAIL, DUPLICATE_MESSAGE));
+            }
+        }
+        let dependence: Vec<DependenceSource> =
+            sources.iter().map(|source| source.dependence().clone()).collect();
+        if let Err(error) = DependenceContract::assess(&dependence) {
+            return Err(EvidenceEffectError::from_dependence(&error));
+        }
+        let mut overlaps = Vec::new();
+        for (index, left) in sources.iter().enumerate() {
+            for right in sources.iter().skip(index + 1) {
+                let overlap = ledger
+                    .overlap(left.source(), right.source())
+                    .map_err(|error| EvidenceEffectError::ledger_overlap(&error))?;
+                overlaps.push(StoredOverlap {
+                    left: left.source(),
+                    right: right.source(),
+                    overlap,
+                });
+            }
+        }
+        self.consulted = sources.to_vec();
+        self.overlaps = overlaps;
+        Ok(())
     }
 
     /// Effects in the order they were first recorded.
@@ -645,13 +806,17 @@ impl EvidenceEffectLedger {
     /// # Errors
     ///
     /// Returns an error when the ledger already holds [`MAX_RECORDED_EFFECTS`]
-    /// distinct effects.
+    /// distinct effects. A pooling effect is also refused when dependence and
+    /// ledger overlap have not been consulted, when an independent pool shares
+    /// rows or another dependence factor, or when a dependent pool was
+    /// requested for sources that are independent.
     #[must_use = "recording the effect is what later combination checks"]
     pub fn record(&mut self, effect: EvidenceEffect) -> Result<EffectId, EvidenceEffectError> {
         let id = effect.identity();
         if self.get(id).is_some() {
             return Ok(id);
         }
+        self.check_pooling(&effect)?;
         if self.recorded.len() >= MAX_RECORDED_EFFECTS {
             return Err(EvidenceEffectError::limit());
         }
@@ -670,7 +835,9 @@ impl EvidenceEffectLedger {
     /// to record it, then combine. When a different operator is already
     /// recorded on the same subjects, the error names that the operators are
     /// not interchangeable and the next attempt is to record this effect,
-    /// then combine.
+    /// then combine. A recorded pool is refused when dependence was not
+    /// consulted, when the sources share rows and the pool is not recorded as
+    /// dependent, or when overlap is unknown.
     #[must_use = "numerical combination without a recorded effect is refused"]
     pub fn try_combine(
         &self,
@@ -678,7 +845,12 @@ impl EvidenceEffectLedger {
     ) -> Result<NumericalAdmission, EvidenceEffectError> {
         let id = effect.identity();
         if self.get(id).is_some() {
-            return Ok(NumericalAdmission { effect: id, operator: effect.operator() });
+            self.check_pooling(effect)?;
+            return Ok(NumericalAdmission {
+                effect: id,
+                operator: effect.operator(),
+                dependent: effect.is_dependent_pool(),
+            });
         }
         if let Some(other) = different_operator_on_same_subjects(&self.recorded, effect) {
             return Err(EvidenceEffectError::not_interchangeable(
@@ -697,7 +869,8 @@ impl EvidenceEffectLedger {
     /// to record `requested`, then combine. When `id` was recorded under a
     /// different operator, the error names that the operators are not
     /// interchangeable and the next attempt is to record `requested`, then
-    /// combine.
+    /// combine. A recorded pool is checked against the consulted dependence
+    /// contract and ledger overlap, the same way [`Self::try_combine`] checks.
     #[must_use = "a different operator does not admit this combination"]
     pub fn try_combine_as(
         &self,
@@ -707,12 +880,63 @@ impl EvidenceEffectLedger {
         match self.get(id) {
             None => Err(EvidenceEffectError::not_recorded(requested)),
             Some(effect) if effect.operator().licenses(requested) => {
-                Ok(NumericalAdmission { effect: id, operator: requested })
+                self.check_pooling(effect)?;
+                Ok(NumericalAdmission {
+                    effect: id,
+                    operator: requested,
+                    dependent: effect.is_dependent_pool(),
+                })
             }
             Some(effect) => {
                 Err(EvidenceEffectError::not_interchangeable(effect.operator(), requested))
             }
         }
+    }
+
+    fn check_pooling(&self, effect: &EvidenceEffect) -> Result<(), EvidenceEffectError> {
+        let EffectBody::Pooling { sources, dependent } = &effect.body else {
+            return Ok(());
+        };
+        let mut paired = Vec::new();
+        let mut overlaps = Vec::new();
+        for (index, source) in sources.iter().enumerate() {
+            let found = self.consulted.iter().find(|item| item.source() == *source);
+            let Some(found) = found else {
+                return Err(EvidenceEffectError::dependence_not_consulted());
+            };
+            paired.push(found.dependence().clone());
+            for other in sources.iter().skip(index + 1) {
+                match self.stored_overlap(*source, *other) {
+                    Some(overlap) => overlaps.push(overlap),
+                    None => return Err(EvidenceEffectError::dependence_not_consulted()),
+                }
+            }
+        }
+        let contract = DependenceContract::assess(&paired)
+            .map_err(|error| EvidenceEffectError::from_dependence(&error))?;
+        let shared_rows = shares_rows(&contract, &overlaps);
+        let unknown = overlap_unknown(&contract, &overlaps) && !shared_rows;
+        if unknown {
+            return Err(EvidenceEffectError::overlap_unknown());
+        }
+        let dependent_relation = shared_rows || contract.is_dependent();
+        if *dependent {
+            if dependent_relation { Ok(()) } else { Err(EvidenceEffectError::dependence_absent()) }
+        } else if shared_rows {
+            Err(EvidenceEffectError::shared_rows())
+        } else if contract.is_dependent() {
+            Err(EvidenceEffectError::dependent_sources())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn stored_overlap(&self, left: SourceId, right: SourceId) -> Option<Overlap> {
+        self.overlaps.iter().find_map(|item| {
+            let same = (item.left == left && item.right == right)
+                || (item.left == right && item.right == left);
+            same.then_some(item.overlap)
+        })
     }
 }
 
@@ -809,6 +1033,85 @@ impl EvidenceEffectError {
         Self::invalid(LIMIT_DETAIL, LIMIT_MESSAGE)
     }
 
+    fn from_dependence(error: &DependenceError) -> Self {
+        Self {
+            code: error.code(),
+            detail: error.detail(),
+            message: error.message().to_owned(),
+            next: None,
+            recorded: None,
+            requested: Some(EvidenceOperator::Pooling),
+        }
+    }
+
+    fn ledger_overlap(error: &LedgerError) -> Self {
+        Self {
+            code: error.code,
+            detail: LEDGER_OVERLAP_DETAIL,
+            message: error.message.clone(),
+            next: None,
+            recorded: None,
+            requested: Some(EvidenceOperator::Pooling),
+        }
+    }
+
+    fn dependence_not_consulted() -> Self {
+        let next = NextAttempt::record_then_combine(EvidenceOperator::Pooling);
+        let mut message = String::from(
+            "pooling is refused until dependence and ledger overlap are consulted; next attempt: ",
+        );
+        message.push_str(next.phrase());
+        Self {
+            code: antecedent_core::reason_code!("cell_not_licensed"),
+            detail: NOT_CONSULTED_DETAIL,
+            message,
+            next: Some(next),
+            recorded: None,
+            requested: Some(EvidenceOperator::Pooling),
+        }
+    }
+
+    fn shared_rows() -> Self {
+        Self::dependent_pool(SHARED_ROWS_DETAIL, "pooling sources share rows")
+    }
+
+    fn dependent_sources() -> Self {
+        Self::dependent_pool(DEPENDENT_SOURCES_DETAIL, "pooling sources are dependent")
+    }
+
+    fn dependent_pool(detail: &'static str, prefix: &str) -> Self {
+        let next = NextAttempt::record_dependent_pooling();
+        let mut message = String::from(prefix);
+        message.push_str("; next attempt: ");
+        message.push_str(next.phrase());
+        Self {
+            code: antecedent_core::reason_code!("evidence_double_counted"),
+            detail,
+            message,
+            next: Some(next),
+            recorded: None,
+            requested: Some(EvidenceOperator::Pooling),
+        }
+    }
+
+    fn overlap_unknown() -> Self {
+        Self {
+            code: antecedent_core::reason_code!("evidence_overlap_unknown"),
+            detail: OVERLAP_UNKNOWN_DETAIL,
+            message: String::from("pooling sources have unknown overlap"),
+            next: None,
+            recorded: None,
+            requested: Some(EvidenceOperator::Pooling),
+        }
+    }
+
+    fn dependence_absent() -> Self {
+        Self::invalid(
+            DEPENDENCE_ABSENT_DETAIL,
+            "a dependent pool is refused when the sources are independent",
+        )
+    }
+
     fn not_recorded(operator: EvidenceOperator) -> Self {
         let next = NextAttempt::record_then_combine(operator);
         let mut message = String::from("numerical combination of `");
@@ -857,6 +1160,21 @@ impl Error for EvidenceEffectError {}
 enum SubjectKey {
     Source(SourceId),
     Result(ResultId),
+}
+
+fn shares_rows(contract: &DependenceContract, overlaps: &[Overlap]) -> bool {
+    let factor_rows =
+        contract.shared_factors().iter().any(|factor| factor.kind() == SharedFactorKind::Row);
+    let ledger_rows =
+        overlaps.iter().any(|overlap| matches!(overlap, Overlap::SharedObservations { .. }));
+    factor_rows || ledger_rows
+}
+
+fn overlap_unknown(contract: &DependenceContract, overlaps: &[Overlap]) -> bool {
+    if contract.is_unknown() {
+        return true;
+    }
+    overlaps.iter().any(|overlap| matches!(overlap, Overlap::Unknown { .. }))
 }
 
 fn write_sources(writer: &mut CanonicalWriter, sources: &[SourceId]) {
@@ -964,7 +1282,7 @@ fn insert_sources(key: &mut BTreeSet<SubjectKey>, sources: &[SourceId]) {
 fn subject_key(effect: &EvidenceEffect) -> BTreeSet<SubjectKey> {
     let mut key = BTreeSet::new();
     match &effect.body {
-        EffectBody::Pooling(sources)
+        EffectBody::Pooling { sources, .. }
         | EffectBody::Mixture(sources)
         | EffectBody::Envelope(sources)
         | EffectBody::RepeatedObservationUse { sources, .. } => insert_sources(&mut key, sources),
@@ -1004,9 +1322,13 @@ fn different_operator_on_same_subjects<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::{EvidenceEffect, EvidenceEffectLedger, EvidenceOperator, NextAttempt};
+    use super::{
+        EvidenceEffect, EvidenceEffectLedger, EvidenceOperator, NextAttempt, PooledSource,
+    };
+    use crate::dependence::{DependenceSource, SharedFactorKind, SharedFactorSets};
     use crate::evidence_ledger::{
-        MAX_COMBINATION_SOURCES, MAX_TEXT_BYTES, ResultId, SourceId, SynthesisKind,
+        EvidenceLedger, MAX_COMBINATION_SOURCES, MAX_TEXT_BYTES, ObservationId, ResultId,
+        SourceDeclaration, SourceId, SourceKind, SynthesisKind,
     };
     use antecedent_core::SemanticDigest;
 
@@ -1061,9 +1383,26 @@ mod tests {
         }
     }
 
-    fn sample_effects() -> Vec<EvidenceEffect> {
+    fn independent_sources(ledger: &mut EvidenceLedger, rows: &[(&str, u32)]) -> Vec<PooledSource> {
+        rows.iter()
+            .map(|&(label, row)| {
+                let observations = [ObservationId::from_key("rows", &row.to_le_bytes())];
+                let declaration = SourceDeclaration::new(label, SourceKind::ObservationSet)
+                    .with_observations(observations);
+                let source = ledger.add_source(declaration).expect("source");
+                let mut factors = SharedFactorSets::empty();
+                factors.try_insert(SharedFactorKind::Row, label).expect("row");
+                factors.try_insert(SharedFactorKind::Parameter, "theta").expect("parameter");
+                let dependence =
+                    DependenceSource::try_declared(label, factors).expect("dependence");
+                PooledSource::new(source, dependence)
+            })
+            .collect()
+    }
+
+    fn sample_effects(left: SourceId, right: SourceId) -> Vec<EvidenceEffect> {
         vec![
-            EvidenceEffect::pooling([source_at(1), source_at(2)]).expect("pooling"),
+            EvidenceEffect::pooling([left, right]).expect("pooling"),
             EvidenceEffect::hierarchical_borrowing([source_at(3)], [source_at(4)])
                 .expect("hierarchical borrowing"),
             EvidenceEffect::transport([source_at(5)], [source_at(6)]).expect("transport"),
@@ -1111,10 +1450,13 @@ mod tests {
         assert!(EvidenceOperator::from_name("statistical_pooling").is_none());
         assert!(EvidenceOperator::from_name("marginal").is_none());
 
-        let effects = sample_effects();
+        let mut evidence = EvidenceLedger::new();
+        let pooled = independent_sources(&mut evidence, &[("study-a", 1), ("study-b", 2)]);
+        let effects = sample_effects(pooled[0].source(), pooled[1].source());
+        let mut ledger = EvidenceEffectLedger::new();
+        ledger.consult(&pooled, &evidence).expect("consult");
         assert_eq!(effects.len(), EvidenceOperator::ALL.len());
         let mut seen = vec![false; EvidenceOperator::ALL.len()];
-        let mut ledger = EvidenceEffectLedger::new();
         for effect in &effects {
             let operator = effect.operator();
             assert_eq!(EvidenceOperator::from_name(operator.as_str()), Some(operator));
@@ -1163,7 +1505,10 @@ mod tests {
 
     #[test]
     fn combination_without_a_recorded_effect_is_refused() {
-        let effect = EvidenceEffect::pooling([source_at(1), source_at(2)]).expect("pool");
+        let mut evidence = EvidenceLedger::new();
+        let pooled = independent_sources(&mut evidence, &[("left", 1), ("right", 2)]);
+        let effect =
+            EvidenceEffect::pooling([pooled[0].source(), pooled[1].source()]).expect("pool");
         let mut ledger = EvidenceEffectLedger::new();
         let err = ledger.try_combine(&effect).expect_err("no effect");
         assert_eq!(err.code(), "cell_not_licensed");
@@ -1181,16 +1526,28 @@ mod tests {
         assert!(antecedent_core::reason_code::is_runtime_refusal(err.code()));
         assert!(ledger.recorded().is_empty());
 
+        let missing_dependence = ledger.record(effect.clone()).expect_err("not consulted");
+        assert_eq!(missing_dependence.detail(), "evidence_effects.dependence_not_consulted");
+        assert!(missing_dependence.message().contains("consulted"));
+        assert_eq!(
+            missing_dependence.next_attempt().expect("next").operator(),
+            EvidenceOperator::Pooling
+        );
+
+        ledger.consult(&pooled, &evidence).expect("consult");
         let id = ledger.record(effect.clone()).expect("record");
         let admission = ledger.try_combine(&effect).expect("recorded");
         assert_eq!(admission.effect_id(), id);
         assert_eq!(admission.operator(), EvidenceOperator::Pooling);
+        assert!(!admission.is_dependent());
         assert_eq!(admission.synthesis_kind(), Some(SynthesisKind::StatisticalPooling));
     }
 
     #[test]
     fn mixture_is_not_a_pool_and_bridge_is_not_transport() {
-        let sources = [source_at(1), source_at(2)];
+        let mut evidence = EvidenceLedger::new();
+        let pooled = independent_sources(&mut evidence, &[("mix-a", 10), ("mix-b", 11)]);
+        let sources = [pooled[0].source(), pooled[1].source()];
         let mixture = EvidenceEffect::mixture(sources).expect("mixture");
         let pool = EvidenceEffect::pooling(sources).expect("pool");
         assert_ne!(mixture, pool);
@@ -1254,8 +1611,10 @@ mod tests {
         assert_eq!(not_marginal.recorded_operator(), Some(EvidenceOperator::FrozenReuse));
         assert_eq!(not_marginal.requested_operator(), Some(EvidenceOperator::Marginalization));
 
+        ledger.consult(&pooled, &evidence).expect("consult");
         let pool_id = ledger.record(pool.clone()).expect("record pool");
         let admission = ledger.try_combine(&pool).expect("pool recorded");
+        assert!(!admission.is_dependent());
         assert_eq!(admission.effect_id(), pool_id);
         assert_ne!(admission.effect_id(), mixture_id);
     }
@@ -1312,5 +1671,128 @@ mod tests {
             (0..=u16::try_from(MAX_COMBINATION_SOURCES).expect("bound")).map(source_at).collect();
         let too_many = EvidenceEffect::envelope(many).expect_err("too many");
         assert_eq!(too_many.detail(), "evidence_effects.too_many_sources");
+    }
+
+    fn study(
+        ledger: &mut EvidenceLedger,
+        label: &str,
+        rows: &[u32],
+        factor_row: &str,
+    ) -> PooledSource {
+        let observations: Vec<ObservationId> =
+            rows.iter().map(|row| ObservationId::from_key("rows", &row.to_le_bytes())).collect();
+        let declaration = SourceDeclaration::new(label, SourceKind::ObservationSet)
+            .with_observations(observations);
+        let source = ledger.add_source(declaration).expect("source");
+        let mut factors = SharedFactorSets::empty();
+        factors.try_insert(SharedFactorKind::Row, factor_row).expect("row");
+        factors.try_insert(SharedFactorKind::Parameter, "Theta").expect("parameter");
+        let dependence = DependenceSource::try_declared(label, factors).expect("dependence");
+        PooledSource::new(source, dependence)
+    }
+
+    #[test]
+    fn pooling_shared_rows_are_refused_or_recorded_as_dependent() {
+        let mut evidence = EvidenceLedger::new();
+        let left = study(&mut evidence, "ledger-a", &[1, 2], "factor-a");
+        let right = study(&mut evidence, "ledger-b", &[2, 3], "factor-b");
+        let pool = EvidenceEffect::pooling([left.source(), right.source()]).expect("pool");
+        let dependent =
+            EvidenceEffect::dependent_pooling([left.source(), right.source()]).expect("dependent");
+        assert_ne!(pool.identity(), dependent.identity());
+        let mut ledger = EvidenceEffectLedger::new();
+        ledger.consult(&[left, right], &evidence).expect("consult");
+
+        let refused = ledger.record(pool.clone()).expect_err("shared ledger rows");
+        assert_eq!(refused.detail(), "evidence_effects.shared_rows");
+        assert_eq!(refused.code(), "evidence_double_counted");
+        assert!(refused.message().contains("share rows"));
+        assert!(refused.next_attempt().expect("next").is_dependent());
+        assert_eq!(refused.next_attempt().expect("next").phrase(), NextAttempt::DEPENDENT_PHRASE);
+        assert!(ledger.recorded().is_empty());
+
+        let id = ledger.record(dependent.clone()).expect("record dependent");
+        let admission = ledger.try_combine(&dependent).expect("combine dependent");
+        assert!(admission.is_dependent());
+        assert_eq!(admission.effect_id(), id);
+        let still = ledger.try_combine(&pool).expect_err("independent pool was not recorded");
+        assert_eq!(still.detail(), "evidence_effects.effect_not_recorded");
+
+        let factor_left = study(&mut evidence, "factor-left", &[10], "shared-row");
+        let factor_right = study(&mut evidence, "factor-right", &[20], "shared-row");
+        let factor_pool = EvidenceEffect::pooling([factor_left.source(), factor_right.source()])
+            .expect("factor pool");
+        ledger.consult(&[factor_left, factor_right], &evidence).expect("consult factors");
+        let factor_refusal = ledger.record(factor_pool).expect_err("shared factor row");
+        assert_eq!(factor_refusal.detail(), "evidence_effects.shared_rows");
+
+        let opaque = ledger_source_without_rows(&mut evidence, "opaque");
+        let known = study(&mut evidence, "known-rows", &[30], "known-row");
+        let unknown_pool =
+            EvidenceEffect::pooling([opaque.source(), known.source()]).expect("unknown pool");
+        ledger.consult(&[opaque, known], &evidence).expect("consult unknown");
+        let unknown = ledger.record(unknown_pool).expect_err("unknown overlap");
+        assert_eq!(unknown.detail(), "evidence_effects.overlap_unknown");
+        assert_eq!(unknown.code(), "evidence_overlap_unknown");
+    }
+
+    fn ledger_source_without_rows(ledger: &mut EvidenceLedger, label: &str) -> PooledSource {
+        let source = ledger
+            .add_source(SourceDeclaration::new(label, SourceKind::ObservationSet))
+            .expect("source");
+        let dependence =
+            DependenceSource::try_declared(label, SharedFactorSets::empty()).expect("dependence");
+        PooledSource::new(source, dependence)
+    }
+
+    #[test]
+    fn shared_parameter_does_not_make_an_independent_pool_dependent() {
+        let mut evidence = EvidenceLedger::new();
+        let pooled = independent_sources(&mut evidence, &[("study-a", 1), ("study-b", 2)]);
+        let effect =
+            EvidenceEffect::pooling([pooled[0].source(), pooled[1].source()]).expect("pool");
+        let dependent = EvidenceEffect::dependent_pooling([pooled[0].source(), pooled[1].source()])
+            .expect("dependent");
+        let mut ledger = EvidenceEffectLedger::new();
+        ledger.consult(&pooled, &evidence).expect("consult");
+        ledger.record(effect.clone()).expect("independent studies");
+        let admission = ledger.try_combine(&effect).expect("combine");
+        assert!(!admission.is_dependent());
+        assert!(!effect.is_dependent_pool());
+        let false_dependence = ledger.record(dependent).expect_err("no dependence to record");
+        assert_eq!(false_dependence.detail(), "evidence_effects.dependence_not_found");
+
+        let shared = pooled
+            .iter()
+            .map(|source| {
+                let mut factors = SharedFactorSets::empty();
+                factors.try_insert(SharedFactorKind::Row, "same-row").expect("row");
+                let dependence =
+                    DependenceSource::try_declared(source.dependence().id().as_str(), factors)
+                        .expect("dependence");
+                PooledSource::new(source.source(), dependence)
+            })
+            .collect::<Vec<_>>();
+        ledger.consult(&shared, &evidence).expect("consult shared rows");
+        let after = ledger.try_combine(&effect).expect_err("combine checks dependence");
+        assert_eq!(after.detail(), "evidence_effects.shared_rows");
+        assert!(after.next_attempt().expect("next").is_dependent());
+    }
+
+    #[test]
+    fn consult_refuses_more_sources_than_the_combination_cap() {
+        let mut sources = Vec::new();
+        for index in 0..=MAX_COMBINATION_SOURCES {
+            let dependence =
+                DependenceSource::try_declared(index.to_string(), SharedFactorSets::empty())
+                    .expect("source");
+            let id = source_at(u16::try_from(index).expect("index"));
+            sources.push(PooledSource::new(id, dependence));
+        }
+        let mut ledger = EvidenceEffectLedger::new();
+        let refusal =
+            ledger.consult(&sources, &EvidenceLedger::new()).expect_err("over the source cap");
+        assert_eq!(refusal.detail(), "evidence_effects.too_many_sources");
+        assert!(refusal.message().contains(&MAX_COMBINATION_SOURCES.to_string()));
     }
 }

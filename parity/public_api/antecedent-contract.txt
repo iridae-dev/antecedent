@@ -108,11 +108,6 @@
 #[non_exhaustive] pub struct antecedent_contract::UncertaintyComponent
 #[non_exhaustive] pub struct antecedent_contract::UncertaintySlot
 #[non_exhaustive] pub struct antecedent_contract::bridge::BridgedClaim
-impl antecedent_contract::rewrite_legality::RewriteKind for antecedent_contract::rewrite_legality::ColumnFilterPushdown
-impl antecedent_contract::rewrite_legality::RewriteKind for antecedent_contract::rewrite_legality::NuisanceReuse
-impl antecedent_contract::rewrite_legality::RewriteKind for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
-impl antecedent_contract::rewrite_legality::RewriteKind for antecedent_contract::rewrite_legality::SufficientStatistics
-impl antecedent_contract::rewrite_legality::RewriteKind for antecedent_contract::rewrite_legality::TiledEvaluation
 impl core::clone::Clone for antecedent_contract::AcceptanceReport
 impl core::clone::Clone for antecedent_contract::AdmissionBasis
 impl core::clone::Clone for antecedent_contract::AdmissionCoordinate
@@ -404,6 +399,7 @@ impl core::clone::Clone for antecedent_contract::composition_verification::Unsup
 impl core::clone::Clone for antecedent_contract::composition_verification::ViewError
 impl core::clone::Clone for antecedent_contract::composition_verification::Withdrawal
 impl core::clone::Clone for antecedent_contract::composition_verification::WithdrawalKind
+impl core::clone::Clone for antecedent_contract::evidence_effects::PooledSource
 impl core::clone::Clone for antecedent_contract::evidence_ledger::AppliedOperation
 impl core::clone::Clone for antecedent_contract::evidence_ledger::ClaimClass
 impl core::clone::Clone for antecedent_contract::evidence_ledger::CombinationRequest
@@ -465,22 +461,19 @@ impl core::clone::Clone for antecedent_contract::provider_transport::SourceTrust
 impl core::clone::Clone for antecedent_contract::provider_transport::TransportedClaimOffer
 impl core::clone::Clone for antecedent_contract::provider_transport::TransportedHandoff
 impl core::clone::Clone for antecedent_contract::provider_transport::TransportedInputPolicy
-impl core::clone::Clone for antecedent_contract::rewrite_legality::ColumnFilterPushdown
 impl core::clone::Clone for antecedent_contract::rewrite_legality::FrameContents
 impl core::clone::Clone for antecedent_contract::rewrite_legality::FrameFingerprint
 impl core::clone::Clone for antecedent_contract::rewrite_legality::NextAttempt
 impl core::clone::Clone for antecedent_contract::rewrite_legality::NuisanceEffect
-impl core::clone::Clone for antecedent_contract::rewrite_legality::NuisanceReuse
 impl core::clone::Clone for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::clone::Clone for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::clone::Clone for antecedent_contract::rewrite_legality::PreservedIdentities
 impl core::clone::Clone for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::clone::Clone for antecedent_contract::rewrite_legality::Rewrite
 impl core::clone::Clone for antecedent_contract::rewrite_legality::RewriteRefusal
-impl core::clone::Clone for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
-impl core::clone::Clone for antecedent_contract::rewrite_legality::SufficientStatistics
 impl core::clone::Clone for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::clone::Clone for antecedent_contract::rewrite_legality::TileEffect
-impl core::clone::Clone for antecedent_contract::rewrite_legality::TiledEvaluation
+impl core::clone::Clone for antecedent_contract::summary_observation::AssumptionChecklist
 impl core::clone::Clone for antecedent_contract::summary_observation::Dependence
 impl core::clone::Clone for antecedent_contract::summary_observation::FrequentistSummary
 impl core::clone::Clone for antecedent_contract::summary_observation::FrequentistSummaryKind
@@ -712,6 +705,7 @@ impl core::cmp::Eq for antecedent_contract::composition_verification::Unsupporte
 impl core::cmp::Eq for antecedent_contract::composition_verification::ViewError
 impl core::cmp::Eq for antecedent_contract::composition_verification::Withdrawal
 impl core::cmp::Eq for antecedent_contract::composition_verification::WithdrawalKind
+impl core::cmp::Eq for antecedent_contract::evidence_effects::PooledSource
 impl core::cmp::Eq for antecedent_contract::evidence_ledger::ClaimClass
 impl core::cmp::Eq for antecedent_contract::evidence_ledger::DetectedOverlap
 impl core::cmp::Eq for antecedent_contract::evidence_ledger::EffectiveObservations
@@ -758,22 +752,19 @@ impl core::cmp::Eq for antecedent_contract::mixed_module::ReconciliationRecord
 impl core::cmp::Eq for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedHandoff
 impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedInputPolicy
-impl core::cmp::Eq for antecedent_contract::rewrite_legality::ColumnFilterPushdown
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::FrameContents
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::FrameFingerprint
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::NextAttempt
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::NuisanceEffect
-impl core::cmp::Eq for antecedent_contract::rewrite_legality::NuisanceReuse
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::PreservedIdentities
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::Rewrite
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::RewriteRefusal
-impl core::cmp::Eq for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
-impl core::cmp::Eq for antecedent_contract::rewrite_legality::SufficientStatistics
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::TileEffect
-impl core::cmp::Eq for antecedent_contract::rewrite_legality::TiledEvaluation
+impl core::cmp::Eq for antecedent_contract::summary_observation::AssumptionChecklist
 impl core::cmp::Eq for antecedent_contract::summary_observation::Dependence
 impl core::cmp::Eq for antecedent_contract::summary_observation::FrequentistSummary
 impl core::cmp::Eq for antecedent_contract::summary_observation::FrequentistSummaryKind
@@ -1148,6 +1139,7 @@ impl core::cmp::PartialEq for antecedent_contract::composition_verification::Uns
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::ViewError
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::Withdrawal
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::WithdrawalKind
+impl core::cmp::PartialEq for antecedent_contract::evidence_effects::PooledSource
 impl core::cmp::PartialEq for antecedent_contract::evidence_ledger::AppliedOperation
 impl core::cmp::PartialEq for antecedent_contract::evidence_ledger::ClaimClass
 impl core::cmp::PartialEq for antecedent_contract::evidence_ledger::CombinationRequest
@@ -1208,22 +1200,19 @@ impl core::cmp::PartialEq for antecedent_contract::provider_transport::SourceTru
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedClaimOffer
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedHandoff
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedInputPolicy
-impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::ColumnFilterPushdown
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::FrameContents
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::FrameFingerprint
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::NextAttempt
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::NuisanceEffect
-impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::NuisanceReuse
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PreservedIdentities
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::Rewrite
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::RewriteRefusal
-impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
-impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::SufficientStatistics
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::TileEffect
-impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::TiledEvaluation
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::AssumptionChecklist
 impl core::cmp::PartialEq for antecedent_contract::summary_observation::Dependence
 impl core::cmp::PartialEq for antecedent_contract::summary_observation::FrequentistSummary
 impl core::cmp::PartialEq for antecedent_contract::summary_observation::FrequentistSummaryKind
@@ -1624,6 +1613,7 @@ impl core::fmt::Debug for antecedent_contract::composition_verification::Unsuppo
 impl core::fmt::Debug for antecedent_contract::composition_verification::ViewError
 impl core::fmt::Debug for antecedent_contract::composition_verification::Withdrawal
 impl core::fmt::Debug for antecedent_contract::composition_verification::WithdrawalKind
+impl core::fmt::Debug for antecedent_contract::evidence_effects::PooledSource
 impl core::fmt::Debug for antecedent_contract::evidence_ledger::AppliedOperation
 impl core::fmt::Debug for antecedent_contract::evidence_ledger::ClaimClass
 impl core::fmt::Debug for antecedent_contract::evidence_ledger::CombinationRequest
@@ -1685,22 +1675,19 @@ impl core::fmt::Debug for antecedent_contract::provider_transport::SourceTrustRe
 impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedClaimOffer
 impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedHandoff
 impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedInputPolicy
-impl core::fmt::Debug for antecedent_contract::rewrite_legality::ColumnFilterPushdown
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::FrameContents
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::FrameFingerprint
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::NextAttempt
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::NuisanceEffect
-impl core::fmt::Debug for antecedent_contract::rewrite_legality::NuisanceReuse
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::PreservedIdentities
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::Rewrite
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::RewriteRefusal
-impl core::fmt::Debug for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
-impl core::fmt::Debug for antecedent_contract::rewrite_legality::SufficientStatistics
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::TileEffect
-impl core::fmt::Debug for antecedent_contract::rewrite_legality::TiledEvaluation
+impl core::fmt::Debug for antecedent_contract::summary_observation::AssumptionChecklist
 impl core::fmt::Debug for antecedent_contract::summary_observation::Dependence
 impl core::fmt::Debug for antecedent_contract::summary_observation::FrequentistSummary
 impl core::fmt::Debug for antecedent_contract::summary_observation::FrequentistSummaryKind
@@ -1877,6 +1864,7 @@ impl core::hash::Hash for antecedent_contract::rewrite_legality::PreservationAxi
 impl core::hash::Hash for antecedent_contract::rewrite_legality::PushdownEffect
 impl core::hash::Hash for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::hash::Hash for antecedent_contract::rewrite_legality::TileEffect
+impl core::hash::Hash for antecedent_contract::summary_observation::AssumptionChecklist
 impl core::hash::Hash for antecedent_contract::summary_observation::Dependence
 impl core::hash::Hash for antecedent_contract::summary_observation::FrequentistSummary
 impl core::hash::Hash for antecedent_contract::summary_observation::FrequentistSummaryKind
@@ -2327,6 +2315,7 @@ impl core::marker::Freeze for antecedent_contract::composition_verification::Uns
 impl core::marker::Freeze for antecedent_contract::composition_verification::ViewError [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::Withdrawal [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::WithdrawalKind [auto]
+impl core::marker::Freeze for antecedent_contract::evidence_effects::PooledSource [auto]
 impl core::marker::Freeze for antecedent_contract::evidence_ledger::AppliedOperation [auto]
 impl core::marker::Freeze for antecedent_contract::evidence_ledger::ClaimClass [auto]
 impl core::marker::Freeze for antecedent_contract::evidence_ledger::CombinationRequest [auto]
@@ -2388,22 +2377,19 @@ impl core::marker::Freeze for antecedent_contract::provider_transport::SourceTru
 impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
-impl core::marker::Freeze for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
-impl core::marker::Freeze for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::PreservationAxis [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::Rewrite [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
-impl core::marker::Freeze for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
-impl core::marker::Freeze for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::TileEffect [auto]
-impl core::marker::Freeze for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::AssumptionChecklist [auto]
 impl core::marker::Freeze for antecedent_contract::summary_observation::Dependence [auto]
 impl core::marker::Freeze for antecedent_contract::summary_observation::FrequentistSummary [auto]
 impl core::marker::Freeze for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
@@ -2716,6 +2702,7 @@ impl core::marker::Send for antecedent_contract::composition_verification::Unsup
 impl core::marker::Send for antecedent_contract::composition_verification::ViewError [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::Withdrawal [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::WithdrawalKind [auto]
+impl core::marker::Send for antecedent_contract::evidence_effects::PooledSource [auto]
 impl core::marker::Send for antecedent_contract::evidence_ledger::AppliedOperation [auto]
 impl core::marker::Send for antecedent_contract::evidence_ledger::ClaimClass [auto]
 impl core::marker::Send for antecedent_contract::evidence_ledger::CombinationRequest [auto]
@@ -2777,22 +2764,19 @@ impl core::marker::Send for antecedent_contract::provider_transport::SourceTrust
 impl core::marker::Send for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::marker::Send for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::marker::Send for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
-impl core::marker::Send for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
-impl core::marker::Send for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::PreservationAxis [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::Rewrite [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
-impl core::marker::Send for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
-impl core::marker::Send for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::TileEffect [auto]
-impl core::marker::Send for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::AssumptionChecklist [auto]
 impl core::marker::Send for antecedent_contract::summary_observation::Dependence [auto]
 impl core::marker::Send for antecedent_contract::summary_observation::FrequentistSummary [auto]
 impl core::marker::Send for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
@@ -3104,6 +3088,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::composition_veri
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::ViewError
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::Withdrawal
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::WithdrawalKind
+impl core::marker::StructuralPartialEq for antecedent_contract::evidence_effects::PooledSource
 impl core::marker::StructuralPartialEq for antecedent_contract::evidence_ledger::AppliedOperation
 impl core::marker::StructuralPartialEq for antecedent_contract::evidence_ledger::ClaimClass
 impl core::marker::StructuralPartialEq for antecedent_contract::evidence_ledger::CombinationRequest
@@ -3164,26 +3149,22 @@ impl core::marker::StructuralPartialEq for antecedent_contract::provider_transpo
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedClaimOffer
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedHandoff
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedInputPolicy
-impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::ColumnFilterPushdown
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::FrameContents
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::FrameFingerprint
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::NextAttempt
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::NuisanceEffect
-impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::NuisanceReuse
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PreparationEffect
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PreservedIdentities
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::Rewrite
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::RewriteRefusal
-impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
-impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::SufficientStatistics
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::TileEffect
-impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::TiledEvaluation
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::AssumptionChecklist
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::Dependence
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::FrequentistSummary
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::FrequentistSummaryKind
-impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::LikelihoodUpdateAdmission
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::Origin
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SamplingApproximation
 impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::Selection
@@ -3491,6 +3472,7 @@ impl core::marker::Sync for antecedent_contract::composition_verification::Unsup
 impl core::marker::Sync for antecedent_contract::composition_verification::ViewError [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::Withdrawal [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::WithdrawalKind [auto]
+impl core::marker::Sync for antecedent_contract::evidence_effects::PooledSource [auto]
 impl core::marker::Sync for antecedent_contract::evidence_ledger::AppliedOperation [auto]
 impl core::marker::Sync for antecedent_contract::evidence_ledger::ClaimClass [auto]
 impl core::marker::Sync for antecedent_contract::evidence_ledger::CombinationRequest [auto]
@@ -3552,22 +3534,19 @@ impl core::marker::Sync for antecedent_contract::provider_transport::SourceTrust
 impl core::marker::Sync for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::marker::Sync for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::marker::Sync for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
-impl core::marker::Sync for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
-impl core::marker::Sync for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::PreservationAxis [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::Rewrite [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
-impl core::marker::Sync for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
-impl core::marker::Sync for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::TileEffect [auto]
-impl core::marker::Sync for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::AssumptionChecklist [auto]
 impl core::marker::Sync for antecedent_contract::summary_observation::Dependence [auto]
 impl core::marker::Sync for antecedent_contract::summary_observation::FrequentistSummary [auto]
 impl core::marker::Sync for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
@@ -3880,6 +3859,7 @@ impl core::marker::Unpin for antecedent_contract::composition_verification::Unsu
 impl core::marker::Unpin for antecedent_contract::composition_verification::ViewError [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::Withdrawal [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::WithdrawalKind [auto]
+impl core::marker::Unpin for antecedent_contract::evidence_effects::PooledSource [auto]
 impl core::marker::Unpin for antecedent_contract::evidence_ledger::AppliedOperation [auto]
 impl core::marker::Unpin for antecedent_contract::evidence_ledger::ClaimClass [auto]
 impl core::marker::Unpin for antecedent_contract::evidence_ledger::CombinationRequest [auto]
@@ -3941,22 +3921,19 @@ impl core::marker::Unpin for antecedent_contract::provider_transport::SourceTrus
 impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
-impl core::marker::Unpin for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
-impl core::marker::Unpin for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::PreservationAxis [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::Rewrite [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
-impl core::marker::Unpin for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
-impl core::marker::Unpin for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::TileEffect [auto]
-impl core::marker::Unpin for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::AssumptionChecklist [auto]
 impl core::marker::Unpin for antecedent_contract::summary_observation::Dependence [auto]
 impl core::marker::Unpin for antecedent_contract::summary_observation::FrequentistSummary [auto]
 impl core::marker::Unpin for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
@@ -4269,6 +4246,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::compositio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::ViewError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::Withdrawal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::WithdrawalKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::evidence_effects::PooledSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::evidence_ledger::AppliedOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::evidence_ledger::ClaimClass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::evidence_ledger::CombinationRequest [auto]
@@ -4330,22 +4308,19 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_t
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PreservationAxis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::Rewrite [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::TileEffect [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::AssumptionChecklist [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::Dependence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::FrequentistSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
@@ -4658,6 +4633,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_v
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::ViewError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::Withdrawal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::WithdrawalKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::evidence_effects::PooledSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::evidence_ledger::AppliedOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::evidence_ledger::ClaimClass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::evidence_ledger::CombinationRequest [auto]
@@ -4719,22 +4695,19 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_tran
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::FrameContents [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::FrameFingerprint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::NextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PreparationEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PreservationAxis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::Rewrite [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::TileEffect [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::AssumptionChecklist [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::Dependence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::FrequentistSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
@@ -4825,6 +4798,7 @@ impl<T> core::panic::unwind_safe::UnwindSafe for antecedent_contract::SlotAvaila
 pub const <antecedent_contract::AlignedLaw>::ALL: [Self; 2]
 pub const <antecedent_contract::BoundExternalClaim>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_contract::ColumnClaim>::DTYPE: &'static str
+pub const <antecedent_contract::EffectNextAttempt>::DEPENDENT_PHRASE: &'static str
 pub const <antecedent_contract::EffectNextAttempt>::PHRASE: &'static str
 pub const <antecedent_contract::EvidenceObligationKind>::ALL: [Self; 9]
 pub const <antecedent_contract::EvidenceOperator>::ALL: [Self; 9]
@@ -4858,15 +4832,20 @@ pub const <antecedent_contract::interface_contract::UncertaintyMeaning>::ALL_MEA
 pub const <antecedent_contract::interface_contract::UncertaintyParadigm>::ALL: [Self; 4]
 pub const <antecedent_contract::mixed_module::CutFeedback>::ALL: [Self; 2]
 pub const <antecedent_contract::provider_transport::TransportedHandoff>::STANDING: &'static str
-pub const <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::NAME: &'static str
 pub const <antecedent_contract::rewrite_legality::NextAttempt>::ALL: [Self; 7]
-pub const <antecedent_contract::rewrite_legality::NuisanceReuse>::NAME: &'static str
+pub const <antecedent_contract::rewrite_legality::NuisanceEffect>::ALL: [Self; 7]
+pub const <antecedent_contract::rewrite_legality::PreparationEffect>::ALL: [Self; 7]
 pub const <antecedent_contract::rewrite_legality::PreservationAxis>::ALL: [Self; 6]
-pub const <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::NAME: &'static str
-pub const <antecedent_contract::rewrite_legality::SufficientStatistics>::NAME: &'static str
-pub const <antecedent_contract::rewrite_legality::TiledEvaluation>::NAME: &'static str
+pub const <antecedent_contract::rewrite_legality::PushdownEffect>::ALL: [Self; 7]
+pub const <antecedent_contract::rewrite_legality::Rewrite>::COLUMN_FILTER_PUSHDOWN: &'static str
+pub const <antecedent_contract::rewrite_legality::Rewrite>::NUISANCE_REUSE: &'static str
+pub const <antecedent_contract::rewrite_legality::Rewrite>::SHARED_ROW_DESIGN_PREPARATION: &'static str
+pub const <antecedent_contract::rewrite_legality::Rewrite>::SUFFICIENT_STATISTICS: &'static str
+pub const <antecedent_contract::rewrite_legality::Rewrite>::TILED_EVALUATION: &'static str
+pub const <antecedent_contract::rewrite_legality::SummaryEffect>::ALL: [Self; 7]
+pub const <antecedent_contract::rewrite_legality::TileEffect>::ALL: [Self; 7]
 pub const <antecedent_contract::summary_observation::FrequentistSummaryKind>::ALL: [Self; 2]
-pub const <antecedent_contract::summary_observation::SummaryNextAttempt>::ALL: [Self; 3]
+pub const <antecedent_contract::summary_observation::SummaryNextAttempt>::ALL: [Self; 4]
 pub const <antecedent_contract::summary_observation::SummaryUse>::ALL: [Self; 2]
 pub const antecedent_contract::ASSUMPTION_RANGE_LABEL: &str
 pub const antecedent_contract::EFFECT_IDENTITY_VERSION: u64
@@ -5945,7 +5924,7 @@ pub fn <antecedent_contract::DependenceContract>::const fn is_dependent(&self) -
 pub fn <antecedent_contract::DependenceContract>::const fn is_independent(&self) -> bool
 pub fn <antecedent_contract::DependenceContract>::const fn is_unknown(&self) -> bool
 pub fn <antecedent_contract::DependenceContract>::const fn status(&self) -> antecedent_contract::DependenceStatus
-pub fn <antecedent_contract::DependenceContract>::fn assess(sources: &[antecedent_contract::DependenceSource]) -> Self
+pub fn <antecedent_contract::DependenceContract>::fn assess(sources: &[antecedent_contract::DependenceSource]) -> core::result::Result<Self, antecedent_contract::DependenceError>
 pub fn <antecedent_contract::DependenceContract>::fn covariance_combination(&self) -> core::result::Result<antecedent_contract::CovarianceCombination, antecedent_contract::DependenceError>
 pub fn <antecedent_contract::DependenceContract>::fn shared_factors(&self) -> &[antecedent_contract::SharedFactor]
 pub fn <antecedent_contract::DependenceContract>::fn try_claim_independent(sources: &[antecedent_contract::DependenceSource]) -> core::result::Result<Self, antecedent_contract::DependenceError>
@@ -5967,19 +5946,24 @@ pub fn <antecedent_contract::DomainStatus>::const fn as_str(self) -> &'static st
 pub fn <antecedent_contract::DomainStatus>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::EffectId>::const fn digest(self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::EffectId>::const fn from_digest(digest: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_contract::EffectNextAttempt>::const fn is_dependent(self) -> bool
 pub fn <antecedent_contract::EffectNextAttempt>::const fn operator(self) -> antecedent_contract::EvidenceOperator
+pub fn <antecedent_contract::EffectNextAttempt>::const fn phrase(self) -> &'static str
+pub fn <antecedent_contract::EffectNextAttempt>::const fn record_dependent_pooling() -> Self
 pub fn <antecedent_contract::EffectNextAttempt>::const fn record_then_combine(operator: antecedent_contract::EvidenceOperator) -> Self
 pub fn <antecedent_contract::EvidenceBinding>::fn try_new(quantity: antecedent_contract::ScientificQuantity, world: antecedent_contract::WorldTime, premises: alloc::sync::Arc<[alloc::sync::Arc<str>]>, origins: antecedent_contract::EvidenceOrigins, support: antecedent_contract::EvidenceSupport, calibration: antecedent_contract::EvidenceCalibration) -> core::result::Result<Self, antecedent_contract::EvidenceEnvelopeError>
 pub fn <antecedent_contract::EvidenceBinding>::fn validate(&self) -> core::result::Result<(), antecedent_contract::EvidenceEnvelopeError>
 pub fn <antecedent_contract::EvidenceDependence>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::EvidenceEffect>::const fn bridge_source(&self) -> core::option::Option<antecedent_contract::evidence_ledger::SourceId>
 pub fn <antecedent_contract::EvidenceEffect>::const fn frozen_result(&self) -> core::option::Option<antecedent_contract::evidence_ledger::ResultId>
+pub fn <antecedent_contract::EvidenceEffect>::const fn is_dependent_pool(&self) -> bool
 pub fn <antecedent_contract::EvidenceEffect>::const fn marginalized_result(&self) -> core::option::Option<antecedent_contract::evidence_ledger::ResultId>
 pub fn <antecedent_contract::EvidenceEffect>::const fn operator(&self) -> antecedent_contract::EvidenceOperator
 pub fn <antecedent_contract::EvidenceEffect>::fn borrowing_likelihood(&self) -> core::option::Option<&[antecedent_contract::evidence_ledger::SourceId]>
 pub fn <antecedent_contract::EvidenceEffect>::fn borrowing_priors(&self) -> core::option::Option<&[antecedent_contract::evidence_ledger::SourceId]>
 pub fn <antecedent_contract::EvidenceEffect>::fn bridge(source: antecedent_contract::evidence_ledger::SourceId, contract: impl core::convert::AsRef<str>) -> core::result::Result<Self, antecedent_contract::EvidenceEffectError>
 pub fn <antecedent_contract::EvidenceEffect>::fn bridge_contract(&self) -> core::option::Option<&str>
+pub fn <antecedent_contract::EvidenceEffect>::fn dependent_pooling(sources: impl core::iter::traits::collect::IntoIterator<Item = antecedent_contract::evidence_ledger::SourceId>) -> core::result::Result<Self, antecedent_contract::EvidenceEffectError>
 pub fn <antecedent_contract::EvidenceEffect>::fn envelope(sources: impl core::iter::traits::collect::IntoIterator<Item = antecedent_contract::evidence_ledger::SourceId>) -> core::result::Result<Self, antecedent_contract::EvidenceEffectError>
 pub fn <antecedent_contract::EvidenceEffect>::fn envelope_sources(&self) -> core::option::Option<&[antecedent_contract::evidence_ledger::SourceId]>
 pub fn <antecedent_contract::EvidenceEffect>::fn frozen_reuse(result: antecedent_contract::evidence_ledger::ResultId) -> Self
@@ -6003,6 +5987,7 @@ pub fn <antecedent_contract::EvidenceEffectError>::const fn recorded_operator(&s
 pub fn <antecedent_contract::EvidenceEffectError>::const fn requested_operator(&self) -> core::option::Option<antecedent_contract::EvidenceOperator>
 pub fn <antecedent_contract::EvidenceEffectError>::fn message(&self) -> &str
 pub fn <antecedent_contract::EvidenceEffectError>::fn refusal(&self) -> (&'static str, &'static str, &str)
+pub fn <antecedent_contract::EvidenceEffectLedger>::fn consult(&mut self, sources: &[antecedent_contract::evidence_effects::PooledSource], ledger: &antecedent_contract::evidence_ledger::EvidenceLedger) -> core::result::Result<(), antecedent_contract::EvidenceEffectError>
 pub fn <antecedent_contract::EvidenceEffectLedger>::fn get(&self, id: antecedent_contract::EffectId) -> core::option::Option<&antecedent_contract::EvidenceEffect>
 pub fn <antecedent_contract::EvidenceEffectLedger>::fn new() -> Self
 pub fn <antecedent_contract::EvidenceEffectLedger>::fn record(&mut self, effect: antecedent_contract::EvidenceEffect) -> core::result::Result<antecedent_contract::EffectId, antecedent_contract::EvidenceEffectError>
@@ -6132,6 +6117,7 @@ pub fn <antecedent_contract::NegotiatedExternalOperation>::fn identity(&self) ->
 pub fn <antecedent_contract::NegotiatedExternalOperation>::fn invoke<T>(&self, callback: impl core::ops::function::FnOnce() -> T) -> T
 pub fn <antecedent_contract::NextAction>::fn new(id: impl core::convert::Into<alloc::sync::Arc<str>>, description: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_contract::NumericalAdmission>::const fn effect_id(self) -> antecedent_contract::EffectId
+pub fn <antecedent_contract::NumericalAdmission>::const fn is_dependent(self) -> bool
 pub fn <antecedent_contract::NumericalAdmission>::const fn operator(self) -> antecedent_contract::EvidenceOperator
 pub fn <antecedent_contract::NumericalAdmission>::const fn synthesis_kind(self) -> core::option::Option<antecedent_contract::evidence_ledger::SynthesisKind>
 pub fn <antecedent_contract::ObligationKind>::const fn as_str(self) -> &'static str
@@ -6413,6 +6399,9 @@ pub fn <antecedent_contract::composition_verification::TrustStanding>::const fn 
 pub fn <antecedent_contract::composition_verification::TrustStanding>::const fn of_provider(trust: antecedent_contract::ProviderTrust) -> Self
 pub fn <antecedent_contract::composition_verification::TrustStanding>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::composition_verification::WithdrawalKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::evidence_effects::PooledSource>::const fn dependence(&self) -> &antecedent_contract::DependenceSource
+pub fn <antecedent_contract::evidence_effects::PooledSource>::const fn new(source: antecedent_contract::evidence_ledger::SourceId, dependence: antecedent_contract::DependenceSource) -> Self
+pub fn <antecedent_contract::evidence_effects::PooledSource>::const fn source(&self) -> antecedent_contract::evidence_ledger::SourceId
 pub fn <antecedent_contract::evidence_ledger::ClaimClass>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::evidence_ledger::EffectiveObservations>::fn known(&self) -> core::option::Option<&[antecedent_contract::evidence_ledger::ObservationId]>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::const fn head(&self) -> antecedent_contract::evidence_ledger::OperationId
@@ -6574,11 +6563,6 @@ pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn s
 pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn transport(&self) -> &antecedent_contract::evidence_ledger::TransportIdentity
 pub fn <antecedent_contract::provider_transport::TransportedInputPolicy>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::provider_transport::TransportedInputPolicy>::fn from_name(name: &str) -> core::option::Option<Self>
-pub fn <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::const fn cohort(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::const fn effect(&self) -> antecedent_contract::rewrite_legality::PushdownEffect
-pub fn <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::const fn new(cohort: antecedent_contract::rewrite_legality::PreservedIdentities, pushed: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::PushdownEffect) -> Self
-pub fn <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::const fn pushed(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::fn with_frames(self, cohort: &antecedent_contract::rewrite_legality::FrameContents, pushed: &antecedent_contract::rewrite_legality::FrameContents) -> Self
 pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn fingerprint(&self) -> antecedent_contract::rewrite_legality::FrameFingerprint
 pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn fold_ids(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
 pub fn <antecedent_contract::rewrite_legality::FrameContents>::fn history(&self) -> &str
@@ -6592,44 +6576,52 @@ pub fn <antecedent_contract::rewrite_legality::FrameFingerprint>::const fn selec
 pub fn <antecedent_contract::rewrite_legality::NextAttempt>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::NextAttempt>::const fn sentence(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::NextAttempt>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::rewrite_legality::NuisanceEffect>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::NuisanceEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
-pub fn <antecedent_contract::rewrite_legality::NuisanceReuse>::const fn consumer(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::NuisanceReuse>::const fn effect(&self) -> antecedent_contract::rewrite_legality::NuisanceEffect
-pub fn <antecedent_contract::rewrite_legality::NuisanceReuse>::const fn fit(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::NuisanceReuse>::const fn new(fit: antecedent_contract::rewrite_legality::PreservedIdentities, consumer: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::NuisanceEffect) -> Self
-pub fn <antecedent_contract::rewrite_legality::NuisanceReuse>::fn with_frames(self, fit: &antecedent_contract::rewrite_legality::FrameContents, consumer: &antecedent_contract::rewrite_legality::FrameContents) -> Self
+pub fn <antecedent_contract::rewrite_legality::NuisanceEffect>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::rewrite_legality::PreparationEffect>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::PreparationEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
+pub fn <antecedent_contract::rewrite_legality::PreparationEffect>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::const fn next_attempt(self) -> antecedent_contract::rewrite_legality::NextAttempt
 pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::const fn phrase(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::rewrite_legality::PreservedIdentities>::fn identity(&self, axis: antecedent_contract::rewrite_legality::PreservationAxis) -> &str
 pub fn <antecedent_contract::rewrite_legality::PreservedIdentities>::fn try_new(sample_selection: &str, folds: &str, population: &str, history: &str, dependence: &str, uncertainty: &str) -> core::result::Result<Self, antecedent_contract::rewrite_legality::RewriteRefusal>
+pub fn <antecedent_contract::rewrite_legality::PushdownEffect>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::PushdownEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
+pub fn <antecedent_contract::rewrite_legality::PushdownEffect>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn column_filter_pushdown(cohort: antecedent_contract::rewrite_legality::PreservedIdentities, pushed: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::PushdownEffect) -> Self
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn defect(&self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn effect_name(&self) -> &'static str
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn name(&self) -> &'static str
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn nuisance_reuse(fit: antecedent_contract::rewrite_legality::PreservedIdentities, consumer: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::NuisanceEffect) -> Self
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn primary_claim(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn secondary_claim(&self) -> core::option::Option<&antecedent_contract::rewrite_legality::PreservedIdentities>
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn shared_row_design_preparation(preparation: antecedent_contract::rewrite_legality::PreservedIdentities, left: antecedent_contract::rewrite_legality::PreservedIdentities, right: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::PreparationEffect) -> Self
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn source(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn sufficient_statistics(rows: antecedent_contract::rewrite_legality::PreservedIdentities, summary: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::SummaryEffect) -> Self
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::const fn tiled_evaluation(full: antecedent_contract::rewrite_legality::PreservedIdentities, tile: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::TileEffect) -> Self
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::fn check(&self) -> core::result::Result<(), antecedent_contract::rewrite_legality::RewriteRefusal>
+pub fn <antecedent_contract::rewrite_legality::Rewrite>::fn with_frames(self, source: &antecedent_contract::rewrite_legality::FrameContents, claims: &[&antecedent_contract::rewrite_legality::FrameContents]) -> core::result::Result<Self, antecedent_contract::rewrite_legality::RewriteRefusal>
 pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn axis(&self) -> antecedent_contract::rewrite_legality::PreservationAxis
 pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn code(&self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn detail(&self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn kind(&self) -> core::option::Option<&'static str>
 pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn next_attempt(&self) -> antecedent_contract::rewrite_legality::NextAttempt
 pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::fn message(&self) -> &str
-pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::const fn effect(&self) -> antecedent_contract::rewrite_legality::PreparationEffect
-pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::const fn left(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::const fn new(preparation: antecedent_contract::rewrite_legality::PreservedIdentities, left: antecedent_contract::rewrite_legality::PreservedIdentities, right: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::PreparationEffect) -> Self
-pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::const fn preparation(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::const fn right(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::fn with_frames(self, preparation: &antecedent_contract::rewrite_legality::FrameContents, left: &antecedent_contract::rewrite_legality::FrameContents, right: &antecedent_contract::rewrite_legality::FrameContents) -> Self
-pub fn <antecedent_contract::rewrite_legality::SufficientStatistics>::const fn effect(&self) -> antecedent_contract::rewrite_legality::SummaryEffect
-pub fn <antecedent_contract::rewrite_legality::SufficientStatistics>::const fn new(rows: antecedent_contract::rewrite_legality::PreservedIdentities, summary: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::SummaryEffect) -> Self
-pub fn <antecedent_contract::rewrite_legality::SufficientStatistics>::const fn rows(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::SufficientStatistics>::const fn summary(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::SufficientStatistics>::fn with_frames(self, rows: &antecedent_contract::rewrite_legality::FrameContents, summary: &antecedent_contract::rewrite_legality::FrameContents) -> Self
+pub fn <antecedent_contract::rewrite_legality::SummaryEffect>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::SummaryEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
+pub fn <antecedent_contract::rewrite_legality::SummaryEffect>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::rewrite_legality::TileEffect>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::rewrite_legality::TileEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
-pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn effect(&self) -> antecedent_contract::rewrite_legality::TileEffect
-pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn full(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn new(full: antecedent_contract::rewrite_legality::PreservedIdentities, tile: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::TileEffect) -> Self
-pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn tile(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
-pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::fn with_frames(self, full: &antecedent_contract::rewrite_legality::FrameContents, tile: &antecedent_contract::rewrite_legality::FrameContents) -> Self
+pub fn <antecedent_contract::rewrite_legality::TileEffect>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::summary_observation::AssumptionChecklist>::const fn dependence(&self) -> &antecedent_contract::summary_observation::Dependence
+pub fn <antecedent_contract::summary_observation::AssumptionChecklist>::const fn new(sampling_approximation: antecedent_contract::summary_observation::SamplingApproximation, selection: antecedent_contract::summary_observation::Selection, dependence: antecedent_contract::summary_observation::Dependence, origin: antecedent_contract::summary_observation::Origin) -> Self
+pub fn <antecedent_contract::summary_observation::AssumptionChecklist>::const fn origin(&self) -> &antecedent_contract::summary_observation::Origin
+pub fn <antecedent_contract::summary_observation::AssumptionChecklist>::const fn sampling_approximation(&self) -> &antecedent_contract::summary_observation::SamplingApproximation
+pub fn <antecedent_contract::summary_observation::AssumptionChecklist>::const fn selection(&self) -> &antecedent_contract::summary_observation::Selection
+pub fn <antecedent_contract::summary_observation::AssumptionChecklist>::fn as_likelihood(&self) -> antecedent_contract::summary_observation::SummaryObservationError
 pub fn <antecedent_contract::summary_observation::Dependence>::fn name(&self) -> &str
 pub fn <antecedent_contract::summary_observation::Dependence>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_contract::summary_observation::SummaryObservationError>
 pub fn <antecedent_contract::summary_observation::FrequentistSummary>::const fn covariance(&self) -> core::option::Option<&antecedent_contract::summary_observation::SummaryCovariance>
@@ -6642,6 +6634,8 @@ pub fn <antecedent_contract::summary_observation::FrequentistSummary>::fn interv
 pub fn <antecedent_contract::summary_observation::FrequentistSummary>::fn name(&self) -> &str
 pub fn <antecedent_contract::summary_observation::FrequentistSummaryKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::summary_observation::FrequentistSummaryKind>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::summary_observation::LikelihoodUpdateAdmission>::const fn covariance(&self) -> &antecedent_contract::summary_observation::SummaryCovariance
+pub fn <antecedent_contract::summary_observation::LikelihoodUpdateAdmission>::const fn estimate(&self) -> f64
 pub fn <antecedent_contract::summary_observation::LikelihoodUpdateAdmission>::const fn model_identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::summary_observation::LikelihoodUpdateAdmission>::const fn summary_identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::summary_observation::LikelihoodUpdateAdmission>::const fn summary_kind(&self) -> antecedent_contract::summary_observation::FrequentistSummaryKind
@@ -6664,6 +6658,7 @@ pub fn <antecedent_contract::summary_observation::SummaryObservationError>::cons
 pub fn <antecedent_contract::summary_observation::SummaryObservationError>::const fn summary_kind(&self) -> core::option::Option<antecedent_contract::summary_observation::FrequentistSummaryKind>
 pub fn <antecedent_contract::summary_observation::SummaryObservationError>::fn message(&self) -> &str
 pub fn <antecedent_contract::summary_observation::SummaryObservationError>::fn refusal(&self) -> (&'static str, &'static str, &str)
+pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::const fn checklist(&self) -> &antecedent_contract::summary_observation::AssumptionChecklist
 pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::const fn dependence(&self) -> &antecedent_contract::summary_observation::Dependence
 pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::const fn origin(&self) -> &antecedent_contract::summary_observation::Origin
 pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::const fn sampling_approximation(&self) -> &antecedent_contract::summary_observation::SamplingApproximation
@@ -7030,6 +7025,8 @@ pub struct antecedent_contract::composition_verification::NumericalReason
 pub struct antecedent_contract::composition_verification::SharedDataRelation
 pub struct antecedent_contract::composition_verification::UnsupportedCoordinate
 pub struct antecedent_contract::composition_verification::Withdrawal
+pub struct antecedent_contract::evidence_effects::PooledSource
+pub struct antecedent_contract::evidence_effects::PooledSource has private fields
 pub struct antecedent_contract::evidence_ledger::AppliedOperation
 pub struct antecedent_contract::evidence_ledger::CombinationRequest
 pub struct antecedent_contract::evidence_ledger::DetectedOverlap
@@ -7070,24 +7067,18 @@ pub struct antecedent_contract::provider_transport::ProviderTransportSource
 pub struct antecedent_contract::provider_transport::TransportedClaimOffer
 pub struct antecedent_contract::provider_transport::TransportedHandoff
 pub struct antecedent_contract::provider_transport::TransportedHandoff has private fields
-pub struct antecedent_contract::rewrite_legality::ColumnFilterPushdown
-pub struct antecedent_contract::rewrite_legality::ColumnFilterPushdown has private fields
 pub struct antecedent_contract::rewrite_legality::FrameContents
 pub struct antecedent_contract::rewrite_legality::FrameContents has private fields
 pub struct antecedent_contract::rewrite_legality::FrameFingerprint
 pub struct antecedent_contract::rewrite_legality::FrameFingerprint has private fields
-pub struct antecedent_contract::rewrite_legality::NuisanceReuse
-pub struct antecedent_contract::rewrite_legality::NuisanceReuse has private fields
 pub struct antecedent_contract::rewrite_legality::PreservedIdentities
 pub struct antecedent_contract::rewrite_legality::PreservedIdentities has private fields
+pub struct antecedent_contract::rewrite_legality::Rewrite
+pub struct antecedent_contract::rewrite_legality::Rewrite has private fields
 pub struct antecedent_contract::rewrite_legality::RewriteRefusal
 pub struct antecedent_contract::rewrite_legality::RewriteRefusal has private fields
-pub struct antecedent_contract::rewrite_legality::SharedRowDesignPreparation
-pub struct antecedent_contract::rewrite_legality::SharedRowDesignPreparation has private fields
-pub struct antecedent_contract::rewrite_legality::SufficientStatistics
-pub struct antecedent_contract::rewrite_legality::SufficientStatistics has private fields
-pub struct antecedent_contract::rewrite_legality::TiledEvaluation
-pub struct antecedent_contract::rewrite_legality::TiledEvaluation has private fields
+pub struct antecedent_contract::summary_observation::AssumptionChecklist
+pub struct antecedent_contract::summary_observation::AssumptionChecklist has private fields
 pub struct antecedent_contract::summary_observation::Dependence
 pub struct antecedent_contract::summary_observation::Dependence has private fields
 pub struct antecedent_contract::summary_observation::FrequentistSummary
@@ -7114,9 +7105,6 @@ pub struct antecedent_contract::transport_revalidation::TransportClaimRevalidati
 pub struct antecedent_contract::transport_revalidation::TransportRevalidation
 pub struct antecedent_contract::transport_revalidation::TransportRevalidation has private fields
 pub struct antecedent_contract::transport_revalidation::TransportScene
-pub trait antecedent_contract::rewrite_legality::RewriteKind: seal::Sealed
-pub trait fn fn antecedent_contract::rewrite_legality::RewriteKind::check(&self) -> core::result::Result<(), antecedent_contract::rewrite_legality::RewriteRefusal>
-pub trait fn fn antecedent_contract::rewrite_legality::RewriteKind::name(&self) -> &'static str
 pub type antecedent_contract::ArtifactId = alloc::sync::Arc<str>
 pub type antecedent_contract::StructuredRefusal = antecedent_contract::ExternalRefusal
 pub type antecedent_contract::bridge::BridgeRefusal = antecedent_contract::ExternalRefusal
@@ -8140,6 +8128,7 @@ pub variant antecedent_contract::summary_observation::FrequentistSummaryKind::Es
 pub variant antecedent_contract::summary_observation::FrequentistSummaryKind::Interval
 pub variant antecedent_contract::summary_observation::SummaryNextAttempt::AdaptEstimateCovariance
 pub variant antecedent_contract::summary_observation::SummaryNextAttempt::ReportAsFrequentistInterval
+pub variant antecedent_contract::summary_observation::SummaryNextAttempt::SupplyEstimateCovariance
 pub variant antecedent_contract::summary_observation::SummaryNextAttempt::UseAsLikelihoodUpdate
 pub variant antecedent_contract::summary_observation::SummaryUse::BayesianLaw
 pub variant antecedent_contract::summary_observation::SummaryUse::LikelihoodUpdate

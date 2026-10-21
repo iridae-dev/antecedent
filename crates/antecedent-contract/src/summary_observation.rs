@@ -9,11 +9,13 @@
 //!
 //! An estimate and its covariance may enter a [`SummaryObservationModel`] when
 //! a sampling approximation, a selection record, a dependence record, and an
-//! origin are all present. Those four fields are part of the model. The
-//! permitted use is a likelihood update, checked by
-//! [`SummaryObservationModel::validate_use`]. The same model read as a Bayesian
-//! law is refused. An interval cannot take this path: the four fields do not
-//! turn coverage into an observation model.
+//! origin are all present. Those four names are an [`AssumptionChecklist`].
+//! A checklist is not a likelihood. The permitted use is a likelihood update,
+//! checked by [`SummaryObservationModel::validate_use`], and the admission
+//! carries the estimate and the covariance. Without those numbers the model
+//! is refused and stays a checklist. The same model read as a Bayesian law is
+//! refused. An interval cannot take this path: the four names do not turn
+//! coverage into an observation model.
 //!
 //! [`FrequentistSummary::estimate`] and [`FrequentistSummary::covariance`] read
 //! those stored numbers back. An interval has neither. This module does not
@@ -39,6 +41,7 @@ const SHAPE_DETAIL: &str = "summary_observation.covariance_shape";
 const NOT_LIKELIHOOD_DETAIL: &str = "summary_observation.not_bayesian_likelihood";
 const INTERVAL_DETAIL: &str = "summary_observation.interval_stays_frequentist";
 const NOT_LAW_DETAIL: &str = "summary_observation.not_bayesian_law";
+const CHECKLIST_DETAIL: &str = "summary_observation.checklist_not_likelihood";
 
 const MISMATCH_CODE: &str = antecedent_core::reason_code!("distribution_meaning_mismatch");
 const INVALID_CODE: &str = antecedent_core::reason_code!("invalid_argument");
@@ -162,10 +165,7 @@ impl PartialEq for SummaryBody {
         match (self, other) {
             (
                 Self::EstimateCovariance { estimate: left_estimate, covariance: left_covariance },
-                Self::EstimateCovariance {
-                    estimate: right_estimate,
-                    covariance: right_covariance,
-                },
+                Self::EstimateCovariance { estimate: right_estimate, covariance: right_covariance },
             ) => {
                 left_estimate.to_bits() == right_estimate.to_bits()
                     && left_covariance == right_covariance
@@ -228,10 +228,7 @@ impl FrequentistSummary {
         if covariance.entries.iter().any(|entry| !entry.is_finite()) {
             return Err(SummaryObservationError::non_finite("covariance"));
         }
-        Ok(Self {
-            name,
-            body: SummaryBody::EstimateCovariance { estimate, covariance },
-        })
+        Ok(Self { name, body: SummaryBody::EstimateCovariance { estimate, covariance } })
     }
 
     /// Coverage interval named `name`.
@@ -422,19 +419,84 @@ impl Origin {
     }
 }
 
-/// Observation model adapted from an estimate and its covariance.
+/// Named assumptions recorded beside an estimate.
 ///
-/// The wrapped [`FrequentistSummary`] stays
-/// [`FrequentistSummaryKind::EstimateCovariance`]. The sampling approximation,
-/// selection, dependence, and origin are required fields. A likelihood update
-/// is the permitted use. A Bayesian law is not.
+/// The four names are a checklist. [`Self::as_likelihood`] refuses to read
+/// them as a likelihood. A likelihood needs the estimate and its covariance,
+/// which a [`SummaryObservationModel`] stores and a
+/// [`LikelihoodUpdateAdmission`] returns.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct SummaryObservationModel {
-    summary: FrequentistSummary,
+pub struct AssumptionChecklist {
     sampling_approximation: SamplingApproximation,
     selection: Selection,
     dependence: Dependence,
     origin: Origin,
+}
+
+impl AssumptionChecklist {
+    /// Checklist of the four named records.
+    #[must_use]
+    pub const fn new(
+        sampling_approximation: SamplingApproximation,
+        selection: Selection,
+        dependence: Dependence,
+        origin: Origin,
+    ) -> Self {
+        Self { sampling_approximation, selection, dependence, origin }
+    }
+
+    /// Sampling approximation name.
+    #[must_use]
+    pub const fn sampling_approximation(&self) -> &SamplingApproximation {
+        &self.sampling_approximation
+    }
+
+    /// Selection name.
+    #[must_use]
+    pub const fn selection(&self) -> &Selection {
+        &self.selection
+    }
+
+    /// Dependence name.
+    #[must_use]
+    pub const fn dependence(&self) -> &Dependence {
+        &self.dependence
+    }
+
+    /// Origin name.
+    #[must_use]
+    pub const fn origin(&self) -> &Origin {
+        &self.origin
+    }
+
+    /// Refuse this checklist as a likelihood.
+    ///
+    /// The names are not an estimate and not a covariance. The next attempt is
+    /// [`SummaryNextAttempt::SupplyEstimateCovariance`].
+    #[must_use = "a checklist of names is not a likelihood"]
+    pub fn as_likelihood(&self) -> SummaryObservationError {
+        let next = SummaryNextAttempt::SupplyEstimateCovariance;
+        let mut message = String::from(
+            "a checklist of sampling approximation, selection, dependence, and origin is not a \
+             likelihood",
+        );
+        message.push_str("; next attempt: ");
+        message.push_str(next.phrase());
+        SummaryObservationError::checklist(message)
+    }
+}
+
+/// Observation model adapted from an estimate and its covariance.
+///
+/// The wrapped [`FrequentistSummary`] stays
+/// [`FrequentistSummaryKind::EstimateCovariance`]. The sampling approximation,
+/// selection, dependence, and origin are an [`AssumptionChecklist`], not a
+/// likelihood. A likelihood update is the permitted use and carries the
+/// estimate and the covariance. A Bayesian law is not a permitted use.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct SummaryObservationModel {
+    summary: FrequentistSummary,
+    checklist: AssumptionChecklist,
 }
 
 impl SummaryObservationModel {
@@ -470,7 +532,15 @@ impl SummaryObservationModel {
                 summary.kind(),
             ));
         }
-        Ok(Self { summary, sampling_approximation, selection, dependence, origin })
+        Ok(Self {
+            summary,
+            checklist: AssumptionChecklist::new(
+                sampling_approximation,
+                selection,
+                dependence,
+                origin,
+            ),
+        })
     }
 
     /// Frequentist estimate and covariance this model was adapted from.
@@ -479,28 +549,34 @@ impl SummaryObservationModel {
         &self.summary
     }
 
+    /// Named assumptions. This checklist is not a likelihood.
+    #[must_use = "a checklist of names is not a likelihood"]
+    pub const fn checklist(&self) -> &AssumptionChecklist {
+        &self.checklist
+    }
+
     /// Sampling approximation recorded on this model.
     #[must_use]
     pub const fn sampling_approximation(&self) -> &SamplingApproximation {
-        &self.sampling_approximation
+        self.checklist.sampling_approximation()
     }
 
     /// Selection recorded on this model.
     #[must_use]
     pub const fn selection(&self) -> &Selection {
-        &self.selection
+        self.checklist.selection()
     }
 
     /// Dependence recorded on this model.
     #[must_use]
     pub const fn dependence(&self) -> &Dependence {
-        &self.dependence
+        self.checklist.dependence()
     }
 
     /// Origin recorded on this model.
     #[must_use]
     pub const fn origin(&self) -> &Origin {
-        &self.origin
+        self.checklist.origin()
     }
 
     /// Digest of the frequentist summary and the four records.
@@ -511,19 +587,21 @@ impl SummaryObservationModel {
     pub fn identity(&self) -> SemanticDigest {
         let mut writer = CanonicalWriter::new(SUMMARY_OBSERVATION_TAG);
         write_summary(&mut writer, &self.summary);
-        writer.text(self.sampling_approximation.name());
-        writer.text(self.selection.name());
-        writer.text(self.dependence.name());
-        writer.text(self.origin.name());
+        writer.text(self.checklist.sampling_approximation().name());
+        writer.text(self.checklist.selection().name());
+        writer.text(self.checklist.dependence().name());
+        writer.text(self.checklist.origin().name());
         SemanticDigest::from_bytes(writer.finish())
     }
 
     /// Admit `requested` when it is a likelihood update of this model.
     ///
     /// [`SummaryUse::LikelihoodUpdate`] returns an admission whose summary kind
-    /// is still [`FrequentistSummaryKind::EstimateCovariance`].
-    /// [`SummaryUse::BayesianLaw`] is refused. The next attempt is
-    /// [`SummaryNextAttempt::UseAsLikelihoodUpdate`].
+    /// is still [`FrequentistSummaryKind::EstimateCovariance`] and which carries
+    /// the estimate and the covariance. The checklist of names is not that
+    /// likelihood. [`SummaryUse::BayesianLaw`] is refused. The next attempt is
+    /// [`SummaryNextAttempt::UseAsLikelihoodUpdate`]. When the estimate or the
+    /// covariance is absent the error is the checklist refusal.
     ///
     /// # Errors
     ///
@@ -534,12 +612,19 @@ impl SummaryObservationModel {
         requested: SummaryUse,
     ) -> Result<LikelihoodUpdateAdmission, SummaryObservationError> {
         match requested {
-            SummaryUse::LikelihoodUpdate => Ok(LikelihoodUpdateAdmission {
-                summary_kind: self.summary.kind(),
-                summary_name: Arc::clone(&self.summary.name),
-                summary_identity: self.summary.identity(),
-                model_identity: self.identity(),
-            }),
+            SummaryUse::LikelihoodUpdate => {
+                match (self.summary.estimate(), self.summary.covariance()) {
+                    (Some(estimate), Some(covariance)) => Ok(LikelihoodUpdateAdmission {
+                        summary_kind: self.summary.kind(),
+                        summary_name: Arc::clone(&self.summary.name),
+                        summary_identity: self.summary.identity(),
+                        model_identity: self.identity(),
+                        estimate,
+                        covariance: covariance.clone(),
+                    }),
+                    _ => Err(self.checklist.as_likelihood()),
+                }
+            }
             SummaryUse::BayesianLaw => {
                 let next = SummaryNextAttempt::UseAsLikelihoodUpdate;
                 Err(SummaryObservationError::meaning(
@@ -591,13 +676,40 @@ impl fmt::Display for SummaryUse {
 /// Admission to use a summary observation model as a likelihood update.
 ///
 /// The frequentist summary kind and identity are the estimate and covariance
-/// the model was adapted from.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+/// the model was adapted from. The estimate and covariance are the likelihood.
+/// A name list is not.
+#[derive(Clone, Debug)]
 pub struct LikelihoodUpdateAdmission {
     summary_kind: FrequentistSummaryKind,
     summary_name: Arc<str>,
     summary_identity: SemanticDigest,
     model_identity: SemanticDigest,
+    estimate: f64,
+    covariance: SummaryCovariance,
+}
+
+impl PartialEq for LikelihoodUpdateAdmission {
+    fn eq(&self, other: &Self) -> bool {
+        self.summary_kind == other.summary_kind
+            && self.summary_name == other.summary_name
+            && self.summary_identity == other.summary_identity
+            && self.model_identity == other.model_identity
+            && self.estimate.to_bits() == other.estimate.to_bits()
+            && self.covariance == other.covariance
+    }
+}
+
+impl Eq for LikelihoodUpdateAdmission {}
+
+impl Hash for LikelihoodUpdateAdmission {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.summary_kind.hash(state);
+        self.summary_name.hash(state);
+        self.summary_identity.hash(state);
+        self.model_identity.hash(state);
+        self.estimate.to_bits().hash(state);
+        self.covariance.hash(state);
+    }
 }
 
 impl LikelihoodUpdateAdmission {
@@ -624,6 +736,18 @@ impl LikelihoodUpdateAdmission {
     pub const fn model_identity(&self) -> SemanticDigest {
         self.model_identity
     }
+
+    /// Point estimate of the likelihood.
+    #[must_use]
+    pub const fn estimate(&self) -> f64 {
+        self.estimate
+    }
+
+    /// Covariance of the likelihood.
+    #[must_use]
+    pub const fn covariance(&self) -> &SummaryCovariance {
+        &self.covariance
+    }
 }
 
 /// Legal next attempt after a summary was refused as a Bayesian reading.
@@ -636,14 +760,17 @@ pub enum SummaryNextAttempt {
     AdaptEstimateCovariance,
     /// Use the summary observation model as the likelihood of the update.
     UseAsLikelihoodUpdate,
+    /// Supply the estimate and its covariance. A name list is not a likelihood.
+    SupplyEstimateCovariance,
 }
 
 impl SummaryNextAttempt {
     /// Every next attempt, in declaration order.
-    pub const ALL: [Self; 3] = [
+    pub const ALL: [Self; 4] = [
         Self::ReportAsFrequentistInterval,
         Self::AdaptEstimateCovariance,
         Self::UseAsLikelihoodUpdate,
+        Self::SupplyEstimateCovariance,
     ];
 
     /// Stable `snake_case` name.
@@ -653,6 +780,7 @@ impl SummaryNextAttempt {
             Self::ReportAsFrequentistInterval => "report_as_frequentist_interval",
             Self::AdaptEstimateCovariance => "adapt_estimate_covariance",
             Self::UseAsLikelihoodUpdate => "use_as_likelihood_update",
+            Self::SupplyEstimateCovariance => "supply_estimate_covariance",
         }
     }
 
@@ -670,6 +798,7 @@ impl SummaryNextAttempt {
             Self::UseAsLikelihoodUpdate => {
                 "use the summary observation model as the likelihood of the update"
             }
+            Self::SupplyEstimateCovariance => "supply the estimate and its covariance",
         }
     }
 
@@ -764,6 +893,16 @@ impl SummaryObservationError {
             detail: SHAPE_DETAIL,
             message: String::from("covariance is not a square matrix"),
             next: None,
+            summary_kind: None,
+        }
+    }
+
+    fn checklist(message: String) -> Self {
+        Self {
+            code: MISMATCH_CODE,
+            detail: CHECKLIST_DETAIL,
+            message,
+            next: Some(SummaryNextAttempt::SupplyEstimateCovariance),
             summary_kind: None,
         }
     }
@@ -1019,6 +1158,17 @@ mod tests {
         assert_eq!(admission.summary_name(), "ate");
         assert_eq!(admission.summary_identity(), summary.identity());
         assert_eq!(admission.model_identity(), before);
+        assert_eq!(admission.estimate().to_bits(), 1.25_f64.to_bits());
+        assert_eq!(
+            admission.covariance().entries().first().copied().map(f64::to_bits),
+            Some(0.25_f64.to_bits())
+        );
+        let checklist = model.checklist().as_likelihood();
+        assert_eq!(checklist.detail(), "summary_observation.checklist_not_likelihood");
+        assert!(checklist.message().contains("not a likelihood"));
+        assert!(checklist.message().contains("checklist"));
+        assert_eq!(checklist.next_attempt(), Some(SummaryNextAttempt::SupplyEstimateCovariance));
+        assert!(checklist.summary_kind().is_none());
         assert_ne!(admission.summary_identity(), admission.model_identity());
         assert_ne!(admission.summary_kind(), FrequentistSummaryKind::Interval);
         assert_eq!(model.summary().kind(), FrequentistSummaryKind::EstimateCovariance);
@@ -1091,8 +1241,8 @@ mod tests {
             summary.identity(),
         );
 
-        let matrix = SummaryCovariance::matrix(2, vec![1.0_f64, 0.2_f64, 0.3_f64, 4.0_f64])
-            .expect("matrix");
+        let matrix =
+            SummaryCovariance::matrix(2, vec![1.0_f64, 0.2_f64, 0.3_f64, 4.0_f64]).expect("matrix");
         let joint =
             FrequentistSummary::estimate_covariance("joint", -0.5_f64, matrix).expect("joint");
         let stored = joint.covariance().expect("covariance");
@@ -1157,7 +1307,7 @@ mod tests {
 
     #[test]
     fn next_attempt_names_differ() {
-        assert_eq!(SummaryNextAttempt::ALL.len(), 3);
+        assert_eq!(SummaryNextAttempt::ALL.len(), 4);
         assert_eq!(FrequentistSummaryKind::ALL.len(), 2);
         assert_eq!(SummaryUse::ALL.len(), 2);
         for (index, attempt) in SummaryNextAttempt::ALL.iter().enumerate() {

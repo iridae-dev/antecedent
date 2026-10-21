@@ -4,9 +4,15 @@
 //! Each [`DependenceSource`] carries an identity and the factor identities it
 //! uses. [`DependenceContract::assess`] reports the relation those sets
 //! support: independent when every source has declared its factors and no pair
-//! shares one, dependent when a factor identity is shared, and unknown when a
-//! source's overlap is undeclared and no shared factor is known. A known
-//! shared factor stays dependence when another source's overlap is unknown.
+//! shares a dependence factor, dependent when a dependence factor is shared,
+//! and unknown when a source's overlap is undeclared and no shared dependence
+//! factor is known. A known shared factor stays dependence when another
+//! source's overlap is unknown.
+//!
+//! A parameter id is not a dependence factor. Independent studies that inform
+//! one parameter, with disjoint rows and no other shared factor, are
+//! independent. Factor ids are compared after trimming and case-folding. An
+//! assessment names at most [`MAX_COMBINATION_SOURCES`] sources.
 //!
 //! An independence claim is [`DependenceContract::try_claim_independent`].
 //! When the factors do not support it, the error names the shared factor, or
@@ -19,6 +25,8 @@
 
 use std::{collections::BTreeSet, error::Error, fmt, sync::Arc};
 
+use crate::evidence_ledger::MAX_COMBINATION_SOURCES;
+
 const BLANK_CODE: &str = antecedent_core::reason_code!("invalid_argument");
 const SHARED_CODE: &str = antecedent_core::reason_code!("evidence_double_counted");
 const UNKNOWN_CODE: &str = antecedent_core::reason_code!("evidence_overlap_unknown");
@@ -27,6 +35,7 @@ const BLANK_SOURCE_DETAIL: &str = "dependence.blank_source_id";
 const BLANK_FACTOR_DETAIL: &str = "dependence.blank_factor_id";
 const SHARED_DETAIL: &str = "dependence.shared_factor";
 const UNKNOWN_DETAIL: &str = "dependence.overlap_unknown";
+const TOO_MANY_DETAIL: &str = "dependence.too_many_sources";
 
 const BLANK_SOURCE_MESSAGE: &str = "a source id is blank";
 const BLANK_FACTOR_MESSAGE: &str = "a factor id is blank";
@@ -43,7 +52,12 @@ pub enum SharedFactorKind {
     Cluster,
     /// A fitted or external model.
     Model,
-    /// A parameter the evidence informs or conditions on.
+    /// A parameter the evidence informs.
+    ///
+    /// Sharing this id is not dependence when the studies are otherwise
+    /// independent. Independent studies inform one parameter. A shared row,
+    /// cluster, model, prior, disturbance, or period is still dependence, and
+    /// the parameter is then omitted from the shared-factor report.
     Parameter,
     /// A prior, including a prior built from other evidence.
     Prior,
@@ -86,14 +100,21 @@ impl SharedFactorKind {
     }
 }
 
-/// Identity of one shared factor. Blank text is refused and surrounding whitespace is
-/// not part of the identity, so `row-1` and `row-1 ` name the same factor.
+/// Identity of one shared factor.
+///
+/// Blank text is refused. Comparison trims surrounding whitespace and folds
+/// case, so `Row-1` and ` row-1 ` name the same factor. The stored text is
+/// that normalized form.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SharedFactorId(Arc<str>);
 
 impl SharedFactorId {
     fn try_new(text: &str) -> Result<Self, DependenceError> {
-        checked_text(text.trim(), BLANK_FACTOR_DETAIL, BLANK_FACTOR_MESSAGE).map(Self)
+        let trimmed = text.trim();
+        if antecedent_core::is_blank(trimmed) {
+            return Err(DependenceError::blank(BLANK_FACTOR_DETAIL, BLANK_FACTOR_MESSAGE));
+        }
+        Ok(Self(Arc::from(trimmed.to_lowercase())))
     }
 
     /// Text of this identity.
@@ -234,6 +255,10 @@ impl SharedFactorSets {
 
     fn accumulate_overlap(&self, other: &Self, into: &mut BTreeSet<SharedFactor>) {
         for kind in SharedFactorKind::ALL {
+            // A parameter is the quantity independent studies inform.
+            if matches!(kind, SharedFactorKind::Parameter) {
+                continue;
+            }
             for id in self.ids(kind).intersection(other.ids(kind)) {
                 into.insert(SharedFactor { kind, id: id.clone() });
             }
@@ -355,10 +380,13 @@ impl DependenceSource {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum DependenceStatus {
-    /// Every source declared its factors, and no pair shares one.
+    /// Every source declared its factors, and no pair shares a dependence factor.
+    ///
+    /// A shared parameter does not count.
     Independent,
-    /// At least one factor identity appears in two sources. Sources whose overlap is
-    /// undeclared stay on the contract, so the known factors are a lower bound.
+    /// At least one dependence factor appears in two sources. A parameter does
+    /// not. Sources whose overlap is undeclared stay on the contract, so the
+    /// known factors are a lower bound.
     Dependent,
     /// No shared factor is known, and at least one source left its overlap undeclared.
     Unknown,
@@ -378,13 +406,24 @@ pub struct DependenceContract {
 impl DependenceContract {
     /// The dependence the sources support.
     ///
-    /// A shared factor is dependence, including when another source left its
-    /// overlap unknown. Unknown overlap with no known shared factor is
+    /// A shared dependence factor is dependence, including when another source
+    /// left its overlap unknown. A shared parameter is not that factor: studies
+    /// with the same parameter id, disjoint rows, and no other shared factor are
+    /// independent. Unknown overlap with no known shared dependence factor is
     /// [`DependenceStatus::Unknown`]. Independence requires complete disclosure
-    /// and pairwise disjoint factor sets. Source identities are not the criterion.
-    /// Fewer than two sources are independent when every disclosure is complete.
-    #[must_use]
-    pub fn assess(sources: &[DependenceSource]) -> Self {
+    /// and pairwise disjoint dependence factors. Source identities are not the
+    /// criterion. Fewer than two sources are independent when every disclosure
+    /// is complete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `sources` names more than [`MAX_COMBINATION_SOURCES`].
+    /// The error has no next contract.
+    #[must_use = "an assessment past the source cap is refused"]
+    pub fn assess(sources: &[DependenceSource]) -> Result<Self, DependenceError> {
+        if sources.len() > MAX_COMBINATION_SOURCES {
+            return Err(DependenceError::too_many(sources.len()));
+        }
         let mut shared = BTreeSet::new();
         for (index, left) in sources.iter().enumerate() {
             for right in sources.iter().skip(index + 1) {
@@ -399,24 +438,24 @@ impl DependenceContract {
         }
         if !shared.is_empty() {
             let factors = shared.into_iter().collect::<Box<[SharedFactor]>>();
-            return Self {
+            return Ok(Self {
                 status: DependenceStatus::Dependent,
                 factors,
                 unknown_sources: unknown.into_iter().collect(),
-            };
+            });
         }
         if unknown.is_empty() {
-            Self {
+            Ok(Self {
                 status: DependenceStatus::Independent,
                 factors: empty_slice(),
                 unknown_sources: empty_slice(),
-            }
+            })
         } else {
-            Self {
+            Ok(Self {
                 status: DependenceStatus::Unknown,
                 factors: empty_slice(),
                 unknown_sources: unknown.into_iter().collect(),
-            }
+            })
         }
     }
 
@@ -429,10 +468,12 @@ impl DependenceContract {
     ///
     /// Returns an error naming each shared factor, or naming that overlap is
     /// unknown. [`DependenceError::next_contract`] is the dependent or unknown
-    /// contract, and that contract is never independent.
+    /// contract, and that contract is never independent. Also returns an error
+    /// when more than [`MAX_COMBINATION_SOURCES`] sources are named; that error
+    /// has no next contract.
     #[must_use = "an independence claim the factors do not support is a failed attempt"]
     pub fn try_claim_independent(sources: &[DependenceSource]) -> Result<Self, DependenceError> {
-        let contract = Self::assess(sources);
+        let contract = Self::assess(sources)?;
         match contract.status {
             DependenceStatus::Independent => Ok(contract),
             DependenceStatus::Dependent => Err(DependenceError::shared(sources, contract)),
@@ -571,6 +612,18 @@ impl DependenceError {
     fn unknown_contract(contract: DependenceContract) -> Self {
         let message = unknown_message(contract.unknown_sources());
         Self { code: UNKNOWN_CODE, detail: UNKNOWN_DETAIL, message, next: Some(contract) }
+    }
+
+    fn too_many(count: usize) -> Self {
+        Self {
+            code: BLANK_CODE,
+            detail: TOO_MANY_DETAIL,
+            message: format!(
+                "{count} sources in one assessment; at most {MAX_COMBINATION_SOURCES} are \
+                 assessed at once"
+            ),
+            next: None,
+        }
     }
 }
 
@@ -749,6 +802,7 @@ mod tests {
         CovarianceTerms, DependenceContract, DependenceSource, DependenceStatus, SharedFactorKind,
         SharedFactorSets,
     };
+    use crate::evidence_ledger::MAX_COMBINATION_SOURCES;
 
     const KINDS: [SharedFactorKind; 7] = [
         SharedFactorKind::Row,
@@ -776,6 +830,10 @@ mod tests {
         DependenceSource::try_with_unknown_overlap(id, sets(entries)).expect("source id")
     }
 
+    fn contract_of(sources: &[DependenceSource]) -> DependenceContract {
+        DependenceContract::assess(sources).expect("within the source cap")
+    }
+
     #[test]
     fn duplicate_sources_are_dependent() {
         let original = declared(
@@ -785,15 +843,15 @@ mod tests {
         let copy =
             declared("copy", &[(SharedFactorKind::Row, "row-1"), (SharedFactorKind::Row, "row-2")]);
         assert_ne!(original.id().as_str(), copy.id().as_str());
-        let contract = DependenceContract::assess(&[original.clone(), copy.clone()]);
+        let contract = contract_of(&[original.clone(), copy.clone()]);
         assert!(contract.is_dependent());
         assert!(!contract.is_independent());
         assert_eq!(contract.shared_factors().len(), 2);
         assert_eq!(contract.shared_factors().first().expect("row").id().as_str(), "row-1");
-        assert_eq!(DependenceContract::assess(&[copy.clone(), original.clone()]), contract);
+        assert_eq!(contract_of(&[copy.clone(), original.clone()]), contract);
 
         let partial = declared("partial", &[(SharedFactorKind::Row, "row-2")]);
-        let overlap = DependenceContract::assess(&[original.clone(), partial]);
+        let overlap = contract_of(&[original.clone(), partial]);
         assert!(overlap.is_dependent());
         assert_eq!(overlap.shared_factors().len(), 1);
         assert_eq!(overlap.shared_factors().first().expect("row").id().as_str(), "row-2");
@@ -823,7 +881,7 @@ mod tests {
             &[(SharedFactorKind::Row, "row-2"), (SharedFactorKind::Prior, "prior:power")],
         );
         assert_ne!(study.id().as_str(), posterior.id().as_str());
-        let through_prior = DependenceContract::assess(&[study, posterior]);
+        let through_prior = contract_of(&[study, posterior]);
         assert!(through_prior.is_dependent());
         assert!(through_prior.shared_factors().iter().all(|factor| {
             factor.kind() == SharedFactorKind::Prior && factor.id().as_str() == "prior:power"
@@ -838,7 +896,7 @@ mod tests {
             &[(SharedFactorKind::Row, "row-4"), (SharedFactorKind::Model, "model:external")],
         );
         assert_ne!(fit.id().as_str(), claim.id().as_str());
-        let through_model = DependenceContract::assess(&[fit.clone(), claim.clone()]);
+        let through_model = contract_of(&[fit.clone(), claim.clone()]);
         assert!(through_model.is_dependent());
         assert!(through_model.shared_factors().iter().all(|factor| {
             factor.kind() == SharedFactorKind::Model && factor.id().as_str() == "model:external"
@@ -858,7 +916,7 @@ mod tests {
         let known = declared("known", &[(SharedFactorKind::Row, "row-1")]);
         let opaque = unknown("opaque", &[]);
         assert_ne!(known.id().as_str(), opaque.id().as_str());
-        let contract = DependenceContract::assess(&[known.clone(), opaque.clone()]);
+        let contract = contract_of(&[known.clone(), opaque.clone()]);
         assert!(contract.is_unknown());
         assert!(!contract.is_independent());
         assert!(!contract.is_dependent());
@@ -879,12 +937,12 @@ mod tests {
         assert!(covariance_next.is_unknown());
         assert!(!covariance_next.is_independent());
 
-        let alone = DependenceContract::assess(&[unknown("alone", &[])]);
+        let alone = contract_of(&[unknown("alone", &[])]);
         assert!(alone.is_unknown());
         assert!(!alone.is_independent());
 
         let partial = unknown("partial", &[(SharedFactorKind::Row, "row-1")]);
-        let shared = DependenceContract::assess(&[known, partial]);
+        let shared = contract_of(&[known, partial]);
         assert!(shared.is_dependent());
         assert!(!shared.is_unknown());
         assert!(!shared.is_independent());
@@ -905,7 +963,7 @@ mod tests {
         assert_eq!(refused.detail(), "dependence.overlap_unknown");
         assert!(refused.message().contains("incomplete"));
         assert!(refused.message().contains("overlap is unknown for `partial`"));
-        let complete = DependenceContract::assess(&[
+        let complete = contract_of(&[
             declared("a", &[(SharedFactorKind::Row, "row-1")]),
             declared("b", &[(SharedFactorKind::Row, "row-1")]),
         ])
@@ -923,7 +981,7 @@ mod tests {
             &[(SharedFactorKind::Cluster, "site-1"), (SharedFactorKind::Period, "2020")],
         );
         let right = declared("right", &[(SharedFactorKind::Period, "2020")]);
-        let contract = DependenceContract::assess(&[left, middle, right]);
+        let contract = contract_of(&[left, middle, right]);
         assert!(contract.is_dependent());
         let combination = contract.covariance_combination().expect("cross terms");
         assert!(combination.requires_cross_terms());
@@ -937,7 +995,7 @@ mod tests {
 
         let separate_a = declared("a", &[(SharedFactorKind::Cluster, "site-a")]);
         let separate_b = declared("b", &[(SharedFactorKind::Cluster, "site-b")]);
-        let independent = DependenceContract::assess(&[separate_a, separate_b]);
+        let independent = contract_of(&[separate_a, separate_b]);
         assert!(independent.is_independent());
         let diagonal = independent.covariance_combination().expect("diagonal");
         assert!(!diagonal.requires_cross_terms());
@@ -953,7 +1011,7 @@ mod tests {
         );
         let right = declared("source-b", &[(SharedFactorKind::Disturbance, "shock")]);
         assert_ne!(left.id().as_str(), right.id().as_str());
-        let shared = DependenceContract::assess(&[left.clone(), right.clone()]);
+        let shared = contract_of(&[left.clone(), right.clone()]);
         assert!(shared.is_dependent());
         assert!(!shared.is_independent());
         let err = DependenceContract::try_claim_independent(&[left, right])
@@ -968,7 +1026,7 @@ mod tests {
         let opaque = unknown("source-c", &[]);
         let other = declared("source-d", &[(SharedFactorKind::Row, "row-9")]);
         assert_ne!(opaque.id().as_str(), other.id().as_str());
-        let undeclared = DependenceContract::assess(&[opaque, other]);
+        let undeclared = contract_of(&[opaque, other]);
         assert!(undeclared.is_unknown());
         assert!(!undeclared.is_independent());
 
@@ -985,15 +1043,15 @@ mod tests {
 
     #[test]
     fn unsupported_independence_claim_is_a_failed_attempt() {
-        let left = declared("left", &[(SharedFactorKind::Parameter, "theta")]);
-        let right = declared("right", &[(SharedFactorKind::Parameter, "theta")]);
-        let assessed = DependenceContract::assess(&[left.clone(), right.clone()]);
-        let err = DependenceContract::try_claim_independent(&[left, right])
-            .expect_err("shared parameter");
+        let left = declared("left", &[(SharedFactorKind::Row, "row-1")]);
+        let right = declared("right", &[(SharedFactorKind::Row, "row-1")]);
+        let assessed = contract_of(&[left.clone(), right.clone()]);
+        let err =
+            DependenceContract::try_claim_independent(&[left, right]).expect_err("shared row");
         assert_eq!(err.detail(), "dependence.shared_factor");
         assert_eq!(err.refusal().0, "evidence_double_counted");
-        assert!(err.message().contains("parameter"));
-        assert!(err.message().contains("theta"));
+        assert!(err.message().contains("row"));
+        assert!(err.message().contains("row-1"));
         assert!(antecedent_core::reason_code::is_runtime_refusal(err.code()));
         let next = err.into_contract().expect("dependent contract");
         assert_eq!(next, assessed);
@@ -1002,7 +1060,7 @@ mod tests {
 
         let known = declared("known", &[(SharedFactorKind::Period, "2021")]);
         let opaque = unknown("opaque", &[]);
-        let assessed_unknown = DependenceContract::assess(&[known.clone(), opaque.clone()]);
+        let assessed_unknown = contract_of(&[known.clone(), opaque.clone()]);
         let err = DependenceContract::try_claim_independent(&[known, opaque])
             .expect_err("unknown overlap");
         assert_eq!(err.detail(), "dependence.overlap_unknown");
@@ -1028,10 +1086,14 @@ mod tests {
         assert!(SharedFactorKind::from_name("not-a-factor").is_none());
         for kind in SharedFactorKind::ALL {
             assert_eq!(SharedFactorKind::from_name(kind.as_str()), Some(kind));
+            // A shared parameter is not dependence. The dedicated test covers it.
+            if matches!(kind, SharedFactorKind::Parameter) {
+                continue;
+            }
             let left = declared("left", &[(kind, "shared")]);
             let right = declared("right", &[(kind, "shared"), (kind, "only-right")]);
             assert_ne!(left.id().as_str(), right.id().as_str());
-            let contract = DependenceContract::assess(&[left, right]);
+            let contract = contract_of(&[left, right]);
             assert!(contract.is_dependent(), "{}", kind.as_str());
             assert!(!contract.is_independent(), "{}", kind.as_str());
             assert!(
@@ -1047,17 +1109,78 @@ mod tests {
     }
 
     #[test]
-    fn factor_ids_are_compared_after_trimming() {
-        let left = declared("left", &[(SharedFactorKind::Row, "row-1")]);
+    fn factor_ids_are_compared_after_trimming_and_case_folding() {
+        let left = declared("left", &[(SharedFactorKind::Row, "Row-1")]);
         let right = declared("right", &[(SharedFactorKind::Row, " row-1\t")]);
-        let contract = DependenceContract::assess(&[left, right]);
+        let contract = contract_of(&[left, right]);
         assert!(contract.is_dependent());
         assert_eq!(contract.shared_factors().len(), 1);
         assert_eq!(contract.shared_factors()[0].id().as_str(), "row-1");
         let mut factors = SharedFactorSets::empty();
         factors.try_insert(SharedFactorKind::Row, "row-1").expect("factor");
         factors.try_insert(SharedFactorKind::Row, "row-1 ").expect("factor");
+        factors.try_insert(SharedFactorKind::Row, "ROW-1").expect("factor");
         assert_eq!(factors.ids(SharedFactorKind::Row).len(), 1);
+        assert_eq!(
+            factors.ids(SharedFactorKind::Row).iter().next().expect("row").as_str(),
+            "row-1"
+        );
+    }
+
+    #[test]
+    fn shared_parameter_of_independent_studies_is_not_dependence() {
+        let left = declared(
+            "study-a",
+            &[(SharedFactorKind::Parameter, "Theta"), (SharedFactorKind::Row, "row-a")],
+        );
+        let right = declared(
+            "study-b",
+            &[(SharedFactorKind::Parameter, " theta "), (SharedFactorKind::Row, "row-b")],
+        );
+        assert_ne!(left.id().as_str(), right.id().as_str());
+        let left_parameter = left.factors().ids(SharedFactorKind::Parameter);
+        let right_parameter = right.factors().ids(SharedFactorKind::Parameter);
+        assert_eq!(left_parameter.iter().next().expect("parameter").as_str(), "theta");
+        assert_eq!(right_parameter.iter().next().expect("parameter").as_str(), "theta");
+        let contract = contract_of(&[left.clone(), right.clone()]);
+        assert!(contract.is_independent());
+        assert!(!contract.is_dependent());
+        assert!(contract.shared_factors().is_empty());
+        assert_eq!(contract.status(), DependenceStatus::Independent);
+        let claimed =
+            DependenceContract::try_claim_independent(&[left, right]).expect("independent");
+        assert!(claimed.is_independent());
+        let diagonal = claimed.covariance_combination().expect("diagonal");
+        assert!(!diagonal.requires_cross_terms());
+
+        let shared_row = contract_of(&[
+            declared(
+                "study-c",
+                &[(SharedFactorKind::Parameter, "theta"), (SharedFactorKind::Row, "row-1")],
+            ),
+            declared(
+                "study-d",
+                &[(SharedFactorKind::Parameter, "THETA"), (SharedFactorKind::Row, "row-1")],
+            ),
+        ]);
+        assert!(shared_row.is_dependent());
+        assert!(shared_row.shared_factors().iter().all(|factor| {
+            factor.kind() == SharedFactorKind::Row && factor.id().as_str() == "row-1"
+        }));
+    }
+
+    #[test]
+    fn too_many_sources_are_refused() {
+        let sources: Vec<DependenceSource> =
+            (0..=MAX_COMBINATION_SOURCES).map(|index| declared(&index.to_string(), &[])).collect();
+        let refusal = DependenceContract::assess(&sources).expect_err("over the source cap");
+        assert_eq!(refusal.detail(), "dependence.too_many_sources");
+        assert_eq!(refusal.code(), "invalid_argument");
+        assert!(refusal.message().contains(&MAX_COMBINATION_SOURCES.to_string()));
+        assert!(refusal.next_contract().is_none());
+        let claim = DependenceContract::try_claim_independent(&sources).expect_err("over the cap");
+        assert_eq!(claim.detail(), "dependence.too_many_sources");
+        assert!(claim.into_contract().is_none());
     }
 
     #[test]
