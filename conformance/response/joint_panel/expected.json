@@ -881,6 +881,30 @@
           4.0
         ]
       ]
+    },
+    "whole_program_randomized": {
+      "assigned_program_indices": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "assignment": "independent uniform draw among four complete programs at each group's origin",
+      "assignment_seed": 194,
+      "exogenous_context": "z and season paths are generated independently of whole-program assignment",
+      "inference_limit": "one retained group per program; no calibrated uncertainty or fit promotion",
+      "probabilities": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "program_order": [
+        "reference",
+        "a",
+        "b",
+        "joint"
+      ]
     }
   },
   "dimensions": {

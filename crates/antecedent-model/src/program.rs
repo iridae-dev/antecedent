@@ -317,11 +317,13 @@ pub struct NodeProgram {
     callbacks: Arc<[CallbackCall]>,
     /// Work columns the executor needs, including one for a callback's output.
     max_stack: usize,
+    /// Present only for an explicitly column-bound component program.
+    input_axis: Option<Arc<[VariableId]>>,
 }
 
 impl PartialEq for NodeProgram {
     fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind && self.expr == other.expr
+        self.kind == other.kind && self.expr == other.expr && self.input_axis == other.input_axis
     }
 }
 
@@ -412,26 +414,209 @@ impl NodeProgram {
                 )));
             }
         }
-        let mut ops = Vec::new();
-        let mut depth = 0usize;
-        let mut max_stack = 0usize;
-        emit(model, expr, &mut ops, &mut depth, &mut max_stack);
-        // Collected in the order `emit` places the `Op::Callback` indices.
-        let callbacks: Vec<CallbackCall> = expr.callbacks().into_iter().cloned().collect();
-        if !callbacks.is_empty() {
-            // One more column than the value stack ever holds: a callback's output.
-            max_stack += 1;
-        }
+        let (ops, callbacks, max_stack) =
+            lowered_ops(model.n_nodes(), &|variable| model.dense_of(variable), expr);
         Ok(Self {
             kind,
             expr: expr.clone(),
-            ops: ops.into(),
+            ops,
             reads: reads.into(),
             lag_slots: lag_slots.into(),
             max_lag,
-            callbacks: callbacks.into(),
+            callbacks,
             max_stack,
+            input_axis: None,
         })
+    }
+
+    /// Bind the existing portable expression language to an explicit numeric column axis.
+    ///
+    /// This component compiler grants no graph, identification or intervention authority.
+    /// Input columns already carry their caller-declared scale. It uses the same validated
+    /// postfix lowering and executor as causal-model intervention programs.
+    ///
+    /// # Errors
+    /// Refuses duplicate/unknown columns, generated/history reads, callbacks and invalid expressions.
+    pub fn compile_columns(axis: &[VariableId], expr: &ValueExpr) -> Result<Self, PolicyRefusal> {
+        if axis.iter().copied().collect::<std::collections::BTreeSet<_>>().len() != axis.len()
+            || axis.len() >= u32::MAX as usize
+        {
+            return Err(refusal_unknown_variable(
+                "column expression requires a unique bounded variable axis".into(),
+            ));
+        }
+        let declared = expr.reads();
+        if !declared.history.is_empty() {
+            return Err(refusal_history_unavailable(
+                "column expressions cannot read implicit history".into(),
+            ));
+        }
+        if expr.reads_generated() {
+            return Err(refusal_generated_unavailable(
+                "column expressions have no generated node value".into(),
+            ));
+        }
+        if !expr.callbacks().is_empty() {
+            return Err(refusal_unknown_variable(
+                "column expressions require portable callback-free operators".into(),
+            ));
+        }
+        expr.validate_program(false, &declared)
+            .map_err(|fault| refusal_for_fault(fault, "invalid column expression".into()))?;
+        let resolve = |variable| {
+            axis.iter().position(|&candidate| candidate == variable).map(DenseNodeId::from_index)
+        };
+        let reads = declared
+            .current
+            .iter()
+            .map(|&variable| {
+                resolve(variable).ok_or_else(|| {
+                    refusal_unknown_variable(format!(
+                        "column expression reads absent variable {variable}"
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let (ops, callbacks, max_stack) = lowered_ops(axis.len() + 1, &resolve, expr);
+        Ok(Self {
+            kind: ProgramKind::Assign,
+            expr: expr.clone(),
+            ops,
+            reads: reads.into(),
+            lag_slots: Arc::from([]),
+            max_lag: 0,
+            callbacks,
+            max_stack,
+            input_axis: Some(Arc::from(axis)),
+        })
+    }
+
+    /// Conservative compilation/storage quote from an already bounded expression node count.
+    /// Includes temporary expression copies, resolved reads, postfix emission and validation work.
+    /// The enclosing owner separately counts its portable wire representation.
+    ///
+    /// # Errors
+    /// Invalid dimensions or overflowing allocation arithmetic.
+    pub fn column_compile_bytes(
+        axis_width: usize,
+        expression_nodes: usize,
+    ) -> Result<u64, ModelError> {
+        if expression_nodes == 0
+            || expression_nodes > antecedent_core::value_expr::MAX_EXPR_NODES
+            || axis_width >= u32::MAX as usize
+        {
+            return Err(
+                refusal_budget("invalid bounded column compilation dimensions".into()).into_error()
+            );
+        }
+        let per_node = 2 * std::mem::size_of::<ValueExpr>() + std::mem::size_of::<Op>() + 256;
+        expression_nodes
+            .checked_mul(per_node)
+            .and_then(|n| n.checked_add(axis_width.checked_mul(32)?))
+            .and_then(|n| n.checked_add(std::mem::size_of::<Self>()))
+            .and_then(|n| u64::try_from(n).ok())
+            .ok_or_else(|| refusal_budget("column compilation quote overflow".into()).into_error())
+    }
+
+    /// Conservative retained payload quote of a compiled callback-free column plan.
+    /// Includes its expression tree, postfix operations, resolved read axis and shared-array headers.
+    ///
+    /// # Errors
+    /// Refuses non-column programs or an overflowing retained size.
+    pub fn column_plan_bytes(&self) -> Result<u64, ModelError> {
+        let axis = self.input_axis.as_ref().ok_or_else(|| ModelError::Shape {
+            message: "column plan quote requires a column-bound program".into(),
+        })?;
+        let parts = [
+            std::mem::size_of::<Self>(),
+            self.ops.len().checked_mul(std::mem::size_of::<Op>()).unwrap_or(usize::MAX),
+            self.reads.len().checked_mul(std::mem::size_of::<DenseNodeId>()).unwrap_or(usize::MAX),
+            axis.len().checked_mul(std::mem::size_of::<VariableId>()).unwrap_or(usize::MAX),
+            column_expression_nodes(&self.expr)
+                .and_then(|n| n.checked_mul(std::mem::size_of::<ValueExpr>()))
+                .unwrap_or(usize::MAX),
+            8 * std::mem::size_of::<usize>(),
+        ];
+        parts
+            .into_iter()
+            .try_fold(0_usize, usize::checked_add)
+            .and_then(|n| u64::try_from(n).ok())
+            .ok_or_else(|| refusal_budget("column plan size overflow".into()).into_error())
+    }
+
+    /// Exact value/output/postfix buffer payload needed by scalar column evaluation.
+    /// This is a declared allocation quote, not process memory or allocator measurement.
+    ///
+    /// # Errors
+    /// Refuses non-column programs or an overflowing work size.
+    pub fn column_workspace_bytes(&self) -> Result<u64, ModelError> {
+        let width = self.input_axis.as_ref().map(|axis| axis.len()).ok_or_else(|| {
+            ModelError::Shape { message: "column workspace requires a column-bound program".into() }
+        })?;
+        width
+            .checked_add(1)
+            .and_then(|n| n.checked_add(self.max_stack))
+            .and_then(|n| n.checked_mul(8))
+            .and_then(|n| u64::try_from(n).ok())
+            .ok_or_else(|| {
+                refusal_budget("column program scratch size overflow".into()).into_error()
+            })
+    }
+
+    /// Evaluate one scalar row through the existing batched postfix executor.
+    ///
+    /// # Errors
+    /// Refuses a non-column program, wrong input width, nonfinite values, cancellation or resource failure.
+    pub fn evaluate_columns(
+        &self,
+        inputs: &[f64],
+        ctx: Option<&ExecutionContext>,
+    ) -> Result<f64, ModelError> {
+        self.evaluate_columns_with_scratch(inputs, &mut Vec::new(), &mut Vec::new(), ctx)
+    }
+
+    /// Evaluate a scalar row with reusable value and postfix-stack buffers.
+    ///
+    /// # Errors
+    /// The same input, expression, cancellation and memory failures as [`Self::evaluate_columns`].
+    pub fn evaluate_columns_with_scratch(
+        &self,
+        inputs: &[f64],
+        values: &mut Vec<f64>,
+        scratch: &mut Vec<f64>,
+        ctx: Option<&ExecutionContext>,
+    ) -> Result<f64, ModelError> {
+        let width =
+            self.input_axis.as_ref().map(|axis| axis.len()).ok_or_else(|| ModelError::Shape {
+                message: "scalar column evaluation requires a column-bound program".into(),
+            })?;
+        if inputs.len() != width || inputs.iter().any(|value| !value.is_finite()) {
+            return Err(ModelError::Shape {
+                message: "column expression input width or finite values differ".into(),
+            });
+        }
+        if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(ModelError::Cancelled);
+        }
+        let bytes = self.column_workspace_bytes()?;
+        if ctx.and_then(|ctx| ctx.memory.hard_limit_bytes).is_some_and(|limit| bytes > limit) {
+            return Err(refusal_budget(
+                "column program scratch exceeds declared hard memory limit".into(),
+            )
+            .into_error());
+        }
+        let _lease = ctx
+            .map(|ctx| {
+                ctx.acquire_admission(0, bytes)
+                    .map_err(|error| refusal_budget(error.to_string()).into_error())
+            })
+            .transpose()?;
+        values.clear();
+        values.extend_from_slice(inputs);
+        values.push(0.0);
+        let mut batch = ValueBatchMut::new(1, width + 1, values)?;
+        apply_node_program(self, &mut batch, width, scratch, ctx)?;
+        Ok(values[width])
     }
 
     /// Whether this program transforms the generated value or assigns.
@@ -479,8 +664,49 @@ fn categorical_support(model: &CompiledCausalModel, target: VariableId) -> Optio
 }
 
 /// Postfix emission. `depth` tracks the live stack height; `max_stack` its maximum.
+fn column_expression_nodes(expr: &ValueExpr) -> Option<usize> {
+    let children = match expr {
+        ValueExpr::Const(_) | ValueExpr::Var(_) | ValueExpr::Generated | ValueExpr::Lag { .. } => 0,
+        ValueExpr::Neg(a) | ValueExpr::Not(a) | ValueExpr::Indicator(a) => {
+            column_expression_nodes(a)?
+        }
+        ValueExpr::Arith { lhs, rhs, .. }
+        | ValueExpr::Compare { lhs, rhs, .. }
+        | ValueExpr::Logic { lhs, rhs, .. } => {
+            column_expression_nodes(lhs)?.checked_add(column_expression_nodes(rhs)?)?
+        }
+        ValueExpr::Clip { value, lower, upper } => column_expression_nodes(value)?
+            .checked_add(column_expression_nodes(lower)?)?
+            .checked_add(column_expression_nodes(upper)?)?,
+        ValueExpr::If { condition, then_branch, else_branch } => {
+            column_expression_nodes(condition)?
+                .checked_add(column_expression_nodes(then_branch)?)?
+                .checked_add(column_expression_nodes(else_branch)?)?
+        }
+        _ => return None,
+    };
+    children.checked_add(1)
+}
+
+fn lowered_ops(
+    n_nodes: usize,
+    dense_of: &impl Fn(VariableId) -> Option<DenseNodeId>,
+    expr: &ValueExpr,
+) -> (Arc<[Op]>, Arc<[CallbackCall]>, usize) {
+    let mut ops = Vec::new();
+    let mut depth = 0;
+    let mut max_stack = 0;
+    emit(n_nodes, dense_of, expr, &mut ops, &mut depth, &mut max_stack);
+    let callbacks = expr.callbacks().into_iter().cloned().collect::<Vec<_>>();
+    if !callbacks.is_empty() {
+        max_stack += 1;
+    }
+    (ops.into(), callbacks.into(), max_stack)
+}
+
 fn emit(
-    model: &CompiledCausalModel,
+    n_nodes: usize,
+    dense_of: &impl Fn(VariableId) -> Option<DenseNodeId>,
     expr: &ValueExpr,
     ops: &mut Vec<Op>,
     depth: &mut usize,
@@ -496,70 +722,70 @@ fn emit(
         ValueExpr::Generated => push(ops, Op::Generated, depth, max_stack),
         ValueExpr::Var(v) => {
             // Reads were resolved before emission; an unresolved one cannot reach here.
-            let dense = model.dense_of(*v).map_or(0, DenseNodeId::as_usize);
+            let dense = dense_of(*v).map_or(0, DenseNodeId::as_usize);
             push(ops, Op::Read(dense), depth, max_stack);
         }
         ValueExpr::Lag { variable, lag } => {
             // The window check ran before emission, so the variable resolves.
-            let dense = model.dense_of(*variable).map_or(0, DenseNodeId::as_usize);
-            push(ops, Op::Read(history_slot(model.n_nodes(), dense, *lag)), depth, max_stack);
+            let dense = dense_of(*variable).map_or(0, DenseNodeId::as_usize);
+            push(ops, Op::Read(history_slot(n_nodes, dense, *lag)), depth, max_stack);
         }
         ValueExpr::Neg(a) => {
-            emit(model, a, ops, depth, max_stack);
+            emit(n_nodes, dense_of, a, ops, depth, max_stack);
             ops.push(Op::Neg);
         }
         // A constant operand is applied as a scalar rather than materialized as a column.
         ValueExpr::Arith { op, lhs, rhs } => match (lhs.as_ref(), rhs.as_ref()) {
             (ValueExpr::Const(c), other) => {
-                emit(model, other, ops, depth, max_stack);
+                emit(n_nodes, dense_of, other, ops, depth, max_stack);
                 ops.push(Op::ArithConst { op: *op, constant: c.get(), constant_left: true });
             }
             (other, ValueExpr::Const(c)) => {
-                emit(model, other, ops, depth, max_stack);
+                emit(n_nodes, dense_of, other, ops, depth, max_stack);
                 ops.push(Op::ArithConst { op: *op, constant: c.get(), constant_left: false });
             }
             _ => {
-                emit(model, lhs, ops, depth, max_stack);
-                emit(model, rhs, ops, depth, max_stack);
+                emit(n_nodes, dense_of, lhs, ops, depth, max_stack);
+                emit(n_nodes, dense_of, rhs, ops, depth, max_stack);
                 ops.push(Op::Arith(*op));
                 *depth -= 1;
             }
         },
         ValueExpr::Clip { value, lower, upper } => {
-            emit(model, value, ops, depth, max_stack);
-            emit(model, lower, ops, depth, max_stack);
-            emit(model, upper, ops, depth, max_stack);
+            emit(n_nodes, dense_of, value, ops, depth, max_stack);
+            emit(n_nodes, dense_of, lower, ops, depth, max_stack);
+            emit(n_nodes, dense_of, upper, ops, depth, max_stack);
             ops.push(Op::Clip);
             *depth -= 2;
         }
         ValueExpr::Compare { op, lhs, rhs } => {
-            emit(model, lhs, ops, depth, max_stack);
-            emit(model, rhs, ops, depth, max_stack);
+            emit(n_nodes, dense_of, lhs, ops, depth, max_stack);
+            emit(n_nodes, dense_of, rhs, ops, depth, max_stack);
             ops.push(Op::Compare(*op));
             *depth -= 1;
         }
         ValueExpr::Not(a) => {
-            emit(model, a, ops, depth, max_stack);
+            emit(n_nodes, dense_of, a, ops, depth, max_stack);
             ops.push(Op::Not);
         }
         ValueExpr::Logic { op, lhs, rhs } => {
-            emit(model, lhs, ops, depth, max_stack);
-            emit(model, rhs, ops, depth, max_stack);
+            emit(n_nodes, dense_of, lhs, ops, depth, max_stack);
+            emit(n_nodes, dense_of, rhs, ops, depth, max_stack);
             ops.push(Op::Logic(*op));
             *depth -= 1;
         }
         ValueExpr::If { condition, then_branch, else_branch } => {
-            emit(model, condition, ops, depth, max_stack);
-            emit(model, then_branch, ops, depth, max_stack);
-            emit(model, else_branch, ops, depth, max_stack);
+            emit(n_nodes, dense_of, condition, ops, depth, max_stack);
+            emit(n_nodes, dense_of, then_branch, ops, depth, max_stack);
+            emit(n_nodes, dense_of, else_branch, ops, depth, max_stack);
             ops.push(Op::Select);
             *depth -= 2;
         }
         // A boolean is already 0/1 in a column; the conversion is a type-level act only.
-        ValueExpr::Indicator(a) => emit(model, a, ops, depth, max_stack),
+        ValueExpr::Indicator(a) => emit(n_nodes, dense_of, a, ops, depth, max_stack),
         ValueExpr::Callback(call) => {
             for arg in call.args() {
-                emit(model, arg, ops, depth, max_stack);
+                emit(n_nodes, dense_of, arg, ops, depth, max_stack);
             }
             let k = ops.iter().filter(|op| matches!(op, Op::Callback(_))).count();
             ops.push(Op::Callback(k));
@@ -1239,4 +1465,59 @@ fn identification_decision(interventions: &[Intervention]) -> RouteDecision {
         }
     }
     RouteDecision::Licensed
+}
+
+#[cfg(test)]
+mod column_expression_tests {
+    use super::*;
+
+    #[test]
+    fn explicit_column_bindings_reuse_full_portable_expression_semantics() {
+        let a = VariableId::from_raw(7);
+        let b = VariableId::from_raw(2);
+        let c = VariableId::from_raw(19);
+        let product = ValueExpr::var(a).mul(ValueExpr::var(b)).mul(ValueExpr::var(c));
+        let expression = ValueExpr::var(a).gt(ValueExpr::constant(0.25)).if_then_else(
+            product.clip(ValueExpr::constant(0.0), ValueExpr::constant(10.0)),
+            ValueExpr::constant(-1.0),
+        );
+        let program = NodeProgram::compile_columns(&[c, a, b], &expression).unwrap();
+        let mut values = Vec::new();
+        let mut scratch = Vec::new();
+        for row in [[3.0, 2.0, 4.0], [3.0, 0.1, 4.0], [-2.0, 2.0, 4.0]] {
+            let reference = expression
+                .evaluate(None, &|variable| {
+                    [c, a, b].iter().position(|&v| v == variable).map(|index| row[index])
+                })
+                .unwrap();
+            assert_eq!(
+                program
+                    .evaluate_columns_with_scratch(&row, &mut values, &mut scratch, None)
+                    .unwrap()
+                    .to_bits(),
+                reference.to_bits()
+            );
+        }
+        let reordered = NodeProgram::compile_columns(&[a, b, c], &expression).unwrap();
+        assert_ne!(program, reordered);
+    }
+
+    #[test]
+    fn column_program_refuses_unknown_generated_history_and_bad_runtime_axes() {
+        let a = VariableId::from_raw(7);
+        let unknown = VariableId::from_raw(8);
+        assert!(NodeProgram::compile_columns(&[a], &ValueExpr::var(unknown)).is_err());
+        assert!(NodeProgram::compile_columns(&[a, a], &ValueExpr::var(a)).is_err());
+        assert!(NodeProgram::compile_columns(&[a], &ValueExpr::Generated).is_err());
+        assert!(NodeProgram::compile_columns(&[a], &ValueExpr::lag(a, 1)).is_err());
+        let program = NodeProgram::compile_columns(&[a], &ValueExpr::var(a)).unwrap();
+        assert!(program.evaluate_columns(&[], None).is_err());
+        assert!(program.evaluate_columns(&[f64::NAN], None).is_err());
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.memory.hard_limit_bytes = Some(1);
+        assert!(program.evaluate_columns(&[1.0], Some(&ctx)).is_err());
+        ctx.memory.hard_limit_bytes = None;
+        ctx.cancellation.cancel();
+        assert!(matches!(program.evaluate_columns(&[1.0], Some(&ctx)), Err(ModelError::Cancelled)));
+    }
 }

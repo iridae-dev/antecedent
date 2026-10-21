@@ -26,6 +26,9 @@ AR_COEFFICIENT = 0.45
 INNOVATION_SD = 0.2
 GROUP_SD = 0.35
 SEASONS = (0.0, 0.2, -0.1, 0.1)
+# Keep retained precision intact. Standard-library arithmetic may differ by a
+# few ULPs across supported interpreters; only JSON truth floats have this bound.
+TRUTH_ABSOLUTE_TOLERANCE = 1e-13
 LEVELS = (0.0, 4.0)
 WORLDS = {"reference": (0.0, 0.0), "a": (4.0, 0.0), "b": (0.0, 4.0), "joint": (4.0, 4.0)}
 
@@ -156,6 +159,25 @@ def regime_paths(
     return paths
 
 
+def whole_program_panel() -> tuple[list[dict], list[int]]:
+    """An actual independent whole-program assignment realization, retained separately."""
+    observed, groups = panel("randomized", 1.5)
+    rng = random.Random(194)
+    assigned = [rng.randrange(4) for _ in groups]
+    worlds = list(WORLDS.values())
+    for row in observed:
+        if row["time"] < 0:
+            continue
+        group, time = row["group"], row["time"]
+        levels = worlds[assigned[group]]
+        row["channel_a"], row["channel_b"] = levels
+        row["outcome"] = (
+            regime_paths(groups, levels, 1.5)[group][time]
+            + groups[group]["periods"][time]["ar_error"]
+        )
+    return observed, assigned
+
+
 def reference() -> dict:
     variants = {}
     for name, interaction in (("additive", 0.0), ("interaction", 1.5)):
@@ -207,6 +229,15 @@ def reference() -> dict:
             "initial_error_variance": INNOVATION_SD**2 / (1.0 - AR_COEFFICIENT**2),
         },
         "designs": {
+            "whole_program_randomized": {
+                "assignment_seed": 194,
+                "assignment": "independent uniform draw among four complete programs at each group's origin",
+                "assigned_program_indices": whole_program_panel()[1],
+                "program_order": list(WORLDS),
+                "probabilities": [0.25, 0.25, 0.25, 0.25],
+                "exogenous_context": "z and season paths are generated independently of whole-program assignment",
+                "inference_limit": "one retained group per program; no calibrated uncertainty or fit promotion",
+            },
             "randomized": {
                 "assignment": "conditionally independent channel draws given z: P(A=4|z)=0.35 if z<0 else 0.65; P(B=4|z)=0.65 if z<0 else 0.35; minimum joint-cell probability 0.1225",
                 "joint_levels": [[a, b] for a in LEVELS for b in LEVELS],
@@ -254,7 +285,36 @@ def artifacts() -> dict[str, str]:
         for name, coefficient in (("additive", 0.0), ("interaction", 1.5)):
             rows, _ = panel(design, coefficient)
             files[f"{design}_{name}.csv"] = csv_text(rows)
+    files["whole_program_interaction.csv"] = csv_text(whole_program_panel()[0])
     return files
+
+
+def same_truth(expected, generated) -> bool:
+    """Exact metadata/shapes, stable finite floating truth; no production dependency."""
+    if type(expected) is not type(generated):
+        return False
+    if isinstance(expected, float):
+        return (
+            math.isfinite(expected)
+            and math.isfinite(generated)
+            and math.isclose(expected, generated, rel_tol=0.0, abs_tol=TRUTH_ABSOLUTE_TOLERANCE)
+        )
+    if isinstance(expected, dict):
+        return expected.keys() == generated.keys() and all(
+            same_truth(value, generated[key]) for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return len(expected) == len(generated) and all(
+            same_truth(left, right) for left, right in zip(expected, generated, strict=True)
+        )
+    return expected == generated
+
+
+def matches_artifact(name: str, retained: str, generated: str) -> bool:
+    """CSV remains byte exact; JSON numeric truth has the declared absolute tolerance."""
+    if name == "expected.json":
+        return same_truth(json.loads(retained), json.loads(generated))
+    return retained == generated
 
 
 def main() -> int:
@@ -268,12 +328,14 @@ def main() -> int:
         path = HERE / name
         if args.write:
             path.write_text(content, encoding="utf-8", newline="\n")
-        elif not path.is_file() or path.read_text(encoding="utf-8") != content:
+        elif not path.is_file() or not matches_artifact(
+            name, path.read_text(encoding="utf-8"), content
+        ):
             failed.append(name)
     if failed:
         parser.exit(1, f"joint panel reference differs: {', '.join(failed)}\n")
     print(
-        "joint panel reference: five retained artifacts verified"
+        "joint panel reference: six retained artifacts verified"
         if args.check
         else "joint panel reference written"
     )

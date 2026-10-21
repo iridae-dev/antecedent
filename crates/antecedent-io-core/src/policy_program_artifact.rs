@@ -111,6 +111,20 @@ pub fn policy_program_identity(interventions: &[Intervention]) -> Result<[u8; 32
     payload_digest_of(identity_kind(recoverable), &wires)
 }
 
+/// Canonical identity of a portable expression in the existing programmable syntax.
+///
+/// This identifies the expression tree and exact variable IDs; feature scale and column
+/// bindings belong to the enclosing compiled program. No fake intervention target is needed.
+///
+/// # Errors
+/// Malformed expressions, runtime-bound callbacks or wire encoding failures are refused.
+pub fn value_expression_identity(expr: &antecedent_core::ValueExpr) -> Result<[u8; 32], IoError> {
+    expr.validate_program(true, &expr.reads())
+        .map_err(|error| IoError::Convert(error.to_string()))?;
+    let wire = ValueExprWire::from_domain(expr)?;
+    payload_digest_of("value_expression.v1", &wire)
+}
+
 /// Encode a program with its encoding version and identity.
 ///
 /// # Errors
@@ -751,5 +765,31 @@ mod tests {
                 other => panic!("expected a coded refusal, got {other:?}"),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod expression_identity_tests {
+    use super::*;
+    use antecedent_core::{ValueExpr, VariableId};
+    #[test]
+    fn expression_identity_survives_existing_wire_roundtrip_and_binds_reads() {
+        let a = VariableId::from_raw(1);
+        let b = VariableId::from_raw(2);
+        let expr = ValueExpr::var(a)
+            .mul(ValueExpr::var(b))
+            .clip(ValueExpr::constant(0.0), ValueExpr::constant(10.0));
+        let wire = ValueExprWire::from_domain(&expr).unwrap();
+        let bytes = crate::convert::to_cbor(&wire).unwrap();
+        let restored: ValueExprWire = crate::convert::from_cbor(&bytes).unwrap();
+        assert_eq!(
+            value_expression_identity(&expr).unwrap(),
+            value_expression_identity(&restored.to_domain()).unwrap()
+        );
+        assert_ne!(
+            value_expression_identity(&expr).unwrap(),
+            value_expression_identity(&ValueExpr::var(a).mul(ValueExpr::var(a))).unwrap()
+        );
+        assert!(value_expression_identity(&ValueExpr::constant(f64::NAN)).is_err());
     }
 }
