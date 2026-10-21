@@ -394,6 +394,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "interface_contract",
     "intervention_callbacks",
     "intervention_programs",
+    "joint_panel",
     "inverse",
     "inverse_query",
     "inverse_sources",
@@ -476,6 +477,7 @@ if _TYPE_CHECKING:
     from . import inverse_sources as inverse_sources
     from . import joint_distribution as joint_distribution
     from . import joint_law_propagation as joint_law_propagation
+    from . import joint_panel as joint_panel
     from . import latent_class as latent_class
     from . import measurement_models as measurement_models
     from . import mechanism_composition as mechanism_composition

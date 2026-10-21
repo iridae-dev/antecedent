@@ -95,6 +95,7 @@ mod intrinsic_influence_api;
 mod inverse_outcome_api;
 mod inverse_query_api;
 mod joint_law_propagation_api;
+mod joint_panel_api;
 mod joint_transport_api;
 mod latent_class_api;
 mod learned_continuous_api;

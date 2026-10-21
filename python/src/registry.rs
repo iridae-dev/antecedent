@@ -154,6 +154,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     cohort_decision_api::register(m)?;
     nonlinear_mediation_api::register(m)?;
     crate::cyclic_system_api::register(m)?;
+    crate::joint_panel_api::register(m)?;
     latent_class_api::register(m)?;
     temporal_counterfactual_api::register(m)?;
     transported_counterfactual_api::register(m)?;
