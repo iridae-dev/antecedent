@@ -18,7 +18,6 @@ mod period_refresh_entry;
 mod prepare;
 mod prepare_identification;
 mod propensity_nuisance_entry;
-pub(crate) mod recompile;
 mod retarget;
 mod seal;
 mod sealed;
@@ -184,5 +183,15 @@ impl std::ops::Deref for PreparedStudy {
 impl std::ops::DerefMut for PreparedStudy {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.state
+    }
+}
+
+impl PreparedStudy {
+    /// Retained scientific/identification/operator program of a checked linear operation.
+    #[must_use]
+    pub fn compiled_linear_program(
+        &self,
+    ) -> Option<&crate::analysis::compiled_linear::CompiledLinearProgram> {
+        self.checked_linear_operation().map(|operation| operation.compiled.as_ref())
     }
 }

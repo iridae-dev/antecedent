@@ -10,6 +10,10 @@
     )
 )]
 
+use antecedent_core::physical_choice::{
+    AvailableCapabilities, CostQuotes, DeclaredCost, PhysicalAlternative, PhysicalChoice,
+};
+
 use std::sync::Arc;
 
 use antecedent_contract::{
@@ -35,6 +39,8 @@ pub struct LogicalAnalysisPlan {
     pub split: Option<DiscoveryEstimationSplit>,
     /// Row-count hint for memory / batch planning (estimation window when split).
     pub row_count_hint: u64,
+    /// Encoded design width (including intercept), or a conservative schema bound before preparation.
+    pub design_columns_hint: u64,
 }
 
 impl LogicalAnalysisPlan {
@@ -45,7 +51,13 @@ impl LogicalAnalysisPlan {
         query: CausalQuery,
         row_count_hint: u64,
     ) -> Self {
-        Self { record, query, split: None, row_count_hint }
+        Self {
+            design_columns_hint: record.query_variables.len().max(1) as u64,
+            record,
+            query,
+            split: None,
+            row_count_hint,
+        }
     }
 
     /// Validate logical semantics (modality × algorithm).
@@ -148,10 +160,18 @@ impl LogicalAnalysisPlan {
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         self.validate()?;
         let n_rows = self.row_count_hint.max(1);
-        // Rough dense design: rows × ~8 f64 columns.
-        let design_bytes = n_rows.saturating_mul(8).saturating_mul(8);
-        let workspace = design_bytes.saturating_mul(2);
-        let peak = design_bytes.saturating_add(workspace);
+        let design_bytes = n_rows
+            .checked_mul(self.design_columns_hint.max(1))
+            .and_then(|cells| cells.checked_mul(8))
+            .ok_or_else(|| CausalError::Resource {
+                message: "design memory estimate overflow".into(),
+            })?;
+        let workspace = design_bytes.checked_mul(2).ok_or_else(|| CausalError::Resource {
+            message: "workspace estimate overflow".into(),
+        })?;
+        let peak = design_bytes
+            .checked_add(workspace)
+            .ok_or_else(|| CausalError::Resource { message: "peak estimate overflow".into() })?;
         let copy_bytes = design_bytes; // design matrix is CopiedContiguous
 
         if let Some(limit) = ctx.memory.soft_limit_bytes {
@@ -164,11 +184,16 @@ impl LogicalAnalysisPlan {
             }
         }
 
-        let workers = if ctx.parallelism.max_threads.get() <= 1 {
-            0
-        } else {
-            ctx.parallelism.max_threads.get()
-        };
+        let materialized = PhysicalAlternative::MaterializedDesign;
+        let available = AvailableCapabilities::empty()
+            .with_operator(materialized.required_operator())
+            .with_resource(materialized.required_resource());
+        let quote = DeclaredCost::from_raw(peak);
+        let choice = PhysicalChoice::choose(CostQuotes::new(quote, quote, quote, quote), available)
+            .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        let requested_workers =
+            ctx.parallelism.max_threads.get().min(ctx.admission().thread_budget());
+        let workers = if requested_workers <= 1 { 0 } else { requested_workers };
 
         // An unknown/unparseable estimator on the wire (or a missing one) must not fail
         // physical planning: fall back to the same labels the old `Other` escape produced
@@ -209,6 +234,7 @@ impl LogicalAnalysisPlan {
             expected_python_crossings: 1,
         };
         Ok(PhysicalExecutionPlan {
+            choice,
             record,
             logical: self.clone(),
             resolved_temporal_graph,
@@ -221,6 +247,8 @@ impl LogicalAnalysisPlan {
 /// Physical plan ready for execution.
 #[derive(Clone, Debug)]
 pub struct PhysicalExecutionPlan {
+    /// Executable backend selection, with rejected alternatives and reasons.
+    pub choice: antecedent_core::physical_choice::PhysicalChoice,
     /// Record for results.
     pub record: PhysicalExecutionPlanRecord,
     /// Logical plan this was derived from.
@@ -273,4 +301,42 @@ pub fn reject_dag_only_on_pag(
         });
     }
     Ok(())
+}
+
+impl PhysicalExecutionPlan {
+    /// Bind the direct immutable design implementation verified by checked linear preparation.
+    pub(crate) fn bind_prepared_linear_views(&mut self) -> Result<(), CausalError> {
+        use antecedent_core::physical_choice::{
+            AvailableCapabilities, CostQuotes, DeclaredCost, PhysicalAlternative, PhysicalChoice,
+        };
+        let direct = PhysicalAlternative::DirectPreparedNumericViews;
+        let materialized = PhysicalAlternative::MaterializedDesign;
+        let available = AvailableCapabilities::empty()
+            .with_operator(direct.required_operator())
+            .with_resource(direct.required_resource())
+            .with_operator(materialized.required_operator())
+            .with_resource(materialized.required_resource());
+        let peak = self.record.estimated_peak_memory_bytes.ok_or_else(|| {
+            CausalError::Resource { message: "prepared design omitted memory estimate".into() }
+        })?;
+        let copy = self.record.estimated_copy_bytes.ok_or_else(|| CausalError::Resource {
+            message: "prepared design omitted copy estimate".into(),
+        })?;
+        let repeated = peak.checked_add(copy).ok_or_else(|| CausalError::Resource {
+            message: "materialized execution cost overflow".into(),
+        })?;
+        self.choice = PhysicalChoice::choose(
+            CostQuotes::new(
+                DeclaredCost::from_raw(peak),
+                DeclaredCost::from_raw(peak),
+                DeclaredCost::from_raw(repeated),
+                DeclaredCost::from_raw(peak),
+            ),
+            available,
+        )
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        self.record.materializations =
+            Arc::from([(Arc::from("design.matrix"), BufferMaterialization::Borrowed)]);
+        Ok(())
+    }
 }

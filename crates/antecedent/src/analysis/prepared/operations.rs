@@ -1199,6 +1199,9 @@ impl CheckedAipwOperation {
 /// procedure. `default_id` preserves the progressive point/uncertainty stages.
 #[derive(Clone)]
 pub(crate) struct CheckedLinearOperation {
+    pub(crate) frozen_fit:
+        Arc<std::sync::Mutex<Option<(antecedent_core::KernelPolicy, EffectEstimate)>>>,
+    pub(crate) compiled: Arc<crate::analysis::compiled_linear::CompiledLinearProgram>,
     /// Immutable table binding of the retained checked design. Equal bindings
     /// need no new projection, missing-data pass, or design construction.
     pub(super) source: TabularData,
@@ -1392,6 +1395,8 @@ impl CheckedLinearOperation {
         }
         let preparation = self.fitter.rebind_checked(&self.preparation, data)?;
         Ok(Self {
+            frozen_fit: Arc::new(std::sync::Mutex::new(None)),
+            compiled: Arc::clone(&self.compiled),
             source: data.clone(),
             fitter: self.fitter.clone(),
             preparation,
@@ -1421,7 +1426,23 @@ impl CheckedLinearOperation {
         );
 
         let mut workspace = EstimationWorkspace::default();
-        let estimate = self.fit_with_stages(&mut clock, &mut workspace, ctx)?;
+        let bytes = self.physical.record.estimated_peak_memory_bytes.ok_or_else(|| {
+            CausalError::Resource {
+                message: "compiled linear program omitted its memory estimate".into(),
+            }
+        })?;
+        if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
+            return Err(CausalError::Resource {
+                message: "compiled linear execution exceeds the caller memory limit".into(),
+            });
+        }
+        let admission = Arc::new(
+            ctx.acquire_admission(0, bytes)
+                .map_err(|error| CausalError::Resource { message: error.to_string() })?,
+        );
+        // A deterministic point fit is reusable across downstream utility/world scoring.
+        // Stochastic uncertainty still executes under each caller's requested policy.
+        let estimate = self.fit_retained(&mut clock, &mut workspace, &admission, ctx)?;
         let cancelled = estimate.uncertainty.bootstrap.cancelled || ctx.cancellation.is_cancelled();
         let (refutations, mut extra_diagnostics) =
             self.validate_stage(data, &estimate, cancelled, &mut clock, &mut workspace, ctx)?;
@@ -1452,8 +1473,7 @@ impl CheckedLinearOperation {
                 &estimate.provenance.assumptions,
             ),
         );
-        let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
-        let early_stopped = estimate.uncertainty.bootstrap.early_stopped;
+        let bootstrap = estimate.uncertainty.bootstrap;
         let mut result = assemble_result(AssembleArgs {
             logical: &self.physical.logical.record,
             physical: &self.physical.record,
@@ -1471,10 +1491,10 @@ impl CheckedLinearOperation {
             latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
             stage_timings_ns: clock.timings(),
             bootstrap_replicates_requested: Some(self.fitter.bootstrap_replicates),
-            bootstrap_replicates_ok: bootstrap_ok,
+            bootstrap_replicates_ok: bootstrap.replicates_ok,
             n_draws: None,
             cancelled,
-            early_stopped,
+            early_stopped: bootstrap.early_stopped,
             bayesian: false,
         });
         result.certificate = Some(crate::AnalysisIdentification {
@@ -1498,9 +1518,53 @@ impl CheckedLinearOperation {
         Ok(result)
     }
 
+    fn fit_retained(
+        &self,
+        clock: &mut StageClock,
+        workspace: &mut EstimationWorkspace,
+        admission: &Arc<antecedent_core::execution::AdmissionLease>,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, CausalError> {
+        let estimate = if self.fitter.bootstrap_replicates == 0 {
+            let mut frozen = self.frozen_fit.lock().map_err(|_| CausalError::Compile {
+                message: "retained linear fit lock poisoned".into(),
+            })?;
+            if let Some((_, estimate)) =
+                frozen.as_ref().filter(|(kernel, _)| *kernel == ctx.kernel_policy)
+            {
+                antecedent_core::execution_attempt::record_physical(
+                    antecedent_core::execution_attempt::PhysicalEvent::CacheHit,
+                    1,
+                );
+                antecedent_core::execution_attempt::record_physical(
+                    antecedent_core::execution_attempt::PhysicalEvent::ModelFit,
+                    0,
+                );
+                estimate.clone()
+            } else {
+                let estimate = antecedent_core::numerical_admission::with_reservation(
+                    Arc::clone(admission),
+                    || self.fit_with_stages(clock, workspace, ctx),
+                )?;
+                if !ctx.cancellation.is_cancelled() {
+                    *frozen = Some((ctx.kernel_policy, estimate.clone()));
+                }
+                estimate
+            }
+        } else {
+            antecedent_core::numerical_admission::with_reservation(Arc::clone(admission), || {
+                self.fit_with_stages(clock, workspace, ctx)
+            })?
+        };
+        Ok(estimate)
+    }
+
     /// Refuses execution when the retained fit no longer matches the checked target.
     fn check_checked_target(&self) -> Result<(), CausalError> {
-        if self.preparation.source_functional() != self.cache.estimand.functional
+        if self.compiled.identification().assumptions() != self.preparation.required_assumptions()
+            || self.compiled.target()
+                != &crate::planner::linear_gaussian_scientific_problem(&self.query, false)?
+            || self.preparation.source_functional() != self.cache.estimand.functional
             || self.preparation.target().adjustment_set != self.cache.estimand.adjustment_set
             || self.preparation.lowering().treatment != self.query.treatment
             || self.preparation.lowering().outcome != self.query.outcome

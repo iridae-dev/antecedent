@@ -12566,6 +12566,7 @@ pub fn <antecedent_io_core::capacity_account::SpillHandle>::fn remove(self) -> c
 pub fn <antecedent_io_core::capacity_account::WeightedCapacityOutput>::const fn charges(&self) -> antecedent_io_core::capacity_account::CeilingCharges
 pub fn <antecedent_io_core::capacity_account::WeightedCapacityOutput>::fn into_resident(self) -> core::option::Option<antecedent_io_core::capacity_account::WeightedCapacityResult>
 pub fn <antecedent_io_core::capacity_account::WeightedCapacityOutput>::fn into_spilled(self) -> core::option::Option<antecedent_io_core::capacity_account::SpilledCapacity>
+pub fn <antecedent_io_core::capacity_account::WeightedCapacityResult>::fn physical_choice(&self) -> &antecedent_core::physical_choice::PhysicalChoice
 pub fn <antecedent_io_core::chunk_refresh::BorrowError>::const fn refusal(&self) -> core::option::Option<&antecedent_io_core::chunk_refresh::LagRefusal>
 pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::const fn cached_snapshot(&self) -> &antecedent_io_core::chunk_refresh::LedgerSnapshot
 pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::const fn impute_gap(&self) -> core::result::Result<(), antecedent_io_core::chunk_refresh::RefreshError>
@@ -13602,6 +13603,7 @@ pub struct antecedent_io_core::capacity_account::SpillHandle has private fields
 pub struct antecedent_io_core::capacity_account::SpillOptions
 pub struct antecedent_io_core::capacity_account::SpilledCapacity
 pub struct antecedent_io_core::capacity_account::WeightedCapacityResult
+pub struct antecedent_io_core::capacity_account::WeightedCapacityResult has private fields
 pub struct antecedent_io_core::chunk_refresh::ChunkLedger
 pub struct antecedent_io_core::chunk_refresh::ChunkLedger has private fields
 pub struct antecedent_io_core::chunk_refresh::ChunkRow
@@ -15136,6 +15138,7 @@ pub variant antecedent_io_core::capacity_account::SpillFault::UnsupportedVersion
 pub variant antecedent_io_core::capacity_account::WeightFault::Negative
 pub variant antecedent_io_core::capacity_account::WeightFault::NotFinite
 pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Allocation { what: &'static str, bytes: u64, source: alloc::collections::TryReserveError }
+pub variant antecedent_io_core::capacity_account::WeightedCapacityError::BackendChoice(alloc::boxed::Box<antecedent_core::physical_choice::PhysicalChoiceRefusal>)
 pub variant antecedent_io_core::capacity_account::WeightedCapacityError::BatchBound
 pub variant antecedent_io_core::capacity_account::WeightedCapacityError::Cancelled
 pub variant antecedent_io_core::capacity_account::WeightedCapacityError::DecoderNotPrepared

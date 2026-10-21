@@ -3,9 +3,9 @@
 
 A licensed cell with no citation is not a silent pass and is not a license.
 A citation whose test keeps or rebuilds a builder, or never runs the retained
-program, fails this gate before any test binary starts. The admitted
-linear/Gaussian route fails here when it grows a second identify/prepare path
-or re-enters the public builder.
+program, fails this gate before any test binary starts. Gaussian compiler
+integration is covered by cited public behavioral tests, which must be executed
+by the acceptance runner; emitting a citation alone does not execute its test.
 """
 
 import json
@@ -19,8 +19,6 @@ from test_evidence import checked_execution_body_problems, closure
 
 ROOT = Path(__file__).resolve().parents[1]
 LICENSED = ROOT / "parity" / "support_licensed.toml"
-LOWERED_ROUTE = ROOT / "crates/antecedent/src/analysis/execute/lowered_route.rs"
-COMPILE = ROOT / "crates/antecedent/src/analysis/execute/compile.rs"
 AXIS = ("query", "graph_class", "structure", "inference", "validation")
 _STUDY_BUILDER = re.compile(
     r"\bStudy::(?:tabular|series|series_multi|panel|events)\b|\bStudyBuilder\b"
@@ -136,37 +134,12 @@ def cell_problems(cell: dict, cache: dict) -> list[str]:
     return problems
 
 
-def lowered_route_problems() -> list[str]:
-    """The admitted linear/Gaussian route has one physical plan and no second compiler."""
-    production = LOWERED_ROUTE.read_text(encoding="utf-8").split("#[cfg(test)]", 1)[0]
-    compile_source = COMPILE.read_text(encoding="utf-8")
-    problems = []
-    banned = (
-        ("fn identify_linear_gaussian", "kept a second identification path"),
-        ("fn prepare_linear_gaussian", "kept a second preparation path"),
-        ("compile_logical_ate_dag", "compiles a second logical plan"),
-        ("Study::tabular", "re-enters the public builder"),
-        ("Study::series", "re-enters the public builder"),
-        ("Study::panel", "re-enters the public builder"),
-        ("StudyBuilder", "re-enters the public builder"),
-    )
-    for needle, reason in banned:
-        if needle in production:
-            problems.append(f"linear/Gaussian route {reason}")
-    if "lowered_physical_plan" not in production:
-        problems.append("linear/Gaussian route does not keep the physical plan Study::compile builds")
-    if "lowered_plan_admits" not in compile_source or "lowered_physical_plan" not in compile_source:
-        problems.append("Study::compile does not return the lowered linear/Gaussian physical plan")
-    return problems
-
-
 def main() -> None:
     if len(sys.argv) != 3:
         raise SystemExit(f"usage: {sys.argv[0]} EVIDENCE_OUT SHARD")
     cells = tomllib.loads(LICENSED.read_text(encoding="utf-8")).get("cell", [])
     cache: dict = {}
     failures: list[str] = []
-    failures.extend(lowered_route_problems())
     rows = []
     for cell in cells:
         failures.extend(cell_problems(cell, cache))
@@ -187,6 +160,14 @@ def main() -> None:
         raise SystemExit(1)
     if not rows:
         raise SystemExit("FAIL: support_licensed.toml has no checked-execution citations")
+    # Public behavioral assertions replace function-name checks of a parallel demonstration.
+    gaussian_tests = "crates/antecedent/src/analysis/execute/prepared_gaussian_tests.rs"
+    rows.extend([
+        ("gaussian_compiled_execution", gaussian_tests,
+         "prepared_gaussian_retains_the_compiled_program_after_builder_drop"),
+        ("gaussian_compiled_resource_refusal", gaussian_tests,
+         "prepared_gaussian_refuses_cancelled_and_insufficient_resource_execution"),
+    ])
     shard = sys.argv[2]
     if shard != "all":
         # Keep all citations for one test target together, so one assertion is

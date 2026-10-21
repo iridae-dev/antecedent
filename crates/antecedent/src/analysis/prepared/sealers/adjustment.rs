@@ -37,8 +37,7 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
         source.tiered.is_none(),
     ) {
         (Some((data, query)), Some(cache), true, true)
-            if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                && matches!(query.target_population, TargetPopulation::AllObserved)
+            if crate::analysis::compiled_linear::can_retain(source, query)
                 && cx.binding.estimator.is_or(
                     RouteDefaults::STATIC_ATE.estimator,
                     EstimatorId::LinearAdjustmentAte,
@@ -59,7 +58,17 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
             }
             let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
+            let compiled =
+                Arc::new(crate::analysis::compiled_linear::CompiledLinearProgram::compile(
+                    query,
+                    &cache.identification,
+                    &preparation,
+                    plan,
+                    fitter.bootstrap_replicates > 0,
+                )?);
             Some(CheckedLinearOperation {
+                frozen_fit: Arc::new(std::sync::Mutex::new(None)),
+                compiled,
                 source: data.clone(),
                 fitter,
                 preparation,

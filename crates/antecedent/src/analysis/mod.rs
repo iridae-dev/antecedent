@@ -50,6 +50,7 @@ mod checked_temporal_response;
 pub mod closed_pilots;
 pub mod cohort_decision;
 pub mod compact_export;
+pub mod compiled_linear;
 pub mod composition;
 pub mod composition_verification;
 mod conditional_admg;

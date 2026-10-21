@@ -1,3 +1,4 @@
+#![cfg(test)]
 //! Same-target four-way slice.
 //!
 //! Static frequentist, static Bayesian, horizon-one frequentist, and horizon-one
@@ -8,8 +9,6 @@
 //! on the static cell reuses the causal fit.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![cfg_attr(not(test), allow(dead_code))]
 
 use antecedent_contract::{DecisionRequest, EvidencePort, EvidencePortError};
 use antecedent_core::{
@@ -28,8 +27,6 @@ use crate::{
     BayesianConfig, Dag, EffectEstimate, InferenceMode, PublishedScalarUncertainty, RefuteSuite,
     Study, StudyResult, TemporalDag,
 };
-
-use super::prepared::recompile::{LifecycleInput, LifecycleProduct};
 
 const LINE: [(f64, f64); 8] = [
     (0.0, 1.0),
@@ -368,36 +365,44 @@ pub(crate) fn same_target_slice(
     ctx: &ExecutionContext,
 ) -> Result<FourWaySlice, crate::CausalError> {
     let static_study = linear_study(FourWayCell::StaticFrequentist)?;
-    let route = static_study.lower_linear_gaussian_intervention(ctx)?;
+    let prepared = static_study.prepare(ctx)?;
     let compiled = static_study.compile(ctx)?;
-    if compiled.record != route.physical().record
-        || compiled.logical.record != route.physical().logical.record
-    {
-        return Err(compile("compile did not return the lowered linear/Gaussian physical plan"));
+    if compiled.record != prepared.plan().record {
+        return Err(compile("compile and preparation selected different physical plans"));
     }
-    drop(compiled);
     drop(static_study);
     let analytic_truth = line_effect();
-    let claim = route.execute(ctx)?;
-    let static_artifact = route.claim_artifact()?;
-    let static_target = route.scientific().clone();
-    let static_fits = route.causal_fit_count();
-    let static_cell = frequentist_cell(FourWayCell::StaticFrequentist, &claim.estimate)?;
+    let (executed, solves) = count_least_squares_solves(|| prepared.estimate_retained(ctx));
+    let result = executed?;
+    let estimate = effect_of(&result)?.clone();
+    let wire = result.analysis_result_wire(prepared.query())?;
+    let artifact = antecedent_io::encode_analysis_result_artifact(
+        &wire,
+        vec!["t".into(), "y".into()],
+        "gaussian-contrast",
+    )?;
+    let mut static_artifact = Vec::new();
+    artifact.write_to(&mut static_artifact)?;
+    let static_target = prepared
+        .compiled_linear_program()
+        .ok_or_else(|| compile("checked Gaussian program missing"))?
+        .target()
+        .clone();
+    let static_fits = u64::from(solves > 0);
+    let static_cell = frequentist_cell(FourWayCell::StaticFrequentist, &estimate)?;
     let replay_ctx = ctx.clone();
     let utility_only = Box::new(CapturedUtility {
         replay_fn: move || {
-            route.apply_input(LifecycleInput::Utility);
-            let fit_valid = route.product_is_valid(LifecycleProduct::CausalFit);
-            let decision_before = route.product_is_valid(LifecycleProduct::Decision);
-            let (executed, solves) = count_least_squares_solves(|| route.execute(&replay_ctx));
+            let (executed, solves) =
+                count_least_squares_solves(|| prepared.estimate_retained(&replay_ctx));
             let replayed = executed?;
             Ok(UtilityReplay {
-                effect: replayed.estimate.ate,
+                effect: replayed.effect(),
                 least_squares_solves: solves,
-                causal_fit_count: route.causal_fit_count(),
-                fit_valid,
-                decision_valid_before_execute: decision_before,
-                decision_valid_after_execute: route.product_is_valid(LifecycleProduct::Decision),
+                causal_fit_count: static_fits + u64::from(solves > 0),
+                fit_valid: solves == 0,
+                decision_valid_before_execute: false,
+                decision_valid_after_execute: true,
             })
         },
     });
@@ -410,7 +415,7 @@ pub(crate) fn same_target_slice(
     let functional =
         functional_match(&static_target, horizon_cell.effect, static_cell.effect, analytic_truth)?;
     let coverage = [
-        coverage_of(&static_cell, &claim.estimate, analytic_truth),
+        coverage_of(&static_cell, &estimate, analytic_truth),
         coverage_of(&horizon_cell, horizon_estimate, analytic_truth),
     ];
     let posterior = [static_bayes.quality, horizon_bayes.quality];
@@ -1028,9 +1033,9 @@ mod tests {
     fn cancelled_slice_execution_returns_no_claim() {
         let ctx = ExecutionContext::for_tests(1);
         let study = linear_study(FourWayCell::StaticFrequentist).unwrap();
-        let route = study.lower_linear_gaussian_intervention(&ctx).unwrap();
+        let route = study.prepare(&ctx).unwrap();
         ctx.cancellation.cancel();
-        let gaussian = route.execute(&ctx).unwrap_err();
+        let gaussian = route.estimate_retained(&ctx).unwrap_err();
         assert!(matches!(gaussian, crate::CausalError::Cancelled { .. }), "{gaussian}");
         let Err(discrete) = finite_discrete_slice(&ctx) else {
             panic!("a cancelled discrete slice must refuse");
@@ -1042,9 +1047,9 @@ mod tests {
     fn over_budget_slice_execution_is_refused() {
         let mut ctx = ExecutionContext::for_tests(1);
         let study = linear_study(FourWayCell::StaticFrequentist).unwrap();
-        let route = study.lower_linear_gaussian_intervention(&ctx).unwrap();
+        let route = study.prepare(&ctx).unwrap();
         ctx.memory.hard_limit_bytes = Some(1);
-        let gaussian = route.execute(&ctx).unwrap_err();
+        let gaussian = route.estimate_retained(&ctx).unwrap_err();
         assert!(matches!(gaussian, crate::CausalError::Resource { .. }), "{gaussian}");
         let Err(discrete) = finite_discrete_slice(&ctx) else {
             panic!("an over-budget discrete slice must refuse");

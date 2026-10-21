@@ -443,6 +443,7 @@ impl core::clone::Clone for antecedent::analysis::closed_pilots::ClosedPilotRefu
 impl core::clone::Clone for antecedent::analysis::closed_pilots::ClosedRegimeCounts
 impl core::clone::Clone for antecedent::analysis::closed_pilots::NestedMarkovRequest
 impl core::clone::Clone for antecedent::analysis::cohort_decision::FittedEffectModel
+impl core::clone::Clone for antecedent::analysis::compiled_linear::CompiledLinearProgram
 impl core::clone::Clone for antecedent::analysis::composition::BundleBuilder
 impl core::clone::Clone for antecedent::analysis::conditional_study_ranking::ConditionalBranch
 impl core::clone::Clone for antecedent::analysis::conditional_study_ranking::ConditionalCandidate
@@ -1711,6 +1712,7 @@ impl core::fmt::Debug for antecedent::analysis::closed_pilots::ClosedPilotRefusa
 impl core::fmt::Debug for antecedent::analysis::closed_pilots::ClosedRegimeCounts
 impl core::fmt::Debug for antecedent::analysis::closed_pilots::NestedMarkovRequest
 impl core::fmt::Debug for antecedent::analysis::cohort_decision::FittedEffectModel
+impl core::fmt::Debug for antecedent::analysis::compiled_linear::CompiledLinearProgram
 impl core::fmt::Debug for antecedent::analysis::composition::BundleBuilder
 impl core::fmt::Debug for antecedent::analysis::conditional_study_ranking::ConditionalBranch
 impl core::fmt::Debug for antecedent::analysis::conditional_study_ranking::ConditionalCandidate
@@ -2463,6 +2465,7 @@ impl core::marker::Freeze for antecedent::analysis::closed_pilots::ClosedPilotRe
 impl core::marker::Freeze for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
 impl core::marker::Freeze for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
 impl core::marker::Freeze for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
+impl core::marker::Freeze for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::marker::Freeze for antecedent::analysis::composition::BundleBuilder [auto]
 impl core::marker::Freeze for antecedent::analysis::conditional_study_ranking::ConditionalBranch [auto]
 impl core::marker::Freeze for antecedent::analysis::conditional_study_ranking::ConditionalCandidate [auto]
@@ -3075,6 +3078,7 @@ impl core::marker::Send for antecedent::analysis::closed_pilots::ClosedPilotRefu
 impl core::marker::Send for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
 impl core::marker::Send for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
 impl core::marker::Send for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
+impl core::marker::Send for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::marker::Send for antecedent::analysis::composition::BundleBuilder [auto]
 impl core::marker::Send for antecedent::analysis::conditional_study_ranking::ConditionalBranch [auto]
 impl core::marker::Send for antecedent::analysis::conditional_study_ranking::ConditionalCandidate [auto]
@@ -4067,6 +4071,7 @@ impl core::marker::Sync for antecedent::analysis::closed_pilots::ClosedPilotRefu
 impl core::marker::Sync for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
 impl core::marker::Sync for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
 impl core::marker::Sync for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
+impl core::marker::Sync for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::marker::Sync for antecedent::analysis::composition::BundleBuilder [auto]
 impl core::marker::Sync for antecedent::analysis::conditional_study_ranking::ConditionalBranch [auto]
 impl core::marker::Sync for antecedent::analysis::conditional_study_ranking::ConditionalCandidate [auto]
@@ -4682,6 +4687,7 @@ impl core::marker::Unpin for antecedent::analysis::closed_pilots::ClosedPilotRef
 impl core::marker::Unpin for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
 impl core::marker::Unpin for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
 impl core::marker::Unpin for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
+impl core::marker::Unpin for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::marker::Unpin for antecedent::analysis::composition::BundleBuilder [auto]
 impl core::marker::Unpin for antecedent::analysis::conditional_study_ranking::ConditionalBranch [auto]
 impl core::marker::Unpin for antecedent::analysis::conditional_study_ranking::ConditionalCandidate [auto]
@@ -5294,6 +5300,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::BundleBuilder [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::conditional_study_ranking::ConditionalBranch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::conditional_study_ranking::ConditionalCandidate [auto]
@@ -5890,6 +5897,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilot
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::ClosedRegimeCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::closed_pilots::NestedMarkovRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::cohort_decision::FittedEffectModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_linear::CompiledLinearProgram [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::BundleBuilder [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::conditional_study_ranking::ConditionalBranch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::conditional_study_ranking::ConditionalCandidate [auto]
@@ -8748,10 +8756,12 @@ pub field antecedent::period_refresh::RefreshEvent::cadence: antecedent_estimate
 pub field antecedent::period_refresh::RefreshEvent::initial_law: alloc::string::String
 pub field antecedent::period_refresh::RefreshEvent::outcome: core::option::Option<antecedent::period_refresh::PeriodRefreshOutcome>
 pub field antecedent::period_refresh::RefreshEvent::window: antecedent_estimate::temporal_refresh::TemporalWindowIdentity
+pub field antecedent::planner::LogicalAnalysisPlan::design_columns_hint: u64
 pub field antecedent::planner::LogicalAnalysisPlan::query: antecedent_core::query::CausalQuery
 pub field antecedent::planner::LogicalAnalysisPlan::record: antecedent_contract::plan::LogicalAnalysisPlanRecord
 pub field antecedent::planner::LogicalAnalysisPlan::row_count_hint: u64
 pub field antecedent::planner::LogicalAnalysisPlan::split: core::option::Option<antecedent_data::split::DiscoveryEstimationSplit>
+pub field antecedent::planner::PhysicalExecutionPlan::choice: antecedent_core::physical_choice::PhysicalChoice
 pub field antecedent::planner::PhysicalExecutionPlan::logical: antecedent::planner::LogicalAnalysisPlan
 pub field antecedent::planner::PhysicalExecutionPlan::record: antecedent_contract::plan::PhysicalExecutionPlanRecord
 pub field antecedent::planner::PhysicalExecutionPlan::resolved_static_graph: core::option::Option<antecedent_graph::dag::Dag>
@@ -9331,6 +9341,7 @@ pub fn <antecedent::PreparedStudy>::fn checked_temporal_mediation_info(&self) ->
 pub fn <antecedent::PreparedStudy>::fn checked_temporal_response_info(&self) -> core::option::Option<antecedent::analysis::CheckedTemporalDagResponseInfo>
 pub fn <antecedent::PreparedStudy>::fn checked_transport_trial_info(&self) -> core::option::Option<antecedent::CheckedTransportTrialInfo>
 pub fn <antecedent::PreparedStudy>::fn checked_unknown_tiered_average_info(&self) -> core::option::Option<antecedent::CheckedUnknownTieredAverageInfo>
+pub fn <antecedent::PreparedStudy>::fn compiled_linear_program(&self) -> core::option::Option<&antecedent::analysis::compiled_linear::CompiledLinearProgram>
 pub fn <antecedent::PreparedStudy>::fn contract(&self) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn contract_for_result(&self, result: &antecedent::StudyResult) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn custom_validator_names(&self) -> alloc::vec::Vec<&str>
@@ -9868,6 +9879,10 @@ pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn load(artif
 pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn load_expecting(artifact: &[u8], expected_claim: &str) -> core::result::Result<Self, antecedent_io_core::cohort_decision::CohortRefusal>
 pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn parent_claim(&self) -> &str
 pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn retained(&self) -> &antecedent_io_core::cohort_decision::RetainedEffectModel
+pub fn <antecedent::analysis::compiled_linear::CompiledLinearProgram>::fn identification(&self) -> &antecedent_identify::compiled_product::CompiledIdentificationProduct
+pub fn <antecedent::analysis::compiled_linear::CompiledLinearProgram>::fn operators(&self) -> &[antecedent_core::operator::Operator]
+pub fn <antecedent::analysis::compiled_linear::CompiledLinearProgram>::fn physical_operators(&self) -> &[antecedent_core::physical_operator::PhysicalOperator]
+pub fn <antecedent::analysis::compiled_linear::CompiledLinearProgram>::fn target(&self) -> &antecedent_core::scientific_target::ScientificTarget
 pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_artifact(&mut self, node_id: core::option::Option<&str>, kind: antecedent_design::composition_bundle::NodeKind, bytes: &[u8]) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>
 pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_detected_artifact(&mut self, node_id: core::option::Option<&str>, bytes: &[u8]) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>
 pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_reference(&mut self, node_id: &str, kind: antecedent_design::composition_bundle::NodeKind, identity: &str, requires: antecedent_design::composition_bundle::ProviderOrData) -> core::result::Result<(), antecedent_design::composition_bundle::BundleError>
@@ -10856,6 +10871,7 @@ pub mod antecedent::analysis::categorical_treatment
 pub mod antecedent::analysis::closed_pilots
 pub mod antecedent::analysis::cohort_decision
 pub mod antecedent::analysis::compact_export
+pub mod antecedent::analysis::compiled_linear
 pub mod antecedent::analysis::composition
 pub mod antecedent::analysis::composition_verification
 pub mod antecedent::analysis::conditional_study_ranking
@@ -11308,6 +11324,8 @@ pub struct antecedent::analysis::closed_pilots::NestedMarkovRequest
 pub struct antecedent::analysis::closed_pilots::SampledRecoveryRequest<'a>
 pub struct antecedent::analysis::cohort_decision::FittedEffectModel
 pub struct antecedent::analysis::cohort_decision::FittedEffectModel has private fields
+pub struct antecedent::analysis::compiled_linear::CompiledLinearProgram
+pub struct antecedent::analysis::compiled_linear::CompiledLinearProgram has private fields
 pub struct antecedent::analysis::composition::BundleBuilder
 pub struct antecedent::analysis::composition::BundleBuilder has private fields
 pub struct antecedent::analysis::conditional_study_ranking::ConditionalBranch

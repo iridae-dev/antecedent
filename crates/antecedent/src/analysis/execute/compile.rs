@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::builder::DataInput;
+
 use crate::graph::{Cpdag, Dag, Pag};
 use antecedent_core::{
     AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, HistoryMatchQuery,
@@ -33,8 +35,9 @@ use crate::analysis::conditional_admg::{
     compile_temporal_admg_conditional_frequentist,
 };
 
-#[path = "lowered_route.rs"]
-mod lowered_route;
+#[cfg(test)]
+#[path = "prepared_gaussian_tests.rs"]
+mod prepared_gaussian_tests;
 
 fn mixed_admg(study: &super::Study) -> Result<Admg, CausalError> {
     study
@@ -78,7 +81,7 @@ impl super::Study {
         &self,
         input: &RouteInput<'_>,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        match *input {
+        let mut plan = match *input {
             RouteInput::StaticResponseDag { data, query: q, graph } => {
                 self.compile_logical_response_dag(data, q, graph)
             }
@@ -223,7 +226,26 @@ impl super::Study {
             RouteInput::StaticAteMixed { .. } => Err(CausalError::Unsupported {
                 message: "unsupported data/graph/query combination",
             }),
-        }
+        }?;
+        let schema = match &self.data {
+            DataInput::Tabular(data) => data.schema(),
+            DataInput::Temporal(data) | DataInput::Event(data) => data.schema(),
+            DataInput::Panel(data) => data.schema(),
+            DataInput::MultiEnv(data) => data.schema(),
+        };
+        plan.design_columns_hint = schema
+            .variables()
+            .iter()
+            .map(|v| match v.value_type {
+                antecedent_core::ValueType::Vector { width, .. } => u64::from(width.get()),
+                _ => 1,
+            })
+            .try_fold(0_u64, u64::checked_add)
+            .ok_or_else(|| CausalError::Resource {
+                message: "encoded schema width overflow".into(),
+            })?
+            .max(1);
+        Ok(plan)
     }
 
     /// Logical plan whose record rides on `self.query` and the study's validation suite;
@@ -1321,28 +1343,18 @@ impl super::Study {
         if self.graph_posterior.is_some() {
             return self.compile_graph_posterior(ctx);
         }
-        if lowered_route::lowered_plan_admits(self) {
-            return self.lowered_physical_plan(ctx);
-        }
         let input = self.route_input()?;
-        self.compile_with_route(&input, ctx)
-    }
-
-    /// Physical plan of the admitted static ordinary-least-squares route.
-    ///
-    /// The same record [`Study::compile`] returns for that study. Callers that
-    /// already know the study is admitted use this directly so building the
-    /// retained route does not call [`Study::compile`] again.
-    fn lowered_physical_plan(
-        &self,
-        ctx: &ExecutionContext,
-    ) -> Result<PhysicalExecutionPlan, CausalError> {
-        let RouteInput::StaticAteDag { data, query, graph } = self.route_input()? else {
-            return Err(CausalError::Compile {
-                message: "linear/Gaussian lowering admits a static DAG average contrast".into(),
-            });
-        };
-        self.compile_logical_ate_dag(data, query, graph)?.compile_physical(ctx)
+        let mut plan = self.compile_with_route(&input, ctx)?;
+        if let RouteInput::StaticAteDag { query, .. } = input {
+            if crate::analysis::compiled_linear::can_retain(self, query)
+                && self.resolve_static_ids().1 == EstimatorId::LinearAdjustmentAte
+                && matches!(self.inference, InferenceMode::Frequentist)
+                && self.custom_validators.is_empty()
+            {
+                plan.bind_prepared_linear_views()?;
+            }
+        }
+        Ok(plan)
     }
 
     fn compile_with_route(

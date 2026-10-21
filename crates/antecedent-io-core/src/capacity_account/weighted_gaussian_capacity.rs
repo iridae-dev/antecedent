@@ -171,6 +171,7 @@ pub struct GaussianCrossProducts {
 /// Summary shared by both capacity controls.
 #[derive(Clone, Debug)]
 pub struct WeightedCapacityResult {
+    choice: Box<antecedent_core::physical_choice::PhysicalChoice>,
     /// Control that was requested.
     pub control: CapacityControl,
     /// Retention mode the charges used.
@@ -195,6 +196,14 @@ pub struct WeightedCapacityResult {
     pub batches: u64,
     /// Cross-product pass plus the diagnostic pass.
     pub source_passes: u64,
+}
+
+impl WeightedCapacityResult {
+    /// Executed backend selection and capability/cost rejection reasons.
+    #[must_use]
+    pub fn physical_choice(&self) -> &antecedent_core::physical_choice::PhysicalChoice {
+        &self.choice
+    }
 }
 
 /// Which shape rule a design broke.
@@ -268,6 +277,9 @@ pub enum RowFileFault {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum WeightedCapacityError {
+    /// No executable physical alternative met its required capabilities.
+    #[error("physical backend choice: {0}")]
+    BackendChoice(Box<antecedent_core::physical_choice::PhysicalChoiceRefusal>),
     /// `batch_rows` was zero.
     #[error("batch bound must be at least one row")]
     BatchBound,
@@ -856,6 +868,7 @@ pub fn run_weighted_capacity(
     let diagnostics = diagnostic_pass(source, &mut scan, &solved, first.digest)?;
     drop(scan);
     let result = Assembly {
+        choice: plan.choice,
         control,
         retention: options.retention,
         charges: plan.charges,
@@ -876,6 +889,7 @@ pub fn run_weighted_capacity(
 
 /// Checked shape, retention, and ceiling reservation for one run.
 struct RunPlan {
+    choice: antecedent_core::physical_choice::PhysicalChoice,
     ncols: usize,
     batch_rows: usize,
     charges: CeilingCharges,
@@ -902,7 +916,27 @@ fn plan_run(
             charges,
         });
     }
-    Ok(RunPlan { ncols, batch_rows: options.batch_rows, charges })
+    Ok(RunPlan {
+        choice: streamed_choice(charges.total_bytes)?,
+        ncols,
+        batch_rows: options.batch_rows,
+        charges,
+    })
+}
+
+fn streamed_choice(
+    bytes: u64,
+) -> Result<antecedent_core::physical_choice::PhysicalChoice, WeightedCapacityError> {
+    use antecedent_core::physical_choice::{
+        AvailableCapabilities, CostQuotes, DeclaredCost, PhysicalAlternative, PhysicalChoice,
+    };
+    let backend = PhysicalAlternative::StreamedReduction;
+    let capabilities = AvailableCapabilities::empty()
+        .with_operator(backend.required_operator())
+        .with_resource(backend.required_resource());
+    let cost = DeclaredCost::from_raw(bytes);
+    PhysicalChoice::choose(CostQuotes::new(cost, cost, cost, cost), capabilities)
+        .map_err(|error| WeightedCapacityError::BackendChoice(Box::new(error)))
 }
 
 /// Buffers both passes share: the batch window and the row hash.
@@ -1257,6 +1291,7 @@ impl<'a> DiagAccum<'a> {
 
 /// Everything the two passes produced, ready to become the result.
 struct Assembly {
+    choice: antecedent_core::physical_choice::PhysicalChoice,
     control: CapacityControl,
     retention: OutputRetention,
     charges: CeilingCharges,
@@ -1270,6 +1305,7 @@ struct Assembly {
 impl Assembly {
     fn into_result(self) -> Result<WeightedCapacityResult, WeightedCapacityError> {
         let Self {
+            choice,
             control,
             retention,
             charges,
@@ -1282,6 +1318,7 @@ impl Assembly {
         let p = solved.coefficients.len();
         let robust_covariance = sandwich_product(&solved.bread, &diagnostics.meat, p)?;
         Ok(WeightedCapacityResult {
+            choice: Box::new(choice),
             control,
             retention,
             coefficients: solved.coefficients,
@@ -1312,6 +1349,10 @@ fn scan_rows(
     cancellation: Option<&CancellationToken>,
     mut on_row: impl FnMut(u64, &[f64], f64, f64) -> Result<(), WeightedCapacityError>,
 ) -> Result<u64, WeightedCapacityError> {
+    antecedent_core::execution_attempt::record_physical(
+        antecedent_core::execution_attempt::PhysicalEvent::Scan,
+        1,
+    );
     let mut batches = 0_u64;
     let mut index = 0_u64;
     loop {
@@ -1577,6 +1618,7 @@ fn decode_summary(payload: &[u8]) -> Result<WeightedCapacityResult, WeightedCapa
         return Err(layout());
     }
     Ok(WeightedCapacityResult {
+        choice: Box::new(streamed_choice(charges.total_bytes)?),
         control,
         retention: OutputRetention::DiskBacked,
         coefficients,

@@ -29,6 +29,7 @@ fn tabular_plan(rows: u64) -> LogicalAnalysisPlan {
         },
         query: CausalQuery::AverageEffect(q),
         split: None,
+        design_columns_hint: 2,
         row_count_hint: rows,
     }
 }
@@ -41,7 +42,7 @@ fn static_ate_compiles_with_schedule_and_copies() {
     let physical = plan.compile_physical(&ctx).unwrap();
     assert!(physical.record.estimated_peak_memory_bytes.is_some());
     assert_eq!(physical.record.kernels.len(), 1);
-    assert_eq!(physical.record.estimated_copy_bytes, Some(200 * 8 * 8));
+    assert_eq!(physical.record.estimated_copy_bytes, Some(200 * 2 * 8));
     assert_eq!(physical.record.task_schedule.len(), 1);
     assert_eq!(&*physical.record.task_schedule[0].dimension, "serial");
     assert!(!physical.record.materializations.is_empty());
@@ -63,6 +64,7 @@ fn temporal_query_on_tabular_fails() {
         },
         query: CausalQuery::TemporalEffect(q),
         split: None,
+        design_columns_hint: 2,
         row_count_hint: 10,
     };
     assert!(matches!(plan.validate(), Err(CausalError::Compile { .. })));
@@ -84,6 +86,7 @@ fn pcmci_on_tabular_fails() {
         },
         query: CausalQuery::AverageEffect(q),
         split: None,
+        design_columns_hint: 2,
         row_count_hint: 10,
     };
     assert!(matches!(plan.validate(), Err(CausalError::Compile { .. })));

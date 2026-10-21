@@ -119,7 +119,13 @@ fn finish_plan(
     split: Option<DiscoveryEstimationSplit>,
     row_count_hint: u64,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    let plan = LogicalAnalysisPlan { record, query, split, row_count_hint };
+    let plan = LogicalAnalysisPlan {
+        design_columns_hint: record.query_variables.len().max(1) as u64,
+        record,
+        query,
+        split,
+        row_count_hint,
+    };
     plan.validate()?;
     Ok(plan)
 }
