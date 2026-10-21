@@ -3286,8 +3286,14 @@ pub fn <antecedent_model::ModelCollection>::fn new(models: impl core::convert::I
 pub fn <antecedent_model::ModelEvaluator>::fn evaluate(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::ModelEvaluationReport, antecedent_model::ModelError>
 pub fn <antecedent_model::ModelView<'a>>::fn observational(model: &'a antecedent_model::CompiledCausalModel) -> Self
 pub fn <antecedent_model::ModelView<'a>>::fn with_overlay(model: &'a antecedent_model::CompiledCausalModel, overlay: antecedent_model::InterventionOverlay) -> Self
+pub fn <antecedent_model::NodeProgram>::fn column_compile_bytes(axis_width: usize, expression_nodes: usize) -> core::result::Result<u64, antecedent_model::ModelError>
+pub fn <antecedent_model::NodeProgram>::fn column_plan_bytes(&self) -> core::result::Result<u64, antecedent_model::ModelError>
+pub fn <antecedent_model::NodeProgram>::fn column_workspace_bytes(&self) -> core::result::Result<u64, antecedent_model::ModelError>
 pub fn <antecedent_model::NodeProgram>::fn compile(model: &antecedent_model::CompiledCausalModel, target: antecedent_core::ids::VariableId, kind: antecedent_model::ProgramKind, expr: &antecedent_core::value_expr::ValueExpr, declared: &antecedent_core::value_expr::PolicyReads) -> core::result::Result<Self, antecedent_model::PolicyRefusal>
+pub fn <antecedent_model::NodeProgram>::fn compile_columns(axis: &[antecedent_core::ids::VariableId], expr: &antecedent_core::value_expr::ValueExpr) -> core::result::Result<Self, antecedent_model::PolicyRefusal>
 pub fn <antecedent_model::NodeProgram>::fn compile_windowed(model: &antecedent_model::CompiledCausalModel, target: antecedent_core::ids::VariableId, kind: antecedent_model::ProgramKind, expr: &antecedent_core::value_expr::ValueExpr, declared: &antecedent_core::value_expr::PolicyReads, window: u32) -> core::result::Result<Self, antecedent_model::PolicyRefusal>
+pub fn <antecedent_model::NodeProgram>::fn evaluate_columns(&self, inputs: &[f64], ctx: core::option::Option<&antecedent_core::execution::ExecutionContext>) -> core::result::Result<f64, antecedent_model::ModelError>
+pub fn <antecedent_model::NodeProgram>::fn evaluate_columns_with_scratch(&self, inputs: &[f64], values: &mut alloc::vec::Vec<f64>, scratch: &mut alloc::vec::Vec<f64>, ctx: core::option::Option<&antecedent_core::execution::ExecutionContext>) -> core::result::Result<f64, antecedent_model::ModelError>
 pub fn <antecedent_model::NodeProgram>::fn expression(&self) -> &antecedent_core::value_expr::ValueExpr
 pub fn <antecedent_model::NodeProgram>::fn kind(&self) -> antecedent_model::ProgramKind
 pub fn <antecedent_model::NodeProgram>::fn max_lag(&self) -> u32

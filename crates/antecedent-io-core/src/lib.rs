@@ -313,3 +313,6 @@ pub mod transported_counterfactual_artifact;
 
 /// Versioned observations from native execution.
 pub mod native_execution_wire;
+
+/// Complete target-bound compiled identification proof interchange.
+pub mod compiled_identification_wire;

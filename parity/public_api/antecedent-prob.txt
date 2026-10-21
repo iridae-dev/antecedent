@@ -516,29 +516,38 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::metropolis::Metro
 impl<'a> core::clone::Clone for antecedent_prob::BayesDesignRef<'a>
 impl<'a> core::clone::Clone for antecedent_prob::PosteriorBatch<'a>
 impl<'a> core::clone::Clone for antecedent_prob::TransportContext<'a>
+impl<'a> core::clone::Clone for antecedent_prob::finite_belief::AffineGaussianExperiment<'a>
 impl<'a> core::fmt::Debug for antecedent_prob::BayesDesignRef<'a>
 impl<'a> core::fmt::Debug for antecedent_prob::PosteriorBatch<'a>
 impl<'a> core::fmt::Debug for antecedent_prob::TransportContext<'a>
+impl<'a> core::fmt::Debug for antecedent_prob::finite_belief::AffineGaussianExperiment<'a>
 impl<'a> core::marker::Copy for antecedent_prob::BayesDesignRef<'a>
 impl<'a> core::marker::Copy for antecedent_prob::PosteriorBatch<'a>
+impl<'a> core::marker::Copy for antecedent_prob::finite_belief::AffineGaussianExperiment<'a>
 impl<'a> core::marker::Freeze for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
 impl<'a> core::marker::Send for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::marker::Send for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::marker::Send for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
 pub const antecedent_prob::POPULATION_TAG_KEY: &str
 pub const antecedent_prob::TRANSPORT_MIN_KISH_ESS: f64
 pub enum antecedent_prob::BayesLikelihood
@@ -687,6 +696,12 @@ pub field antecedent_prob::WeightedGraphSamples::identified: alloc::sync::Arc<[a
 pub field antecedent_prob::WeightedGraphSamples::n_samples: usize
 pub field antecedent_prob::WeightedGraphSamples::orientation_marginals: core::option::Option<alloc::sync::Arc<[f64]>>
 pub field antecedent_prob::WeightedGraphSamples::weights: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::finite_belief::AffineGaussianExperiment::intercepts: &'a [f64]
+pub field antecedent_prob::finite_belief::AffineGaussianExperiment::observation_variance: f64
+pub field antecedent_prob::finite_belief::AffineGaussianExperiment::observed_mean: f64
+pub field antecedent_prob::finite_belief::AffineGaussianExperiment::sample_size: u64
+pub field antecedent_prob::finite_belief::AffineGaussianExperiment::slopes: &'a [f64]
+pub field antecedent_prob::finite_belief::AffineGaussianExperiment::target_values: &'a [f64]
 pub field antecedent_prob::fit_counts::BayesianWorkCounts::model_fits: u64
 pub field antecedent_prob::fit_counts::BayesianWorkCounts::posterior_draws: u64
 pub field antecedent_prob::metropolis::MetropolisDraws::accepted: alloc::vec::Vec<usize>
@@ -801,12 +816,15 @@ pub fn <antecedent_prob::WeightedGraphSamples>::fn normalized(&self) -> core::re
 pub fn <antecedent_prob::WeightedGraphSamples>::fn stratified_interactive_subsample(&self, max_identified: usize, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_prob::GraphEnvelopeSubsample, antecedent_prob::ProbError>
 pub fn <antecedent_prob::WeightedGraphSamples>::fn total_weight(&self) -> f64
 pub fn <antecedent_prob::WeightedGraphSamples>::fn unidentified_mass(&self) -> f64
+pub fn <antecedent_prob::finite_belief::AffineGaussianExperiment<'_>>::fn condition(&self, prior: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
 pub fn antecedent_prob::all_chains_moved(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> bool
 pub fn antecedent_prob::apply_transport(sources: &[antecedent_prob::ExternalPriorSource], ctx: &antecedent_prob::TransportContext<'_>) -> core::result::Result<(alloc::vec::Vec<antecedent_prob::ExternalPriorSource>, alloc::vec::Vec<antecedent_prob::TransportOutcome>), antecedent_prob::TransportError>
 pub fn antecedent_prob::compose_external_priors(sources: &[antecedent_prob::ExternalPriorSource], baseline: &antecedent_prob::PriorSet) -> core::result::Result<antecedent_prob::ComposedPrior, antecedent_prob::ProbError>
 pub fn antecedent_prob::compose_external_priors_with_alphas(sources: &[antecedent_prob::ExternalPriorSource], alphas_requested: &[f64], alphas_applied: &[f64], baseline: &antecedent_prob::PriorSet) -> core::result::Result<antecedent_prob::ComposedPrior, antecedent_prob::ProbError>
 pub fn antecedent_prob::compose_with_transport(sources: &[antecedent_prob::ExternalPriorSource], baseline: &antecedent_prob::PriorSet, ctx: &antecedent_prob::TransportContext<'_>) -> core::result::Result<(antecedent_prob::ComposedPrior, alloc::vec::Vec<antecedent_prob::TransportOutcome>), antecedent_prob::ProbError>
 pub fn antecedent_prob::conjugate::fit_conjugate_gaussian(design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
+pub fn antecedent_prob::finite_belief::condition(prior: &[f64], log_likelihood: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
+pub fn antecedent_prob::finite_belief::linear_functional_rows(rows: &[f64], coefficients: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
 pub fn antecedent_prob::fit_counts::count_bayesian_work<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, antecedent_prob::fit_counts::BayesianWorkCounts)
 pub fn antecedent_prob::fit_counts::note_posterior_draw()
 pub fn antecedent_prob::fit_counts::note_posterior_fit()
@@ -824,6 +842,7 @@ pub mod antecedent_prob::conjugate_moment_match
 pub mod antecedent_prob::diagnostics
 pub mod antecedent_prob::error
 pub mod antecedent_prob::external_prior
+pub mod antecedent_prob::finite_belief
 pub mod antecedent_prob::fit_counts
 pub mod antecedent_prob::gaussian_target
 pub mod antecedent_prob::graph_samples
@@ -870,6 +889,7 @@ pub struct antecedent_prob::TransportAdjustment
 pub struct antecedent_prob::TransportContext<'a>
 pub struct antecedent_prob::TransportOutcome
 pub struct antecedent_prob::WeightedGraphSamples
+pub struct antecedent_prob::finite_belief::AffineGaussianExperiment<'a>
 pub struct antecedent_prob::fit_counts::BayesianWorkCounts
 pub struct antecedent_prob::metropolis::MetropolisDraws
 pub struct antecedent_prob::metropolis::MetropolisOptions

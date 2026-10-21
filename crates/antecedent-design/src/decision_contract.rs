@@ -632,8 +632,16 @@ impl DecisionContract {
     /// # Errors
     /// Refuses an under-specified contract before any evaluation.
     pub fn validate(&self) -> Result<(), DecisionContractError> {
+        self.validate_action_count(2)
+    }
+
+    pub(crate) fn validate_for_program_search(&self) -> Result<(), DecisionContractError> {
+        self.validate_action_count(1)
+    }
+
+    fn validate_action_count(&self, minimum: usize) -> Result<(), DecisionContractError> {
         use DecisionContractError as E;
-        if self.actions.len() < 2 {
+        if self.actions.len() < minimum {
             return Err(E::InvalidDeclaration("a decision compares at least two actions"));
         }
         if self.actions.len() > MAX_ACTIONS {
@@ -741,6 +749,13 @@ impl DecisionContract {
     /// An invalid contract refuses.
     pub fn source_requirement(&self) -> Result<Option<SourceRequirement>, DecisionContractError> {
         self.validate()?;
+        self.validated_source_requirement()
+    }
+
+    /// Classify the demand after ordinary or finite-search contract validation.
+    pub(crate) fn validated_source_requirement(
+        &self,
+    ) -> Result<Option<SourceRequirement>, DecisionContractError> {
         let mut requirement = if let Some(functional) = self.criterion.functional() {
             let mut combined: Option<SourceRequirement> = None;
             for action in &self.actions {
@@ -777,6 +792,15 @@ impl DecisionContract {
     /// An invalid contract has no identity.
     pub fn identity(&self) -> Result<String, DecisionContractError> {
         self.validate()?;
+        Ok(self.validated_identity())
+    }
+
+    pub(crate) fn identity_for_program_search(&self) -> Result<String, DecisionContractError> {
+        self.validate_for_program_search()?;
+        Ok(self.validated_identity())
+    }
+
+    fn validated_identity(&self) -> String {
         let mut actions: Vec<[u8; 32]> = self.actions.iter().map(encode_action).collect();
         actions.sort_unstable();
         let mut constraints: Vec<[u8; 32]> =
@@ -788,7 +812,7 @@ impl DecisionContract {
         out.word(u64::from(self.structural_policy.tag()));
         put_list(&mut out, &actions);
         put_list(&mut out, &constraints);
-        Ok(out.finish_hex())
+        out.finish_hex()
     }
 }
 
@@ -958,6 +982,54 @@ pub struct ProgramSearchContract {
 }
 
 impl ProgramSearchContract {
+    /// Complete semantic search request, independent of constraint declaration order.
+    ///
+    /// # Errors
+    /// An invalid search contract has no identity.
+    pub fn identity(&self) -> Result<[u8; 32], DecisionContractError> {
+        self.validate()?;
+        let mut writer = CanonicalWriter::new("antecedent.program_search_contract.v1");
+        writer.text(&self.space.id).texts(&self.space.variables);
+        match &self.objective {
+            ProgramObjective::ExpectedUtility(expr) => {
+                writer.word(1);
+                expr.encode(&mut writer);
+            }
+            ProgramObjective::Variance(expr) => {
+                writer.word(2);
+                expr.encode(&mut writer);
+            }
+            ProgramObjective::Threshold { expr, threshold, tail } => {
+                writer.word(3);
+                expr.encode(&mut writer);
+                writer.real(*threshold).word(match tail {
+                    Tail::Lower => 1,
+                    Tail::Upper => 2,
+                });
+            }
+            ProgramObjective::Quantile { expr, p } => {
+                writer.word(4);
+                expr.encode(&mut writer);
+                writer.real(*p);
+            }
+            ProgramObjective::Optimality(expr) => {
+                writer.word(5);
+                expr.encode(&mut writer);
+            }
+            ProgramObjective::Regret(expr) => {
+                writer.word(6);
+                expr.encode(&mut writer);
+            }
+            ProgramObjective::Robust => {
+                writer.word(7);
+            }
+        }
+        let mut constraints: Vec<_> = self.constraints.iter().map(encode_constraint).collect();
+        constraints.sort_unstable();
+        put_list(&mut writer, &constraints);
+        Ok(writer.finish())
+    }
+
     /// Check the space, the objective, and the constraints.
     ///
     /// # Errors

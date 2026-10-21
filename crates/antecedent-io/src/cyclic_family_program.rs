@@ -163,11 +163,10 @@ impl CompiledCyclicFamilyProgram {
             R::FrequentistBootstrap { .. } | R::ParameterPosterior { .. } => {
                 &["worlds", "noise", "initial", "solve_policy"]
             }
-            R::RecoveredLinear { .. } => &["worlds"],
+            R::RecoveredLinear { .. } | R::OuMechanisms { .. } => &["worlds"],
             R::JointCounterfactual { .. } | R::PartialCounterfactual { .. } => {
                 &["worlds", "solve_policy"]
             }
-            R::OuMechanisms { .. } => &["worlds"],
             R::GaussianFunctional { .. } => &["assignments"],
             _ => &[],
         };

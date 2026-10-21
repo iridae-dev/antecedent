@@ -6278,6 +6278,7 @@ pub fn <antecedent_contract::bridge::BridgeContract>::fn interface_contract(&sel
 pub fn <antecedent_contract::bridge::BridgeContract>::fn map_support(&self, map: antecedent_contract::bridge::SupportMap, source: antecedent_contract::bridge::ValueInterval) -> core::result::Result<antecedent_contract::bridge::PreservedSupport, antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::BridgeContract>::fn propagate_affine_uncertainty(&self, source_mean: f64, source_variance: f64) -> core::result::Result<antecedent_contract::bridge::PropagatedUncertainty, antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::BridgeContract>::fn validate(&self) -> core::result::Result<(), antecedent_contract::bridge::BridgeRefusal>
+pub fn <antecedent_contract::bridge::BridgeContract>::fn validate_finite_affine_mapping(&self, intercepts: &[f64], slopes: &[f64], source: &[f64]) -> core::result::Result<(), antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::BridgeKind>::const fn allowed_mappings(self) -> &'static [antecedent_contract::bridge::MappingKind]
 pub fn <antecedent_contract::bridge::BridgeKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::bridge::BridgeKind>::const fn endpoint_pairs(self) -> &'static [(antecedent_contract::bridge::QuantityClass, antecedent_contract::bridge::QuantityClass)]

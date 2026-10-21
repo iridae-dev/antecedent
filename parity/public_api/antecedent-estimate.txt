@@ -60,6 +60,7 @@ impl !core::marker::Freeze for antecedent_estimate::CrossfitNuisanceCache [auto]
 impl !core::marker::Freeze for antecedent_estimate::PreparedFunctionalDistribution [auto]
 impl !core::marker::Freeze for antecedent_estimate::PreparedFunctionalEffect [auto]
 impl !core::marker::Freeze for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
+impl !core::marker::Freeze for antecedent_estimate::response::PreparedJointLinear [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::scenario_covariance::ScenarioRowEstimator [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_estimate::scenario_covariance::ScenarioRowEstimator [auto]
 impl antecedent_estimate::DirectedAncestry for antecedent_graph::admg::Admg
@@ -508,6 +509,36 @@ impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelChannel
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelChannelHistory
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelChannelParameters
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelChannelProgram
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelData
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelDraw
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelError
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelFeatureInputs
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelFit
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelFitDiagnostics
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelFitOptions
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelGroup
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelInference
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelInteractionParameter
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelInteractionSpec
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelOptimizerOptions
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelParameters
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelPrior
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelProgram
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelResponse
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelSamplingOptions
+impl core::clone::Clone for antecedent_estimate::joint_panel::PanelScenario
+impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
+impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::PanelExplanation
+impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
+impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
+impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt
+impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
+impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::TemporalPanelFit
+impl core::clone::Clone for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec
 impl core::clone::Clone for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast
 impl core::clone::Clone for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior
 impl core::clone::Clone for antecedent_estimate::latent_class_effects::LatentClassBootstrap
@@ -694,6 +725,8 @@ impl core::clone::Clone for antecedent_estimate::recovery_sampled::SampledBcaRec
 impl core::clone::Clone for antecedent_estimate::recovery_sampled::SampledIntervalMethod
 impl core::clone::Clone for antecedent_estimate::recovery_sampled::SampledJackknifeRecord
 impl core::clone::Clone for antecedent_estimate::recovery_sampled::SampledReplicateRecord
+impl core::clone::Clone for antecedent_estimate::response::JointLinearEvaluation
+impl core::clone::Clone for antecedent_estimate::response::JointLinearInference
 impl core::clone::Clone for antecedent_estimate::scenario_covariance::CovarianceMethod
 impl core::clone::Clone for antecedent_estimate::scenario_covariance::ExactEnumerationOptions
 impl core::clone::Clone for antecedent_estimate::scenario_covariance::RowDependence
@@ -937,6 +970,12 @@ impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::SourceDepe
 impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::SourceSharing
 impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelChannel
+impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelError
+impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelFeatureInputs
+impl core::cmp::Eq for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
+impl core::cmp::Eq for antecedent_estimate::joint_panel::time_varying::PanelExplanation
+impl core::cmp::Eq for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
 impl core::cmp::Eq for antecedent_estimate::latent_class_effects::LatentClassBootstrap
 impl core::cmp::Eq for antecedent_estimate::latent_class_effects::LatentClassPremise
 impl core::cmp::Eq for antecedent_estimate::latent_class_effects::PremiseStatus
@@ -1390,6 +1429,34 @@ impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::Sou
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelChannel
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelChannelHistory
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelChannelParameters
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelChannelProgram
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelData
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelDraw
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelError
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelFeatureInputs
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelFitDiagnostics
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelFitOptions
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelGroup
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelInference
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelInteractionParameter
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelInteractionSpec
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelOptimizerOptions
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelParameters
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelPrior
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelProgram
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelResponse
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelSamplingOptions
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelScenario
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::PanelExplanation
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
+impl core::cmp::PartialEq for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec
 impl core::cmp::PartialEq for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast
 impl core::cmp::PartialEq for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior
 impl core::cmp::PartialEq for antecedent_estimate::latent_class_effects::LatentClassBootstrap
@@ -1712,6 +1779,7 @@ impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::Observatio
 impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::WindowProduct
 impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_estimate::EstimationError
+impl core::convert::From<antecedent_estimate::EstimationError> for antecedent_estimate::response::JointLinearError
 impl core::convert::From<antecedent_estimate::SequentialNodeOverlay> for antecedent_estimate::SequentialMechanismOverlay
 impl core::convert::From<antecedent_estimate::joint_bayesian_transport::JointTransportRefusal> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_estimate::nuisance_cache::NuisanceCacheError> for antecedent_estimate::sequential_crossfit::SequentialCrossfitError
@@ -1804,6 +1872,9 @@ impl core::default::Default for antecedent_estimate::dose_grid_functional::Claim
 impl core::default::Default for antecedent_estimate::functional_distribution::EmpiricalFactorCache
 impl core::default::Default for antecedent_estimate::history_match::FrequentistHistoryContrast
 impl core::default::Default for antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics
+impl core::default::Default for antecedent_estimate::joint_panel::PanelOptimizerOptions
+impl core::default::Default for antecedent_estimate::joint_panel::PanelPrior
+impl core::default::Default for antecedent_estimate::joint_panel::PanelSamplingOptions
 impl core::default::Default for antecedent_estimate::nested_markov_binary::FitOptions
 impl core::default::Default for antecedent_estimate::nonlinear_mediation::NonlinearMediationConfig
 impl core::default::Default for antecedent_estimate::policy_value::BinaryPolicyLimits
@@ -1819,12 +1890,14 @@ impl core::error::Error for antecedent_estimate::adaptive_inference::AdaptiveInf
 impl core::error::Error for antecedent_estimate::adaptive_resample_waves::WaveError
 impl core::error::Error for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal
 impl core::error::Error for antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
+impl core::error::Error for antecedent_estimate::joint_panel::PanelError
 impl core::error::Error for antecedent_estimate::measurement::MeasurementError
 impl core::error::Error for antecedent_estimate::nuisance_cache::NuisanceCacheError
 impl core::error::Error for antecedent_estimate::recovery::CertificationFault
 impl core::error::Error for antecedent_estimate::recovery::EvidenceRefusal
 impl core::error::Error for antecedent_estimate::recovery::MechanismFault
 impl core::error::Error for antecedent_estimate::recovery::RecoveryInterventionFault
+impl core::error::Error for antecedent_estimate::response::JointLinearError
 impl core::error::Error for antecedent_estimate::sequential_crossfit::SequentialCrossfitError
 impl core::error::Error for antecedent_estimate::tiled_prediction::TileError
 impl core::fmt::Debug for antecedent_estimate::AdjustedEstimate
@@ -2269,6 +2342,37 @@ impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::SourceS
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelChannel
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelChannelHistory
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelChannelParameters
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelChannelProgram
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelData
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelDraw
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelError
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelFeatureInputs
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelFit
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelFitDiagnostics
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelFitOptions
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelGroup
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelInference
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelInteractionParameter
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelInteractionSpec
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelLawResponses
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelOptimizerOptions
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelParameters
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelPrior
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelProgram
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelResponse
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelSamplingOptions
+impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelScenario
+impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
+impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::PanelExplanation
+impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
+impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
+impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt
+impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
+impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::TemporalPanelFit
+impl core::fmt::Debug for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec
 impl core::fmt::Debug for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast
 impl core::fmt::Debug for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior
 impl core::fmt::Debug for antecedent_estimate::latent_class_effects::LatentClassBootstrap
@@ -2455,6 +2559,10 @@ impl core::fmt::Debug for antecedent_estimate::recovery_sampled::SampledBcaRecei
 impl core::fmt::Debug for antecedent_estimate::recovery_sampled::SampledIntervalMethod
 impl core::fmt::Debug for antecedent_estimate::recovery_sampled::SampledJackknifeRecord
 impl core::fmt::Debug for antecedent_estimate::recovery_sampled::SampledReplicateRecord
+impl core::fmt::Debug for antecedent_estimate::response::JointLinearError
+impl core::fmt::Debug for antecedent_estimate::response::JointLinearEvaluation
+impl core::fmt::Debug for antecedent_estimate::response::JointLinearInference
+impl core::fmt::Debug for antecedent_estimate::response::PreparedJointLinear
 impl core::fmt::Debug for antecedent_estimate::scenario_covariance::CovarianceMethod
 impl core::fmt::Debug for antecedent_estimate::scenario_covariance::ExactEnumerationOptions
 impl core::fmt::Debug for antecedent_estimate::scenario_covariance::RowDependence
@@ -2610,12 +2718,14 @@ impl core::fmt::Display for antecedent_estimate::adaptive_inference::AdaptiveInf
 impl core::fmt::Display for antecedent_estimate::adaptive_resample_waves::WaveError
 impl core::fmt::Display for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal
 impl core::fmt::Display for antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
+impl core::fmt::Display for antecedent_estimate::joint_panel::PanelError
 impl core::fmt::Display for antecedent_estimate::measurement::MeasurementError
 impl core::fmt::Display for antecedent_estimate::nuisance_cache::NuisanceCacheError
 impl core::fmt::Display for antecedent_estimate::recovery::CertificationFault
 impl core::fmt::Display for antecedent_estimate::recovery::EvidenceRefusal
 impl core::fmt::Display for antecedent_estimate::recovery::MechanismFault
 impl core::fmt::Display for antecedent_estimate::recovery::RecoveryInterventionFault
+impl core::fmt::Display for antecedent_estimate::response::JointLinearError
 impl core::fmt::Display for antecedent_estimate::sequential_crossfit::SequentialCrossfitError
 impl core::fmt::Display for antecedent_estimate::tiled_prediction::EvalAxis
 impl core::fmt::Display for antecedent_estimate::tiled_prediction::TileError
@@ -2789,6 +2899,10 @@ impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::SourceSharing
 impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::marker::Copy for antecedent_estimate::joint_panel::PanelFeatureInputs
+impl core::marker::Copy for antecedent_estimate::joint_panel::PanelOptimizerOptions
+impl core::marker::Copy for antecedent_estimate::joint_panel::PanelSamplingOptions
+impl core::marker::Copy for antecedent_estimate::joint_panel::time_varying::PanelExplanation
 impl core::marker::Copy for antecedent_estimate::latent_class_effects::LatentClassBootstrap
 impl core::marker::Copy for antecedent_estimate::latent_class_effects::LatentClassPremise
 impl core::marker::Copy for antecedent_estimate::latent_class_effects::PremiseStatus
@@ -3373,6 +3487,37 @@ impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::Sou
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelChannel [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelChannelProgram [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelData [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelDraw [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelError [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelFeatureInputs [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelFit [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelFitDiagnostics [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelFitOptions [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelGroup [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelInference [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelInteractionParameter [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelInteractionSpec [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelLawResponses [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelOptimizerOptions [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelParameters [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelPrior [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelProgram [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelResponse [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::TemporalPanelFit [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec [auto]
 impl core::marker::Freeze for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
@@ -3559,6 +3704,9 @@ impl core::marker::Freeze for antecedent_estimate::recovery_sampled::SampledBcaR
 impl core::marker::Freeze for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
 impl core::marker::Freeze for antecedent_estimate::recovery_sampled::SampledJackknifeRecord [auto]
 impl core::marker::Freeze for antecedent_estimate::recovery_sampled::SampledReplicateRecord [auto]
+impl core::marker::Freeze for antecedent_estimate::response::JointLinearError [auto]
+impl core::marker::Freeze for antecedent_estimate::response::JointLinearEvaluation [auto]
+impl core::marker::Freeze for antecedent_estimate::response::JointLinearInference [auto]
 impl core::marker::Freeze for antecedent_estimate::scenario_covariance::CovarianceMethod [auto]
 impl core::marker::Freeze for antecedent_estimate::scenario_covariance::ExactEnumerationOptions [auto]
 impl core::marker::Freeze for antecedent_estimate::scenario_covariance::RowDependence [auto]
@@ -4151,6 +4299,37 @@ impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelChannel [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelChannelProgram [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelData [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelDraw [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelError [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelFeatureInputs [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelFit [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelFitDiagnostics [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelFitOptions [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelGroup [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelInference [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelInteractionParameter [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelInteractionSpec [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelLawResponses [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelOptimizerOptions [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelParameters [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelPrior [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelProgram [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelResponse [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::TemporalPanelFit [auto]
+impl core::marker::Send for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec [auto]
 impl core::marker::Send for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
 impl core::marker::Send for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::marker::Send for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
@@ -4337,6 +4516,10 @@ impl core::marker::Send for antecedent_estimate::recovery_sampled::SampledBcaRec
 impl core::marker::Send for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
 impl core::marker::Send for antecedent_estimate::recovery_sampled::SampledJackknifeRecord [auto]
 impl core::marker::Send for antecedent_estimate::recovery_sampled::SampledReplicateRecord [auto]
+impl core::marker::Send for antecedent_estimate::response::JointLinearError [auto]
+impl core::marker::Send for antecedent_estimate::response::JointLinearEvaluation [auto]
+impl core::marker::Send for antecedent_estimate::response::JointLinearInference [auto]
+impl core::marker::Send for antecedent_estimate::response::PreparedJointLinear [auto]
 impl core::marker::Send for antecedent_estimate::scenario_covariance::CovarianceMethod [auto]
 impl core::marker::Send for antecedent_estimate::scenario_covariance::ExactEnumerationOptions [auto]
 impl core::marker::Send for antecedent_estimate::scenario_covariance::RowDependence [auto]
@@ -4816,6 +4999,34 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_t
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::TargetData
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelChannel
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelChannelHistory
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelChannelParameters
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelChannelProgram
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelData
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelDraw
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelError
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelFeatureInputs
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelFitDiagnostics
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelFitOptions
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelGroup
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelInference
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelInteractionParameter
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelInteractionSpec
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelOptimizerOptions
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelParameters
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelPrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelProgram
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelResponse
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelSamplingOptions
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelScenario
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::PanelExplanation
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec
 impl core::marker::StructuralPartialEq for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::latent_class_effects::LatentClassBootstrap
@@ -5557,6 +5768,37 @@ impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelChannel [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelChannelProgram [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelData [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelDraw [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelError [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelFeatureInputs [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelFit [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelFitDiagnostics [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelFitOptions [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelGroup [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelInference [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelInteractionParameter [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelInteractionSpec [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelLawResponses [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelOptimizerOptions [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelParameters [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelPrior [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelProgram [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelResponse [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::TemporalPanelFit [auto]
+impl core::marker::Sync for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec [auto]
 impl core::marker::Sync for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
 impl core::marker::Sync for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
@@ -5743,6 +5985,10 @@ impl core::marker::Sync for antecedent_estimate::recovery_sampled::SampledBcaRec
 impl core::marker::Sync for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
 impl core::marker::Sync for antecedent_estimate::recovery_sampled::SampledJackknifeRecord [auto]
 impl core::marker::Sync for antecedent_estimate::recovery_sampled::SampledReplicateRecord [auto]
+impl core::marker::Sync for antecedent_estimate::response::JointLinearError [auto]
+impl core::marker::Sync for antecedent_estimate::response::JointLinearEvaluation [auto]
+impl core::marker::Sync for antecedent_estimate::response::JointLinearInference [auto]
+impl core::marker::Sync for antecedent_estimate::response::PreparedJointLinear [auto]
 impl core::marker::Sync for antecedent_estimate::scenario_covariance::CovarianceMethod [auto]
 impl core::marker::Sync for antecedent_estimate::scenario_covariance::ExactEnumerationOptions [auto]
 impl core::marker::Sync for antecedent_estimate::scenario_covariance::RowDependence [auto]
@@ -6335,6 +6581,37 @@ impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::Sour
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelChannel [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelChannelProgram [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelData [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelDraw [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelError [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelFeatureInputs [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelFit [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelFitDiagnostics [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelFitOptions [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelGroup [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelInference [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelInteractionParameter [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelInteractionSpec [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelLawResponses [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelOptimizerOptions [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelParameters [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelPrior [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelProgram [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelResponse [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::TemporalPanelFit [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec [auto]
 impl core::marker::Unpin for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
@@ -6521,6 +6798,10 @@ impl core::marker::Unpin for antecedent_estimate::recovery_sampled::SampledBcaRe
 impl core::marker::Unpin for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
 impl core::marker::Unpin for antecedent_estimate::recovery_sampled::SampledJackknifeRecord [auto]
 impl core::marker::Unpin for antecedent_estimate::recovery_sampled::SampledReplicateRecord [auto]
+impl core::marker::Unpin for antecedent_estimate::response::JointLinearError [auto]
+impl core::marker::Unpin for antecedent_estimate::response::JointLinearEvaluation [auto]
+impl core::marker::Unpin for antecedent_estimate::response::JointLinearInference [auto]
+impl core::marker::Unpin for antecedent_estimate::response::PreparedJointLinear [auto]
 impl core::marker::Unpin for antecedent_estimate::scenario_covariance::CovarianceMethod [auto]
 impl core::marker::Unpin for antecedent_estimate::scenario_covariance::ExactEnumerationOptions [auto]
 impl core::marker::Unpin for antecedent_estimate::scenario_covariance::RowDependence [auto]
@@ -7113,6 +7394,37 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_baye
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelChannel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelChannelProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelData [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelDraw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelFeatureInputs [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelFitDiagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelFitOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelGroup [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelInteractionParameter [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelInteractionSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelLawResponses [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelOptimizerOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelParameters [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelResponse [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::TemporalPanelFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
@@ -7299,6 +7611,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery_s
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery_sampled::SampledJackknifeRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery_sampled::SampledReplicateRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::response::JointLinearError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::response::JointLinearEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::response::JointLinearInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::response::PreparedJointLinear [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::scenario_covariance::CovarianceMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::scenario_covariance::ExactEnumerationOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::scenario_covariance::RowDependence [auto]
@@ -7890,6 +8206,37 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesia
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::TargetData [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::TransportGraphClass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::VaryingBlock [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelChannel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelChannelParameters [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelChannelProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelData [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelDraw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelFeatureInputs [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelFitDiagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelFitOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelGroup [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelInteractionParameter [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelInteractionSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelLawResponses [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelOptimizerOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelParameters [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelResponse [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelSamplingOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelScenario [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelExplanation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::TemporalPanelFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::lagged_instrument::LaggedInstrumentContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::latent_class_effects::LatentClassBootstrap [auto]
@@ -8076,6 +8423,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery_samp
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery_sampled::SampledIntervalMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery_sampled::SampledJackknifeRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery_sampled::SampledReplicateRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::response::JointLinearError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::response::JointLinearEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::response::JointLinearInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::response::PreparedJointLinear [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::scenario_covariance::CovarianceMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::scenario_covariance::ExactEnumerationOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::scenario_covariance::RowDependence [auto]
@@ -8269,6 +8620,33 @@ impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::Cycl
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicParameter
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicPosterior
 impl serde_core::ser::Serialize for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelChannel
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelChannelHistory
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelChannelParameters
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelChannelProgram
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelData
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelDraw
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelFeatureInputs
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelFitDiagnostics
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelFitOptions
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelGroup
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelInference
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelInteractionParameter
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelInteractionSpec
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelOptimizerOptions
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelParameters
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelPrior
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelProgram
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelResponse
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelSamplingOptions
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelScenario
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::PanelExplanation
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
+impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec
 impl serde_core::ser::Serialize for antecedent_estimate::learned_trial::TrialNuisanceDiagnostics
 impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuEquationReplacement
 impl serde_core::ser::Serialize for antecedent_estimate::ou_mechanisms::OuMechanismFit
@@ -8825,6 +9203,33 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likel
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicParameter
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicPosterior
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::cyclic_likelihood::CyclicStructureFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelChannel
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelChannelHistory
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelChannelParameters
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelChannelProgram
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelData
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelDraw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelFeatureInputs
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelFitDiagnostics
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelFitOptions
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelGroup
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelInference
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelInteractionParameter
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelInteractionSpec
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelOptimizerOptions
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelParameters
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelPrior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelProgram
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelResponse
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelSamplingOptions
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelScenario
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::PanelExplanation
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::learned_trial::TrialNuisanceDiagnostics
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuEquationReplacement
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::ou_mechanisms::OuMechanismFit
@@ -9216,6 +9621,12 @@ pub enum antecedent_estimate::joint_bayesian_transport::SourceDependence
 pub enum antecedent_estimate::joint_bayesian_transport::SourceSharing
 pub enum antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 pub enum antecedent_estimate::joint_bayesian_transport::VaryingBlock
+pub enum antecedent_estimate::joint_panel::PanelError
+pub enum antecedent_estimate::joint_panel::PanelFeatureInputs
+pub enum antecedent_estimate::joint_panel::PanelInference
+pub enum antecedent_estimate::joint_panel::time_varying::PanelExplanation
+pub enum antecedent_estimate::joint_panel::time_varying::PanelMeanParameter
+pub enum antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
 pub enum antecedent_estimate::latent_class_effects::PremiseStatus
 pub enum antecedent_estimate::matching_posterior_boundary::MatchingPosteriorRequest
 pub enum antecedent_estimate::measurement::CategoricalFunctional<'a>
@@ -9252,6 +9663,8 @@ pub enum antecedent_estimate::recovery::EvaluatedOutcome
 pub enum antecedent_estimate::recovery::SolvedBy
 pub enum antecedent_estimate::recovery::ThresholdChoice
 pub enum antecedent_estimate::recovery_sampled::SampledIntervalMethod
+pub enum antecedent_estimate::response::JointLinearError
+pub enum antecedent_estimate::response::JointLinearInference
 pub enum antecedent_estimate::scenario_invariance_report::EnvelopeSide
 pub enum antecedent_estimate::sequential_crossfit::ActionLevel
 pub enum antecedent_estimate::sequential_crossfit::SequentialRole
@@ -11295,6 +11708,116 @@ pub field antecedent_estimate::joint_bayesian_transport::SourceEffectSummary::va
 pub field antecedent_estimate::joint_bayesian_transport::TargetData::covariates: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_estimate::joint_bayesian_transport::TargetData::identity: antecedent_estimate::joint_bayesian_transport::DataIdentity
 pub field antecedent_estimate::joint_bayesian_transport::TargetData::rows: usize
+pub field antecedent_estimate::joint_panel::PanelChannel::id: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelChannelHistory::id: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelChannelHistory::values: [f64; 2]
+pub field antecedent_estimate::joint_panel::PanelChannelParameters::coefficient: f64
+pub field antecedent_estimate::joint_panel::PanelChannelParameters::id: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelChannelParameters::lag: [f64; 3]
+pub field antecedent_estimate::joint_panel::PanelChannelProgram::id: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelChannelProgram::values: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_panel::PanelData::channels: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelChannel>
+pub field antecedent_estimate::joint_panel::PanelData::groups: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelGroup>
+pub field antecedent_estimate::joint_panel::PanelData::interactions: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelInteractionSpec>
+pub field antecedent_estimate::joint_panel::PanelData::lag_order: usize
+pub field antecedent_estimate::joint_panel::PanelData::seasons: usize
+pub field antecedent_estimate::joint_panel::PanelDraw::group_intercepts: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_panel::PanelDraw::parameters: antecedent_estimate::joint_panel::PanelParameters
+pub field antecedent_estimate::joint_panel::PanelFit::diagnostics: antecedent_estimate::joint_panel::PanelFitDiagnostics
+pub field antecedent_estimate::joint_panel::PanelFit::draws: alloc::vec::Vec<core::option::Option<antecedent_estimate::joint_panel::PanelDraw>>
+pub field antecedent_estimate::joint_panel::PanelFit::inference: antecedent_estimate::joint_panel::PanelInference
+pub field antecedent_estimate::joint_panel::PanelFit::point: antecedent_estimate::joint_panel::PanelDraw
+pub field antecedent_estimate::joint_panel::PanelFit::source_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::calibration: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::claim: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::cluster_rank_bound: core::option::Option<usize>
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::curvature_available: bool
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::failed_draws: usize
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::iterations: usize
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::line_search_exhausted: bool
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::log_likelihood: f64
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::max_rhat: core::option::Option<f64>
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::min_bulk_ess: core::option::Option<f64>
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::min_tail_ess: core::option::Option<f64>
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::optimizer_converged: bool
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::parameter_count: usize
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::posterior_converged: core::option::Option<bool>
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::score_norm: f64
+pub field antecedent_estimate::joint_panel::PanelFitDiagnostics::uncertainty: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelFitOptions::inference: antecedent_estimate::joint_panel::PanelInference
+pub field antecedent_estimate::joint_panel::PanelFitOptions::initial: core::option::Option<antecedent_estimate::joint_panel::PanelParameters>
+pub field antecedent_estimate::joint_panel::PanelFitOptions::optimizer: antecedent_estimate::joint_panel::PanelOptimizerOptions
+pub field antecedent_estimate::joint_panel::PanelGroup::channels: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::joint_panel::PanelGroup::confounder: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_panel::PanelGroup::history: alloc::vec::Vec<[f64; 2]>
+pub field antecedent_estimate::joint_panel::PanelGroup::id: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelGroup::outcome: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_panel::PanelGroup::season: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_panel::PanelInteractionParameter::coefficient: f64
+pub field antecedent_estimate::joint_panel::PanelInteractionParameter::id: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelInteractionSpec::expression: antecedent_io_core::query_wire::ValueExprWire
+pub field antecedent_estimate::joint_panel::PanelInteractionSpec::id: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelInteractionSpec::inputs: antecedent_estimate::joint_panel::PanelFeatureInputs
+pub field antecedent_estimate::joint_panel::PanelOptimizerOptions::gradient_tolerance: f64
+pub field antecedent_estimate::joint_panel::PanelOptimizerOptions::max_iterations: usize
+pub field antecedent_estimate::joint_panel::PanelParameters::channels: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelChannelParameters>
+pub field antecedent_estimate::joint_panel::PanelParameters::confounder: f64
+pub field antecedent_estimate::joint_panel::PanelParameters::group_sd: f64
+pub field antecedent_estimate::joint_panel::PanelParameters::half_saturation: f64
+pub field antecedent_estimate::joint_panel::PanelParameters::innovation_sd: f64
+pub field antecedent_estimate::joint_panel::PanelParameters::interactions: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelInteractionParameter>
+pub field antecedent_estimate::joint_panel::PanelParameters::intercept: f64
+pub field antecedent_estimate::joint_panel::PanelParameters::rho: f64
+pub field antecedent_estimate::joint_panel::PanelParameters::season_effects: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_panel::PanelPrior::coefficient_sd: f64
+pub field antecedent_estimate::joint_panel::PanelPrior::group_scale: f64
+pub field antecedent_estimate::joint_panel::PanelPrior::innovation_scale: f64
+pub field antecedent_estimate::joint_panel::PanelPrior::lag: alloc::vec::Vec<[f64; 3]>
+pub field antecedent_estimate::joint_panel::PanelPrior::log_half_saturation_mean: f64
+pub field antecedent_estimate::joint_panel::PanelPrior::log_half_saturation_sd: f64
+pub field antecedent_estimate::joint_panel::PanelProgram::channels: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelChannelProgram>
+pub field antecedent_estimate::joint_panel::PanelProgram::id: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelProgram::scenarios: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelScenario>
+pub field antecedent_estimate::joint_panel::PanelResponse::means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_panel::PanelResponse::program: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelSamplingOptions::chains: usize
+pub field antecedent_estimate::joint_panel::PanelSamplingOptions::draws: usize
+pub field antecedent_estimate::joint_panel::PanelSamplingOptions::max_rhat: f64
+pub field antecedent_estimate::joint_panel::PanelSamplingOptions::min_ess: f64
+pub field antecedent_estimate::joint_panel::PanelSamplingOptions::proposal_scale: f64
+pub field antecedent_estimate::joint_panel::PanelSamplingOptions::warmup: usize
+pub field antecedent_estimate::joint_panel::PanelScenario::confounder: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_panel::PanelScenario::group: alloc::string::String
+pub field antecedent_estimate::joint_panel::PanelScenario::history: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelChannelHistory>
+pub field antecedent_estimate::joint_panel::PanelScenario::season: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast::explanation: antecedent_estimate::joint_panel::time_varying::PanelExplanation
+pub field antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast::next_attempt: alloc::string::String
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt::choice: antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt::converged: bool
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt::criterion: core::option::Option<f64>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt::failure: core::option::Option<alloc::string::String>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt::log_likelihood: core::option::Option<f64>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw::baseline: antecedent_estimate::joint_panel::PanelDraw
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw::choice: antecedent_estimate::joint_panel::time_varying::TemporalModelChoice
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw::parameters: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelParameters>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::attempts: alloc::vec::Vec<antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::calibration: alloc::string::String
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::claim: alloc::string::String
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::draws: alloc::vec::Vec<core::option::Option<antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw>>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::point: antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::posterior_converged: core::option::Option<bool>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::posterior_diagnostics: core::option::Option<[f64; 3]>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::selection_counts: alloc::vec::Vec<(antecedent_estimate::joint_panel::time_varying::TemporalModelChoice, usize)>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::smooth_fallback: bool
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::source_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelFit::uncertainty: alloc::string::String
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec::change_points: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec::minimum_segment: usize
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec::path_prior_sd: f64
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec::smooth_knots: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec::smoothing: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec::varying: alloc::vec::Vec<antecedent_estimate::joint_panel::time_varying::PanelMeanParameter>
+pub field antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec::weak_change_gap: f64
 pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::aligned_rows: usize
 pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::effect: f64
 pub field antecedent_estimate::lagged_instrument::LaggedInstrumentContrast::first_stage_f: f64
@@ -12048,6 +12571,13 @@ pub field antecedent_estimate::recovery_sampled::SampledReplicateRecord::failure
 pub field antecedent_estimate::recovery_sampled::SampledReplicateRecord::id: u32
 pub field antecedent_estimate::recovery_sampled::SampledReplicateRecord::selection_digest: alloc::string::String
 pub field antecedent_estimate::recovery_sampled::SampledReplicateRecord::zero_patterns: alloc::vec::Vec<antecedent_estimate::ObservationPattern>
+pub field antecedent_estimate::response::JointLinearEvaluation::contrast: core::option::Option<antecedent_estimate::LinearContrast>
+pub field antecedent_estimate::response::JointLinearEvaluation::contrast_draws: core::option::Option<alloc::sync::Arc<[f64]>>
+pub field antecedent_estimate::response::JointLinearEvaluation::covariance: antecedent_estimate::JointCovariance
+pub field antecedent_estimate::response::JointLinearEvaluation::draw_count: usize
+pub field antecedent_estimate::response::JointLinearEvaluation::failed_draws: alloc::sync::Arc<[bool]>
+pub field antecedent_estimate::response::JointLinearEvaluation::means: alloc::sync::Arc<[f64]>
+pub field antecedent_estimate::response::JointLinearEvaluation::posterior_draws: core::option::Option<alloc::sync::Arc<[f64]>>
 pub field antecedent_estimate::scenario_covariance::ExactEnumerationOptions::max_compositions: u64
 pub field antecedent_estimate::scenario_covariance::ExactEnumerationOptions::max_failure_mass: f64
 pub field antecedent_estimate::scenario_covariance::ScenarioCovariance::covariance: alloc::vec::Vec<f64>
@@ -13266,6 +13796,19 @@ pub fn <antecedent_estimate::joint_bayesian_transport::JointDraws>::fn coordinat
 pub fn <antecedent_estimate::joint_bayesian_transport::JointDraws>::fn width(&self) -> usize
 pub fn <antecedent_estimate::joint_bayesian_transport::JointTransportFit>::fn effect_draws(&self) -> (alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<f64>)
 pub fn <antecedent_estimate::joint_bayesian_transport::JointTransportFit>::fn target_calibration_basis(&self, level: f64) -> core::result::Result<antecedent_core::calibration_basis::CalibrationBasis, antecedent_estimate::joint_bayesian_transport::JointTransportRefusal>
+pub fn <antecedent_estimate::joint_panel::PanelData>::fn identity(&self) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_estimate::joint_panel::PanelError>
+pub fn <antecedent_estimate::joint_panel::PanelData>::fn validate(&self) -> core::result::Result<(), antecedent_estimate::joint_panel::PanelError>
+pub fn <antecedent_estimate::joint_panel::PanelFit>::fn retained_bytes(&self) -> u64
+pub fn <antecedent_estimate::joint_panel::PanelFitOptions>::fn identity(&self, data: &antecedent_estimate::joint_panel::PanelData) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_estimate::joint_panel::PanelError>
+pub fn <antecedent_estimate::joint_panel::PanelInteractionSpec>::fn from_saturated_features(id: impl core::convert::Into<alloc::string::String>, expression: &antecedent_core::value_expr::ValueExpr) -> core::result::Result<Self, antecedent_estimate::joint_panel::PanelError>
+pub fn <antecedent_estimate::joint_panel::PanelLawResponses>::fn draws(&self) -> &[core::option::Option<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>>]
+pub fn <antecedent_estimate::joint_panel::PanelLawResponses>::fn into_parts(self) -> (alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>, antecedent_estimate::joint_panel::PanelAlignedResponses, alloc::sync::Arc<antecedent_core::execution::AdmissionLease>)
+pub fn <antecedent_estimate::joint_panel::PanelLawResponses>::fn point(&self) -> &[antecedent_estimate::joint_panel::PanelResponse]
+pub fn <antecedent_estimate::joint_panel::PanelLawResponses>::fn retained_bytes(&self) -> u64
+pub fn <antecedent_estimate::joint_panel::PanelProgram>::fn horizon(&self) -> usize
+pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelFit>::fn observe_current(&self)
+pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelFit>::fn retained_bytes(&self) -> u64
+pub fn <antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec>::fn identity(&self, data: &antecedent_estimate::joint_panel::PanelData) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_estimate::joint_panel::PanelError>
 pub fn <antecedent_estimate::latent_class_effects::LatentClassConfig>::fn declare_conditional_randomization(self) -> Self
 pub fn <antecedent_estimate::latent_class_effects::LatentClassConfig>::fn new(classes: usize, seed: u64) -> Self
 pub fn <antecedent_estimate::learned_joint_transport::LearnedJointFit>::fn effect_draws(&self) -> (alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<f64>)
@@ -13374,6 +13917,14 @@ pub fn <antecedent_estimate::recovery::RetainedRecoveryPlan>::const fn outcome(&
 pub fn <antecedent_estimate::recovery::RetainedRecoveryPlan>::const fn uncertainty(&self) -> &antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty
 pub fn <antecedent_estimate::recovery::RetainedRecoveryPlan>::fn try_new(parts: antecedent_estimate::recovery::RecoveryPlanParts) -> core::result::Result<Self, antecedent_estimate::recovery::RecoveryInterventionFault>
 pub fn <antecedent_estimate::recovery_sampled::SampledIntervalMethod>::const fn name(self) -> &'static str
+pub fn <antecedent_estimate::response::JointLinearEvaluation>::fn retained_admitted_bytes(&self) -> u64
+pub fn <antecedent_estimate::response::PreparedJointLinear>::const fn kernel_policy(&self) -> antecedent_core::execution::KernelPolicy
+pub fn <antecedent_estimate::response::PreparedJointLinear>::fn execute(&self, world_weights: &[alloc::vec::Vec<f64>], contrast: core::option::Option<&[f64]>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::response::JointLinearEvaluation, antecedent_estimate::response::JointLinearError>
+pub fn <antecedent_estimate::response::PreparedJointLinear>::fn has_fit(&self) -> bool
+pub fn <antecedent_estimate::response::PreparedJointLinear>::fn inference(&self) -> &antecedent_estimate::response::JointLinearInference
+pub fn <antecedent_estimate::response::PreparedJointLinear>::fn new(problem: antecedent_estimate::PreparedBayesianProblem, inference: antecedent_estimate::response::JointLinearInference, kernel: antecedent_core::execution::KernelPolicy) -> core::result::Result<Self, antecedent_estimate::response::JointLinearError>
+pub fn <antecedent_estimate::response::PreparedJointLinear>::fn problem(&self) -> &antecedent_estimate::PreparedBayesianProblem
+pub fn <antecedent_estimate::response::PreparedJointLinear>::fn unadjusted_world_support(&self, assignments: &[(usize, f64)]) -> bool
 pub fn <antecedent_estimate::scenario_covariance::CovarianceMethod>::const fn label(self) -> &'static str
 pub fn <antecedent_estimate::scenario_covariance::ScenarioCovariance>::fn dimension(&self) -> usize
 pub fn <antecedent_estimate::scenario_covariance::ScenarioCovariance>::fn entry(&self, i: usize, j: usize) -> f64
@@ -13710,6 +14261,17 @@ pub fn antecedent_estimate::joint_if::max_t_critical_polled(cov: &antecedent_est
 pub fn antecedent_estimate::joint_if::max_t_critical_with_df_polled(cov: &antecedent_estimate::JointCovariance, level: f64, replicates: u32, df: core::option::Option<f64>, rng: &mut antecedent_core::execution::CausalRng, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<core::option::Option<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::joint_if::monotone_increasing(values: &[f64]) -> alloc::vec::Vec<f64>
 pub fn antecedent_estimate::joint_if::weighted_mean(scores: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::joint_panel::evaluate_panel_law(data: &antecedent_estimate::joint_panel::PanelData, point: &antecedent_estimate::joint_panel::PanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::PanelDraw>], programs: &[antecedent_estimate::joint_panel::PanelProgram], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::PanelLawResponses, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::evaluate_panel_programs(data: &antecedent_estimate::joint_panel::PanelData, draw: &antecedent_estimate::joint_panel::PanelDraw, programs: &[antecedent_estimate::joint_panel::PanelProgram], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::fit_panel(data: &antecedent_estimate::joint_panel::PanelData, options: &antecedent_estimate::joint_panel::PanelFitOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::PanelFit, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::project_panel_responses(rows: &[antecedent_estimate::joint_panel::PanelResponse], weights: &[alloc::vec::Vec<f64>]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::time_varying::evaluate_temporal_law(data: &antecedent_estimate::joint_panel::PanelData, point: &antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw>], programs: &[antecedent_estimate::joint_panel::PanelProgram], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::PanelLawResponses, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::time_varying::evaluate_temporal_programs(data: &antecedent_estimate::joint_panel::PanelData, draw: &antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw, programs: &[antecedent_estimate::joint_panel::PanelProgram], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::time_varying::fit_temporal_panel(data: &antecedent_estimate::joint_panel::PanelData, spec: &antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec, options: &antecedent_estimate::joint_panel::PanelFitOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::time_varying::TemporalPanelFit, antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::time_varying::require_coarser_contrast(explanation: antecedent_estimate::joint_panel::time_varying::PanelExplanation) -> antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
+pub fn antecedent_estimate::joint_panel::time_varying::validate_temporal_spec(data: &antecedent_estimate::joint_panel::PanelData, spec: &antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec) -> core::result::Result<(), antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::validate_fit_options(data: &antecedent_estimate::joint_panel::PanelData, options: &antecedent_estimate::joint_panel::PanelFitOptions) -> core::result::Result<(), antecedent_estimate::joint_panel::PanelError>
+pub fn antecedent_estimate::joint_panel::validate_panel_programs(data: &antecedent_estimate::joint_panel::PanelData, programs: &[antecedent_estimate::joint_panel::PanelProgram]) -> core::result::Result<(), antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::kernel_bias_scale(scores: &[&[f64]], block_length: usize) -> f64
 pub fn antecedent_estimate::lagged_instrument::fit_lagged_instrument(sample: &antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'_>, weak_f_threshold: f64) -> core::result::Result<antecedent_estimate::lagged_instrument::LaggedInstrumentContrast, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::lagged_instrument::fit_lagged_instrument_posterior(sample: &antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'_>, prior_sd: f64, sampling: antecedent_estimate::DrawSpec, weak_f_threshold: f64) -> core::result::Result<antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior, antecedent_estimate::EstimationError>
@@ -14002,6 +14564,8 @@ pub mod antecedent_estimate::iv
 pub mod antecedent_estimate::joint_bayesian_transport
 pub mod antecedent_estimate::joint_cell_factorized
 pub mod antecedent_estimate::joint_if
+pub mod antecedent_estimate::joint_panel
+pub mod antecedent_estimate::joint_panel::time_varying
 pub mod antecedent_estimate::lagged_instrument
 pub mod antecedent_estimate::latent_class_effects
 pub mod antecedent_estimate::learned_continuous
@@ -14521,6 +15085,34 @@ pub struct antecedent_estimate::joint_bayesian_transport::SourceData
 pub struct antecedent_estimate::joint_bayesian_transport::SourceDisagreement
 pub struct antecedent_estimate::joint_bayesian_transport::SourceEffectSummary
 pub struct antecedent_estimate::joint_bayesian_transport::TargetData
+pub struct antecedent_estimate::joint_panel::PanelChannel
+pub struct antecedent_estimate::joint_panel::PanelChannelHistory
+pub struct antecedent_estimate::joint_panel::PanelChannelParameters
+pub struct antecedent_estimate::joint_panel::PanelChannelProgram
+pub struct antecedent_estimate::joint_panel::PanelData
+pub struct antecedent_estimate::joint_panel::PanelDraw
+pub struct antecedent_estimate::joint_panel::PanelFit
+pub struct antecedent_estimate::joint_panel::PanelFit has private fields
+pub struct antecedent_estimate::joint_panel::PanelFitDiagnostics
+pub struct antecedent_estimate::joint_panel::PanelFitOptions
+pub struct antecedent_estimate::joint_panel::PanelGroup
+pub struct antecedent_estimate::joint_panel::PanelInteractionParameter
+pub struct antecedent_estimate::joint_panel::PanelInteractionSpec
+pub struct antecedent_estimate::joint_panel::PanelLawResponses
+pub struct antecedent_estimate::joint_panel::PanelLawResponses has private fields
+pub struct antecedent_estimate::joint_panel::PanelOptimizerOptions
+pub struct antecedent_estimate::joint_panel::PanelParameters
+pub struct antecedent_estimate::joint_panel::PanelPrior
+pub struct antecedent_estimate::joint_panel::PanelProgram
+pub struct antecedent_estimate::joint_panel::PanelResponse
+pub struct antecedent_estimate::joint_panel::PanelSamplingOptions
+pub struct antecedent_estimate::joint_panel::PanelScenario
+pub struct antecedent_estimate::joint_panel::time_varying::CoarserPanelContrast
+pub struct antecedent_estimate::joint_panel::time_varying::TemporalPanelAttempt
+pub struct antecedent_estimate::joint_panel::time_varying::TemporalPanelDraw
+pub struct antecedent_estimate::joint_panel::time_varying::TemporalPanelFit
+pub struct antecedent_estimate::joint_panel::time_varying::TemporalPanelFit has private fields
+pub struct antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec
 pub struct antecedent_estimate::lagged_instrument::LaggedInstrumentContrast
 pub struct antecedent_estimate::lagged_instrument::LaggedInstrumentPosterior
 pub struct antecedent_estimate::lagged_instrument::LaggedInstrumentSample<'a>
@@ -14703,6 +15295,10 @@ pub struct antecedent_estimate::recovery::RetainedRecoveryPlan has private field
 pub struct antecedent_estimate::recovery_sampled::SampledBcaReceipt
 pub struct antecedent_estimate::recovery_sampled::SampledJackknifeRecord
 pub struct antecedent_estimate::recovery_sampled::SampledReplicateRecord
+pub struct antecedent_estimate::response::JointLinearEvaluation
+pub struct antecedent_estimate::response::JointLinearEvaluation has private fields
+pub struct antecedent_estimate::response::PreparedJointLinear
+pub struct antecedent_estimate::response::PreparedJointLinear has private fields
 pub struct antecedent_estimate::scenario_covariance::ExactEnumerationOptions
 pub struct antecedent_estimate::scenario_covariance::ScenarioCovariance
 pub struct antecedent_estimate::scenario_covariance::ScenarioRowEstimator
@@ -14871,6 +15467,7 @@ pub trait fn fn antecedent_estimate::temporal_dependent_interval::TemporalEstima
 pub trait type antecedent_estimate::Estimator::Fit
 pub trait type antecedent_estimate::PosteriorFunctionalEvaluator::Compiled
 pub type antecedent_estimate::cluster_dml_aipw::UnitLabels = (core::option::Option<alloc::vec::Vec<u32>>, core::option::Option<alloc::vec::Vec<u32>>)
+pub type antecedent_estimate::joint_panel::PanelAlignedResponses = alloc::vec::Vec<core::option::Option<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>>>
 pub type antecedent_estimate::population_aipw::PopulationLinearInterval = antecedent_estimate::population_aipw::PopulationAipwInterval
 pub use antecedent_estimate::DEFAULT_RIDGE_ON_SEPARATION = se::DEFAULT_RIDGE_ON_SEPARATION
 pub use antecedent_estimate::EstimandMethod = antecedent_expr::EstimandMethod
@@ -15607,6 +16204,27 @@ pub variant antecedent_estimate::joint_bayesian_transport::TransportGraphClass::
 pub variant antecedent_estimate::joint_bayesian_transport::TransportGraphClass::GraphPosterior
 pub variant antecedent_estimate::joint_bayesian_transport::VaryingBlock::Intercept
 pub variant antecedent_estimate::joint_bayesian_transport::VaryingBlock::InterceptAndCovariates
+pub variant antecedent_estimate::joint_panel::PanelError::Cancelled
+pub variant antecedent_estimate::joint_panel::PanelError::Invalid(alloc::string::String)
+pub variant antecedent_estimate::joint_panel::PanelError::Numerical(alloc::string::String)
+pub variant antecedent_estimate::joint_panel::PanelError::Resource(alloc::string::String)
+pub variant antecedent_estimate::joint_panel::PanelFeatureInputs::LaggedSaturatedChannels
+pub variant antecedent_estimate::joint_panel::PanelInference::Bayesian { prior: antecedent_estimate::joint_panel::PanelPrior, sampler: antecedent_estimate::joint_panel::PanelSamplingOptions }
+pub variant antecedent_estimate::joint_panel::PanelInference::Frequentist { draws: usize }
+pub variant antecedent_estimate::joint_panel::time_varying::PanelExplanation::Composition
+pub variant antecedent_estimate::joint_panel::time_varying::PanelExplanation::Exposure
+pub variant antecedent_estimate::joint_panel::time_varying::PanelExplanation::Mechanism
+pub variant antecedent_estimate::joint_panel::time_varying::PanelExplanation::Saturation
+pub variant antecedent_estimate::joint_panel::time_varying::PanelMeanParameter::Channel { id: alloc::string::String }
+pub variant antecedent_estimate::joint_panel::time_varying::PanelMeanParameter::Confounder
+pub variant antecedent_estimate::joint_panel::time_varying::PanelMeanParameter::Interaction { id: alloc::string::String }
+pub variant antecedent_estimate::joint_panel::time_varying::PanelMeanParameter::Intercept
+pub variant antecedent_estimate::joint_panel::time_varying::PanelMeanParameter::Lag { channel: alloc::string::String, coordinate: usize }
+pub variant antecedent_estimate::joint_panel::time_varying::PanelMeanParameter::LogHalfSaturation
+pub variant antecedent_estimate::joint_panel::time_varying::PanelMeanParameter::Season { level: usize }
+pub variant antecedent_estimate::joint_panel::time_varying::TemporalModelChoice::NoChange
+pub variant antecedent_estimate::joint_panel::time_varying::TemporalModelChoice::Piecewise { at: usize }
+pub variant antecedent_estimate::joint_panel::time_varying::TemporalModelChoice::Smooth { penalty: f64 }
 pub variant antecedent_estimate::latent_class_effects::PremiseStatus::Checked
 pub variant antecedent_estimate::latent_class_effects::PremiseStatus::Declared
 pub variant antecedent_estimate::matching_posterior_boundary::MatchingPosteriorRequest::Static
@@ -15757,6 +16375,12 @@ pub variant antecedent_estimate::recovery::SolvedBy::Cyclic { next_attempt: allo
 pub variant antecedent_estimate::recovery::ThresholdChoice::Above
 pub variant antecedent_estimate::recovery::ThresholdChoice::AtOrBelow
 pub variant antecedent_estimate::recovery_sampled::SampledIntervalMethod::Bca
+pub variant antecedent_estimate::response::JointLinearError::Cancelled
+pub variant antecedent_estimate::response::JointLinearError::Estimation(antecedent_estimate::EstimationError)
+pub variant antecedent_estimate::response::JointLinearError::Invalid(alloc::string::String)
+pub variant antecedent_estimate::response::JointLinearError::Resource(alloc::string::String)
+pub variant antecedent_estimate::response::JointLinearInference::Bayesian(antecedent_estimate::BayesianGComputationAte)
+pub variant antecedent_estimate::response::JointLinearInference::Frequentist
 pub variant antecedent_estimate::scenario_covariance::CovarianceMethod::ExactEnumeration
 pub variant antecedent_estimate::scenario_covariance::CovarianceMethod::SharedRowBootstrap
 pub variant antecedent_estimate::scenario_covariance::RowDependence::IndependentSample

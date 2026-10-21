@@ -384,6 +384,7 @@ impl core::clone::Clone for antecedent_io_core::bridge_artifact::AssumptionWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::ContractWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::EndpointWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::FitWire
+impl core::clone::Clone for antecedent_io_core::bridge_artifact::FullBridgeContractWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::MappingWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::PremiseWire
 impl core::clone::Clone for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact
@@ -472,6 +473,7 @@ impl core::clone::Clone for antecedent_io_core::compact_export::MaskRegion
 impl core::clone::Clone for antecedent_io_core::compact_export::PointWithSe
 impl core::clone::Clone for antecedent_io_core::compact_export::QueryValue
 impl core::clone::Clone for antecedent_io_core::compact_export::TermSpec
+impl core::clone::Clone for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
 impl core::clone::Clone for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::clone::Clone for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::clone::Clone for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact
@@ -684,6 +686,7 @@ impl core::clone::Clone for antecedent_io_core::recalc_receipt_artifact::RecalcR
 impl core::clone::Clone for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire
 impl core::clone::Clone for antecedent_io_core::recalc_receipt_artifact::ResumeWire
 impl core::clone::Clone for antecedent_io_core::response_wire::HorizonIdentificationWire
+impl core::clone::Clone for antecedent_io_core::scientific_target_wire::ScientificTargetWire
 impl core::clone::Clone for antecedent_io_core::score_wire::ScoreColumn
 impl core::clone::Clone for antecedent_io_core::score_wire::ScoreTableWire
 impl core::clone::Clone for antecedent_io_core::score_wire::ScoreTableWireError
@@ -960,6 +963,7 @@ impl core::cmp::Eq for antecedent_io_core::bridge_artifact::AssumptionWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::ContractWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::EndpointWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::FitWire
+impl core::cmp::Eq for antecedent_io_core::bridge_artifact::FullBridgeContractWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::MappingWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::PremiseWire
 impl core::cmp::Eq for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
@@ -1474,6 +1478,7 @@ impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::AssumptionWir
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::ContractWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::EndpointWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::FitWire
+impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::FullBridgeContractWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::MappingWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::PremiseWire
 impl core::cmp::PartialEq for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
@@ -1749,6 +1754,7 @@ impl core::cmp::PartialEq for antecedent_io_core::recalc_receipt_artifact::Recal
 impl core::cmp::PartialEq for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire
 impl core::cmp::PartialEq for antecedent_io_core::recalc_receipt_artifact::ResumeWire
 impl core::cmp::PartialEq for antecedent_io_core::response_wire::HorizonIdentificationWire
+impl core::cmp::PartialEq for antecedent_io_core::scientific_target_wire::ScientificTargetWire
 impl core::cmp::PartialEq for antecedent_io_core::score_wire::ScoreColumn
 impl core::cmp::PartialEq for antecedent_io_core::score_wire::ScoreTableWire
 impl core::cmp::PartialEq for antecedent_io_core::score_wire::ScoreTableWireError
@@ -2280,6 +2286,7 @@ impl core::fmt::Debug for antecedent_io_core::bridge_artifact::AssumptionWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::ContractWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::EndpointWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::FitWire
+impl core::fmt::Debug for antecedent_io_core::bridge_artifact::FullBridgeContractWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::MappingWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::PremiseWire
 impl core::fmt::Debug for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact
@@ -2374,6 +2381,7 @@ impl core::fmt::Debug for antecedent_io_core::compact_export::MaskRegion
 impl core::fmt::Debug for antecedent_io_core::compact_export::PointWithSe
 impl core::fmt::Debug for antecedent_io_core::compact_export::QueryValue
 impl core::fmt::Debug for antecedent_io_core::compact_export::TermSpec
+impl core::fmt::Debug for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
 impl core::fmt::Debug for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::fmt::Debug for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::fmt::Debug for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact
@@ -2587,6 +2595,7 @@ impl core::fmt::Debug for antecedent_io_core::recalc_receipt_artifact::RecalcRec
 impl core::fmt::Debug for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire
 impl core::fmt::Debug for antecedent_io_core::recalc_receipt_artifact::ResumeWire
 impl core::fmt::Debug for antecedent_io_core::response_wire::HorizonIdentificationWire
+impl core::fmt::Debug for antecedent_io_core::scientific_target_wire::ScientificTargetWire
 impl core::fmt::Debug for antecedent_io_core::score_wire::ScoreColumn
 impl core::fmt::Debug for antecedent_io_core::score_wire::ScoreTableWire
 impl core::fmt::Debug for antecedent_io_core::score_wire::ScoreTableWireError
@@ -3159,6 +3168,7 @@ impl core::marker::Freeze for antecedent_io_core::bridge_artifact::AssumptionWir
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::ContractWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::EndpointWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::FitWire [auto]
+impl core::marker::Freeze for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::PremiseWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
@@ -3250,6 +3260,7 @@ impl core::marker::Freeze for antecedent_io_core::compact_export::MaskRegion [au
 impl core::marker::Freeze for antecedent_io_core::compact_export::PointWithSe [auto]
 impl core::marker::Freeze for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Freeze for antecedent_io_core::compact_export::TermSpec [auto]
+impl core::marker::Freeze for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Freeze for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -3463,6 +3474,7 @@ impl core::marker::Freeze for antecedent_io_core::recalc_receipt_artifact::Recal
 impl core::marker::Freeze for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire [auto]
 impl core::marker::Freeze for antecedent_io_core::recalc_receipt_artifact::ResumeWire [auto]
 impl core::marker::Freeze for antecedent_io_core::response_wire::HorizonIdentificationWire [auto]
+impl core::marker::Freeze for antecedent_io_core::scientific_target_wire::ScientificTargetWire [auto]
 impl core::marker::Freeze for antecedent_io_core::score_wire::ScoreColumn [auto]
 impl core::marker::Freeze for antecedent_io_core::score_wire::ScoreTableWire [auto]
 impl core::marker::Freeze for antecedent_io_core::score_wire::ScoreTableWireError [auto]
@@ -3871,6 +3883,7 @@ impl core::marker::Send for antecedent_io_core::bridge_artifact::AssumptionWire 
 impl core::marker::Send for antecedent_io_core::bridge_artifact::ContractWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::EndpointWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::FitWire [auto]
+impl core::marker::Send for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::PremiseWire [auto]
 impl core::marker::Send for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
@@ -3965,6 +3978,7 @@ impl core::marker::Send for antecedent_io_core::compact_export::MaskRegion [auto
 impl core::marker::Send for antecedent_io_core::compact_export::PointWithSe [auto]
 impl core::marker::Send for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Send for antecedent_io_core::compact_export::TermSpec [auto]
+impl core::marker::Send for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
 impl core::marker::Send for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Send for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Send for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -4178,6 +4192,7 @@ impl core::marker::Send for antecedent_io_core::recalc_receipt_artifact::RecalcR
 impl core::marker::Send for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire [auto]
 impl core::marker::Send for antecedent_io_core::recalc_receipt_artifact::ResumeWire [auto]
 impl core::marker::Send for antecedent_io_core::response_wire::HorizonIdentificationWire [auto]
+impl core::marker::Send for antecedent_io_core::scientific_target_wire::ScientificTargetWire [auto]
 impl core::marker::Send for antecedent_io_core::score_wire::ScoreColumn [auto]
 impl core::marker::Send for antecedent_io_core::score_wire::ScoreTableWire [auto]
 impl core::marker::Send for antecedent_io_core::score_wire::ScoreTableWireError [auto]
@@ -4576,6 +4591,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::ContractWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::EndpointWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::FitWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::FullBridgeContractWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::MappingWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::PremiseWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
@@ -4851,6 +4867,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::recalc_receipt_ar
 impl core::marker::StructuralPartialEq for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::recalc_receipt_artifact::ResumeWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::response_wire::HorizonIdentificationWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::scientific_target_wire::ScientificTargetWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::score_wire::ScoreColumn
 impl core::marker::StructuralPartialEq for antecedent_io_core::score_wire::ScoreTableWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::score_wire::ScoreTableWireError
@@ -5250,6 +5267,7 @@ impl core::marker::Sync for antecedent_io_core::bridge_artifact::AssumptionWire 
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::ContractWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::EndpointWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::FitWire [auto]
+impl core::marker::Sync for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::PremiseWire [auto]
 impl core::marker::Sync for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
@@ -5344,6 +5362,7 @@ impl core::marker::Sync for antecedent_io_core::compact_export::MaskRegion [auto
 impl core::marker::Sync for antecedent_io_core::compact_export::PointWithSe [auto]
 impl core::marker::Sync for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Sync for antecedent_io_core::compact_export::TermSpec [auto]
+impl core::marker::Sync for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
 impl core::marker::Sync for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Sync for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Sync for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -5557,6 +5576,7 @@ impl core::marker::Sync for antecedent_io_core::recalc_receipt_artifact::RecalcR
 impl core::marker::Sync for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire [auto]
 impl core::marker::Sync for antecedent_io_core::recalc_receipt_artifact::ResumeWire [auto]
 impl core::marker::Sync for antecedent_io_core::response_wire::HorizonIdentificationWire [auto]
+impl core::marker::Sync for antecedent_io_core::scientific_target_wire::ScientificTargetWire [auto]
 impl core::marker::Sync for antecedent_io_core::score_wire::ScoreColumn [auto]
 impl core::marker::Sync for antecedent_io_core::score_wire::ScoreTableWire [auto]
 impl core::marker::Sync for antecedent_io_core::score_wire::ScoreTableWireError [auto]
@@ -5965,6 +5985,7 @@ impl core::marker::Unpin for antecedent_io_core::bridge_artifact::AssumptionWire
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::ContractWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::EndpointWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::FitWire [auto]
+impl core::marker::Unpin for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::PremiseWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
@@ -6059,6 +6080,7 @@ impl core::marker::Unpin for antecedent_io_core::compact_export::MaskRegion [aut
 impl core::marker::Unpin for antecedent_io_core::compact_export::PointWithSe [auto]
 impl core::marker::Unpin for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Unpin for antecedent_io_core::compact_export::TermSpec [auto]
+impl core::marker::Unpin for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Unpin for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -6272,6 +6294,7 @@ impl core::marker::Unpin for antecedent_io_core::recalc_receipt_artifact::Recalc
 impl core::marker::Unpin for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire [auto]
 impl core::marker::Unpin for antecedent_io_core::recalc_receipt_artifact::ResumeWire [auto]
 impl core::marker::Unpin for antecedent_io_core::response_wire::HorizonIdentificationWire [auto]
+impl core::marker::Unpin for antecedent_io_core::scientific_target_wire::ScientificTargetWire [auto]
 impl core::marker::Unpin for antecedent_io_core::score_wire::ScoreColumn [auto]
 impl core::marker::Unpin for antecedent_io_core::score_wire::ScoreTableWire [auto]
 impl core::marker::Unpin for antecedent_io_core::score_wire::ScoreTableWireError [auto]
@@ -6680,6 +6703,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_arti
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::ContractWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::EndpointWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::FitWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::PremiseWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
@@ -6773,6 +6797,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compact_exp
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compact_export::PointWithSe [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compact_export::TermSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -6986,6 +7011,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::recalc_rece
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::recalc_receipt_artifact::ResumeWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::response_wire::HorizonIdentificationWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::scientific_target_wire::ScientificTargetWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::score_wire::ScoreColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::score_wire::ScoreTableWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::score_wire::ScoreTableWireError [auto]
@@ -7394,6 +7420,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifac
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::ContractWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::EndpointWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::FitWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::FullBridgeContractWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::MappingWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::PremiseWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bridge_artifact::ScientificBridgeArtifact [auto]
@@ -7487,6 +7514,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compact_export
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compact_export::PointWithSe [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compact_export::TermSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -7700,6 +7728,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::recalc_receipt
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::recalc_receipt_artifact::ResumeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::response_wire::HorizonIdentificationWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::scientific_target_wire::ScientificTargetWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::score_wire::ScoreColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::score_wire::ScoreTableWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::score_wire::ScoreTableWireError [auto]
@@ -8065,6 +8094,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::Assumpt
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::ContractWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::EndpointWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::FitWire
+impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::FullBridgeContractWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::MappingWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::PremiseWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::ScientificBridgeMeta
@@ -8098,6 +8128,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::compact_export::InputSup
 impl serde_core::ser::Serialize for antecedent_io_core::compact_export::MaskCondition
 impl serde_core::ser::Serialize for antecedent_io_core::compact_export::MaskRegion
 impl serde_core::ser::Serialize for antecedent_io_core::compact_export::TermSpec
+impl serde_core::ser::Serialize for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
 impl serde_core::ser::Serialize for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl serde_core::ser::Serialize for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl serde_core::ser::Serialize for antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta
@@ -8256,6 +8287,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::recalc_receipt_artifact:
 impl serde_core::ser::Serialize for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire
 impl serde_core::ser::Serialize for antecedent_io_core::recalc_receipt_artifact::ResumeWire
 impl serde_core::ser::Serialize for antecedent_io_core::response_wire::HorizonIdentificationWire
+impl serde_core::ser::Serialize for antecedent_io_core::scientific_target_wire::ScientificTargetWire
 impl serde_core::ser::Serialize for antecedent_io_core::score_wire::ScoreColumn
 impl serde_core::ser::Serialize for antecedent_io_core::score_wire::ScoreTableWire
 impl serde_core::ser::Serialize for antecedent_io_core::selective_discovery_artifact::ReceiptWire
@@ -8649,6 +8681,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifa
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::ContractWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::EndpointWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::FitWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::FullBridgeContractWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::MappingWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::PremiseWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::ScientificBridgeMeta
@@ -8682,6 +8715,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::compact_expor
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::compact_export::MaskCondition
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::compact_export::MaskRegion
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::compact_export::TermSpec
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta
@@ -8849,6 +8883,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::recalc_receip
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::recalc_receipt_artifact::ResumeWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::response_wire::HorizonIdentificationWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::scientific_target_wire::ScientificTargetWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::score_wire::ScoreColumn
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::score_wire::ScoreTableWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::selective_discovery_artifact::ReceiptWire
@@ -9129,6 +9164,7 @@ pub const antecedent_io_core::recalc_receipt_artifact::MAX_RECALC_RECEIPT_ARTIFA
 pub const antecedent_io_core::recalc_receipt_artifact::MAX_RECALC_RECEIPT_STAGES: usize
 pub const antecedent_io_core::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_VERSION: u16
+pub const antecedent_io_core::scientific_target_wire::SCIENTIFIC_TARGET_WIRE_VERSION: u16
 pub const antecedent_io_core::selective_discovery_artifact::MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES: usize
 pub const antecedent_io_core::selective_discovery_artifact::MAX_STRUCTURE_ITEMS: usize
 pub const antecedent_io_core::selective_discovery_artifact::SELECTIVE_DISCOVERY_ARTIFACT_FEATURE: &str
@@ -12527,6 +12563,8 @@ pub fn <antecedent_io_core::adaptive_monitoring_contract_artifact::ProcedureReco
 pub fn <antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::bound_identity::IdentitySlot>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io_core::bridge_artifact::FullBridgeContractWire>::fn from_domain(contract: &antecedent_contract::bridge::contract::BridgeContract) -> core::result::Result<Self, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
+pub fn <antecedent_io_core::bridge_artifact::FullBridgeContractWire>::fn to_domain(&self) -> core::result::Result<antecedent_contract::bridge::contract::BridgeContract, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
 pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::const fn bridged(&self) -> &antecedent_contract::bridge::claim::BridgedClaim
 pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::const fn source_claim(&self) -> &antecedent_contract::claim::ClaimEnvelope
 pub fn <antecedent_io_core::bridge_artifact::ScientificBridgeArtifact>::fn from_bytes(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
@@ -12676,6 +12714,8 @@ pub fn <antecedent_io_core::compact_export::ExportQuery>::fn new() -> Self
 pub fn <antecedent_io_core::compact_export::ExportQuery>::fn with_level(self, quantity: &str, level: &str) -> Self
 pub fn <antecedent_io_core::compact_export::ExportQuery>::fn with_number(self, quantity: &str, value: f64) -> Self
 pub fn <antecedent_io_core::compact_export::ExportScope>::fn declared() -> Self
+pub fn <antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire>::fn from_domain(proof: &antecedent_identify::compiled_product::CompiledIdentificationProduct, target: &antecedent_core::scientific_target::ScientificTarget) -> core::result::Result<Self, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire>::fn to_domain(&self, target: &antecedent_core::scientific_target::ScientificTarget) -> core::result::Result<antecedent_identify::compiled_product::CompiledIdentificationProduct, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact>::const fn current(&self) -> &antecedent_contract::composition_verification::graph::CompositionGraph
 pub fn <antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact>::const fn effects(&self) -> &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::revalidate::ObservedEffect>
 pub fn <antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact>::const fn ledger_state(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
@@ -12860,6 +12900,8 @@ pub fn <antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifact>::fn 
 pub fn <antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifactError>
 pub fn <antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, &'static str, alloc::string::String)>
 pub fn <antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifactError>::fn stage(&self) -> core::option::Option<&str>
+pub fn <antecedent_io_core::scientific_target_wire::ScientificTargetWire>::fn from_domain(target: &antecedent_core::scientific_target::ScientificTarget) -> core::result::Result<Self, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::scientific_target_wire::ScientificTargetWire>::fn to_domain(&self) -> core::result::Result<antecedent_core::scientific_target::ScientificTarget, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::score_wire::ScoreTableWire>::fn check(&self) -> core::result::Result<(), antecedent_io_core::score_wire::ScoreTableWireError>
 pub fn <antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifact>::const fn state(&self) -> &antecedent_discovery::selective::portable::PortableDiscoveryState
 pub fn <antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifact>::fn from_bytes(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifactError>
@@ -13223,6 +13265,7 @@ pub fn antecedent_io_core::policy_program_artifact::interventions_from_named_jso
 pub fn antecedent_io_core::policy_program_artifact::named_json_from_interventions(interventions: &[antecedent_core::intervention::Intervention], names: &[alloc::string::String]) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn antecedent_io_core::policy_program_artifact::policy_program_callback_records(bytes: &[u8]) -> core::result::Result<alloc::vec::Vec<antecedent_core::callback::RecoveryRecord>, antecedent_io_core::IoError>
 pub fn antecedent_io_core::policy_program_artifact::policy_program_identity(interventions: &[antecedent_core::intervention::Intervention]) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
+pub fn antecedent_io_core::policy_program_artifact::value_expression_identity(expr: &antecedent_core::value_expr::ValueExpr) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
 pub fn antecedent_io_core::posterior_has_named_effect(wire: &antecedent_io_core::CausalPosteriorWire) -> bool
 pub fn antecedent_io_core::provenance_from_wire(w: &antecedent_io_core::ProvenanceGraphWire) -> antecedent_contract::provenance::ProvenanceGraph
 pub fn antecedent_io_core::provenance_to_wire(g: &antecedent_contract::provenance::ProvenanceGraph) -> antecedent_io_core::ProvenanceGraphWire
@@ -13268,6 +13311,7 @@ pub mod antecedent_io_core::causal_artifact
 pub mod antecedent_io_core::chunk_refresh
 pub mod antecedent_io_core::cohort_decision
 pub mod antecedent_io_core::compact_export
+pub mod antecedent_io_core::compiled_identification_wire
 pub mod antecedent_io_core::composition_verification_artifact
 pub mod antecedent_io_core::container
 pub mod antecedent_io_core::contract_section
@@ -13323,6 +13367,7 @@ pub mod antecedent_io_core::query_wire
 pub mod antecedent_io_core::reader
 pub mod antecedent_io_core::recalc_receipt_artifact
 pub mod antecedent_io_core::response_wire
+pub mod antecedent_io_core::scientific_target_wire
 pub mod antecedent_io_core::score_wire
 pub mod antecedent_io_core::selective_discovery_artifact
 pub mod antecedent_io_core::sensitivity_artifact
@@ -13575,6 +13620,8 @@ pub struct antecedent_io_core::bridge_artifact::AssumptionWire
 pub struct antecedent_io_core::bridge_artifact::ContractWire
 pub struct antecedent_io_core::bridge_artifact::EndpointWire
 pub struct antecedent_io_core::bridge_artifact::FitWire
+pub struct antecedent_io_core::bridge_artifact::FullBridgeContractWire
+pub struct antecedent_io_core::bridge_artifact::FullBridgeContractWire has private fields
 pub struct antecedent_io_core::bridge_artifact::PremiseWire
 pub struct antecedent_io_core::bridge_artifact::ScientificBridgeArtifact
 pub struct antecedent_io_core::bridge_artifact::ScientificBridgeArtifact has private fields
@@ -13663,6 +13710,8 @@ pub struct antecedent_io_core::compact_export::ExportSpec
 pub struct antecedent_io_core::compact_export::MaskCondition
 pub struct antecedent_io_core::compact_export::MaskRegion
 pub struct antecedent_io_core::compact_export::PointWithSe
+pub struct antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
+pub struct antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire has private fields
 pub struct antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 pub struct antecedent_io_core::composition_verification_artifact::ClaimWire
 pub struct antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact
@@ -13844,6 +13893,8 @@ pub struct antecedent_io_core::recalc_receipt_artifact::RecalcReceiptMeta
 pub struct antecedent_io_core::recalc_receipt_artifact::ReceiptEntryWire
 pub struct antecedent_io_core::recalc_receipt_artifact::ResumeWire
 pub struct antecedent_io_core::response_wire::HorizonIdentificationWire
+pub struct antecedent_io_core::scientific_target_wire::ScientificTargetWire
+pub struct antecedent_io_core::scientific_target_wire::ScientificTargetWire has private fields
 pub struct antecedent_io_core::score_wire::ScoreColumn
 pub struct antecedent_io_core::score_wire::ScoreTableWire
 pub struct antecedent_io_core::selective_discovery_artifact::ReceiptWire

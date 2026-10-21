@@ -753,8 +753,9 @@ impl CompiledIdentificationProduct {
     /// Whether this product states an identified claim.
     ///
     /// The product's numerical value is ignored. When any world obligation or
-    /// an assembled obligation is recorded, every world and the assembled
-    /// functional must themselves be identified claims: feasibility of the
+    /// an assembled obligation is recorded, every world and any required assembled
+    /// functional must themselves be identified claims. Bound world collections do not
+    /// require an assembled contrast. Legacy unbound collections remain conservative. Feasibility of the
     /// worlds does not identify the contrast.
     #[must_use]
     pub fn is_identified_claim(&self) -> bool {
@@ -763,7 +764,10 @@ impl CompiledIdentificationProduct {
             return own;
         }
         own && self.world_obligations.iter().all(IdentificationObligation::is_identified_claim)
-            && self.assembled.as_ref().is_some_and(IdentificationObligation::is_identified_claim)
+            && self.assembled.as_ref().map_or(
+                self.target_identity.is_some(),
+                IdentificationObligation::is_identified_claim,
+            )
     }
 
     /// Whether the assembled functional is an identified claim.
@@ -1311,9 +1315,9 @@ mod tests {
     };
 
     use super::{
-        AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
-        IdentificationClaimClass, IdentificationOutcome, ProductRefusal, RequiredFactor,
-        UnresolvedObligation, WorldObligation, claim_code, outcome_code,
+        CompiledIdentificationProduct, CompiledProductParts, IdentificationClaimClass,
+        IdentificationOutcome, ProductRefusal, RequiredFactor, UnresolvedObligation, claim_code,
+        outcome_code,
     };
 
     const OUTCOMES: [IdentificationOutcome; 6] = [
@@ -1456,7 +1460,7 @@ mod tests {
         );
         product.world_obligations = (0..4)
             .map(|id| {
-                WorldObligation::new(
+                IdentificationObligation::for_world(
                     ScientificWorldId::from_raw(id),
                     IdentificationOutcome::Unidentified,
                     IdentificationClaimClass::ModelConditional,
@@ -1465,7 +1469,7 @@ mod tests {
                 )
             })
             .collect();
-        product.assembled = Some(AssembledFunctionalObligation::new(
+        product.assembled = Some(IdentificationObligation::assembled(
             IdentificationOutcome::Unidentified,
             IdentificationClaimClass::ModelConditional,
             vec![],
@@ -1565,6 +1569,41 @@ mod tests {
         );
     }
 
+    fn assert_identified_world_collection(
+        result: &IdentificationResult,
+        parts: CompiledProductParts,
+        target: &antecedent_core::ScientificTarget,
+    ) {
+        use antecedent_core::{ScientificTarget, TargetForm};
+        // A collection of independently identified means is not an assembled contrast.
+        let mut world_parts = parts;
+        world_parts.assembled = None;
+        let worlds = match target.form() {
+            TargetForm::Contrast(contrast) => contrast.worlds().clone(),
+            _ => unreachable!(),
+        };
+        let world_target = ScientificTarget::new(
+            TargetForm::Worlds(worlds),
+            target.assumptions().clone(),
+            target.inference(),
+        );
+        let unbound_worlds =
+            CompiledIdentificationProduct::retain(result, world_parts.clone()).unwrap();
+        assert!(!unbound_worlds.is_identified_claim());
+        let bound_worlds = CompiledIdentificationProduct::retain_for_target(
+            result,
+            world_parts.clone(),
+            &world_target,
+        )
+        .unwrap();
+        assert!(bound_worlds.is_identified_claim());
+        assert_eq!(bound_worlds.validate_target(&world_target), Ok(()));
+        assert!(matches!(
+            CompiledIdentificationProduct::retain_for_target(result, world_parts, target),
+            Err(ProductRefusal::MissingAssembledObligation)
+        ));
+    }
+
     #[test]
     fn actual_joint_identification_is_bound_to_scientific_content_not_world_labels() {
         use antecedent_core::{
@@ -1619,6 +1658,7 @@ mod tests {
                 .unwrap();
         assert_ne!(product, rebound);
         assert_ne!(product.identity(), rebound.identity());
+        assert_identified_world_collection(&result, parts.clone(), &target);
         let legacy = CompiledIdentificationProduct::retain(&result, parts).unwrap();
         assert_eq!(legacy.target_identity(), None);
         assert_ne!(legacy.identity(), product.identity());

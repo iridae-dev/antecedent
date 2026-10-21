@@ -33,6 +33,11 @@ use antecedent_stats::StatsError;
 
 use crate::EstimationError;
 
+mod joint_linear;
+pub use joint_linear::{
+    JointLinearError, JointLinearEvaluation, JointLinearInference, PreparedJointLinear,
+};
+
 mod band;
 mod bayes;
 mod crossfit;

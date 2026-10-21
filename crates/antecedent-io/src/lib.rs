@@ -510,3 +510,18 @@ mod closed_wire_fields {
 pub use antecedent_io_core::native_execution_wire;
 
 mod retained_allocation;
+
+/// Portable validated scientific questions shared by artifacts and bindings.
+pub use antecedent_io_core::scientific_target_wire;
+
+/// Historical replay and current-authority binding of compiled joint Gaussian responses.
+pub mod joint_response_artifact;
+
+/// Complete target-bound compiled identification proof interchange.
+pub use antecedent_io_core::compiled_identification_wire;
+
+/// Exact frozen generic-channel panel execution and independent historical replay.
+pub mod joint_panel_artifact;
+
+/// Exact conditional experimental update and historical frozen-panel replay.
+pub mod joint_panel_experiment_artifact;

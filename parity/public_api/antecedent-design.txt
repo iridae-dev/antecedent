@@ -499,6 +499,21 @@ impl core::clone::Clone for antecedent_design::prior_signal::PriorSignalRequest
 impl core::clone::Clone for antecedent_design::prior_signal::PriorSourceInput
 impl core::clone::Clone for antecedent_design::prior_signal::SourceToTarget
 impl core::clone::Clone for antecedent_design::prior_signal::TransportPolicyDecl
+impl core::clone::Clone for antecedent_design::program_search::FiniteProgramDomain
+impl core::clone::Clone for antecedent_design::program_search::FiniteProgramSearchResult
+impl core::clone::Clone for antecedent_design::program_search::PreparedFiniteProgramSearch
+impl core::clone::Clone for antecedent_design::program_search::ProgramCandidate
+impl core::clone::Clone for antecedent_design::program_search::ProgramControl
+impl core::clone::Clone for antecedent_design::program_search::ProgramFeasibility
+impl core::clone::Clone for antecedent_design::program_search::ProgramRestriction
+impl core::clone::Clone for antecedent_design::program_search::ProgramSearchRow
+impl core::clone::Clone for antecedent_design::program_search::ProgramSearchScope
+impl core::clone::Clone for antecedent_design::program_search::continuous::CompiledContinuousCandidate
+impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousProgramSearchResult
+impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousSearchAttempt
+impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousSearchOptions
+impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousSearchStop
+impl core::clone::Clone for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch
 impl core::clone::Clone for antecedent_design::proposal_receipt::Arrival
 impl core::clone::Clone for antecedent_design::proposal_receipt::ArrivalVerdict
 impl core::clone::Clone for antecedent_design::proposal_receipt::ArrivedEvidence
@@ -548,6 +563,14 @@ impl core::clone::Clone for antecedent_design::rollout_artifact::RolloutArtifact
 impl core::clone::Clone for antecedent_design::rollout_artifact::RolloutExpectation
 impl core::clone::Clone for antecedent_design::rollout_artifact::RolloutSource
 impl core::clone::Clone for antecedent_design::rollout_artifact::StateInterpretation
+impl core::clone::Clone for antecedent_design::scientific_source::ScientificConsumptionScope
+impl core::clone::Clone for antecedent_design::scientific_source::ScientificDecisionSource
+impl core::clone::Clone for antecedent_design::scientific_source::ScientificProjectionBasis
+impl core::clone::Clone for antecedent_design::scientific_source::ScientificProjectionOutput
+impl core::clone::Clone for antecedent_design::scientific_source::ScientificSourcePayload
+impl core::clone::Clone for antecedent_design::scientific_source::ScientificSourceProjection
+impl core::clone::Clone for antecedent_design::scientific_source::ScopedDecisionResult
+impl core::clone::Clone for antecedent_design::scientific_source::ScopedProgramSearchResult
 impl core::clone::Clone for antecedent_design::sensitivity_decision::SamplingReport
 impl core::clone::Clone for antecedent_design::sensitivity_decision::ScenarioCoverage
 impl core::clone::Clone for antecedent_design::sensitivity_decision::SensitivityDecisionError
@@ -822,6 +845,8 @@ impl core::cmp::Eq for antecedent_design::joint_coupling::JointCoupling
 impl core::cmp::Eq for antecedent_design::joint_coupling::SupportMarginal
 impl core::cmp::Eq for antecedent_design::prior_signal::PriorSignalError
 impl core::cmp::Eq for antecedent_design::prior_signal::TransportPolicyDecl
+impl core::cmp::Eq for antecedent_design::program_search::ProgramSearchScope
+impl core::cmp::Eq for antecedent_design::program_search::continuous::ContinuousSearchStop
 impl core::cmp::Eq for antecedent_design::proposal_receipt::ArrivalVerdict
 impl core::cmp::Eq for antecedent_design::proposal_receipt::BaseFailureBinding
 impl core::cmp::Eq for antecedent_design::proposal_receipt::ChangedPremise
@@ -850,6 +875,7 @@ impl core::cmp::Eq for antecedent_design::repair_artifact::RepairReceiptWire
 impl core::cmp::Eq for antecedent_design::repair_artifact::RepairStopWire
 impl core::cmp::Eq for antecedent_design::repair_artifact::TransportPremisesWire
 impl core::cmp::Eq for antecedent_design::rollout_artifact::StateInterpretation
+impl core::cmp::Eq for antecedent_design::scientific_source::ScientificConsumptionScope
 impl core::cmp::Eq for antecedent_design::sensitivity_decision::ScenarioCoverage
 impl core::cmp::Eq for antecedent_design::sequential_evaluation::ActionRole
 impl core::cmp::Eq for antecedent_design::sequential_evaluation::ActionSupport
@@ -1285,6 +1311,15 @@ impl core::cmp::PartialEq for antecedent_design::prior_signal::PriorSignalError
 impl core::cmp::PartialEq for antecedent_design::prior_signal::PriorSourceInput
 impl core::cmp::PartialEq for antecedent_design::prior_signal::SourceToTarget
 impl core::cmp::PartialEq for antecedent_design::prior_signal::TransportPolicyDecl
+impl core::cmp::PartialEq for antecedent_design::program_search::FiniteProgramDomain
+impl core::cmp::PartialEq for antecedent_design::program_search::ProgramCandidate
+impl core::cmp::PartialEq for antecedent_design::program_search::ProgramControl
+impl core::cmp::PartialEq for antecedent_design::program_search::ProgramFeasibility
+impl core::cmp::PartialEq for antecedent_design::program_search::ProgramRestriction
+impl core::cmp::PartialEq for antecedent_design::program_search::ProgramSearchRow
+impl core::cmp::PartialEq for antecedent_design::program_search::ProgramSearchScope
+impl core::cmp::PartialEq for antecedent_design::program_search::continuous::ContinuousSearchOptions
+impl core::cmp::PartialEq for antecedent_design::program_search::continuous::ContinuousSearchStop
 impl core::cmp::PartialEq for antecedent_design::proposal_receipt::Arrival
 impl core::cmp::PartialEq for antecedent_design::proposal_receipt::ArrivalVerdict
 impl core::cmp::PartialEq for antecedent_design::proposal_receipt::ArrivedEvidence
@@ -1331,6 +1366,7 @@ impl core::cmp::PartialEq for antecedent_design::robust_decision::SetConclusions
 impl core::cmp::PartialEq for antecedent_design::robust_decision::SimulationComparison
 impl core::cmp::PartialEq for antecedent_design::robust_decision::UnnormalizedMass
 impl core::cmp::PartialEq for antecedent_design::rollout_artifact::StateInterpretation
+impl core::cmp::PartialEq for antecedent_design::scientific_source::ScientificConsumptionScope
 impl core::cmp::PartialEq for antecedent_design::sensitivity_decision::SamplingReport
 impl core::cmp::PartialEq for antecedent_design::sensitivity_decision::ScenarioCoverage
 impl core::cmp::PartialEq for antecedent_design::sensitivity_decision::SensitivityDecisionError
@@ -1471,6 +1507,7 @@ impl core::convert::From<antecedent_design::inverse_query_artifact::ConstraintWi
 impl core::convert::From<antecedent_design::inverse_query_artifact::GridScopeWire> for antecedent_design::inverse_query::GridScope
 impl core::convert::From<antecedent_design::inverse_query_artifact::SelectionWire> for antecedent_design::inverse_query::SelectionRule
 impl core::convert::From<antecedent_design::inverse_query_artifact::TailWire> for antecedent_design::Tail
+impl core::convert::From<antecedent_design::program_search::ProgramSearchError> for antecedent_design::scientific_source::ScientificSourceError
 impl core::convert::From<antecedent_design::ranking::RankingError> for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
 impl core::convert::From<antecedent_design::signal::SignalError> for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
 impl core::convert::From<antecedent_design::signal::SignalError> for antecedent_design::evsi::EvsiError
@@ -1532,8 +1569,10 @@ impl core::error::Error for antecedent_design::evsi::FutureStudyError
 impl core::error::Error for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::error::Error for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 impl core::error::Error for antecedent_design::joint_coupling::CouplingAbsent
+impl core::error::Error for antecedent_design::program_search::ProgramSearchError
 impl core::error::Error for antecedent_design::proposal_receipt::ProposalReceiptError
 impl core::error::Error for antecedent_design::robust_decision::RobustDecisionError
+impl core::error::Error for antecedent_design::scientific_source::ScientificSourceError
 impl core::error::Error for antecedent_design::sensitivity_decision::SensitivityDecisionError
 impl core::error::Error for antecedent_design::sequential_evaluation::SequentialEvaluationError
 impl core::error::Error for antecedent_design::source_evidence::SourceEvidenceError
@@ -1963,6 +2002,22 @@ impl core::fmt::Debug for antecedent_design::prior_signal::PriorSignalError
 impl core::fmt::Debug for antecedent_design::prior_signal::PriorSourceInput
 impl core::fmt::Debug for antecedent_design::prior_signal::SourceToTarget
 impl core::fmt::Debug for antecedent_design::prior_signal::TransportPolicyDecl
+impl core::fmt::Debug for antecedent_design::program_search::FiniteProgramDomain
+impl core::fmt::Debug for antecedent_design::program_search::FiniteProgramSearchResult
+impl core::fmt::Debug for antecedent_design::program_search::PreparedFiniteProgramSearch
+impl core::fmt::Debug for antecedent_design::program_search::ProgramCandidate
+impl core::fmt::Debug for antecedent_design::program_search::ProgramControl
+impl core::fmt::Debug for antecedent_design::program_search::ProgramFeasibility
+impl core::fmt::Debug for antecedent_design::program_search::ProgramRestriction
+impl core::fmt::Debug for antecedent_design::program_search::ProgramSearchError
+impl core::fmt::Debug for antecedent_design::program_search::ProgramSearchRow
+impl core::fmt::Debug for antecedent_design::program_search::ProgramSearchScope
+impl core::fmt::Debug for antecedent_design::program_search::continuous::CompiledContinuousCandidate
+impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousProgramSearchResult
+impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousSearchAttempt
+impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousSearchOptions
+impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousSearchStop
+impl core::fmt::Debug for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch
 impl core::fmt::Debug for antecedent_design::proposal_receipt::Arrival
 impl core::fmt::Debug for antecedent_design::proposal_receipt::ArrivalVerdict
 impl core::fmt::Debug for antecedent_design::proposal_receipt::ArrivedEvidence
@@ -2012,6 +2067,15 @@ impl core::fmt::Debug for antecedent_design::rollout_artifact::RolloutArtifact
 impl core::fmt::Debug for antecedent_design::rollout_artifact::RolloutExpectation
 impl core::fmt::Debug for antecedent_design::rollout_artifact::RolloutSource
 impl core::fmt::Debug for antecedent_design::rollout_artifact::StateInterpretation
+impl core::fmt::Debug for antecedent_design::scientific_source::ScientificConsumptionScope
+impl core::fmt::Debug for antecedent_design::scientific_source::ScientificDecisionSource
+impl core::fmt::Debug for antecedent_design::scientific_source::ScientificProjectionBasis
+impl core::fmt::Debug for antecedent_design::scientific_source::ScientificProjectionOutput
+impl core::fmt::Debug for antecedent_design::scientific_source::ScientificSourceError
+impl core::fmt::Debug for antecedent_design::scientific_source::ScientificSourcePayload
+impl core::fmt::Debug for antecedent_design::scientific_source::ScientificSourceProjection
+impl core::fmt::Debug for antecedent_design::scientific_source::ScopedDecisionResult
+impl core::fmt::Debug for antecedent_design::scientific_source::ScopedProgramSearchResult
 impl core::fmt::Debug for antecedent_design::sensitivity_decision::SamplingReport
 impl core::fmt::Debug for antecedent_design::sensitivity_decision::ScenarioCoverage
 impl core::fmt::Debug for antecedent_design::sensitivity_decision::SensitivityDecisionError
@@ -2139,8 +2203,10 @@ impl core::fmt::Display for antecedent_design::evsi::FutureStudyError
 impl core::fmt::Display for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::fmt::Display for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 impl core::fmt::Display for antecedent_design::joint_coupling::CouplingAbsent
+impl core::fmt::Display for antecedent_design::program_search::ProgramSearchError
 impl core::fmt::Display for antecedent_design::proposal_receipt::ProposalReceiptError
 impl core::fmt::Display for antecedent_design::robust_decision::RobustDecisionError
+impl core::fmt::Display for antecedent_design::scientific_source::ScientificSourceError
 impl core::fmt::Display for antecedent_design::sensitivity_decision::SensitivityDecisionError
 impl core::fmt::Display for antecedent_design::sequential_evaluation::HistoryKey
 impl core::fmt::Display for antecedent_design::sequential_evaluation::SequentialEvaluationError
@@ -2321,11 +2387,13 @@ impl core::marker::Copy for antecedent_design::joint_coupling::JointCoupling
 impl core::marker::Copy for antecedent_design::joint_coupling::SupportMarginal
 impl core::marker::Copy for antecedent_design::prior_signal::NativeSignalFamily
 impl core::marker::Copy for antecedent_design::prior_signal::SourceToTarget
+impl core::marker::Copy for antecedent_design::program_search::continuous::ContinuousSearchStop
 impl core::marker::Copy for antecedent_design::proposal_receipt::EvidenceState
 impl core::marker::Copy for antecedent_design::ranking::DesignRankingBasis
 impl core::marker::Copy for antecedent_design::repair::RepairCancelled
 impl core::marker::Copy for antecedent_design::repair_artifact::RepairLimitsWire
 impl core::marker::Copy for antecedent_design::rollout_artifact::StateInterpretation
+impl core::marker::Copy for antecedent_design::scientific_source::ScientificConsumptionScope
 impl core::marker::Copy for antecedent_design::sensitivity_decision::ScenarioCoverage
 impl core::marker::Copy for antecedent_design::sequential_evaluation::ActionRole
 impl core::marker::Copy for antecedent_design::sequential_evaluation::CensoringRule
@@ -2779,6 +2847,22 @@ impl core::marker::Freeze for antecedent_design::prior_signal::PriorSignalReques
 impl core::marker::Freeze for antecedent_design::prior_signal::PriorSourceInput [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::SourceToTarget [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::TransportPolicyDecl [auto]
+impl core::marker::Freeze for antecedent_design::program_search::FiniteProgramDomain [auto]
+impl core::marker::Freeze for antecedent_design::program_search::FiniteProgramSearchResult [auto]
+impl core::marker::Freeze for antecedent_design::program_search::PreparedFiniteProgramSearch [auto]
+impl core::marker::Freeze for antecedent_design::program_search::ProgramCandidate [auto]
+impl core::marker::Freeze for antecedent_design::program_search::ProgramControl [auto]
+impl core::marker::Freeze for antecedent_design::program_search::ProgramFeasibility [auto]
+impl core::marker::Freeze for antecedent_design::program_search::ProgramRestriction [auto]
+impl core::marker::Freeze for antecedent_design::program_search::ProgramSearchError [auto]
+impl core::marker::Freeze for antecedent_design::program_search::ProgramSearchRow [auto]
+impl core::marker::Freeze for antecedent_design::program_search::ProgramSearchScope [auto]
+impl core::marker::Freeze for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
+impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
+impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
+impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
+impl core::marker::Freeze for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
 impl core::marker::Freeze for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::marker::Freeze for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::marker::Freeze for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -2828,6 +2912,15 @@ impl core::marker::Freeze for antecedent_design::rollout_artifact::RolloutArtifa
 impl core::marker::Freeze for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::marker::Freeze for antecedent_design::rollout_artifact::RolloutSource [auto]
 impl core::marker::Freeze for antecedent_design::rollout_artifact::StateInterpretation [auto]
+impl core::marker::Freeze for antecedent_design::scientific_source::ScientificConsumptionScope [auto]
+impl core::marker::Freeze for antecedent_design::scientific_source::ScientificDecisionSource [auto]
+impl core::marker::Freeze for antecedent_design::scientific_source::ScientificProjectionBasis [auto]
+impl core::marker::Freeze for antecedent_design::scientific_source::ScientificProjectionOutput [auto]
+impl core::marker::Freeze for antecedent_design::scientific_source::ScientificSourceError [auto]
+impl core::marker::Freeze for antecedent_design::scientific_source::ScientificSourcePayload [auto]
+impl core::marker::Freeze for antecedent_design::scientific_source::ScientificSourceProjection [auto]
+impl core::marker::Freeze for antecedent_design::scientific_source::ScopedDecisionResult [auto]
+impl core::marker::Freeze for antecedent_design::scientific_source::ScopedProgramSearchResult [auto]
 impl core::marker::Freeze for antecedent_design::sensitivity_decision::SamplingReport [auto]
 impl core::marker::Freeze for antecedent_design::sensitivity_decision::ScenarioCoverage [auto]
 impl core::marker::Freeze for antecedent_design::sensitivity_decision::SensitivityDecisionError [auto]
@@ -3366,6 +3459,22 @@ impl core::marker::Send for antecedent_design::prior_signal::PriorSignalRequest 
 impl core::marker::Send for antecedent_design::prior_signal::PriorSourceInput [auto]
 impl core::marker::Send for antecedent_design::prior_signal::SourceToTarget [auto]
 impl core::marker::Send for antecedent_design::prior_signal::TransportPolicyDecl [auto]
+impl core::marker::Send for antecedent_design::program_search::FiniteProgramDomain [auto]
+impl core::marker::Send for antecedent_design::program_search::FiniteProgramSearchResult [auto]
+impl core::marker::Send for antecedent_design::program_search::PreparedFiniteProgramSearch [auto]
+impl core::marker::Send for antecedent_design::program_search::ProgramCandidate [auto]
+impl core::marker::Send for antecedent_design::program_search::ProgramControl [auto]
+impl core::marker::Send for antecedent_design::program_search::ProgramFeasibility [auto]
+impl core::marker::Send for antecedent_design::program_search::ProgramRestriction [auto]
+impl core::marker::Send for antecedent_design::program_search::ProgramSearchError [auto]
+impl core::marker::Send for antecedent_design::program_search::ProgramSearchRow [auto]
+impl core::marker::Send for antecedent_design::program_search::ProgramSearchScope [auto]
+impl core::marker::Send for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
+impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
+impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
+impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
+impl core::marker::Send for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
 impl core::marker::Send for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::marker::Send for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::marker::Send for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -3415,6 +3524,15 @@ impl core::marker::Send for antecedent_design::rollout_artifact::RolloutArtifact
 impl core::marker::Send for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::marker::Send for antecedent_design::rollout_artifact::RolloutSource [auto]
 impl core::marker::Send for antecedent_design::rollout_artifact::StateInterpretation [auto]
+impl core::marker::Send for antecedent_design::scientific_source::ScientificConsumptionScope [auto]
+impl core::marker::Send for antecedent_design::scientific_source::ScientificDecisionSource [auto]
+impl core::marker::Send for antecedent_design::scientific_source::ScientificProjectionBasis [auto]
+impl core::marker::Send for antecedent_design::scientific_source::ScientificProjectionOutput [auto]
+impl core::marker::Send for antecedent_design::scientific_source::ScientificSourceError [auto]
+impl core::marker::Send for antecedent_design::scientific_source::ScientificSourcePayload [auto]
+impl core::marker::Send for antecedent_design::scientific_source::ScientificSourceProjection [auto]
+impl core::marker::Send for antecedent_design::scientific_source::ScopedDecisionResult [auto]
+impl core::marker::Send for antecedent_design::scientific_source::ScopedProgramSearchResult [auto]
 impl core::marker::Send for antecedent_design::sensitivity_decision::SamplingReport [auto]
 impl core::marker::Send for antecedent_design::sensitivity_decision::ScenarioCoverage [auto]
 impl core::marker::Send for antecedent_design::sensitivity_decision::SensitivityDecisionError [auto]
@@ -3897,6 +4015,15 @@ impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::Prio
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::PriorSourceInput
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::SourceToTarget
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::TransportPolicyDecl
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::FiniteProgramDomain
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::ProgramCandidate
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::ProgramControl
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::ProgramFeasibility
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::ProgramRestriction
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::ProgramSearchRow
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::ProgramSearchScope
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::continuous::ContinuousSearchOptions
+impl core::marker::StructuralPartialEq for antecedent_design::program_search::continuous::ContinuousSearchStop
 impl core::marker::StructuralPartialEq for antecedent_design::proposal_receipt::Arrival
 impl core::marker::StructuralPartialEq for antecedent_design::proposal_receipt::ArrivalVerdict
 impl core::marker::StructuralPartialEq for antecedent_design::proposal_receipt::ArrivedEvidence
@@ -3943,6 +4070,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::robust_decision::S
 impl core::marker::StructuralPartialEq for antecedent_design::robust_decision::SimulationComparison
 impl core::marker::StructuralPartialEq for antecedent_design::robust_decision::UnnormalizedMass
 impl core::marker::StructuralPartialEq for antecedent_design::rollout_artifact::StateInterpretation
+impl core::marker::StructuralPartialEq for antecedent_design::scientific_source::ScientificConsumptionScope
 impl core::marker::StructuralPartialEq for antecedent_design::sensitivity_decision::SamplingReport
 impl core::marker::StructuralPartialEq for antecedent_design::sensitivity_decision::ScenarioCoverage
 impl core::marker::StructuralPartialEq for antecedent_design::sensitivity_decision::SensitivityDecisionError
@@ -4473,6 +4601,22 @@ impl core::marker::Sync for antecedent_design::prior_signal::PriorSignalRequest 
 impl core::marker::Sync for antecedent_design::prior_signal::PriorSourceInput [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::SourceToTarget [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::TransportPolicyDecl [auto]
+impl core::marker::Sync for antecedent_design::program_search::FiniteProgramDomain [auto]
+impl core::marker::Sync for antecedent_design::program_search::FiniteProgramSearchResult [auto]
+impl core::marker::Sync for antecedent_design::program_search::PreparedFiniteProgramSearch [auto]
+impl core::marker::Sync for antecedent_design::program_search::ProgramCandidate [auto]
+impl core::marker::Sync for antecedent_design::program_search::ProgramControl [auto]
+impl core::marker::Sync for antecedent_design::program_search::ProgramFeasibility [auto]
+impl core::marker::Sync for antecedent_design::program_search::ProgramRestriction [auto]
+impl core::marker::Sync for antecedent_design::program_search::ProgramSearchError [auto]
+impl core::marker::Sync for antecedent_design::program_search::ProgramSearchRow [auto]
+impl core::marker::Sync for antecedent_design::program_search::ProgramSearchScope [auto]
+impl core::marker::Sync for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
+impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
+impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
+impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
+impl core::marker::Sync for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
 impl core::marker::Sync for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::marker::Sync for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::marker::Sync for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -4522,6 +4666,15 @@ impl core::marker::Sync for antecedent_design::rollout_artifact::RolloutArtifact
 impl core::marker::Sync for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::marker::Sync for antecedent_design::rollout_artifact::RolloutSource [auto]
 impl core::marker::Sync for antecedent_design::rollout_artifact::StateInterpretation [auto]
+impl core::marker::Sync for antecedent_design::scientific_source::ScientificConsumptionScope [auto]
+impl core::marker::Sync for antecedent_design::scientific_source::ScientificDecisionSource [auto]
+impl core::marker::Sync for antecedent_design::scientific_source::ScientificProjectionBasis [auto]
+impl core::marker::Sync for antecedent_design::scientific_source::ScientificProjectionOutput [auto]
+impl core::marker::Sync for antecedent_design::scientific_source::ScientificSourceError [auto]
+impl core::marker::Sync for antecedent_design::scientific_source::ScientificSourcePayload [auto]
+impl core::marker::Sync for antecedent_design::scientific_source::ScientificSourceProjection [auto]
+impl core::marker::Sync for antecedent_design::scientific_source::ScopedDecisionResult [auto]
+impl core::marker::Sync for antecedent_design::scientific_source::ScopedProgramSearchResult [auto]
 impl core::marker::Sync for antecedent_design::sensitivity_decision::SamplingReport [auto]
 impl core::marker::Sync for antecedent_design::sensitivity_decision::ScenarioCoverage [auto]
 impl core::marker::Sync for antecedent_design::sensitivity_decision::SensitivityDecisionError [auto]
@@ -5061,6 +5214,22 @@ impl core::marker::Unpin for antecedent_design::prior_signal::PriorSignalRequest
 impl core::marker::Unpin for antecedent_design::prior_signal::PriorSourceInput [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::SourceToTarget [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::TransportPolicyDecl [auto]
+impl core::marker::Unpin for antecedent_design::program_search::FiniteProgramDomain [auto]
+impl core::marker::Unpin for antecedent_design::program_search::FiniteProgramSearchResult [auto]
+impl core::marker::Unpin for antecedent_design::program_search::PreparedFiniteProgramSearch [auto]
+impl core::marker::Unpin for antecedent_design::program_search::ProgramCandidate [auto]
+impl core::marker::Unpin for antecedent_design::program_search::ProgramControl [auto]
+impl core::marker::Unpin for antecedent_design::program_search::ProgramFeasibility [auto]
+impl core::marker::Unpin for antecedent_design::program_search::ProgramRestriction [auto]
+impl core::marker::Unpin for antecedent_design::program_search::ProgramSearchError [auto]
+impl core::marker::Unpin for antecedent_design::program_search::ProgramSearchRow [auto]
+impl core::marker::Unpin for antecedent_design::program_search::ProgramSearchScope [auto]
+impl core::marker::Unpin for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
+impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
+impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
+impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
+impl core::marker::Unpin for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
 impl core::marker::Unpin for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::marker::Unpin for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::marker::Unpin for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -5110,6 +5279,15 @@ impl core::marker::Unpin for antecedent_design::rollout_artifact::RolloutArtifac
 impl core::marker::Unpin for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::marker::Unpin for antecedent_design::rollout_artifact::RolloutSource [auto]
 impl core::marker::Unpin for antecedent_design::rollout_artifact::StateInterpretation [auto]
+impl core::marker::Unpin for antecedent_design::scientific_source::ScientificConsumptionScope [auto]
+impl core::marker::Unpin for antecedent_design::scientific_source::ScientificDecisionSource [auto]
+impl core::marker::Unpin for antecedent_design::scientific_source::ScientificProjectionBasis [auto]
+impl core::marker::Unpin for antecedent_design::scientific_source::ScientificProjectionOutput [auto]
+impl core::marker::Unpin for antecedent_design::scientific_source::ScientificSourceError [auto]
+impl core::marker::Unpin for antecedent_design::scientific_source::ScientificSourcePayload [auto]
+impl core::marker::Unpin for antecedent_design::scientific_source::ScientificSourceProjection [auto]
+impl core::marker::Unpin for antecedent_design::scientific_source::ScopedDecisionResult [auto]
+impl core::marker::Unpin for antecedent_design::scientific_source::ScopedProgramSearchResult [auto]
 impl core::marker::Unpin for antecedent_design::sensitivity_decision::SamplingReport [auto]
 impl core::marker::Unpin for antecedent_design::sensitivity_decision::ScenarioCoverage [auto]
 impl core::marker::Unpin for antecedent_design::sensitivity_decision::SensitivityDecisionError [auto]
@@ -5643,6 +5821,22 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::PriorSourceInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::SourceToTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::TransportPolicyDecl [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::FiniteProgramDomain [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::FiniteProgramSearchResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::PreparedFiniteProgramSearch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::ProgramCandidate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::ProgramControl [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::ProgramFeasibility [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::ProgramRestriction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::ProgramSearchError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::ProgramSearchRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::ProgramSearchScope [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -5692,6 +5886,15 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::rollout_arti
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::rollout_artifact::RolloutSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::rollout_artifact::StateInterpretation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::scientific_source::ScientificConsumptionScope [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::scientific_source::ScientificDecisionSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::scientific_source::ScientificProjectionBasis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::scientific_source::ScientificProjectionOutput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::scientific_source::ScientificSourceError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::scientific_source::ScientificSourcePayload [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::scientific_source::ScientificSourceProjection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::scientific_source::ScopedDecisionResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::scientific_source::ScopedProgramSearchResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sensitivity_decision::SamplingReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sensitivity_decision::ScenarioCoverage [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sensitivity_decision::SensitivityDecisionError [auto]
@@ -6223,6 +6426,22 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::P
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::PriorSourceInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::SourceToTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::TransportPolicyDecl [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::FiniteProgramDomain [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::FiniteProgramSearchResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::PreparedFiniteProgramSearch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::ProgramCandidate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::ProgramControl [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::ProgramFeasibility [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::ProgramRestriction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::ProgramSearchError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::ProgramSearchRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::ProgramSearchScope [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::CompiledContinuousCandidate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::proposal_receipt::Arrival [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::proposal_receipt::ArrivalVerdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::proposal_receipt::ArrivedEvidence [auto]
@@ -6272,6 +6491,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::rollout_artifac
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::rollout_artifact::RolloutExpectation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::rollout_artifact::RolloutSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::rollout_artifact::StateInterpretation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::scientific_source::ScientificConsumptionScope [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::scientific_source::ScientificDecisionSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::scientific_source::ScientificProjectionBasis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::scientific_source::ScientificProjectionOutput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::scientific_source::ScientificSourceError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::scientific_source::ScientificSourcePayload [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::scientific_source::ScientificSourceProjection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::scientific_source::ScopedDecisionResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::scientific_source::ScopedProgramSearchResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sensitivity_decision::SamplingReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sensitivity_decision::ScenarioCoverage [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sensitivity_decision::SensitivityDecisionError [auto]
@@ -6585,6 +6813,7 @@ impl<'a> core::clone::Clone for antecedent_design::RepairFamilyRef<'a>
 impl<'a> core::clone::Clone for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a>
 impl<'a> core::clone::Clone for antecedent_design::composition_bundle::UpstreamNode<'a>
 impl<'a> core::clone::Clone for antecedent_design::evsi::EvsiEvidence<'a>
+impl<'a> core::clone::Clone for antecedent_design::program_search::ProgramSearchSource<'a>
 impl<'a> core::clone::Clone for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a>
 impl<'a> core::clone::Clone for antecedent_design::transported_policy::TransportedPolicyRequest<'a>
 impl<'a> core::cmp::Eq for antecedent_design::ObjectiveChannel<'a>
@@ -6600,6 +6829,7 @@ impl<'a> core::marker::Copy for antecedent_design::RepairFamilyRef<'a>
 impl<'a> core::marker::Copy for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a>
 impl<'a> core::marker::Copy for antecedent_design::composition_bundle::UpstreamNode<'a>
 impl<'a> core::marker::Copy for antecedent_design::evsi::EvsiEvidence<'a>
+impl<'a> core::marker::Copy for antecedent_design::program_search::ProgramSearchSource<'a>
 impl<'a> core::marker::Copy for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a>
 impl<'a> core::marker::Copy for antecedent_design::transported_policy::TransportedPolicyRequest<'a>
 impl<'a> core::marker::Freeze for antecedent_design::ObjectiveChannel<'a> [auto]
@@ -6607,6 +6837,7 @@ impl<'a> core::marker::Freeze for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::evsi::EvsiEvidence<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::ObjectiveChannel<'a> [auto]
@@ -6614,6 +6845,7 @@ impl<'a> core::marker::Send for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::evsi::EvsiEvidence<'a> [auto]
+impl<'a> core::marker::Send for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_design::ObjectiveChannel<'a>
@@ -6622,6 +6854,7 @@ impl<'a> core::marker::Sync for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::evsi::EvsiEvidence<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::ObjectiveChannel<'a> [auto]
@@ -6629,6 +6862,7 @@ impl<'a> core::marker::Unpin for antecedent_design::RepairFamilyRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::evsi::EvsiEvidence<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ObjectiveChannel<'a> [auto]
@@ -6636,6 +6870,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::RepairFa
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiEvidence<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::ObjectiveChannel<'a> [auto]
@@ -6643,6 +6878,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::RepairFamil
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::UpstreamNode<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiEvidence<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::DecisionFunctional
@@ -7154,6 +7390,10 @@ pub enum antecedent_design::joint_coupling::CouplingSource
 pub enum antecedent_design::prior_signal::CandidateSignalSource
 pub enum antecedent_design::prior_signal::NativeSignalFamily
 pub enum antecedent_design::prior_signal::SourceToTarget
+pub enum antecedent_design::program_search::ProgramFeasibility
+pub enum antecedent_design::program_search::ProgramSearchError
+pub enum antecedent_design::program_search::ProgramSearchSource<'a>
+pub enum antecedent_design::program_search::continuous::ContinuousSearchStop
 pub enum antecedent_design::proposal_receipt::ArrivalVerdict
 pub enum antecedent_design::proposal_receipt::ArrivedEvidence
 pub enum antecedent_design::proposal_receipt::ChangedPremise
@@ -7161,6 +7401,9 @@ pub enum antecedent_design::proposal_receipt::EvidenceState
 pub enum antecedent_design::ranking::DesignRankingBasis
 pub enum antecedent_design::robust_decision::RobustDecisionError
 pub enum antecedent_design::rollout_artifact::StateInterpretation
+pub enum antecedent_design::scientific_source::ScientificConsumptionScope
+pub enum antecedent_design::scientific_source::ScientificSourceError
+pub enum antecedent_design::scientific_source::ScientificSourcePayload
 pub enum antecedent_design::sensitivity_decision::SamplingReport
 pub enum antecedent_design::sensitivity_decision::ScenarioCoverage
 pub enum antecedent_design::sequential_evaluation::PolicySpec
@@ -8461,6 +8704,57 @@ pub field antecedent_design::prior_signal::PriorSourceInput::source_population: 
 pub field antecedent_design::prior_signal::PriorSourceInput::source_to_target: antecedent_design::prior_signal::SourceToTarget
 pub field antecedent_design::prior_signal::PriorSourceInput::weight: f64
 pub field antecedent_design::prior_signal::TransportPolicyDecl::policy_id: alloc::string::String
+pub field antecedent_design::program_search::FiniteProgramDomain::budget: core::option::Option<f64>
+pub field antecedent_design::program_search::FiniteProgramDomain::controls: alloc::vec::Vec<antecedent_design::program_search::ProgramControl>
+pub field antecedent_design::program_search::FiniteProgramDomain::restrictions: alloc::vec::Vec<antecedent_design::program_search::ProgramRestriction>
+pub field antecedent_design::program_search::FiniteProgramSearchResult::best: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::program_search::FiniteProgramSearchResult::candidate_set_identity: [u8; 32]
+pub field antecedent_design::program_search::FiniteProgramSearchResult::continuous_gap: core::option::Option<f64>
+pub field antecedent_design::program_search::FiniteProgramSearchResult::exact_finite_law: bool
+pub field antecedent_design::program_search::FiniteProgramSearchResult::exhaustive: bool
+pub field antecedent_design::program_search::FiniteProgramSearchResult::reliability: &'static str
+pub field antecedent_design::program_search::FiniteProgramSearchResult::rows: alloc::vec::Vec<antecedent_design::program_search::ProgramSearchRow>
+pub field antecedent_design::program_search::FiniteProgramSearchResult::search_identity: [u8; 32]
+pub field antecedent_design::program_search::FiniteProgramSearchResult::source_identity: alloc::string::String
+pub field antecedent_design::program_search::ProgramCandidate::controls: alloc::vec::Vec<f64>
+pub field antecedent_design::program_search::ProgramCandidate::id: alloc::string::String
+pub field antecedent_design::program_search::ProgramCandidate::inputs: alloc::vec::Vec<antecedent_contract::quantity::ScientificQuantity>
+pub field antecedent_design::program_search::ProgramControl::lower: f64
+pub field antecedent_design::program_search::ProgramControl::offset: i32
+pub field antecedent_design::program_search::ProgramControl::unit_cost: f64
+pub field antecedent_design::program_search::ProgramControl::upper: f64
+pub field antecedent_design::program_search::ProgramControl::variable: antecedent_core::ids::VariableId
+pub field antecedent_design::program_search::ProgramRestriction::bound: f64
+pub field antecedent_design::program_search::ProgramRestriction::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_design::program_search::ProgramRestriction::id: alloc::string::String
+pub field antecedent_design::program_search::ProgramSearchRow::controls: alloc::vec::Vec<f64>
+pub field antecedent_design::program_search::ProgramSearchRow::cost: f64
+pub field antecedent_design::program_search::ProgramSearchRow::feasibility: antecedent_design::program_search::ProgramFeasibility
+pub field antecedent_design::program_search::ProgramSearchRow::id: alloc::string::String
+pub field antecedent_design::program_search::ProgramSearchRow::value: core::option::Option<f64>
+pub field antecedent_design::program_search::ProgramSearchScope::horizon: u32
+pub field antecedent_design::program_search::ProgramSearchScope::max_candidates: usize
+pub field antecedent_design::program_search::ProgramSearchScope::population: alloc::string::String
+pub field antecedent_design::program_search::ProgramSearchScope::utility_units: alloc::string::String
+pub field antecedent_design::program_search::continuous::CompiledContinuousCandidate::candidate: antecedent_design::program_search::ProgramCandidate
+pub field antecedent_design::program_search::continuous::CompiledContinuousCandidate::source: antecedent_design::scientific_source::ScientificDecisionSource
+pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::attempts: alloc::vec::Vec<antecedent_design::program_search::continuous::ContinuousSearchAttempt>
+pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::best: core::option::Option<antecedent_design::program_search::ProgramSearchRow>
+pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::gap: core::option::Option<f64>
+pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::global_certificate: bool
+pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::reliability: &'static str
+pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::scope: antecedent_design::scientific_source::ScientificConsumptionScope
+pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::stop: antecedent_design::program_search::continuous::ContinuousSearchStop
+pub field antecedent_design::program_search::continuous::ContinuousSearchAttempt::controls: alloc::vec::Vec<f64>
+pub field antecedent_design::program_search::continuous::ContinuousSearchAttempt::dependency_identity: core::option::Option<antecedent_core::identity::SemanticDigest>
+pub field antecedent_design::program_search::continuous::ContinuousSearchAttempt::failure: core::option::Option<alloc::string::String>
+pub field antecedent_design::program_search::continuous::ContinuousSearchAttempt::row: core::option::Option<antecedent_design::program_search::ProgramSearchRow>
+pub field antecedent_design::program_search::continuous::ContinuousSearchAttempt::target_identity: core::option::Option<antecedent_core::identity::SemanticDigest>
+pub field antecedent_design::program_search::continuous::ContinuousSearchOptions::initial_step: f64
+pub field antecedent_design::program_search::continuous::ContinuousSearchOptions::max_evaluations: usize
+pub field antecedent_design::program_search::continuous::ContinuousSearchOptions::max_iterations: usize
+pub field antecedent_design::program_search::continuous::ContinuousSearchOptions::objective_tolerance: f64
+pub field antecedent_design::program_search::continuous::ContinuousSearchOptions::step_tolerance: f64
 pub field antecedent_design::proposal_receipt::Arrival::evidence: antecedent_design::proposal_receipt::ArrivedEvidence
 pub field antecedent_design::proposal_receipt::Arrival::sample_size: u64
 pub field antecedent_design::proposal_receipt::Arrival::snapshot_id: alloc::string::String
@@ -8697,6 +8991,27 @@ pub field antecedent_design::rollout_artifact::RolloutExpectation::state: antece
 pub field antecedent_design::rollout_artifact::RolloutSource::calibration: antecedent_io_core::distribution_artifact::DistributionCalibration
 pub field antecedent_design::rollout_artifact::RolloutSource::identity: antecedent_io_core::distribution_artifact::DistributionIdentity
 pub field antecedent_design::rollout_artifact::RolloutSource::trust: antecedent_io_core::distribution_artifact::DistributionTrust
+pub field antecedent_design::scientific_source::ScientificProjectionBasis::quantity: antecedent_contract::quantity::ScientificQuantity
+pub field antecedent_design::scientific_source::ScientificProjectionBasis::variable: antecedent_core::ids::VariableId
+pub field antecedent_design::scientific_source::ScientificProjectionBasis::world: antecedent_core::scientific_target::ScientificWorldId
+pub field antecedent_design::scientific_source::ScientificProjectionOutput::quantity: antecedent_contract::quantity::ScientificQuantity
+pub field antecedent_design::scientific_source::ScientificProjectionOutput::terms: alloc::vec::Vec<(usize, f64)>
+pub field antecedent_design::scientific_source::ScientificSourceProjection::basis: alloc::vec::Vec<antecedent_design::scientific_source::ScientificProjectionBasis>
+pub field antecedent_design::scientific_source::ScientificSourceProjection::outputs: alloc::vec::Vec<antecedent_design::scientific_source::ScientificProjectionOutput>
+pub field antecedent_design::scientific_source::ScopedDecisionResult::dependency_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_design::scientific_source::ScopedDecisionResult::identification_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_design::scientific_source::ScopedDecisionResult::projection: core::option::Option<alloc::sync::Arc<antecedent_design::scientific_source::ScientificSourceProjection>>
+pub field antecedent_design::scientific_source::ScopedDecisionResult::question_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_design::scientific_source::ScopedDecisionResult::result: antecedent_design::decision_eval::DecisionResult
+pub field antecedent_design::scientific_source::ScopedDecisionResult::scope: antecedent_design::scientific_source::ScientificConsumptionScope
+pub field antecedent_design::scientific_source::ScopedDecisionResult::target_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_design::scientific_source::ScopedProgramSearchResult::dependency_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_design::scientific_source::ScopedProgramSearchResult::identification_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_design::scientific_source::ScopedProgramSearchResult::projection: core::option::Option<alloc::sync::Arc<antecedent_design::scientific_source::ScientificSourceProjection>>
+pub field antecedent_design::scientific_source::ScopedProgramSearchResult::question_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_design::scientific_source::ScopedProgramSearchResult::result: antecedent_design::program_search::FiniteProgramSearchResult
+pub field antecedent_design::scientific_source::ScopedProgramSearchResult::scope: antecedent_design::scientific_source::ScientificConsumptionScope
+pub field antecedent_design::scientific_source::ScopedProgramSearchResult::target_identity: antecedent_core::identity::SemanticDigest
 pub field antecedent_design::sensitivity_decision::SensitivityDecisionError::code: &'static str
 pub field antecedent_design::sensitivity_decision::SensitivityDecisionError::detail: &'static str
 pub field antecedent_design::sensitivity_decision::SensitivityDecisionError::message: alloc::string::String
@@ -9155,6 +9470,7 @@ pub fn <antecedent_design::PreposteriorAnalysis<'a, O>>::const fn prior_expected
 pub fn <antecedent_design::PreposteriorAnalysis<'a, O>>::fn evaluation(&self, n: u64) -> antecedent_design::ScoreEvaluation
 pub fn <antecedent_design::PreposteriorAnalysis<'a, O>>::fn exact_evsi(&self, n: u64) -> core::result::Result<core::option::Option<f64>, antecedent_design::DesignError>
 pub fn <antecedent_design::PreposteriorAnalysis<'a, O>>::fn new<A>(problem: &antecedent_design::DecisionProblem<A, O>, prior: &'a antecedent_design::DecisionPrior<O>, signal: &'a dyn antecedent_design::DecisionSignal<O>) -> core::result::Result<Self, antecedent_design::DesignError>
+pub fn <antecedent_design::PreposteriorAnalysis<'a, O>>::fn new_weighted<A>(problem: &antecedent_design::DecisionProblem<A, O>, states: &'a [O], weights: &[f64], signal: &'a dyn antecedent_design::DecisionSignal<O>) -> core::result::Result<Self, antecedent_design::DesignError>
 pub fn <antecedent_design::PreposteriorAnalysis<'a, O>>::fn sample_evsi(&self, n: u64, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<f64, antecedent_design::DesignError>
 pub fn <antecedent_design::PreposteriorAnalysis<'a, O>>::fn signal(&self) -> &'a dyn antecedent_design::DecisionSignal<O>
 pub fn <antecedent_design::RepairClassification>::const fn as_str(self) -> &'static str
@@ -9297,6 +9613,7 @@ pub fn <antecedent_design::decision_contract::AdmissibilityRules>::fn support_me
 pub fn <antecedent_design::decision_contract::AdmissibilityRules>::fn weakest_allowed(&self, action_id: &str, input: usize) -> core::option::Option<antecedent_core::response::SupportStatus>
 pub fn <antecedent_design::decision_contract::AdmissibleDecisionContract>::fn identity(&self) -> core::result::Result<alloc::string::String, antecedent_design::decision_contract::AdmissibilityError>
 pub fn <antecedent_design::decision_contract::AdmissibleDecisionContract>::fn validate(&self) -> core::result::Result<(), antecedent_design::decision_contract::AdmissibilityError>
+pub fn <antecedent_design::decision_contract::ProgramSearchContract>::fn identity(&self) -> core::result::Result<[u8; 32], antecedent_design::DecisionContractError>
 pub fn <antecedent_design::decision_contract::ProgramSearchContract>::fn source_requirement(&self) -> core::result::Result<antecedent_design::SourceRequirement, antecedent_design::DecisionContractError>
 pub fn <antecedent_design::decision_contract::ProgramSearchContract>::fn validate(&self) -> core::result::Result<(), antecedent_design::DecisionContractError>
 pub fn <antecedent_design::decision_contract::UncertaintyKind>::const fn name(self) -> &'static str
@@ -9494,6 +9811,14 @@ pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn marginal_y(s
 pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn mass_numerator(self, x: i64, y: i64) -> core::option::Option<i64>
 pub fn <antecedent_design::joint_coupling::SupportMarginal>::const fn is_equal_halves(self) -> bool
 pub fn <antecedent_design::prior_signal::PriorSignalError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
+pub fn <antecedent_design::program_search::FiniteProgramSearchResult>::fn admitted_bytes(&self) -> u64
+pub fn <antecedent_design::program_search::PreparedFiniteProgramSearch>::fn compile(contract: antecedent_design::decision_contract::ProgramSearchContract, domain: antecedent_design::program_search::FiniteProgramDomain, candidates: alloc::vec::Vec<antecedent_design::program_search::ProgramCandidate>, scope: antecedent_design::program_search::ProgramSearchScope, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_design::program_search::ProgramSearchError>
+pub fn <antecedent_design::program_search::PreparedFiniteProgramSearch>::fn execute(&self, source: antecedent_design::program_search::ProgramSearchSource<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::FiniteProgramSearchResult, antecedent_design::program_search::ProgramSearchError>
+pub fn <antecedent_design::program_search::PreparedFiniteProgramSearch>::fn with_objective(&self, contract: antecedent_design::decision_contract::ProgramSearchContract) -> core::result::Result<Self, antecedent_design::program_search::ProgramSearchError>
+pub fn <antecedent_design::program_search::continuous::ContinuousProgramSearchResult>::fn admitted_bytes(&self) -> u64
+pub fn <antecedent_design::program_search::continuous::PreparedContinuousProgramSearch>::fn compile(contract: antecedent_design::decision_contract::ProgramSearchContract, domain: antecedent_design::program_search::FiniteProgramDomain, scope: antecedent_design::program_search::ProgramSearchScope, scientific_scope: antecedent_design::scientific_source::ScientificConsumptionScope, options: antecedent_design::program_search::continuous::ContinuousSearchOptions, initial: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_design::program_search::ProgramSearchError>
+pub fn <antecedent_design::program_search::continuous::PreparedContinuousProgramSearch>::fn execute(&self, evaluator: &impl antecedent_design::program_search::continuous::CompiledProgramEvaluator, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::continuous::ContinuousProgramSearchResult, antecedent_design::program_search::ProgramSearchError>
+pub fn <antecedent_design::program_search::continuous::PreparedContinuousProgramSearch>::fn with_objective(&self, contract: antecedent_design::decision_contract::ProgramSearchContract) -> core::result::Result<Self, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::proposal_receipt::ProposalBundle>::fn build(repair: &antecedent_design::RepairReportArtifact, ranking: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire) -> core::result::Result<Self, antecedent_design::proposal_receipt::ProposalReceiptError>
 pub fn <antecedent_design::proposal_receipt::ProposalBundle>::fn compute_identity(&self) -> alloc::string::String
 pub fn <antecedent_design::proposal_receipt::ProposalBundle>::fn from_receipts(receipts: alloc::vec::Vec<antecedent_design::proposal_receipt::ProposalReceipt>) -> core::result::Result<Self, antecedent_design::proposal_receipt::ProposalReceiptError>
@@ -9522,6 +9847,20 @@ pub fn <antecedent_design::rollout_artifact::RolloutArtifact>::fn seal(&mut self
 pub fn <antecedent_design::rollout_artifact::RolloutArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::rollout_artifact::RolloutArtifact>::fn verify(&self, expected: &antecedent_design::rollout_artifact::RolloutExpectation) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn <antecedent_design::rollout_artifact::RolloutArtifact>::fn with_source_evidence(self, bytes: alloc::vec::Vec<u8>) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::const fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn as_numerical_source(&self) -> &antecedent_design::scientific_source::ScientificSourcePayload
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn authorize(&self, scope: antecedent_design::scientific_source::ScientificConsumptionScope) -> core::result::Result<(), antecedent_design::scientific_source::ScientificSourceError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn evaluate(&self, contract: &antecedent_design::DecisionContract, scope: antecedent_design::scientific_source::ScientificConsumptionScope) -> core::result::Result<antecedent_design::scientific_source::ScopedDecisionResult, antecedent_design::scientific_source::ScientificSourceError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn identification(&self) -> &antecedent_identify::compiled_product::CompiledIdentificationProduct
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new(target: antecedent_core::scientific_target::ScientificTarget, identification: antecedent_identify::compiled_product::CompiledIdentificationProduct, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new_projected(target: antecedent_core::scientific_target::ScientificTarget, identification: antecedent_identify::compiled_product::CompiledIdentificationProduct, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload, projection: antecedent_design::scientific_source::ScientificSourceProjection) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn new_shared(target: alloc::sync::Arc<antecedent_core::scientific_target::ScientificTarget>, identification: alloc::sync::Arc<antecedent_identify::compiled_product::CompiledIdentificationProduct>, dependency: antecedent_core::identity::SemanticDigest, payload: antecedent_design::scientific_source::ScientificSourcePayload) -> core::result::Result<Self, antecedent_design::scientific_source::ScientificSourceError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn projection(&self) -> core::option::Option<&antecedent_design::scientific_source::ScientificSourceProjection>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn question_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn retain_admission(self, lease: alloc::sync::Arc<antecedent_core::execution::AdmissionLease>) -> Self
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn search(&self, search: &antecedent_design::program_search::PreparedFiniteProgramSearch, scope: antecedent_design::scientific_source::ScientificConsumptionScope, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::scientific_source::ScopedProgramSearchResult, antecedent_design::scientific_source::ScientificSourceError>
+pub fn <antecedent_design::scientific_source::ScientificDecisionSource>::fn target(&self) -> &antecedent_core::scientific_target::ScientificTarget
+pub fn <antecedent_design::scientific_source::ScientificSourceProjection>::fn identity(&self, target: &antecedent_core::scientific_target::ScientificTarget) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_design::sensitivity_decision::SensitivityDecisionError>::const fn detail(&self) -> &'static str
 pub fn <antecedent_design::sensitivity_decision::SensitivityDecisionError>::const fn reason_code(&self) -> &'static str
 pub fn <antecedent_design::sequential_evaluation::ActionRole>::const fn as_str(self) -> &'static str
@@ -9749,6 +10088,8 @@ pub fn antecedent_design::obligation_adapters::factor_obligations(catalog: &ante
 pub fn antecedent_design::obligation_adapters::support_obligations(report: &antecedent_core::response::SupportReport, population: &str, treatments: &[antecedent_core::ids::VariableId], source: &str) -> core::result::Result<alloc::vec::Vec<antecedent_contract::evidence_obligation::EvidenceObligation>, antecedent_contract::evidence_obligation::EvidenceObligationError>
 pub fn antecedent_design::plan_studies(graph: &antecedent_graph::admg::Admg, route: &antecedent_identify::sid::study_planning::StudyPlanRoute, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, candidates: &[antecedent_design::StudyCandidate], limits: antecedent_identify::sid::study_planning::StudyPlanLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::StudyPlanResult, antecedent_design::StudyPlanError>
 pub fn antecedent_design::plan_z_transport_evidence(snapshot: &alloc::sync::Arc<antecedent_design::ZTransportFailureSnapshot>, spec: &antecedent_design::ZTransportPlanSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::ZTransportPlanResult, antecedent_design::ZTransportPlanningError>
+pub fn antecedent_design::preposterior::evsi_replicate_rng(rng: &antecedent_core::execution::RngFactory, replicate: u64) -> antecedent_core::execution::CausalRng
+pub fn antecedent_design::preposterior::update_finite_belief(prior: &[f64], log_likelihood: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_design::DesignError>
 pub fn antecedent_design::prior_signal::adapt_prior_to_signal(catalog: &antecedent_io_core::prior_bank::PriorCatalog, target: &antecedent_io_core::prior_bank::TargetDesign, request: &antecedent_design::prior_signal::PriorSignalRequest) -> core::result::Result<antecedent_design::prior_signal::CandidateSignalPrior, antecedent_design::prior_signal::PriorSignalError>
 pub fn antecedent_design::proposal_receipt::on_arrival(receipt: &antecedent_design::proposal_receipt::ProposalReceipt, family: antecedent_design::RepairFamilyRef<'_>, candidate: &antecedent_design::DurableStudyCandidate, arrival: &antecedent_design::proposal_receipt::Arrival, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::proposal_receipt::ArrivalVerdict, antecedent_design::proposal_receipt::ProposalReceiptError>
 pub fn antecedent_design::proposal_receipt::verify(bundle: &antecedent_design::proposal_receipt::ProposalBundle, repair: &antecedent_design::RepairReportArtifact, ranking: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire) -> core::result::Result<(), antecedent_design::proposal_receipt::ProposalReceiptError>
@@ -9825,6 +10166,8 @@ pub mod antecedent_design::objective
 pub mod antecedent_design::obligation_adapters
 pub mod antecedent_design::preposterior
 pub mod antecedent_design::prior_signal
+pub mod antecedent_design::program_search
+pub mod antecedent_design::program_search::continuous
 pub mod antecedent_design::proposal_receipt
 pub mod antecedent_design::ranker
 pub mod antecedent_design::ranking
@@ -9833,6 +10176,7 @@ pub mod antecedent_design::repair_artifact
 pub mod antecedent_design::result
 pub mod antecedent_design::robust_decision
 pub mod antecedent_design::rollout_artifact
+pub mod antecedent_design::scientific_source
 pub mod antecedent_design::sensitivity_decision
 pub mod antecedent_design::sequential_evaluation
 pub mod antecedent_design::sequential_evaluation_artifact
@@ -10171,6 +10515,23 @@ pub struct antecedent_design::prior_signal::PriorSignalDiagnostics
 pub struct antecedent_design::prior_signal::PriorSignalRequest
 pub struct antecedent_design::prior_signal::PriorSourceInput
 pub struct antecedent_design::prior_signal::TransportPolicyDecl
+pub struct antecedent_design::program_search::FiniteProgramDomain
+pub struct antecedent_design::program_search::FiniteProgramSearchResult
+pub struct antecedent_design::program_search::FiniteProgramSearchResult has private fields
+pub struct antecedent_design::program_search::PreparedFiniteProgramSearch
+pub struct antecedent_design::program_search::PreparedFiniteProgramSearch has private fields
+pub struct antecedent_design::program_search::ProgramCandidate
+pub struct antecedent_design::program_search::ProgramControl
+pub struct antecedent_design::program_search::ProgramRestriction
+pub struct antecedent_design::program_search::ProgramSearchRow
+pub struct antecedent_design::program_search::ProgramSearchScope
+pub struct antecedent_design::program_search::continuous::CompiledContinuousCandidate
+pub struct antecedent_design::program_search::continuous::ContinuousProgramSearchResult
+pub struct antecedent_design::program_search::continuous::ContinuousProgramSearchResult has private fields
+pub struct antecedent_design::program_search::continuous::ContinuousSearchAttempt
+pub struct antecedent_design::program_search::continuous::ContinuousSearchOptions
+pub struct antecedent_design::program_search::continuous::PreparedContinuousProgramSearch
+pub struct antecedent_design::program_search::continuous::PreparedContinuousProgramSearch has private fields
 pub struct antecedent_design::proposal_receipt::Arrival
 pub struct antecedent_design::proposal_receipt::BaseFailureBinding
 pub struct antecedent_design::proposal_receipt::CostBinding
@@ -10212,6 +10573,15 @@ pub struct antecedent_design::robust_decision::UnnormalizedMass
 pub struct antecedent_design::rollout_artifact::RolloutArtifact
 pub struct antecedent_design::rollout_artifact::RolloutExpectation
 pub struct antecedent_design::rollout_artifact::RolloutSource
+pub struct antecedent_design::scientific_source::ScientificDecisionSource
+pub struct antecedent_design::scientific_source::ScientificDecisionSource has private fields
+pub struct antecedent_design::scientific_source::ScientificProjectionBasis
+pub struct antecedent_design::scientific_source::ScientificProjectionOutput
+pub struct antecedent_design::scientific_source::ScientificSourceProjection
+pub struct antecedent_design::scientific_source::ScopedDecisionResult
+pub struct antecedent_design::scientific_source::ScopedDecisionResult has private fields
+pub struct antecedent_design::scientific_source::ScopedProgramSearchResult
+pub struct antecedent_design::scientific_source::ScopedProgramSearchResult has private fields
 pub struct antecedent_design::sensitivity_decision::SensitivityDecisionError
 pub struct antecedent_design::sensitivity_decision::SensitivityDecisionResult
 pub struct antecedent_design::sensitivity_decision::SensitivityDecisionSpec
@@ -10314,6 +10684,7 @@ pub trait antecedent_design::ObjectiveScorer
 pub trait antecedent_design::RepairFamily
 pub trait antecedent_design::Utility<A, O>: core::marker::Send + core::marker::Sync
 pub trait antecedent_design::composition_bundle::NodeVerifier
+pub trait antecedent_design::program_search::continuous::CompiledProgramEvaluator: core::marker::Sync
 pub trait antecedent_design::signal::SignalProvider: core::marker::Send + core::marker::Sync
 pub trait fn fn antecedent_design::DecisionConstraint::name(&self) -> &str
 pub trait fn fn antecedent_design::DecisionConstraint::satisfaction_batch(&self, actions: &[A], outcomes: &[O], out: &mut [f64])
@@ -10333,6 +10704,7 @@ pub trait fn fn antecedent_design::Utility::affine_in_state(&self, actions: &[A]
 pub trait fn fn antecedent_design::Utility::evaluate_batch(&self, actions: &[A], outcomes: &[O], out: &mut [f64]) -> core::result::Result<(), antecedent_design::DesignError>
 pub trait fn fn antecedent_design::composition_bundle::NodeVerifier::kind(&self) -> antecedent_design::composition_bundle::NodeKind
 pub trait fn fn antecedent_design::composition_bundle::NodeVerifier::verify(&self, node_id: &str, bytes: &[u8], upstream: &[antecedent_design::composition_bundle::UpstreamNode<'_>]) -> core::result::Result<antecedent_design::composition_bundle::VerifiedNode, antecedent_design::composition_bundle::NodeFailure>
+pub trait fn fn antecedent_design::program_search::continuous::CompiledProgramEvaluator::evaluate_program(&self, controls: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::program_search::continuous::CompiledContinuousCandidate, antecedent_design::program_search::ProgramSearchError>
 pub trait fn fn antecedent_design::signal::SignalProvider::prepare(&self, request: &antecedent_design::signal::SignalRequest) -> core::result::Result<antecedent_design::signal::PreparedSignal, antecedent_design::signal::SignalError>
 pub type antecedent_design::sequential_evaluation::SequentialResult<T> = core::result::Result<T, antecedent_design::sequential_evaluation::SequentialEvaluationError>
 pub use antecedent_design::StudyPlan = antecedent_identify::StudyPlan
@@ -11241,6 +11613,17 @@ pub variant antecedent_design::prior_signal::PriorSignalError::TransportPolicyRe
 pub variant antecedent_design::prior_signal::PriorSignalError::UnlockListNotSignal(usize)
 pub variant antecedent_design::prior_signal::SourceToTarget::Affine { intercept: f64, slope: f64 }
 pub variant antecedent_design::prior_signal::SourceToTarget::Identity
+pub variant antecedent_design::program_search::ProgramFeasibility::Feasible
+pub variant antecedent_design::program_search::ProgramFeasibility::Operational(alloc::string::String)
+pub variant antecedent_design::program_search::ProgramFeasibility::Risk(alloc::vec::Vec<alloc::string::String>)
+pub variant antecedent_design::program_search::ProgramSearchError::Cancelled
+pub variant antecedent_design::program_search::ProgramSearchError::Invalid(alloc::string::String)
+pub variant antecedent_design::program_search::ProgramSearchError::Resource(alloc::string::String)
+pub variant antecedent_design::program_search::ProgramSearchSource::Law(&'a antecedent_io_core::distribution_artifact::DistributionArtifact)
+pub variant antecedent_design::program_search::ProgramSearchSource::Means(&'a antecedent_design::decision_eval::MeanSource)
+pub variant antecedent_design::program_search::continuous::ContinuousSearchStop::EvaluationLimit
+pub variant antecedent_design::program_search::continuous::ContinuousSearchStop::IterationLimit
+pub variant antecedent_design::program_search::continuous::ContinuousSearchStop::StepTolerance
 pub variant antecedent_design::proposal_receipt::ArrivalVerdict::Invalidated { changed: antecedent_design::proposal_receipt::ChangedPremise }
 pub variant antecedent_design::proposal_receipt::ArrivalVerdict::StillInsufficient { reasons: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_design::proposal_receipt::ArrivalVerdict::Verified { checker: alloc::string::String, steps: alloc::vec::Vec<alloc::string::String>, exact: bool, snapshot_id: alloc::string::String }
@@ -11268,6 +11651,13 @@ pub variant antecedent_design::robust_decision::RobustDecisionError::ScenariosHa
 pub variant antecedent_design::robust_decision::RobustDecisionError::Structural(antecedent_design::decision_structural::StructuralError)
 pub variant antecedent_design::rollout_artifact::StateInterpretation::InterventionalState
 pub variant antecedent_design::rollout_artifact::StateInterpretation::PosteriorState
+pub variant antecedent_design::scientific_source::ScientificConsumptionScope::IdentifiedCausal
+pub variant antecedent_design::scientific_source::ScientificConsumptionScope::ModelConditional
+pub variant antecedent_design::scientific_source::ScientificSourceError::Authorization(alloc::string::String)
+pub variant antecedent_design::scientific_source::ScientificSourceError::Decision(alloc::boxed::Box<antecedent_design::decision_eval::DecisionEvalError>)
+pub variant antecedent_design::scientific_source::ScientificSourceError::Search(antecedent_design::program_search::ProgramSearchError)
+pub variant antecedent_design::scientific_source::ScientificSourcePayload::Law(alloc::boxed::Box<antecedent_io_core::distribution_artifact::DistributionArtifact>)
+pub variant antecedent_design::scientific_source::ScientificSourcePayload::Means(antecedent_design::decision_eval::MeanSource)
 pub variant antecedent_design::sensitivity_decision::SamplingReport::SeparateNotComposed { quantity: alloc::string::String, level: f64, method: alloc::string::String, coordinates: alloc::vec::Vec<f64>, lower: alloc::vec::Vec<f64>, upper: alloc::vec::Vec<f64> }
 pub variant antecedent_design::sensitivity_decision::SamplingReport::Withheld { reason_code: alloc::string::String, detail: alloc::string::String }
 pub variant antecedent_design::sensitivity_decision::ScenarioCoverage::PointSurface

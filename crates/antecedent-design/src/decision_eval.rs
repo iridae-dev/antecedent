@@ -367,16 +367,32 @@ fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {
 /// Refuses an invalid contract, non-joint draws, a missing or masked
 /// coordinate, a source meaning that cannot answer an outcome-law input, and
 /// criteria that need structure inputs.
-#[allow(clippy::float_cmp, reason = "Ties of the finite-law criterion values")]
-#[allow(
-    clippy::too_many_lines,
-    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
-)]
 pub fn evaluate_contract(
     contract: &DecisionContract,
     source: &DistributionArtifact,
 ) -> Result<DecisionResult, DecisionEvalError> {
     let identity = contract.identity().map_err(DecisionEvalError::Contract)?;
+    evaluate_contract_validated(contract, source, identity)
+}
+
+pub(crate) fn evaluate_contract_for_program_search(
+    contract: &DecisionContract,
+    source: &DistributionArtifact,
+) -> Result<DecisionResult, DecisionEvalError> {
+    let identity = contract.identity_for_program_search().map_err(DecisionEvalError::Contract)?;
+    evaluate_contract_validated(contract, source, identity)
+}
+
+#[allow(clippy::float_cmp, reason = "Ties of the finite-law criterion values")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
+)]
+fn evaluate_contract_validated(
+    contract: &DecisionContract,
+    source: &DistributionArtifact,
+    identity: String,
+) -> Result<DecisionResult, DecisionEvalError> {
     if matches!(
         contract.criterion,
         DecisionCriterion::MinimaxOverIdentifiedSet | DecisionCriterion::MaximinOverStructures
@@ -747,6 +763,19 @@ impl ActionLaw {
         Ok(Self::from_table(index, build_table(contract, source, Some(index))?, source))
     }
 
+    pub(crate) fn of_program_search_action(
+        contract: &DecisionContract,
+        action_id: &str,
+        source: &DistributionArtifact,
+    ) -> Result<Self, DecisionEvalError> {
+        contract.validate_for_program_search().map_err(DecisionEvalError::Contract)?;
+        let index =
+            contract.actions.iter().position(|action| action.id == action_id).ok_or_else(|| {
+                DecisionEvalError::Contract(DecisionContractError::UnknownAction(action_id.into()))
+            })?;
+        Ok(Self::from_table(index, build_table(contract, source, Some(index))?, source))
+    }
+
     /// `functional` of this law, as [`evaluate_functional`] defines it.
     ///
     /// # Errors
@@ -893,16 +922,32 @@ fn mean_criterion_label(estimate: MeanEstimate, loss: bool) -> &'static str {
 /// coordinate, a coordinate named twice (the first would silently win), an input
 /// whose functional is `outcome` (a mean grid is not an outcome law), and a
 /// non-finite utility.
-#[allow(
-    clippy::too_many_lines,
-    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
-)]
 pub fn evaluate_contract_on_means(
     contract: &DecisionContract,
     source: &MeanSource,
 ) -> Result<DecisionResult, DecisionEvalError> {
     let identity = contract.identity().map_err(DecisionEvalError::Contract)?;
-    let requirement = contract.source_requirement().map_err(DecisionEvalError::Contract)?.ok_or(
+    evaluate_contract_on_means_validated(contract, source, identity)
+}
+
+pub(crate) fn evaluate_contract_on_means_for_program_search(
+    contract: &DecisionContract,
+    source: &MeanSource,
+) -> Result<DecisionResult, DecisionEvalError> {
+    let identity = contract.identity_for_program_search().map_err(DecisionEvalError::Contract)?;
+    evaluate_contract_on_means_validated(contract, source, identity)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
+)]
+fn evaluate_contract_on_means_validated(
+    contract: &DecisionContract,
+    source: &MeanSource,
+    identity: String,
+) -> Result<DecisionResult, DecisionEvalError> {
+    let requirement = contract.validated_source_requirement().map_err(DecisionEvalError::Contract)?.ok_or(
         DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration(
             "a decision compares at least two actions",
         )),

@@ -4917,6 +4917,7 @@ pub fn <antecedent_identify::CompiledIdentificationProduct>::const fn is_numeric
 pub fn <antecedent_identify::CompiledIdentificationProduct>::const fn numerical_value(&self) -> core::option::Option<f64>
 pub fn <antecedent_identify::CompiledIdentificationProduct>::const fn outcome(&self) -> antecedent_identify::IdentificationOutcome
 pub fn <antecedent_identify::CompiledIdentificationProduct>::const fn target_identity(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
+pub fn <antecedent_identify::CompiledIdentificationProduct>::fn bind_target(self, target: &antecedent_core::scientific_target::ScientificTarget) -> core::result::Result<Self, antecedent_identify::ProductRefusal>
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn bounded_search_diagnostics(&self) -> &[antecedent_core::diagnostic::Diagnostic]
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn identified(&self) -> &[antecedent_expr::estimand::IdentifiedEstimand]
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn identity(&self) -> antecedent_core::identity::SemanticDigest

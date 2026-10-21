@@ -176,6 +176,14 @@ impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::Jo
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::JointSourceWire
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::JointTargetWire
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
+impl core::clone::Clone for antecedent_io::joint_panel_artifact::FrozenPanelFit
+impl core::clone::Clone for antecedent_io::joint_panel_artifact::HistoricalPanelExecution
+impl core::clone::Clone for antecedent_io::joint_panel_artifact::PanelExecutionProgram
+impl core::clone::Clone for antecedent_io::joint_panel_artifact::PanelSourceMetadata
+impl core::clone::Clone for antecedent_io::joint_panel_artifact::PanelUnitMetadata
+impl core::clone::Clone for antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment
+impl core::clone::Clone for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram
+impl core::clone::Clone for antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins
 impl core::clone::Clone for antecedent_io::latent_class_artifact::LatentClassArtifact
 impl core::clone::Clone for antecedent_io::latent_class_artifact::LatentClassArtifactError
 impl core::clone::Clone for antecedent_io::latent_class_artifact::LatentClassBootstrapWire
@@ -886,11 +894,15 @@ impl core::convert::From<antecedent_estimate::error::EstimationError> for antece
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifactError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
+impl core::convert::From<antecedent_estimate::joint_panel::PanelError> for antecedent_io::joint_panel_artifact::PanelArtifactError
+impl core::convert::From<antecedent_estimate::response::joint_linear::JointLinearError> for antecedent_io::joint_response_artifact::JointResponseArtifactError
 impl core::convert::From<antecedent_identify::recovery_chain::ChainRecoveryError> for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::convert::From<antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
+impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::joint_panel_artifact::PanelArtifactError
+impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::joint_response_artifact::JointResponseArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::latent_class_artifact::LatentClassArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError
@@ -938,6 +950,8 @@ impl core::error::Error for antecedent_io::cyclic_system_artifact::CyclicArtifac
 impl core::error::Error for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::error::Error for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
 impl core::error::Error for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
+impl core::error::Error for antecedent_io::joint_panel_artifact::PanelArtifactError
+impl core::error::Error for antecedent_io::joint_response_artifact::JointResponseArtifactError
 impl core::error::Error for antecedent_io::latent_class_artifact::LatentClassArtifactError
 impl core::error::Error for antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactError
 impl core::error::Error for antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError
@@ -1092,6 +1106,17 @@ impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::Join
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::JointSourceWire
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::JointTargetWire
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
+impl core::fmt::Debug for antecedent_io::joint_panel_artifact::FrozenPanelFit
+impl core::fmt::Debug for antecedent_io::joint_panel_artifact::HistoricalPanelExecution
+impl core::fmt::Debug for antecedent_io::joint_panel_artifact::PanelArtifactError
+impl core::fmt::Debug for antecedent_io::joint_panel_artifact::PanelExecutionProgram
+impl core::fmt::Debug for antecedent_io::joint_panel_artifact::PanelSourceMetadata
+impl core::fmt::Debug for antecedent_io::joint_panel_artifact::PanelUnitMetadata
+impl core::fmt::Debug for antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment
+impl core::fmt::Debug for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram
+impl core::fmt::Debug for antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins
+impl core::fmt::Debug for antecedent_io::joint_response_artifact::HistoricalJointResponse
+impl core::fmt::Debug for antecedent_io::joint_response_artifact::JointResponseArtifactError
 impl core::fmt::Debug for antecedent_io::latent_class_artifact::LatentClassArtifact
 impl core::fmt::Debug for antecedent_io::latent_class_artifact::LatentClassArtifactError
 impl core::fmt::Debug for antecedent_io::latent_class_artifact::LatentClassBootstrapWire
@@ -1358,6 +1383,8 @@ impl core::fmt::Display for antecedent_io::cyclic_system_artifact::CyclicArtifac
 impl core::fmt::Display for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::fmt::Display for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
 impl core::fmt::Display for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
+impl core::fmt::Display for antecedent_io::joint_panel_artifact::PanelArtifactError
+impl core::fmt::Display for antecedent_io::joint_response_artifact::JointResponseArtifactError
 impl core::fmt::Display for antecedent_io::latent_class_artifact::LatentClassArtifactError
 impl core::fmt::Display for antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactError
 impl core::fmt::Display for antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError
@@ -1570,6 +1597,17 @@ impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::JointSourceWire [auto]
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::JointTargetWire [auto]
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire [auto]
+impl core::marker::Freeze for antecedent_io::joint_panel_artifact::FrozenPanelFit [auto]
+impl core::marker::Freeze for antecedent_io::joint_panel_artifact::HistoricalPanelExecution [auto]
+impl core::marker::Freeze for antecedent_io::joint_panel_artifact::PanelArtifactError [auto]
+impl core::marker::Freeze for antecedent_io::joint_panel_artifact::PanelExecutionProgram [auto]
+impl core::marker::Freeze for antecedent_io::joint_panel_artifact::PanelSourceMetadata [auto]
+impl core::marker::Freeze for antecedent_io::joint_panel_artifact::PanelUnitMetadata [auto]
+impl core::marker::Freeze for antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment [auto]
+impl core::marker::Freeze for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram [auto]
+impl core::marker::Freeze for antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins [auto]
+impl core::marker::Freeze for antecedent_io::joint_response_artifact::HistoricalJointResponse [auto]
+impl core::marker::Freeze for antecedent_io::joint_response_artifact::JointResponseArtifactError [auto]
 impl core::marker::Freeze for antecedent_io::latent_class_artifact::LatentClassArtifact [auto]
 impl core::marker::Freeze for antecedent_io::latent_class_artifact::LatentClassArtifactError [auto]
 impl core::marker::Freeze for antecedent_io::latent_class_artifact::LatentClassBootstrapWire [auto]
@@ -1976,6 +2014,17 @@ impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::Jo
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::JointSourceWire [auto]
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::JointTargetWire [auto]
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire [auto]
+impl core::marker::Send for antecedent_io::joint_panel_artifact::FrozenPanelFit [auto]
+impl core::marker::Send for antecedent_io::joint_panel_artifact::HistoricalPanelExecution [auto]
+impl core::marker::Send for antecedent_io::joint_panel_artifact::PanelArtifactError [auto]
+impl core::marker::Send for antecedent_io::joint_panel_artifact::PanelExecutionProgram [auto]
+impl core::marker::Send for antecedent_io::joint_panel_artifact::PanelSourceMetadata [auto]
+impl core::marker::Send for antecedent_io::joint_panel_artifact::PanelUnitMetadata [auto]
+impl core::marker::Send for antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment [auto]
+impl core::marker::Send for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram [auto]
+impl core::marker::Send for antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins [auto]
+impl core::marker::Send for antecedent_io::joint_response_artifact::HistoricalJointResponse [auto]
+impl core::marker::Send for antecedent_io::joint_response_artifact::JointResponseArtifactError [auto]
 impl core::marker::Send for antecedent_io::latent_class_artifact::LatentClassArtifact [auto]
 impl core::marker::Send for antecedent_io::latent_class_artifact::LatentClassArtifactError [auto]
 impl core::marker::Send for antecedent_io::latent_class_artifact::LatentClassBootstrapWire [auto]
@@ -2717,6 +2766,17 @@ impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::Jo
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::JointSourceWire [auto]
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::JointTargetWire [auto]
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire [auto]
+impl core::marker::Sync for antecedent_io::joint_panel_artifact::FrozenPanelFit [auto]
+impl core::marker::Sync for antecedent_io::joint_panel_artifact::HistoricalPanelExecution [auto]
+impl core::marker::Sync for antecedent_io::joint_panel_artifact::PanelArtifactError [auto]
+impl core::marker::Sync for antecedent_io::joint_panel_artifact::PanelExecutionProgram [auto]
+impl core::marker::Sync for antecedent_io::joint_panel_artifact::PanelSourceMetadata [auto]
+impl core::marker::Sync for antecedent_io::joint_panel_artifact::PanelUnitMetadata [auto]
+impl core::marker::Sync for antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment [auto]
+impl core::marker::Sync for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram [auto]
+impl core::marker::Sync for antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins [auto]
+impl core::marker::Sync for antecedent_io::joint_response_artifact::HistoricalJointResponse [auto]
+impl core::marker::Sync for antecedent_io::joint_response_artifact::JointResponseArtifactError [auto]
 impl core::marker::Sync for antecedent_io::latent_class_artifact::LatentClassArtifact [auto]
 impl core::marker::Sync for antecedent_io::latent_class_artifact::LatentClassArtifactError [auto]
 impl core::marker::Sync for antecedent_io::latent_class_artifact::LatentClassBootstrapWire [auto]
@@ -3123,6 +3183,17 @@ impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::J
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::JointSourceWire [auto]
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::JointTargetWire [auto]
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire [auto]
+impl core::marker::Unpin for antecedent_io::joint_panel_artifact::FrozenPanelFit [auto]
+impl core::marker::Unpin for antecedent_io::joint_panel_artifact::HistoricalPanelExecution [auto]
+impl core::marker::Unpin for antecedent_io::joint_panel_artifact::PanelArtifactError [auto]
+impl core::marker::Unpin for antecedent_io::joint_panel_artifact::PanelExecutionProgram [auto]
+impl core::marker::Unpin for antecedent_io::joint_panel_artifact::PanelSourceMetadata [auto]
+impl core::marker::Unpin for antecedent_io::joint_panel_artifact::PanelUnitMetadata [auto]
+impl core::marker::Unpin for antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment [auto]
+impl core::marker::Unpin for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram [auto]
+impl core::marker::Unpin for antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins [auto]
+impl core::marker::Unpin for antecedent_io::joint_response_artifact::HistoricalJointResponse [auto]
+impl core::marker::Unpin for antecedent_io::joint_response_artifact::JointResponseArtifactError [auto]
 impl core::marker::Unpin for antecedent_io::latent_class_artifact::LatentClassArtifact [auto]
 impl core::marker::Unpin for antecedent_io::latent_class_artifact::LatentClassArtifactError [auto]
 impl core::marker::Unpin for antecedent_io::latent_class_artifact::LatentClassBootstrapWire [auto]
@@ -3527,6 +3598,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_t
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointSourceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointTargetWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_artifact::FrozenPanelFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_artifact::HistoricalPanelExecution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_artifact::PanelArtifactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_artifact::PanelExecutionProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_artifact::PanelSourceMetadata [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_artifact::PanelUnitMetadata [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_response_artifact::HistoricalJointResponse [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_response_artifact::JointResponseArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::latent_class_artifact::LatentClassArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::latent_class_artifact::LatentClassArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::latent_class_artifact::LatentClassBootstrapWire [auto]
@@ -3931,6 +4013,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_tran
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointSourceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointTargetWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_artifact::FrozenPanelFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_artifact::HistoricalPanelExecution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_artifact::PanelArtifactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_artifact::PanelExecutionProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_artifact::PanelSourceMetadata [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_artifact::PanelUnitMetadata [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_response_artifact::HistoricalJointResponse [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_response_artifact::JointResponseArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::latent_class_artifact::LatentClassArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::latent_class_artifact::LatentClassArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::latent_class_artifact::LatentClassBootstrapWire [auto]
@@ -4299,6 +4392,12 @@ impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_arti
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::JointSourceWire
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::JointTargetWire
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
+impl serde_core::ser::Serialize for antecedent_io::joint_panel_artifact::FrozenPanelFit
+impl serde_core::ser::Serialize for antecedent_io::joint_panel_artifact::PanelExecutionProgram
+impl serde_core::ser::Serialize for antecedent_io::joint_panel_artifact::PanelSourceMetadata
+impl serde_core::ser::Serialize for antecedent_io::joint_panel_artifact::PanelUnitMetadata
+impl serde_core::ser::Serialize for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram
+impl serde_core::ser::Serialize for antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins
 impl serde_core::ser::Serialize for antecedent_io::latent_class_artifact::LatentClassBootstrapWire
 impl serde_core::ser::Serialize for antecedent_io::latent_class_artifact::LatentClassConfigWire
 impl serde_core::ser::Serialize for antecedent_io::latent_class_artifact::LatentClassDataWire
@@ -4493,10 +4592,13 @@ impl serde_core::ser::Serialize for antecedent_io::vector_treatment_artifact::Wa
 impl serde_core::ser::Serialize for antecedent_io::z_transport_artifact::ZTransportArtifactWire
 impl serde_core::ser::Serialize for antecedent_io::z_transport_artifact::ZTransportPointWire
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::ModelBundleEncode<'a> [auto]
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_artifact::PanelExecutionSource<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io::ModelBundleEncode<'a> [auto]
+impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_artifact::PanelExecutionSource<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
 impl<'a> core::clone::Clone for antecedent_io::ModelBundleEncode<'a>
+impl<'a> core::clone::Clone for antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a>
 impl<'a> core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
 impl<'a> core::clone::Clone for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::clone::Clone for antecedent_io::stream_artifact::PayloadSource<'a>
@@ -4510,12 +4612,16 @@ impl<'a> core::fmt::Debug for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::fmt::Debug for antecedent_io::stream_artifact::PayloadSource<'a>
 impl<'a> core::fmt::Debug for antecedent_io::stream_artifact::StreamArtifact<'a>
 impl<'a> core::fmt::Debug for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
+impl<'a> core::marker::Copy for antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a>
 impl<'a> core::marker::Copy for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
 impl<'a> core::marker::Copy for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::marker::Copy for antecedent_io::stream_artifact::PayloadSource<'a>
 impl<'a> core::marker::Copy for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
 impl<'a> core::marker::Freeze for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io::joint_panel_artifact::PanelExecutionSource<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
@@ -4530,6 +4636,9 @@ impl<'a> core::marker::Freeze for antecedent_io::stream_artifact::StreamArtifact
 impl<'a> core::marker::Freeze for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io::joint_panel_artifact::PanelExecutionSource<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
@@ -4545,6 +4654,9 @@ impl<'a> core::marker::Send for antecedent_io::temporal_refresh_artifact::Refres
 impl<'a> core::marker::StructuralPartialEq for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::marker::Sync for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io::joint_panel_artifact::PanelExecutionSource<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
@@ -4559,6 +4671,9 @@ impl<'a> core::marker::Sync for antecedent_io::stream_artifact::StreamArtifact<'
 impl<'a> core::marker::Sync for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io::joint_panel_artifact::PanelExecutionSource<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
@@ -4572,6 +4687,8 @@ impl<'a> core::marker::Unpin for antecedent_io::stream_artifact::PayloadSource<'
 impl<'a> core::marker::Unpin for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
@@ -4584,6 +4701,8 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artif
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
@@ -4699,6 +4818,12 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_tra
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::JointSourceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::JointTargetWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_panel_artifact::FrozenPanelFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_panel_artifact::PanelExecutionProgram
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_panel_artifact::PanelSourceMetadata
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_panel_artifact::PanelUnitMetadata
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::latent_class_artifact::LatentClassBootstrapWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::latent_class_artifact::LatentClassConfigWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::latent_class_artifact::LatentClassDataWire
@@ -4950,6 +5075,10 @@ pub const antecedent_io::effect_constancy_artifact::MAX_EFFECT_CONSTANCY_ARTIFAC
 pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_ARTIFACT_FEATURE: &str
 pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_ARTIFACT_VERSION: u32
 pub const antecedent_io::joint_bayesian_transport_artifact::JOINT_BAYESIAN_CALIBRATION: &str
+pub const antecedent_io::joint_panel_artifact::JOINT_PANEL_ARTIFACT_VERSION: u16
+pub const antecedent_io::joint_panel_artifact::MAX_JOINT_PANEL_ARTIFACT_BYTES: usize
+pub const antecedent_io::joint_response_artifact::JOINT_RESPONSE_ARTIFACT_VERSION: u16
+pub const antecedent_io::joint_response_artifact::MAX_JOINT_RESPONSE_ARTIFACT_BYTES: usize
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_CALIBRATION: &str
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_FEATURE: &str
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_BOOTSTRAP: u32
@@ -5117,6 +5246,8 @@ pub enum antecedent_io::cyclic_graph::CyclicGraphReport
 pub enum antecedent_io::cyclic_graph::CyclicGraphRequest
 pub enum antecedent_io::cyclic_system_artifact::CyclicArtifactError
 pub enum antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
+pub enum antecedent_io::joint_panel_artifact::PanelArtifactError
+pub enum antecedent_io::joint_response_artifact::JointResponseArtifactError
 pub enum antecedent_io::measured_inference::split_parent_set_effect::Transformation
 pub enum antecedent_io::model_codes::GraphClassCode
 pub enum antecedent_io::model_codes::SourceDependenceCode
@@ -5904,6 +6035,47 @@ pub field antecedent_io::joint_bayesian_transport_artifact::JointSourceWire::tre
 pub field antecedent_io::joint_bayesian_transport_artifact::JointTargetWire::covariates: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_io::joint_bayesian_transport_artifact::JointTargetWire::identity: antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire
 pub field antecedent_io::joint_bayesian_transport_artifact::JointTargetWire::rows: usize
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::context: &'a antecedent_core::execution::ExecutionContext
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::data: &'a antecedent_estimate::joint_panel::PanelData
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::dependency: antecedent_core::identity::SemanticDigest
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::frozen: antecedent_io::joint_panel_artifact::FrozenPanelFit
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::options: &'a antecedent_estimate::joint_panel::PanelFitOptions
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::programs: alloc::vec::Vec<antecedent_estimate::joint_panel::PanelProgram>
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::proof: &'a antecedent_identify::compiled_product::CompiledIdentificationProduct
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::source: antecedent_io::joint_panel_artifact::PanelSourceMetadata
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::source_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::target: &'a antecedent_core::scientific_target::ScientificTarget
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::temporal: core::option::Option<&'a antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec>
+pub field antecedent_io::joint_panel_artifact::PanelExecutionSource::world_ids: alloc::vec::Vec<u32>
+pub field antecedent_io::joint_panel_artifact::PanelSourceMetadata::schema: antecedent_io_core::wire::SchemaWire
+pub field antecedent_io::joint_panel_artifact::PanelSourceMetadata::units: alloc::vec::Vec<antecedent_io::joint_panel_artifact::PanelUnitMetadata>
+pub field antecedent_io::joint_panel_artifact::PanelUnitMetadata::content_digest: [u8; 32]
+pub field antecedent_io::joint_panel_artifact::PanelUnitMetadata::id: u32
+pub field antecedent_io::joint_panel_artifact::PanelUnitMetadata::interval_ns: u64
+pub field antecedent_io::joint_panel_artifact::PanelUnitMetadata::rows: usize
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::bridge: &'a antecedent_contract::bridge::contract::BridgeContract
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::intercepts: &'a [f64]
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::ledger: &'a antecedent_contract::evidence_ledger::ledger::EvidenceLedger
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::mapping_dependency: antecedent_core::identity::SemanticDigest
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::observation_variance: f64
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::observed_mean: f64
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::origins: antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::panel: antecedent_io::joint_panel_artifact::PanelExecutionProgram
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::prior_metadata: antecedent_io_core::distribution_artifact::DistributionMetadata
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::projection: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::sample_size: u64
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource::slopes: &'a [f64]
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins::experiment: alloc::string::String
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins::mapping: alloc::string::String
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins::model: alloc::string::String
+pub field antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins::priors: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::joint_response_artifact::JointResponseArtifactSource::compiled_identification: &'a antecedent_identify::compiled_product::CompiledIdentificationProduct
+pub field antecedent_io::joint_response_artifact::JointResponseArtifactSource::contrast: core::option::Option<&'a [f64]>
+pub field antecedent_io::joint_response_artifact::JointResponseArtifactSource::numerical: &'a antecedent_estimate::response::joint_linear::PreparedJointLinear
+pub field antecedent_io::joint_response_artifact::JointResponseArtifactSource::source_digest: [u8; 32]
+pub field antecedent_io::joint_response_artifact::JointResponseArtifactSource::source_identification: &'a antecedent_identify::result::IdentificationResult
+pub field antecedent_io::joint_response_artifact::JointResponseArtifactSource::target: &'a antecedent_core::scientific_target::ScientificTarget
+pub field antecedent_io::joint_response_artifact::JointResponseArtifactSource::world_weights: &'a [alloc::vec::Vec<f64>]
 pub field antecedent_io::latent_class_artifact::LatentClassBootstrapWire::failed: u32
 pub field antecedent_io::latent_class_artifact::LatentClassBootstrapWire::requested: u32
 pub field antecedent_io::latent_class_artifact::LatentClassBootstrapWire::succeeded: u32
@@ -7645,6 +7817,35 @@ pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactW
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::joint_panel_artifact::FrozenPanelFit>::fn invariant(fit: &antecedent_estimate::joint_panel::PanelFit) -> Self
+pub fn <antecedent_io::joint_panel_artifact::FrozenPanelFit>::fn varying(fit: &antecedent_estimate::joint_panel::time_varying::TemporalPanelFit) -> Self
+pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::const fn grants_current_authority(&self) -> bool
+pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::fn draws(&self) -> &[core::option::Option<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>>]
+pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::fn point(&self) -> &[antecedent_estimate::joint_panel::PanelResponse]
+pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::fn program(&self) -> &antecedent_io::joint_panel_artifact::PanelExecutionProgram
+pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::fn retained_admitted_bytes(&self) -> u64
+pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::fn target(&self) -> &antecedent_core::scientific_target::ScientificTarget
+pub fn <antecedent_io::joint_panel_artifact::PanelExecutionProgram>::fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_io::joint_panel_artifact::PanelExecutionProgram>::fn from_source(source: antecedent_io::joint_panel_artifact::PanelExecutionSource<'_>) -> core::result::Result<Self, antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn <antecedent_io::joint_panel_artifact::PanelExecutionProgram>::fn identity(&self) -> core::result::Result<[u8; 32], antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn <antecedent_io::joint_panel_artifact::PanelExecutionProgram>::fn replay(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::joint_panel_artifact::HistoricalPanelExecution, antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn <antecedent_io::joint_panel_artifact::PanelExecutionProgram>::fn target(&self) -> core::result::Result<antecedent_core::scientific_target::ScientificTarget, antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn <antecedent_io::joint_panel_artifact::PanelExecutionProgram>::fn world_ids(&self) -> &[u32]
+pub fn <antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment>::const fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment>::const fn grants_current_authority(&self) -> bool
+pub fn <antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment>::fn numerical_law(&self) -> &antecedent_io_core::distribution_artifact::DistributionArtifact
+pub fn <antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment>::fn program(&self) -> &antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram
+pub fn <antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment>::fn retained_admitted_bytes(&self) -> u64
+pub fn <antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram>::fn from_source(source: antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource<'_>) -> core::result::Result<Self, antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn <antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram>::fn identity(&self) -> core::result::Result<[u8; 32], antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn <antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram>::fn replay(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment, antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn <antecedent_io::joint_response_artifact::HistoricalJointResponse>::const fn grants_current_authority(&self) -> bool
+pub fn <antecedent_io::joint_response_artifact::HistoricalJointResponse>::const fn identity(&self) -> [u8; 32]
+pub fn <antecedent_io::joint_response_artifact::HistoricalJointResponse>::const fn source_digest(&self) -> [u8; 32]
+pub fn <antecedent_io::joint_response_artifact::HistoricalJointResponse>::fn evaluation(&self) -> &antecedent_estimate::response::joint_linear::JointLinearEvaluation
+pub fn <antecedent_io::joint_response_artifact::HistoricalJointResponse>::fn into_evaluation(self) -> antecedent_estimate::response::joint_linear::JointLinearEvaluation
+pub fn <antecedent_io::joint_response_artifact::HistoricalJointResponse>::fn retained_admitted_bytes(&self) -> u64
+pub fn <antecedent_io::joint_response_artifact::HistoricalJointResponse>::fn target(&self) -> &antecedent_core::scientific_target::ScientificTarget
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_io::latent_class_artifact::LatentClassIdentity>) -> core::result::Result<Self, antecedent_io::latent_class_artifact::LatentClassArtifactError>
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn from_bytes_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::latent_class_artifact::LatentClassIdentity>, data: core::option::Option<&antecedent_io::latent_class_artifact::LatentClassDataWire>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::latent_class_artifact::LatentClassArtifactError>
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn identity(&self) -> &antecedent_io::latent_class_artifact::LatentClassIdentity
@@ -8018,6 +8219,14 @@ pub fn antecedent_io::interference_estimate_from_wire(value: &antecedent_io_core
 pub fn antecedent_io::interference_estimate_to_wire(value: &antecedent_estimate::interference::InterferenceEstimate) -> antecedent_io_core::transport_interference_wire::InterferenceEstimateWire
 pub fn antecedent_io::joint_bayesian_transport_artifact::prior_data_overlap_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, prior_sources: &[antecedent_contract::evidence_ledger::ids::SourceId], likelihood_sources: &[antecedent_contract::evidence_ledger::ids::SourceId]) -> core::result::Result<antecedent_estimate::joint_bayesian_transport::SourceDependence, antecedent_io_core::error::IoError>
 pub fn antecedent_io::joint_bayesian_transport_artifact::source_dependence_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, sources: &[antecedent_contract::evidence_ledger::ids::SourceId]) -> core::result::Result<antecedent_estimate::joint_bayesian_transport::SourceDependence, antecedent_io_core::error::IoError>
+pub fn antecedent_io::joint_panel_artifact::consume_panel_execution(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::joint_panel_artifact::HistoricalPanelExecution, antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn antecedent_io::joint_panel_artifact::encode_panel_execution(program: antecedent_io::joint_panel_artifact::PanelExecutionProgram, point: &[antecedent_estimate::joint_panel::PanelResponse], draws: &[core::option::Option<alloc::vec::Vec<antecedent_estimate::joint_panel::PanelResponse>>], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn antecedent_io::joint_panel_experiment_artifact::consume_panel_experiment(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment, antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn antecedent_io::joint_panel_experiment_artifact::encode_panel_experiment(program: antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram, law: &antecedent_io_core::distribution_artifact::DistributionArtifact, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::joint_panel_artifact::PanelArtifactError>
+pub fn antecedent_io::joint_panel_experiment_artifact::experiment_update_identity(target: &str, source: antecedent_core::identity::SemanticDigest, bridge: antecedent_core::identity::SemanticDigest, observed: f64, variance: f64, n: u64, intercepts: &[f64], slopes: &[f64], weights: &[f64], origins: &[alloc::string::String]) -> [u8; 32]
+pub fn antecedent_io::joint_response_artifact::consume_joint_response(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::joint_response_artifact::HistoricalJointResponse, antecedent_io::joint_response_artifact::JointResponseArtifactError>
+pub fn antecedent_io::joint_response_artifact::encode_joint_response(source: antecedent_io::joint_response_artifact::JointResponseArtifactSource<'_>, evaluation: &antecedent_estimate::response::joint_linear::JointLinearEvaluation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::joint_response_artifact::JointResponseArtifactError>
+pub fn antecedent_io::joint_response_artifact::joint_response_identity(source: antecedent_io::joint_response_artifact::JointResponseArtifactSource<'_>) -> core::result::Result<[u8; 32], antecedent_io::joint_response_artifact::JointResponseArtifactError>
 pub fn antecedent_io::measured_inference::build_report(route: &str, source: &[u8], premises: &str, data: &str, scope: serde_json::value::Value, executions: alloc::vec::Vec<antecedent_io::measured_inference::ScalarExecution>) -> core::result::Result<antecedent_io::measured_inference::MeasuredInferenceReport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::decode(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation) -> core::result::Result<antecedent_io::measured_inference::MeasuredEnvelopeWire, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::encode_report(source: &[u8], report: &antecedent_io::measured_inference::MeasuredInferenceReport) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
@@ -8067,6 +8276,9 @@ pub mod antecedent_io::cyclic_system_artifact
 pub mod antecedent_io::dose_grid_functional_artifact
 pub mod antecedent_io::effect_constancy_artifact
 pub mod antecedent_io::joint_bayesian_transport_artifact
+pub mod antecedent_io::joint_panel_artifact
+pub mod antecedent_io::joint_panel_experiment_artifact
+pub mod antecedent_io::joint_response_artifact
 pub mod antecedent_io::latent_class_artifact
 pub mod antecedent_io::learned_continuous_artifact
 pub mod antecedent_io::learned_joint_transport_artifact
@@ -8237,6 +8449,24 @@ pub struct antecedent_io::joint_bayesian_transport_artifact::JointOptionsWire
 pub struct antecedent_io::joint_bayesian_transport_artifact::JointResultWire
 pub struct antecedent_io::joint_bayesian_transport_artifact::JointSourceWire
 pub struct antecedent_io::joint_bayesian_transport_artifact::JointTargetWire
+pub struct antecedent_io::joint_panel_artifact::FrozenPanelFit
+pub struct antecedent_io::joint_panel_artifact::FrozenPanelFit has private fields
+pub struct antecedent_io::joint_panel_artifact::HistoricalPanelExecution
+pub struct antecedent_io::joint_panel_artifact::HistoricalPanelExecution has private fields
+pub struct antecedent_io::joint_panel_artifact::PanelExecutionProgram
+pub struct antecedent_io::joint_panel_artifact::PanelExecutionProgram has private fields
+pub struct antecedent_io::joint_panel_artifact::PanelExecutionSource<'a>
+pub struct antecedent_io::joint_panel_artifact::PanelSourceMetadata
+pub struct antecedent_io::joint_panel_artifact::PanelUnitMetadata
+pub struct antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment
+pub struct antecedent_io::joint_panel_experiment_artifact::HistoricalPanelExperiment has private fields
+pub struct antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram
+pub struct antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionProgram has private fields
+pub struct antecedent_io::joint_panel_experiment_artifact::PanelExperimentExecutionSource<'a>
+pub struct antecedent_io::joint_panel_experiment_artifact::PanelExperimentOrigins
+pub struct antecedent_io::joint_response_artifact::HistoricalJointResponse
+pub struct antecedent_io::joint_response_artifact::HistoricalJointResponse has private fields
+pub struct antecedent_io::joint_response_artifact::JointResponseArtifactSource<'a>
 pub struct antecedent_io::latent_class_artifact::LatentClassArtifact
 pub struct antecedent_io::latent_class_artifact::LatentClassArtifact has private fields
 pub struct antecedent_io::latent_class_artifact::LatentClassBootstrapWire
@@ -8815,6 +9045,7 @@ pub use antecedent_io::claim_domains = antecedent_io_core::claim_domains
 pub use antecedent_io::claim_kind_name = antecedent_io_core::claim_kind_name
 pub use antecedent_io::cohort_decision = antecedent_io_core::cohort_decision
 pub use antecedent_io::compact_export = antecedent_io_core::compact_export
+pub use antecedent_io::compiled_identification_wire = antecedent_io_core::compiled_identification_wire
 pub use antecedent_io::composition_verification_artifact = antecedent_io_core::composition_verification_artifact
 pub use antecedent_io::consume_analysis_result = antecedent_io_core::consume_analysis_result
 pub use antecedent_io::container = antecedent_io_core::container
@@ -9034,6 +9265,7 @@ pub use antecedent_io::result_digest = antecedent_io_core::result_digest
 pub use antecedent_io::schema_from_wire = antecedent_io_core::schema_from_wire
 pub use antecedent_io::schema_to_wire = antecedent_io_core::schema_to_wire
 pub use antecedent_io::schema_wire_from_v01 = antecedent_io_core::schema_wire_from_v01
+pub use antecedent_io::scientific_target_wire = antecedent_io_core::scientific_target_wire
 pub use antecedent_io::score_reuse_digest = antecedent_io_core::score_reuse_digest
 pub use antecedent_io::score_wire = antecedent_io_core::score_wire
 pub use antecedent_io::search_bounds = antecedent_io_core::search_bounds
@@ -9285,6 +9517,18 @@ pub variant antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtif
 pub variant antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError::UnsupportedSemantics(&'static str)
 pub variant antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire::Bank { bank_id: alloc::string::String, consumed: alloc::vec::Vec<antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire> }
 pub variant antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire::Declared
+pub variant antecedent_io::joint_panel_artifact::PanelArtifactError::Cancelled
+pub variant antecedent_io::joint_panel_artifact::PanelArtifactError::Engine(antecedent_estimate::joint_panel::PanelError)
+pub variant antecedent_io::joint_panel_artifact::PanelArtifactError::Invalid(alloc::string::String)
+pub variant antecedent_io::joint_panel_artifact::PanelArtifactError::Io(antecedent_io_core::error::IoError)
+pub variant antecedent_io::joint_panel_artifact::PanelArtifactError::Mismatch
+pub variant antecedent_io::joint_panel_artifact::PanelArtifactError::Resource(alloc::string::String)
+pub variant antecedent_io::joint_response_artifact::JointResponseArtifactError::Cancelled
+pub variant antecedent_io::joint_response_artifact::JointResponseArtifactError::Invalid(alloc::string::String)
+pub variant antecedent_io::joint_response_artifact::JointResponseArtifactError::Io(antecedent_io_core::error::IoError)
+pub variant antecedent_io::joint_response_artifact::JointResponseArtifactError::Mismatch
+pub variant antecedent_io::joint_response_artifact::JointResponseArtifactError::Numerical(antecedent_estimate::response::joint_linear::JointLinearError)
+pub variant antecedent_io::joint_response_artifact::JointResponseArtifactError::Resource(alloc::string::String)
 pub variant antecedent_io::latent_class_artifact::LatentClassArtifactError::Decode(alloc::string::String)
 pub variant antecedent_io::latent_class_artifact::LatentClassArtifactError::Encode(alloc::string::String)
 pub variant antecedent_io::latent_class_artifact::LatentClassArtifactError::IdentityMismatch { field: &'static str }
