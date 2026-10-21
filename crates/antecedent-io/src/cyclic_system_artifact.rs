@@ -236,6 +236,12 @@ pub struct PreparedCyclicExecution {
     resource_context: ExecutionContext,
 }
 impl PreparedCyclicExecution {
+    /// Borrow the frozen scientific request without copying observations.
+    #[must_use]
+    pub fn request(&self) -> &CyclicExecutionRequest {
+        &self.request
+    }
+
     /// Validate the complete request and perform its optional statistical fit once.
     pub fn prepare(
         request: CyclicExecutionRequest,

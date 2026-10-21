@@ -441,7 +441,8 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         .filter(|&(_, &kept)| kept)
         .map(|(&ti, _)| if ti == active { 1.0 } else { 0.0 })
         .collect();
-    let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
+    let selected = crate::prepare::SelectedRows::from_mask(&row_mask);
+    let y = selected.gather(data, outcome)?;
     let nrows = t.len();
     let sampling_weights = sampling
         .zip(zero_weight_rows)
@@ -473,7 +474,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
     design[..nrows].fill(1.0);
     let mut covariate_cols: Vec<Arc<[f64]>> = Vec::with_capacity(estimand.adjustment_set.len());
     for (i, &z) in estimand.adjustment_set.iter().enumerate() {
-        let col = data.float64_masked(z, &row_mask).map_err(EstimationError::from)?;
+        let col = selected.gather(data, z)?;
         let base = (1 + i) * nrows;
         design[base..base + nrows].copy_from_slice(&col[..nrows]);
         covariate_cols.push(Arc::from(col));

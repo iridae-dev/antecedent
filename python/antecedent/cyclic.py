@@ -18,6 +18,20 @@ from typing import Any, Literal
 from . import _native
 
 
+def _cyclic_numeric_rows(values, width):
+    import numpy as np
+
+    array = np.asarray(values)
+    if array.dtype.kind not in "fiu":
+        raise ValueError("cyclic buffers must contain real numbers")
+    array = np.asarray(array, dtype=np.float64)
+    if len(values) == 0:
+        return array.reshape(0, width)
+    if array.ndim != 2 or array.shape[1] != width:
+        raise ValueError("cyclic numeric buffer shape")
+    return array
+
+
 @dataclass(frozen=True)
 class Equation:
     """Named additive-noise mechanism, optionally a compositional expression."""
@@ -231,9 +245,7 @@ class EquilibriumModel:
             "policy": asdict(policy or SolvePolicy()),
             "factual": factual,
         }
-        return PreparedCyclicSystem(
-            json.dumps(request, allow_nan=False), max_bytes=max_bytes, cancel=cancel
-        )
+        return PreparedCyclicSystem._from_request(request, max_bytes=max_bytes, cancel=cancel)
 
 
 @dataclass(frozen=True)
@@ -254,6 +266,37 @@ class PreparedCyclicSystem:
             ),
         )
 
+    @classmethod
+    def _from_request(cls, request: dict[str, Any], *, max_bytes=None, cancel=None):
+        dimension = len(request["model"]["equations"])
+        noise = _cyclic_numeric_rows(request["noise"], dimension)
+        metadata = dict(request, noise=[])
+        rows = [] if request["fit"] is None else request["fit"]["rows"]
+        observations = _cyclic_numeric_rows([row["values"] for row in rows], dimension)
+        if request["fit"] is not None:
+            metadata["fit"] = dict(request["fit"], rows=[dict(row, values=[]) for row in rows])
+        handle = _native.prepare_cyclic_system_buffers(
+            json.dumps(metadata, allow_nan=False),
+            noise,
+            observations,
+            max_bytes=max_bytes,
+            cancel=cancel,
+        )
+        result = object.__new__(cls)
+        object.__setattr__(result, "request_json", None)
+        object.__setattr__(result, "max_bytes", max_bytes)
+        object.__setattr__(result, "cancel", cancel)
+        object.__setattr__(result, "_handle", handle)
+        object.__setattr__(result, "_use_buffers", noise.size * len(request["worlds"]) >= 64)
+        return result
+
+    def __getattribute__(self, name):
+        value = object.__getattribute__(self, name)
+        if name == "request_json" and value is None:
+            value = object.__getattribute__(self, "_handle").request_json()
+            object.__setattr__(self, name, value)
+        return value
+
     def inspect(self) -> dict[str, Any]:
         """Inspect the common native prepared handle's fit count and SCC schedules."""
         result: dict[str, Any] = json.loads(self._handle.inspect())
@@ -267,39 +310,63 @@ class PreparedCyclicSystem:
         initial: list[float] | None = None,
     ) -> PreparedCyclicSystem:
         """Retarget worlds with zero causal refits; source and inference remain frozen."""
-        request = json.loads(self.request_json)
-        request.update(worlds=worlds, noise=noise)
-        if initial is not None:
-            request["initial"] = initial
-        handle = self._handle.retarget(
+        noise_array = _cyclic_numeric_rows(noise, len(self._handle.initial_state()))
+        handle = self._handle.retarget_buffers(
             json.dumps(worlds, allow_nan=False),
-            json.dumps(noise, allow_nan=False),
-            json.dumps(request["initial"], allow_nan=False),
+            noise_array,
+            self._handle.initial_state() if initial is None else initial,
         )
         result = object.__new__(PreparedCyclicSystem)
-        object.__setattr__(result, "request_json", json.dumps(request, allow_nan=False))
+        object.__setattr__(result, "request_json", None)
         object.__setattr__(result, "_handle", handle)
+        object.__setattr__(result, "_use_buffers", noise_array.size * len(worlds) >= 64)
         object.__setattr__(result, "max_bytes", self.max_bytes)
         object.__setattr__(result, "cancel", self.cancel)
         return result
 
     def refresh(self, rows: list[dict[str, Any]]) -> PreparedCyclicSystem:
         """Replace training observations through a new preparation and refit."""
-        request = json.loads(self.request_json)
-        if request["fit"] is None:
-            raise ValueError("refresh requires a fitted retained program")
-        request["fit"]["rows"] = rows
-        return PreparedCyclicSystem(
-            json.dumps(request, allow_nan=False), max_bytes=self.max_bytes, cancel=self.cancel
+        observations = _cyclic_numeric_rows(
+            [row["values"] for row in rows], len(self._handle.initial_state())
         )
+        handle = self._handle.refresh_buffers(
+            json.dumps([dict(row, values=[]) for row in rows], allow_nan=False),
+            observations,
+            max_bytes=self.max_bytes,
+            cancel=self.cancel,
+        )
+        result = object.__new__(PreparedCyclicSystem)
+        object.__setattr__(result, "request_json", None)
+        object.__setattr__(result, "_handle", handle)
+        object.__setattr__(result, "_use_buffers", self.__dict__.get("_use_buffers", False))
+        object.__setattr__(result, "max_bytes", self.max_bytes)
+        object.__setattr__(result, "cancel", self.cancel)
+        return result
 
     def execute(self, *, max_bytes: int | None = None, cancel: Any = None) -> CyclicResult:
         """Execute the retained native product and produce its independent replay artifact."""
-        report, artifact = self._handle.execute(
+        # Tiny results are cheaper to decode directly; bulk values use NumPy buffers.
+        if not self.__dict__.get("_use_buffers", False):
+            report, artifact = self._handle.execute(
+                max_bytes=self.max_bytes if max_bytes is None else max_bytes,
+                cancel=self.cancel if cancel is None else cancel,
+            )
+            return CyclicResult(json.loads(report), artifact)
+        report, artifact, values, counterfactuals, width = self._handle.execute_buffers(
             max_bytes=self.max_bytes if max_bytes is None else max_bytes,
             cancel=self.cancel if cancel is None else cancel,
         )
-        return CyclicResult(json.loads(report), artifact)
+        report = json.loads(report)
+        offset = 0
+        for world in report["worlds"]:
+            for row in world:
+                row["values"] = values[offset : offset + width].tolist()
+                offset += width
+        offset = 0
+        for row in report["counterfactuals"] or []:
+            row["values"] = counterfactuals[offset : offset + width].tolist()
+            offset += width
+        return CyclicResult(report, artifact)
 
     def posterior(
         self,

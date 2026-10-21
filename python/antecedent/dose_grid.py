@@ -26,6 +26,10 @@ made. Level/contrast claims, derivative claims and the simultaneous band are sep
 (:class:`DoseClaims`); a simultaneous band is a different claim whose calibration is unmeasured,
 so requesting it refuses (``dose_grid.simultaneous_band_closed``) and no band is ever returned.
 
+Optional ``threads`` bounds grid workers, ``max_bytes`` bounds execution scratch, and
+``cancel`` accepts a cancellation token. Independent grid fits preserve request order;
+small grids use serial execution. The same controls apply during artifact recomputation.
+
 Rows are independent: clustered, serial or linked rows are outside this row. An observational
 dose is refused (``dose_grid.graph_not_certified``): this row does not adjust.
 
@@ -50,10 +54,10 @@ from ._native import consume_dose_grid_posterior_artifact as _consume_posterior
 from ._native import dose_support_labels as _support_labels
 from ._native import evaluate_dose_grid_functional as _evaluate
 from ._native import evaluate_dose_grid_posterior as _evaluate_posterior
+from ._posterior_row import PosteriorRowEstimate
 from ._refusal import raise_refusal
 from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
-from ._posterior_row import PosteriorRowEstimate
 
 __all__ = [
     "DoseGridPosteriorResult",
@@ -390,6 +394,9 @@ def _dose_functional(
     claims: DoseClaims | None = None,
     design: Design = "randomized_dose",
     quadratic_mean: bool = False,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: Any = None,
 ) -> DoseFunctionalResult:
     """Estimate one named functional of a randomized-dose response curve.
 
@@ -454,7 +461,12 @@ def _dose_functional(
     if quadratic_mean:
         request["quadratic_mean"] = True
     report, artifact, refusal = _evaluate(
-        json.dumps(request, allow_nan=False), _column(dose, "dose"), _column(outcome, "outcome")
+        json.dumps(request, allow_nan=False),
+        _column(dose, "dose"),
+        _column(outcome, "outcome"),
+        threads=threads,
+        max_bytes=max_bytes,
+        cancel=cancel,
     )
     raise_refusal(refusal, DoseGridRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
@@ -474,6 +486,9 @@ def dose_functional(
     minimum_local_ess: float = DEFAULT_MINIMUM_LOCAL_ESS,
     claims: DoseClaims | None = None,
     design: Design = "randomized_dose",
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: Any = None,
 ) -> DoseFunctionalResult:
     """Estimate a randomized-dose smoother functional with unmeasured smoothing bias.
 
@@ -491,6 +506,9 @@ def dose_functional(
         minimum_local_ess=minimum_local_ess,
         claims=claims,
         design=design,
+        threads=threads,
+        max_bytes=max_bytes,
+        cancel=cancel,
     )
 
 
@@ -506,6 +524,9 @@ def quadratic_dose_functional(
     minimum_local_ess: float = DEFAULT_MINIMUM_LOCAL_ESS,
     claims: DoseClaims | None = None,
     design: Design = "randomized_dose",
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: Any = None,
 ) -> DoseFunctionalResult:
     """Attest an exact quadratic conditional mean and estimate its named functional.
 
@@ -528,6 +549,9 @@ def quadratic_dose_functional(
         minimum_local_ess=minimum_local_ess,
         claims=claims,
         design=design,
+        threads=threads,
+        max_bytes=max_bytes,
+        cancel=cancel,
         quadratic_mean=True,
     )
 
@@ -566,6 +590,9 @@ def consume_dose_grid_artifact(
     *,
     max_rows: int = 100_000,
     max_grid: int = 1_024,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: Any = None,
 ) -> DoseFunctionalResult:
     """Recompute an exported dose-grid artifact and accept only an identical one.
 
@@ -582,7 +609,14 @@ def consume_dose_grid_artifact(
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)
-    report, refusal = _consume(data, max_rows=max_rows, max_grid=max_grid)
+    report, refusal = _consume(
+        data,
+        max_rows=max_rows,
+        max_grid=max_grid,
+        threads=threads,
+        max_bytes=max_bytes,
+        cancel=cancel,
+    )
     raise_refusal(refusal, DoseGridRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")

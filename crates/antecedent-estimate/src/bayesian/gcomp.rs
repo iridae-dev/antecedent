@@ -237,18 +237,14 @@ impl BayesianGComputationAte {
         ids.extend_from_slice(&estimand.adjustment_set);
         let crate::prepare::AdmittedColumns { data, row_mask, receipt } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
-        let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
-        let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
-        let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
-        for &z in estimand.adjustment_set.iter() {
-            covs.push((z, data.float64_masked(z, &row_mask).map_err(EstimationError::from)?));
-        }
-        let cov_refs: Vec<(VariableId, &[f64])> =
-            covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
-        let selected_rows: Vec<usize> =
-            row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
-        let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
-            .map_err(EstimationError::from)?;
+        let design = crate::prepare::direct_adjustment_design(
+            data,
+            treatment,
+            outcome,
+            &estimand.adjustment_set,
+            &[],
+            &row_mask,
+        )?;
         let schema = data.schema();
         let treatment_name = schema.get(treatment).map(|v| v.name.as_ref()).unwrap_or("treatment");
         let coef_names = coefficient_names_from_design(&design, treatment_name, |id| {

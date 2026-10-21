@@ -24,6 +24,9 @@ fn value_error(e: impl std::fmt::Display) -> PyErr {
 /// Parse the rows; the sampling design is checked first so clustered or undeclared
 /// designs refuse by name (`learned_transport.non_iid_design`).
 fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<TrialAipwInput> {
+    if data.hasattr("_buffers")? {
+        return crate::transport_buffers::trial(data, names, true);
+    }
     let wire: String = data.call_method1("_json", (names.to_vec(),))?.extract()?;
     let mut value: serde_json::Value = serde_json::from_str(&wire).map_err(serialization_error)?;
     let sampling =

@@ -307,11 +307,19 @@ impl GlmAdjustmentAte {
             .as_ref()
             .map(|weights| weights.restrict(&mut row_mask))
             .transpose()?;
-        let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
-        let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
+        let design = crate::prepare::direct_adjustment_design(
+            data,
+            treatment,
+            outcome,
+            &estimand.adjustment_set,
+            &[],
+            &row_mask,
+        )?;
+        let t: Arc<[f64]> = Arc::from(&design.matrix[design.nrows..2 * design.nrows]);
+        let y = &design.outcome;
         match self.family {
             GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
-                for &yi in &y {
+                for &yi in y.iter() {
                     if !(yi == 0.0 || yi == 1.0) {
                         return Err(EstimationError::unsupported(
                             "Binomial GlmAdjustmentAte requires a binary (0/1) outcome",
@@ -320,7 +328,7 @@ impl GlmAdjustmentAte {
                 }
             }
             GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => {
-                for &yi in &y {
+                for &yi in y.iter() {
                     if !(yi.is_finite() && yi >= 0.0) {
                         return Err(EstimationError::unsupported(
                             "Poisson/NB GlmAdjustmentAte requires non-negative outcomes",
@@ -330,16 +338,6 @@ impl GlmAdjustmentAte {
             }
             GlmFamily::GaussianIdentity => {}
         }
-        let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
-        for &z in estimand.adjustment_set.iter() {
-            covs.push((z, data.float64_masked(z, &row_mask).map_err(EstimationError::from)?));
-        }
-        let cov_refs: Vec<(VariableId, &[f64])> =
-            covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
-        let selected_rows: Vec<usize> =
-            row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
-        let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
-            .map_err(EstimationError::from)?;
         Ok(PreparedGlmProblem {
             design,
             method: Arc::clone(&estimand.method),
@@ -349,7 +347,7 @@ impl GlmAdjustmentAte {
             control,
             family: self.family,
             target_population: query.target_population.clone(),
-            treatment: Arc::from(t),
+            treatment: t,
             sampling,
             preparation,
         })

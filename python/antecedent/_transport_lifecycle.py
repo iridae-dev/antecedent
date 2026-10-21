@@ -13,6 +13,7 @@ from .errors import CausalUnsupportedError, CausalValueError
 class TransportLifecycle:
     wrap: Callable[[Any, Any], Any]
     payload: Callable[[Any], Any]
+    compact_payload: bool = False
 
     def execute(
         self,
@@ -34,9 +35,11 @@ class TransportLifecycle:
                 reason_code="option_not_applicable",
             )
         if refresh:
-            raw = native.refresh(self.payload(data), cancel=controls.get("cancel"))
+            execute = native.refresh_summary if self.compact_payload else native.refresh
+            raw = execute(self.payload(data), cancel=controls.get("cancel"))
         elif data is None:
-            raw = native.estimate(cancel=controls.get("cancel"))
+            execute = native.estimate_summary if self.compact_payload else native.estimate
+            raw = execute(cancel=controls.get("cancel"))
         else:
             raise CausalValueError(
                 "Use replace_snapshot or refresh for an explicit transport snapshot change"
@@ -53,7 +56,9 @@ def transport_lifecycle(kind: str) -> TransportLifecycle | None:
     )
 
     adapters = {
-        "learned_trial": TransportLifecycle(_learned_trial, lambda data: data),
+        "learned_trial": TransportLifecycle(
+            _learned_trial, lambda data: data, compact_payload=True
+        ),
         "exact_transport": TransportLifecycle(_exact_distribution, lambda data: data.laws),
         "statistical_transport": TransportLifecycle(_statistical_distribution, lambda data: data),
         "transport_grid": TransportLifecycle(_response_grid, lambda data: data),

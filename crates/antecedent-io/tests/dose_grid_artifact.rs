@@ -374,3 +374,19 @@ fn quadratic_mean_premise_and_required_feature_cannot_be_silently_changed() {
         DoseGridArtifactError::ResultMismatch
     );
 }
+
+#[test]
+fn context_cancellation_during_grid_work_never_seals_a_partial_artifact() {
+    let mut ctx = antecedent_core::ExecutionContext::production(11, 1);
+    // Entry and two grid fits can proceed; cancellation precedes the third fit.
+    ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(3);
+    let available = ctx.admission.available();
+    let error = DoseGridArtifactWire::seal_with_context(request("level", 0.01), &ctx)
+        .expect_err("an incomplete grid cannot produce a sealed artifact");
+    assert!(matches!(
+        error,
+        DoseGridArtifactError::Refused { ref detail, .. } if detail == "dose_grid.cancelled"
+    ));
+    assert!(ctx.cancellation.is_requested());
+    assert_eq!(ctx.admission.available(), available);
+}

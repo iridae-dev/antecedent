@@ -33,8 +33,8 @@ use antecedent_core::{IdentityDomain, SupportReport, SupportStatus};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::dose_grid_functional::{
     ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, DoseGridRow, IntervalCalibration,
-    PointwiseInterval, dose_support_report, estimate_dose_grid_functional,
-    estimate_dose_grid_quadratic_mean,
+    PointwiseInterval, dose_support_report, estimate_dose_grid_functional_with_context,
+    estimate_dose_grid_quadratic_mean_with_context,
 };
 use serde::{Deserialize, Serialize};
 
@@ -123,6 +123,18 @@ impl From<DoseGridArtifactError> for IoError {
 impl From<EstimationError> for DoseGridArtifactError {
     fn from(error: EstimationError) -> Self {
         match error {
+            EstimationError::Stats(antecedent_stats::StatsError::Cancelled) => Self::Refused {
+                code: antecedent_core::reason_code!("transport_budget_cancel"),
+                detail: "dose_grid.cancelled".into(),
+                message: "dose grid cancelled".into(),
+            },
+            EstimationError::Stats(error @ antecedent_stats::StatsError::ResourceLimit { .. }) => {
+                Self::Refused {
+                    code: antecedent_core::reason_code!("transport_budget_cancel"),
+                    detail: "dose_grid.resource_limit".into(),
+                    message: error.to_string(),
+                }
+            }
             EstimationError::Refused { code, message }
             | EstimationError::RefusedWithFields { code, message, .. } => {
                 let (detail, text) = message.split_once(": ").unwrap_or(("dose_grid.refused", ""));
@@ -466,7 +478,10 @@ impl DoseGridRequestWire {
     }
 
     /// Run the row on this request and render its result.
-    fn evaluate(&self) -> Result<DoseGridResultWire, DoseGridArtifactError> {
+    fn evaluate(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<DoseGridResultWire, DoseGridArtifactError> {
         let design = self.design()?;
         let functional = self.functional()?;
         let request = DoseGridRequest {
@@ -485,9 +500,9 @@ impl DoseGridRequestWire {
             design,
         };
         let row = if self.quadratic_mean {
-            estimate_dose_grid_quadratic_mean(&request)?
+            estimate_dose_grid_quadratic_mean_with_context(&request, ctx)?
         } else {
-            estimate_dose_grid_functional(&request)?
+            estimate_dose_grid_functional_with_context(&request, ctx)?
         };
         let points = self.evaluation_points(functional);
         let result = self.render(&row, &points, design);
@@ -639,8 +654,18 @@ impl DoseGridArtifactWire {
     /// The row's typed refusal (`dose_grid.*`), a stored collection above the default
     /// consumer bounds, or an unsupported spelling.
     pub fn seal(request: DoseGridRequestWire) -> Result<Self, DoseGridArtifactError> {
+        Self::seal_with_context(request, &antecedent_core::ExecutionContext::for_tests(0))
+    }
+
+    /// Seal under execution controls without changing the artifact premises.
+    /// # Errors
+    /// As [`Self::seal`], including execution refusals.
+    pub fn seal_with_context(
+        request: DoseGridRequestWire,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, DoseGridArtifactError> {
         request.check_limits(&DoseGridConsumeLimits::default())?;
-        let result = request.evaluate()?;
+        let result = request.evaluate(ctx)?;
         let undecodable = |e: IoError| DoseGridArtifactError::Undecodable(e.to_string());
         let wire = Self {
             version: DOSE_GRID_ARTIFACT_VERSION,
@@ -737,6 +762,21 @@ impl DoseGridArtifactWire {
         bytes: &[u8],
         limits: DoseGridConsumeLimits,
     ) -> Result<Self, DoseGridArtifactError> {
+        Self::consume_typed_with_context(
+            bytes,
+            limits,
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+    }
+
+    /// Recompute an artifact under execution controls.
+    /// # Errors
+    /// As [`Self::consume_typed`], including execution refusals.
+    pub fn consume_typed_with_context(
+        bytes: &[u8],
+        limits: DoseGridConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, DoseGridArtifactError> {
         let wire = Self::decode(bytes).map_err(|e| match e {
             IoError::Refused { .. } => DoseGridArtifactError::UnsupportedSemantics("shape"),
             other => DoseGridArtifactError::Undecodable(other.to_string()),
@@ -752,7 +792,7 @@ impl DoseGridArtifactWire {
         crate::require_digest(&wire.data_digest, wire.request.data_digest(), undecodable, || {
             DoseGridArtifactError::DataMismatch
         })?;
-        let fresh = wire.request.evaluate()?;
+        let fresh = wire.request.evaluate(ctx)?;
         let stored = crate::to_cbor(&wire.result).map_err(undecodable)?;
         let recomputed = crate::to_cbor(&fresh).map_err(undecodable)?;
         if stored != recomputed {

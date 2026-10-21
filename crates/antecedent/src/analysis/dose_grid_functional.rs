@@ -54,6 +54,27 @@ impl DoseGridFunctional {
         Ok(Self { artifact: DoseGridArtifactWire::seal(request)? })
     }
 
+    /// Evaluate with bounded worker, memory and cancellation controls.
+    /// # Errors
+    /// As [`Self::evaluate`], including execution refusals.
+    pub fn evaluate_with_context(
+        request: DoseGridRequestWire,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, DoseGridArtifactError> {
+        Ok(Self { artifact: DoseGridArtifactWire::seal_with_context(request, ctx)? })
+    }
+
+    /// Consume with bounded worker, memory and cancellation controls.
+    /// # Errors
+    /// As [`Self::consume`], including execution refusals.
+    pub fn consume_with_context(
+        bytes: &[u8],
+        limits: DoseGridConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, DoseGridArtifactError> {
+        Ok(Self { artifact: DoseGridArtifactWire::consume_typed_with_context(bytes, limits, ctx)? })
+    }
+
     /// Consume an exported artifact by recomputing the local-quadratic fit from its
     /// embedded dose/outcome table.
     ///

@@ -15,7 +15,6 @@ use std::sync::Arc;
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
 };
-use antecedent_data::categorical::ExpandedContrast;
 use antecedent_data::materialize::{
     PreparationBudget, PreparationControls, PreparationProduct, PreparationReceipt, StreamingScan,
     prepare_table,
@@ -469,15 +468,15 @@ impl LinearAdjustmentAte {
             .as_ref()
             .map(|weights| weights.restrict(&mut row_mask))
             .transpose()?;
-        let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
-        let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
-        let covs = adjustment_covariates(data, &estimand.adjustment_set, &expanded, &row_mask)?;
-        let cov_refs: Vec<(VariableId, &[f64])> =
-            covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
-        let selected_rows: Vec<usize> =
-            row_mask.iter().enumerate().filter_map(|(i, keep)| keep.then_some(i)).collect();
-        let design = CompiledDesign::linear_adjustment(&t, &cov_refs, &y, &selected_rows)
-            .map_err(EstimationError::from)?;
+        let design = crate::prepare::direct_adjustment_design(
+            data,
+            treatment,
+            outcome,
+            &estimand.adjustment_set,
+            &expanded,
+            &row_mask,
+        )?;
+        let t: Arc<[f64]> = Arc::from(&design.matrix[design.nrows..2 * design.nrows]);
         let design = match &retained {
             Some(retained) => {
                 crate::sampling_weights::root_weight_design(design, &retained.weights)
@@ -491,7 +490,7 @@ impl LinearAdjustmentAte {
             overlap: self.overlap,
             treatment_delta,
             target_population: query.target_population.clone(),
-            treatment: Arc::from(t),
+            treatment: t,
             active,
             control,
             sampling_weights: retained.map(|retained| retained.record),
@@ -1355,32 +1354,6 @@ fn huber_homoskedastic_se(
         scores.iter().map(|e| e * e).sum::<f64>() / (n - p) / (mean_curvature * mean_curvature);
     crate::util::xtx_inverse(x, nrows, ncols)
         .map_or(f64::NAN, |inv| (kappa * kappa * tau2 * inv[t_col * ncols + t_col].max(0.0)).sqrt())
-}
-
-fn adjustment_covariates(
-    data: &TabularData,
-    adjustment: &[VariableId],
-    expanded: &[ExpandedContrast],
-    row_mask: &[bool],
-) -> Result<Vec<(VariableId, Vec<f64>)>, EstimationError> {
-    let mut covs = Vec::new();
-    for &id in adjustment {
-        if let Some(column) = expanded.iter().find(|column| column.variable == id) {
-            for values in &column.columns {
-                covs.push((id, mask_kept(values, row_mask)?));
-            }
-        } else {
-            covs.push((id, data.float64_masked(id, row_mask)?));
-        }
-    }
-    Ok(covs)
-}
-
-fn mask_kept(values: &[f64], keep: &[bool]) -> Result<Vec<f64>, EstimationError> {
-    if values.len() != keep.len() {
-        return Err(EstimationError::data_msg("contrast column length does not match the table"));
-    }
-    Ok(values.iter().zip(keep).filter_map(|(value, kept)| kept.then_some(*value)).collect())
 }
 
 /// Frisch–Waugh influence of the treatment coefficient, scaled by `delta`.

@@ -9,13 +9,13 @@
 //! `CausalSerializationError`.
 
 use crate::bridge::{RefusalJson, check_declared_size, serialization};
-use antecedent::analysis::dose_grid_functional::{
-    DoseGridArtifactError, DoseGridConsumeLimits, DoseGridFunctional, DoseGridRequestWire,
-    dose_support_table,
-};
 use antecedent::analysis::bayesian_posterior_row::{
     BayesianPosteriorRow, PosteriorRowArtifactError, PosteriorRowConsumeLimits,
     PosteriorRowRequestWire,
+};
+use antecedent::analysis::dose_grid_functional::{
+    DoseGridArtifactError, DoseGridConsumeLimits, DoseGridFunctional, DoseGridRequestWire,
+    dose_support_table,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -28,7 +28,32 @@ const MAX_JSON_BYTES: usize = crate::bridge::MAX_SPEC_DECLARATION_BYTES;
 type EvaluatePayload = (Option<String>, Option<Py<PyBytes>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
 
+fn dose_context(
+    threads: Option<u32>,
+    max_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<antecedent_core::ExecutionContext> {
+    if threads == Some(0) {
+        return Err(value_err("threads must be positive"));
+    }
+    let mut ctx = antecedent_core::ExecutionContext::production(
+        0,
+        threads.unwrap_or_else(antecedent_core::default_user_threads),
+    );
+    ctx.memory.hard_limit_bytes = max_bytes;
+    if let Some(bytes) = max_bytes {
+        let workers = ctx.parallelism.max_threads.get();
+        ctx = ctx.with_admission(antecedent_core::execution::AdmissionPool::fixed(workers, bytes));
+    }
+    crate::apply_cancel(&mut ctx, cancel);
+    Ok(ctx)
+}
+
 fn refusal_json(error: &DoseGridArtifactError, stage: &'static str) -> Option<String> {
+    if matches!(error, DoseGridArtifactError::Refused { code, .. } if *code == antecedent_core::reason_code!("transport_budget_cancel"))
+    {
+        return None;
+    }
     if matches!(error, DoseGridArtifactError::Undecodable(_)) {
         return None;
     }
@@ -38,6 +63,19 @@ fn refusal_json(error: &DoseGridArtifactError, stage: &'static str) -> Option<St
         other => other.to_string(),
     };
     Some(RefusalJson::new(code, stage, &detail, &message).json())
+}
+
+fn execution_error(error: &DoseGridArtifactError) -> PyErr {
+    if let DoseGridArtifactError::Refused { code, detail, message } = error {
+        if *code == antecedent_core::reason_code!("transport_budget_cancel") {
+            return if detail == "dose_grid.cancelled" {
+                crate::CausalCancelledError::new_err(message.clone())
+            } else {
+                crate::CausalResourceError::new_err(message.clone())
+            };
+        }
+    }
+    serialization(error)
 }
 
 /// The report: the premises with the table elided (its length is `result.n_rows`), the
@@ -64,47 +102,59 @@ fn report_json(done: &DoseGridFunctional) -> PyResult<String> {
 /// `request_json` carries every premise with empty `dose` and `outcome`; the table is
 /// passed as `dose` and `outcome`.
 #[pyfunction]
+#[pyo3(signature=(request_json, dose, outcome, *, threads=None, max_bytes=None, cancel=None))]
 fn evaluate_dose_grid_functional(
     py: Python<'_>,
     request_json: &str,
     dose: Vec<f64>,
     outcome: Vec<f64>,
+    threads: Option<u32>,
+    max_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<EvaluatePayload> {
     check_declared_size(request_json, MAX_JSON_BYTES, "dose grid")?;
     let mut request: DoseGridRequestWire = serde_json::from_str(request_json)
         .map_err(|e| value_err(format!("dose_grid.invalid_request: {e}")))?;
     request.dose = dose;
     request.outcome = outcome;
-    let payload = detach_catch(py, move || match DoseGridFunctional::evaluate(request) {
-        Ok(done) => {
-            let bytes = done.export().map_err(|e| serialization(&e))?;
-            Ok((Some(report_json(&done)?), Some(bytes), None))
-        }
-        Err(error) => match refusal_json(&error, "dose_grid") {
-            Some(json) => Ok((None, None, Some(json))),
-            None => Err(serialization(&error)),
-        },
-    })?;
+    let ctx = dose_context(threads, max_bytes, cancel)?;
+    let payload =
+        detach_catch(py, move || match DoseGridFunctional::evaluate_with_context(request, &ctx) {
+            Ok(done) => {
+                let bytes = done.export().map_err(|e| serialization(&e))?;
+                Ok((Some(report_json(&done)?), Some(bytes), None))
+            }
+            Err(error) => match refusal_json(&error, "dose_grid") {
+                Some(json) => Ok((None, None, Some(json))),
+                None => Err(execution_error(&error)),
+            },
+        })?;
     let (report, bytes, refusal) = payload;
     Ok((report, bytes.map(|b| PyBytes::new(py, &b).unbind()), refusal))
 }
 
 /// Consume an artifact by recomputation: `(report json, refusal json)`.
 #[pyfunction]
-#[pyo3(signature = (artifact, *, max_rows=100_000, max_grid=1_024))]
+#[pyo3(signature = (artifact, *, max_rows=100_000, max_grid=1_024, threads=None, max_bytes=None, cancel=None))]
 fn consume_dose_grid_artifact(
     py: Python<'_>,
     artifact: Vec<u8>,
     max_rows: usize,
     max_grid: usize,
+    threads: Option<u32>,
+    max_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<ConsumePayload> {
     let limits = DoseGridConsumeLimits { max_rows, max_grid };
-    detach_catch(py, move || match DoseGridFunctional::consume(&artifact, limits) {
-        Ok(done) => Ok((Some(report_json(&done)?), None)),
-        Err(error) => match refusal_json(&error, "consume") {
-            Some(json) => Ok((None, Some(json))),
-            None => Err(serialization(&error)),
-        },
+    let ctx = dose_context(threads, max_bytes, cancel)?;
+    detach_catch(py, move || {
+        match DoseGridFunctional::consume_with_context(&artifact, limits, &ctx) {
+            Ok(done) => Ok((Some(report_json(&done)?), None)),
+            Err(error) => match refusal_json(&error, "consume") {
+                Some(json) => Ok((None, Some(json))),
+                None => Err(execution_error(&error)),
+            },
+        }
     })
 }
 
@@ -126,13 +176,16 @@ fn dose_support_labels(
             }
             Err(error) => match refusal_json(&error, "dose_grid") {
                 Some(json) => Ok((None, Some(json))),
-                None => Err(serialization(&error)),
+                None => Err(execution_error(&error)),
             },
         }
     })
 }
 
-fn posterior_refusal_json(error: &PosteriorRowArtifactError, stage: &'static str) -> Option<String> {
+fn posterior_refusal_json(
+    error: &PosteriorRowArtifactError,
+    stage: &'static str,
+) -> Option<String> {
     if matches!(error, PosteriorRowArtifactError::Undecodable(_)) {
         return None;
     }

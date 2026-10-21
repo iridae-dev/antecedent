@@ -25,6 +25,9 @@ fn value_error(e: impl std::fmt::Display) -> PyErr {
 /// Parse the rows; the sampling design is checked first so clustered or undeclared
 /// designs refuse by name (`dose_response.non_iid_design`).
 fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<SmoothedDoseInput> {
+    if data.hasattr("_buffers")? {
+        return crate::transport_buffers::smoothed(data, names);
+    }
     let wire: String = data.call_method1("_json", (names.to_vec(),))?.extract()?;
     let mut value: serde_json::Value = serde_json::from_str(&wire).map_err(serialization_error)?;
     let sampling =
@@ -320,7 +323,8 @@ fn consume_smoothed_dose_posterior(
     max_rows: usize,
     max_points: usize,
 ) -> PyResult<String> {
-    let (names, bytes) = unframe_named_artifact(POSTERIOR_PREFIX, artifact, "smoothed dose posterior")?;
+    let (names, bytes) =
+        unframe_named_artifact(POSTERIOR_PREFIX, artifact, "smoothed dose posterior")?;
     let limits = antecedent::analysis::bayesian_posterior_row::PosteriorRowConsumeLimits {
         max_rows,
         max_points,

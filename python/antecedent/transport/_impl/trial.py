@@ -34,6 +34,11 @@ class TrialAipwData:
     randomization: Sequence[float]
     sampling: Literal["nested_cohort", "independent_samples"]
 
+    def _buffers(self, names: Sequence[str]) -> dict[str, Any]:
+        from .._buffers import trial_buffers
+
+        return trial_buffers(self, names)
+
     def _json(self, names: Sequence[str]) -> str:
         import json
 

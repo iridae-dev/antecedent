@@ -232,3 +232,203 @@ pub fn treatment_contrast(
     }
     Ok((a, c, delta))
 }
+
+/// A source-ordered cohort, constructed once after all role restrictions.
+pub(crate) struct SelectedRows {
+    pub(crate) indices: Vec<usize>,
+    source_len: usize,
+}
+impl SelectedRows {
+    pub(crate) fn from_mask(mask: &[bool]) -> Self {
+        Self {
+            indices: mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect(),
+            source_len: mask.len(),
+        }
+    }
+    fn copy_into(&self, values: &[f64], output: &mut [f64]) -> Result<(), EstimationError> {
+        if values.len() != self.source_len || output.len() != self.indices.len() {
+            return Err(EstimationError::data_msg("selected column length mismatch"));
+        }
+        if self.indices.len() == self.source_len {
+            output.copy_from_slice(values);
+        } else {
+            for (slot, &row) in output.iter_mut().zip(&self.indices) {
+                *slot = values[row];
+            }
+        }
+        Ok(())
+    }
+    pub(crate) fn gather(
+        &self,
+        data: &TabularData,
+        id: VariableId,
+    ) -> Result<Vec<f64>, EstimationError> {
+        let antecedent_data::ColumnView::Float64(column) = data.column(id)? else {
+            return Err(EstimationError::data_msg("expected float64 selected column"));
+        };
+        let mut output = vec![0.0; self.indices.len()];
+        self.copy_into(column.values.as_slice(), &mut output)?;
+        Ok(output)
+    }
+}
+
+/// Gather the admitted cohort directly into its final design. Expanded contrasts
+/// remain source-row aligned; selection is applied exactly once to every column.
+pub(crate) fn direct_adjustment_design(
+    data: &TabularData,
+    treatment: VariableId,
+    outcome: VariableId,
+    adjustment: &[VariableId],
+    expanded: &[antecedent_data::categorical::ExpandedContrast],
+    mask: &[bool],
+) -> Result<antecedent_stats::CompiledDesign, EstimationError> {
+    use antecedent_data::ColumnView;
+    use antecedent_stats::{
+        CompiledDesign, DesignColumnMap, DesignColumnRole, StandardizationRecord,
+    };
+    use std::sync::Arc;
+    let column = |id| -> Result<&[f64], EstimationError> {
+        match data.column(id)? {
+            ColumnView::Float64(c) => Ok(c.values.as_slice()),
+            _ => Err(EstimationError::data_msg("expected a float64 design column")),
+        }
+    };
+    if mask.len() != data.row_count() {
+        return Err(EstimationError::data_msg("design selection length mismatch"));
+    }
+    let selected = SelectedRows::from_mask(mask);
+    if selected.indices.is_empty() {
+        return Err(EstimationError::data_msg("empty design"));
+    }
+    let mut columns = vec![(DesignColumnRole::Treatment, column(treatment)?)];
+    for &id in adjustment {
+        if let Some(contrast) = expanded.iter().find(|c| c.variable == id) {
+            columns.extend(
+                contrast.columns.iter().map(|c| (DesignColumnRole::Covariate(id), c.as_slice())),
+            );
+        } else {
+            columns.push((DesignColumnRole::Covariate(id), column(id)?));
+        }
+    }
+    let nrows = selected.indices.len();
+    let ncols = columns.len() + 1;
+    let mut matrix = vec![
+        0.0;
+        nrows
+            .checked_mul(ncols)
+            .ok_or_else(|| EstimationError::data_msg("design size overflow"))?
+    ];
+    matrix[..nrows].fill(1.0);
+    for (dest, (_, values)) in matrix[nrows..].chunks_exact_mut(nrows).zip(&columns) {
+        selected.copy_into(values, dest)?;
+    }
+    let mut y = vec![0.0; nrows];
+    selected.copy_into(column(outcome)?, &mut y)?;
+    let roles =
+        std::iter::once(DesignColumnRole::Intercept).chain(columns.iter().map(|(role, _)| *role));
+    Ok(CompiledDesign {
+        nrows,
+        ncols,
+        matrix: Arc::from(matrix),
+        outcome: Arc::from(y),
+        columns: DesignColumnMap::from_roles(roles),
+        row_selection: Arc::from(selected.indices),
+        contrasts: Vec::new(),
+        smooths: Vec::new(),
+        standardization: StandardizationRecord::default(),
+    })
+}
+
+#[cfg(test)]
+mod direct_design_tests {
+    use super::*;
+    #[test]
+    fn direct_gather_matches_the_independent_masked_design() {
+        let data = TabularData::from_f64_columns([
+            ("t", &[0.0, 1.0, 0.0, 1.0][..]),
+            ("y", &[2.0, 4.0, 8.0, 16.0][..]),
+            ("z", &[3.0, 5.0, 7.0, 11.0][..]),
+        ])
+        .unwrap();
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let z = VariableId::from_raw(2);
+        for mask in [[true, true, true, true], [true, false, true, false]] {
+            let actual = direct_adjustment_design(&data, t, y, &[z], &[], &mask).unwrap();
+            let rows: Vec<_> =
+                mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
+            let ts = data.float64_masked(t, &mask).unwrap();
+            let ys = data.float64_masked(y, &mask).unwrap();
+            let zs = data.float64_masked(z, &mask).unwrap();
+            let reference =
+                antecedent_stats::CompiledDesign::linear_adjustment(&ts, &[(z, &zs)], &ys, &rows)
+                    .unwrap();
+            assert_eq!(actual.matrix, reference.matrix);
+            assert_eq!(actual.outcome, reference.outcome);
+            assert_eq!(actual.row_selection, reference.row_selection);
+            assert_eq!(actual.columns, reference.columns);
+        }
+    }
+}
+
+#[cfg(test)]
+mod design_measurement {
+    use super::*;
+    #[test]
+    #[ignore = "explicit performance measurement; requires a quiet machine"]
+    fn measure_direct_design() {
+        assert_eq!(std::env::var("CLASSIC_MEASURE").as_deref(), Ok("1"));
+        let number = |name: &str, default| {
+            std::env::var(name).ok().and_then(|v| v.parse::<usize>().ok()).unwrap_or(default)
+        };
+        let n = number("CLASSIC_ROWS", 100000);
+        let width = number("CLASSIC_COLUMNS", 32);
+        let repeats = number("CLASSIC_REPEATS", 9);
+        let names: Vec<_> = (0..width).map(|i| format!("v{i}")).collect();
+        let columns: Vec<Vec<f64>> = (0..width)
+            .map(|c| (0..n).map(|r| ((r * (c + 1)) as f64 * 0.013).sin()).collect())
+            .collect();
+        let data = TabularData::from_f64_columns(
+            names.iter().zip(&columns).map(|(name, values)| (name.as_str(), values.as_slice())),
+        )
+        .unwrap();
+        let ids: Vec<_> = (2..width).map(|i| VariableId::from_raw(i as u32)).collect();
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        for filtered in [false, true] {
+            let mask: Vec<_> = (0..n).map(|i| !filtered || i % 10 != 0).collect();
+            let reference = || {
+                let t = data.float64_masked(t, &mask).unwrap();
+                let y = data.float64_masked(y, &mask).unwrap();
+                let covs: Vec<_> =
+                    ids.iter().map(|&id| (id, data.float64_masked(id, &mask).unwrap())).collect();
+                let refs: Vec<_> = covs.iter().map(|(id, c)| (*id, c.as_slice())).collect();
+                let rows: Vec<_> =
+                    mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
+                antecedent_stats::CompiledDesign::linear_adjustment(&t, &refs, &y, &rows).unwrap()
+            };
+            let candidate = || direct_adjustment_design(&data, t, y, &ids, &[], &mask).unwrap();
+            let expected = reference();
+            let actual = candidate();
+            assert_eq!(actual.matrix, expected.matrix);
+            assert_eq!(actual.outcome, expected.outcome);
+            assert_eq!(actual.row_selection, expected.row_selection);
+            let mut modes = ["reference", "direct"];
+            if std::env::var_os("CLASSIC_REVERSE").is_some() {
+                modes.reverse();
+            }
+            for mode in modes {
+                let mut samples = Vec::new();
+                for _ in 0..repeats {
+                    let start = std::time::Instant::now();
+                    let value = if mode == "reference" { reference() } else { candidate() };
+                    samples.push(start.elapsed().as_nanos());
+                    std::hint::black_box(value);
+                }
+                println!(
+                    "{{\"experiment\":\"design\",\"mode\":\"{mode}\",\"rows\":{n},\"columns\":{width},\"filtered\":{filtered},\"samples_ns\":{samples:?}}}"
+                );
+            }
+        }
+    }
+}

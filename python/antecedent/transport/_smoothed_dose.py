@@ -34,11 +34,11 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from .. import _native
+from .._posterior_row import PosteriorRowEstimate
 from ..errors import CausalTypeError, CausalValueError
 from ..graph import Admg
 from ..learners import Linear, Logistic, _learner_wire
 from ._impl import SelectionDiagram
-from .._posterior_row import PosteriorRowEstimate
 from ._learned_continuous import EstimatorMenu, _frozen, _menu, _thaw
 
 #: The one supported target of a request.
@@ -179,6 +179,11 @@ class SmoothedDoseData:
     dose_density: Sequence[float]
     source: Sequence[bool]
     sampling: Literal["nested_cohort", "independent_samples"]
+
+    def _buffers(self, names: Sequence[str]) -> dict[str, Any]:
+        from ._buffers import smoothed_buffers
+
+        return smoothed_buffers(self, names)
 
     def _json(self, names: Sequence[str]) -> str:
         unknown = set(self.covariates) - set(names)

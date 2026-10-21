@@ -10,8 +10,29 @@ fn err(e: impl std::fmt::Display) -> PyErr {
     crate::value_err(e.to_string())
 }
 fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<TrialAipwInput> {
+    if data.hasattr("_buffers")? {
+        return crate::transport_buffers::trial(data, names, false);
+    }
     let wire: String = data.call_method1("_json", (names.to_vec(),))?.extract()?;
     serde_json::from_str(&wire).map_err(err)
+}
+// The Python result exposes these fields; per-row predictions and scores remain
+// in the frozen native result and portable artifact, available through legacy methods.
+fn trial_payload(result: &antecedent::LearnedTrialResult, compact: bool) -> PyResult<String> {
+    let estimate = result.estimate();
+    if !compact {
+        return serde_json::to_string(estimate).map_err(err);
+    }
+    Ok(serde_json::json!({
+        "estimate": estimate.estimate,
+        "interval": estimate.interval,
+        "uncertainty_reason": estimate.uncertainty_reason,
+        "replicates": estimate.replicates,
+        "failures": estimate.failures,
+        "overlap": estimate.overlap,
+        "diagnostics": estimate.diagnostics,
+    })
+    .to_string())
 }
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
@@ -28,6 +49,39 @@ impl PreparedLearnedTrial {
         ctx.memory.hard_limit_bytes = self.memory_bytes;
         crate::apply_cancel(&mut ctx, cancel);
         ctx
+    }
+    fn estimate_payload(
+        &mut self,
+        py: Python<'_>,
+        cancel: Option<crate::PyCancellationToken>,
+        compact: bool,
+    ) -> PyResult<String> {
+        let ctx = self.ctx(cancel);
+        let inner = self.inner.clone().ok_or_else(|| err("loaded claims cannot execute"))?;
+        let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(err))?;
+        let payload = trial_payload(&result, compact)?;
+        self.last = Some(result);
+        Ok(payload)
+    }
+    fn refresh_payload(
+        &mut self,
+        py: Python<'_>,
+        data: &Bound<'_, PyAny>,
+        cancel: Option<crate::PyCancellationToken>,
+        compact: bool,
+    ) -> PyResult<String> {
+        let input = parse_input(data, &self.names)?;
+        let ctx = self.ctx(cancel);
+        let mut candidate =
+            self.inner.clone().ok_or_else(|| err("loaded claims cannot refresh"))?;
+        let (candidate, result) = crate::detach_catch(py, move || {
+            let result = candidate.refresh(input, &ctx).map_err(err)?;
+            Ok((candidate, result))
+        })?;
+        let payload = trial_payload(&result, compact)?;
+        self.inner = Some(candidate);
+        self.last = Some(result);
+        Ok(payload)
     }
     /// Native four-slot reasoning: the executed result's own view once estimated, else
     /// the not-yet-executed view of the prepared identification (identification is a
@@ -48,12 +102,15 @@ impl PreparedLearnedTrial {
         py: Python<'_>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let ctx = self.ctx(cancel);
-        let inner = self.inner.clone().ok_or_else(|| err("loaded claims cannot execute"))?;
-        let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(err))?;
-        let payload = serde_json::to_string(result.estimate()).map_err(err)?;
-        self.last = Some(result);
-        Ok(payload)
+        self.estimate_payload(py, cancel, false)
+    }
+    #[pyo3(signature=(cancel=None))]
+    fn estimate_summary(
+        &mut self,
+        py: Python<'_>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        self.estimate_payload(py, cancel, true)
     }
     #[pyo3(signature=(data,cancel=None))]
     fn refresh(
@@ -62,18 +119,19 @@ impl PreparedLearnedTrial {
         data: &Bound<'_, PyAny>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let input = parse_input(data, &self.names)?;
-        let ctx = self.ctx(cancel);
-        let mut candidate =
-            self.inner.clone().ok_or_else(|| err("loaded claims cannot refresh"))?;
-        let (candidate, result) = crate::detach_catch(py, move || {
-            let result = candidate.refresh(input, &ctx).map_err(err)?;
-            Ok((candidate, result))
-        })?;
-        let payload = serde_json::to_string(result.estimate()).map_err(err)?;
-        self.inner = Some(candidate);
-        self.last = Some(result);
-        Ok(payload)
+        self.refresh_payload(py, data, cancel, false)
+    }
+    #[pyo3(signature=(data,cancel=None))]
+    fn refresh_summary(
+        &mut self,
+        py: Python<'_>,
+        data: &Bound<'_, PyAny>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        self.refresh_payload(py, data, cancel, true)
+    }
+    fn last_result_summary(&self) -> PyResult<String> {
+        trial_payload(self.last.as_ref().ok_or_else(|| err("execute before reading result"))?, true)
     }
     fn freeze(&self) -> Self {
         self.clone()

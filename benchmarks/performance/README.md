@@ -103,3 +103,20 @@ This is an initial diagnostic matrix, not full performance acceptance for every
 controls; temporal/panel inference, transport, matching, mediation and posterior
 response grids need their own representative workload sizes. No aggregate score
 substitutes for a capability's own correctness and effort checks.
+
+
+`classic_workflows.py` adds direct preparation, worker-controlled dose grids,
+PC at explicit worker counts, and bulk cyclic disturbances. `transport_buffers.py`
+compares the default and retained JSON routes for trial, continuous and smoothed
+transport through prepare, cold, prepared and refresh calls. Both default to
+untimed scientific validation; `--measure --repeats 9 --output <ignored-path>`
+explicitly enables sample retention. Run each package in an isolated process
+using its own `PYTHONPATH`. Alternate baseline/candidate order across three rounds.
+Process peak RSS includes fixture construction, preparation and execution; it is
+not a measurement of scratch allocation alone.
+
+The ignored Rust `prepare::design_measurement::measure_direct_design` test
+provides an isolated preparation comparison. Compile before running it. The
+probe requires `CLASSIC_MEASURE=1`; `CLASSIC_REVERSE=1` reverses reference/candidate
+order. It is a diagnostic probe, not release calibration or evidence of a
+performance improvement on its own.

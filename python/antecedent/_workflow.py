@@ -298,7 +298,7 @@ def _load_analysis(
         from .transport._impl import _learned_trial
 
         native = _native.consume_learned_trial(encoded)
-        return _learned_trial(native, native.last_result())
+        return _learned_trial(native, native.last_result_summary())
     if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
         from .transport._impl import _exact_distribution, consume_exact
 

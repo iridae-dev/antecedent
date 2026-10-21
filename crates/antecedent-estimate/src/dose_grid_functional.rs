@@ -590,9 +590,13 @@ fn contrast_row(
     to: f64,
     labels: &[SupportStatus],
     numerical: &mut NumericalReport,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<DoseContrast, EstimationError> {
     let mut workspace = LocalQuadraticWorkspace::default();
     let fit_from = fit_at(&mut workspace, request, from)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(antecedent_stats::StatsError::Cancelled.into());
+    }
     let fit_to = fit_at(&mut workspace, request, to)?;
     for fit in [&fit_from, &fit_to] {
         numerical.fits += 1;
@@ -623,34 +627,89 @@ fn grid_rows(
     labels: &[SupportStatus],
     ess: &[f64],
     numerical: &mut NumericalReport,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<(Vec<DoseLevel>, Vec<DoseDerivative>), EstimationError> {
-    let mut workspace = LocalQuadraticWorkspace::default();
+    let per_worker = request.dose.len().saturating_mul(128).saturating_add(8192) as u64;
+    let limit = ctx
+        .memory
+        .hard_limit_bytes
+        .unwrap_or(u64::MAX)
+        .min(ctx.memory.soft_limit_bytes.unwrap_or(u64::MAX))
+        .min(ctx.admission.available().bytes());
+    if per_worker > limit {
+        return Err(antecedent_stats::StatsError::ResourceLimit {
+            message: "dose grid fit workspace",
+            required_bytes: per_worker,
+            limit_bytes: limit,
+        }
+        .into());
+    }
+    let parallel =
+        request.grid.len() >= 8 && request.grid.len().saturating_mul(request.dose.len()) >= 65_536;
+    let workers = if parallel {
+        (ctx.parallelism.max_threads.get() as usize)
+            .min(request.grid.len())
+            .min(ctx.admission.thread_budget() as usize)
+            .min(usize::try_from(limit / per_worker).unwrap_or(usize::MAX))
+            .max(1)
+    } else {
+        1
+    };
+    let mut execution = ctx.clone();
+    execution.parallelism = antecedent_core::Parallelism::bounded(
+        antecedent_core::NonZeroThreadCount::new(u32::try_from(workers).unwrap_or(u32::MAX))
+            .unwrap_or(antecedent_core::NonZeroThreadCount::MIN),
+    );
+    let _lease = ctx.acquire_admission(0, per_worker * workers as u64).map_err(|error| {
+        refuse(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            "dose_grid.resource_limit",
+            &error.to_string(),
+        )
+    })?;
+    let fits = execution.map_indexed_with_scratch(
+        request.grid.len(),
+        LocalQuadraticWorkspace::default,
+        |index, inner, workspace| {
+            if inner.cancellation.is_cancelled() {
+                return Err(antecedent_stats::StatsError::Cancelled.into());
+            }
+            let at = request.grid[index];
+            let fit = fit_at(workspace, request, at)?;
+            let residual = fit.influences.iter().sum::<f64>().abs();
+            Ok::<_, EstimationError>((
+                fit.point,
+                fit.robust_standard_error,
+                fit.robust_first_derivative_standard_error,
+                residual,
+            ))
+        },
+    )?;
     let mut levels = Vec::new();
     let mut derivatives = Vec::new();
     for (index, &at) in request.grid.iter().enumerate() {
-        let fit = fit_at(&mut workspace, request, at)?;
+        let (point, level_se, derivative_se, residual) = &fits[index];
         numerical.fits += 1;
-        numerical.max_abs_influence_sum =
-            numerical.max_abs_influence_sum.max(fit.influences.iter().sum::<f64>().abs());
+        numerical.max_abs_influence_sum = numerical.max_abs_influence_sum.max(*residual);
         if request.functional == DoseFunctional::Derivative {
-            let standard_error = fit.robust_first_derivative_standard_error;
+            let standard_error = *derivative_se;
             derivatives.push(DoseDerivative {
                 dose: at,
                 support: labels[index],
-                derivative: fit.point.first_derivative,
+                derivative: point.first_derivative,
                 standard_error,
                 local_ess: ess[index],
-                interval: interval(fit.point.first_derivative, standard_error),
+                interval: interval(point.first_derivative, standard_error),
             });
         } else {
-            let standard_error = fit.robust_standard_error;
+            let standard_error = *level_se;
             levels.push(DoseLevel {
                 dose: at,
                 support: labels[index],
-                level: fit.point.value,
+                level: point.value,
                 standard_error,
                 local_ess: ess[index],
-                interval: interval(fit.point.value, standard_error),
+                interval: interval(point.value, standard_error),
             });
         }
     }
@@ -674,6 +733,23 @@ fn grid_rows(
 pub fn estimate_dose_grid_functional(
     request: &DoseGridRequest<'_>,
 ) -> Result<DoseGridRow, EstimationError> {
+    estimate_dose_grid_functional_with_context(
+        request,
+        &antecedent_core::ExecutionContext::for_tests(0),
+    )
+}
+
+/// Evaluate a grid under bounded execution and cancellation controls.
+///
+/// # Errors
+/// The ordinary scientific refusals, cancellation, or insufficient working memory.
+pub fn estimate_dose_grid_functional_with_context(
+    request: &DoseGridRequest<'_>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<DoseGridRow, EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(antecedent_stats::StatsError::Cancelled.into());
+    }
     validate_claims(request)?;
     let points = evaluation_points(request);
     validate_inputs(request, &points)?;
@@ -684,11 +760,33 @@ pub fn estimate_dose_grid_functional(
     let mut numerical = NumericalReport { fits: 0, max_abs_influence_sum: 0.0 };
     let (levels, derivatives, contrast) = match request.functional {
         DoseFunctional::Contrast { from, to } => {
-            let row = contrast_row(request, from, to, &labels, &mut numerical)?;
+            let bytes = request.dose.len().saturating_mul(128).saturating_add(8192) as u64;
+            let limit = ctx
+                .memory
+                .hard_limit_bytes
+                .unwrap_or(u64::MAX)
+                .min(ctx.memory.soft_limit_bytes.unwrap_or(u64::MAX))
+                .min(ctx.admission.available().bytes());
+            if bytes > limit {
+                return Err(antecedent_stats::StatsError::ResourceLimit {
+                    message: "dose contrast workspace",
+                    required_bytes: bytes,
+                    limit_bytes: limit,
+                }
+                .into());
+            }
+            let _lease = ctx.acquire_admission(0, bytes).map_err(|error| {
+                refuse(
+                    antecedent_core::reason_code!("transport_budget_cancel"),
+                    "dose_grid.resource_limit",
+                    &error.to_string(),
+                )
+            })?;
+            let row = contrast_row(request, from, to, &labels, &mut numerical, ctx)?;
             (Vec::new(), Vec::new(), Some(row))
         }
         DoseFunctional::Level | DoseFunctional::Derivative => {
-            let (levels, derivatives) = grid_rows(request, &labels, &ess, &mut numerical)?;
+            let (levels, derivatives) = grid_rows(request, &labels, &ess, &mut numerical, ctx)?;
             (levels, derivatives, None)
         }
     };
@@ -720,7 +818,21 @@ pub fn estimate_dose_grid_functional(
 pub fn estimate_dose_grid_quadratic_mean(
     request: &DoseGridRequest<'_>,
 ) -> Result<DoseGridRow, EstimationError> {
-    let mut row = estimate_dose_grid_functional(request)?;
+    estimate_dose_grid_quadratic_mean_with_context(
+        request,
+        &antecedent_core::ExecutionContext::for_tests(0),
+    )
+}
+
+/// Quadratic-mean evaluation with bounded execution controls.
+///
+/// # Errors
+/// As [`estimate_dose_grid_functional_with_context`].
+pub fn estimate_dose_grid_quadratic_mean_with_context(
+    request: &DoseGridRequest<'_>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<DoseGridRow, EstimationError> {
+    let mut row = estimate_dose_grid_functional_with_context(request, ctx)?;
     for point in &mut row.levels {
         point.interval.smoothing_bias_included = true;
     }
@@ -731,4 +843,60 @@ pub fn estimate_dose_grid_quadratic_mean(
         contrast.interval.smoothing_bias_included = true;
     }
     Ok(row)
+}
+
+#[cfg(test)]
+mod execution_tests {
+    use super::*;
+    use antecedent_core::ExecutionContext;
+    #[test]
+    fn parallel_grids_and_memory_fallback_preserve_every_output_bit() {
+        let dose: Vec<_> = (0..2049).map(|i| 4.0 * f64::from(i) / 2048.0).collect();
+        let outcome: Vec<_> = dose
+            .iter()
+            .enumerate()
+            .map(|(i, &d)| 1.0 + d + d * d + if i % 2 == 0 { 0.01 } else { -0.01 })
+            .collect();
+        let grid: Vec<_> = (0..33).map(|i| 0.5 + 3.0 * f64::from(i) / 32.0).collect();
+        for functional in [
+            DoseFunctional::Level,
+            DoseFunctional::Derivative,
+            DoseFunctional::Contrast { from: 1.0, to: 3.0 },
+        ] {
+            let request = DoseGridRequest {
+                dose: &dose,
+                outcome: &outcome,
+                grid: &grid,
+                bandwidth: 0.4,
+                bandwidth_range: (0.1, 1.0),
+                minimum_local_ess: 10.0,
+                functional,
+                claims: ClaimSet {
+                    pointwise_level: true,
+                    derivative: true,
+                    simultaneous_band: false,
+                },
+                design: DoseDesign::RandomizedDose,
+            };
+            let expected = estimate_dose_grid_functional(&request).unwrap();
+            let mut ctx = ExecutionContext::production(1, 4);
+            for cap in [None, Some(dose.len() as u64 * 128 + 8192)] {
+                ctx.memory.hard_limit_bytes = cap;
+                let before = ctx.admission.available();
+                let actual = estimate_dose_grid_functional_with_context(&request, &ctx).unwrap();
+                assert_eq!(actual, expected);
+                assert_eq!(ctx.admission.available(), before);
+            }
+            ctx.memory.hard_limit_bytes = Some(1);
+            assert!(matches!(
+                estimate_dose_grid_functional_with_context(&request, &ctx),
+                Err(EstimationError::Stats(antecedent_stats::StatsError::ResourceLimit { .. }))
+            ));
+            ctx.cancellation.cancel();
+            assert!(matches!(
+                estimate_dose_grid_functional_with_context(&request, &ctx),
+                Err(EstimationError::Stats(antecedent_stats::StatsError::Cancelled))
+            ));
+        }
+    }
 }
