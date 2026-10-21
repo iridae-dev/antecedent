@@ -39,7 +39,6 @@ mod checked_bayesian_temporal_class_effect;
 mod checked_bayesian_temporal_effect;
 mod checked_class_graph_posterior_effect;
 mod checked_conditional;
-mod conditional_admg;
 mod checked_graph_posterior;
 mod checked_propensity;
 mod checked_temporal_class_effect;
@@ -53,6 +52,7 @@ pub mod cohort_decision;
 pub mod compact_export;
 pub mod composition;
 pub mod composition_verification;
+mod conditional_admg;
 pub mod conditional_study_ranking;
 mod contract;
 mod contract_identity;
@@ -85,15 +85,16 @@ pub mod interface_contract;
 mod inverse_outcome;
 pub mod inverse_query;
 pub mod inverse_sources;
+mod joint_contrast;
 pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
-mod joint_contrast;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
 pub mod latent_class_effects;
 mod learned_continuous;
 pub mod learned_joint_closed;
 mod learned_trial;
+pub mod matching_posterior_refusal;
 pub mod measurement_model;
 pub mod mechanism_composition;
 pub mod mechanism_discrepancy;
@@ -110,10 +111,8 @@ pub mod observation_posterior;
 pub mod observation_query;
 pub mod observational_policy;
 pub mod observational_survival;
-pub mod matching_posterior_refusal;
-pub mod posterior_boundaries;
-pub mod repeated_measures_posterior_report;
 pub mod per_population_discovery;
+pub mod posterior_boundaries;
 pub mod predictive_assessment;
 mod preflight;
 pub mod provider_callbacks;
@@ -130,6 +129,7 @@ pub mod recalc_temporal_measured;
 mod recovery;
 pub mod recovery_chain;
 pub mod repair;
+pub mod repeated_measures_posterior_report;
 pub mod sample_split_analysis;
 pub mod sample_split_effect;
 pub mod sample_split_parent_set_effect;
@@ -211,9 +211,9 @@ pub(crate) use checked_temporal_graph_posterior_response::{
 };
 pub use composition_verification::{
     CompositionVerification, CompositionVerificationRefusal, ConsumedCompositionVerification,
-    DecisionArtifact, FlagshipDependence, FlagshipError, FlagshipWorkflow, LoadedDecision,
-    MixedDecision, PeriodReplay, PriorReplay, UtilityReplay,
-    consume_composition_verification_artifact, load_decision,
+    DecisionArtifact, DecisionAuthority, DecisionAuthorityBinding, FlagshipDependence,
+    FlagshipError, FlagshipWorkflow, LoadedDecision, MixedDecision, PeriodReplay, PriorReplay,
+    UtilityReplay, consume_composition_verification_artifact, load_decision, replay_decision,
 };
 pub use cost::{
     BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,
@@ -332,9 +332,9 @@ pub use statistical::{
     StatisticalStudyInspection, StatisticalStudyResult,
 };
 pub use temporal_extensions::{
-    IntervalEstimand, TemporalInitialState, TemporalWindow,
-    consume_period_refresh_artifact, consume_temporal_initial_state_artifact,
-    consume_temporal_refresh_artifact, temporal_dependent_interval,
+    IntervalEstimand, TemporalInitialState, TemporalWindow, consume_period_refresh_artifact,
+    consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
+    temporal_dependent_interval,
 };
 pub use temporal_transport::{
     PreparedTemporalTransport, SequenceEndpoints, consume_temporal_transport_artifact,

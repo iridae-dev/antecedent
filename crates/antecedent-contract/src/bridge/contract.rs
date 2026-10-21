@@ -470,6 +470,7 @@ impl BridgeContract {
         source_mean: f64,
         source_variance: f64,
     ) -> Result<PropagatedUncertainty, BridgeRefusal> {
+        self.check_licensing()?;
         propagation::propagate_affine(self, source_mean, source_variance)
     }
 
@@ -483,6 +484,7 @@ impl BridgeContract {
         map: SupportMap,
         source: ValueInterval,
     ) -> Result<PreservedSupport, BridgeRefusal> {
+        self.check_licensing()?;
         preserved_support(self, map, source)
     }
 
@@ -501,13 +503,16 @@ impl BridgeContract {
         prior: &ExperimentalPrior,
     ) -> Result<ImportedExperimentalPrior, BridgeRefusal> {
         let imported = propagation::import_prior(self, prior)?;
-        self.estimand_bridge = Some(imported.estimand_bridge.clone());
+        let mut candidate = self.clone();
+        candidate.estimand_bridge = Some(imported.estimand_bridge.clone());
         if imported.mapping_uncertainty.is_some() {
-            self.mapping_uncertainty.clone_from(&imported.mapping_uncertainty);
+            candidate.mapping_uncertainty.clone_from(&imported.mapping_uncertainty);
         }
         if imported.source_dependence.is_some() {
-            self.source_dependence.clone_from(&imported.source_dependence);
+            candidate.source_dependence.clone_from(&imported.source_dependence);
         }
+        candidate.check_licensing()?;
+        *self = candidate;
         Ok(imported)
     }
 

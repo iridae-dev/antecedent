@@ -33,6 +33,7 @@ use antecedent::analysis::evidence_ledger::{
     SourceKind, SynthesisOutcome,
 };
 use antecedent::analysis::{PreparedStudy, StatisticalPreparedState, StatisticalStudyResult};
+use antecedent::period_refresh::SummaryOnlyFit;
 use antecedent::{
     BayesianConfig, Dag, InferenceMode, IntervalEstimand, PoolingDeclaration, PoolingRequest,
     PublishedScalarUncertainty, RefuteSuite, SourceRevision, Study, StudyBuilder, StudyResult,
@@ -60,10 +61,9 @@ use antecedent_estimate::{
 use antecedent_expr::{Assignment, ExactEvaluationLimits, InterventionAssignment};
 use antecedent_graph::{Admg, DenseNodeId, NodeRef, SelectionDiagram};
 use antecedent_identify::{
-    BoundTransportFunctional, CatalogTransportResult, ClassicalTransportQuery, RecoveredEffectQuery,
-    RecoveryLimits, SidLimits, identify_catalog_transport,
+    BoundTransportFunctional, CatalogTransportResult, ClassicalTransportQuery,
+    RecoveredEffectQuery, RecoveryLimits, SidLimits, identify_catalog_transport,
 };
-use antecedent::period_refresh::SummaryOnlyFit;
 use antecedent_io::measured_inference::MeasuredInference;
 use antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire;
 use antecedent_io::recovery_artifact::RecoveryConsumeLimits;
@@ -290,11 +290,8 @@ fn discrete_table(counts: &[u32], keep: impl Fn(f64) -> bool) -> TabularData {
 }
 
 fn discrete_environment(identity: &str) -> Environment {
-    let coordinate = |raw| VariableCoordinate {
-        variable: v(raw),
-        domain: VariableDomain::Binary,
-        unit: None,
-    };
+    let coordinate =
+        |raw| VariableCoordinate { variable: v(raw), domain: VariableDomain::Binary, unit: None };
     Environment::try_new(
         identity,
         vec![coordinate(CONFOUNDER), coordinate(TREATMENT), coordinate(OUTCOME)],
@@ -994,9 +991,7 @@ fn reduced_retention_serves_only_the_summary() {
         let error = match operation {
             RetainedOperation::RefitFromRetainedRows => consumer.refit_from_rows().unwrap_err(),
             RetainedOperation::ExactRowEviction => consumer.evict_row(0).unwrap_err(),
-            RetainedOperation::InPlaceWeightOrMaskUpdate => {
-                consumer.set_mask(0, true).unwrap_err()
-            }
+            RetainedOperation::InPlaceWeightOrMaskUpdate => consumer.set_mask(0, true).unwrap_err(),
             RetainedOperation::RowReconstruction => consumer.replay_rows().unwrap_err(),
             other => panic!("{other} has no summary operation to refuse"),
         };
@@ -1028,13 +1023,15 @@ fn reduced_retention_serves_only_the_summary() {
 /// back from the exported artifact.
 #[test]
 fn cut_and_feedback_reload_different_decision_variances() {
-    use antecedent::analysis::{FlagshipDependence, FlagshipError, FlagshipWorkflow, load_decision};
+    use antecedent::analysis::{
+        FlagshipDependence, FlagshipError, FlagshipWorkflow, load_decision,
+    };
     use antecedent_contract::mixed_module::{CutFeedback, MixedModulePolicy};
 
     let feedback = slice_cases::load().feedback;
     let ctx = ExecutionContext::for_tests(0xF1A6);
     let base = FlagshipWorkflow::execute(&ctx, FlagshipDependence::Independent).expect("base");
-    let decision = base.decision();
+    let decision = base.decision().expect("current decision");
     let (margin, temporal, cost) =
         (decision.margin.variance, decision.temporal_variance, decision.cost_variance);
     let margin_temporal = feedback.correlation_margin_temporal * (margin * temporal).sqrt();
@@ -1061,8 +1058,9 @@ fn cut_and_feedback_reload_different_decision_variances() {
         let workflow = FlagshipWorkflow::execute_with_policy(&ctx, dependence(), &declared)
             .expect("modular workflow");
         let artifact = workflow.export_decision().expect("export");
-        drop(workflow);
-        let loaded = load_decision(&artifact.bytes, Some(&artifact.identity), &ctx).expect("load");
+        let authority = workflow.into_authority();
+        let loaded = load_decision(&artifact.bytes, Some(&artifact.identity), &authority, &ctx)
+            .expect("load");
         assert!((loaded.variance - variance).abs() <= 1.0e-9 * variance.abs(), "{policy}");
         reloaded.push((loaded.variance, artifact.identity));
     }

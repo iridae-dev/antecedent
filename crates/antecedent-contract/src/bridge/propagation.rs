@@ -1108,6 +1108,22 @@ mod tests {
     }
 
     #[test]
+    fn contract_bound_propagation_requires_the_principal_assumption() {
+        let mut contract = preference(BridgeMapping::Identity, vec![]);
+        contract.mapping_uncertainty = Some(uncertainty(0.25));
+        contract.source_dependence =
+            Some(SourceMappingDependence::Independent { evidence: "disjoint-rows".into() });
+        let expected = contract.check_licensing().unwrap_err();
+        assert_eq!(contract.propagate_affine_uncertainty(4.0, 0.25).unwrap_err(), expected);
+        assert_eq!(
+            contract
+                .map_support(SupportMap::Square, ValueInterval { low: 0.0, high: 2.0 })
+                .unwrap_err(),
+            expected
+        );
+    }
+
+    #[test]
     fn affine_uncertainty_matches_the_delta_method() {
         let mut contract = preference(
             BridgeMapping::Affine { intercept: 0.0, slope: 2.0 },
@@ -1173,11 +1189,7 @@ mod tests {
             min_r_squared: 0.0,
         });
         let affine = contract.propagate_affine_uncertainty(1.0, 0.25).unwrap_err();
-        refused(
-            &affine,
-            "bridge_mapping_not_licensed",
-            "scientific_bridge.uncertain_mapping_not_affine",
-        );
+        refused(&affine, "scientific_bridge_invalid", "scientific_bridge.mapping_not_allowed");
         contract.mapping = BridgeMapping::Identity;
         contract.mapping_uncertainty = Some(MappingUncertainty {
             id: "slope-se".into(),
@@ -1352,8 +1364,10 @@ mod tests {
 
     #[test]
     fn intercept_slope_covariance_enters_the_delta_method_variance() {
-        let mut contract =
-            preference(BridgeMapping::Affine { intercept: 0.0, slope: 2.0 }, Vec::new());
+        let mut contract = preference(
+            BridgeMapping::Affine { intercept: 0.0, slope: 2.0 },
+            vec![linkage("link", "holds")],
+        );
         contract.source_dependence =
             Some(SourceMappingDependence::Independent { evidence: "disjoint-rows".into() });
         // Negatively correlated intercept and slope errors (a regression line pivoting

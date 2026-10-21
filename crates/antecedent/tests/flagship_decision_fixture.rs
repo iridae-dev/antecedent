@@ -26,7 +26,7 @@ fn regenerate_rust_fixtures() {
     );
     let ctx = ExecutionContext::for_tests(0xF1A6);
     let base = FlagshipWorkflow::execute(&ctx, FlagshipDependence::Independent).expect("base");
-    let decision = base.decision();
+    let decision = base.decision().expect("current decision");
     let (margin, temporal, cost) =
         (decision.margin.variance, decision.temporal_variance, decision.cost_variance);
     let dependence = FlagshipDependence::Covariance {
@@ -36,7 +36,7 @@ fn regenerate_rust_fixtures() {
         temporal_cost: 0.1 * (temporal * cost).sqrt(),
     };
     let workflow = FlagshipWorkflow::execute(&ctx, dependence).expect("declared workflow");
-    let artifact = workflow.export_decision().expect("export");
+    let artifact = workflow.export_historical_replay().expect("export");
     let dir = conformance_dir("cross_surface");
     std::fs::create_dir_all(&dir).expect("create the fixture directory");
     std::fs::write(dir.join("rust_flagship_decision.bin"), &artifact.bytes).expect("write bytes");

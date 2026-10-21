@@ -719,8 +719,9 @@ pub fn consume_composition_verification_artifact(
 mod flagship_mixed;
 
 pub use flagship_mixed::{
-    DecisionArtifact, FlagshipDependence, FlagshipError, FlagshipWorkflow, LoadedDecision,
-    MixedDecision, PeriodReplay, PriorReplay, UtilityReplay, load_decision,
+    DecisionArtifact, DecisionAuthority, DecisionAuthorityBinding, FlagshipDependence,
+    FlagshipError, FlagshipWorkflow, LoadedDecision, MixedDecision, PeriodReplay, PriorReplay,
+    UtilityReplay, load_decision, replay_decision,
 };
 
 #[cfg(test)]
@@ -754,7 +755,7 @@ mod flagship_mixed_tests {
     fn decision_keeps_lawful_dependence_and_joint_uncertainty() {
         let workflow = FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent)
             .expect("workflow");
-        let decision = workflow.decision();
+        let decision = workflow.decision().expect("current decision");
         assert_eq!(workflow.cluster_design(), "cluster");
         assert!(workflow.cluster_uncertainty().contains("cluster"));
         assert!(workflow.cluster_variance() > 0.0);
@@ -795,9 +796,16 @@ mod flagship_mixed_tests {
                     .expect("workflow");
             let effect = workflow.cluster_effect().to_bits();
             let temporal = workflow.temporal_effect().to_bits();
-            let temporal_variance = workflow.decision().temporal_variance.to_bits();
+            let temporal_variance =
+                workflow.decision().expect("current decision").temporal_variance.to_bits();
             let cost = workflow.cost_mean().to_bits();
-            let before = workflow.decision().joint.value("mean").expect("mean").to_bits();
+            let before = workflow
+                .decision()
+                .expect("current decision")
+                .joint
+                .value("mean")
+                .expect("mean")
+                .to_bits();
             let (((replay, bayesian), temporal_work), solves) = count_least_squares_solves(|| {
                 count_static_work(|| {
                     count_bayesian_work(|| workflow.utility_only(3.0, &context()).expect("utility"))
@@ -815,9 +823,21 @@ mod flagship_mixed_tests {
             assert_eq!(workflow.cluster_trials(), 1);
             assert_eq!(workflow.cluster_effect().to_bits(), effect);
             assert_eq!(workflow.temporal_effect().to_bits(), temporal);
-            assert_eq!(workflow.decision().temporal_variance.to_bits(), temporal_variance);
+            assert_eq!(
+                workflow.decision().expect("current decision").temporal_variance.to_bits(),
+                temporal_variance
+            );
             assert_eq!(workflow.cost_mean().to_bits(), cost);
-            assert_ne!(workflow.decision().joint.value("mean").expect("mean").to_bits(), before);
+            assert_ne!(
+                workflow
+                    .decision()
+                    .expect("current decision")
+                    .joint
+                    .value("mean")
+                    .expect("mean")
+                    .to_bits(),
+                before
+            );
         });
     }
 
@@ -829,7 +849,8 @@ mod flagship_mixed_tests {
                     .expect("workflow");
             let effect = workflow.cluster_effect().to_bits();
             let temporal = workflow.temporal_effect().to_bits();
-            let temporal_variance = workflow.decision().temporal_variance.to_bits();
+            let temporal_variance =
+                workflow.decision().expect("current decision").temporal_variance.to_bits();
             let cost = workflow.cost_mean().to_bits();
             let ((replay, temporal_work), bayesian) = count_bayesian_work(|| {
                 count_static_work(|| workflow.prior_change(10.0, &context()).expect("prior"))
@@ -843,7 +864,10 @@ mod flagship_mixed_tests {
             assert_eq!(workflow.cluster_trials(), 1);
             assert_eq!(workflow.cluster_effect().to_bits(), effect);
             assert_eq!(workflow.temporal_effect().to_bits(), temporal);
-            assert_eq!(workflow.decision().temporal_variance.to_bits(), temporal_variance);
+            assert_eq!(
+                workflow.decision().expect("current decision").temporal_variance.to_bits(),
+                temporal_variance
+            );
             assert_ne!(workflow.cost_mean().to_bits(), cost);
         });
     }
@@ -868,13 +892,13 @@ mod flagship_mixed_tests {
             assert_eq!(workflow.cluster_trials(), 1);
             assert_eq!(workflow.cluster_effect().to_bits(), effect);
             assert_eq!(workflow.cost_mean().to_bits(), cost);
-            assert!(workflow.decision().temporal_variance > 0.0);
+            assert!(workflow.decision().expect("current decision").temporal_variance > 0.0);
         });
     }
 
     #[test]
     fn withdrawal_removes_the_affected_claim_and_leaves_the_temporal_claim() {
-        let workflow = FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent)
+        let mut workflow = FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent)
             .expect("workflow");
         let verification = workflow.withdraw_cluster().expect("withdrawal");
         let class = |key: &str| verification.classify(key).expect(key).class;
@@ -890,9 +914,14 @@ mod flagship_mixed_tests {
         let workflow = FlagshipWorkflow::execute(&context(), FlagshipDependence::Independent)
             .expect("workflow");
         let artifact = workflow.export_decision().expect("export");
-        let loaded =
-            load_decision(&artifact.bytes, Some(&artifact.identity), &context()).expect("load");
-        let decision = workflow.decision();
+        let loaded = load_decision(
+            &artifact.bytes,
+            Some(&artifact.identity),
+            workflow.authority(),
+            &context(),
+        )
+        .expect("load");
+        let decision = workflow.decision().expect("current decision");
         assert_eq!(loaded.mean.to_bits(), decision.joint.value("mean").expect("mean").to_bits());
         assert_eq!(
             loaded.variance.to_bits(),
@@ -912,7 +941,7 @@ mod flagship_mixed_tests {
         margin_cost: f64,
         temporal_cost: f64,
     ) -> FlagshipDependence {
-        let decision = base.decision();
+        let decision = base.decision().expect("current decision");
         let (margin, temporal, cost) =
             (decision.margin.variance, decision.temporal_variance, decision.cost_variance);
         FlagshipDependence::Covariance {
@@ -933,7 +962,7 @@ mod flagship_mixed_tests {
             panic!("a declared covariance");
         };
         let workflow = FlagshipWorkflow::execute(&context(), dependence).expect("declared");
-        let decision = workflow.decision();
+        let decision = workflow.decision().expect("current decision");
         assert_eq!(
             decision.dependence,
             LinearDependence::Covariance { id: "flagship-cross".to_owned() }
@@ -946,11 +975,12 @@ mod flagship_mixed_tests {
             + 2.0 * (margin_temporal - margin_cost - temporal_cost);
         let variance = decision.joint.value("variance").expect("joint variance");
         assert!((variance - expected).abs() <= 1.0e-9 * expected.abs(), "{variance} vs {expected}");
-        let independent_variance = base.decision().joint.value("variance").expect("variance");
+        let independent_variance =
+            base.decision().expect("current decision").joint.value("variance").expect("variance");
         assert!((variance - independent_variance).abs() > 1.0e-9 * independent_variance);
         assert_eq!(
             decision.joint.value("mean").expect("mean").to_bits(),
-            base.decision().joint.value("mean").expect("mean").to_bits()
+            base.decision().expect("current decision").joint.value("mean").expect("mean").to_bits()
         );
     }
 
@@ -973,15 +1003,28 @@ mod flagship_mixed_tests {
             .expect("declared");
         let artifact = workflow.export_decision().expect("export");
         assert_ne!(artifact.identity, base_artifact.identity);
-        let loaded =
-            load_decision(&artifact.bytes, Some(&artifact.identity), &context()).expect("load");
-        let decision = workflow.decision();
+        let loaded = load_decision(
+            &artifact.bytes,
+            Some(&artifact.identity),
+            workflow.authority(),
+            &context(),
+        )
+        .expect("load");
+        let decision = workflow.decision().expect("current decision");
         assert_eq!(
             loaded.variance.to_bits(),
             decision.joint.value("variance").expect("variance").to_bits()
         );
         assert_eq!(loaded.mean.to_bits(), decision.joint.value("mean").expect("mean").to_bits());
-        assert!(load_decision(&artifact.bytes, Some(&base_artifact.identity), &context()).is_err());
+        assert!(
+            load_decision(
+                &artifact.bytes,
+                Some(&base_artifact.identity),
+                workflow.authority(),
+                &context()
+            )
+            .is_err()
+        );
     }
 
     fn modular(policy: CutFeedback) -> MixedModulePolicy {
@@ -991,8 +1034,13 @@ mod flagship_mixed_tests {
 
     fn reloaded_variance(workflow: &FlagshipWorkflow) -> (f64, String) {
         let artifact = workflow.export_decision().expect("export");
-        let loaded =
-            load_decision(&artifact.bytes, Some(&artifact.identity), &context()).expect("load");
+        let loaded = load_decision(
+            &artifact.bytes,
+            Some(&artifact.identity),
+            workflow.authority(),
+            &context(),
+        )
+        .expect("load");
         (loaded.variance, artifact.identity)
     }
 
@@ -1011,9 +1059,9 @@ mod flagship_mixed_tests {
         };
         let cut = run(&modular(CutFeedback::Cut));
         let feedback = run(&modular(CutFeedback::Feedback));
-        let diagonal = base.decision().margin.variance
-            + base.decision().temporal_variance
-            + base.decision().cost_variance;
+        let diagonal = base.decision().expect("current decision").margin.variance
+            + base.decision().expect("current decision").temporal_variance
+            + base.decision().expect("current decision").cost_variance;
         // Coefficients (1, 1, -1) at benefit 1. Cut zeroes the cost cross-terms:
         //   Var_cut = S_mm + S_tt + S_cc + 2 S_mt.
         // Feedback keeps them: Var_feedback = Var_cut - 2 (S_mc + S_tc).
@@ -1022,18 +1070,14 @@ mod flagship_mixed_tests {
         let (cut_variance, cut_identity) = reloaded_variance(&cut);
         let (feedback_variance, feedback_identity) = reloaded_variance(&feedback);
         assert!((cut_variance - expected_cut).abs() <= 1.0e-9 * expected_cut.abs());
-        assert!(
-            (feedback_variance - expected_feedback).abs() <= 1.0e-9 * expected_feedback.abs()
-        );
+        assert!((feedback_variance - expected_feedback).abs() <= 1.0e-9 * expected_feedback.abs());
         assert!((cut_variance - feedback_variance).abs() > 1.0e-9 * cut_variance);
         assert_ne!(cut_identity, feedback_identity);
         // Feedback carries the same numbers as the coherent joint, but the policy
         // is part of the sealed claim, so the identities differ.
         let coherent = FlagshipWorkflow::execute(&context(), dependence).expect("coherent");
         let (coherent_variance, coherent_identity) = reloaded_variance(&coherent);
-        assert!(
-            (coherent_variance - expected_feedback).abs() <= 1.0e-9 * expected_feedback.abs()
-        );
+        assert!((coherent_variance - expected_feedback).abs() <= 1.0e-9 * expected_feedback.abs());
         assert_ne!(coherent_identity, feedback_identity);
         assert_ne!(coherent_identity, cut_identity);
     }
@@ -1056,10 +1100,7 @@ mod flagship_mixed_tests {
             &modular(CutFeedback::Cut),
         )
         .expect("cut");
-        assert_eq!(
-            reloaded_variance(&cut).0.to_bits(),
-            reloaded_variance(&base).0.to_bits()
-        );
+        assert_eq!(reloaded_variance(&cut).0.to_bits(), reloaded_variance(&base).0.to_bits());
         assert_eq!(reloaded_variance(&cut).1, reloaded_variance(&base).1);
     }
 

@@ -20,6 +20,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[path = "flagship_authority.rs"]
+mod authority;
+pub use authority::{DecisionAuthority, DecisionAuthorityBinding};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -93,6 +97,8 @@ pub enum FlagshipError {
     Graph(String),
     /// A route did not return the object this workflow requires.
     Route(&'static str),
+    /// Current evidence authority refused consumption.
+    Authority(Box<antecedent_contract::evidence_ledger::LedgerError>),
     /// The declared cross-covariance is not a lawful covariance matrix.
     Dependence(&'static str),
     /// The declared cut or feedback policy cannot be applied to the declared
@@ -103,6 +109,7 @@ pub enum FlagshipError {
 impl std::fmt::Display for FlagshipError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Authority(error) => write!(f, "{error}"),
             Self::Cluster(error) => write!(f, "{error}"),
             Self::Temporal(error) => write!(f, "{error}"),
             Self::Bayesian(error) => write!(f, "{error}"),
@@ -112,12 +119,19 @@ impl std::fmt::Display for FlagshipError {
             Self::Decision(error) => write!(f, "decision evaluation refused: {error:?}"),
             Self::Verification(error) => write!(f, "{error}"),
             Self::Graph(detail) => write!(f, "{detail}"),
-            Self::Route(detail) | Self::Dependence(detail) | Self::Policy(detail) => write!(f, "{detail}"),
+            Self::Route(detail) | Self::Dependence(detail) | Self::Policy(detail) => {
+                write!(f, "{detail}")
+            }
         }
     }
 }
 
 impl std::error::Error for FlagshipError {}
+impl From<antecedent_contract::evidence_ledger::LedgerError> for FlagshipError {
+    fn from(error: antecedent_contract::evidence_ledger::LedgerError) -> Self {
+        Self::Authority(Box::new(error))
+    }
+}
 
 impl From<crate::CausalError> for FlagshipError {
     fn from(error: crate::CausalError) -> Self {
@@ -317,6 +331,7 @@ struct ClusterFit {
     variance: f64,
     design: String,
     uncertainty: String,
+    rows: usize,
 }
 
 /// The decision, with the joint combination and the bridge dependence attached.
@@ -341,7 +356,7 @@ pub struct MixedDecision {
 /// Bytes of the joint combination and the identity retained apart from them.
 #[derive(Clone, Debug)]
 pub struct DecisionArtifact {
-    /// `joint_law_propagation_v1` bytes.
+    /// Version 2 authority binding and historical joint-law replay payload.
     pub bytes: Vec<u8>,
     /// Identity a consumer passes back independently of `bytes`.
     pub identity: String,
@@ -416,6 +431,7 @@ pub struct FlagshipWorkflow {
     benefit: f64,
     dependence: FlagshipDependence,
     decision: MixedDecision,
+    authority: DecisionAuthority,
 }
 
 /// Stack the first fit of every route runs on. The nested study, temporal, and
@@ -489,7 +505,10 @@ impl FlagshipWorkflow {
             &dependence,
             ctx,
         )?;
+        let keys = source_keys(&cluster, &temporal_request, &bayesian_request, ctx)?;
+        let authority = DecisionAuthority::new(keys, decision.joint.identity())?;
         Ok(Self {
+            authority,
             cluster,
             cluster_trials: 1,
             temporal,
@@ -510,8 +529,26 @@ impl FlagshipWorkflow {
 
     /// The current decision.
     #[must_use = "the decision carries the joint combination and the bridge dependence"]
-    pub const fn decision(&self) -> &MixedDecision {
-        &self.decision
+    pub fn decision(&self) -> Result<&MixedDecision, FlagshipError> {
+        self.authority.require_valid()?;
+        Ok(&self.decision)
+    }
+
+    /// Current caller-held source authority for consuming an exported decision.
+    #[must_use]
+    pub fn authority(&self) -> &DecisionAuthority {
+        &self.authority
+    }
+
+    /// Retain current ledger authority independently of the workflow builder.
+    #[must_use]
+    pub fn into_authority(self) -> DecisionAuthority {
+        self.authority
+    }
+
+    /// Mutable source authority for withdrawal, supersession or trust loss.
+    pub fn authority_mut(&mut self) -> &mut DecisionAuthority {
+        &mut self.authority
     }
 
     /// Cluster-randomized contrasts this workflow has fit.
@@ -580,6 +617,7 @@ impl FlagshipWorkflow {
         benefit: f64,
         ctx: &ExecutionContext,
     ) -> Result<UtilityReplay, FlagshipError> {
+        self.authority.require_valid()?;
         require_finite(benefit)?;
         self.temporal_request.benefit_per_unit = benefit;
         self.bayesian_request.utility.benefit_per_unit = benefit;
@@ -616,6 +654,7 @@ impl FlagshipWorkflow {
         prior_scale: f64,
         ctx: &ExecutionContext,
     ) -> Result<PriorReplay, FlagshipError> {
+        self.authority.require_valid()?;
         if !(prior_scale.is_finite() && prior_scale > 0.0) {
             return Err(FlagshipError::Route("a prior scale is a finite positive number"));
         }
@@ -649,6 +688,7 @@ impl FlagshipWorkflow {
         period: (u64, u64),
         ctx: &ExecutionContext,
     ) -> Result<PeriodReplay, FlagshipError> {
+        self.authority.require_valid()?;
         if !period_contains(&self.temporal_request, period) {
             return Err(FlagshipError::Route(
                 "a replacement period must still contain the retained two-step histories",
@@ -680,14 +720,16 @@ impl FlagshipWorkflow {
     ///
     /// # Errors
     /// The claim graph does not validate.
-    pub fn withdraw_cluster(&self) -> Result<CompositionVerification, FlagshipError> {
+    pub fn withdraw_cluster(&mut self) -> Result<CompositionVerification, FlagshipError> {
         let graph = claim_graph(self)?;
         let mut effects = BTreeMap::new();
         effects.insert(
             "cluster_trial".to_owned(),
             ObservedEffect::Withdrawn { cause: "cluster_trial.withdrawn".to_owned() },
         );
-        Ok(CompositionVerification::verify(Some(&graph), &graph, &effects, None)?)
+        let verification = CompositionVerification::verify(Some(&graph), &graph, &effects, None)?;
+        self.authority.withdraw_source(0, "cluster_trial.withdrawn")?;
+        Ok(verification)
     }
 
     /// Export the joint combination for an independent consumer.
@@ -695,6 +737,23 @@ impl FlagshipWorkflow {
     /// # Errors
     /// The combination artifact cannot be encoded.
     pub fn export_decision(&self) -> Result<DecisionArtifact, FlagshipError> {
+        let binding = self.authority.binding()?;
+        let record = DecisionRecord {
+            version: 2,
+            binding,
+            payload_identity: self.decision.joint.identity().to_owned(),
+            payload: self.decision.joint.export()?,
+        };
+        let bytes = serde_json::to_vec(&record).map_err(|e| FlagshipError::Graph(e.to_string()))?;
+        let identity = decision_artifact_identity(&bytes);
+        Ok(DecisionArtifact { bytes, identity })
+    }
+
+    /// Export numerical inputs for historical replay without current decision authorization.
+    ///
+    /// # Errors
+    /// The historical joint-law payload cannot be encoded.
+    pub fn export_historical_replay(&self) -> Result<DecisionArtifact, FlagshipError> {
         Ok(DecisionArtifact {
             bytes: self.decision.joint.export()?,
             identity: self.decision.joint.identity().to_owned(),
@@ -709,7 +768,8 @@ impl FlagshipWorkflow {
         benefit: f64,
         ctx: &ExecutionContext,
     ) -> Result<(), FlagshipError> {
-        self.decision = compose(
+        self.authority.require_valid()?;
+        let decision = compose(
             &self.cluster,
             temporal_effect,
             temporal_variance,
@@ -719,6 +779,9 @@ impl FlagshipWorkflow {
             &self.dependence,
             ctx,
         )?;
+        let keys = source_keys(&self.cluster, &self.temporal_request, &self.bayesian_request, ctx)?;
+        self.authority.rebind(keys, decision.joint.identity())?;
+        self.decision = decision;
         self.temporal_effect = temporal_effect;
         self.temporal_variance = temporal_variance;
         self.cost_mean = cost.mean;
@@ -790,6 +853,7 @@ fn fit_cluster(ctx: &ExecutionContext) -> Result<ClusterFit, FlagshipError> {
         return Err(FlagshipError::Route("the cluster trial returned no positive variance"));
     }
     Ok(ClusterFit {
+        rows: N,
         effect: estimate.effect,
         variance: estimate.variance_upper_bound,
         design: estimate.assignment_design.to_string(),
@@ -1167,24 +1231,199 @@ fn graph_error(error: &super::GraphError) -> FlagshipError {
     FlagshipError::Graph(error.to_string())
 }
 
-/// Replay `bytes` and evaluate the decision on the replayed mean.
-///
-/// `expected_identity`, when set, is the identity retained independently of
-/// the bytes.
-///
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DecisionRecord {
+    version: u32,
+    binding: DecisionAuthorityBinding,
+    payload_identity: String,
+    payload: Vec<u8>,
+}
+
+fn decision_artifact_identity(bytes: &[u8]) -> String {
+    CanonicalWriter::digest_bytes_hex("antecedent.flagship_decision.v2", bytes)
+}
+
+fn source_keys(
+    cluster: &ClusterFit,
+    temporal: &TemporalRequest,
+    cost: &BayesianRequest,
+    ctx: &ExecutionContext,
+) -> Result<[antecedent_contract::evidence_ledger::SourceDeclaration; 3], FlagshipError> {
+    let mut trial = CanonicalWriter::new("antecedent.flagship_trial.v1");
+    trial
+        .real(cluster.effect)
+        .real(cluster.variance)
+        .text(&cluster.design)
+        .text(&cluster.uncertainty);
+    let mut temporal = temporal.clone();
+    temporal.benefit_per_unit = 0.0;
+    temporal.cost = 0.0;
+    let bytes = serde_json::to_vec(&temporal).map_err(|e| FlagshipError::Graph(e.to_string()))?;
+    let mut posterior = CanonicalWriter::new("antecedent.flagship_cost.v1");
+    let identities = cost.identities(ctx);
+    for stage in Stage::all() {
+        if !matches!(stage, Stage::Utility | Stage::Decision) {
+            posterior.text(&stage.label()).bytes(identities.own(stage).as_bytes());
+        }
+    }
+    use antecedent_contract::evidence_ledger::{ObservationId, SourceDeclaration, SourceKind};
+    let trial = SourceDeclaration::new(
+        SemanticDigest::from_bytes(trial.finish()).to_hex(),
+        SourceKind::Experiment,
+    )
+    .with_observations(
+        (0..cluster.rows)
+            .map(|i| ObservationId::from_key("flagship.cluster", &(i as u64).to_le_bytes())),
+    );
+    let period = SourceDeclaration::new(
+        CanonicalWriter::digest_bytes_hex("antecedent.flagship_temporal.v1", &bytes),
+        SourceKind::FittedModel,
+    )
+    .with_observations(temporal.units.iter().flat_map(|unit| {
+        unit.histories.iter().map(move |history| {
+            let mut key = unit.unit_id.to_le_bytes().to_vec();
+            key.extend_from_slice(&history.time_id.to_le_bytes());
+            ObservationId::from_key("flagship.temporal", &key)
+        })
+    }));
+    let cost = SourceDeclaration::new(
+        SemanticDigest::from_bytes(posterior.finish()).to_hex(),
+        SourceKind::FittedModel,
+    )
+    .with_observations(
+        (0..cost.columns.first().map_or(0, |(_, values)| values.len()))
+            .map(|i| ObservationId::from_key("flagship.cost", &(i as u64).to_le_bytes())),
+    );
+    Ok([trial, period, cost])
+}
+
+fn decode_decision(
+    bytes: &[u8],
+    expected: Option<&str>,
+    ctx: &ExecutionContext,
+) -> Result<(DecisionRecord, antecedent_core::execution::AdmissionLease), FlagshipError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(FlagshipError::Route("decision consumption cancelled"));
+    }
+    if bytes.len() > 128 * 1024 * 1024 {
+        return Err(FlagshipError::Route("decision artifact byte limit"));
+    }
+    let _lease = ctx
+        .acquire_admission(0, (bytes.len() as u64).saturating_mul(8))
+        .map_err(|_| FlagshipError::Route("decision artifact admission refused"))?;
+    if expected.is_some_and(|id| id != decision_artifact_identity(bytes)) {
+        return Err(FlagshipError::Route("decision artifact identity mismatch"));
+    }
+    let record: DecisionRecord =
+        serde_json::from_slice(bytes).map_err(|e| FlagshipError::Graph(e.to_string()))?;
+    if record.version != 2 {
+        return Err(FlagshipError::Route("unsupported decision artifact version"));
+    }
+    Ok((record, _lease))
+}
+
+/// Numerically replay a historical decision without granting current source authority.
+/// Older joint-law artifacts remain supported through this explicit historical path.
 /// # Errors
-/// The artifact does not replay, or the decision contract refuses the mean.
-pub fn load_decision(
+/// Malformed artifacts, identity mismatch, failed replay or execution refusal.
+pub fn replay_decision(
     bytes: &[u8],
     expected_identity: Option<&str>,
     ctx: &ExecutionContext,
+) -> Result<(f64, f64), FlagshipError> {
+    let record = if bytes.first() == Some(&b'{') {
+        Some(decode_decision(bytes, expected_identity, ctx)?)
+    } else {
+        None
+    };
+    let (payload, expected) = record.as_ref().map_or((bytes, expected_identity), |(r, _lease)| {
+        (r.payload.as_slice(), Some(r.payload_identity.as_str()))
+    });
+    let consumed = consume_joint_law_propagation_artifact(payload, expected, ctx)?;
+    Ok((
+        consumed.value("mean").ok_or(FlagshipError::Route("replayed mean missing"))?,
+        consumed.value("variance").ok_or(FlagshipError::Route("replayed variance missing"))?,
+    ))
+}
+
+/// Consume a decision against caller-supplied current source authority.
+/// A historical artifact cannot authorize itself with an old ledger snapshot.
+/// # Errors
+/// Retired/stale/mismatched source authority, malformed artifacts or failed replay.
+pub fn load_decision(
+    bytes: &[u8],
+    expected_identity: Option<&str>,
+    authority: &DecisionAuthority,
+    ctx: &ExecutionContext,
 ) -> Result<LoadedDecision, FlagshipError> {
-    let consumed = consume_joint_law_propagation_artifact(bytes, expected_identity, ctx)?;
-    let mean = consumed
-        .value("mean")
-        .ok_or(FlagshipError::Route("the replayed combination has no mean"))?;
-    let variance = consumed
-        .value("variance")
-        .ok_or(FlagshipError::Route("the replayed combination has no variance"))?;
+    let (record, _lease) = decode_decision(bytes, expected_identity, ctx)?;
+    authority.validate(&record.binding, &record.payload_identity)?;
+    let (mean, variance) = replay_decision(bytes, expected_identity, ctx)?;
     Ok(LoadedDecision { mean, variance, evaluation: evaluate_mean(mean)? })
+}
+
+#[cfg(test)]
+mod authority_tests {
+    use super::*;
+
+    #[test]
+    fn withdrawn_source_cannot_authorize_access_export_recompute_or_consumption() {
+        let ctx = ExecutionContext::for_tests(0xF1A6);
+        let mut workflow =
+            FlagshipWorkflow::execute(&ctx, FlagshipDependence::Independent).unwrap();
+        let artifact = workflow.export_decision().unwrap();
+        let historical = replay_decision(&artifact.bytes, Some(&artifact.identity), &ctx).unwrap();
+        let cost = workflow.cost_mean();
+        let temporal = workflow.temporal_effect();
+        workflow.withdraw_cluster().unwrap();
+        assert!(workflow.decision().is_err());
+        assert!(workflow.export_decision().is_err());
+        assert!(workflow.utility_only(2.0, &ctx).is_err());
+        assert!(workflow.prior_change(1.0, &ctx).is_err());
+        assert!(workflow.period_change((0, 49), &ctx).is_err());
+        assert!(
+            load_decision(&artifact.bytes, Some(&artifact.identity), workflow.authority(), &ctx)
+                .is_err()
+        );
+        assert_eq!(
+            replay_decision(&artifact.bytes, Some(&artifact.identity), &ctx).unwrap(),
+            historical
+        );
+        assert_eq!(workflow.cost_mean(), cost);
+        assert_eq!(workflow.temporal_effect(), temporal);
+    }
+
+    #[test]
+    fn superseded_source_and_changed_payload_refuse_old_decisions() {
+        let ctx = ExecutionContext::for_tests(0xF1A6);
+        let mut workflow =
+            FlagshipWorkflow::execute(&ctx, FlagshipDependence::Independent).unwrap();
+        let artifact = workflow.export_decision().unwrap();
+        workflow.utility_only(2.0, &ctx).unwrap();
+        assert!(
+            load_decision(&artifact.bytes, Some(&artifact.identity), workflow.authority(), &ctx)
+                .is_err()
+        );
+        let artifact = workflow.export_decision().unwrap();
+        let mut replacement = workflow
+            .authority()
+            .ledger()
+            .sources()
+            .iter()
+            .find(|source| {
+                source.declaration.kind
+                    == antecedent_contract::evidence_ledger::SourceKind::FittedModel
+            })
+            .unwrap()
+            .declaration
+            .clone();
+        replacement.label.push_str(":corrected");
+        workflow.authority_mut().supersede_source(1, replacement).unwrap();
+        assert!(workflow.decision().is_err());
+        assert!(
+            load_decision(&artifact.bytes, Some(&artifact.identity), workflow.authority(), &ctx)
+                .is_err()
+        );
+    }
 }
