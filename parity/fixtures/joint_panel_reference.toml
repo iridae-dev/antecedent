@@ -1,0 +1,12 @@
+# Q01 independent reference input for X06.1, not a public route license.
+id = "response.joint_panel_reference"
+capability_ids = []
+fixture_dir = "conformance/response/joint_panel"
+tolerance_class = "StableFloat"
+generator = "conformance/response/joint_panel/reference.py"
+seed = 20261021
+truth = "conformance/response/joint_panel/expected.json"
+test = "scripts/test_joint_panel_reference.py"
+consumers = ["X02", "X06.2", "Q08", "Q09", "Q11"]
+status = "reference_only"
+limitations = "No fitted procedure, parameter uncertainty, calibration, causal license, artifact consumer or Meridian comparison. Confounded-design refusal is an expected consumer obligation."

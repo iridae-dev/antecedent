@@ -2824,7 +2824,7 @@ assumptions = "Generator truth, seeds, and reference values stay independent of 
 sampling_units = "groups in a synthetic panel"
 estimator = "frequentist fit of the admitted mechanism, or a documented unavailable fit"
 diagnostics = "hold out joint regimes as well as rows; an unsupported design must withhold a causal claim even if a simulation runs"
-failure_policy = "Specification only. A simulation is not a fit. If X02 stays excluded, keep the design fixtures and document the unavailable fitted workflow. No independent synthetic fixture, holdout regime, or unsupported-design refusal in route_manifest."
+failure_policy = "Specification only. A simulation is not a fit. If X02 stays excluded, keep the design fixtures and document the unavailable fitted workflow. X06.1 now retains independent panel truth, held-out joint regimes and a confounded unsupported design in conformance/response/joint_panel. Compiled fitted execution and production refusal remain under X06.2."
 references = [
   "Release scope and gates",
   "X06 — Build the independent reference workflow first",

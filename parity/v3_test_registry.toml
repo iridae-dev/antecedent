@@ -221,3 +221,10 @@ crate = "scripts"
 path = "scripts/gate_cyclic_systems.py"
 cargo_target = "script"
 gates = ["inventory"]
+
+[[test]]
+id = "joint-panel-independent-reference"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_joint_panel_reference.py"
+gates = ["inventory"]

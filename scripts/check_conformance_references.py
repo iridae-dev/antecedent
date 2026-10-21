@@ -16,6 +16,7 @@ import sys
 from _repo import REPO_ROOT
 
 GENERATORS = (
+    "conformance/response/joint_panel/reference.py",
     "conformance/estimate/rd_sharp/reference.py",
     "conformance/estimate/cpdag_ate_envelope/reference.py",
     "conformance/estimate/pag_ate_envelope_identified/reference.py",

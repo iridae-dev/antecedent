@@ -1,0 +1,20 @@
+feature_id = "response.joint_panel_reference"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "Independent synthetic fixture equations, not a new estimator or a reproduced paper procedure.",
+  "Finite L=2 weighted carryover precedes shared Michaelis-Menten saturation. Hierarchical group intercept truth, seasonal dummies and an additive observable confounder are declared explicitly.",
+  "Known parameter functionals condition on the retained four-group population, covariates and pre-period histories; future mean-zero outcome noise is integrated out. No uncertainty or coverage claim is attached.",
+  "Covariate-dependent randomized per-time joint assignment and a latent-confounded, off-diagonal-unsupported design are separate fixtures; production identification and refusal are later consumer obligations.",
+  "Additive and interaction variants share all random draws. The additive fixture is not evidence of agreement with Meridian or any external implementation.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "conformance/response/joint_panel/reference.py (standard-library independent generator, seed 20261021)",
+  "conformance/response/joint_panel/expected.json (retained group, initial-history, innovation, per-world and whole-contrast truth)",
+  "scripts/test_joint_panel_reference.py (independent steady-state Delta_AB=2/3 and finite-history transient formulas; data/dependence equations and negative support design)",
+]
