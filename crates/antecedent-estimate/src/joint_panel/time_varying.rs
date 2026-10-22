@@ -15,7 +15,7 @@ use antecedent_core::{ExecutionContext, SemanticDigest};
 use antecedent_kernels::standard_normal;
 use antecedent_prob::{
     all_chains_moved, mcmc_summary,
-    metropolis::{MetropolisOptions, sample_metropolis},
+    metropolis::{MetropolisOptions, sample_metropolis_dispersed},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -737,8 +737,9 @@ fn fit_temporal_inner(
                     + inference::log_prior(data, &values[..p], prior)
                     + path_log_prior(spec, &choices[index], &values[p..p + path_parameters])
             };
-            let samples = sample_metropolis(
+            let samples = sample_metropolis_dispersed(
                 &initial,
+                10.0 * sampler.proposal_scale,
                 MetropolisOptions {
                     chains: sampler.chains,
                     warmup: sampler.warmup,

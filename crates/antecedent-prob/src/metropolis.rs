@@ -50,6 +50,39 @@ pub fn sample_metropolis<F>(
 where
     F: Fn(&[f64]) -> f64,
 {
+    sample_from_starts(initial, 0.0, options, ctx, log_density)
+}
+
+/// Like [`sample_metropolis`], but each chain starts at `center` plus an independent
+/// Gaussian offset of standard deviation `spread`, so the between-chain diagnostics can see
+/// a chain stuck away from the bulk. A start with a non-finite density is redrawn (at most
+/// 64 times), then the target is refused.
+pub fn sample_metropolis_dispersed<F>(
+    center: &[f64],
+    spread: f64,
+    options: MetropolisOptions,
+    ctx: &ExecutionContext,
+    log_density: F,
+) -> Result<MetropolisDraws, MetropolisError>
+where
+    F: Fn(&[f64]) -> f64,
+{
+    if !spread.is_finite() || spread <= 0.0 {
+        return Err(MetropolisError::Invalid("start spread"));
+    }
+    sample_from_starts(center, spread, options, ctx, log_density)
+}
+
+fn sample_from_starts<F>(
+    initial: &[f64],
+    spread: f64,
+    options: MetropolisOptions,
+    ctx: &ExecutionContext,
+    log_density: F,
+) -> Result<MetropolisDraws, MetropolisError>
+where
+    F: Fn(&[f64]) -> f64,
+{
     let p = initial.len();
     if p == 0
         || p > 1024
@@ -77,8 +110,7 @@ where
     .map_err(|_| MetropolisError::Invalid("size overflow"))?;
     let _lease =
         ctx.acquire_admission(0, bytes).map_err(|e| MetropolisError::Resource(e.to_string()))?;
-    let start_logp = log_density(initial);
-    if !start_logp.is_finite() {
+    if !log_density(initial).is_finite() {
         return Err(MetropolisError::Invalid("initial density"));
     }
     let mut samples = Vec::with_capacity(count);
@@ -86,8 +118,26 @@ where
     for (chain, acceptance) in accepted.iter_mut().enumerate() {
         let mut rng =
             ctx.rng.stream(antecedent_core::derive_stream(0x4359_434c_4943_4d48, chain as u64));
-        let mut current = initial.to_vec();
-        let mut logp = start_logp;
+        let (mut current, mut logp) = if spread > 0.0 {
+            let mut start_rng = ctx
+                .rng
+                .stream(antecedent_core::derive_stream(0x4359_434c_5354_5254, chain as u64));
+            let mut found = None;
+            for _ in 0..64 {
+                let start: Vec<f64> = initial
+                    .iter()
+                    .map(|x| x + spread * standard_normal(&mut start_rng))
+                    .collect();
+                let logp = log_density(&start);
+                if logp.is_finite() {
+                    found = Some((start, logp));
+                    break;
+                }
+            }
+            found.ok_or(MetropolisError::Invalid("dispersed start density"))?
+        } else {
+            (initial.to_vec(), log_density(initial))
+        };
         for iteration in 0..options.warmup + options.draws {
             if ctx.cancellation.is_cancelled() {
                 return Err(MetropolisError::Resource("cancelled".into()));
@@ -118,6 +168,24 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn dispersed_starts_differ_by_chain_and_still_recover_moments() {
+        let options =
+            MetropolisOptions { chains: 4, warmup: 400, draws: 3000, proposal_scale: 1.0 };
+        let run = || {
+            sample_metropolis_dispersed(&[0.0], 4.0, options, &ExecutionContext::for_tests(42), |x| {
+                -0.5 * x[0].powi(2)
+            })
+            .unwrap()
+        };
+        let a = run();
+        assert_eq!(a.samples, run().samples);
+        let mean = a.samples.iter().sum::<f64>() / a.samples.len() as f64;
+        assert!(mean.abs() < 0.15);
+        let firsts: Vec<f64> = (0..4).map(|c| a.samples[c * options.draws]).collect();
+        assert!(firsts.windows(2).any(|w| w[0].to_bits() != w[1].to_bits()));
+    }
+
     #[test]
     fn normal_target_replays_and_recovers_moments() {
         let options =

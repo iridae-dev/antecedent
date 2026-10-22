@@ -12,9 +12,12 @@ use antecedent_core::{
 use antecedent_kernels::{chol_inverse, cholesky_spd_into, standard_normal};
 use antecedent_prob::{
     all_chains_moved, mcmc_summary,
-    metropolis::{MetropolisOptions, sample_metropolis},
+    metropolis::{MetropolisOptions, sample_metropolis_dispersed},
 };
 use std::sync::Arc;
+
+/// Standard deviation, in whitened posterior units, of the offset each chain starts from.
+pub(super) const CHAIN_START_SPREAD: f64 = 2.0;
 
 fn score(
     data: &likelihood::CompiledPanel<'_>,
@@ -480,8 +483,9 @@ fn posterior_draws(
                 })
                 .collect()
         };
-        let samples = sample_metropolis(
+        let samples = sample_metropolis_dispersed(
             &vec![0.0; p],
+            CHAIN_START_SPREAD,
             MetropolisOptions {
                 chains: sampler.chains,
                 warmup: sampler.warmup,

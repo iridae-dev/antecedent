@@ -836,6 +836,7 @@ pub fn antecedent_prob::mcmc_stats::min_bulk_ess(samples: &[f64], n_chains: usiz
 pub fn antecedent_prob::mcmc_stats::min_tail_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64
 pub fn antecedent_prob::mcmc_stats::parameter_mcmc_diagnostics(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> alloc::vec::Vec<antecedent_prob::ParameterMcmcDiagnostics>
 pub fn antecedent_prob::metropolis::sample_metropolis<F>(initial: &[f64], options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::ExecutionContext, log_density: F) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError> where F: core::ops::function::Fn(&[f64]) -> f64
+pub fn antecedent_prob::metropolis::sample_metropolis_dispersed<F>(center: &[f64], spread: f64, options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::ExecutionContext, log_density: F) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError> where F: core::ops::function::Fn(&[f64]) -> f64
 pub mod antecedent_prob::backend
 pub mod antecedent_prob::conjugate
 pub mod antecedent_prob::conjugate_moment_match
