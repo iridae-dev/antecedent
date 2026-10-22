@@ -407,10 +407,11 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
             .any(|d| d.id.as_ref() == "response.temporal.block_length")
     );
     let mut limited = ExecutionContext::for_tests(37);
-    // Enough for the output alone, but not twelve retained bootstrap surfaces.
+    // Enough for the output alone, but not twelve retained bootstrap surfaces: the planner
+    // counts the retained surfaces and refuses against the pool limit.
     limited.set_memory_limit(Some((lower.len() * 40) as u64));
     let error = study.run(&limited).unwrap_err();
-    assert!(error.to_string().contains("output bytes"), "{error}");
+    assert!(error.to_string().contains("exceeds memory limit"), "{error}");
 }
 
 /// Observation-adjusted Sequence overlays resample lag-aligned outcome-time tuples,
