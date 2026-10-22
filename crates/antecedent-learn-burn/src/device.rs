@@ -596,30 +596,31 @@ fn spec_tag(spec: &MlpSpec, fold: u32) -> u64 {
     hasher.finish()
 }
 
-/// Two independently seeded 64-bit hashes of the training rows, width, design, and target.
-///
-/// This cache is process-local. The crate depends only on `burn`, so the tag stays on
-/// `DefaultHasher` rather than the domain-separated blake3 helper in `antecedent-core`.
+/// Domain-separated blake3 digest (first 128 bits) of the training rows, width, design, and
+/// target. The value is stable across processes and platforms.
 fn content_tag(rows: &[usize], ncols: usize, x: &[f64], y: &[f64]) -> [u64; 2] {
-    let lane = |salt: u64| {
-        let mut hasher = DefaultHasher::new();
-        salt.hash(&mut hasher);
-        rows.len().hash(&mut hasher);
-        for row in rows {
-            row.hash(&mut hasher);
-        }
-        ncols.hash(&mut hasher);
-        x.len().hash(&mut hasher);
-        for value in x {
-            value.to_bits().hash(&mut hasher);
-        }
-        y.len().hash(&mut hasher);
-        for value in y {
-            value.to_bits().hash(&mut hasher);
-        }
-        hasher.finish()
+    let mut hasher = blake3::Hasher::new_derive_key("antecedent.learn_burn.content_tag.v1");
+    hasher.update(&(rows.len() as u64).to_le_bytes());
+    for row in rows {
+        hasher.update(&(*row as u64).to_le_bytes());
+    }
+    hasher.update(&(ncols as u64).to_le_bytes());
+    hasher.update(&(x.len() as u64).to_le_bytes());
+    for value in x {
+        hasher.update(&value.to_bits().to_le_bytes());
+    }
+    hasher.update(&(y.len() as u64).to_le_bytes());
+    for value in y {
+        hasher.update(&value.to_bits().to_le_bytes());
+    }
+    let digest = hasher.finalize();
+    let bytes = digest.as_bytes();
+    let word = |at: usize| {
+        let mut buf = [0_u8; 8];
+        buf.copy_from_slice(&bytes[at..at + 8]);
+        u64::from_le_bytes(buf)
     };
-    [lane(0x9E37_79B9_7F4A_7C15), lane(0xC2B2_AE3D_27D4_EB4F)]
+    [word(0), word(8)]
 }
 
 /// Portable weights from a device fit, plus the policy that produced them.

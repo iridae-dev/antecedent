@@ -15,4 +15,5 @@ default = []
 wgpu = ["burn/wgpu"]
 
 [dependencies]
+blake3 = { workspace = true }
 burn = { workspace = true }

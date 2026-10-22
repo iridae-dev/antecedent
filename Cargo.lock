@@ -331,6 +331,7 @@ dependencies = [
 name = "antecedent-learn-burn"
 version = "2.4.1"
 dependencies = [
+ "blake3",
  "burn",
 ]
 
