@@ -57,6 +57,7 @@ use antecedent_contract::adaptive_design::{
     StoppingRuleDeclaration, StoppingRuleKind, StoppingSpec,
 };
 use antecedent_contract::evidence_ledger::parse_digest_hex;
+use antecedent_core::refusal::{changed_identity, replay_mismatch};
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError, AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, Boundaries,
@@ -125,14 +126,11 @@ impl AdaptiveMonitoringContractError {
             Self::Refused { code, detail, message } => {
                 Some((*code, detail.clone(), message.clone()))
             }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "adaptive_inference.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            Self::ReplayMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "adaptive_inference.report_replay_mismatch".to_owned(),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("adaptive_inference.wrong_contract", field))
+            }
+            Self::ReplayMismatch(what) => Some(replay_mismatch(
+                "adaptive_inference.report_replay_mismatch",
                 format!("the stored {what} does not replay"),
             )),
             _ => None,

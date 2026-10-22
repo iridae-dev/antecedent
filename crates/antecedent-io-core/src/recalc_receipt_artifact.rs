@@ -105,9 +105,7 @@ impl RecalcReceiptArtifactError {
     /// failures.
     #[must_use]
     pub fn refusal(&self) -> Option<(&'static str, &'static str, String)> {
-        let text = self.to_string();
-        let explanation =
-            text.split_once(": ").map_or_else(|| text.clone(), |(_, rest)| rest.to_owned());
+        let explanation = antecedent_core::refusal::explanation_of(&self.to_string());
         match self {
             Self::FreshProcessReuse { .. } => Some((
                 antecedent_core::reason_code!("score_table_unavailable"),

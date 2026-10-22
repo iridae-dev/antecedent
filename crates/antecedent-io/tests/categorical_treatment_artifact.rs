@@ -13,7 +13,7 @@
 //! is `2/3` and every step is `-1`. Calibration (Type I error, coverage, power) is deliberately
 //! NOT measured here.
 
-use antecedent_core::{ExecutionContext, MemoryBudget};
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::categorical_treatment::{
     CategoricalTreatmentFit, CategoricalTreatmentInput, CategoricalTreatmentSpec, LevelScale,
     fit_categorical_treatment,
@@ -522,7 +522,7 @@ fn categorical_summary_is_bound_to_its_rows_by_a_digest() {
 fn categorical_budgets_refuse_with_precise_details_and_keep_the_fit() {
     let request = synthetic(2_000, "hc1");
     let mut tight = ExecutionContext::production(0, 1);
-    tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(10_000) };
+    tight.set_memory_limit(Some(10_000));
     let error = CategoricalTreatmentArtifact::seal_with(&request, &tight).unwrap_err();
     let (code, detail, text) = error.refusal().unwrap();
     assert_eq!(
@@ -531,7 +531,7 @@ fn categorical_budgets_refuse_with_precise_details_and_keep_the_fit() {
     );
     assert!(text.contains("10000-byte"), "{text}");
     let mut roomy = ExecutionContext::production(0, 1);
-    roomy.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(10_000_000) };
+    roomy.set_memory_limit(Some(10_000_000));
     let artifact = CategoricalTreatmentArtifact::seal_with(&request, &roomy).unwrap();
 
     let cancelled = ExecutionContext::production(0, 1);

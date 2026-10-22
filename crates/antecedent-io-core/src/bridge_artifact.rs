@@ -47,6 +47,7 @@ use antecedent_contract::{
     ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, ReasoningView, ScientificQuantity,
     SlotAvailability,
 };
+use antecedent_core::refusal::{changed_identity, replay_mismatch};
 use antecedent_core::{CanonicalWriter, ContractIdentities, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
@@ -109,14 +110,11 @@ impl ScientificBridgeArtifactError {
             Self::Refused { code, detail, message } => {
                 Some((*code, detail.clone(), message.clone()))
             }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "scientific_bridge.identity_mismatch".to_owned(),
-                format!("{field} changed"),
-            )),
-            Self::ReplayMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "scientific_bridge.replay_mismatch".to_owned(),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("scientific_bridge.identity_mismatch", field))
+            }
+            Self::ReplayMismatch(what) => Some(replay_mismatch(
+                "scientific_bridge.replay_mismatch",
                 format!("the stored {what} does not replay"),
             )),
             _ => None,

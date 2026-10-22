@@ -545,8 +545,7 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), PanelArtifactError> {
     if ctx.cancellation.is_cancelled() { Err(PanelArtifactError::Cancelled) } else { Ok(()) }
 }
 fn admit(ctx: &ExecutionContext, bytes: u64) -> Result<AdmissionLease, PanelArtifactError> {
-    let limit =
-        [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes].into_iter().flatten().min();
+    let limit = ctx.memory_limit_bytes();
     if limit.is_some_and(|limit| bytes > limit) {
         return Err(PanelArtifactError::Resource("configured memory limit".into()));
     }

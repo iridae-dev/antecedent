@@ -650,8 +650,7 @@ impl MzTransportArtifactWire {
         // Refusing here, before any work, is a limits refusal the caller can retry
         // with a larger budget, not a claim that the proof is invalid.
         let memory_cap = ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .map_or(limits.search_memory_bytes, |hard| hard.min(limits.search_memory_bytes));
         if self.proof.search.memory_limit_bytes > memory_cap {
             return Err(exceeded("search memory limit"));

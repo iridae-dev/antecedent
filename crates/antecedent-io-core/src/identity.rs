@@ -1648,6 +1648,10 @@ pub struct DataSnapshotIdentityWire {
     /// unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub missing: Option<MissingPolicyWire>,
+    /// Declared sampling design (`snake_case` name), when the study declares one. Absent on
+    /// older artifacts and on studies that declare none, whose digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampling_design: Option<String>,
 }
 
 /// Sufficient statistics for replaying a checked homoskedastic OLS fit.
@@ -3225,6 +3229,7 @@ mod tests {
             linear_fit_moments: None,
             participants: None,
             missing: None,
+            sampling_design: None,
         };
         let decoded: DataSnapshotIdentityWire = from_cbor(&to_cbor(&original).unwrap()).unwrap();
         assert_eq!(original, decoded);

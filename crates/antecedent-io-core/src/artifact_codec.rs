@@ -292,16 +292,16 @@ macro_rules! sectioned_artifact_error {
                             message.split_once(": ").unwrap_or((message.as_str(), ""));
                         Some((*code, detail.to_owned(), text.to_owned()))
                     }
-                    Self::IdentityMismatch { field } => Some((
-                        antecedent_core::reason_code!("route_not_supported"),
-                        format!("{contract}.wrong_contract", contract = $contract),
-                        format!("{field} changed"),
-                    )),
+                    Self::IdentityMismatch { field } => {
+                        Some(antecedent_core::refusal::changed_identity(
+                            &format!("{contract}.wrong_contract", contract = $contract),
+                            field,
+                        ))
+                    }
                     Self::ResultMismatch(what) => {
                         if $report {
-                            Some((
-                                antecedent_core::reason_code!("invalid_argument"),
-                                format!(
+                            Some(antecedent_core::refusal::replay_mismatch(
+                                &format!(
                                     "{contract}.report_replay_mismatch",
                                     contract = $contract
                                 ),

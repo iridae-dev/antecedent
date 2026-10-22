@@ -43,6 +43,7 @@ use antecedent_contract::transport_revalidation::{
     SceneCalibration, SceneClaim, SceneClaimKind, SceneSource, SceneTarget, TransportReason,
     TransportRevalidation, TransportScene, revalidate_transport,
 };
+use antecedent_core::refusal::{changed_identity, replay_mismatch};
 use antecedent_core::{IdentityDomain, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
@@ -90,14 +91,11 @@ impl TransportRevalidationArtifactError {
     #[must_use]
     pub fn refusal(&self) -> Option<(&'static str, String, String)> {
         match self {
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "transport_revalidation.identity_mismatch".to_owned(),
-                format!("{field} changed"),
-            )),
-            Self::ReplayMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "transport_revalidation.replay_mismatch".to_owned(),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("transport_revalidation.identity_mismatch", field))
+            }
+            Self::ReplayMismatch(what) => Some(replay_mismatch(
+                "transport_revalidation.replay_mismatch",
                 format!("the stored {what} does not replay from the stored scenes"),
             )),
             _ => None,

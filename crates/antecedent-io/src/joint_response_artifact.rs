@@ -650,8 +650,7 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), JointResponseArtifactError> {
     }
 }
 fn admit(ctx: &ExecutionContext, bytes: u64) -> Result<AdmissionLease, JointResponseArtifactError> {
-    let limit =
-        [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes].into_iter().flatten().min();
+    let limit = ctx.memory_limit_bytes();
     if limit.is_some_and(|limit| bytes > limit) {
         return Err(JointResponseArtifactError::Resource("configured memory limit".into()));
     }

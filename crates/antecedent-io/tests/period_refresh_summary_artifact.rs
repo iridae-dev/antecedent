@@ -30,8 +30,7 @@ fn fixture() -> PeriodRefreshSummaryWire {
     }
     let det = s00 * s11 - s01 * s01;
     let beta = vec![(s11 * t0 - s01 * t1) / det, (s00 * t1 - s01 * t0) / det];
-    let sse: f64 =
-        X.iter().zip(&Y).map(|(x, y)| (y - beta[0] - beta[1] * x).powi(2)).sum::<f64>();
+    let sse: f64 = X.iter().zip(&Y).map(|(x, y)| (y - beta[0] - beta[1] * x).powi(2)).sum::<f64>();
     PeriodRefreshSummaryWire {
         version: PERIOD_REFRESH_SUMMARY_VERSION,
         required_features: vec![PERIOD_REFRESH_SUMMARY_FEATURE.into()],
@@ -90,8 +89,10 @@ fn a_changed_field_under_the_old_seal_is_refused() {
     assert!(message(&wire.verify().unwrap_err()).contains("seal"));
     let mut wire = fixture().checked().unwrap();
     wire.seal = "0".repeat(wire.seal.len());
-    assert!(message(&PeriodRefreshSummaryWire::consume(&wire.export().unwrap()).unwrap_err())
-        .contains("seal"));
+    assert!(
+        message(&PeriodRefreshSummaryWire::consume(&wire.export().unwrap()).unwrap_err())
+            .contains("seal")
+    );
 }
 
 #[test]

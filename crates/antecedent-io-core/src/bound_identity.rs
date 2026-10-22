@@ -7,9 +7,12 @@
 //!
 //! A presented identity mismatches when its payload, coordinates, prior,
 //! alignment, or cyclic-solution tag differs from the retained expectation.
-//! A digest that describes itself as matching while its bytes differ is a
-//! false self-description and is refused. Matching bytes pass that check,
-//! and the retained expectation is still compared.
+//! A self-description advertises one digest for the presented facets. The
+//! consumer recomputes that digest from the facets it was handed
+//! ([`facet_digest`]) and compares the two. A carrier cannot supply both sides of
+//! the comparison. An advertisement that differs is a false self-description and
+//! is refused. A matching one passes that check, and the retained expectation is
+//! still compared.
 //!
 //! This module does not load an artifact. [`CyclicSolution::Tag`] is the
 //! `cyclic.solution.v1` tag; comparing it does not solve a cyclic system.
@@ -77,17 +80,16 @@ pub enum CyclicSolution {
     Tag(SemanticDigest),
 }
 
-/// Digest that says its two byte strings are equal.
+/// Digest the carrier advertises for the facets of its own identity.
 ///
-/// `advertised` is the digest the carrier attributes to `subject`. Presenting
-/// this value is the claim that those bytes match.
+/// The consumer does not trust the advertisement. [`bind`] recomputes
+/// [`facet_digest`] from the presented slot, payload, coordinates, prior,
+/// alignment, and cyclic-solution tag, and compares that value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[must_use]
 pub struct SelfDescribedDigest {
-    /// Bytes the carrier says are the digest.
+    /// Bytes the carrier says are the digest of the presented facets.
     pub advertised: SemanticDigest,
-    /// Bytes that advertisement is about.
-    pub subject: SemanticDigest,
 }
 
 /// Presented identity for one [`IdentitySlot`].
@@ -239,6 +241,30 @@ pub enum BoundRefusal {
     },
 }
 
+/// Digest of the facets of `bound`, recomputed by the consumer.
+///
+/// It covers the slot, payload, coordinates, prior, alignment, and cyclic-solution
+/// tag, each with a fixed width so no two facets can trade bytes. It does not
+/// read [`BoundIdentity::self_description`].
+pub fn facet_digest(bound: &BoundIdentity) -> SemanticDigest {
+    let mut hasher = blake3::Hasher::new_derive_key("antecedent bound identity facets");
+    hasher.update(&[slot_tag(bound.slot)]);
+    hasher.update(bound.payload.as_bytes());
+    hasher.update(bound.coordinates.as_bytes());
+    hasher.update(bound.prior.as_bytes());
+    hasher.update(bound.alignment.as_bytes());
+    match bound.cyclic_solution {
+        CyclicSolution::Absent => {
+            hasher.update(&[0]);
+        }
+        CyclicSolution::Tag(tag) => {
+            hasher.update(&[1]);
+            hasher.update(tag.as_bytes());
+        }
+    }
+    SemanticDigest::from_bytes(*hasher.finalize().as_bytes())
+}
+
 /// Bind `bound` as `required`.
 ///
 /// `expected` is the identity the consumer retained for this slot. `None`
@@ -246,8 +272,8 @@ pub enum BoundRefusal {
 /// [`BoundMatch::NotRequired`] and is not [`BoundMatch::Bound`].
 ///
 /// Slot agreement is checked first. A self-description whose advertised bytes
-/// differ from its subject is then refused. Matching self-description bytes
-/// are accepted and do not skip the retained comparison. The first differing
+/// differ from [`facet_digest`] of the presented facets is then refused. A
+/// matching advertisement is accepted and do not skip the retained comparison. The first differing
 /// facet is reported, in order: payload, coordinates, prior, alignment,
 /// cyclic-solution tag.
 ///
@@ -255,7 +281,7 @@ pub enum BoundRefusal {
 ///
 /// The presented slot disagrees with `required`, the self-description is
 /// false, or a required facet differs from `expected`.
-pub const fn bind(
+pub fn bind(
     required: IdentitySlot,
     bound: &BoundIdentity,
     expected: Option<&ExpectedIdentity>,
@@ -263,7 +289,7 @@ pub const fn bind(
     if slot_tag(bound.slot) != slot_tag(required) {
         return Err(BoundRefusal::SlotMismatch { presented: bound.slot, expected: required });
     }
-    if falsely_self_described(bound.self_description) {
+    if falsely_self_described(bound) {
         return Err(BoundRefusal::FalseSelfDescription { slot: required });
     }
     let Some(expected) = expected else {
@@ -296,7 +322,7 @@ pub const fn bind(
 /// # Errors
 ///
 /// Any slot's presented identity is refused by [`bind`].
-pub const fn bind_all(
+pub fn bind_all(
     bound: &BoundIdentities,
     expected: &ExpectedIdentities,
 ) -> Result<[BoundMatch; 5], BoundRefusal> {
@@ -357,11 +383,11 @@ const fn same_cyclic(left: CyclicSolution, right: CyclicSolution) -> bool {
     }
 }
 
-/// `Some` says the advertised bytes equal the subject. Unequal bytes are a
-/// false self-description. Absent means the carrier made no such claim.
-const fn falsely_self_described(described: Option<SelfDescribedDigest>) -> bool {
-    match described {
-        Some(described) => !same_digest(described.advertised, described.subject),
+/// `Some` advertises the digest of the presented facets. A different advertised
+/// value is a false self-description. Absent means the carrier made no claim.
+fn falsely_self_described(bound: &BoundIdentity) -> bool {
+    match bound.self_description {
+        Some(described) => !same_digest(described.advertised, facet_digest(bound)),
         None => false,
     }
 }
@@ -396,8 +422,8 @@ mod tests {
         }
     }
 
-    const fn honest(byte: u8) -> SelfDescribedDigest {
-        SelfDescribedDigest { advertised: digest(byte), subject: digest(byte) }
+    fn honest(bound: &BoundIdentity) -> SelfDescribedDigest {
+        SelfDescribedDigest { advertised: facet_digest(bound) }
     }
 
     const fn require_all(retained: ExpectedIdentity) -> ExpectedIdentities {
@@ -425,14 +451,14 @@ mod tests {
         let retained = retained();
         for slot in IdentitySlot::ALL {
             let mut bound = presented(slot);
-            bound.self_description = Some(honest(7));
+            bound.self_description = Some(honest(&bound));
             assert_eq!(bind(slot, &bound, Some(&retained)), Ok(BoundMatch::Bound { slot }));
             bound.self_description = None;
             assert_eq!(bind(slot, &bound, Some(&retained)), Ok(BoundMatch::Bound { slot }));
         }
         let mut tagged = presented(IdentitySlot::Source);
         tagged.cyclic_solution = CyclicSolution::Tag(digest(5));
-        tagged.self_description = Some(honest(5));
+        tagged.self_description = Some(honest(&tagged));
         let mut expected = retained;
         expected.cyclic_solution = CyclicSolution::Tag(digest(5));
         assert_eq!(
@@ -447,7 +473,7 @@ mod tests {
         for slot in IdentitySlot::ALL {
             let mut bound = presented(slot);
             bound.payload = digest(9);
-            bound.self_description = Some(honest(9));
+            bound.self_description = Some(honest(&bound));
             assert_eq!(
                 bind(slot, &bound, Some(&retained)),
                 Err(BoundRefusal::PayloadMismatch { slot }),
@@ -461,7 +487,7 @@ mod tests {
         for slot in IdentitySlot::ALL {
             let mut bound = presented(slot);
             bound.coordinates = digest(8);
-            bound.self_description = Some(honest(8));
+            bound.self_description = Some(honest(&bound));
             assert_eq!(
                 bind(slot, &bound, Some(&retained)),
                 Err(BoundRefusal::CoordinatesMismatch { slot }),
@@ -475,7 +501,7 @@ mod tests {
         for slot in IdentitySlot::ALL {
             let mut bound = presented(slot);
             bound.prior = digest(6);
-            bound.self_description = Some(honest(6));
+            bound.self_description = Some(honest(&bound));
             assert_eq!(
                 bind(slot, &bound, Some(&retained)),
                 Err(BoundRefusal::PriorMismatch { slot }),
@@ -489,7 +515,7 @@ mod tests {
         for slot in IdentitySlot::ALL {
             let mut bound = presented(slot);
             bound.alignment = digest(5);
-            bound.self_description = Some(honest(5));
+            bound.self_description = Some(honest(&bound));
             assert_eq!(
                 bind(slot, &bound, Some(&retained)),
                 Err(BoundRefusal::AlignmentMismatch { slot }),
@@ -504,13 +530,14 @@ mod tests {
         for slot in IdentitySlot::ALL {
             let mut tagged = presented(slot);
             tagged.cyclic_solution = CyclicSolution::Tag(digest(5));
-            tagged.self_description = Some(honest(5));
+            tagged.self_description = Some(honest(&tagged));
             assert_eq!(
                 bind(slot, &tagged, Some(&retained_absent)),
                 Err(BoundRefusal::CyclicSolutionMismatch { slot }),
             );
             let mut other = tagged;
             other.cyclic_solution = CyclicSolution::Tag(digest(6));
+            other.self_description = Some(honest(&other));
             let mut retained_tag = retained_absent;
             retained_tag.cyclic_solution = CyclicSolution::Tag(digest(5));
             assert_eq!(
@@ -538,8 +565,8 @@ mod tests {
         let retained = retained();
         for slot in IdentitySlot::ALL {
             let mut bound = presented(slot);
-            bound.self_description =
-                Some(SelfDescribedDigest { advertised: digest(1), subject: digest(2) });
+            bound.self_description = Some(SelfDescribedDigest { advertised: digest(1) });
+            assert_ne!(bound.self_description.unwrap().advertised, facet_digest(&bound));
             assert_eq!(bound.payload.as_bytes(), retained.payload.as_bytes());
             assert_eq!(
                 bind(slot, &bound, Some(&retained)),
@@ -550,13 +577,49 @@ mod tests {
     }
 
     #[test]
+    fn stale_self_description_is_recomputed_and_refused() {
+        let retained = retained();
+        for slot in IdentitySlot::ALL {
+            // Described honestly, then a facet is changed: the carrier's earlier
+            // advertisement no longer matches the recomputed digest.
+            let mut bound = presented(slot);
+            bound.self_description = Some(honest(&bound));
+            bound.alignment = digest(7);
+            assert_eq!(
+                bind(slot, &bound, Some(&retained)),
+                Err(BoundRefusal::FalseSelfDescription { slot }),
+            );
+        }
+    }
+
+    #[test]
+    fn facet_digest_depends_on_every_facet_and_ignores_the_description() {
+        let base = presented(IdentitySlot::Target);
+        let reference = facet_digest(&base);
+        let mut described = base;
+        described.self_description = Some(honest(&base));
+        assert_eq!(facet_digest(&described), reference);
+        let variants = [
+            BoundIdentity { slot: IdentitySlot::Claim, ..base },
+            BoundIdentity { payload: digest(9), ..base },
+            BoundIdentity { coordinates: digest(9), ..base },
+            BoundIdentity { prior: digest(9), ..base },
+            BoundIdentity { alignment: digest(9), ..base },
+            BoundIdentity { cyclic_solution: CyclicSolution::Tag(digest(0)), ..base },
+        ];
+        for variant in variants {
+            assert_ne!(facet_digest(&variant), reference);
+        }
+    }
+
+    #[test]
     fn matching_self_description_is_not_an_independent_binding() {
         let retained = retained();
         let mut bound = presented(IdentitySlot::Claim);
         bound.payload = digest(9);
-        let described = honest(1);
+        let described = honest(&bound);
         bound.self_description = Some(described);
-        assert_eq!(described.advertised, described.subject);
+        assert_eq!(described.advertised, facet_digest(&bound));
         assert_eq!(
             bind(IdentitySlot::Claim, &bound, Some(&retained)),
             Err(BoundRefusal::PayloadMismatch { slot: IdentitySlot::Claim }),
@@ -567,7 +630,7 @@ mod tests {
     fn self_description_without_retained_expected_is_not_a_binding() {
         for slot in IdentitySlot::ALL {
             let mut bound = presented(slot);
-            bound.self_description = Some(honest(4));
+            bound.self_description = Some(honest(&bound));
             assert_eq!(bind(slot, &bound, None), Ok(BoundMatch::NotRequired { slot }));
         }
     }

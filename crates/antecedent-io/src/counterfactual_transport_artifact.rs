@@ -292,8 +292,7 @@ fn check_limits(
     // The replay runs under the producer's stored memory cap, so the consumer's
     // own limit (its consume limits and the context's hard limit) must cover it.
     let memory_cap = ctx
-        .memory
-        .hard_limit_bytes
+        .memory_limit_bytes()
         .map_or(limits.search_memory_bytes, |hard| hard.min(limits.search_memory_bytes));
     if wire.search.memory_limit_bytes > memory_cap {
         return Err(exceeded("search memory limit"));

@@ -278,7 +278,7 @@ impl StructuralTransportCertificateWire {
         limits: SidLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        if ctx.memory.hard_limit_bytes.is_some_and(|n| bytes.len() as u64 > n)
+        if ctx.memory_limit_bytes().is_some_and(|n| bytes.len() as u64 > n)
             || ctx.cancellation.is_cancelled()
         {
             return Err(err("certificate budget/cancellation"));
@@ -313,7 +313,7 @@ pub fn read_bounded_transport_artifact(
     {
         return Err(err("invalid transport container/cancellation"));
     }
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes.len() as u64 > limit) {
+    if ctx.memory_limit_bytes().is_some_and(|limit| bytes.len() as u64 > limit) {
         return Err(err("transport artifact decode memory budget"));
     }
     let length = u32::from_le_bytes(bytes[12..16].try_into().map_err(err)?) as usize;
@@ -333,7 +333,7 @@ pub fn read_bounded_transport_artifact(
         .iter()
         .try_fold(bytes.len() as u64, |n, s| n.checked_add(s.uncompressed_size.checked_mul(4)?))
         .ok_or_else(|| err("transport artifact memory overflow"))?;
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| logical > limit) {
+    if ctx.memory_limit_bytes().is_some_and(|limit| logical > limit) {
         return Err(err("transport artifact decode memory budget"));
     }
     crate::container::EncodedArtifact::read_from(bytes)

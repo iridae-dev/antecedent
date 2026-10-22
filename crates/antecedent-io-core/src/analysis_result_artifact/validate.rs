@@ -4,8 +4,8 @@
 
 use super::graphless::{
     graphless_status_ok, validate_continuous_dose_graphless, validate_did_graphless,
-    validate_longitudinal_graphless, validate_policy_graphless, validate_randomized_graphless,
-    validate_history_match_graphless, validate_ratio_graphless,
+    validate_history_match_graphless, validate_longitudinal_graphless, validate_policy_graphless,
+    validate_randomized_graphless, validate_ratio_graphless,
     validate_sequential_contrast_graphless, validate_survival_graphless,
 };
 use super::{

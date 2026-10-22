@@ -52,7 +52,7 @@ pub(crate) fn admit_computation(
         ));
     }
     let planned = planned.unwrap_or(u64::MAX);
-    match ctx.memory.hard_limit_bytes {
+    match ctx.memory_limit_bytes() {
         Some(limit) if planned > limit => Err((
             antecedent_core::reason_code!("route_not_supported"),
             format!(

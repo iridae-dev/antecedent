@@ -324,8 +324,7 @@ impl TransportProofWire {
                     .fold(0usize, usize::saturating_add),
             );
         if ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .is_some_and(|limit| u64::try_from(bytes).map_or(true, |bytes| bytes > limit))
         {
             return Err(IoError::Convert("transport proof memory budget".into()));

@@ -479,7 +479,9 @@ impl ContractReason {
             Self::DependenciesCheckedBayesianMediationOperation => {
                 "dependencies.checked_bayesian_mediation_operation"
             }
-            Self::DependenciesCheckedBayesianLocalRatioOperation => "dependencies.checked_bayesian_local_ratio_operation",
+            Self::DependenciesCheckedBayesianLocalRatioOperation => {
+                "dependencies.checked_bayesian_local_ratio_operation"
+            }
             Self::DependenciesCheckedBayesianSurvivalOperation => {
                 "dependencies.checked_bayesian_survival_operation"
             }
@@ -492,8 +494,12 @@ impl ContractReason {
             Self::DependenciesCheckedBayesianRandomizedOperation => {
                 "dependencies.checked_bayesian_randomized_operation"
             }
-            Self::DependenciesCheckedBayesianPanelDidOperation => "dependencies.checked_bayesian_panel_did_operation",
-            Self::DependenciesCheckedBayesianSyntheticControlOperation => "dependencies.checked_bayesian_synthetic_control_operation",
+            Self::DependenciesCheckedBayesianPanelDidOperation => {
+                "dependencies.checked_bayesian_panel_did_operation"
+            }
+            Self::DependenciesCheckedBayesianSyntheticControlOperation => {
+                "dependencies.checked_bayesian_synthetic_control_operation"
+            }
             Self::DependenciesCheckedBayesianRdOperation => {
                 "dependencies.checked_bayesian_rd_operation"
             }

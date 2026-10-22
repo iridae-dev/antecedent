@@ -618,7 +618,7 @@ impl SmoothedDoseArtifactWire {
         self.check_provenance()?;
         let mut replay_ctx = ExecutionContext::production_default(self.seed);
         replay_ctx.parallelism = ctx.parallelism;
-        replay_ctx.memory = ctx.memory;
+        replay_ctx.set_memory_limit(ctx.memory_limit_bytes());
         replay_ctx.cancellation = ctx.cancellation.clone();
         let replay = evaluate_smoothed_dose_models(
             &query,

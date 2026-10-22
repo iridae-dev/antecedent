@@ -11,7 +11,7 @@
 //! (coverage, Type I error, power) is deliberately NOT measured here.
 #![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
-use antecedent_core::{ExecutionContext, MemoryBudget};
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::vector_treatment::{
     Contrast, NamedColumn, TreatmentColumn, VectorCovariance, VectorTreatmentInput,
     VectorTreatmentOptions, fit_vector_treatment,
@@ -542,7 +542,7 @@ fn vector_summary_is_bound_to_its_rows_by_a_digest() {
 fn vector_budgets_refuse_with_precise_details_and_keep_the_fit() {
     let request = synthetic(2_000, "hc1");
     let mut tight = ExecutionContext::production(0, 1);
-    tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(10_000) };
+    tight.set_memory_limit(Some(10_000));
     let error = VectorTreatmentArtifact::seal_with(&request, &tight).unwrap_err();
     let (code, detail, text) = error.refusal().unwrap();
     assert_eq!(
@@ -551,7 +551,7 @@ fn vector_budgets_refuse_with_precise_details_and_keep_the_fit() {
     );
     assert!(text.contains("10000-byte"), "{text}");
     let mut roomy = ExecutionContext::production(0, 1);
-    roomy.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(10_000_000) };
+    roomy.set_memory_limit(Some(10_000_000));
     let artifact = VectorTreatmentArtifact::seal_with(&request, &roomy).unwrap();
 
     let cancelled = ExecutionContext::production(0, 1);

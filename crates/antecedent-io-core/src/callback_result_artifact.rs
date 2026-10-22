@@ -54,6 +54,7 @@ use antecedent_contract::interface_contract::{
 };
 use antecedent_contract::{ExternalRefusal, ProviderObjectIdentity};
 use antecedent_core::CanonicalWriter;
+use antecedent_core::refusal::changed_identity;
 use serde::{Deserialize, Serialize};
 
 use crate::convert::to_cbor;
@@ -114,11 +115,9 @@ impl CallbackResultArtifactError {
             Self::Refused { code, detail, message } => {
                 Some((*code, detail.clone(), message.clone()))
             }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "callback_protocol.identity_mismatch".to_owned(),
-                format!("{field} changed"),
-            )),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("callback_protocol.identity_mismatch", field))
+            }
             _ => None,
         }
     }

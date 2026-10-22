@@ -781,7 +781,7 @@ impl TransportScenarioArtifactWire {
             return Err(exceeded("scenario budget"));
         }
         if let (Some(producer), Some(consumer)) =
-            (self.scenario_memory_bytes, ctx.memory.hard_limit_bytes)
+            (self.scenario_memory_bytes, ctx.memory_limit_bytes())
         {
             if producer > consumer {
                 return Err(exceeded("scenario memory"));
@@ -866,7 +866,7 @@ impl TransportScenarioArtifactWire {
         // hard limit already bounds, so a memory truncation reproduces.
         let mut replay = ctx.clone();
         if wire.scenario_memory_bytes.is_some() {
-            replay.memory.hard_limit_bytes = wire.scenario_memory_bytes;
+            replay.set_memory_limit(wire.scenario_memory_bytes);
         }
         let ctx = &replay;
         let request = Assignment::from_pairs(

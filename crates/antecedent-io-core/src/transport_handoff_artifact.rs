@@ -54,6 +54,7 @@ use antecedent_contract::provider_transport::{
     hand_to_consumer,
 };
 use antecedent_contract::{ExternalRefusal, ProviderTrust};
+use antecedent_core::refusal::changed_identity;
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
@@ -109,11 +110,9 @@ impl TransportHandoffArtifactError {
             Self::Refused { code, detail, message } => {
                 Some((*code, detail.clone(), message.clone()))
             }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "provider_transport.identity_mismatch".to_owned(),
-                format!("{field} changed"),
-            )),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("provider_transport.identity_mismatch", field))
+            }
             _ => None,
         }
     }

@@ -521,7 +521,7 @@ impl TemporalSequenceArtifactWire {
             return Err(exceeded("search budget"));
         }
         if let (Some(producer), Some(consumer)) =
-            (self.search_memory_bytes, ctx.memory.hard_limit_bytes)
+            (self.search_memory_bytes, ctx.memory_limit_bytes())
         {
             if producer > consumer {
                 return Err(exceeded("search memory"));
@@ -608,7 +608,7 @@ impl TemporalSequenceArtifactWire {
         // hard limit already bounds, so a memory truncation reproduces.
         let mut replay = ctx.clone();
         if wire.search_memory_bytes.is_some() {
-            replay.memory.hard_limit_bytes = wire.search_memory_bytes;
+            replay.set_memory_limit(wire.search_memory_bytes);
         }
         let ctx = &replay;
         let decision = decide_temporal_transport_sequence(

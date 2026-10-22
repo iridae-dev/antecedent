@@ -368,6 +368,7 @@ fn contract_for(
         distribution_factor_laws: None,
         participants: None,
         missing: None,
+        sampling_design: None,
         nested_counterfactual_fit: None,
         linear_fit_moments: None,
     };

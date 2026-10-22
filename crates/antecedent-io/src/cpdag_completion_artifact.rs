@@ -730,7 +730,7 @@ impl CpdagCompletionArtifactWire {
             return Err(exceeded("completion search budget"));
         }
         if let (Some(producer), Some(consumer)) =
-            (self.search_memory_bytes, ctx.memory.hard_limit_bytes)
+            (self.search_memory_bytes, ctx.memory_limit_bytes())
         {
             if producer > consumer {
                 return Err(exceeded("completion search memory"));
@@ -836,7 +836,7 @@ impl CpdagCompletionArtifactWire {
         // hard limit already bounds, so a memory truncation reproduces.
         let mut replay = ctx.clone();
         if wire.search_memory_bytes.is_some() {
-            replay.memory.hard_limit_bytes = wire.search_memory_bytes;
+            replay.set_memory_limit(wire.search_memory_bytes);
         }
         let ctx = &replay;
         let prepared = premises.prepare(ctx)?;

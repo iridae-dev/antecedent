@@ -95,7 +95,15 @@ struct BindingWire {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum TimeWire {
     Static,
-    Temporal { horizon: u32, max_lag: Option<u32>, initial_law: Option<String> },
+    Temporal {
+        horizon: u32,
+        max_lag: Option<u32>,
+        /// Cap the planner resolved and used. Absent for a declared cap and for
+        /// payloads written before the resolved cap was recorded.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        resolved_cap: Option<u32>,
+        initial_law: Option<String>,
+    },
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -428,9 +436,11 @@ impl TimeWire {
         if time.is_static() {
             return Ok(Self::Static);
         }
+        let history = time.history().ok_or_else(|| unknown("history"))?;
         Ok(Self::Temporal {
             horizon: time.horizon_steps().ok_or_else(|| unknown("temporal horizon"))?,
-            max_lag: time.history().ok_or_else(|| unknown("history"))?.max_lag_steps(),
+            max_lag: history.max_lag_steps(),
+            resolved_cap: if history.is_planner_default() { history.resolved_cap() } else { None },
             initial_law: time
                 .initial_law()
                 .ok_or_else(|| unknown("initial law"))?
@@ -441,9 +451,13 @@ impl TimeWire {
     fn to_domain(&self) -> Result<TimeFrame, IoError> {
         match self {
             Self::Static => Ok(TimeFrame::static_decision()),
-            Self::Temporal { horizon, max_lag, initial_law } => TimeFrame::temporal(
+            Self::Temporal { horizon, max_lag, resolved_cap, initial_law } => TimeFrame::temporal(
                 *horizon,
-                max_lag.map_or_else(HistoryWindow::planner_default, HistoryWindow::max_lag),
+                match (max_lag, resolved_cap) {
+                    (Some(steps), _) => HistoryWindow::max_lag(*steps),
+                    (None, Some(steps)) => HistoryWindow::planner_resolved(*steps),
+                    (None, None) => HistoryWindow::planner_default(),
+                },
                 initial_law
                     .as_deref()
                     .map_or_else(|| Ok(InitialLaw::contemporaneous_observed()), InitialLaw::named)
@@ -575,6 +589,24 @@ mod tests {
             )
             .unwrap(),
         )));
+    }
+    #[test]
+    fn scientific_target_wire_keeps_a_resolved_planner_window_and_old_payloads() {
+        let frame = |history| {
+            TimeFrame::temporal(2, history, InitialLaw::contemporaneous_observed()).unwrap()
+        };
+        let resolved = frame(HistoryWindow::planner_default().resolve(3));
+        let wire = TimeWire::from_domain(&resolved).unwrap();
+        let back = wire.to_domain().unwrap();
+        assert_eq!(back, resolved);
+        assert_eq!(back.history(), Some(HistoryWindow::planner_resolved(3)));
+        assert_ne!(back, frame(HistoryWindow::planner_default()));
+        assert_ne!(back, frame(HistoryWindow::max_lag(3)));
+        let old: TimeWire = serde_json::from_str(
+            r#"{"kind":"temporal","horizon":2,"max_lag":null,"initial_law":null}"#,
+        )
+        .unwrap();
+        assert_eq!(old.to_domain().unwrap(), frame(HistoryWindow::planner_default()));
     }
     #[test]
     fn scientific_target_wire_retains_temporal_history_and_mediation_premises() {

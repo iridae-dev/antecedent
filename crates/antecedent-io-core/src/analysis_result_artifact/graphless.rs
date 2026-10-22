@@ -887,8 +887,11 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
     };
     // The Bayesian sequential regime result carries its posterior and reports no interval.
     let bayesian_regime = result.posterior_artifact.is_some() && query.method == "sequential_dr";
-    let expected_reason =
-        if bayesian_regime { Some("bayesian_posterior_reports_no_interval") } else { expected_reason };
+    let expected_reason = if bayesian_regime {
+        Some("bayesian_posterior_reports_no_interval")
+    } else {
+        expected_reason
+    };
     let expected_uncertainty = if bayesian_regime {
         "bayesian_bootstrap_posterior_known_sequential_randomization_no_interval"
     } else {
@@ -2430,8 +2433,7 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
             .zip(&fit.differences)
             .map(|(share, d)| share * (d - fit.contrast).powi(2))
             .sum();
-        let mut donated: std::collections::BTreeMap<usize, f64> =
-            std::collections::BTreeMap::new();
+        let mut donated: std::collections::BTreeMap<usize, f64> = std::collections::BTreeMap::new();
         for (share, donor) in shares.iter().zip(&fit.matched_donors) {
             *donated.entry(*donor).or_insert(0.0) += share;
         }

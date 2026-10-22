@@ -293,9 +293,7 @@ pub(in crate::contract_section) fn note_replay_dependencies(
             "bayesian.randomized_finite_population"
             | "bayesian.randomized_superpopulation"
             | "bayesian.switchback_effect",
-        )
-            if matches!(contract.target.query, CausalQueryWire::RandomizedEffect(_)) =>
-        {
+        ) if matches!(contract.target.query, CausalQueryWire::RandomizedEffect(_)) => {
             unresolved.push(ContractReason::DependenciesCheckedBayesianRandomizedOperation);
         }
         Some("transport.trial_ipw" | "transport.trial_bayesian_bootstrap")

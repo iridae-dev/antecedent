@@ -133,7 +133,7 @@ fn premises(
         query: query(),
         evidence,
         budget,
-        memory_limit_bytes: ctx.memory.hard_limit_bytes,
+        memory_limit_bytes: ctx.memory_limit_bytes(),
         data: laws(),
         request: Assignment::from_pairs([(v(1), Value::f64(1.0))]),
         evaluation: ExactEvaluationLimits::default(),

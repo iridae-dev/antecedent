@@ -396,7 +396,7 @@ impl PreparedCyclicExecution {
                         .and_then(|bytes| bytes.checked_add(parameters.checked_mul(64)?))
                         .and_then(|bytes| bytes.checked_add(65536))
                         .ok_or_else(|| invalid("fit workspace size overflow"))?;
-                    if ctx.memory.hard_limit_bytes.is_some_and(|limit| workspace > limit) {
+                    if ctx.memory_limit_bytes().is_some_and(|limit| workspace > limit) {
                         return Err(invalid("fit workspace exceeds memory limit"));
                     }
                     let workspace =

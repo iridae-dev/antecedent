@@ -10,7 +10,7 @@
 //! `{+0.5, -0.5, +0.25, -0.25}`. So `pi = (0.6, 0.4)`, `tau = (1, -2)`, the canonical (ascending
 //! `tau`) order is `Q, P`, and the mixture-average effect is `-0.2`.
 
-use antecedent_core::{ExecutionContext, MemoryBudget};
+use antecedent_core::ExecutionContext;
 use antecedent_io::latent_class_artifact::{
     LATENT_CLASS_ARTIFACT_VERSION, LatentClassArtifact, LatentClassArtifactError,
     LatentClassConfigWire, LatentClassDataWire, LatentClassRequestWire, decode_parts, encode_parts,
@@ -342,7 +342,7 @@ fn assert_fixed_point(artifact: &LatentClassArtifact, rows: u64) {
 
 fn context_with_memory(hard_limit_bytes: u64) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(0, 1);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(hard_limit_bytes) };
+    ctx.set_memory_limit(Some(hard_limit_bytes));
     ctx
 }
 

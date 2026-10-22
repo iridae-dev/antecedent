@@ -697,7 +697,7 @@ impl PosteriorRowArtifactWire {
                     .bytes
                     .checked_add(u64::try_from(bytes.len()).map_err(std::io::Error::other)?)
                     .ok_or_else(|| std::io::Error::other("artifact byte size overflow"))?;
-                if self.ctx.memory.hard_limit_bytes.is_some_and(|limit| self.bytes > limit) {
+                if self.ctx.memory_limit_bytes().is_some_and(|limit| self.bytes > limit) {
                     return Err(std::io::Error::other("artifact exceeds memory limit"));
                 }
                 Ok(bytes.len())
@@ -724,7 +724,7 @@ impl PosteriorRowArtifactWire {
             .ok_or_else(|| {
                 execution_refusal("dose_grid.resource_refused", "artifact encoding size overflow")
             })?;
-        if ctx.memory.hard_limit_bytes.is_some_and(|limit| scratch > limit) {
+        if ctx.memory_limit_bytes().is_some_and(|limit| scratch > limit) {
             return Err(execution_refusal(
                 "dose_grid.resource_refused",
                 "artifact encoding exceeds memory limit",
@@ -806,7 +806,7 @@ impl PosteriorRowArtifactWire {
         let bound = (bytes.len() as u64).checked_mul(8).ok_or_else(|| {
             execution_refusal("dose_grid.resource_refused", "artifact byte size overflow")
         })?;
-        if ctx.memory.hard_limit_bytes.is_some_and(|limit| bound > limit) {
+        if ctx.memory_limit_bytes().is_some_and(|limit| bound > limit) {
             return Err(execution_refusal(
                 "dose_grid.resource_refused",
                 "artifact decoding exceeds memory limit",

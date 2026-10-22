@@ -994,8 +994,7 @@ fn check_limits(
         return Err(Error::LimitsExceeded(what));
     }
     let memory_cap = ctx
-        .memory
-        .hard_limit_bytes
+        .memory_limit_bytes()
         .map_or(limits.search_memory_bytes, |hard| hard.min(limits.search_memory_bytes));
     if wire.search.memory_limit_bytes > memory_cap {
         return Err(Error::LimitsExceeded("search memory limit"));

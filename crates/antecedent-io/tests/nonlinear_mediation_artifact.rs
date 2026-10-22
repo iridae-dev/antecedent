@@ -11,7 +11,7 @@
 //! Closed form: `NDE = b1 + delta*gamma*E[X]`,
 //! `NIE = (c1 + delta)*alpha + c2*(alpha^2 + 2*alpha*gamma*E[X])`, `TE = NDE + NIE`.
 
-use antecedent_core::{ExecutionContext, MemoryBudget};
+use antecedent_core::ExecutionContext;
 use antecedent_io::nonlinear_mediation_artifact::{
     MediationConfigWire, MediationDataWire, MediationPremisesWire,
     NONLINEAR_MEDIATION_ARTIFACT_VERSION, NonlinearMediationArtifact,
@@ -335,7 +335,7 @@ fn assert_closed_form(artifact: &NonlinearMediationArtifact, rows: u64) {
 
 fn context_with_memory(hard_limit_bytes: u64) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(0, 1);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(hard_limit_bytes) };
+    ctx.set_memory_limit(Some(hard_limit_bytes));
     ctx
 }
 

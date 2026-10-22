@@ -44,6 +44,7 @@ thiserror = { workspace = true }
 zstd = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 antecedent-test-support = { workspace = true }
 
 [[test]]

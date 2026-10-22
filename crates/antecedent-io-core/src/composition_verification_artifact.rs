@@ -50,6 +50,7 @@ use antecedent_contract::composition_verification::{
     shared_data_relations,
 };
 use antecedent_contract::evidence_ledger::{EvidenceLedger, SourceId, parse_digest_hex};
+use antecedent_core::refusal::{changed_identity, replay_mismatch};
 use antecedent_core::{CancellationToken, CanonicalWriter, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
@@ -103,19 +104,15 @@ impl CompositionVerificationArtifactError {
     #[must_use]
     pub fn refusal(&self) -> Option<(&'static str, String, String)> {
         match self {
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "composition_verification.identity_mismatch".to_owned(),
-                format!("{field} changed"),
-            )),
-            Self::ReplayMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "composition_verification.replay_mismatch".to_owned(),
+            Self::IdentityMismatch { field } => {
+                Some(changed_identity("composition_verification.identity_mismatch", field))
+            }
+            Self::ReplayMismatch(what) => Some(replay_mismatch(
+                "composition_verification.replay_mismatch",
                 format!("the stored {what} does not replay"),
             )),
-            Self::LedgerMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "composition_verification.ledger_mismatch".to_owned(),
+            Self::LedgerMismatch(what) => Some(replay_mismatch(
+                "composition_verification.ledger_mismatch",
                 format!("the declared {what} differs from the consumer's evidence ledger"),
             )),
             _ => None,
