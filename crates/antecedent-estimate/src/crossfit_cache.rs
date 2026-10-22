@@ -29,7 +29,11 @@
 //!
 //! A cache is used only inside [`CrossfitNuisanceCache::scope`], on the
 //! calling thread: the batch runner opens one scope per query, so the
-//! single-query estimators need no new parameters. Bootstrap replicates never
+//! single-query estimators need no new parameters. Learner-backed DML and
+//! doubly robust fits are owned by the same cache: it retains their prepared
+//! problems, charges them to the same retention budget, and their cross-fitted
+//! predictions (`learn_nuisance::cached_aipw_nuisances`) hang off that retained
+//! problem, so every worker holding it shares them. Bootstrap replicates never
 //! use the cache. Retained inputs are bounded by [`MAX_RETAINED_VALUES`]; past
 //! the bound a fit simply runs unshared.
 //!
@@ -46,6 +50,10 @@ use crate::error::EstimationError;
 /// Most `f64`/`u32` values one cache retains across its keys and fitted values
 /// (about 256 MiB). Beyond it, new fits run unshared.
 pub(crate) const MAX_RETAINED_VALUES: usize = 1 << 25;
+
+/// Most propensity entries, and most outcome entries, one cache keeps. Each lookup scans its
+/// entries, so small fits cannot grow that scan without bound under the value budget alone.
+pub(crate) const MAX_ENTRIES: usize = 1 << 12;
 
 /// Out-of-fold propensity scores (raw, unclipped), one per complete-case row.
 pub(crate) type PropensitySlot = Option<Arc<[f64]>>;
@@ -256,7 +264,9 @@ impl CrossfitNuisanceCache {
             return Some(Arc::clone(entry));
         }
         let cost = key.retained_values() + key.nrows;
-        if entries.retained.saturating_add(cost) > MAX_RETAINED_VALUES {
+        if entries.propensity.len() >= MAX_ENTRIES
+            || entries.retained.saturating_add(cost) > MAX_RETAINED_VALUES
+        {
             return None;
         }
         entries.retained += cost;
@@ -280,7 +290,9 @@ impl CrossfitNuisanceCache {
             return Some(Arc::clone(entry));
         }
         let cost = 3 * outcome.len();
-        if entries.retained.saturating_add(cost) > MAX_RETAINED_VALUES {
+        if entries.outcome.len() >= MAX_ENTRIES
+            || entries.retained.saturating_add(cost) > MAX_RETAINED_VALUES
+        {
             return None;
         }
         entries.retained += cost;

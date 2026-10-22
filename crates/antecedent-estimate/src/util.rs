@@ -542,6 +542,7 @@ fn index_buffer_bytes(slots: usize) -> Result<u64, EstimationError> {
 pub(crate) struct ClusterRows {
     members: Vec<Vec<antecedent_data::GlobalId>>,
     rows: usize,
+    largest: usize,
 }
 
 impl ClusterRows {
@@ -570,13 +571,27 @@ impl ClusterRows {
         if grouped.len() < 2 {
             return Err(crate::se::few_clusters(grouped.len()));
         }
-        let members = grouped.into_values().collect();
-        Ok(Self { members, rows })
+        let members: Vec<Vec<antecedent_data::GlobalId>> = grouped.into_values().collect();
+        let largest = members.iter().map(Vec::len).max().unwrap_or(0);
+        Ok(Self { members, rows, largest })
     }
 
     /// Rows in the sample these clusters partition.
     pub(crate) fn row_count(&self) -> usize {
         self.rows
+    }
+
+    /// Rows one replicate may hold, which admission charges and the draw enforces.
+    ///
+    /// A replicate is a sum of `groups` independent cluster sizes in `[0, largest]` with mean
+    /// `rows`, so by Hoeffding's inequality it exceeds `rows + t` with probability at most
+    /// `exp(-2 t² / (groups · largest²))`. With `t = 4 · largest · √groups` that is below
+    /// `1e-13`, and the sure ceiling `groups · largest` caps it when there are few clusters.
+    pub(crate) fn replicate_row_ceiling(&self) -> usize {
+        let groups = self.members.len();
+        let sure = groups.saturating_mul(self.largest);
+        let slack = groups.isqrt().saturating_add(1).saturating_mul(4).saturating_mul(self.largest);
+        sure.min(self.rows.saturating_add(slack))
     }
 
     /// Number of clusters.
@@ -603,8 +618,9 @@ impl ClusterRows {
 /// parallel evaluation are the same, and the draws are common-random-number stable under a
 /// fixed seed.
 ///
-/// Each worker writes one replicate. Retained index memory is `n` times the worker count,
-/// the same bound as the IID path. The groups-by-replicates matrix is not allocated.
+/// Each worker writes one replicate. Retained index memory is the replicate row ceiling
+/// ([`ClusterRows::replicate_row_ceiling`]) times the worker count, admitted before any draw
+/// and enforced as each cluster is appended. The groups-by-replicates matrix is not allocated.
 ///
 /// # Errors
 ///
@@ -633,16 +649,17 @@ where
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
     let n_rep = replicates as usize;
-    // Keep one replicate per worker, then judge the groups-by-replicates matrix.
-    let Some(scratch) = admit_bootstrap_scratch(ctx, clusters.row_count(), n_rep)? else {
+    // One replicate buffer per worker; no groups-by-replicates matrix exists to admit.
+    let ceiling = clusters.replicate_row_ceiling();
+    let Some(scratch) = admit_bootstrap_scratch(ctx, ceiling, n_rep)? else {
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     };
     let workers = scratch.workers();
-    retained_index_slots(clusters.row_count(), workers)?;
+    retained_index_slots(ceiling, workers)?;
     if ctx.cancellation.is_cancelled() {
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
-    let rows = ReplicateRows::Clusters { members: clusters.members(), ctx, stream_base };
+    let rows = ReplicateRows::Clusters { members: clusters.members(), ceiling, ctx, stream_base };
     if workers > 1 {
         return evaluate_bootstrap_parallel(ctx, &rows, n_rep, workers, make_scratch, estimate);
     }
@@ -660,6 +677,7 @@ enum ReplicateRows<'a> {
     /// matrix is not retained. Length varies with the clusters drawn.
     Clusters {
         members: &'a [Vec<antecedent_data::GlobalId>],
+        ceiling: usize,
         ctx: &'a ExecutionContext,
         stream_base: u64,
     },
@@ -683,7 +701,7 @@ impl ReplicateRows<'_> {
                     .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds u64"))?;
                 fill_worker_replicate(*n, replicate, ctx, *stream_base, out)?;
             }
-            Self::Clusters { members, ctx, stream_base } => {
+            Self::Clusters { members, ceiling, ctx, stream_base } => {
                 let groups = members.len();
                 let replicate = u64::try_from(r)
                     .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds u64"))?;
@@ -704,6 +722,11 @@ impl ReplicateRows<'_> {
                             "cluster draw is outside the observed clusters",
                         ));
                     };
+                    if out.len().saturating_add(sources.len()) > *ceiling {
+                        return Err(EstimationError::data_msg(
+                            "cluster replicate exceeds the admitted index buffer",
+                        ));
+                    }
                     for src in sources {
                         out.push(row(*src)?);
                     }
@@ -794,20 +817,23 @@ where
 {
     let finished = std::sync::atomic::AtomicUsize::new(0);
     let first_cancel = std::sync::atomic::AtomicUsize::new(usize::MAX);
-    let values = ctx.map_indexed_with_scratch(n_rep, make_scratch, |r, inner, scratch| {
-        if inner.cancellation.is_cancelled() {
-            first_cancel.fetch_min(r, std::sync::atomic::Ordering::Relaxed);
-            return Ok::<Option<f64>, EstimationError>(None);
-        }
-        let mut idx = Vec::new();
-        rows.fill(r, &mut idx)?;
-        let value = estimate(scratch, &idx)?.filter(|ate| ate.is_finite());
-        let done = finished.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-        if let Some(progress) = &inner.progress {
-            progress.report(done as f64 / n_rep as f64, "bootstrap");
-        }
-        Ok(value)
-    })?;
+    let values = ctx.map_indexed_with_scratch(
+        n_rep,
+        || (make_scratch(), Vec::<usize>::new()),
+        |r, inner, (scratch, idx): &mut (S, Vec<usize>)| {
+            if inner.cancellation.is_cancelled() {
+                first_cancel.fetch_min(r, std::sync::atomic::Ordering::Relaxed);
+                return Ok::<Option<f64>, EstimationError>(None);
+            }
+            rows.fill(r, idx)?;
+            let value = estimate(scratch, idx)?.filter(|ate| ate.is_finite());
+            let done = finished.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            if let Some(progress) = &inner.progress {
+                progress.report(done as f64 / n_rep as f64, "bootstrap");
+            }
+            Ok(value)
+        },
+    )?;
     let stop = first_cancel.load(std::sync::atomic::Ordering::Relaxed);
     let mut ates = Vec::with_capacity(n_rep);
     let mut attempted = 0u32;
@@ -1266,6 +1292,33 @@ mod tests {
     }
 
     #[test]
+    fn cluster_replicate_ceiling_covers_the_sample_and_is_enforced_when_skewed() {
+        let mut labels = vec![0_u32; 50];
+        labels.extend((1..=20_u32).flat_map(|label| [label, label]));
+        let clusters = ClusterRows::new(&labels).unwrap();
+        let ceiling = clusters.replicate_row_ceiling();
+        assert!(ceiling >= clusters.row_count());
+        assert!(ceiling <= clusters.len() * 50);
+        let ctx = ExecutionContext::for_tests(7);
+        let tight = ReplicateRows::Clusters {
+            members: clusters.members(),
+            ceiling: 49,
+            ctx: &ctx,
+            stream_base: 7,
+        };
+        assert!(tight.fill(0, &mut Vec::new()).is_err());
+        let admitted = ReplicateRows::Clusters {
+            members: clusters.members(),
+            ceiling,
+            ctx: &ctx,
+            stream_base: 7,
+        };
+        let mut out = Vec::new();
+        admitted.fill(0, &mut out).unwrap();
+        assert!(out.len() <= ceiling);
+    }
+
+    #[test]
     fn cluster_members_follow_ascending_labels() {
         let labels = [2_u32, 0, 2, 0];
         let clusters = ClusterRows::new(&labels).unwrap();
@@ -1276,9 +1329,14 @@ mod tests {
         let ctx = ExecutionContext::for_tests(9);
         let stream = 0xA1D5_u64;
         let mut from_rows = Vec::new();
-        ReplicateRows::Clusters { members: clusters.members(), ctx: &ctx, stream_base: stream }
-            .fill(0, &mut from_rows)
-            .unwrap();
+        ReplicateRows::Clusters {
+            members: clusters.members(),
+            ceiling: clusters.replicate_row_ceiling(),
+            ctx: &ctx,
+            stream_base: stream,
+        }
+        .fill(0, &mut from_rows)
+        .unwrap();
         let mut from_data = Vec::new();
         fill_resample_index_replicate(
             ResamplingPlan::ClusterBootstrap { cluster: antecedent_core::VariableId::from_raw(0) },
@@ -1299,13 +1357,12 @@ mod tests {
     fn cluster_bootstrap_writes_one_replicate_per_worker() {
         let labels = [0_u32, 1, 2, 3, 1, 2, 3, 2, 3, 3, 3];
         let clusters = ClusterRows::new(&labels).unwrap();
-        let n = clusters.row_count();
         let groups = clusters.len();
         let replicates = 80u32;
         let workers = 4usize;
         let width = usize::try_from(u64::try_from(size_of::<u64>()).unwrap()).unwrap();
         let matrix_bytes = groups * usize::try_from(replicates).unwrap() * width;
-        let retained_bytes = n * workers * width;
+        let retained_bytes = clusters.replicate_row_ceiling() * workers * width;
         assert!(retained_bytes < matrix_bytes);
         let ctx = ExecutionContext::production(11, u32::try_from(workers).unwrap()).with_admission(
             AdmissionPool::fixed(

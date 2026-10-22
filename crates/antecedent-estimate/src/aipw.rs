@@ -1377,7 +1377,7 @@ impl AipwAte {
     /// re-runs the whole pipeline on the resample under `nuisance`: the arm-stratified unit
     /// fold plan, each fold's inner-CV penalty (and lasso support) selection and every nuisance
     /// fit. Replicate `r` is drawn from [`antecedent_core::StreamDomain::Resample`] at
-    /// [`PENALIZED_BOOTSTRAP_STREAM`] `^ r`, the same stream as the old replicate-major batch.
+    /// `derive_stream(PENALIZED_BOOTSTRAP_STREAM, r)`, so it is fixed by the seed and `r` alone.
     /// The penalties each successful replicate selected are recorded in replicate order, so the
     /// record replays from the seed under any thread count. A replicate that fails softly
     /// (a fold missing an arm, a failed fit, a boundary propensity) is counted, never
