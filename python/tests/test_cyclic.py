@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 from antecedent.cyclic import (
+    CyclicRefusal,
     Equation,
     EquilibriumModel,
     FitOptions,
@@ -948,8 +949,9 @@ def test_local_callbacks_scc_counterfactual_budget_and_portability():
     assert not answer["inspection"]["portable"]
     cf = local.execute([0.0, 0.0], [{"variable": 0, "value": 2.0}], factual=[0.3, 0.7])
     assert cf["counterfactual"]["values"][1] == pytest.approx(1.55)
-    with pytest.raises(ValueError, match="portable"):
+    with pytest.raises(CyclicRefusal, match="portable") as refused:
         local.export()
+    assert refused.value.reason_code == "policy_callback_not_portable"
     with pytest.raises(ValueError, match="budget"):
         local.execute([0.0, 0.0], [], max_evaluations=1)
     with pytest.raises(ValueError, match="derivatives"):

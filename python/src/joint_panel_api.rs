@@ -82,10 +82,7 @@ fn context(
         return Err(crate::value_err("threads must be positive"));
     }
     let mut ctx = crate::py_execution_context_cancel(seed, threads, cancel);
-    ctx.memory.hard_limit_bytes = max_bytes;
-    if let Some(bytes) = max_bytes {
-        ctx = ctx.with_admission(antecedent_core::execution::AdmissionPool::fixed(threads, bytes));
-    }
+    ctx.set_memory_limit(max_bytes);
     Ok(ctx)
 }
 fn panel_error(error: facade::JointPanelError) -> PyErr {

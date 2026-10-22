@@ -15,9 +15,9 @@ use antecedent::analysis::inverse_query::{
     finite_enumeration_baseline,
 };
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
-use antecedent_design::decision_eval::MeanEstimate;
 use antecedent_core::reason_code;
 use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
+use antecedent_design::decision_eval::MeanEstimate;
 use antecedent_io::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;

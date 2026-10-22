@@ -521,7 +521,7 @@ pub(crate) fn execution_context(
     cancel: Option<crate::PyCancellationToken>,
 ) -> ExecutionContext {
     let mut ctx = ExecutionContext::production_default(seed);
-    ctx.memory.hard_limit_bytes = memory_bytes;
+    ctx.set_memory_limit(memory_bytes);
     crate::apply_cancel(&mut ctx, cancel);
     ctx
 }

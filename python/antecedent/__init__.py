@@ -382,18 +382,22 @@ _LAZY_MODULES: tuple[str, ...] = (
     "counterfactual_id",
     "cross_world",
     "cross_world_execution",
+    "cyclic",
     "decision_reliability",
     "decision_robust",
     "descriptive",
+    "design_models",
     "discretized_composition",
     "dose_grid",
     "effect_constancy_review",
     "evidence_ledger",
     "execution_attempt",
     "functional_source",
+    "graph_falsification",
     "interface_contract",
     "intervention_callbacks",
     "intervention_programs",
+    "intrinsic_influence",
     "joint_panel",
     "inverse",
     "inverse_query",
@@ -460,18 +464,22 @@ if _TYPE_CHECKING:
     from . import counterfactual_id as counterfactual_id
     from . import cross_world as cross_world
     from . import cross_world_execution as cross_world_execution
+    from . import cyclic as cyclic
     from . import decision_reliability as decision_reliability
     from . import decision_robust as decision_robust
     from . import descriptive as descriptive
+    from . import design_models as design_models
     from . import discretized_composition as discretized_composition
     from . import dose_grid as dose_grid
     from . import effect_constancy_review as effect_constancy_review
     from . import evidence_ledger as evidence_ledger
     from . import execution_attempt as execution_attempt
     from . import functional_source as functional_source
+    from . import graph_falsification as graph_falsification
     from . import interface_contract as interface_contract
     from . import intervention_callbacks as intervention_callbacks
     from . import intervention_programs as intervention_programs
+    from . import intrinsic_influence as intrinsic_influence
     from . import inverse as inverse
     from . import inverse_query as inverse_query
     from . import inverse_sources as inverse_sources

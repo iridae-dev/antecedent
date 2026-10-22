@@ -183,7 +183,10 @@ fn trajectory_credible_interval_native(
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(require_ordinary_temporal_curve_posterior_native, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        require_ordinary_temporal_curve_posterior_native,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(trajectory_contrast_native, module)?)?;
     module.add_function(wrap_pyfunction!(trajectory_bootstrap_native, module)?)?;
     module.add_function(wrap_pyfunction!(trajectory_credible_interval_native, module)?)?;

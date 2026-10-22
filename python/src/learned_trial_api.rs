@@ -46,7 +46,7 @@ struct PreparedLearnedTrial {
 impl PreparedLearnedTrial {
     fn ctx(&self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
         let mut ctx = ExecutionContext::production_default(self.seed);
-        ctx.memory.hard_limit_bytes = self.memory_bytes;
+        ctx.set_memory_limit(self.memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
         ctx
     }
@@ -245,7 +245,7 @@ fn prepare_learned_trial(
     let input = parse_input(data, &graph.names)?;
     let options: TrialAipwOptions = serde_json::from_str(&options).map_err(err)?;
     let mut ctx = ExecutionContext::production_default(seed);
-    ctx.memory.hard_limit_bytes = memory_bytes;
+    ctx.set_memory_limit(memory_bytes);
     crate::apply_cancel(&mut ctx, cancel);
     let inner =
         antecedent::StudyBuilder::learned_trial_transport(diagram, query, input, options, &ctx)

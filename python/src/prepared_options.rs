@@ -32,6 +32,7 @@ const KEYS: &[&str] = &[
     "participants",
     "missing",
     "sampling_weights",
+    "sampling_design",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -148,6 +149,8 @@ pub(crate) struct PrepareOptions {
     /// One sampling weight per row of the table, read by the routes that estimate in the
     /// weighted population (randomized ITT, balanced panel DiD); every other route refuses it.
     pub sampling_weights: Option<Arc<[f64]>>,
+    /// Declared sampling design of the rows, held by every estimator that bootstraps or splits.
+    pub sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
 }
 
 impl PrepareOptions {
@@ -227,6 +230,21 @@ impl PrepareOptions {
         let sampling_weights = item("sampling_weights")?
             .map(|value| value.extract::<Vec<f64>>().map(Arc::from))
             .transpose()?;
+        let sampling_design = item("sampling_design")?
+            .map(|value| -> PyResult<_> {
+                let name: String = value.extract()?;
+                antecedent_core::DeclaredSamplingDesign::ALL
+                    .into_iter()
+                    .find(|design| design.as_str() == name)
+                    .ok_or_else(|| {
+                        crate::value_err(format!(
+                            "unknown sampling_design {name:?}; use \
+                             independent_subject_trajectories|clustered_panel|\
+                             dependent_time_series"
+                        ))
+                    })
+            })
+            .transpose()?;
         Ok(Self {
             refute,
             bootstrap,
@@ -241,6 +259,7 @@ impl PrepareOptions {
             participants,
             missing,
             sampling_weights,
+            sampling_design,
         })
     }
 
@@ -331,6 +350,9 @@ impl PrepareOptions {
         if let Some(missing) = &self.missing {
             builder = builder.missing(missing.clone());
         }
+        if let Some(design) = self.sampling_design {
+            builder = builder.sampling_design(design);
+        }
         builder
     }
 
@@ -354,6 +376,7 @@ impl PrepareOptions {
             participants: self.participants.clone(),
             missing: self.missing.clone(),
             sampling_weights: self.sampling_weights.clone(),
+            sampling_design: self.sampling_design,
         };
         without_bootstrap.apply(builder)
     }

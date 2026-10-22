@@ -68,10 +68,7 @@ fn state_refusal(error: &StateError, detail: &str) -> String {
 }
 
 fn refuse<T>(detail: &str, message: &str) -> Refusable<T> {
-    (
-        None,
-        Some(refusal_json(reason_code!("invalid_argument"), &format!("{detail}: {message}"))),
-    )
+    (None, Some(refusal_json(reason_code!("invalid_argument"), &format!("{detail}: {message}"))))
 }
 
 fn identity_of(window: WindowTuple) -> TemporalWindowIdentity {

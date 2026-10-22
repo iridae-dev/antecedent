@@ -29,7 +29,7 @@ struct PreparedTransportGridStage {
 impl PreparedTransportGridStage {
     fn ctx(&self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
         let mut ctx = ExecutionContext::production_default(self.seed);
-        ctx.memory.hard_limit_bytes = self.memory;
+        ctx.set_memory_limit(self.memory);
         crate::apply_cancel(&mut ctx, cancel);
         ctx
     }
@@ -268,7 +268,7 @@ fn prepare_transport_grid(
     let names = stage.graph().names.clone();
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(seed);
-        ctx.memory.hard_limit_bytes = memory_bytes;
+        ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
         let functional = match proof.bind_catalog_with_context(
             &catalog,
@@ -332,7 +332,7 @@ fn consume_transport_grid(
     let (names, bytes): (Vec<String>, Vec<u8>) = antecedent_io::from_cbor(bytes).map_err(error)?;
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = memory_bytes;
+        ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
         let (inner, result) = antecedent::PreparedStudy::<TransportGridState>::consume(
             &bytes,

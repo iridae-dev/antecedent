@@ -48,11 +48,7 @@ fn dose_context(
         0,
         threads.unwrap_or_else(antecedent_core::default_user_threads),
     );
-    ctx.memory.hard_limit_bytes = max_bytes;
-    if let Some(bytes) = max_bytes {
-        let workers = ctx.parallelism.max_threads.get();
-        ctx = ctx.with_admission(antecedent_core::execution::AdmissionPool::fixed(workers, bytes));
-    }
+    ctx.set_memory_limit(max_bytes);
     crate::apply_cancel(&mut ctx, cancel);
     Ok(ctx)
 }

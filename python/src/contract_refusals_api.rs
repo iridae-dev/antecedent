@@ -83,7 +83,7 @@ fn summary_err(error: SummaryObservationError) -> PyErr {
         value.setattr("detail", detail)?;
         if let Some(next) = next {
             value.setattr("next_attempt", next.as_str())?;
-            value.setattr("remedy", next.phrase())?;
+            value.setattr("remedy", next.sentence())?;
         }
         if let Some(kind) = kind {
             value.setattr("summary_kind", kind.as_str())?;
@@ -103,67 +103,21 @@ fn unknown_effect(family: &str, name: &str) -> PyErr {
     )
 }
 
-/// Define `fn $name(&str) -> Option<$ty>` from a snake_case name table.
+/// Parse an effect name through the Rust enum's own name table, so a variant
+/// added there is reachable here without a second list.
 macro_rules! effect_names {
-    ($name:ident, $ty:ident { $($text:literal => $variant:ident),+ $(,)? }) => {
+    ($name:ident, $ty:ident) => {
         fn $name(name: &str) -> Option<$ty> {
-            match name {
-                $($text => Some($ty::$variant),)+
-                _ => None,
-            }
+            $ty::from_name(name)
         }
     };
 }
 
-effect_names!(pushdown_effect, PushdownEffect {
-    "declared" => Declared,
-    "omits_required_column" => OmitsRequiredColumn,
-    "reassigns_folds" => ReassignsFolds,
-    "undeclared_population_cut" => UndeclaredPopulationCut,
-    "cuts_history" => CutsHistory,
-    "drops_dependence_factor" => DropsDependenceFactor,
-    "drops_uncertainty" => DropsUncertainty,
-});
-
-effect_names!(preparation_effect, PreparationEffect {
-    "shared" => Shared,
-    "mixes_samples" => MixesSamples,
-    "mixes_folds" => MixesFolds,
-    "mixes_populations" => MixesPopulations,
-    "mixes_histories" => MixesHistories,
-    "mixes_dependence" => MixesDependence,
-    "mixes_uncertainty" => MixesUncertainty,
-});
-
-effect_names!(nuisance_effect, NuisanceEffect {
-    "certified" => Certified,
-    "changes_estimation_sample" => ChangesEstimationSample,
-    "trains_on_evaluation_fold" => TrainsOnEvaluationFold,
-    "fit_on_other_population" => FitOnOtherPopulation,
-    "fit_on_other_history" => FitOnOtherHistory,
-    "drops_shared_factor" => DropsSharedFactor,
-    "replaces_uncertainty" => ReplacesUncertainty,
-});
-
-effect_names!(statistics_effect, SummaryEffect {
-    "sufficient" => Sufficient,
-    "evicts_row" => EvictsRow,
-    "pools_folds" => PoolsFolds,
-    "marginalizes_population" => MarginalizesPopulation,
-    "collapses_history" => CollapsesHistory,
-    "drops_cluster" => DropsCluster,
-    "drops_sampling_law" => DropsSamplingLaw,
-});
-
-effect_names!(tile_effect, TileEffect {
-    "faithful" => Faithful,
-    "drops_rows" => DropsRows,
-    "splits_fold" => SplitsFold,
-    "retargets_population" => RetargetsPopulation,
-    "cuts_horizon" => CutsHorizon,
-    "drops_cross_terms" => DropsCrossTerms,
-    "drops_failed_draws" => DropsFailedDraws,
-});
+effect_names!(pushdown_effect, PushdownEffect);
+effect_names!(preparation_effect, PreparationEffect);
+effect_names!(nuisance_effect, NuisanceEffect);
+effect_names!(statistics_effect, SummaryEffect);
+effect_names!(tile_effect, TileEffect);
 
 fn adapt_summary(
     summary: FrequentistSummary,
@@ -766,7 +720,8 @@ mod tests {
 
     use antecedent_contract::rewrite_legality::{FrameContents, PreservationAxis};
     use antecedent_contract::summary_observation::{
-        FrequentistSummary, FrequentistSummaryKind, SummaryNextAttempt, SummaryUse,
+        FrequentistSummary, FrequentistSummaryKind, REPORT_AS_FREQUENTIST_INTERVAL, SummaryUse,
+        USE_AS_LIKELIHOOD_UPDATE,
     };
     use antecedent_io_core::feature_version::{FeatureRead, FeatureRefusal, FeatureVersion};
     use antecedent_io_core::{FormatVersion, STABLE_FORMAT, SemanticVersion};
@@ -951,7 +906,7 @@ mod tests {
         assert_eq!(interval.kind(), FrequentistSummaryKind::Interval);
         assert_eq!(refusal.detail(), "summary_observation.interval_stays_frequentist");
         assert_eq!(refusal.code(), "distribution_meaning_mismatch");
-        assert_eq!(refusal.next_attempt(), Some(SummaryNextAttempt::ReportAsFrequentistInterval),);
+        assert_eq!(refusal.next_attempt(), Some(REPORT_AS_FREQUENTIST_INTERVAL),);
         assert!(interval.as_bayesian_likelihood().message().contains("not a Bayesian law"));
 
         assert!(FrequentistSummary::estimate_covariance(" ", 1.0_f64, 1.0_f64).is_err());
@@ -983,7 +938,7 @@ mod tests {
         assert!(model.validate_use(SummaryUse::LikelihoodUpdate).is_ok());
         let law = model.validate_use(SummaryUse::BayesianLaw).expect_err("law");
         assert_eq!(law.detail(), "summary_observation.not_bayesian_law");
-        assert_eq!(law.next_attempt(), Some(SummaryNextAttempt::UseAsLikelihoodUpdate));
+        assert_eq!(law.next_attempt(), Some(USE_AS_LIKELIHOOD_UPDATE));
         assert_eq!(model.summary().kind(), FrequentistSummaryKind::EstimateCovariance);
     }
 

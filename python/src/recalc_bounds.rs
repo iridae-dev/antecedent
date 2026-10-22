@@ -26,7 +26,7 @@ pub(crate) fn check_values(
         .and_then(|n| n.checked_mul(BYTES_PER_VALUE))
         .and_then(|n| n.checked_add(extra_bytes))
         .ok_or_else(|| invalid("recalc.limits_exceeded", "input size overflows"))?;
-    let limit = ctx.memory.hard_limit_bytes.into_iter().chain(ctx.memory.soft_limit_bytes).min();
+    let limit = ctx.memory_limit_bytes().into_iter().min();
     if let Some(limit) = limit.filter(|limit| bytes > *limit) {
         return Err(invalid(
             "recalc.memory_budget_exceeded",

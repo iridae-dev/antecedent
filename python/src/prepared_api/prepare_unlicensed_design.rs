@@ -51,7 +51,11 @@ impl PyPreparedAnalysis {
                 outcome: id(&outcome)?,
                 first_treatment: id(&first_treatment)?,
                 second_treatment: id(&second_treatment)?,
-                baseline: baseline.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?.into(),
+                baseline: baseline
+                    .iter()
+                    .map(|name| id(name))
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into(),
                 intermediate: intermediate
                     .iter()
                     .map(|name| id(name))

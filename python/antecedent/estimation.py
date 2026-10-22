@@ -201,6 +201,13 @@ _RESPONSE_FAMILY = (
 )
 
 
+_SAMPLING_DESIGNS = (
+    "independent_subject_trajectories",
+    "clustered_panel",
+    "dependent_time_series",
+)
+
+
 def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
     backend = str(inference.backend).strip().lower()
     if backend == "laplace":
@@ -1116,6 +1123,10 @@ class PreparedAnalysis(Generic[ResultT]):
         controls: TransportControls | None = None,
         participant: str | None = None,
         missing: str | MissingPolicy | None = None,
+        sampling_design: Literal[
+            "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
+        ]
+        | None = None,
     ) -> PreparedAnalysis[_PreparedResult]:
         """Compile a durable plan for a licensed analysis cell.
 
@@ -1188,6 +1199,15 @@ class PreparedAnalysis(Generic[ResultT]):
         panel and temporal routes refuse a missing value until a policy is declared. A
         policy the route cannot execute is refused when the study is built, and every
         result carries ``missing_data`` (policy, assumption and row accounting).
+
+        ``sampling_design=`` declares once how the rows were sampled:
+        ``"independent_subject_trajectories"`` (resampled and split by whole subject, never by
+        row), ``"clustered_panel"`` (by whole cluster) or ``"dependent_time_series"``
+        (contiguous blocks, split with an embargo). Every estimator of the study that
+        bootstraps or splits is held to it, and a request the design does not allow, such as a
+        row bootstrap under a trajectory design, is refused with a sampling-design error. The
+        declaration is part of the study's data identity. A name that is not one of the three
+        raises :class:`CausalValueError`.
         """
         from .transport import ExactTransportData, StatisticalTransportData
         from .transport._day1 import prepare_transport, refuse_transport_only_kwargs
@@ -1226,6 +1246,7 @@ class PreparedAnalysis(Generic[ResultT]):
                     "max_completions": max_completions,
                     "participant": participant,
                     "missing": missing,
+                    "sampling_design": sampling_design,
                     "population_registry": population_registry,
                     "cancel": cancel,
                     "on_progress": on_progress,
@@ -1252,6 +1273,30 @@ class PreparedAnalysis(Generic[ResultT]):
                 "participant= labels the rows of a prepared table; a transport study is bound "
                 "to an evidence catalog or distributional providers, which have no table rows "
                 "to carry the labels",
+                reason_code="option_not_applicable",
+            )
+        if sampling_design is not None and sampling_design not in _SAMPLING_DESIGNS:
+            raise CausalValueError(
+                f"sampling_design={sampling_design!r} is not a declared design; use one of "
+                f"{', '.join(_SAMPLING_DESIGNS)}",
+                reason_code="invalid_argument",
+            )
+        if sampling_design is not None and (
+            isinstance(
+                query,
+                (
+                    Transport,
+                    TransportResponseGridQuery,
+                    StatisticalTransportQuery,
+                    ExactTransportQuery,
+                ),
+            )
+            or isinstance(data, (ExactTransportData, StatisticalTransportData))
+        ):
+            raise CausalUnsupportedError(
+                "sampling_design= declares how table rows were sampled; a transport study is "
+                "bound to an evidence catalog or distributional providers, which have no table "
+                "rows",
                 reason_code="option_not_applicable",
             )
         missing_policy = coerce_missing(missing)
@@ -1632,6 +1677,8 @@ class PreparedAnalysis(Generic[ResultT]):
         }
         if missing_policy is not None:
             options["missing"] = native_declaration(missing_policy, names)
+        if sampling_design is not None:
+            options["sampling_design"] = sampling_design
         if (query_weights := getattr(query, "weights", None)) is not None:
             # A design query that declares sampling weights: one weight per original row,
             # frozen like a cluster column so a refreshed table with other weights is refused.

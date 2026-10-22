@@ -16,6 +16,37 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 from . import _native
+from .errors import CausalValueError, StructuredRefusal
+
+
+class CyclicRefusal(StructuredRefusal):
+    """A cyclic-model request refused for a scientific or portability reason.
+
+    A :class:`~antecedent.errors.StructuredRefusal`: ``reason_code`` (alias ``code``) is the
+    registered runtime-refusal code and :attr:`detail` the stable ``<family>.<slot>`` detail.
+    Malformed arguments raise :class:`~antecedent.errors.CausalValueError` instead, and
+    refusals reported by the native layer arrive as the shared causal error classes with their
+    ``reason=<code>:`` prefix read into ``reason_code``.
+    """
+
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        reason_code: str | None = None,
+        detail: str | None = None,
+        remedy: str | None = None,
+    ) -> None:
+        text = f"{detail}: {message}" if detail else message
+        super().__init__(
+            {
+                "code": reason_code,
+                "detail": detail or "",
+                "message": message,
+                "remedy": remedy,
+            },
+            text=text,
+        )
 
 
 def _cyclic_numeric_rows(values, width):
@@ -23,12 +54,12 @@ def _cyclic_numeric_rows(values, width):
 
     array = np.asarray(values)
     if array.dtype.kind not in "fiu":
-        raise ValueError("cyclic buffers must contain real numbers")
+        raise CausalValueError("cyclic buffers must contain real numbers")
     array = np.asarray(array, dtype=np.float64)
     if len(values) == 0:
         return array.reshape(0, width)
     if array.ndim != 2 or array.shape[1] != width:
-        raise ValueError("cyclic numeric buffer shape")
+        raise CausalValueError("cyclic numeric buffer shape")
     return array
 
 
@@ -227,7 +258,7 @@ class EquilibriumModel:
         ``{"kind": "intercept", "equation": i}``.
         """
         if (parameters is None) != (rows is None):
-            raise ValueError("parameters and rows must be supplied together")
+            raise CausalValueError("parameters and rows must be supplied together")
         fit = None
         if parameters is not None:
             fit = {
@@ -463,7 +494,7 @@ class PreparedCyclicFamily:
             "adjust",
             "calculus",
         ):
-            raise ValueError("expected a graph identification preparation")
+            raise CausalValueError("expected a graph identification preparation")
         result = self.execute(max_bytes=max_bytes, cancel=cancel)
         answer = result.report["answer"]
         # Serde's tagged answer stores the operation report in `result`.
@@ -473,7 +504,7 @@ class PreparedCyclicFamily:
             or graph.get("program") is None
             or graph.get("fully_observational") is False
         ):
-            raise ValueError("source did not identify a functional")
+            raise CausalValueError("source did not identify a functional")
         return IdentifiedCyclicFunctional(source["request"], result.identity, graph["program"])
 
     def refresh(self, request_json: str) -> PreparedCyclicFamily:
@@ -689,10 +720,10 @@ class PolynomialSystem:
     def replace_equation(self, equation: str, variable: int, value: float) -> PolynomialSystem:
         """Replace one named equation by ``variable=value``, retaining other equations."""
         if not 0 <= variable < len(self.variables):
-            raise ValueError("variable index out of range")
+            raise CausalValueError("variable index out of range")
         matches = [i for i, item in enumerate(self.equations) if item["id"] == equation]
         if len(matches) != 1:
-            raise ValueError("equation identity must resolve uniquely")
+            raise CausalValueError("equation identity must resolve uniquely")
         powers = [0] * len(self.variables)
         powers[variable] = 1
         equations = list(self.equations)
@@ -1463,8 +1494,11 @@ class LocalCyclicModel:
 
     def export(self) -> bytes:
         """Refuse to present arbitrary local callback code as a portable model."""
-        raise ValueError(
-            "local callback code is not portable; use serializable built-in expressions"
+        raise CyclicRefusal(
+            "local callback code is not portable; use serializable built-in expressions",
+            reason_code="policy_callback_not_portable",
+            detail="cyclic_local.callback_not_portable",
+            remedy="declare the mechanisms as serializable built-in expressions",
         )
 
 

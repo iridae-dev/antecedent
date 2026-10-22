@@ -353,8 +353,7 @@ pub(crate) fn bounded_context(
     cancel: Option<crate::PyCancellationToken>,
 ) -> ExecutionContext {
     let mut ctx = context(seed, threads);
-    ctx.memory =
-        antecedent_core::MemoryBudget { soft_limit_bytes: memory, hard_limit_bytes: memory };
+    ctx.set_memory_limit(memory);
     crate::apply_cancel(&mut ctx, cancel);
     ctx
 }

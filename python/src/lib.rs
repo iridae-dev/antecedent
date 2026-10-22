@@ -2813,6 +2813,7 @@ impl PyCancellationToken {
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     contract_refusals_api::register(m)?;
     inspect_receipt_api::register(m)?;
+    ffi::register(m)?;
     registry::register_module(m)
 }
 

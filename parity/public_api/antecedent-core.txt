@@ -1,7 +1,6 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
-#[doc(hidden)] pub fn <antecedent_core::CancellationToken>::fn cancel_after_checks(checks: usize) -> Self
 #[doc(hidden)] pub fn <antecedent_core::execution::AdmissionLease>::fn observe_current(&self)
 #[doc(hidden)] pub fn <antecedent_core::execution_attempt::ObservationToken>::fn capture() -> Self
 #[doc(hidden)] pub fn <antecedent_core::execution_attempt::ObservationToken>::fn execute<T>(&self, execute: impl core::ops::function::FnOnce() -> T) -> T
@@ -92,7 +91,6 @@
 #[non_exhaustive] pub enum antecedent_core::recalc::CalibrationInput
 #[non_exhaustive] pub enum antecedent_core::recalc::CouplingInput
 #[non_exhaustive] pub enum antecedent_core::recalc::ProviderStandingInput
-#[non_exhaustive] pub enum antecedent_core::scratch_pool::ScratchPoolError
 #[non_exhaustive] pub enum antecedent_core::search_budget::SearchBudgetError
 #[non_exhaustive] pub enum antecedent_core::value::InterventionValueError
 #[non_exhaustive] pub struct antecedent_core::AverageEffectQuery
@@ -104,7 +102,6 @@ impl !core::marker::Freeze for antecedent_core::device_reservation::DeviceReserv
 impl !core::marker::Freeze for antecedent_core::device_reservation::FoldAdmission [auto]
 impl !core::marker::Freeze for antecedent_core::device_reservation::LearnerAdmission [auto]
 impl !core::marker::Freeze for antecedent_core::execution::AdmissionLease [auto]
-impl !core::marker::Freeze for antecedent_core::scratch_pool::ScratchGuard [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExecutionContext [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_core::ExecutionContext [auto]
 impl core::clone::Clone for antecedent_core::AdaptiveBootstrapBudget
@@ -267,7 +264,6 @@ impl core::clone::Clone for antecedent_core::MediationComponent
 impl core::clone::Clone for antecedent_core::MediationContrast
 impl core::clone::Clone for antecedent_core::MediationQuery
 impl core::clone::Clone for antecedent_core::MediationTarget
-impl core::clone::Clone for antecedent_core::MemoryBudget
 impl core::clone::Clone for antecedent_core::MissingLearningRate
 impl core::clone::Clone for antecedent_core::ModelAssumptions
 impl core::clone::Clone for antecedent_core::ModelId
@@ -555,10 +551,6 @@ impl core::clone::Clone for antecedent_core::recalc::StageIdentity
 impl core::clone::Clone for antecedent_core::recalc::StageStatus
 impl core::clone::Clone for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::clone::Clone for antecedent_core::scientific_target::HistoryIndexedTargetLaw
-impl core::clone::Clone for antecedent_core::scratch_pool::ScratchFull
-impl core::clone::Clone for antecedent_core::scratch_pool::ScratchKind
-impl core::clone::Clone for antecedent_core::scratch_pool::ScratchPool
-impl core::clone::Clone for antecedent_core::scratch_pool::ScratchPoolError
 impl core::clone::Clone for antecedent_core::search_budget::AdmittedExactSearch
 impl core::clone::Clone for antecedent_core::search_budget::ApproximationEvidence
 impl core::clone::Clone for antecedent_core::search_budget::ExactGraphSearch
@@ -694,7 +686,6 @@ impl core::cmp::Eq for antecedent_core::MediationComponent
 impl core::cmp::Eq for antecedent_core::MediationContrast
 impl core::cmp::Eq for antecedent_core::MediationQuery
 impl core::cmp::Eq for antecedent_core::MediationTarget
-impl core::cmp::Eq for antecedent_core::MemoryBudget
 impl core::cmp::Eq for antecedent_core::MissingLearningRate
 impl core::cmp::Eq for antecedent_core::ModelAssumptions
 impl core::cmp::Eq for antecedent_core::ModelId
@@ -942,9 +933,6 @@ impl core::cmp::Eq for antecedent_core::recalc::StageIdentity
 impl core::cmp::Eq for antecedent_core::recalc::StageStatus
 impl core::cmp::Eq for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::cmp::Eq for antecedent_core::scientific_target::HistoryIndexedTargetLaw
-impl core::cmp::Eq for antecedent_core::scratch_pool::ScratchFull
-impl core::cmp::Eq for antecedent_core::scratch_pool::ScratchKind
-impl core::cmp::Eq for antecedent_core::scratch_pool::ScratchPoolError
 impl core::cmp::Eq for antecedent_core::search_budget::AdmittedExactSearch
 impl core::cmp::Eq for antecedent_core::search_budget::ApproximationEvidence
 impl core::cmp::Eq for antecedent_core::search_budget::ExactGraphSearch
@@ -1145,7 +1133,6 @@ impl core::cmp::PartialEq for antecedent_core::MediationComponent
 impl core::cmp::PartialEq for antecedent_core::MediationContrast
 impl core::cmp::PartialEq for antecedent_core::MediationQuery
 impl core::cmp::PartialEq for antecedent_core::MediationTarget
-impl core::cmp::PartialEq for antecedent_core::MemoryBudget
 impl core::cmp::PartialEq for antecedent_core::MissingLearningRate
 impl core::cmp::PartialEq for antecedent_core::ModelAssumptions
 impl core::cmp::PartialEq for antecedent_core::ModelId
@@ -1425,9 +1412,6 @@ impl core::cmp::PartialEq for antecedent_core::recalc::StageIdentity
 impl core::cmp::PartialEq for antecedent_core::recalc::StageStatus
 impl core::cmp::PartialEq for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::cmp::PartialEq for antecedent_core::scientific_target::HistoryIndexedTargetLaw
-impl core::cmp::PartialEq for antecedent_core::scratch_pool::ScratchFull
-impl core::cmp::PartialEq for antecedent_core::scratch_pool::ScratchKind
-impl core::cmp::PartialEq for antecedent_core::scratch_pool::ScratchPoolError
 impl core::cmp::PartialEq for antecedent_core::search_budget::AdmittedExactSearch
 impl core::cmp::PartialEq for antecedent_core::search_budget::ApproximationEvidence
 impl core::cmp::PartialEq for antecedent_core::search_budget::ExactGraphSearch
@@ -1566,8 +1550,6 @@ impl core::error::Error for antecedent_core::intervention::AdmitError
 impl core::error::Error for antecedent_core::intervention::CapabilityRefusal
 impl core::error::Error for antecedent_core::physical_choice::PhysicalChoiceRefusal
 impl core::error::Error for antecedent_core::provider_capability::UnansweredCapability
-impl core::error::Error for antecedent_core::scratch_pool::ScratchFull
-impl core::error::Error for antecedent_core::scratch_pool::ScratchPoolError
 impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
 impl core::error::Error for antecedent_core::value::InterventionValueError
 impl core::fmt::Debug for antecedent_core::AdaptiveBootstrapBudget
@@ -1731,7 +1713,6 @@ impl core::fmt::Debug for antecedent_core::MediationComponent
 impl core::fmt::Debug for antecedent_core::MediationContrast
 impl core::fmt::Debug for antecedent_core::MediationQuery
 impl core::fmt::Debug for antecedent_core::MediationTarget
-impl core::fmt::Debug for antecedent_core::MemoryBudget
 impl core::fmt::Debug for antecedent_core::MissingLearningRate
 impl core::fmt::Debug for antecedent_core::ModelAssumptions
 impl core::fmt::Debug for antecedent_core::ModelId
@@ -2024,11 +2005,6 @@ impl core::fmt::Debug for antecedent_core::recalc::StageIdentity
 impl core::fmt::Debug for antecedent_core::recalc::StageStatus
 impl core::fmt::Debug for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::fmt::Debug for antecedent_core::scientific_target::HistoryIndexedTargetLaw
-impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchFull
-impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchGuard
-impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchKind
-impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchPool
-impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchPoolError
 impl core::fmt::Debug for antecedent_core::search_budget::AdmittedExactSearch
 impl core::fmt::Debug for antecedent_core::search_budget::ApproximationEvidence
 impl core::fmt::Debug for antecedent_core::search_budget::ExactGraphSearch
@@ -2146,9 +2122,6 @@ impl core::fmt::Display for antecedent_core::recalc::RefusalReason
 impl core::fmt::Display for antecedent_core::recalc::Stage
 impl core::fmt::Display for antecedent_core::recalc::StageIdentity
 impl core::fmt::Display for antecedent_core::recalc::StageStatus
-impl core::fmt::Display for antecedent_core::scratch_pool::ScratchFull
-impl core::fmt::Display for antecedent_core::scratch_pool::ScratchKind
-impl core::fmt::Display for antecedent_core::scratch_pool::ScratchPoolError
 impl core::fmt::Display for antecedent_core::search_budget::MatchingDistance
 impl core::fmt::Display for antecedent_core::search_budget::SearchBudgetError
 impl core::fmt::Display for antecedent_core::search_budget::SearchFamily
@@ -2259,7 +2232,6 @@ impl core::hash::Hash for antecedent_core::MediationComponent
 impl core::hash::Hash for antecedent_core::MediationContrast
 impl core::hash::Hash for antecedent_core::MediationQuery
 impl core::hash::Hash for antecedent_core::MediationTarget
-impl core::hash::Hash for antecedent_core::MemoryBudget
 impl core::hash::Hash for antecedent_core::MissingLearningRate
 impl core::hash::Hash for antecedent_core::ModelAssumptions
 impl core::hash::Hash for antecedent_core::ModelId
@@ -2439,7 +2411,6 @@ impl core::hash::Hash for antecedent_core::recalc::Stage
 impl core::hash::Hash for antecedent_core::recalc::StageIdentity
 impl core::hash::Hash for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::hash::Hash for antecedent_core::scientific_target::HistoryIndexedTargetLaw
-impl core::hash::Hash for antecedent_core::scratch_pool::ScratchKind
 impl core::hash::Hash for antecedent_core::search_budget::AdmittedExactSearch
 impl core::hash::Hash for antecedent_core::search_budget::ApproximationEvidence
 impl core::hash::Hash for antecedent_core::search_budget::ExactGraphSearch
@@ -2530,7 +2501,6 @@ impl core::marker::Copy for antecedent_core::LogicOp
 impl core::marker::Copy for antecedent_core::LongitudinalRegimeMethod
 impl core::marker::Copy for antecedent_core::MediationComponent
 impl core::marker::Copy for antecedent_core::MediationContrast
-impl core::marker::Copy for antecedent_core::MemoryBudget
 impl core::marker::Copy for antecedent_core::MissingLearningRate
 impl core::marker::Copy for antecedent_core::ModelId
 impl core::marker::Copy for antecedent_core::MonteCarloError
@@ -2683,9 +2653,6 @@ impl core::marker::Copy for antecedent_core::recalc::Stage
 impl core::marker::Copy for antecedent_core::recalc::StageEntry
 impl core::marker::Copy for antecedent_core::recalc::StageIdentity
 impl core::marker::Copy for antecedent_core::recalc::StageStatus
-impl core::marker::Copy for antecedent_core::scratch_pool::ScratchFull
-impl core::marker::Copy for antecedent_core::scratch_pool::ScratchKind
-impl core::marker::Copy for antecedent_core::scratch_pool::ScratchPoolError
 impl core::marker::Copy for antecedent_core::search_budget::AdmittedExactSearch
 impl core::marker::Copy for antecedent_core::search_budget::ApproximationEvidence
 impl core::marker::Copy for antecedent_core::search_budget::ExactGraphSearch
@@ -2860,7 +2827,6 @@ impl core::marker::Freeze for antecedent_core::MediationComponent [auto]
 impl core::marker::Freeze for antecedent_core::MediationContrast [auto]
 impl core::marker::Freeze for antecedent_core::MediationQuery [auto]
 impl core::marker::Freeze for antecedent_core::MediationTarget [auto]
-impl core::marker::Freeze for antecedent_core::MemoryBudget [auto]
 impl core::marker::Freeze for antecedent_core::MissingLearningRate [auto]
 impl core::marker::Freeze for antecedent_core::ModelAssumptions [auto]
 impl core::marker::Freeze for antecedent_core::ModelId [auto]
@@ -3147,10 +3113,6 @@ impl core::marker::Freeze for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageStatus [auto]
 impl core::marker::Freeze for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Freeze for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
-impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchFull [auto]
-impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchKind [auto]
-impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchPool [auto]
-impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::marker::Freeze for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::marker::Freeze for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::marker::Freeze for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -3325,7 +3287,6 @@ impl core::marker::Send for antecedent_core::MediationComponent [auto]
 impl core::marker::Send for antecedent_core::MediationContrast [auto]
 impl core::marker::Send for antecedent_core::MediationQuery [auto]
 impl core::marker::Send for antecedent_core::MediationTarget [auto]
-impl core::marker::Send for antecedent_core::MemoryBudget [auto]
 impl core::marker::Send for antecedent_core::MissingLearningRate [auto]
 impl core::marker::Send for antecedent_core::ModelAssumptions [auto]
 impl core::marker::Send for antecedent_core::ModelId [auto]
@@ -3617,11 +3578,6 @@ impl core::marker::Send for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Send for antecedent_core::recalc::StageStatus [auto]
 impl core::marker::Send for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Send for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
-impl core::marker::Send for antecedent_core::scratch_pool::ScratchFull [auto]
-impl core::marker::Send for antecedent_core::scratch_pool::ScratchGuard [auto]
-impl core::marker::Send for antecedent_core::scratch_pool::ScratchKind [auto]
-impl core::marker::Send for antecedent_core::scratch_pool::ScratchPool [auto]
-impl core::marker::Send for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::marker::Send for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::marker::Send for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::marker::Send for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -3787,7 +3743,6 @@ impl core::marker::StructuralPartialEq for antecedent_core::MediationComponent
 impl core::marker::StructuralPartialEq for antecedent_core::MediationContrast
 impl core::marker::StructuralPartialEq for antecedent_core::MediationQuery
 impl core::marker::StructuralPartialEq for antecedent_core::MediationTarget
-impl core::marker::StructuralPartialEq for antecedent_core::MemoryBudget
 impl core::marker::StructuralPartialEq for antecedent_core::MissingLearningRate
 impl core::marker::StructuralPartialEq for antecedent_core::ModelAssumptions
 impl core::marker::StructuralPartialEq for antecedent_core::ModelId
@@ -4064,9 +4019,6 @@ impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageIdentit
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageStatus
 impl core::marker::StructuralPartialEq for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::marker::StructuralPartialEq for antecedent_core::scientific_target::HistoryIndexedTargetLaw
-impl core::marker::StructuralPartialEq for antecedent_core::scratch_pool::ScratchFull
-impl core::marker::StructuralPartialEq for antecedent_core::scratch_pool::ScratchKind
-impl core::marker::StructuralPartialEq for antecedent_core::scratch_pool::ScratchPoolError
 impl core::marker::StructuralPartialEq for antecedent_core::search_budget::AdmittedExactSearch
 impl core::marker::StructuralPartialEq for antecedent_core::search_budget::ApproximationEvidence
 impl core::marker::StructuralPartialEq for antecedent_core::search_budget::ExactGraphSearch
@@ -4241,7 +4193,6 @@ impl core::marker::Sync for antecedent_core::MediationComponent [auto]
 impl core::marker::Sync for antecedent_core::MediationContrast [auto]
 impl core::marker::Sync for antecedent_core::MediationQuery [auto]
 impl core::marker::Sync for antecedent_core::MediationTarget [auto]
-impl core::marker::Sync for antecedent_core::MemoryBudget [auto]
 impl core::marker::Sync for antecedent_core::MissingLearningRate [auto]
 impl core::marker::Sync for antecedent_core::ModelAssumptions [auto]
 impl core::marker::Sync for antecedent_core::ModelId [auto]
@@ -4533,11 +4484,6 @@ impl core::marker::Sync for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageStatus [auto]
 impl core::marker::Sync for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Sync for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
-impl core::marker::Sync for antecedent_core::scratch_pool::ScratchFull [auto]
-impl core::marker::Sync for antecedent_core::scratch_pool::ScratchGuard [auto]
-impl core::marker::Sync for antecedent_core::scratch_pool::ScratchKind [auto]
-impl core::marker::Sync for antecedent_core::scratch_pool::ScratchPool [auto]
-impl core::marker::Sync for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::marker::Sync for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::marker::Sync for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::marker::Sync for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -4712,7 +4658,6 @@ impl core::marker::Unpin for antecedent_core::MediationComponent [auto]
 impl core::marker::Unpin for antecedent_core::MediationContrast [auto]
 impl core::marker::Unpin for antecedent_core::MediationQuery [auto]
 impl core::marker::Unpin for antecedent_core::MediationTarget [auto]
-impl core::marker::Unpin for antecedent_core::MemoryBudget [auto]
 impl core::marker::Unpin for antecedent_core::MissingLearningRate [auto]
 impl core::marker::Unpin for antecedent_core::ModelAssumptions [auto]
 impl core::marker::Unpin for antecedent_core::ModelId [auto]
@@ -5004,11 +4949,6 @@ impl core::marker::Unpin for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageStatus [auto]
 impl core::marker::Unpin for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Unpin for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
-impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchFull [auto]
-impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchGuard [auto]
-impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchKind [auto]
-impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchPool [auto]
-impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::marker::Unpin for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::marker::Unpin for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::marker::Unpin for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -5026,7 +4966,6 @@ impl core::ops::drop::Drop for antecedent_core::device_reservation::DeviceReserv
 impl core::ops::drop::Drop for antecedent_core::execution::AdmissionLease
 impl core::ops::drop::Drop for antecedent_core::execution_attempt::ObservedAdmission
 impl core::ops::drop::Drop for antecedent_core::execution_attempt::OperationGuard
-impl core::ops::drop::Drop for antecedent_core::scratch_pool::ScratchGuard
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdmittedBytes [auto]
@@ -5187,7 +5126,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationCompo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationTarget [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MemoryBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MissingLearningRate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ModelAssumptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ModelId [auto]
@@ -5479,11 +5417,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageI
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchFull [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchGuard [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchKind [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchPool [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -5657,7 +5590,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationComponen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationTarget [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MemoryBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MissingLearningRate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ModelAssumptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ModelId [auto]
@@ -5949,11 +5881,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIden
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchFull [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchGuard [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchKind [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchPool [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -6060,7 +5987,6 @@ pub const <antecedent_core::physical_choice::OperatorCapability>::ALL: [Self; 4]
 pub const <antecedent_core::physical_choice::PhysicalAlternative>::ALL: [Self; 4]
 pub const <antecedent_core::physical_choice::ResourceCapability>::ALL: [Self; 4]
 pub const <antecedent_core::recalc::StageIdentity>::ABSENT: Self
-pub const <antecedent_core::scratch_pool::ScratchKind>::ALL: [Self; 5]
 pub const antecedent_core::ARCH_SIMD_COMPILED: bool
 pub const antecedent_core::ASSUMPTION_BRANCH_TAG: &str
 pub const antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES: u64
@@ -6215,7 +6141,6 @@ pub enum antecedent_core::recalc::RetargetSupport
 pub enum antecedent_core::recalc::Revalidation
 pub enum antecedent_core::recalc::Stage
 pub enum antecedent_core::recalc::StageStatus
-pub enum antecedent_core::scratch_pool::ScratchKind
 pub enum antecedent_core::search_budget::MatchingDistance
 pub enum antecedent_core::search_budget::NumericalMode
 pub enum antecedent_core::search_budget::SearchFamily
@@ -6367,7 +6292,6 @@ pub field antecedent_core::ExecutionContext::cache_policy: antecedent_core::Cach
 pub field antecedent_core::ExecutionContext::cancellation: antecedent_core::CancellationToken
 pub field antecedent_core::ExecutionContext::determinism: antecedent_core::Determinism
 pub field antecedent_core::ExecutionContext::kernel_policy: antecedent_core::KernelPolicy
-pub field antecedent_core::ExecutionContext::memory: antecedent_core::MemoryBudget
 pub field antecedent_core::ExecutionContext::parallelism: antecedent_core::Parallelism
 pub field antecedent_core::ExecutionContext::progress: core::option::Option<alloc::sync::Arc<dyn antecedent_core::ProgressSink>>
 pub field antecedent_core::ExecutionContext::rng: antecedent_core::RngFactory
@@ -6468,8 +6392,6 @@ pub field antecedent_core::MediationQuery::mediators: alloc::sync::Arc<[antecede
 pub field antecedent_core::MediationQuery::outcome: antecedent_core::VariableId
 pub field antecedent_core::MediationQuery::target_population: antecedent_core::TargetPopulation
 pub field antecedent_core::MediationQuery::treatment: antecedent_core::VariableId
-pub field antecedent_core::MemoryBudget::hard_limit_bytes: core::option::Option<u64>
-pub field antecedent_core::MemoryBudget::soft_limit_bytes: core::option::Option<u64>
 pub field antecedent_core::MonteCarloBudget::evaluations: u64
 pub field antecedent_core::MonteCarloBudget::exact_enumerations: u64
 pub field antecedent_core::MonteCarloBudget::samples: u64
@@ -7096,16 +7018,19 @@ pub fn <antecedent_core::ExecutionContext>::fn acquire_admission_product(&self, 
 pub fn <antecedent_core::ExecutionContext>::fn admission(&self) -> antecedent_core::execution::AdmissionPool
 pub fn <antecedent_core::ExecutionContext>::fn admit_index_bytes(&self, work_items: usize, per_worker_bytes: u64) -> core::result::Result<antecedent_core::ScratchLease, antecedent_core::ScratchRefusal>
 pub fn <antecedent_core::ExecutionContext>::fn admit_scratch(&self, work_items: usize, per_worker_bytes: u64) -> core::result::Result<antecedent_core::ScratchLease, antecedent_core::ScratchRefusal>
-pub fn <antecedent_core::ExecutionContext>::fn capped_workers(&self, work_items: usize) -> usize
 pub fn <antecedent_core::ExecutionContext>::fn for_tests(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
+pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch_if_free<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where T: core::marker::Send, S: core::marker::Send, E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync
+pub fn <antecedent_core::ExecutionContext>::fn memory_limit_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::ExecutionContext>::fn production(seed: u64, max_threads: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn production_default(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn serial_inner(&self) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn set_memory_limit(&mut self, limit: core::option::Option<u64>)
 pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn with_admission(self, pool: antecedent_core::execution::AdmissionPool) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn with_memory_limit(self, limit: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::ExecutionReceipt>::const fn new(request: antecedent_core::RequestIdentity, state: antecedent_core::ExecutionRequestState) -> Self
 pub fn <antecedent_core::ExecutionRequestState>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::ExecutionRequestState>::const fn publishes_claim(self) -> bool
@@ -7235,7 +7160,6 @@ pub fn <antecedent_core::MediationTarget>::const fn premises(&self) -> &alloc::c
 pub fn <antecedent_core::MediationTarget>::const fn schedule(&self) -> core::option::Option<&antecedent_core::TemporalPolicy>
 pub fn <antecedent_core::MediationTarget>::const fn time(&self) -> &antecedent_core::TimeFrame
 pub fn <antecedent_core::MediationTarget>::fn new(binding: antecedent_core::WorldBinding, time: antecedent_core::TimeFrame, schedule: core::option::Option<antecedent_core::TemporalPolicy>, arms: antecedent_core::MediationArms, premises: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::CrossWorldPremise>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
-pub fn <antecedent_core::MemoryBudget>::const fn unlimited() -> Self
 pub fn <antecedent_core::ModelAssumptions>::const fn graph(&self) -> antecedent_core::GraphFamily
 pub fn <antecedent_core::ModelAssumptions>::const fn new(graph: antecedent_core::GraphFamily, records: antecedent_core::AssumptionSet) -> Self
 pub fn <antecedent_core::ModelAssumptions>::const fn records(&self) -> &antecedent_core::AssumptionSet
@@ -7789,7 +7713,7 @@ pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn
 pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn spill_bytes(self) -> u64
 pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn try_product(device_count: u64, device_width: u64, spill_count: u64, spill_width: u64) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
 pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn try_sum(device_parts: &[u64], spill_parts: &[u64]) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
-pub fn <antecedent_core::device_reservation::FoldAdmission>::fn admit_learner(&self, scratch: &antecedent_core::scratch_pool::ScratchPool, threads: u32, bytes: u64) -> core::result::Result<antecedent_core::device_reservation::LearnerAdmission, antecedent_core::device_reservation::CpuAdmissionError>
+pub fn <antecedent_core::device_reservation::FoldAdmission>::fn admit_learner(&self, threads: u32, bytes: u64, scratch_bytes: u64) -> core::result::Result<antecedent_core::device_reservation::LearnerAdmission, antecedent_core::device_reservation::CpuAdmissionError>
 pub fn <antecedent_core::device_reservation::FoldAdmission>::fn held_threads(&self) -> u32
 pub fn <antecedent_core::device_reservation::FoldAdmission>::fn observe_cancel(&mut self, token: &antecedent_core::CancellationToken) -> bool
 pub fn <antecedent_core::device_reservation::LearnerAdmission>::fn observe_cancel(&mut self, token: &antecedent_core::CancellationToken) -> bool
@@ -7823,6 +7747,7 @@ pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child_request(&s
 pub fn <antecedent_core::execution::AdmissionLease>::fn belongs_to(&self, pool: &antecedent_core::execution::AdmissionPool) -> bool
 pub fn <antecedent_core::execution::AdmissionLease>::fn release(self) -> antecedent_core::execution::AdmissionRemainder
 pub fn <antecedent_core::execution::AdmissionLease>::fn remainder(&self) -> antecedent_core::execution::AdmissionRemainder
+pub fn <antecedent_core::execution::AdmissionLease>::fn try_release(self) -> core::result::Result<antecedent_core::execution::AdmissionRemainder, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::execution::AdmissionPool>::fn available(&self) -> antecedent_core::execution::AdmissionRemainder
 pub fn <antecedent_core::execution::AdmissionPool>::fn blocked_waiters(&self) -> usize
 pub fn <antecedent_core::execution::AdmissionPool>::fn byte_budget(&self) -> u64
@@ -7901,9 +7826,9 @@ pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_counts(
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_resources(&mut self, extra: antecedent_core::execution_facts::ExecutionResources) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
 pub fn <antecedent_core::execution_facts::OutputRetention>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::execution_facts::PhysicalExecutionIdentity>::const fn digest(self) -> antecedent_core::SemanticDigest
-pub fn <antecedent_core::inspect::EstimatedResources>::const fn declared(memory: antecedent_core::MemoryBudget, estimated_bytes: u64) -> Self
+pub fn <antecedent_core::inspect::EstimatedResources>::const fn declared(memory_limit_bytes: core::option::Option<u64>, estimated_bytes: u64) -> Self
 pub fn <antecedent_core::inspect::EstimatedResources>::const fn estimated_bytes(self) -> u64
-pub fn <antecedent_core::inspect::EstimatedResources>::const fn memory(self) -> antecedent_core::MemoryBudget
+pub fn <antecedent_core::inspect::EstimatedResources>::const fn memory_limit_bytes(self) -> core::option::Option<u64>
 pub fn <antecedent_core::inspect::EvidenceTransformation>::fn declared(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_core::inspect::InspectionRefusal>
 pub fn <antecedent_core::inspect::EvidenceTransformation>::fn name(&self) -> &str
 pub fn <antecedent_core::inspect::EvidenceTransformations>::fn declared(steps: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::inspect::EvidenceTransformation>) -> Self
@@ -8061,20 +7986,6 @@ pub fn <antecedent_core::scientific_target::HistoryIndexedTargetLaw>::fn coordin
 pub fn <antecedent_core::scientific_target::HistoryIndexedTargetLaw>::fn experiments(&self) -> &[antecedent_core::scientific_target::HistoryIndexedExperiment]
 pub fn <antecedent_core::scientific_target::HistoryIndexedTargetLaw>::fn new(snapshot: impl core::convert::Into<alloc::sync::Arc<str>>, coordinates: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::VariableId>, experiments: impl core::iter::traits::collect::IntoIterator<Item = (alloc::vec::Vec<u32>, f64)>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::scientific_target::HistoryIndexedTargetLaw>::fn snapshot(&self) -> &str
-pub fn <antecedent_core::scratch_pool::ScratchFull>::const fn capacity(self) -> u64
-pub fn <antecedent_core::scratch_pool::ScratchFull>::const fn kind(self) -> antecedent_core::scratch_pool::ScratchKind
-pub fn <antecedent_core::scratch_pool::ScratchFull>::const fn live(self) -> u64
-pub fn <antecedent_core::scratch_pool::ScratchGuard>::fn bytes(&self) -> u64
-pub fn <antecedent_core::scratch_pool::ScratchGuard>::fn kind(&self) -> antecedent_core::scratch_pool::ScratchKind
-pub fn <antecedent_core::scratch_pool::ScratchKind>::const fn as_str(self) -> &'static str
-pub fn <antecedent_core::scratch_pool::ScratchPool>::fn accounted_bytes(&self) -> u64
-pub fn <antecedent_core::scratch_pool::ScratchPool>::fn bounded(kind: antecedent_core::scratch_pool::ScratchKind, capacity_buffers: u64, bytes_per_buffer: u64) -> core::result::Result<Self, antecedent_core::scratch_pool::ScratchPoolError>
-pub fn <antecedent_core::scratch_pool::ScratchPool>::fn bytes_per_buffer(&self) -> u64
-pub fn <antecedent_core::scratch_pool::ScratchPool>::fn capacity_buffers(&self) -> u64
-pub fn <antecedent_core::scratch_pool::ScratchPool>::fn kind(&self) -> antecedent_core::scratch_pool::ScratchKind
-pub fn <antecedent_core::scratch_pool::ScratchPool>::fn live(&self) -> u64
-pub fn <antecedent_core::scratch_pool::ScratchPool>::fn peak_live(&self) -> u64
-pub fn <antecedent_core::scratch_pool::ScratchPool>::fn try_acquire(&self, parent: &antecedent_core::execution::AdmissionLease) -> core::result::Result<antecedent_core::scratch_pool::ScratchGuard, antecedent_core::scratch_pool::ScratchFull>
 pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn family(self) -> antecedent_core::search_budget::SearchFamily
 pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn memory_bytes(self) -> u64
 pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn work(self) -> u64
@@ -8108,7 +8019,7 @@ pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn work(self
 pub fn antecedent_core::blake3_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::clip_value(value: f64, lower: f64, upper: f64) -> f64
 pub fn antecedent_core::default_user_threads() -> u32
-pub fn antecedent_core::device_reservation::admit_fold(ctx: &antecedent_core::ExecutionContext, scratch: &antecedent_core::scratch_pool::ScratchPool, threads: u32, bytes: u64) -> core::result::Result<antecedent_core::device_reservation::FoldAdmission, antecedent_core::device_reservation::CpuAdmissionError>
+pub fn antecedent_core::device_reservation::admit_fold(ctx: &antecedent_core::ExecutionContext, threads: u32, bytes: u64, scratch_bytes: u64) -> core::result::Result<antecedent_core::device_reservation::FoldAdmission, antecedent_core::device_reservation::CpuAdmissionError>
 pub fn antecedent_core::device_reservation::place_physical_predictions(n_rows: usize, folds: &[(&[u64], &[f64])]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_core::device_reservation::PredictionOrderError>
 pub fn antecedent_core::device_reservation::within_declared_tolerance(left: f64, right: f64, tolerance: antecedent_core::PhysicalTolerance) -> bool
 pub fn antecedent_core::execution::splitmix64(state: &mut u64) -> u64
@@ -8157,7 +8068,6 @@ pub mod antecedent_core::sampling_design
 pub mod antecedent_core::schema
 pub mod antecedent_core::scientific_target
 pub mod antecedent_core::scratch_admission
-pub mod antecedent_core::scratch_pool
 pub mod antecedent_core::search
 pub mod antecedent_core::search_budget
 pub mod antecedent_core::temporal
@@ -8320,7 +8230,6 @@ pub struct antecedent_core::MediationArms has private fields
 pub struct antecedent_core::MediationQuery
 pub struct antecedent_core::MediationTarget
 pub struct antecedent_core::MediationTarget has private fields
-pub struct antecedent_core::MemoryBudget
 pub struct antecedent_core::MissingLearningRate
 pub struct antecedent_core::ModelAssumptions
 pub struct antecedent_core::ModelAssumptions has private fields
@@ -8596,12 +8505,6 @@ pub struct antecedent_core::scientific_target::HistoryIndexedExperiment
 pub struct antecedent_core::scientific_target::HistoryIndexedExperiment has private fields
 pub struct antecedent_core::scientific_target::HistoryIndexedTargetLaw
 pub struct antecedent_core::scientific_target::HistoryIndexedTargetLaw has private fields
-pub struct antecedent_core::scratch_pool::ScratchFull
-pub struct antecedent_core::scratch_pool::ScratchFull has private fields
-pub struct antecedent_core::scratch_pool::ScratchGuard
-pub struct antecedent_core::scratch_pool::ScratchGuard has private fields
-pub struct antecedent_core::scratch_pool::ScratchPool
-pub struct antecedent_core::scratch_pool::ScratchPool has private fields
 pub struct antecedent_core::search_budget::AdmittedExactSearch
 pub struct antecedent_core::search_budget::AdmittedExactSearch has private fields
 pub struct antecedent_core::search_budget::ApproximationEvidence
@@ -8663,7 +8566,6 @@ pub use antecedent_core::execution::ExecutionReceipt = antecedent_core::Executio
 pub use antecedent_core::execution::ExecutionRequestState = antecedent_core::ExecutionRequestState
 pub use antecedent_core::execution::GOLDEN_GAMMA = antecedent_core::GOLDEN_GAMMA
 pub use antecedent_core::execution::KernelPolicy = antecedent_core::KernelPolicy
-pub use antecedent_core::execution::MemoryBudget = antecedent_core::MemoryBudget
 pub use antecedent_core::execution::MonteCarloBudget = antecedent_core::MonteCarloBudget
 pub use antecedent_core::execution::MonteCarloError = antecedent_core::MonteCarloError
 pub use antecedent_core::execution::NonZeroThreadCount = antecedent_core::NonZeroThreadCount
@@ -9545,7 +9447,6 @@ pub variant antecedent_core::ScientificTargetError::UnknownWorld { id: anteceden
 pub variant antecedent_core::ScientificTargetError::UnnormalizedHistoryLaw
 pub variant antecedent_core::ScientificTargetError::WorldsNotDistinct
 pub variant antecedent_core::ScratchRefusal::Cancelled
-pub variant antecedent_core::ScratchRefusal::HardLimit { bytes: u64, limit: u64 }
 pub variant antecedent_core::ScratchRefusal::Overflow
 pub variant antecedent_core::ScratchRefusal::PoolShort { bytes: u64 }
 pub variant antecedent_core::SearchStop::Cancelled
@@ -9691,7 +9592,7 @@ pub variant antecedent_core::device_reservation::CpuAdmissionError::FoldExceedsL
 pub variant antecedent_core::device_reservation::CpuAdmissionError::LearnerExceedsLease { requested_threads: u32, requested_bytes: u64, remaining_threads: u32, remaining_bytes: u64 }
 pub variant antecedent_core::device_reservation::CpuAdmissionError::Overflow
 pub variant antecedent_core::device_reservation::CpuAdmissionError::Released
-pub variant antecedent_core::device_reservation::CpuAdmissionError::Scratch(antecedent_core::scratch_pool::ScratchFull)
+pub variant antecedent_core::device_reservation::CpuAdmissionError::Scratch { bytes: u64 }
 pub variant antecedent_core::device_reservation::DeviceReservationError::Cancelled
 pub variant antecedent_core::device_reservation::DeviceReservationError::ExceedsRemainder { requested_device_bytes: u64, requested_spill_bytes: u64, remaining_device_bytes: u64, remaining_spill_bytes: u64 }
 pub variant antecedent_core::device_reservation::DeviceReservationError::Overflow
@@ -9919,13 +9820,6 @@ pub variant antecedent_core::recalc::Stage::Utility
 pub variant antecedent_core::recalc::StageStatus::Recomputed { because: antecedent_core::recalc::ChangedDependency }
 pub variant antecedent_core::recalc::StageStatus::Refused { reason: antecedent_core::recalc::RefusalReason }
 pub variant antecedent_core::recalc::StageStatus::Reused { dependency: antecedent_core::recalc::Stage }
-pub variant antecedent_core::scratch_pool::ScratchKind::Draw
-pub variant antecedent_core::scratch_pool::ScratchKind::Fold
-pub variant antecedent_core::scratch_pool::ScratchKind::Grid
-pub variant antecedent_core::scratch_pool::ScratchKind::Replicate
-pub variant antecedent_core::scratch_pool::ScratchKind::Row
-pub variant antecedent_core::scratch_pool::ScratchPoolError::ByteProductOverflow { kind: antecedent_core::scratch_pool::ScratchKind, capacity_buffers: u64, bytes_per_buffer: u64 }
-pub variant antecedent_core::scratch_pool::ScratchPoolError::ZeroCapacity { kind: antecedent_core::scratch_pool::ScratchKind }
 pub variant antecedent_core::search_budget::MatchingDistance::Absolute
 pub variant antecedent_core::search_budget::MatchingDistance::Euclidean
 pub variant antecedent_core::search_budget::NumericalMode::Approximation(antecedent_core::search_budget::ApproximationEvidence)

@@ -166,7 +166,7 @@ impl ClassicalTransportStage {
         let catalog = parse_catalog(catalog, &self.graph)?;
         crate::detach_catch(py, move || {
             let mut ctx = ExecutionContext::production_default(0);
-            ctx.memory.hard_limit_bytes = memory_bytes;
+            ctx.set_memory_limit(memory_bytes);
             crate::apply_cancel(&mut ctx, cancel);
             let result = proof
                 .search_catalog(
@@ -262,7 +262,7 @@ impl ClassicalTransportStage {
         let graph = Admg { admg: self.graph.admg.clone(), names: self.graph.names.clone() };
         crate::detach_catch(py, move || {
             let mut ctx = ExecutionContext::production_default(0);
-            ctx.memory.hard_limit_bytes = memory_bytes;
+            ctx.set_memory_limit(memory_bytes);
             crate::apply_cancel(&mut ctx, cancel);
             let functional = match proof.bind_catalog_with_context(
                 &catalog,
@@ -340,7 +340,7 @@ fn identify_classical_transport_stage(
     let named = Admg { admg: graph.admg.clone(), names: graph.names.clone() };
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = memory_bytes;
+        ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
         let result = identify_classical_transport(
             &diagram,
@@ -405,7 +405,7 @@ fn identify_meta_transport_stage(
     let named = Admg { admg: graph.admg.clone(), names: graph.names.clone() };
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = memory_bytes;
+        ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
         let result = antecedent_identify::identify_meta_transport(
             &aligned,
@@ -458,7 +458,7 @@ fn consume_transport_certificate(
     let (names, bytes): (Vec<String>, Vec<u8>) = antecedent_io::from_cbor(bytes).map_err(error)?;
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = memory_bytes;
+        ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
         let limits = SidLimits { steps: max_steps, depth: max_depth };
         let certificate = antecedent_io::transport_certificate::TransportCertificateWire::consume(
@@ -537,7 +537,7 @@ struct PreparedExactStage {
 impl PreparedExactStage {
     fn ctx(&self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = self.memory_bytes;
+        ctx.set_memory_limit(self.memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
         ctx
     }
@@ -922,7 +922,7 @@ fn consume_exact_transport(
         let (names, artifact): (Vec<String>, Vec<u8>) =
             antecedent_io::from_cbor(payload).map_err(error)?;
         let mut ctx = ExecutionContext::production_default(0);
-        ctx.memory.hard_limit_bytes = memory_bytes;
+        ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
         let (inner, result) = antecedent::PreparedStudy::<antecedent::ExactPreparedState>::consume(
             &artifact,

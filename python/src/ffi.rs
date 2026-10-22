@@ -215,6 +215,11 @@ impl AdmittedNumericBuffer {
     }
 }
 
+/// Expose the buffer owner class so its `admitted_bytes` is documented and typed.
+pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<AdmittedNumericBuffer>()
+}
+
 /// Convert an owned vector without copying, retaining admission in the array's base owner.
 pub(crate) fn admitted_numeric_array(
     py: Python<'_>,

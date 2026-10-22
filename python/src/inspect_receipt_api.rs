@@ -17,8 +17,8 @@ use antecedent_core::inspect::{
 };
 use antecedent_core::reason_code;
 use antecedent_core::{
-    Assumption, ByteEstimates, InferenceSelection, KernelPolicy, MemoryBudget, PhysicalEffect,
-    PhysicalOperator, RealizationKind, SemanticDigest, SourceDependencyId,
+    Assumption, ByteEstimates, InferenceSelection, KernelPolicy, PhysicalEffect, PhysicalOperator,
+    RealizationKind, SemanticDigest, SourceDependencyId,
 };
 use pyo3::prelude::*;
 
@@ -609,16 +609,8 @@ impl PyInspectionInputs {
         Ok(Self::copied(self.inner.clone().materialization(materialization)))
     }
 
-    fn with_resources(
-        &self,
-        soft_limit_bytes: Option<u64>,
-        hard_limit_bytes: Option<u64>,
-        estimated_bytes: u64,
-    ) -> Self {
-        let resources = EstimatedResources::declared(
-            MemoryBudget { soft_limit_bytes, hard_limit_bytes },
-            estimated_bytes,
-        );
+    fn with_resources(&self, memory_limit_bytes: Option<u64>, estimated_bytes: u64) -> Self {
+        let resources = EstimatedResources::declared(memory_limit_bytes, estimated_bytes);
         Self::copied(self.inner.clone().resources(resources))
     }
 
@@ -699,12 +691,8 @@ impl PyPlanInspection {
         self.inner.materialization().copy_bytes()
     }
 
-    fn memory_soft_bytes(&self) -> Option<u64> {
-        self.inner.resources().memory().soft_limit_bytes
-    }
-
-    fn memory_hard_bytes(&self) -> Option<u64> {
-        self.inner.resources().memory().hard_limit_bytes
+    fn memory_limit_bytes(&self) -> Option<u64> {
+        self.inner.resources().memory_limit_bytes()
     }
 
     fn estimated_bytes(&self) -> u64 {
