@@ -57,6 +57,10 @@ def prepare(
     regimes: Sequence[int] | None = None,
     provider: Any | None = None,
     controls: Any | None = None,
+    sampling_design: Literal[
+        "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
+    ]
+    | None = None,
 ) -> PreparedAnalysis[_PreparedResult]:
     """Prepare the same ordinary request as :func:`analyze`, stopping before estimation.
 
@@ -93,6 +97,7 @@ def prepare(
         regimes=regimes,
         provider=provider,
         controls=controls,
+        sampling_design=sampling_design,
     )
 
 

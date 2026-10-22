@@ -156,6 +156,10 @@ def analyze(
     dose_units: str | None = None,
     quantity_population: str = "target",
     quantity_transform: str = "identity",
+    sampling_design: Literal[
+        "independent_subject_trajectories", "clustered_panel", "dependent_time_series"
+    ]
+    | None = None,
 ) -> Analysis:
     """Identify then estimate a causal effect.
 
@@ -438,6 +442,7 @@ def analyze(
         regimes=regimes,
         provider=provider,
         controls=controls,
+        sampling_design=sampling_design,
     )
     result = prepared.estimate()
     if return_posterior_artifact:
