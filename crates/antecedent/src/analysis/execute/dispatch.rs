@@ -2263,6 +2263,7 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.inference.is_frequentist()
+            && self.identifier.is_none_or(|id| id == DEFAULT_IDENTIFIER_ID)
             && matches!(self.estimator, None | Some(EstimatorId::LinearAdjustmentAte))
             && matches!(
                 self.estimator_spec.as_deref(),
