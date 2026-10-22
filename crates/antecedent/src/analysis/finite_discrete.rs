@@ -936,12 +936,10 @@ fn counted_table(counts: &[u64; 8]) -> Result<TabularData, crate::CausalError> {
 }
 
 fn histogram(table: &TabularData) -> Result<[u64; 8], crate::CausalError> {
-    let treatment = table
-        .discrete_column(variable(TREATMENT))
-        .map_err(|err| compile(err.to_string()))?;
-    let confounder = table
-        .discrete_column(variable(CONFOUNDER))
-        .map_err(|err| compile(err.to_string()))?;
+    let treatment =
+        table.discrete_column(variable(TREATMENT)).map_err(|err| compile(err.to_string()))?;
+    let confounder =
+        table.discrete_column(variable(CONFOUNDER)).map_err(|err| compile(err.to_string()))?;
     let outcome =
         table.discrete_column(variable(OUTCOME)).map_err(|err| compile(err.to_string()))?;
     let mut counts = [0_u64; 8];
@@ -949,9 +947,8 @@ fn histogram(table: &TabularData) -> Result<[u64; 8], crate::CausalError> {
         let index = binary_level(&treatment, row)? * 4
             + binary_level(&confounder, row)? * 2
             + binary_level(&outcome, row)?;
-        let cell = counts
-            .get_mut(index)
-            .ok_or_else(|| compile("discrete cell is outside the joint"))?;
+        let cell =
+            counts.get_mut(index).ok_or_else(|| compile("discrete cell is outside the joint"))?;
         *cell += 1;
     }
     Ok(counts)
@@ -994,7 +991,7 @@ fn admit_discrete(ctx: &ExecutionContext) -> Result<AdmissionLease, crate::Causa
 
 fn execution_byte_budget(ctx: &ExecutionContext) -> u64 {
     let pool = ctx.admission().byte_budget();
-    match ctx.memory.hard_limit_bytes {
+    match ctx.memory_limit_bytes() {
         Some(limit) => limit.min(pool),
         None => pool,
     }

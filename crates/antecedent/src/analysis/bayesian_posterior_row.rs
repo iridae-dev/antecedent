@@ -309,7 +309,7 @@ mod prepared_tests {
     fn observed_public_attempts_preserve_facts_when_refused_cancelled_or_corrupt() {
         use antecedent_core::execution_facts::ExecutionFactStatus;
         let mut limited = ExecutionContext::for_tests(3);
-        limited.memory.hard_limit_bytes = Some(1);
+        limited.set_memory_limit(Some(1));
         let refused = BayesianPosteriorRow::evaluate_observed(request(), &limited);
         assert!(refused.result.is_err());
         assert_eq!(refused.facts.unwrap().status(), ExecutionFactStatus::Failed);
@@ -401,7 +401,7 @@ mod prepared_tests {
             assert_eq!(execution.report.counts(Operation::PosteriorFit).completed, 1);
         }
         let mut limited = ctx.clone();
-        limited.memory.hard_limit_bytes = Some(1);
+        limited.set_memory_limit(Some(1));
         let refused = observe_execution(|| prepared.estimate(&limited));
         assert!(refused.result.is_err());
         assert_eq!(refused.report.counts(Operation::PosteriorFit).attempted, 0);

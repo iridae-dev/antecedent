@@ -516,13 +516,7 @@ pub fn execute_dr_with_receipt(
             .saturating_mul(p.saturating_add(32))
             .saturating_mul(128)
             .saturating_add(p.saturating_mul(p).saturating_mul(128));
-        if ctx
-            .memory
-            .hard_limit_bytes
-            .into_iter()
-            .chain(ctx.memory.soft_limit_bytes)
-            .any(|limit| bytes > limit)
-        {
+        if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
             return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
         }
     }

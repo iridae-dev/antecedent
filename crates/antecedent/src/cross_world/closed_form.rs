@@ -435,11 +435,8 @@ mod tests {
 
     #[test]
     fn a_cycle_is_refused_before_the_order_and_a_chain_still_evaluates() {
-        let columns = vec![
-            vec![0.0, 1.0, 2.0, 3.0],
-            vec![1.0, 2.0, 3.0, 4.0],
-            vec![1.0, 3.0, 5.0, 7.0],
-        ];
+        let columns =
+            vec![vec![0.0, 1.0, 2.0, 3.0], vec![1.0, 2.0, 3.0, 4.0], vec![1.0, 3.0, 5.0, 7.0]];
         let asked = query();
         assert!(
             closed_form_point(

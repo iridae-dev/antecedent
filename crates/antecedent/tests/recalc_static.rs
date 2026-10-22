@@ -270,7 +270,7 @@ fn refusal_is_transactional_and_receipts_do_not_grant_live_factors() {
     let mut session = StaticResponseSession::new();
     execute_static_response_with_receipt(&mut session, &request, &ctx).unwrap();
     let mut budget = ExecutionContext::for_tests(9);
-    budget.memory.hard_limit_bytes = Some(1);
+    budget.set_memory_limit(Some(1));
     request.columns[2].1[0] = 1.0;
     let (failed, work) =
         count_static_work(|| execute_static_response_with_receipt(&mut session, &request, &budget));
@@ -493,7 +493,7 @@ fn dense_factor_workspace_respects_budget_before_provider_construction() {
     }
     request.graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     let mut ctx = ExecutionContext::for_tests(31);
-    ctx.memory.hard_limit_bytes = Some(65_536);
+    ctx.set_memory_limit(Some(65_536));
     let (result, work) = count_static_work(|| {
         execute_static_response_with_receipt(&mut StaticResponseSession::new(), &request, &ctx)
     });

@@ -587,6 +587,9 @@ pub struct StudyBuilder {
     participants: Option<antecedent_io::ParticipantBindingWire>,
     /// Declared handling of missing values; `None` leaves each route on its own default.
     missing: Option<antecedent_data::MissingDeclaration>,
+    /// Declared sampling design of the rows; `None` leaves each estimator on the design its
+    /// row grouping implies.
+    sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
     /// Custom slow-path validators appended after the built-in refute suite.
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     /// Optional tier-rule background (fast-path generalized adjustment).
@@ -1169,6 +1172,7 @@ impl StudyBuilder {
             population_registry: None,
             participants: None,
             missing: None,
+            sampling_design: None,
             custom_validators: Vec::new(),
             tiered: None,
             caller_graph: None,
@@ -1625,6 +1629,20 @@ impl StudyBuilder {
         self
     }
 
+    /// Declare how the rows were sampled, once for the whole study.
+    ///
+    /// Independent subject trajectories refuse a row-level bootstrap, a clustered panel is
+    /// resampled and split by whole cluster, and a dependent time series is resampled in
+    /// contiguous blocks and split with an embargo. Every estimator of the study that
+    /// bootstraps or splits is held to the declared design, and a request the design does not
+    /// allow is refused with a typed sampling-design error. The declaration enters the
+    /// data-snapshot identity. Without it each estimator takes the design its grouping implies.
+    #[must_use]
+    pub fn sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
+        self.sampling_design = Some(design);
+        self
+    }
+
     /// Bindings for named predicates and custom target-distribution weights.
     #[must_use]
     pub fn population_registry(mut self, registry: PopulationRegistry) -> Self {
@@ -1710,6 +1728,7 @@ impl StudyBuilder {
             population_registry: self.population_registry,
             participants: self.participants,
             missing: self.missing,
+            sampling_design: self.sampling_design,
             custom_validators: self.custom_validators,
             tiered: self.tiered,
             caller_graph: self.caller_graph.is_some(),

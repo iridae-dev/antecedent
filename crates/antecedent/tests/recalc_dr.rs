@@ -453,7 +453,7 @@ fn dr_plr_target_cancellation_and_invalid_refits_cannot_reuse_an_aipw_law() {
     invalid = original.clone();
     invalid.columns[1].1[0] += 0.1;
     let mut constrained = ctx();
-    constrained.memory.hard_limit_bytes = Some(1);
+    constrained.set_memory_limit(Some(1));
     let _ = fails_without_fits(&mut session, &invalid, &constrained);
     invalid = original.clone();
     invalid.columns[0].1.fill(0.0); // No treated arm: no cross-fitted treatment contrast.

@@ -511,7 +511,7 @@ impl JointSensitivityArtifactWire {
         })?;
         let declared = &wire.body.perturbation;
         let effective = wire.body.receipt.memory_limit_bytes;
-        let affordable = ctx.memory.hard_limit_bytes.is_none_or(|hard| hard >= effective);
+        let affordable = ctx.memory_limit_bytes().is_none_or(|hard| hard >= effective);
         if declared.operations > limits.max_operations
             || declared.depth > limits.max_depth
             || declared.memory_bytes > limits.max_memory_bytes

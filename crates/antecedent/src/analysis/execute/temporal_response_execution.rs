@@ -434,7 +434,7 @@ fn admit_delayed_finite_horizon(
     let horizon = horizon_ending_after(cadence, steps)?;
     let history = match temporal.max_history_lag {
         Some(lag) => HistoryWindow::max_lag(lag),
-        None => HistoryWindow::planner_default(),
+        None => HistoryWindow::planner_default().resolve(searched_steps),
     };
     DelayedFeedback::try_new(DelayedFeedbackRequest {
         cadence: cadence.clone(),
@@ -806,9 +806,9 @@ mod tests {
         ResponseTarget, admit_delayed_finite_horizon, causal_refusal,
         finite_horizon_causal_response, finite_horizon_levels, temporal_target_response,
     };
-    use antecedent_model::history_operators::delayed_action_of;
     use antecedent_core::InitialLaw;
     use antecedent_data::{SamplingRegularity, TimeIndex};
+    use antecedent_model::history_operators::delayed_action_of;
 
     fn cadence(interval_ns: u64, length: usize) -> TimeIndex {
         TimeIndex { regularity: SamplingRegularity::Regular { interval_ns }, length }
@@ -1198,15 +1198,8 @@ mod tests {
     fn temporal_response_refuses_an_off_cadence_horizon() {
         let irregular = TimeIndex { regularity: SamplingRegularity::Irregular, length: 8 };
         let spec = response_spec(TemporalPolicy::pulse(-1), vec![1], None);
-        let error = admit_delayed_finite_horizon(
-            &irregular,
-            &spec,
-            1,
-            0,
-            &mechanism(),
-            &dose(),
-        )
-        .unwrap_err();
+        let error = admit_delayed_finite_horizon(&irregular, &spec, 1, 0, &mechanism(), &dose())
+            .unwrap_err();
         assert_eq!(
             error,
             HistoryOperatorError::CadenceWithoutInterval { interval_ns: None, steps: 1 }

@@ -580,8 +580,7 @@ impl StudyBuilder {
             .and_then(|bytes| bytes.checked_mul(query.at.len().checked_add(2)?))
             .ok_or_else(|| err("transport grid memory overflow"))?;
         if ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .is_some_and(|limit| u64::try_from(footprint).map_or(true, |n| n > limit))
         {
             return Err(err("transport grid memory budget"));
@@ -675,8 +674,7 @@ impl PreparedStudy<TransportGridState> {
             operations: query.limits.operations / query.at.len() / 8,
             depth: query.limits.depth,
         };
-        ctx.memory.hard_limit_bytes =
-            ctx.memory.hard_limit_bytes.map(|n| n / query.at.len() as u64);
+        ctx.set_memory_limit(ctx.memory_limit_bytes().map(|n| n / query.at.len() as u64));
         let EligibleGridPoints { failures, eligible, evaluated } =
             self.evaluate_eligible_points(&ctx)?;
         let mut evaluated_points = Some(evaluated);
@@ -1022,7 +1020,7 @@ fn read_grid_wire(
     ctx: &ExecutionContext,
 ) -> Result<(GridWire, String), IoError> {
     if ctx.cancellation.is_cancelled()
-        || ctx.memory.hard_limit_bytes.is_some_and(|n| bytes.len() as u64 > n)
+        || ctx.memory_limit_bytes().is_some_and(|n| bytes.len() as u64 > n)
     {
         return Err(err("transport grid budget/cancellation"));
     }
@@ -1469,7 +1467,7 @@ mod tests {
         }
         reject(wire);
         let mut tiny = ctx.clone();
-        tiny.memory.hard_limit_bytes = Some(1);
+        tiny.set_memory_limit(Some(1));
         assert!(study.estimate(&tiny).is_err());
     }
 }

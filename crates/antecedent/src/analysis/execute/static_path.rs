@@ -186,7 +186,9 @@ impl<'a> StaticAteExecution<'a> {
         } else {
             match &spec {
                 EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage) => {
-                    let fitter = antecedent_estimate::FrontDoorTwoStage::new();
+                    let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
+                    fitter.sampling_design =
+                        crate::estimator_spec::declared_sampling(self.study.sampling_design);
                     Some((fitter.clone(), fitter.prepare_checked(data, identification, 0)?))
                 }
                 EstimatorSpec::FrontDoorTwoStage(cfg) => {
@@ -250,7 +252,10 @@ impl<'a> StaticAteExecution<'a> {
         }
         let fitter = match spec {
             EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
-                Some(LinearAdjustmentAte::new())
+                let mut fitter = LinearAdjustmentAte::new();
+                fitter.sampling_design =
+                    crate::estimator_spec::declared_sampling(self.study.sampling_design);
+                Some(fitter)
             }
             EstimatorSpec::LinearAdjustmentAte(cfg) => Some((**cfg).clone()),
             _ => None,
@@ -391,6 +396,7 @@ impl<'a> StaticAteExecution<'a> {
                     bootstrap_replicates: 0,
                     overlap_policy: self.study.overlap_policy,
                     population_registry: self.study.population_registry.as_ref(),
+                    sampling_design: self.study.sampling_design,
                 },
                 self.identification.required_assumptions.clone(),
                 ctx,
@@ -588,6 +594,8 @@ impl<'a> StaticAteExecution<'a> {
         let ctx = self.run.ctx;
         self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
         let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
+        fitter.sampling_design =
+            crate::estimator_spec::declared_sampling(self.study.sampling_design);
         fitter.bootstrap_replicates = self.study.bootstrap_replicates;
         let filled = fitter
             .attach_bootstrap(receipt.problem(), &mut ws.frontdoor, ctx, point)
@@ -639,6 +647,7 @@ impl<'a> StaticAteExecution<'a> {
         let mut est = prepared_linear
             .map_or_else(LinearAdjustmentAte::new, |operation| operation.fitter.clone());
         if prepared_linear.is_none() {
+            est.sampling_design = crate::estimator_spec::declared_sampling(study.sampling_design);
             est.bootstrap_replicates = study.bootstrap_replicates;
             est.overlap = OverlapPolicy::ExplicitOverride;
         }
@@ -683,6 +692,7 @@ impl<'a> StaticAteExecution<'a> {
                 bootstrap_replicates: study.bootstrap_replicates,
                 overlap_policy: study.overlap_policy,
                 population_registry: study.population_registry.as_ref(),
+                sampling_design: study.sampling_design,
             },
             point,
             ctx,
@@ -1792,6 +1802,7 @@ impl super::Study {
                 bootstrap_replicates: self.bootstrap_replicates,
                 overlap_policy: self.overlap_policy,
                 population_registry: self.population_registry.as_ref(),
+                sampling_design: self.sampling_design,
             },
             identification.required_assumptions.clone(),
             ctx,
@@ -1900,6 +1911,7 @@ impl super::Study {
                     bootstrap_replicates: self.bootstrap_replicates,
                     overlap_policy: self.overlap_policy,
                     population_registry: self.population_registry.as_ref(),
+                    sampling_design: self.sampling_design,
                 },
                 identification.required_assumptions.clone(),
                 ctx,

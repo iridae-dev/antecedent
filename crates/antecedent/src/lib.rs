@@ -98,35 +98,33 @@ pub use analysis::temporal_dependent_interval_candidate;
 #[doc(hidden)]
 pub use analysis::{max_t_critical_value, simultaneous_band_unpublished};
 pub use class_prior::ClassPrior;
+pub use design_posterior_model::DesignPosteriorModel;
 pub use error::{CausalError, CompileCause, CompileFailure, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
 pub use estimator_spec::EstimatorSpec;
 pub use graph::{Dag, DenseNodeId, TemporalDag};
 pub use identify_api::{Identification, identify, identify_dag, identify_with};
-pub use design_posterior_model::DesignPosteriorModel;
 pub use inference::{BayesianConfig, InferenceMode, PosteriorDrawControls};
 pub use options::FdrControl;
 pub use query::{
     AnomalyAttributionQuery, AssignmentDesign, AverageEffectQuery, CausalQuery,
     ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery,
     DerivativeScale, DerivativeWeighting, ExposureLevel, ExposureMapping, GridSpec,
-    InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
+    HistoryMatchQuery, InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
     LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MechanismChangeQuery, MediationContrast,
-    SequentialContrastQuery, HistoryMatchQuery,
     MediationQuery, OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, RandomizationDesign,
     RandomizedEffectQuery, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, SyntheticControlQuery, SyntheticPanelMethod,
-    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, TransportQuery, UnitChangeQuery,
+    ResponseUncertainty, ResponseValue, SequentialContrastQuery, SyntheticControlQuery,
+    SyntheticPanelMethod, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
+    TransportQuery, UnitChangeQuery,
 };
 pub use result::{
-    AnalysisIdentification, ContinuousDoseResponseEstimate, ExecutedContract,
-    LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, HistoryMatchEstimate, SequentialContrastEstimate,
-    PERCENTILE_95_MIN_REPLICATES,
-    PanelDidEstimate, PolicyValueEstimate, PrimaryEstimate, PublishedScalarUncertainty,
-    RandomizedEffectEstimate, ResultPayload, RowWeightsBinding, StructuralAggregationPolicy,
-    PosteriorRowEstimate, StructuralWeightBasis, StudyResult, SurvivalEstimate,
-    SyntheticControlEstimate,
-    SyntheticDidEstimate,
+    AnalysisIdentification, ContinuousDoseResponseEstimate, ExecutedContract, HistoryMatchEstimate,
+    LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, PERCENTILE_95_MIN_REPLICATES,
+    PanelDidEstimate, PolicyValueEstimate, PosteriorRowEstimate, PrimaryEstimate,
+    PublishedScalarUncertainty, RandomizedEffectEstimate, ResultPayload, RowWeightsBinding,
+    SequentialContrastEstimate, StructuralAggregationPolicy, StructuralWeightBasis, StudyResult,
+    SurvivalEstimate, SyntheticControlEstimate, SyntheticDidEstimate,
 };
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportGraphClass, SupportInference,

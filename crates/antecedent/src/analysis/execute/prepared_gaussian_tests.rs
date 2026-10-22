@@ -117,7 +117,7 @@ fn prepared_gaussian_refuses_cancelled_and_insufficient_resource_execution() {
     let ctx = ExecutionContext::for_tests(1);
     let prepared = contrast_study().prepare(&ctx).unwrap();
     let mut bounded = ctx.clone();
-    bounded.memory.hard_limit_bytes = Some(1);
+    bounded.set_memory_limit(Some(1));
     let refused = prepared.estimate_retained_observed(&bounded);
     assert!(matches!(refused.result, Err(crate::CausalError::Resource { .. })));
     assert_eq!(
@@ -191,7 +191,7 @@ fn prepared_gaussian_quotes_selected_columns_and_resampling_work() {
         .build()
         .unwrap();
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory.hard_limit_bytes = Some(250_000);
+    ctx.set_memory_limit(Some(250_000));
     let prepared = study.prepare(&ctx).unwrap();
     assert_eq!(prepared.plan().logical.design_columns_hint, 2);
     assert_eq!(prepared.plan().logical.row_count_hint, 64);
@@ -199,7 +199,7 @@ fn prepared_gaussian_quotes_selected_columns_and_resampling_work() {
     let mut resampled = study;
     resampled.bootstrap_replicates = 200;
     let mut parallel = ExecutionContext::production(1, 4);
-    parallel.memory.hard_limit_bytes = Some(250_000);
+    parallel.set_memory_limit(Some(250_000));
     assert!(matches!(resampled.compile(&parallel), Err(crate::CausalError::Resource { .. })));
 }
 

@@ -7,10 +7,11 @@ use std::sync::Arc;
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     Assumption, CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext,
-    FeedbackDeclaration, GridSpec, InitialLaw, Intervention, InterventionSequence, Lag, MeasurementSpec, MechanismOverride, MemoryBudget,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    RoleHint, SequencedIntervention, SmallRoleSet, SupportStatus, TargetPopulation,
-    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
+    FeedbackDeclaration, GridSpec, InitialLaw, Intervention, InterventionSequence, Lag,
+    MeasurementSpec, MechanismOverride, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, RoleHint, SequencedIntervention, SmallRoleSet,
+    SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
+    Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
@@ -317,7 +318,7 @@ fn temporal_surface_honors_execution_memory_budget() {
         .build()
         .unwrap();
     let mut ctx = ExecutionContext::for_tests(21);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(159) };
+    ctx.set_memory_limit(Some(159));
 
     let error = study.run(&ctx).unwrap_err();
     assert!(error.to_string().contains("at least 160 output bytes"), "got {error}");

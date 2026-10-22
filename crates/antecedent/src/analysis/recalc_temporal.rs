@@ -593,13 +593,7 @@ fn fit_guard(r: &TemporalRequest, ctx: &ExecutionContext) -> Result<(), Temporal
         .map(|u| u64::try_from(u.histories.len()).unwrap_or(u64::MAX))
         .fold(0_u64, u64::saturating_add);
     let bytes = n.saturating_mul(256).saturating_add(4096 * 256);
-    if ctx
-        .memory
-        .hard_limit_bytes
-        .into_iter()
-        .chain(ctx.memory.soft_limit_bytes)
-        .any(|lim| bytes > lim)
-    {
+    if ctx.memory_limit_bytes().into_iter().any(|lim| bytes > lim) {
         return Err(RecalcRunError::Request("recalc.memory_budget_exceeded").into());
     }
     Ok(())

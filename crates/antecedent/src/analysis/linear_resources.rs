@@ -71,14 +71,10 @@ impl LinearResources {
     }
 }
 pub(crate) fn check_limit(bytes: u64, ctx: &ExecutionContext) -> Result<(), CausalError> {
-    for limit in [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes].into_iter().flatten() {
-        if bytes > limit {
-            return Err(CausalError::Resource {
-                message: format!(
-                    "checked linear memory quote {bytes} exceeds caller limit {limit}"
-                ),
-            });
-        }
+    if let Some(limit) = ctx.memory_limit_bytes().filter(|limit| bytes > *limit) {
+        return Err(CausalError::Resource {
+            message: format!("checked linear memory quote {bytes} exceeds caller limit {limit}"),
+        });
     }
     Ok(())
 }

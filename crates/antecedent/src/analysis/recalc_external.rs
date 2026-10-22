@@ -780,13 +780,7 @@ impl ExternalCallbackSession {
             request.columns.iter().fold(0_usize, |n, (_, values)| n.saturating_add(values.len()));
         let bytes =
             u64::try_from(values).unwrap_or(u64::MAX).saturating_mul(16).saturating_add(4_000_000);
-        if ctx
-            .memory
-            .hard_limit_bytes
-            .into_iter()
-            .chain(ctx.memory.soft_limit_bytes)
-            .any(|limit| bytes > limit)
-        {
+        if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
             return Err(ExternalCallbackError::Request("recalc.memory_budget_exceeded"));
         }
         if provider.descriptor() != &request.descriptor {

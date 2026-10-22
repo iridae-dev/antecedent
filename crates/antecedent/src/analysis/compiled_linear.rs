@@ -58,6 +58,10 @@ impl CompiledLinearExecution {
                 true,
             ),
         };
+        if default_id {
+            fitter.sampling_design =
+                crate::estimator_spec::declared_sampling(source.sampling_design);
+        }
         if fitter.population_registry.is_none() {
             fitter.population_registry.clone_from(&source.population_registry);
         }

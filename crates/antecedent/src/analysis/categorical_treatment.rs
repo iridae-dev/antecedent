@@ -26,13 +26,12 @@ pub use antecedent_estimate::categorical_treatment::{
 };
 pub use antecedent_estimate::effect_constancy::CalibrationStatus;
 pub use antecedent_io::categorical_treatment_artifact::{
-    CategoricalPosteriorDeclaration, CategoricalPosteriorWire, PosteriorContrastWire,
-    PosteriorMonotonicityWire,
     AdjacentStepWire, CATEGORICAL_HC_ROW_CAP, CATEGORICAL_TREATMENT_ARTIFACT_VERSION,
-    CATEGORICAL_TREATMENT_CALIBRATION, CategoricalResultWire, CategoricalSpecWire,
-    CategoricalTreatmentArtifact, CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity,
+    CATEGORICAL_TREATMENT_CALIBRATION, CategoricalPosteriorDeclaration, CategoricalPosteriorWire,
+    CategoricalResultWire, CategoricalSpecWire, CategoricalTreatmentArtifact,
+    CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity,
     CategoricalTreatmentReportWire, CategoricalTreatmentRequest, LevelContrastWire, LevelCountWire,
-    MonotonicityWire, PairContrastWire,
+    MonotonicityWire, PairContrastWire, PosteriorContrastWire, PosteriorMonotonicityWire,
 };
 
 use antecedent_core::ExecutionContext;

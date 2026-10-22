@@ -819,8 +819,7 @@ fn an_arrival_the_public_route_cannot_finish_is_a_budget_stop() {
     assert_eq!(error.receipt.map(|r| r.stop), Some(antecedent_core::SearchStop::Cancelled));
     // Exhaustion: the context's hard memory limit stops the public route.
     let mut tight = ExecutionContext::for_tests(3);
-    tight.memory =
-        antecedent_core::MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(64) };
+    tight.set_memory_limit(Some(64));
     let error = top.receive(&actual, "arrival-1", &tight).unwrap_err();
     assert_eq!((error.code, error.detail), BUDGET, "{}", error.message);
     assert_eq!(error.receipt.map(|r| r.stop), Some(antecedent_core::SearchStop::Memory));
@@ -956,10 +955,7 @@ fn a_consumer_refuses_a_stored_memory_cap_above_its_own_or_the_context_s_before_
     let error = wire.consume_with_limits(lower, &cancelled()).unwrap_err();
     assert_eq!((error.code, error.detail), bound);
     let mut hard = cancelled();
-    hard.memory = antecedent_core::MemoryBudget {
-        soft_limit_bytes: None,
-        hard_limit_bytes: Some(STUDY_PLAN_MEMORY_BYTES - 1),
-    };
+    hard.set_memory_limit(Some(STUDY_PLAN_MEMORY_BYTES - 1));
     let error = wire.consume_with_limits(StudyPlanConsumeLimits::default(), &hard).unwrap_err();
     assert_eq!((error.code, error.detail), bound);
     // At exactly the stored cap the replay proceeds (here to the cancellation).

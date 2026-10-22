@@ -380,6 +380,9 @@ pub struct StaticEstimateInput<'a> {
     pub overlap_policy: Option<OverlapPolicy>,
     /// Population registry attached to a default-built estimator.
     pub population_registry: Option<&'a PopulationRegistry>,
+    /// Sampling design the study declared, applied to a default-built estimator that
+    /// bootstraps; a caller-configured estimator carries its own, bound at study build.
+    pub sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
 }
 
 /// Run a frequentist static estimator by strategy spec (excludes `rd.sharp` / `bayesian.gcomp`).
@@ -486,10 +489,12 @@ fn estimate_static_effect_default(
         bootstrap_replicates,
         overlap_policy,
         population_registry,
+        sampling_design,
     } = input;
     match estimator {
         EstimatorId::LinearAdjustmentAte => {
             let mut est = LinearAdjustmentAte::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             est.overlap = OverlapPolicy::ExplicitOverride;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
@@ -497,6 +502,7 @@ fn estimate_static_effect_default(
         }
         EstimatorId::PropensityWeighting => {
             let mut est = PropensityWeighting::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
@@ -518,6 +524,7 @@ fn estimate_static_effect_default(
         }
         EstimatorId::PropensityStratification => {
             let mut est = PropensityStratification::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
@@ -539,6 +546,7 @@ fn estimate_static_effect_default(
         }
         EstimatorId::Aipw => {
             let mut est = AipwAte::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
@@ -549,6 +557,7 @@ fn estimate_static_effect_default(
         }
         EstimatorId::GlmAdjustment => {
             let mut est = GlmAdjustmentAte::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = GlmAdjustmentWorkspace::default();
@@ -556,6 +565,7 @@ fn estimate_static_effect_default(
         }
         EstimatorId::FrontDoorTwoStage => {
             let mut est = FrontDoorTwoStage::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = FrontDoorWorkspace::default();
@@ -634,10 +644,12 @@ pub fn attach_static_bootstrap(
         bootstrap_replicates,
         overlap_policy,
         population_registry,
+        sampling_design,
     } = input;
     match estimator {
         EstimatorId::PropensityWeighting => {
             let mut est = PropensityWeighting::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
@@ -648,6 +660,7 @@ pub fn attach_static_bootstrap(
         }
         EstimatorId::PropensityStratification => {
             let mut est = PropensityStratification::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
@@ -658,6 +671,7 @@ pub fn attach_static_bootstrap(
         }
         EstimatorId::Aipw => {
             let mut est = AipwAte::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
@@ -668,6 +682,7 @@ pub fn attach_static_bootstrap(
         }
         EstimatorId::GlmAdjustment => {
             let mut est = GlmAdjustmentAte::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = GlmAdjustmentWorkspace::default();
@@ -675,6 +690,7 @@ pub fn attach_static_bootstrap(
         }
         EstimatorId::FrontDoorTwoStage => {
             let mut est = FrontDoorTwoStage::new();
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             est.bootstrap_replicates = bootstrap_replicates;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = FrontDoorWorkspace::default();

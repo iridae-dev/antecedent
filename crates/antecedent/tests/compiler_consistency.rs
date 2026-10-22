@@ -148,6 +148,8 @@ const REFUSED_UNDER_BAYESIAN: &[&str] = &[
     "causal.forest",
     "policy.triangular_kernel_inverse_density",
     "randomized.survival_product_limit",
+    "temporal.glm_link_contrast",
+    "temporal.lagged_instrument",
 ];
 const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.gcomp",
@@ -174,6 +176,8 @@ const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.binary_policy_value",
     "bayesian.sequential_regime_value",
     "bayesian.sequential_crossfit_contrast",
+    "bayesian.temporal.glm_link_contrast",
+    "bayesian.temporal.lagged_instrument",
 ];
 
 #[test]

@@ -13,8 +13,8 @@ use std::sync::Arc;
 use antecedent::{PreparedTransportScenarios, StudyBuilder, consume_transport_scenarios_artifact};
 use antecedent_core::{
     DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime,
-    ExecutionContext, MemoryBudget, ProgressSink, RegimeId, RegimeKind, SearchLimits, SearchStop,
-    Value, VariableCoordinate, VariableDomain, VariableId,
+    ExecutionContext, ProgressSink, RegimeId, RegimeKind, SearchLimits, SearchStop, Value,
+    VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_estimate::transport_scenarios::{
     STRUCTURAL_ENVELOPE_INTERPRETATION, ScenarioSetReport,
@@ -701,7 +701,7 @@ fn the_shared_budget_observes_depth_and_memory() {
     // not decided, so it is not `explored`; the entry charge on a later scenario
     // and the cumulative memory of the set are pinned in their own tests.
     let mut tight = ExecutionContext::for_tests(1);
-    tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1500) };
+    tight.set_memory_limit(Some(1500));
     let report = try_prepare(three(None), catalog(true), laws(SOURCE, true), BUDGET, &tight)
         .unwrap()
         .estimate(&ExecutionContext::for_tests(1))
@@ -1027,7 +1027,7 @@ fn decided_with(
     memory: Option<u64>,
 ) -> ScenarioSetDecision {
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: memory };
+    ctx.set_memory_limit(memory);
     antecedent_identify::sid::scenarios::decide_transport_scenarios(
         &TransportScenarioSet::try_new(scenarios).unwrap(),
         &query(),
@@ -1200,7 +1200,7 @@ fn a_report_truncated_by_a_recorded_bound_replays_to_the_identical_prefix() {
     // under it even though its own context has no limit.
     for limit in [memory_to_decide(only("direct")), memory_to_decide(only("direct")) + PER] {
         let mut tight = ExecutionContext::for_tests(1);
-        tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(limit) };
+        tight.set_memory_limit(Some(limit));
         let prepared =
             try_prepare(three(None), catalog(true), laws(SOURCE, true), BUDGET, &tight).unwrap();
         let report = prepared.estimate(&ctx).unwrap();

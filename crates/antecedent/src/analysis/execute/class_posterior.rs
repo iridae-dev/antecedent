@@ -279,6 +279,7 @@ fn fit_class_case(
                 bootstrap_replicates: study.bootstrap_replicates,
                 overlap_policy: study.overlap_policy,
                 population_registry: study.population_registry.as_ref(),
+                sampling_design: study.sampling_design,
             },
             atom.identification.required_assumptions.clone(),
             ctx,

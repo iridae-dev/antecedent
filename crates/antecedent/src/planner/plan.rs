@@ -174,11 +174,11 @@ impl LogicalAnalysisPlan {
             .ok_or_else(|| CausalError::Resource { message: "peak estimate overflow".into() })?;
         let copy_bytes = design_bytes; // design matrix is CopiedContiguous
 
-        if let Some(limit) = ctx.memory.soft_limit_bytes {
+        if let Some(limit) = ctx.memory_limit_bytes() {
             if peak > limit {
                 return Err(CausalError::Resource {
                     message: format!(
-                        "estimated peak memory {peak} exceeds soft limit {limit}; no chunked path"
+                        "estimated peak memory {peak} exceeds memory limit {limit}; no chunked path"
                     ),
                 });
             }

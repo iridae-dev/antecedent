@@ -391,13 +391,7 @@ pub fn execute_joint_bayesian_with_receipt(
         )
         .unwrap_or(u64::MAX)
         .saturating_mul(16);
-        if ctx
-            .memory
-            .hard_limit_bytes
-            .into_iter()
-            .chain(ctx.memory.soft_limit_bytes)
-            .any(|limit| bytes > limit)
-        {
+        if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
             return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
         }
         let (identification, checks) = count_checked_identifications(|| {

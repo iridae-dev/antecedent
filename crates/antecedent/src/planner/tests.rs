@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use antecedent_contract::{DataClassification, LogicalAnalysisPlanRecord};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ExecutionContext, MemoryBudget, TemporalEffectQuery,
-    VariableId,
+    AverageEffectQuery, CausalQuery, ExecutionContext, TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{DiscoveryEstimationSplit, TabularData, TimeSeriesData};
 use antecedent_graph::{Dag, TemporalDag};
@@ -93,10 +92,10 @@ fn pcmci_on_tabular_fails() {
 }
 
 #[test]
-fn soft_memory_limit_refuses_dense_plan() {
+fn memory_limit_refuses_dense_plan() {
     let plan = tabular_plan(10_000);
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory = MemoryBudget { soft_limit_bytes: Some(64), hard_limit_bytes: None };
+    ctx.set_memory_limit(Some(64));
     assert!(matches!(plan.compile_physical(&ctx), Err(CausalError::Resource { .. })));
 }
 

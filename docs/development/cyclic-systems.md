@@ -21,8 +21,9 @@ retarget without refitting. Source refresh creates a new preparation; changed
 family targets, initial laws and policies require a fresh preparation.
 
 Rust byte ceilings use an explicit `AdmissionPool::fixed` installed with
-`ExecutionContext::with_admission`. Python `max_bytes` binds both the memory
-policy and that shared admission account, including retained output copies.
+`ExecutionContext::with_admission`; that pool's byte capacity is also the planner
+limit. Python `max_bytes` sets that capacity through
+`ExecutionContext::set_memory_limit`, including retained output copies.
 
 The model compiler exposes typed `Mechanism`, `SimultaneousEquations` and
 `DynamicEvolution` blocks. Equilibrium blocks use existing SCC condensation;

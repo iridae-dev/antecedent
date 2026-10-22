@@ -104,7 +104,8 @@ pub struct BayesianConfig {
     /// serially independent, with the Ljung-Box gate that can refute it. Set with
     /// [`Self::white_innovation`]. Only the temporal pulse and one-step sustained effect on a
     /// fixed `TemporalDag` reads it; every other route refuses it rather than ignore it.
-    pub white_innovation: Option<antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate>,
+    pub white_innovation:
+        Option<antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate>,
     /// Declared likelihood-side model of a randomized-design posterior (the hazard partition
     /// and prior of the survival posterior, the dose curve and prior of the dose policy
     /// posterior). Set with [`Self::design_model`]; only those routes read it.
@@ -233,7 +234,10 @@ impl BayesianConfig {
     /// partition and gamma prior of the survival posterior, or the dose support, coefficient
     /// scales and residual prior of the dose-policy posterior.
     #[must_use]
-    pub fn design_model(mut self, model: crate::design_posterior_model::DesignPosteriorModel) -> Self {
+    pub fn design_model(
+        mut self,
+        model: crate::design_posterior_model::DesignPosteriorModel,
+    ) -> Self {
         self.design_model = Some(model);
         self
     }

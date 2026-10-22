@@ -151,7 +151,7 @@ fn capacity_refusals_reach_the_facade_with_their_own_detail_code_and_remedy() {
     let report = large.simulate(&[0.4, 0.6], &request, &ctx()).expect("the simulation runs");
     assert_eq!(report.law.receipt.work_done, 3 * 2_400);
     let mut small = ctx();
-    small.memory.hard_limit_bytes = Some(1_000);
+    small.set_memory_limit(Some(1_000));
     let refused = large.simulate(&[0.4, 0.6], &request, &small).unwrap_err();
     assert_eq!(refused.detail, "adaptive_inference.simulation_memory_exceeded");
     assert_eq!(refused.code, "invalid_argument");

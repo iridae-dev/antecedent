@@ -2903,8 +2903,7 @@ pub(super) fn enforce_temporal_response_memory_budget(
         .ok_or_else(|| CausalError::Resource {
             message: "temporal response output byte estimate overflow".into(),
         })?;
-    let limit =
-        [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes].into_iter().flatten().min();
+    let limit = ctx.memory_limit_bytes();
     if let Some(limit) = limit {
         if minimum_bytes > limit {
             return Err(CausalError::Resource {

@@ -613,6 +613,7 @@ impl PreparedStudy {
             self.study().interference.as_ref(),
             self.study().participants.as_ref(),
             missing_data::policy_wire(self.study()),
+            self.study().sampling_design,
             &program.observation_digest,
         )?;
         let mut snapshot = snapshot;
@@ -1770,6 +1771,7 @@ fn contract_payloads(
         study.interference.as_ref(),
         study.participants.as_ref(),
         missing_data::policy_wire(study),
+        study.sampling_design,
         &program.observation_digest,
     )?;
     if let (Some(prepared), DataInput::Tabular(tabular)) = (prepared, &study.data) {
@@ -2137,6 +2139,7 @@ fn data_snapshot_wire(
     interference: Option<&super::builder::InterferenceSpec>,
     participants: Option<&antecedent_io::ParticipantBindingWire>,
     missing: Option<antecedent_io::MissingPolicyWire>,
+    sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
     observation: &antecedent_core::SemanticDigest,
 ) -> Result<DataSnapshotIdentityWire, CausalError> {
     let modality = snapshot_modality(data_input);
@@ -2184,6 +2187,7 @@ fn data_snapshot_wire(
         linear_fit_moments: None,
         participants: participants.cloned(),
         missing,
+        sampling_design: sampling_design.map(|design| design.as_str().to_owned()),
     })
 }
 

@@ -31,7 +31,7 @@ use antecedent::counterfactual_id::{
 use antecedent::cross_world::{CrossWorldOptions, evaluate_cross_world_effect};
 use antecedent_core::{
     CounterfactualEvent, CounterfactualEventQuery, CrossWorldQuery, EdgeRoute, ExecutionContext,
-    ExogenousCoupling, MemoryBudget, RegimeId, SearchLimits, Value, VariableId, WorldId, WorldSpec,
+    ExogenousCoupling, RegimeId, SearchLimits, Value, VariableId, WorldId, WorldSpec,
 };
 use antecedent_data::TabularData;
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
@@ -579,10 +579,7 @@ fn consumer_limits_refuse_before_any_work_and_bounds_hold_at_export() {
     }
     // The context's hard memory limit below the stored cap refuses up front too.
     let mut small = ctx();
-    small.memory = MemoryBudget {
-        soft_limit_bytes: None,
-        hard_limit_bytes: Some(stored.memory_limit_bytes - 1),
-    };
+    small.set_memory_limit(Some(stored.memory_limit_bytes - 1));
     assert!(matches!(
         consume_counterfactual_id_artifact(
             &bytes,

@@ -415,10 +415,7 @@ impl CheckedStaticDagResponseOperation {
                 .ok_or_else(|| CausalError::Resource {
                     message: "response curve memory estimate overflowed".into(),
                 })?;
-            let limit = [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes]
-                .into_iter()
-                .flatten()
-                .min();
+            let limit = ctx.memory_limit_bytes();
             if limit.is_some_and(|limit| bytes > limit) {
                 return Err(CausalError::Resource {
                     message: format!(

@@ -12,12 +12,12 @@ use super::{
 };
 use crate::graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_core::{
-    AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, InterferenceQuery,
-    InterventionalDistributionQuery, LocalPolynomialRatioQuery, LongitudinalRegimeQuery,
-    HistoryMatchQuery, SequentialContrastQuery,
-    MediationQuery, NestedCounterfactualQuery, PanelDidQuery, PathSpecificEffectQuery,
-    PolicyValueQuery, RandomizedEffectQuery, ResponseQuery, SurvivalQuery, SyntheticControlQuery,
-    TemporalEffectQuery, TransportQuery,
+    AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, HistoryMatchQuery,
+    InterferenceQuery, InterventionalDistributionQuery, LocalPolynomialRatioQuery,
+    LongitudinalRegimeQuery, MediationQuery, NestedCounterfactualQuery, PanelDidQuery,
+    PathSpecificEffectQuery, PolicyValueQuery, RandomizedEffectQuery, ResponseQuery,
+    SequentialContrastQuery, SurvivalQuery, SyntheticControlQuery, TemporalEffectQuery,
+    TransportQuery,
 };
 use antecedent_data::{MultiEnvironmentData, PanelData, TabularData, TimeSeriesData};
 
@@ -492,7 +492,10 @@ fn design_route_input<'a>(
             RouteInput::HistoryMatch { data: tabular(study), query: history_match(study) }
         }
         (AnalysisRoute::SequentialContrast, GraphRef::RandomizedTrial) => {
-            RouteInput::SequentialContrast { data: tabular(study), query: sequential_contrast(study) }
+            RouteInput::SequentialContrast {
+                data: tabular(study),
+                query: sequential_contrast(study),
+            }
         }
         _ => return None,
     })

@@ -8,12 +8,11 @@ use super::{SealedOperation, SeriesCall, stamp_tabular};
 use crate::analysis::execute::{
     CheckedAttributionOperation, CheckedBayesianStaticMediationOperation,
     CheckedCellAipwResponseOperation, CheckedContinuousDoseOperation, CheckedCounterfactualPlan,
-    CheckedDerivativeResponseOperation, CheckedInterferenceOperation,
+    CheckedDerivativeResponseOperation, CheckedHistoryMatchOperation, CheckedInterferenceOperation,
     CheckedLocalPolynomialRatioOperation, CheckedLongitudinalRegimeOperation,
-    CheckedSequentialContrastOperation, CheckedHistoryMatchOperation,
     CheckedPanelDidOperation, CheckedPolicyValueOperation, CheckedRandomizedOperation,
-    CheckedStaticDagResponseOperation, CheckedStaticMediationOperation, CheckedSurvivalOperation,
-    CheckedSyntheticControlOperation,
+    CheckedSequentialContrastOperation, CheckedStaticDagResponseOperation,
+    CheckedStaticMediationOperation, CheckedSurvivalOperation, CheckedSyntheticControlOperation,
 };
 use crate::analysis::prepared::estimate::{ClickNotes, Rebound};
 use crate::analysis::prepared::{

@@ -109,7 +109,7 @@ fn preflight(
         .saturating_mul(2048)
         .saturating_add(u64::try_from(source_bytes).unwrap_or(u64::MAX).saturating_mul(8))
         .saturating_add(4 * 1024 * 1024);
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| limit < planned) {
+    if ctx.memory_limit_bytes().is_some_and(|limit| limit < planned) {
         return Err(refused("planned source replay and interval receipt exceed memory budget"));
     }
     Ok(if effect { "effect" } else { "response" })

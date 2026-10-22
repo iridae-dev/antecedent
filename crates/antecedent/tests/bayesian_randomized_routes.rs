@@ -270,7 +270,10 @@ fn the_boundaries_are_refused_with_their_next_attempt() {
     let error = run(&data, query, bayes(Some(uniform_arms())), None).err().expect("refused");
     let text = error.to_string();
     // The randomized-effect query itself refuses unit-varying assignment probabilities.
-    assert!(text.contains("complete assignment probabilities must equal treated_units / n"), "{text}");
+    assert!(
+        text.contains("complete assignment probabilities must equal treated_units / n"),
+        "{text}"
+    );
 
     // A cluster design has no arm-exchangeable likelihood here.
     let (data, mut query) = trial();

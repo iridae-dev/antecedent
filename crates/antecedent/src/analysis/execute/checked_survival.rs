@@ -25,10 +25,8 @@ mod bayesian;
 
 /// The extra settings fixed at prepare time: the bootstrap replicate count of the frequentist
 /// route and, for the Bayesian route, the study's Bayesian configuration.
-pub(crate) type CheckedSurvivalOperation = RandomizedTrialOperation<
-    antecedent_core::SurvivalQuery,
-    (u32, Option<super::BayesianConfig>),
->;
+pub(crate) type CheckedSurvivalOperation =
+    RandomizedTrialOperation<antecedent_core::SurvivalQuery, (u32, Option<super::BayesianConfig>)>;
 
 impl RandomizedTrialQuery for antecedent_core::SurvivalQuery {
     const OPERATION: &'static str = "CheckedSurvivalOperation";

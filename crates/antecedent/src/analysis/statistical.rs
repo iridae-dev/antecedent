@@ -1266,7 +1266,7 @@ impl PreparedStudy<StatisticalPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<(Self, StatisticalStudyResult), IoError> {
         if ctx.cancellation.is_cancelled()
-            || ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes.len() as u64 > limit)
+            || ctx.memory_limit_bytes().is_some_and(|limit| bytes.len() as u64 > limit)
         {
             return Err(err("transport artifact budget/cancellation"));
         }

@@ -16,8 +16,8 @@ use std::collections::{BTreeMap, BTreeSet};
 mod bayesian;
 mod weighted;
 
-pub(super) use bayesian::bayesian_panel_did_plan_ids;
 use super::BayesianConfig;
+pub(super) use bayesian::bayesian_panel_did_plan_ids;
 
 /// Why `design` cannot execute `policy`, if it cannot.
 fn design_refusal(

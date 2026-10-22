@@ -408,7 +408,7 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
     );
     let mut limited = ExecutionContext::for_tests(37);
     // Enough for the output alone, but not twelve retained bootstrap surfaces.
-    limited.memory.hard_limit_bytes = Some((lower.len() * 40) as u64);
+    limited.set_memory_limit(Some((lower.len() * 40) as u64));
     let error = study.run(&limited).unwrap_err();
     assert!(error.to_string().contains("output bytes"), "{error}");
 }

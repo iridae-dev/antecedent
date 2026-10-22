@@ -237,7 +237,7 @@ fn temporal_history_resource_window_and_support_refusals_preserve_previous_fit()
     let mut changed = r.clone();
     changed.units[0].histories[0].y = 0.;
     let mut small = ctx();
-    small.memory.hard_limit_bytes = Some(1);
+    small.set_memory_limit(Some(1));
     let (result, work) =
         count_static_work(|| execute_temporal_with_receipt(&mut session, &changed, &small));
     assert!(result.is_err());

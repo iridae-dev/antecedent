@@ -13,8 +13,8 @@ use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 
 mod bayesian;
 
-pub(super) use bayesian::bayesian_local_polynomial_ratio_plan_ids;
 use super::BayesianConfig;
+pub(super) use bayesian::bayesian_local_polynomial_ratio_plan_ids;
 
 /// The extra setting is the study's Bayesian configuration: with one, the retained operation
 /// reports a posterior instead of the frequentist ratio.

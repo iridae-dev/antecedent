@@ -174,13 +174,7 @@ fn guards(ctx: &ExecutionContext, values: usize) -> Result<(), RecalcRunError> {
         return Err(RecalcRunError::Request("recalc.cancelled"));
     }
     let bytes = (values as u64).saturating_mul(128);
-    if ctx
-        .memory
-        .hard_limit_bytes
-        .into_iter()
-        .chain(ctx.memory.soft_limit_bytes)
-        .any(|limit| bytes > limit)
-    {
+    if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
         return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
     }
     Ok(())

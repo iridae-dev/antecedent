@@ -15,7 +15,7 @@ pub(super) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), JointPanelEr
     if ctx.cancellation.is_cancelled() { Err(engine::PanelError::Cancelled.into()) } else { Ok(()) }
 }
 pub(super) fn check_memory(ctx: &ExecutionContext, bytes: u64) -> Result<(), JointPanelError> {
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
+    if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
         return Err(engine::PanelError::Resource(format!(
             "retained panel allocation needs {bytes} bytes above hard limit"
         ))

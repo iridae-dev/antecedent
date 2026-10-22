@@ -78,7 +78,7 @@ impl StudyBuilder {
             query,
             evidence,
             budget,
-            memory_limit_bytes: ctx.memory.hard_limit_bytes,
+            memory_limit_bytes: ctx.memory_limit_bytes(),
             data,
             request,
             evaluation: limits,

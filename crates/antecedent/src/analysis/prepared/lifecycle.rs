@@ -108,7 +108,17 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
-        antecedent_estimate::CrossfitNuisanceCache::within_scope(|| self.refresh_scoped(data, ctx))
+        // The refreshed result carries the same native observations a fresh estimate does, so
+        // its claim identity agrees with the one the retained handle reproduces.
+        let mut observed = antecedent_core::execution_attempt::observe_with_context(ctx, || {
+            antecedent_estimate::CrossfitNuisanceCache::within_scope(|| {
+                self.refresh_scoped(data, ctx)
+            })
+        });
+        if let Ok(result) = &mut observed.result {
+            result.performance.native_execution.clone_from(&observed.facts);
+        }
+        observed.result
     }
 
     /// The body of [`Self::refresh`], run inside one nuisance scope.

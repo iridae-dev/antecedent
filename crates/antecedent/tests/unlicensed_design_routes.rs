@@ -215,9 +215,7 @@ fn history_table() -> TabularData {
         (2.0, [9.0, 9.0], 20.0, 1.0, 1.0),
         (3.0, [1.0, 1.0], 3.0, 1.0, 1.0),
     ];
-    let column = |f: &dyn Fn(&DesignRow) -> f64| -> Vec<f64> {
-        rows.iter().map(f).collect()
-    };
+    let column = |f: &dyn Fn(&DesignRow) -> f64| -> Vec<f64> { rows.iter().map(f).collect() };
     let (h1, h2) = (column(&|r| r.1[0]), column(&|r| r.1[1]));
     let (y, treated) = (column(&|r| r.2), column(&|r| r.3));
     let (period, weight) = (column(&|r| r.0), column(&|r| r.4));

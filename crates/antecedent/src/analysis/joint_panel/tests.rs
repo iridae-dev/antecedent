@@ -125,7 +125,7 @@ fn changed_program_cannot_borrow_old_scientific_target() {
 fn memory_refusal_precedes_source_materialization() {
     let (source, request) = fixture();
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory.hard_limit_bytes = Some(8);
+    ctx.set_memory_limit(Some(8));
     assert!(matches!(
         Study::prepare_joint_panel(source, request, &ctx),
         Err(JointPanelError::Engine(engine::PanelError::Resource(_)))
@@ -308,7 +308,7 @@ fn assert_temporal_projection_binding(result: &JointPanelResult) {
         .is_err()
     );
     let mut tiny_projection = result.clone();
-    tiny_projection.context.memory.hard_limit_bytes = Some(8);
+    tiny_projection.context.set_memory_limit(Some(8));
     assert!(matches!(
         tiny_projection.mean_source(),
         Err(JointPanelError::Engine(engine::PanelError::Resource(_)))
@@ -390,7 +390,7 @@ fn continuous_three_channel_search_reuses_fit_and_improves_a_budget_feasible_non
             .is_err()
     );
     let mut tiny = ctx.clone();
-    tiny.memory.hard_limit_bytes = Some(8);
+    tiny.set_memory_limit(Some(8));
     assert!(matches!(
         search.execute(&tiny),
         Err(JointPanelError::Engine(engine::PanelError::Resource(_)))
@@ -591,7 +591,7 @@ fn retarget_admits_changed_programs_retains_and_releases_their_lease_without_fit
     )
     .unwrap();
     let mut limited = ctx.clone();
-    limited.memory.hard_limit_bytes = Some(before - retained);
+    limited.set_memory_limit(Some(before - retained));
     assert!(matches!(
         prepared.retarget(worlds, target, &limited),
         Err(JointPanelError::Engine(engine::PanelError::Resource(_)))

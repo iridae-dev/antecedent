@@ -314,7 +314,7 @@ core crates/antecedent-data/src/column_closure.rs
 core crates/antecedent-data/src/lazy_identity.rs
 core crates/antecedent-graph/src/cyclic.rs
 core crates/antecedent-graph/src/scc.rs
-identity.scientific_target crates/antecedent-core/src/scientific_target.rs
+identity.scientific_target crates/antecedent-core/src/scientific_target/
 key identity.scientific_target query ScientificTarget
 key identity.scientific_target estimator scientific_target scientific_target.*
 identity.sigma_separation crates/antecedent-graph/src/sigma_separation.rs
@@ -335,13 +335,12 @@ key evidence estimator evidence.envelope.* evidence.dependence.*
 key evidence dependence evidence.dependence.*
 # Crate root re-exports the types. It does not run them for a record that
 # does not carry this facet.
-allow evidence crates/antecedent-contract/src/lib.rs AxisInterval CovarianceCombination CovarianceTerms DecisionRequest DependenceContract DependenceError DependenceSource DependenceSourceId DependenceStatus EFFECT_IDENTITY_VERSION EffectId EffectNextAttempt EvidenceBinding EvidenceCalibration EvidenceEffect EvidenceEffectError EvidenceEffectLedger EvidenceEnvelope EvidenceEnvelopeError EvidenceOperator EvidenceOrigins EvidencePort EvidencePortError EvidenceSupport FactorDisclosure MAX_RECORDED_EFFECTS NextAttempt NumericalAdmission RecordedEffect SharedFactor SharedFactorId SharedFactorKind SharedFactorSets UncertaintyAxes UncertaintyAxis WorldTime dependence evidence_effects evidence_envelope evidence_ports
+allow evidence crates/antecedent-contract/src/lib.rs AxisInterval CovarianceCombination CovarianceTerms DecisionRequest DependenceContract DependenceError DependenceSource DependenceSourceId DependenceStatus EFFECT_IDENTITY_VERSION EffectId EvidenceBinding EvidenceCalibration EvidenceEffect EvidenceEffectError EvidenceEffectLedger EvidenceEnvelope EvidenceEnvelopeError EvidenceOperator EvidenceOrigins EvidencePort EvidencePortError EvidenceSupport FactorDisclosure MAX_RECORDED_EFFECTS RECORD_DEPENDENT_POOLING RECORD_THEN_COMBINE NumericalAdmission RecordedEffect SharedFactor SharedFactorId SharedFactorKind SharedFactorSets UncertaintyAxes UncertaintyAxis WorldTime dependence evidence_effects evidence_envelope evidence_ports
 # Local helpers and identity tags share bare names with this facet. They do not call it.
 allow evidence crates/antecedent-contract/src/joint_law_rule.rs blank
 allow evidence crates/antecedent-contract/src/mixed_module.rs blank
-allow evidence crates/antecedent-contract/src/rewrite_legality.rs BLANK_DETAIL NextAttempt blank
-allow evidence crates/antecedent-contract/src/summary_observation.rs BLANK_DETAIL blank
-allow evidence crates/antecedent-contract/src/joint_alignment.rs NextAttempt
+allow evidence crates/antecedent-contract/src/rewrite_legality.rs BLANK_DETAIL TOO_LONG_DETAIL
+allow evidence crates/antecedent-contract/src/summary_observation.rs BLANK_DETAIL TOO_LONG_DETAIL blank
 allow evidence crates/antecedent-contract/src/measurement.rs blank
 allow evidence crates/antecedent-contract/src/mechanism_composition.rs blank
 allow evidence crates/antecedent-contract/src/observation_query.rs blank

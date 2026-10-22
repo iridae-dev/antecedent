@@ -21,9 +21,8 @@ use antecedent::{
 };
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceRegime, ExecutionContext, InterventionAssignment, MemoryBudget, ProgressSink,
-    RegimeBinding, RegimeId, RegimeKind, SamplingDesign, Value, VariableCoordinate, VariableDomain,
-    VariableId,
+    EvidenceRegime, ExecutionContext, InterventionAssignment, ProgressSink, RegimeBinding,
+    RegimeId, RegimeKind, SamplingDesign, Value, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_estimate::{percentile_interval, z_transport_bootstrap_law_draws};
 use antecedent_expr::{
@@ -344,7 +343,7 @@ fn the_exported_joint_artifact_is_replayed_by_an_independent_consumer() {
     // under that smaller effective cap; the consumer replays under the stored
     // effective cap (not the declared one) and reproduces the receipt.
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(32 << 20) };
+    ctx.set_memory_limit(Some(32 << 20));
     let memory_bound =
         JointSensitivityArtifactWire::checked(baseline_bytes(&prepared), &spec(), &ctx).unwrap();
     assert_eq!(memory_bound.body.receipt.memory_limit_bytes, 32 << 20);
@@ -552,7 +551,7 @@ fn stored_limits_above_the_consumer_maxima_refuse_before_any_work() {
     let consumer =
         |max_operations: usize, max_depth: usize, max_memory_bytes: u64, hard: Option<u64>| {
             let mut ctx = ExecutionContext::for_tests(1);
-            ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: hard };
+            ctx.set_memory_limit(hard);
             JointSensitivityArtifactWire::consume_with_limits(
                 &bytes,
                 JointSensitivityConsumeLimits {

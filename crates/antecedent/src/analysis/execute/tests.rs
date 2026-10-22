@@ -178,6 +178,7 @@ mod envelope_refuter_target_tests {
                         bootstrap_replicates: 0,
                         overlap_policy: None,
                         population_registry: None,
+                        sampling_design: None,
                     },
                     atom.identification.required_assumptions.clone(),
                     ctx,

@@ -1353,7 +1353,7 @@ impl super::Study {
         // Selected-role and contrast quotes below replace the conservative whole-schema bound.
         let mut physical_context = ctx.clone();
         if checked_linear {
-            physical_context.memory = antecedent_core::MemoryBudget::unlimited();
+            physical_context.set_memory_limit(None);
         }
         let mut plan = self.compile_with_route(&input, &physical_context)?;
         if let RouteInput::StaticAteDag { data, query, .. } = input {

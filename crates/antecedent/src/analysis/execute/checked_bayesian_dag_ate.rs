@@ -243,8 +243,6 @@ impl CheckedBayesianDagAteExecution {
     fn retains_design(&self, ctx: &ExecutionContext) -> bool {
         ctx.cache_policy.enabled
             && ctx.cache_policy.max_bytes != Some(0)
-            && ctx.memory.soft_limit_bytes.is_none()
-            && ctx.memory.hard_limit_bytes.is_none()
             && ctx.admission.byte_budget() == u64::MAX
             && self.config.likelihood == antecedent_prob::BayesLikelihood::GaussianIdentity
             && matches!(

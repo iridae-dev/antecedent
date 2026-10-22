@@ -1641,7 +1641,7 @@ fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
         Refusal::LimitsExceeded("replay workspace above the memory limit")
     );
     let mut tight = ExecutionContext::for_tests(0);
-    tight.memory.hard_limit_bytes = Some(workspace - 1);
+    tight.set_memory_limit(Some(workspace - 1));
     assert_eq!(
         coded(&bytes, limits, &tight),
         Refusal::LimitsExceeded("replay workspace above the memory limit")
@@ -1801,13 +1801,13 @@ fn the_estimator_layer_returns_the_grid_and_refuses_directly() {
     let (n, n1) = (input.source.len(), input.source.iter().filter(|s| **s).count());
     assert!(workspace >= 8 * (n * 2 + 2 * n1 * 6) as u64, "{workspace}");
     let mut exact = ExecutionContext::for_tests(21);
-    exact.memory.hard_limit_bytes = Some(workspace);
+    exact.set_memory_limit(Some(workspace));
     assert_eq!(
         antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &options(), &exact).unwrap(),
         direct
     );
     let mut tight = ExecutionContext::for_tests(21);
-    tight.memory.hard_limit_bytes = Some(workspace - 1);
+    tight.set_memory_limit(Some(workspace - 1));
     let error = antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &options(), &tight)
         .unwrap_err();
     let (code, message) = estimation_refusal(&error);

@@ -100,6 +100,8 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
                     (**config).clone()
                 } else {
                     let mut fitter = antecedent_estimate::GlmAdjustmentAte::new();
+                    fitter.sampling_design =
+                        crate::estimator_spec::declared_sampling(analysis.sampling_design);
                     fitter.bootstrap_replicates = analysis.bootstrap_replicates;
                     fitter
                 };
@@ -419,6 +421,8 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
                     ) => CheckedPropensityEstimator::Matching((**config).clone()),
                     (_, crate::strategy_table::EstimatorId::PropensityWeighting) => {
                         let mut fitter = antecedent_estimate::PropensityWeighting::new();
+                        fitter.sampling_design =
+                            crate::estimator_spec::declared_sampling(analysis.sampling_design);
                         fitter.bootstrap_replicates = analysis.bootstrap_replicates;
                         CheckedPropensityEstimator::Weighting(fitter)
                     }
@@ -514,7 +518,12 @@ pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
                     Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) => {
                         (**config).clone()
                     }
-                    _ => antecedent_estimate::FrontDoorTwoStage::new(),
+                    _ => {
+                        let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
+                        fitter.sampling_design =
+                            crate::estimator_spec::declared_sampling(analysis.sampling_design);
+                        fitter
+                    }
                 };
                 let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
                 Some(CheckedFrontDoorOperation { fitter, preparation })

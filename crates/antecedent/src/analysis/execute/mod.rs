@@ -181,6 +181,8 @@ pub struct Study {
     pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
     /// Declared handling of missing values, when the caller declared one.
     pub(crate) missing: Option<antecedent_data::MissingDeclaration>,
+    /// Declared sampling design of the rows, held by every estimator that bootstraps or splits.
+    pub(crate) sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
     pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
     /// Prepare-time identification for the static ATE path (including the

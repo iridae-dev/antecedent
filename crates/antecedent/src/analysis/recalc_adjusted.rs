@@ -485,13 +485,7 @@ fn guard_adjusted_memory(
         .saturating_mul(p)
         .saturating_mul(64)
         .saturating_add(p.saturating_mul(p).saturating_mul(64));
-    if ctx
-        .memory
-        .hard_limit_bytes
-        .into_iter()
-        .chain(ctx.memory.soft_limit_bytes)
-        .any(|limit| bytes > limit)
-    {
+    if ctx.memory_limit_bytes().into_iter().any(|limit| bytes > limit) {
         return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
     }
     Ok(())

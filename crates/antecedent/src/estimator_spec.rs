@@ -84,6 +84,43 @@ impl EstimatorSpec {
         }
     }
 
+    /// Bind the study-level sampling design to a configured estimator that resamples or splits.
+    ///
+    /// An estimator that declared no design takes the study's. An estimator that declared a
+    /// different design than the study is a conflict, never a silent override. An id-only spec
+    /// and an estimator that neither bootstraps by design nor splits are left as they are.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::CausalError::Conflict`] when the estimator declared another design.
+    pub fn bind_sampling_design(
+        &mut self,
+        design: antecedent_core::DeclaredSamplingDesign,
+    ) -> Result<(), crate::CausalError> {
+        use antecedent_estimate::util::SamplingDeclaration;
+        let slot: &mut SamplingDeclaration = match self {
+            Self::LinearAdjustmentAte(cfg) => &mut cfg.sampling_design,
+            Self::PropensityWeighting(cfg) => &mut cfg.sampling_design,
+            Self::PropensityStratification(cfg) => &mut cfg.sampling_design,
+            Self::Aipw(cfg) => &mut cfg.sampling_design,
+            Self::GlmAdjustment(cfg) => &mut cfg.sampling_design,
+            Self::FrontDoorTwoStage(cfg) => &mut cfg.sampling_design,
+            _ => return Ok(()),
+        };
+        match *slot {
+            SamplingDeclaration::Undeclared => {
+                *slot = SamplingDeclaration::Declared(design);
+                Ok(())
+            }
+            SamplingDeclaration::Declared(own) if own == design => Ok(()),
+            SamplingDeclaration::Declared(_) => Err(crate::CausalError::Conflict {
+                what: "sampling_design",
+                detail: "the estimator declares a sampling design other than the study's; \
+                         declare it once on the study",
+            }),
+        }
+    }
+
     /// Whether the caller supplied an explicit configuration (versus [`Self::Default`]).
     #[must_use]
     pub fn is_configured(&self) -> bool {
@@ -202,6 +239,16 @@ impl EstimatorSpec {
         };
         declared.then_some("matching=population_linear")
     }
+}
+
+/// The sampling declaration an estimator built by default takes from the study's design.
+pub(crate) fn declared_sampling(
+    design: Option<antecedent_core::DeclaredSamplingDesign>,
+) -> antecedent_estimate::util::SamplingDeclaration {
+    design.map_or(
+        antecedent_estimate::util::SamplingDeclaration::Undeclared,
+        antecedent_estimate::util::SamplingDeclaration::Declared,
+    )
 }
 
 /// The functional-label suffix of a weighted-population estimate.

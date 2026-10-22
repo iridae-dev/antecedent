@@ -583,6 +583,9 @@ pub(crate) fn attach_average_functional_grid(
         Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => *config.clone(),
         _ => AipwAte::new(),
     };
+    if let Some(design) = study.sampling_design {
+        config.sampling_design = antecedent_estimate::util::SamplingDeclaration::Declared(design);
+    }
     if let Some(overlap) = study.overlap_policy {
         config.overlap = overlap;
     }

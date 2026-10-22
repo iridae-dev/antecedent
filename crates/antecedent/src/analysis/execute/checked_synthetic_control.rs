@@ -23,8 +23,8 @@ use antecedent_estimate::synthetic_control::{
 
 mod bayesian;
 
-pub(super) use bayesian::bayesian_synthetic_panel_plan_ids;
 use super::BayesianConfig;
+pub(super) use bayesian::bayesian_synthetic_panel_plan_ids;
 
 /// The extra setting is the study's Bayesian configuration: with one, the retained operation
 /// reports a posterior instead of the frequentist point result.

@@ -336,7 +336,7 @@ fn design_cutoff_mediator_and_resource_refusals_preserve_previous_state() {
         let mut changed = r.clone();
         changed.columns[1].1[0] += 0.1;
         let mut budget = ctx();
-        budget.memory.hard_limit_bytes = Some(1);
+        budget.set_memory_limit(Some(1));
         let ((), solves) = count_least_squares_solves(|| {
             assert!(execute_design_with_receipt(&mut session, &changed, &budget).is_err())
         });

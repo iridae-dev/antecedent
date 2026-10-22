@@ -67,6 +67,7 @@ pub(super) struct FinishInput {
     pub(super) population_registry: Option<PopulationRegistry>,
     pub(super) participants: Option<antecedent_io::ParticipantBindingWire>,
     pub(super) missing: Option<antecedent_data::MissingDeclaration>,
+    pub(super) sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
     pub(super) custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     pub(super) tiered: Option<TieredBackground>,
     pub(super) caller_graph: bool,
@@ -111,6 +112,7 @@ struct Carry {
     population_registry: Option<PopulationRegistry>,
     participants: Option<antecedent_io::ParticipantBindingWire>,
     missing: Option<antecedent_data::MissingDeclaration>,
+    sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     tiered: Option<TieredBackground>,
     continuous_cell: Option<(VariableId, Arc<[f64]>)>,
@@ -222,6 +224,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         population_registry,
         participants,
         missing,
+        sampling_design,
         custom_validators,
         tiered,
         caller_graph: _,
@@ -233,6 +236,12 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         transport_trial,
         interference,
     } = input;
+    let mut estimator_spec = estimator_spec;
+    if let Some(design) = sampling_design {
+        if let Some(spec) = estimator_spec.as_mut() {
+            spec.bind_sampling_design(design)?;
+        }
+    }
     let design_based = query.as_ref().is_some_and(is_graphless_design);
     let (graph, graph_posterior) = bind_graph(graph, graph_posterior, &data, design_based)?;
     Ok(BoundSchema(Spine {
@@ -263,6 +272,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
             population_registry,
             participants,
             missing,
+            sampling_design,
             custom_validators,
             tiered,
             continuous_cell,
@@ -295,6 +305,12 @@ fn refuse_conflicting_inputs(input: &FinishInput) -> Result<(), CausalError> {
                 return Err(estimator_setting_conflict("overlap_policy"));
             }
         }
+    }
+    if let (Some(design), Some(_)) = (input.sampling_design, input.split.as_ref()) {
+        // A discovery/estimation split cuts the series into contiguous blocks.
+        design.apply_splitting(antecedent_core::SplittingRule::ContiguousBlock).map_err(
+            |error| CausalError::Data(antecedent_data::DataError::SamplingDesign(error)),
+        )?;
     }
     if input.caller_graph && input.tiered.is_some() {
         return Err(tiered_graph_conflict());
@@ -1562,6 +1578,7 @@ fn into_study(exposure: BoundExposure) -> Study {
         population_registry: carry.population_registry,
         participants: carry.participants,
         missing: carry.missing,
+        sampling_design: carry.sampling_design,
         custom_validators: carry.custom_validators,
         latency_mode: carry.latency_mode,
         identification_cache,

@@ -238,8 +238,7 @@ impl PreparedStudy<ExactPreparedState> {
             })
             .ok_or_else(|| err("exact identity memory overflow"))?;
         if ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .is_some_and(|limit| u64::try_from(identity_bytes).map_or(true, |bytes| bytes > limit))
         {
             return Err(err("exact identity memory budget exceeded"));
@@ -789,7 +788,7 @@ impl PreparedStudy<ExactPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<(Self, ExactStudyResult), IoError> {
         if ctx.cancellation.is_cancelled()
-            || ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes.len() as u64 > limit)
+            || ctx.memory_limit_bytes().is_some_and(|limit| bytes.len() as u64 > limit)
         {
             return Err(err("transport artifact budget/cancellation"));
         }

@@ -605,7 +605,7 @@ fn adjusted_cancel_memory_and_numerical_refit_failures_are_transactional() {
     let mut changed = original.clone();
     changed.columns[1].1[0] += 0.1;
     let mut constrained = ctx();
-    constrained.memory.hard_limit_bytes = Some(1);
+    constrained.set_memory_limit(Some(1));
     let (result, fits) = count_adjusted_model_fits(|| {
         execute_adjusted_with_receipt(&mut session, &changed, &constrained)
     });

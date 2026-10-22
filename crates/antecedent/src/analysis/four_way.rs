@@ -642,7 +642,8 @@ fn horizon_target(
     .map_err(|err| compile(err.to_string()))?;
     let time = TimeFrame::temporal(
         1,
-        HistoryWindow::planner_default(),
+        // A one-step horizon with no lagged term retains zero lags.
+        HistoryWindow::planner_default().resolve(0),
         InitialLaw::contemporaneous_observed(),
     )
     .map_err(|err| compile(err.to_string()))?;
@@ -1049,7 +1050,7 @@ mod tests {
         let mut ctx = ExecutionContext::for_tests(1);
         let study = linear_study(FourWayCell::StaticFrequentist).unwrap();
         let route = study.prepare(&ctx).unwrap();
-        ctx.memory.hard_limit_bytes = Some(1);
+        ctx.set_memory_limit(Some(1));
         let gaussian = route.estimate_retained(&ctx).unwrap_err();
         assert!(matches!(gaussian, crate::CausalError::Resource { .. }), "{gaussian}");
         let Err(discrete) = finite_discrete_slice(&ctx) else {

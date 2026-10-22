@@ -172,7 +172,7 @@ The Study planner does not read a decision and then request a statistical progra
 | --- | --- | --- | --- | --- |
 | `ContractIdentities`, `IdentityDomain`, `SemanticDigest`, `IdentityRef` | `crates/antecedent-core/src/identity.rs` | 6 | `antecedent-core` | Exists today. Domain-separated digest vocabulary. Bytes are produced in IO. |
 | `ExecutionReceipt`, `RequestIdentity`, `ExecutionRequestState` | `crates/antecedent-core/src/execution.rs` | 6 | `antecedent-core` | Exists today. Host request around `ExecutionContext`. |
-| `ExecutionContext`, `MemoryBudget`, `CancellationToken`, `KernelPolicy` | `crates/antecedent-core/src/execution.rs` | 5 | `antecedent-core` | Exists today. Budget and policy the physical planner reads. Not the plan. |
+| `ExecutionContext`, `AdmissionPool`, `CancellationToken`, `KernelPolicy` | `crates/antecedent-core/src/execution.rs` | 5 | `antecedent-core` | Exists today. Budget and policy the physical planner reads. Not the plan. |
 | `CausalContract` | `crates/antecedent/src/analysis/contract.rs` | 6 | `antecedent` | Exists today. Immutable companion of `Study` / `PreparedStudy`. Not a second builder. |
 | `ClaimEnvelope`, `HandoffReceipt`, `AcceptanceReport`, `DerivedClaim` | `crates/antecedent-contract/src/claim.rs` | 6 | `antecedent-contract` | Exists today. Portable claim over a contract and one execution. |
 | `StudyResult` | `crates/antecedent/src/result.rs` | 6 | `antecedent` | Exists today. Bundles logical record, physical record, `IdentificationResult`, `IdentifiedEstimand`, `PrimaryEstimate`, payload, optional posterior, refutations, diagnostics. One facade result, not a separated receipt. |

@@ -926,6 +926,7 @@ impl super::Study {
                     bootstrap_replicates: self.bootstrap_replicates,
                     overlap_policy: self.overlap_policy,
                     population_registry: self.population_registry.as_ref(),
+                    sampling_design: self.sampling_design,
                 },
                 case.result.required_assumptions.clone(),
                 ctx,

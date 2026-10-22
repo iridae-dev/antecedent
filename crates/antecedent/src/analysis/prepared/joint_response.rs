@@ -989,8 +989,7 @@ fn source_resident_bytes(problem: &PreparedBayesianProblem) -> Result<u64, Causa
         .ok_or_else(|| resource("retained joint design quote overflow"))
 }
 fn admit(ctx: &ExecutionContext, bytes: u64) -> Result<AdmissionLease, CausalError> {
-    let limit =
-        [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes].into_iter().flatten().min();
+    let limit = ctx.memory_limit_bytes();
     if limit.is_some_and(|limit| bytes > limit) {
         return Err(resource("joint response exceeds configured memory budget"));
     }
@@ -1284,7 +1283,7 @@ mod tests {
         let minimum_law_bytes =
             u64::try_from(first.evaluation().posterior_draws.as_ref().unwrap().len() * 8).unwrap();
         let mut tiny = ctx.clone();
-        tiny.memory.hard_limit_bytes = Some(1);
+        tiny.set_memory_limit(Some(1));
         assert!(first.joint_law(&tiny).is_err());
         let evaluation = first.evaluation();
         let worlds = evaluation.posterior_draws.as_ref().unwrap();
@@ -1453,7 +1452,7 @@ mod tests {
             Err(JointResponseArtifactError::Mismatch)
         ));
         let mut tiny = ctx.clone();
-        tiny.memory.hard_limit_bytes = Some(1);
+        tiny.set_memory_limit(Some(1));
         assert!(matches!(
             consume_joint_response(&bytes, &tiny),
             Err(JointResponseArtifactError::Resource(_))
@@ -1621,7 +1620,7 @@ mod tests {
         changed.kernel_policy.force_scalar = !ctx.kernel_policy.force_scalar;
         assert!(matches!(program.execute(&changed), Err(CausalError::Compile { .. })));
         let mut tiny = ctx.clone();
-        tiny.memory.hard_limit_bytes = Some(1);
+        tiny.set_memory_limit(Some(1));
         assert!(matches!(program.execute(&tiny), Err(CausalError::Resource { .. })));
         let cancelled = ctx.clone();
         cancelled.cancellation.cancel();

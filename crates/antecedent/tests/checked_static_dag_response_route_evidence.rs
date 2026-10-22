@@ -183,7 +183,7 @@ fn static_response_curve_refuses_a_too_small_runtime_memory_budget() {
     let prepared =
         route_builder.prepare(&antecedent_core::ExecutionContext::for_tests(993)).unwrap();
     let mut context = antecedent_core::ExecutionContext::for_tests(993);
-    context.memory.hard_limit_bytes = Some(1);
+    context.set_memory_limit(Some(1));
     let error = prepared.estimate(&data, &context).unwrap_err();
     assert!(matches!(error, antecedent::CausalError::Resource { .. }), "{error:?}");
 }

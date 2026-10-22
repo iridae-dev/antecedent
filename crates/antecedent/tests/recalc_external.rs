@@ -263,7 +263,7 @@ fn pure_invalid_planning_and_cooperative_budget_and_cancel_refusals() {
     let mut session = ExternalCallbackSession::new();
     let mut provider = Provider::new(&request);
     let mut budget = ExecutionContext::for_tests(1);
-    budget.memory.hard_limit_bytes = Some(1);
+    budget.set_memory_limit(Some(1));
     assert!(matches!(
         session.execute(&request, Some(&mut provider), &budget),
         Err(ExternalCallbackError::Request("recalc.memory_budget_exceeded"))

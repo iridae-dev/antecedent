@@ -842,6 +842,9 @@ impl Study {
             Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => *config.clone(),
             _ => AipwAte::new(),
         };
+        if let Some(design) = self.sampling_design {
+            est.sampling_design = antecedent_estimate::util::SamplingDeclaration::Declared(design);
+        }
         if let Some(overlap) = self.overlap_policy {
             est.overlap = overlap;
         }

@@ -178,7 +178,7 @@ fn capacity_refusals_name_their_class_of_limit() {
     assert!(work.message.contains("remedy"));
     // A memory budget on the execution context is honoured.
     let mut small = ctx();
-    small.memory.hard_limit_bytes = Some(1_000);
+    small.set_memory_limit(Some(1_000));
     let memory = refused(p.simulate(
         &truth,
         &ParticipantSimulationRequest { replications: 10, seed: 1, true_correlation: None },
