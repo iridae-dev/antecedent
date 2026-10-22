@@ -184,6 +184,30 @@ fn temporal_panel_public_preparation_retains_attempts_and_reuses_selected_mechan
     assert_eq!(prepared.fits_performed(), 1);
 }
 
+#[test]
+fn temporal_panel_bootstrap_reruns_mechanism_selection_per_replicate() {
+    use antecedent_estimate::joint_panel::time_varying::{PanelMeanParameter, TemporalPanelSpec};
+    let ctx = cached_context(20_261_022);
+    let data = fixture::source(false);
+    let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 6 });
+    request.temporal = Some(TemporalPanelSpec {
+        varying: vec![PanelMeanParameter::Interaction { id: "ab".into() }],
+        change_points: vec![8, 12, 16],
+        minimum_segment: 4,
+        weak_change_gap: 4.0,
+        smooth_knots: vec![0, 8, 16, 23],
+        smoothing: vec![1.0],
+        path_prior_sd: 1.0,
+    });
+    let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    let result = prepared.estimate(&ctx).unwrap();
+    let JointPanelFit::Varying(fit) = &result.fit else { panic!("retained temporal program") };
+    let selected: usize = fit.selection_counts.iter().map(|(_, count)| count).sum();
+    let successful = fit.draws.iter().flatten().count();
+    assert!(successful > 0, "bootstrap must retain successful replicates");
+    assert_eq!(selected, successful, "every retained replicate records its own selected model");
+}
+
 fn assert_fresh_panel_replay(
     result: &antecedent::analysis::joint_panel::JointPanelResult,
     ctx: &ExecutionContext,

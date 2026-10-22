@@ -121,6 +121,12 @@ impl PreparedStudy<JointPanelState> {
         next.state.identification = Arc::new(identification);
         let mut attempts = self.state.attempts.to_vec();
         attempts.insert(1,JointPanelDesignAttempt{id:"joint_adjustment.static_empirical_source".into(),outcome:JointPanelDesignOutcome::Identified,detail:format!("independent nonparametric source proof {}, exact graph/data/empirical-law binding {binding}; no Gaussian numerical restriction or calibration transferred",proof.identification().identity()),next_attempt:None,target_identity:next.request().target.identity(),worlds:next.request().worlds.iter().map(|world|JointPanelWorldSupport{world:world.world,matched_groups:next.model_data().groups.iter().map(|group|group.id.clone()).collect(),identified:true,reason:"exact supported static intervention and empirical reference law".into()}).collect(),proof:None});
+        for attempt in &mut attempts {
+            if attempt.id == "joint_adjustment.observational" {
+                attempt.detail = "temporal joint adjustment was not needed: with no carryover the retained static source proof identifies the worlds; the attempt names no certificate of its own".into();
+                attempt.next_attempt = None;
+            }
+        }
         next.state.attempts = attempts.into();
         next.state.static_source = Some(Arc::new(proof));
         Ok(next)

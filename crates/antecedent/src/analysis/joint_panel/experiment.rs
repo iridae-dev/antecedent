@@ -711,6 +711,12 @@ fn validate_future_sample_catalog(
     if candidates.iter().any(|candidate| !ids.insert(&candidate.id)) {
         return Err(JointPanelError::compile("duplicate future sample identity"));
     }
+    let costed = candidates.iter().filter(|candidate| candidate.cost_utility.is_some()).count();
+    if costed != 0 && costed != candidates.len() {
+        return Err(JointPanelError::compile(
+            "a net-value ranking needs a utility-unit cost for every candidate, or for none; a partly costed catalog would silently rank by gross value",
+        ));
+    }
     Ok(())
 }
 

@@ -306,6 +306,27 @@ fn verify_decision_and_next_study(
             ctx,
         )
         .unwrap();
+    let partly_costed = updated.rank_next_samples(
+        &problem,
+        &[
+            PanelFutureSample {
+                id: "costed".into(),
+                sample_size: 4,
+                observation_variance: 1.0,
+                cost_utility: Some(0.1),
+            },
+            PanelFutureSample {
+                id: "uncosted".into(),
+                sample_size: 4,
+                observation_variance: 1.0,
+                cost_utility: None,
+            },
+        ],
+        32,
+        ledger,
+        ctx,
+    );
+    assert!(partly_costed.is_err(), "a partly costed catalog must not rank by gross value");
     assert_eq!(ranking[0].id, "cheap");
     assert_eq!(ranking[0].gross_evsi.to_bits(), ranking[1].gross_evsi.to_bits());
     assert!((ranking[0].net_value.unwrap() - (ranking[0].gross_evsi - 0.1)).abs() < 1e-12);
