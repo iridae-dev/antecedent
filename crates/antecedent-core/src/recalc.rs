@@ -40,6 +40,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use crate::identity::CanonicalWriter;
+use crate::named_variants;
 
 mod standing;
 
@@ -563,25 +564,15 @@ pub enum Revalidation {
     Withdrawn,
 }
 
+named_variants! {
+    Revalidation {
+        StillValid => "still_valid",
+        Recompute => "recompute",
+        Withdrawn => "withdrawn",
+    }
+}
+
 impl Revalidation {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::StillValid => "still_valid",
-            Self::Recompute => "recompute",
-            Self::Withdrawn => "withdrawn",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::StillValid, Self::Recompute, Self::Withdrawn]
-            .into_iter()
-            .find(|class| class.as_str() == name)
-    }
-
     /// The more severe of two classes (`withdrawn` over `recompute` over `still_valid`).
     #[must_use]
     pub fn worst(self, other: Self) -> Self {

@@ -1,8 +1,7 @@
 //! Worker caps and scratch leases for parallel resampling.
 //!
-//! [`ExecutionContext::capped_workers`] says how many workers a batch may run.
-//! [`ExecutionContext::admit_scratch`] then takes a real lease on the admission pool for
-//! those workers and their scratch bytes, so concurrent callers share one remainder and
+//! [`ExecutionContext::admit_scratch`] takes one atomic lease on the admission pool for a
+//! batch's workers and their scratch bytes, so concurrent callers share one remainder and
 //! cannot together exceed it. The lease is released when the returned [`ScratchLease`]
 //! drops.
 //!
@@ -19,14 +18,6 @@ pub enum ScratchRefusal {
     /// The byte product does not fit. It was not wrapped.
     #[error("scratch size overflows")]
     Overflow,
-    /// Not produced. Scratch admission does not read [`crate::MemoryBudget`].
-    #[error("scratch of {bytes} bytes exceeds the hard byte limit of {limit}")]
-    HardLimit {
-        /// Bytes requested.
-        bytes: u64,
-        /// Hard limit.
-        limit: u64,
-    },
     /// The admission pool cannot hold the scratch beside the leases already open.
     #[error("admission pool cannot fund {bytes} bytes of scratch")]
     PoolShort {
@@ -70,35 +61,31 @@ impl ScratchLease {
 }
 
 impl ExecutionContext {
-    /// Workers one batch of `work_items` may use: the context's thread count, the item
-    /// count, and the admission pool's free slots, whichever is smallest. One stays on
-    /// the caller.
+    /// Workers one batch of `work_items` asks for: the context's thread count, the item
+    /// count, and the admission pool's thread capacity, whichever is smallest. One stays
+    /// on the caller.
     ///
-    /// This reads the pool; it does not hold anything. Use [`Self::admit_scratch`] to
-    /// hold the workers.
-    #[must_use]
-    pub fn capped_workers(&self, work_items: usize) -> usize {
+    /// This is a request, not a grant. It reads only the pool's fixed capacity, never its
+    /// free slots, so there is no window between a read and a lease. The lease itself
+    /// decides what is granted.
+    fn requested_workers(&self, work_items: usize) -> usize {
         if work_items < 2 {
             return 1;
         }
         let requested = usize::try_from(self.parallelism.max_threads.get()).unwrap_or(usize::MAX);
         let requested = requested.clamp(1, work_items);
-        if requested <= 1 {
-            return 1;
-        }
-        let pool = self.admission();
-        let budget = usize::try_from(pool.thread_budget()).unwrap_or(usize::MAX);
-        let free = usize::try_from(pool.available().threads()).unwrap_or(usize::MAX);
-        let cap = budget.min(free);
-        if cap <= 1 { 1 } else { requested.min(cap) }
+        let budget = usize::try_from(self.admission.thread_budget()).unwrap_or(usize::MAX);
+        if budget <= 1 { 1 } else { requested.min(budget) }
     }
 
     /// Lease the workers and scratch for a batch of `work_items`, where each worker holds
     /// `per_worker_bytes`.
     ///
-    /// The worker count starts at [`Self::capped_workers`] and shrinks when another
-    /// caller takes slots first. Parallel workers hold their CPU slots on the lease; a
-    /// serial batch holds bytes only. [`crate::MemoryBudget`] is not decremented.
+    /// The lease is taken in one atomic step on the admission pool. When the pool reports
+    /// fewer free slots than requested, the request shrinks to what that refusal reported
+    /// and is made again, so concurrent callers share one remainder and cannot together
+    /// exceed it. Parallel workers hold their CPU slots on the lease; a serial batch holds
+    /// bytes only.
     ///
     /// # Errors
     ///
@@ -110,7 +97,7 @@ impl ExecutionContext {
         work_items: usize,
         per_worker_bytes: u64,
     ) -> Result<ScratchLease, ScratchRefusal> {
-        let mut workers = self.capped_workers(work_items);
+        let mut workers = self.requested_workers(work_items);
         loop {
             let count = u64::try_from(workers).map_err(|_| ScratchRefusal::Overflow)?;
             let bytes = per_worker_bytes.checked_mul(count).ok_or(ScratchRefusal::Overflow)?;
@@ -123,13 +110,16 @@ impl ExecutionContext {
                 Ok(held) => return Ok(ScratchLease { held, workers, bytes }),
                 Err(AdmissionError::Cancelled) => return Err(ScratchRefusal::Cancelled),
                 Err(AdmissionError::Overflow) => return Err(ScratchRefusal::Overflow),
-                Err(_) => {
-                    let next = self.capped_workers(work_items);
+                Err(AdmissionError::ExceedsRemainder { remaining_threads, .. }) => {
+                    // The refusal carries the free slots the pool saw under its own lock.
+                    let free = usize::try_from(remaining_threads).unwrap_or(usize::MAX);
+                    let next = if free <= 1 { 1 } else { workers.min(free) };
                     if next >= workers {
                         return Err(ScratchRefusal::PoolShort { bytes });
                     }
                     workers = next;
                 }
+                Err(_) => return Err(ScratchRefusal::PoolShort { bytes }),
             }
         }
     }
@@ -137,8 +127,9 @@ impl ExecutionContext {
     /// Reserve index bytes for a batch whose workers are leased later by
     /// [`Self::map_indexed_with_scratch`](crate::execution::ExecutionContext::map_indexed_with_scratch).
     ///
-    /// The returned lease records the worker count and holds `workers * per_worker_bytes`.
-    /// It holds no CPU slots, so the map can take them without waiting on this lease.
+    /// The returned lease records the requested worker count and holds
+    /// `workers * per_worker_bytes`. It holds no CPU slots, so the map can take them without
+    /// waiting on this lease; the map shrinks to the slots it is granted.
     ///
     /// # Errors
     ///
@@ -150,7 +141,7 @@ impl ExecutionContext {
         work_items: usize,
         per_worker_bytes: u64,
     ) -> Result<ScratchLease, ScratchRefusal> {
-        let workers = self.capped_workers(work_items);
+        let workers = self.requested_workers(work_items);
         let count = u64::try_from(workers).map_err(|_| ScratchRefusal::Overflow)?;
         let bytes = per_worker_bytes.checked_mul(count).ok_or(ScratchRefusal::Overflow)?;
         match self.acquire_admission(0, bytes) {
@@ -224,15 +215,14 @@ mod tests {
     #[test]
     fn a_byte_product_that_overflows_is_refused() {
         let ctx = ExecutionContext::production(1, 4);
-        assert_eq!(ctx.capped_workers(4), 4);
         let refused = ctx.admit_scratch(4, (u64::MAX / 2) + 1).unwrap_err();
         assert_eq!(refused, ScratchRefusal::Overflow);
     }
 
     #[test]
-    fn memory_budget_does_not_refuse_scratch_the_pool_can_fund() {
-        let (mut ctx, pool) = pooled(2, 1 << 20);
-        ctx.memory.hard_limit_bytes = Some(15);
+    fn scratch_is_funded_by_the_pool_capacity_that_is_also_the_planner_limit() {
+        let (ctx, pool) = pooled(2, 1 << 20);
+        assert_eq!(ctx.memory_limit_bytes(), Some(1 << 20));
         let lease = ctx.admit_scratch(8, 8).unwrap();
         assert_eq!(lease.workers(), 2);
         assert_eq!(lease.bytes(), 16);

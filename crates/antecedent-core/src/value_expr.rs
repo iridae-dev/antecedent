@@ -18,6 +18,8 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::callback::{CallbackCall, CallbackOutput, Portability};
+use crate::canonical_encode::{CanonicalEncode, count, encode_variables};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 
 /// Largest number of nodes an expression may hold.
@@ -82,6 +84,20 @@ pub enum ArithOp {
 }
 
 impl ArithOp {
+    /// Canonical tag. Exhaustive, so a new operator must be numbered here.
+    const fn canonical_tag(self) -> u64 {
+        match self {
+            Self::Add => 1,
+            Self::Sub => 2,
+            Self::Mul => 3,
+            Self::Div => 4,
+            Self::Min => 5,
+            Self::Max => 6,
+        }
+    }
+}
+
+impl ArithOp {
     /// Apply to one pair. The batch kernel calls exactly this, so batch and scalar
     /// evaluation are bit-identical.
     #[must_use]
@@ -137,6 +153,20 @@ pub enum CompareOp {
 }
 
 impl CompareOp {
+    /// Canonical tag. Exhaustive, so a new operator must be numbered here.
+    const fn canonical_tag(self) -> u64 {
+        match self {
+            Self::Lt => 1,
+            Self::Le => 2,
+            Self::Gt => 3,
+            Self::Ge => 4,
+            Self::Eq => 5,
+            Self::Ne => 6,
+        }
+    }
+}
+
+impl CompareOp {
     /// Apply to one pair (false when either side is NaN, except `Ne`).
     #[must_use]
     #[allow(
@@ -164,6 +194,16 @@ pub enum LogicOp {
     And,
     /// Either true.
     Or,
+}
+
+impl LogicOp {
+    /// Canonical tag. Exhaustive, so a new connective must be numbered here.
+    const fn canonical_tag(self) -> u64 {
+        match self {
+            Self::And => 1,
+            Self::Or => 2,
+        }
+    }
 }
 
 /// A typed value expression.
@@ -311,6 +351,17 @@ pub struct PolicyReads {
     pub history: Arc<[(VariableId, u32)]>,
 }
 
+impl CanonicalEncode for PolicyReads {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        encode_variables(writer, &self.current);
+        writer.word(count(self.history.len()));
+        for &(variable, lag) in self.history.as_ref() {
+            variable.encode(writer);
+            writer.word(u64::from(lag));
+        }
+    }
+}
+
 impl PolicyReads {
     /// Build from unordered reads (sorted and de-duplicated).
     #[must_use]
@@ -331,6 +382,71 @@ impl PolicyReads {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.current.is_empty() && self.history.is_empty()
+    }
+}
+
+impl CanonicalEncode for ValueExpr {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Const(number) => {
+                writer.word(1).real(number.get());
+            }
+            Self::Generated => {
+                writer.word(2);
+            }
+            Self::Var(variable) => {
+                writer.word(3);
+                variable.encode(writer);
+            }
+            Self::Lag { variable, lag } => {
+                writer.word(4);
+                variable.encode(writer);
+                writer.word(u64::from(*lag));
+            }
+            Self::Neg(inner) => {
+                writer.word(5);
+                inner.encode(writer);
+            }
+            Self::Arith { op, lhs, rhs } => {
+                writer.word(6).word(op.canonical_tag());
+                lhs.encode(writer);
+                rhs.encode(writer);
+            }
+            Self::Clip { value, lower, upper } => {
+                writer.word(7);
+                value.encode(writer);
+                lower.encode(writer);
+                upper.encode(writer);
+            }
+            Self::Compare { op, lhs, rhs } => {
+                writer.word(8).word(op.canonical_tag());
+                lhs.encode(writer);
+                rhs.encode(writer);
+            }
+            Self::Not(inner) => {
+                writer.word(9);
+                inner.encode(writer);
+            }
+            Self::Logic { op, lhs, rhs } => {
+                writer.word(10).word(op.canonical_tag());
+                lhs.encode(writer);
+                rhs.encode(writer);
+            }
+            Self::If { condition, then_branch, else_branch } => {
+                writer.word(11);
+                condition.encode(writer);
+                then_branch.encode(writer);
+                else_branch.encode(writer);
+            }
+            Self::Indicator(inner) => {
+                writer.word(12);
+                inner.encode(writer);
+            }
+            Self::Callback(call) => {
+                writer.word(13);
+                call.encode(writer);
+            }
+        }
     }
 }
 

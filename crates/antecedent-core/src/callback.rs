@@ -20,6 +20,8 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, count};
+use crate::identity::CanonicalWriter;
 use crate::reason_code;
 use crate::value_expr::ValueExpr;
 
@@ -38,6 +40,23 @@ pub enum CallbackOutput {
     },
     /// Exactly these levels (sorted, unique, finite); a categorical or binary result.
     Levels(Arc<[f64]>),
+}
+
+impl CanonicalEncode for CallbackOutput {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Real => {
+                writer.word(1);
+            }
+            Self::Range { lower, upper } => {
+                writer.word(2).real(*lower).real(*upper);
+            }
+            Self::Levels(levels) => {
+                writer.word(3);
+                writer.reals(levels);
+            }
+        }
+    }
 }
 
 impl CallbackOutput {
@@ -120,6 +139,19 @@ pub enum CallbackImplementation {
         /// Name of the function in the source that is the callback.
         entry_point: String,
     },
+}
+
+impl CanonicalEncode for CallbackImplementation {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Runtime => {
+                writer.word(1);
+            }
+            Self::Recoverable { source_sha256, entry_point } => {
+                writer.word(2).text(source_sha256).text(entry_point);
+            }
+        }
+    }
 }
 
 /// The declaration of a callback: inputs, output and runtime dependencies.
@@ -350,6 +382,24 @@ pub struct CallbackCall {
 // existed; implementors that mutate shared state own the consistency of that state.
 impl std::panic::UnwindSafe for CallbackCall {}
 impl std::panic::RefUnwindSafe for CallbackCall {}
+
+impl CanonicalEncode for CallbackCall {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        let spec = self.spec();
+        writer.text(&spec.name);
+        writer.texts(spec.inputs.as_ref());
+        spec.output.encode(writer);
+        writer.word(count(spec.dependencies.len()));
+        for dependency in spec.dependencies.as_ref() {
+            writer.text(&dependency.name).text(&dependency.version);
+        }
+        spec.implementation.encode(writer);
+        writer.word(count(self.args().len()));
+        for arg in self.args() {
+            arg.encode(writer);
+        }
+    }
+}
 
 impl CallbackCall {
     /// Bind `callback` to `args`, one per declared input.

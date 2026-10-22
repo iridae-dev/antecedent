@@ -30,6 +30,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::identity::{CanonicalWriter, SemanticDigest};
+use crate::refusal::NextAttempt;
 use crate::text::is_blank;
 
 /// Identity tag for an ordinary Bayesian likelihood posterior.
@@ -191,10 +192,7 @@ impl Prior {
     /// [`OrdinaryBayesianLikelihood`] under the declared likelihood.
     #[must_use = "a prior alone is not observational identification"]
     pub fn as_observational_identification(&self) -> PriorIdentificationRefusal {
-        PriorIdentificationRefusal {
-            prior: self.clone(),
-            next_attempts: NextIdentificationAttempt::ALL,
-        }
+        PriorIdentificationRefusal { prior: self.clone(), next_attempts: IDENTIFICATION_ATTEMPTS }
     }
 }
 
@@ -588,37 +586,23 @@ impl RestrictedPosterior {
     }
 }
 
-/// Legal next attempt after a prior was refused as observational identification.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum NextIdentificationAttempt {
-    /// Attach the named restriction on a separate assumption branch.
-    AttachRestrictionOnAssumptionBranch,
-    /// Report a posterior under the declared likelihood, not an identified causal effect.
-    ReportPosteriorUnderDeclaredLikelihood,
-}
+/// Attach the named restriction on a separate assumption branch.
+pub const ATTACH_RESTRICTION_ON_ASSUMPTION_BRANCH: NextAttempt = NextAttempt::new(
+    "attach_restriction_on_assumption_branch",
+    "attach the identifying restriction on a separate assumption branch",
+);
 
-impl NextIdentificationAttempt {
-    /// Both legal next attempts, in the order the refusal names them.
-    pub const ALL: [Self; 2] =
-        [Self::AttachRestrictionOnAssumptionBranch, Self::ReportPosteriorUnderDeclaredLikelihood];
+/// Report a posterior under the declared likelihood, not an identified causal effect.
+pub const REPORT_POSTERIOR_UNDER_DECLARED_LIKELIHOOD: NextAttempt = NextAttempt::new(
+    "report_posterior_under_declared_likelihood",
+    "report the result as a posterior under the declared likelihood rather than as an identified \
+     causal effect",
+);
 
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::AttachRestrictionOnAssumptionBranch => "attach_restriction_on_assumption_branch",
-            Self::ReportPosteriorUnderDeclaredLikelihood => {
-                "report_posterior_under_declared_likelihood"
-            }
-        }
-    }
-}
-
-impl fmt::Display for NextIdentificationAttempt {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
+/// Both legal next attempts after a prior was refused as observational
+/// identification, in the order the refusal names them.
+pub const IDENTIFICATION_ATTEMPTS: [NextAttempt; 2] =
+    [ATTACH_RESTRICTION_ON_ASSUMPTION_BRANCH, REPORT_POSTERIOR_UNDER_DECLARED_LIKELIHOOD];
 
 /// Refusal to treat a prior as observational identification.
 ///
@@ -627,7 +611,7 @@ impl fmt::Display for NextIdentificationAttempt {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct PriorIdentificationRefusal {
     prior: Prior,
-    next_attempts: [NextIdentificationAttempt; 2],
+    next_attempts: [NextAttempt; 2],
 }
 
 impl PriorIdentificationRefusal {
@@ -639,7 +623,7 @@ impl PriorIdentificationRefusal {
 
     /// Legal next attempts, in name order.
     #[must_use]
-    pub const fn next_attempts(&self) -> [NextIdentificationAttempt; 2] {
+    pub const fn next_attempts(&self) -> [NextAttempt; 2] {
         self.next_attempts
     }
 }
@@ -713,7 +697,7 @@ impl PosteriorSample {
     /// # Errors
     ///
     /// Always. A score estimate is not a posterior draw. The refusal names
-    /// [`SampleNextAttempt::ReportAsScoreEstimate`].
+    /// [`REPORT_AS_SCORE_ESTIMATE`].
     #[must_use = "a score realization is not a posterior sample"]
     pub fn accept_score(realization: &ScoreFrequentist) -> Result<Self, PosteriorSampleRefusal> {
         Err(PosteriorSampleRefusal {
@@ -728,7 +712,7 @@ impl PosteriorSample {
     /// # Errors
     ///
     /// Always. An envelope is a set, not a draw. The refusal names
-    /// [`SampleNextAttempt::ReportAsIdentifiedSet`].
+    /// [`REPORT_AS_IDENTIFIED_SET`].
     #[must_use = "an envelope is not a posterior sample"]
     pub fn accept_envelope(
         realization: &PartialIdentificationEnvelope,
@@ -773,25 +757,13 @@ impl RefusedSampleKind {
     }
 }
 
-/// What to report instead of a posterior sample.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum SampleNextAttempt {
-    /// Keep the score realization as a score estimate.
-    ReportAsScoreEstimate,
-    /// Keep the envelope as an identified set.
-    ReportAsIdentifiedSet,
-}
+/// Keep the score realization as a score estimate.
+pub const REPORT_AS_SCORE_ESTIMATE: NextAttempt =
+    NextAttempt::new("report_as_score_estimate", "report the realization as a score estimate");
 
-impl SampleNextAttempt {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ReportAsScoreEstimate => "report_as_score_estimate",
-            Self::ReportAsIdentifiedSet => "report_as_identified_set",
-        }
-    }
-}
+/// Keep the envelope as an identified set.
+pub const REPORT_AS_IDENTIFIED_SET: NextAttempt =
+    NextAttempt::new("report_as_identified_set", "report the realization as an identified set");
 
 /// Refusal to accept a non-posterior realization as a posterior sample.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -822,12 +794,10 @@ impl PosteriorSampleRefusal {
 
     /// Legal report of this realization.
     #[must_use]
-    pub const fn next_attempt(&self) -> SampleNextAttempt {
+    pub const fn next_attempt(&self) -> NextAttempt {
         match self.kind {
-            RefusedSampleKind::ScoreFrequentist => SampleNextAttempt::ReportAsScoreEstimate,
-            RefusedSampleKind::PartialIdentificationEnvelope => {
-                SampleNextAttempt::ReportAsIdentifiedSet
-            }
+            RefusedSampleKind::ScoreFrequentist => REPORT_AS_SCORE_ESTIMATE,
+            RefusedSampleKind::PartialIdentificationEnvelope => REPORT_AS_IDENTIFIED_SET,
         }
     }
 }
@@ -861,10 +831,12 @@ fn declared_name(name: impl Into<Arc<str>>) -> Result<Arc<str>, DeclarationError
 #[cfg(test)]
 mod tests {
     use super::{
-        DeclarationError, GeneralizedBayes, IdentifyingRestriction, LearningRate, LikelihoodModel,
-        LossModel, MissingLearningRate, NextIdentificationAttempt, OrdinaryBayesianLikelihood,
-        PartialIdentificationEnvelope, PosteriorSample, PosteriorSampleKind, Prior,
-        RealizationKind, RefusedSampleKind, SampleNextAttempt, ScoreFrequentist, ScoreModel,
+        ATTACH_RESTRICTION_ON_ASSUMPTION_BRANCH, DeclarationError, GeneralizedBayes,
+        IDENTIFICATION_ATTEMPTS, IdentifyingRestriction, LearningRate, LikelihoodModel, LossModel,
+        MissingLearningRate, OrdinaryBayesianLikelihood, PartialIdentificationEnvelope,
+        PosteriorSample, PosteriorSampleKind, Prior, REPORT_AS_IDENTIFIED_SET,
+        REPORT_AS_SCORE_ESTIMATE, REPORT_POSTERIOR_UNDER_DECLARED_LIKELIHOOD, RealizationKind,
+        RefusedSampleKind, ScoreFrequentist, ScoreModel,
     };
 
     fn prior(name: &str) -> Prior {
@@ -880,15 +852,9 @@ mod tests {
         let prior = prior("effect_prior");
         let refusal = prior.as_observational_identification();
         assert_eq!(refusal.prior(), &prior);
-        assert_eq!(refusal.next_attempts(), NextIdentificationAttempt::ALL);
-        assert_eq!(
-            refusal.next_attempts()[0],
-            NextIdentificationAttempt::AttachRestrictionOnAssumptionBranch
-        );
-        assert_eq!(
-            refusal.next_attempts()[1],
-            NextIdentificationAttempt::ReportPosteriorUnderDeclaredLikelihood
-        );
+        assert_eq!(refusal.next_attempts(), IDENTIFICATION_ATTEMPTS);
+        assert_eq!(refusal.next_attempts()[0], ATTACH_RESTRICTION_ON_ASSUMPTION_BRANCH);
+        assert_eq!(refusal.next_attempts()[1], REPORT_POSTERIOR_UNDER_DECLARED_LIKELIHOOD);
         let message = refusal.to_string();
         assert!(message.contains("assumption branch"));
         assert!(message.contains("declared likelihood"));
@@ -971,7 +937,7 @@ mod tests {
         assert_eq!(refused.kind().realization(), RealizationKind::PartialIdentificationEnvelope);
         assert_eq!(refused.name(), "structural_envelope");
         assert_eq!(refused.identity(), envelope.identity());
-        assert_eq!(refused.next_attempt(), SampleNextAttempt::ReportAsIdentifiedSet);
+        assert_eq!(refused.next_attempt(), REPORT_AS_IDENTIFIED_SET);
         let message = refused.to_string();
         assert!(message.contains("not a posterior sample"));
         assert!(message.contains("identified set"));
@@ -991,7 +957,7 @@ mod tests {
         assert_eq!(refused.kind(), RefusedSampleKind::ScoreFrequentist);
         assert_eq!(refused.name(), "aipw");
         assert_eq!(refused.identity(), score.identity());
-        assert_eq!(refused.next_attempt(), SampleNextAttempt::ReportAsScoreEstimate);
+        assert_eq!(refused.next_attempt(), REPORT_AS_SCORE_ESTIMATE);
         assert_eq!(score.kind(), RealizationKind::ScoreFrequentist);
     }
 

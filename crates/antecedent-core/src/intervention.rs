@@ -8,6 +8,8 @@
 use std::sync::Arc;
 
 use crate::callback::Portability;
+use crate::canonical_encode::{CanonicalEncode, count, i32_bits};
+use crate::identity::CanonicalWriter;
 use crate::ids::{DynamicRuleId, VariableId};
 use crate::value::Value;
 use crate::value_expr::{ExpressionFault, PolicyReads, ValueExpr};
@@ -41,6 +43,25 @@ pub enum TemporalPolicy {
         /// Non-empty sorted unique step offsets where the intervention is active.
         active_at: Arc<[i32]>,
     },
+}
+
+impl CanonicalEncode for TemporalPolicy {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Pulse { at } => {
+                writer.word(1).word(i32_bits(*at));
+            }
+            Self::Sustained { from, until } => {
+                writer.word(2).word(i32_bits(*from)).word(i32_bits(*until));
+            }
+            Self::Dynamic { rule, active_at } => {
+                writer.word(3).word(u64::from(rule.raw())).word(count(active_at.len()));
+                for step in active_at.as_ref() {
+                    writer.word(i32_bits(*step));
+                }
+            }
+        }
+    }
 }
 
 impl TemporalPolicy {
@@ -252,6 +273,23 @@ pub enum StochasticPolicy {
     },
 }
 
+impl CanonicalEncode for StochasticPolicy {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Bernoulli { p } => {
+                writer.word(1).real(*p);
+            }
+            Self::Gaussian { mean, variance } => {
+                writer.word(2).real(*mean).real(*variance);
+            }
+            Self::Categorical { probs } => {
+                writer.word(3);
+                writer.reals(probs);
+            }
+        }
+    }
+}
+
 impl StochasticPolicy {
     /// Bernoulli policy.
     #[must_use]
@@ -455,6 +493,53 @@ pub enum Intervention {
     },
     /// Ordered temporal sequence of interventions.
     Sequence(InterventionSequence),
+}
+
+impl CanonicalEncode for Intervention {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Set { variable, value } => {
+                writer.word(1);
+                variable.encode(writer);
+                value.encode(writer);
+            }
+            Self::Shift { variable, delta } => {
+                writer.word(2);
+                variable.encode(writer);
+                delta.encode(writer);
+            }
+            Self::Stochastic { variable, policy } => {
+                writer.word(3);
+                variable.encode(writer);
+                policy.encode(writer);
+            }
+            Self::Soft { variable, mechanism } => {
+                writer.word(4);
+                variable.encode(writer);
+                writer.text(&mechanism.family_id);
+                writer.reals(&mechanism.parameters);
+            }
+            Self::Transform { variable, expr, reads } => {
+                writer.word(5);
+                variable.encode(writer);
+                expr.encode(writer);
+                reads.encode(writer);
+            }
+            Self::Assign { variable, expr, reads } => {
+                writer.word(6);
+                variable.encode(writer);
+                expr.encode(writer);
+                reads.encode(writer);
+            }
+            Self::Sequence(sequence) => {
+                writer.word(7).word(count(sequence.steps.len()));
+                for step in sequence.steps.as_ref() {
+                    step.intervention.encode(writer);
+                    step.temporal.encode(writer);
+                }
+            }
+        }
+    }
 }
 
 impl Intervention {
@@ -985,10 +1070,9 @@ impl Intervention {
             Self::Shift { variable, delta } => {
                 InterventionOperation::Shift { variable: *variable, delta: delta.clone() }
             }
-            Self::Stochastic { variable, policy } => InterventionOperation::Stochastic {
-                variable: *variable,
-                policy: policy.clone(),
-            },
+            Self::Stochastic { variable, policy } => {
+                InterventionOperation::Stochastic { variable: *variable, policy: policy.clone() }
+            }
             Self::Soft { variable, mechanism } => {
                 InterventionOperation::Soft { variable: *variable, mechanism: mechanism.clone() }
             }
@@ -1224,9 +1308,8 @@ mod tests {
 
         let pulse =
             ExecutionSurface::Temporal.admit(&set, Some(&TemporalPolicy::pulse(0))).unwrap();
-        let sustained = ExecutionSurface::Temporal
-            .admit(&set, Some(&TemporalPolicy::sustained(0, 0)))
-            .unwrap();
+        let sustained =
+            ExecutionSurface::Temporal.admit(&set, Some(&TemporalPolicy::sustained(0, 0))).unwrap();
         assert!(matches!(pulse, InterventionOperation::Pulse { .. }));
         assert!(matches!(sustained, InterventionOperation::Sustained { .. }));
         assert_ne!(pulse, sustained);

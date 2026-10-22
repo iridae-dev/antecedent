@@ -140,7 +140,7 @@ impl<'a> SearchBudget<'a> {
         ctx: &'a ExecutionContext,
     ) -> Result<Self, SearchReceipt> {
         let memory_limit_bytes =
-            ctx.memory.hard_limit_bytes.map_or(memory_limit_bytes, |h| h.min(memory_limit_bytes));
+            ctx.memory_limit_bytes().map_or(memory_limit_bytes, |h| h.min(memory_limit_bytes));
         let budget = Self {
             limits,
             ctx,
@@ -238,7 +238,6 @@ impl<'a> SearchBudget<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::execution::MemoryBudget;
 
     const LIMITS: SearchLimits = SearchLimits { operations: 3, depth: 2 };
 
@@ -310,7 +309,7 @@ mod tests {
     #[test]
     fn memory_and_mid_search_cancellation_are_observed_on_every_charge() {
         let mut ctx = ExecutionContext::for_tests(1);
-        ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1024) };
+        ctx.set_memory_limit(Some(1024));
         let mut budget = SearchBudget::new(LIMITS, &ctx).unwrap();
         budget.charge(0, 1024).unwrap();
         assert_eq!(budget.charge(0, 1025), Err(SearchStop::Memory));
@@ -326,7 +325,7 @@ mod tests {
     fn the_memory_bound_is_never_absent_and_is_the_smaller_of_cap_and_context() {
         // No context limit: the default cap applies and is reported.
         let ctx = ExecutionContext::for_tests(1);
-        assert_eq!(ctx.memory.hard_limit_bytes, None);
+        assert_eq!(ctx.memory_limit_bytes(), None);
         let mut budget = SearchBudget::new(LIMITS, &ctx).unwrap();
         assert_eq!(budget.memory_limit_bytes(), DEFAULT_SEARCH_MEMORY_BYTES);
         budget.charge(0, DEFAULT_SEARCH_MEMORY_BYTES).unwrap();
@@ -337,7 +336,7 @@ mod tests {
         let mut small = SearchBudget::with_memory(LIMITS, 100, &ctx).unwrap();
         assert_eq!(small.charge(0, 101), Err(SearchStop::Memory));
         let mut limited = ExecutionContext::for_tests(1);
-        limited.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(50) };
+        limited.set_memory_limit(Some(50));
         let capped = SearchBudget::with_memory(LIMITS, 100, &limited).unwrap();
         assert_eq!(capped.memory_limit_bytes(), 50);
         let wider = SearchBudget::with_memory(LIMITS, 10, &limited).unwrap();

@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, encode_variables};
+use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 
 /// Collection of assumption records referenced by analysis artifacts.
@@ -103,6 +105,56 @@ pub enum Assumption {
     },
 }
 
+impl CanonicalEncode for Assumption {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::CausalMarkov => {
+                writer.word(1);
+            }
+            Self::Faithfulness => {
+                writer.word(2);
+            }
+            Self::CausalSufficiency => {
+                writer.word(3);
+            }
+            Self::Consistency => {
+                writer.word(4);
+            }
+            Self::Positivity => {
+                writer.word(5);
+            }
+            Self::NoInterference => {
+                writer.word(6);
+            }
+            Self::Stationarity => {
+                writer.word(7);
+            }
+            Self::PiecewiseStationarity => {
+                writer.word(8);
+            }
+            Self::NoSelectionBias => {
+                writer.word(9);
+            }
+            Self::ExclusionRestriction { instrument } => {
+                writer.word(10);
+                instrument.encode(writer);
+            }
+            Self::Monotonicity => {
+                writer.word(11);
+            }
+            Self::ParametricRestriction(restriction) => {
+                writer.word(12).text(&restriction.id).text(&restriction.description);
+            }
+            Self::PriorRestriction(restriction) => {
+                writer.word(13).text(&restriction.id).text(&restriction.description);
+            }
+            Self::Custom { id, description } => {
+                writer.word(14).text(id).text(description);
+            }
+        }
+    }
+}
+
 /// Parametric restriction details.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ParametricAssumption {
@@ -156,6 +208,34 @@ pub enum AssumptionScope {
         /// Variable IDs in scope.
         variables: Arc<[VariableId]>,
     },
+}
+
+/// A variable-set scope is a set: its variables are written sorted and unique, so
+/// listing order and repeats do not change the encoding.
+impl CanonicalEncode for AssumptionScope {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Global => {
+                writer.word(1);
+            }
+            Self::Identification => {
+                writer.word(2);
+            }
+            Self::Estimation => {
+                writer.word(3);
+            }
+            Self::Discovery => {
+                writer.word(4);
+            }
+            Self::Variables { variables } => {
+                let mut variables = variables.to_vec();
+                variables.sort_unstable();
+                variables.dedup();
+                writer.word(5);
+                encode_variables(writer, &variables);
+            }
+        }
+    }
 }
 
 /// Whether an assumption has been tested.

@@ -11,8 +11,7 @@
 //! account unchanged. Sums and products that do not fit in `u64` are refused
 //! rather than wrapped.
 //!
-//! [`crate::execution::AdmissionPool`] and [`crate::MemoryBudget`] are separate
-//! accounts and are not decremented here.
+//! [`crate::execution::AdmissionPool`] is a separate account and is not decremented here.
 //!
 //! No accelerator is promoted. [`select_compute`] refuses one and does not grant
 //! device bytes. A small serial job on [`ComputeSelection::Cpu`] leaves this

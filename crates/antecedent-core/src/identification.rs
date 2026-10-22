@@ -5,6 +5,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::named_variants;
+
 /// Unidentified, unevaluable, subsampled, or failed posterior mass at or below
 /// this value is numerical dust. Every posterior status ladder uses this
 /// cutoff, so `1e-13` is not graph-dependent on one route and point-identified
@@ -53,37 +55,18 @@ pub enum IdentificationStatus {
     NotIdentified,
 }
 
+named_variants! {
+    IdentificationStatus {
+        NonparametricallyIdentified => "nonparametrically_identified",
+        IdentifiedUnderParametricRestrictions => "identified_under_parametric_restrictions",
+        IdentifiedUnderPriorRestrictions => "identified_under_prior_restrictions",
+        PartiallyIdentified => "partially_identified",
+        GraphDependent => "graph_dependent",
+        NotIdentified => "not_identified",
+    }
+}
+
 impl IdentificationStatus {
-    /// Stable `snake_case` name used by contracts and the artifact wire.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::NonparametricallyIdentified => "nonparametrically_identified",
-            Self::IdentifiedUnderParametricRestrictions => {
-                "identified_under_parametric_restrictions"
-            }
-            Self::IdentifiedUnderPriorRestrictions => "identified_under_prior_restrictions",
-            Self::PartiallyIdentified => "partially_identified",
-            Self::GraphDependent => "graph_dependent",
-            Self::NotIdentified => "not_identified",
-        }
-    }
-
-    /// Parse the `snake_case` name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::NonparametricallyIdentified,
-            Self::IdentifiedUnderParametricRestrictions,
-            Self::IdentifiedUnderPriorRestrictions,
-            Self::PartiallyIdentified,
-            Self::GraphDependent,
-            Self::NotIdentified,
-        ]
-        .into_iter()
-        .find(|status| status.as_str() == name)
-    }
-
     /// Evidential strength of the identification claim, larger is stronger.
     ///
     /// A derivation may keep or lower this rank but never raise it: a derived

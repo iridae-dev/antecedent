@@ -17,6 +17,10 @@ autotests = false
 [lints]
 workspace = true
 
+[features]
+# Test hooks (for example `CancellationToken::cancel_after_checks`) for dependants' tests.
+test-support = []
+
 [dependencies]
 blake3 = { workspace = true }
 thiserror = { workspace = true }

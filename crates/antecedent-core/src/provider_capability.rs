@@ -28,6 +28,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSeverity};
+use crate::named_variants;
 use crate::text::is_blank;
 
 /// Capability an inference provider may be asked to perform.
@@ -56,56 +57,21 @@ pub enum ProviderCapability {
     StateTransition,
 }
 
+named_variants! {
+    ProviderCapability {
+        Prediction => "prediction",
+        Density => "density",
+        Sampling => "sampling",
+        DifferentiableLogDensity => "differentiable_log_density",
+        EstimatingEquations => "estimating_equations",
+        InfluenceContributions => "influence_contributions",
+        Updating => "updating",
+        ExactIntegration => "exact_integration",
+        StateTransition => "state_transition",
+    }
+}
+
 impl ProviderCapability {
-    /// Every capability, in the order a legal next request is chosen.
-    pub const ALL: [Self; 9] = [
-        Self::Prediction,
-        Self::Density,
-        Self::Sampling,
-        Self::DifferentiableLogDensity,
-        Self::EstimatingEquations,
-        Self::InfluenceContributions,
-        Self::Updating,
-        Self::ExactIntegration,
-        Self::StateTransition,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Prediction => "prediction",
-            Self::Density => "density",
-            Self::Sampling => "sampling",
-            Self::DifferentiableLogDensity => "differentiable_log_density",
-            Self::EstimatingEquations => "estimating_equations",
-            Self::InfluenceContributions => "influence_contributions",
-            Self::Updating => "updating",
-            Self::ExactIntegration => "exact_integration",
-            Self::StateTransition => "state_transition",
-        }
-    }
-
-    /// Capability with this exact `snake_case` name.
-    ///
-    /// Comparison is exact. A nearby word, a different case, or a provider name
-    /// is not a capability.
-    #[must_use = "an unrecognized name is not a capability"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Some(match name {
-            "prediction" => Self::Prediction,
-            "density" => Self::Density,
-            "sampling" => Self::Sampling,
-            "differentiable_log_density" => Self::DifferentiableLogDensity,
-            "estimating_equations" => Self::EstimatingEquations,
-            "influence_contributions" => Self::InfluenceContributions,
-            "updating" => Self::Updating,
-            "exact_integration" => Self::ExactIntegration,
-            "state_transition" => Self::StateTransition,
-            _ => return None,
-        })
-    }
-
     const fn mask(self) -> u16 {
         match self {
             Self::Prediction => 1u16,
@@ -363,6 +329,45 @@ impl ProviderDeclaration {
         })
     }
 
+    /// Check `request` against the declaration and against the body.
+    ///
+    /// A declared capability is trusted only when the body also answers it. This
+    /// is the check to use where the body is available: a listed capability the
+    /// body does not supply is refused, not compiled. No density is evaluated and
+    /// no model is fit.
+    ///
+    /// # Errors
+    ///
+    /// [`ProviderCapabilityRefusal::Undeclared`] when the declaration lacks `request`.
+    /// [`ProviderCapabilityRefusal::Unanswered`] when it is declared and the body does not
+    /// supply it.
+    #[must_use = "an unverified capability is a refusal and must be handled"]
+    pub fn compile_verified(
+        &self,
+        request: CapabilityRequest,
+    ) -> Result<CompiledCapabilityRequest, ProviderCapabilityRefusal> {
+        let compiled = self.compile(request).map_err(ProviderCapabilityRefusal::Undeclared)?;
+        self.probe(request).map_err(ProviderCapabilityRefusal::Unanswered)?;
+        Ok(compiled)
+    }
+
+    /// Capabilities the declaration lists and the body does not supply.
+    ///
+    /// Empty when every declared capability is answered.
+    #[must_use]
+    pub const fn declared_but_unanswered(&self) -> CapabilitySet {
+        CapabilitySet { bits: self.capabilities.bits & !self.body.supplied.bits }
+    }
+
+    /// Capabilities the body supplies and the declaration does not list.
+    ///
+    /// The declaration is the contract. A supplied call outside it is never
+    /// compiled.
+    #[must_use]
+    pub const fn answered_but_undeclared(&self) -> CapabilitySet {
+        CapabilitySet { bits: self.body.supplied.bits & !self.capabilities.bits }
+    }
+
     /// Ask the body to answer `request`.
     ///
     /// The declaration is not this answer. A capability the declaration lists
@@ -379,17 +384,9 @@ impl ProviderDeclaration {
     ) -> Result<CapabilityAnswer, UnansweredCapability> {
         let capability = request.capability();
         if self.body.supplies(capability) {
-            return Ok(CapabilityAnswer {
-                id: self.id,
-                name: Arc::clone(&self.name),
-                capability,
-            });
+            return Ok(CapabilityAnswer { id: self.id, name: Arc::clone(&self.name), capability });
         }
-        Err(UnansweredCapability {
-            id: self.id,
-            name: Arc::clone(&self.name),
-            capability,
-        })
+        Err(UnansweredCapability { id: self.id, name: Arc::clone(&self.name), capability })
     }
 }
 
@@ -534,6 +531,18 @@ impl fmt::Display for FailedCapabilityAttempt {
 
 impl std::error::Error for FailedCapabilityAttempt {}
 
+/// Refusal from [`ProviderDeclaration::compile_verified`].
+#[derive(Clone, Debug, Eq, PartialEq, Hash, thiserror::Error)]
+#[non_exhaustive]
+pub enum ProviderCapabilityRefusal {
+    /// The declaration does not list the capability.
+    #[error("{0}")]
+    Undeclared(FailedCapabilityAttempt),
+    /// The declaration lists the capability and the body does not supply it.
+    #[error("{0}")]
+    Unanswered(UnansweredCapability),
+}
+
 /// Answer the body returned for one capability call.
 ///
 /// The probe produced this value. No density was evaluated and no model was fit.
@@ -613,7 +622,7 @@ mod tests {
 
     use super::{
         CapabilityRequest, CapabilitySet, FailedCapabilityAttempt, ProviderCapability,
-        ProviderDeclaration, ProviderDeclarationError, ProviderId,
+        ProviderCapabilityRefusal, ProviderDeclaration, ProviderDeclarationError, ProviderId,
     };
     use crate::diagnostic::{DiagnosticKind, DiagnosticSeverity};
 
@@ -680,6 +689,59 @@ mod tests {
         assert!(answering.probe(density).is_err());
         assert!(answering.supports(ProviderCapability::Density));
         assert_ne!(declared, answering);
+    }
+
+    #[test]
+    fn verified_compile_requires_the_body_to_answer_the_declaration() {
+        let declared =
+            declaration(9, "density", [ProviderCapability::Density, ProviderCapability::Sampling]);
+        let density = CapabilityRequest::new(ProviderCapability::Density);
+        let sampling = CapabilityRequest::new(ProviderCapability::Sampling);
+        let updating = CapabilityRequest::new(ProviderCapability::Updating);
+        // Declared only: the unverified path compiles, the verified one refuses.
+        assert!(declared.compile(density).is_ok());
+        match declared.compile_verified(density).unwrap_err() {
+            ProviderCapabilityRefusal::Unanswered(unanswered) => {
+                assert_eq!(unanswered.capability(), ProviderCapability::Density);
+            }
+            other => panic!("expected an unanswered capability, got {other:?}"),
+        }
+        assert_eq!(
+            declared.declared_but_unanswered(),
+            CapabilitySet::from_capabilities([
+                ProviderCapability::Density,
+                ProviderCapability::Sampling,
+            ])
+        );
+
+        // Body supplies density and an undeclared update.
+        let partial =
+            declared.clone().answering([ProviderCapability::Density, ProviderCapability::Updating]);
+        assert_eq!(
+            partial.compile_verified(density).unwrap().capability(),
+            ProviderCapability::Density
+        );
+        assert!(matches!(
+            partial.compile_verified(sampling),
+            Err(ProviderCapabilityRefusal::Unanswered(_))
+        ));
+        // Supplying an undeclared call does not declare it.
+        assert!(matches!(
+            partial.compile_verified(updating),
+            Err(ProviderCapabilityRefusal::Undeclared(_))
+        ));
+        assert_eq!(
+            partial.answered_but_undeclared(),
+            CapabilitySet::from_capabilities([ProviderCapability::Updating])
+        );
+        assert_eq!(
+            partial.declared_but_unanswered(),
+            CapabilitySet::from_capabilities([ProviderCapability::Sampling])
+        );
+
+        let full = declared.answering([ProviderCapability::Density, ProviderCapability::Sampling]);
+        assert!(full.declared_but_unanswered().is_empty());
+        assert!(full.answered_but_undeclared().is_empty());
     }
 
     #[test]

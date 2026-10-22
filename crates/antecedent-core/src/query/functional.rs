@@ -8,6 +8,9 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, count};
+use crate::identity::CanonicalWriter;
+
 use super::QueryError;
 use super::attribution::OrderedFloatBits;
 
@@ -27,6 +30,28 @@ pub enum OutcomeFunctional {
     /// Quantile `F_a^{-1}(τ)` (QTE is the arm contrast). Identification is
     /// the same as the CDF; inversion is estimation.
     Quantile(OrderedFloatBits),
+}
+
+impl CanonicalEncode for OutcomeFunctional {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Mean => {
+                writer.word(1);
+            }
+            Self::Exceedance(threshold) => {
+                writer.word(2).real(threshold.to_f64());
+            }
+            Self::ExceedanceGrid(grid) => {
+                writer.word(3).word(count(grid.len()));
+                for threshold in grid.as_ref() {
+                    writer.real(threshold.to_f64());
+                }
+            }
+            Self::Quantile(tau) => {
+                writer.word(4).real(tau.to_f64());
+            }
+        }
+    }
 }
 
 impl Default for OutcomeFunctional {

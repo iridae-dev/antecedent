@@ -16,6 +16,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::named_variants;
 use std::error::Error;
 use std::fmt;
 
@@ -48,26 +49,16 @@ pub enum PhysicalAlternative {
     OptionalLazyPreparation,
 }
 
-impl PhysicalAlternative {
-    /// Direct views, streamed reduction, materialized design, then lazy preparation.
-    pub const ALL: [Self; 4] = [
-        Self::DirectPreparedNumericViews,
-        Self::StreamedReduction,
-        Self::MaterializedDesign,
-        Self::OptionalLazyPreparation,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::DirectPreparedNumericViews => "direct_prepared_numeric_views",
-            Self::StreamedReduction => "streamed_reduction",
-            Self::MaterializedDesign => "materialized_design",
-            Self::OptionalLazyPreparation => "optional_lazy_preparation",
-        }
+named_variants! {
+    PhysicalAlternative {
+        DirectPreparedNumericViews => "direct_prepared_numeric_views",
+        StreamedReduction => "streamed_reduction",
+        MaterializedDesign => "materialized_design",
+        OptionalLazyPreparation => "optional_lazy_preparation",
     }
+}
 
+impl PhysicalAlternative {
     /// Operator capability this backend requires.
     #[must_use]
     pub const fn required_operator(self) -> OperatorCapability {
@@ -88,12 +79,6 @@ impl PhysicalAlternative {
             Self::MaterializedDesign => ResourceCapability::DesignMemory,
             Self::OptionalLazyPreparation => ResourceCapability::LazyBackend,
         }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not an alternative"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|alternative| alternative.as_str() == name)
     }
 
     const fn from_index(index: usize) -> Self {
@@ -123,32 +108,16 @@ pub enum OperatorCapability {
     LazyPreparation,
 }
 
+named_variants! {
+    OperatorCapability {
+        PreparedNumericView => "prepared_numeric_view",
+        StreamedReduction => "streamed_reduction",
+        DesignMaterialization => "design_materialization",
+        LazyPreparation => "lazy_preparation",
+    }
+}
+
 impl OperatorCapability {
-    /// Every operator capability, in [`PhysicalAlternative::ALL`] order.
-    pub const ALL: [Self; 4] = [
-        Self::PreparedNumericView,
-        Self::StreamedReduction,
-        Self::DesignMaterialization,
-        Self::LazyPreparation,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::PreparedNumericView => "prepared_numeric_view",
-            Self::StreamedReduction => "streamed_reduction",
-            Self::DesignMaterialization => "design_materialization",
-            Self::LazyPreparation => "lazy_preparation",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not an operator capability"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|capability| capability.as_str() == name)
-    }
-
     const fn mask(self) -> u8 {
         match self {
             Self::PreparedNumericView => 1,
@@ -181,28 +150,16 @@ pub enum ResourceCapability {
     LazyBackend,
 }
 
+named_variants! {
+    ResourceCapability {
+        PreparedColumns => "prepared_columns",
+        StreamingScratch => "streaming_scratch",
+        DesignMemory => "design_memory",
+        LazyBackend => "lazy_backend",
+    }
+}
+
 impl ResourceCapability {
-    /// Every resource capability, in [`PhysicalAlternative::ALL`] order.
-    pub const ALL: [Self; 4] =
-        [Self::PreparedColumns, Self::StreamingScratch, Self::DesignMemory, Self::LazyBackend];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::PreparedColumns => "prepared_columns",
-            Self::StreamingScratch => "streaming_scratch",
-            Self::DesignMemory => "design_memory",
-            Self::LazyBackend => "lazy_backend",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not a resource capability"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|capability| capability.as_str() == name)
-    }
-
     const fn mask(self) -> u8 {
         match self {
             Self::PreparedColumns => 1,

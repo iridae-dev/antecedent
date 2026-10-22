@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use crate::VariableId;
+use crate::named_variants;
 
 /// Named transport theorem family. Completeness is scoped per family.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -405,44 +406,22 @@ pub enum TransportOutcomeKind {
     BudgetCancel,
 }
 
+named_variants! {
+    TransportOutcomeKind {
+        Identified => "identified",
+        ProvenNonTransportable => "proven_non_transportable",
+        NotCertified => "not_certified",
+        InvalidInput => "invalid_input",
+        MissingEvidence => "missing_evidence",
+        MissingProvider => "missing_provider",
+        UnsupportedEvaluator => "unsupported_evaluator",
+        SupportFailure => "support_failure",
+        NumericalFailure => "numerical_failure",
+        BudgetCancel => "budget_cancel",
+    }
+}
+
 impl TransportOutcomeKind {
-    /// Every stable variant, in declaration order.
-    pub const ALL: [Self; 10] = [
-        Self::Identified,
-        Self::ProvenNonTransportable,
-        Self::NotCertified,
-        Self::InvalidInput,
-        Self::MissingEvidence,
-        Self::MissingProvider,
-        Self::UnsupportedEvaluator,
-        Self::SupportFailure,
-        Self::NumericalFailure,
-        Self::BudgetCancel,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Identified => "identified",
-            Self::ProvenNonTransportable => "proven_non_transportable",
-            Self::NotCertified => "not_certified",
-            Self::InvalidInput => "invalid_input",
-            Self::MissingEvidence => "missing_evidence",
-            Self::MissingProvider => "missing_provider",
-            Self::UnsupportedEvaluator => "unsupported_evaluator",
-            Self::SupportFailure => "support_failure",
-            Self::NumericalFailure => "numerical_failure",
-            Self::BudgetCancel => "budget_cancel",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     /// The kinds a transport identification decision reports, strongest first.
     ///
     /// Every transport binding (classical, catalog, z, two-source z, mz, mixed-source,

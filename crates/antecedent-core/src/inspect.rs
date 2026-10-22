@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use crate::assumption::Assumption;
-use crate::execution::{KernelPolicy, MemoryBudget};
+use crate::execution::KernelPolicy;
 use crate::inference_realization::RealizationKind;
 use crate::physical_operator::PhysicalOperator;
 use crate::scientific_target::ScientificTarget;
@@ -220,27 +220,27 @@ impl MaterializationSnapshot {
 
 /// Resources the caller already estimated.
 ///
-/// The memory budget and the byte figure are both caller-supplied. They are
+/// The memory limit and the byte figure are both caller-supplied. They are
 /// not summed from operators and not measured.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct EstimatedResources {
-    /// Caller-supplied memory budget.
-    memory: MemoryBudget,
+    /// Caller-supplied memory limit in bytes; `None` is unlimited.
+    memory_limit_bytes: Option<u64>,
     /// Caller-supplied byte estimate.
     estimated_bytes: u64,
 }
 
 impl EstimatedResources {
-    /// Resources from the caller's `memory` budget and `estimated_bytes`.
+    /// Resources from the caller's `memory_limit_bytes` and `estimated_bytes`.
     #[must_use]
-    pub const fn declared(memory: MemoryBudget, estimated_bytes: u64) -> Self {
-        Self { memory, estimated_bytes }
+    pub const fn declared(memory_limit_bytes: Option<u64>, estimated_bytes: u64) -> Self {
+        Self { memory_limit_bytes, estimated_bytes }
     }
 
-    /// Caller-supplied memory budget.
+    /// Caller-supplied memory limit in bytes; `None` is unlimited.
     #[must_use]
-    pub const fn memory(self) -> MemoryBudget {
-        self.memory
+    pub const fn memory_limit_bytes(self) -> Option<u64> {
+        self.memory_limit_bytes
     }
 
     /// Caller-supplied byte estimate.
@@ -522,7 +522,7 @@ mod tests {
     };
     use crate::VariableId;
     use crate::assumption::{Assumption, AssumptionSet};
-    use crate::execution::{KernelPolicy, MemoryBudget};
+    use crate::execution::KernelPolicy;
     use crate::inference_realization::RealizationKind;
     use crate::intervention::Intervention;
     use crate::physical_operator::{
@@ -590,10 +590,7 @@ mod tests {
     }
 
     fn resources() -> EstimatedResources {
-        EstimatedResources::declared(
-            MemoryBudget { soft_limit_bytes: Some(10), hard_limit_bytes: Some(20) },
-            30,
-        )
+        EstimatedResources::declared(Some(20), 30)
     }
 
     fn assumptions() -> [Assumption; 2] {

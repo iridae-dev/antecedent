@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use crate::named_variants;
 use crate::{AssumptionSet, Diagnostic, IdentificationStatus, ResponseFunctional, TemporalNodeKey};
 
 /// Empirical support classification, orthogonal to structural identification.
@@ -39,33 +40,17 @@ pub enum SupportStatus {
     MissingEvidence,
 }
 
+named_variants! {
+    SupportStatus {
+        Supported => "supported",
+        WeakOverlap => "weak_overlap",
+        Extrapolative => "extrapolative",
+        OutsideEmpiricalSupport => "outside_empirical_support",
+        MissingEvidence => "missing_evidence",
+    }
+}
+
 impl SupportStatus {
-    /// Stable `snake_case` spelling used on the Python and artifact wires.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Supported => "supported",
-            Self::WeakOverlap => "weak_overlap",
-            Self::Extrapolative => "extrapolative",
-            Self::OutsideEmpiricalSupport => "outside_empirical_support",
-            Self::MissingEvidence => "missing_evidence",
-        }
-    }
-
-    /// Parse the `snake_case` wire spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::Supported,
-            Self::WeakOverlap,
-            Self::Extrapolative,
-            Self::OutsideEmpiricalSupport,
-            Self::MissingEvidence,
-        ]
-        .into_iter()
-        .find(|status| status.as_str() == name)
-    }
-
     /// Order for a worst-over-points summary: larger is weaker support.
     #[must_use]
     pub const fn severity(self) -> u8 {
@@ -100,26 +85,11 @@ pub enum DiagnosticScope {
     Inapplicable,
 }
 
-impl DiagnosticScope {
-    /// Stable `snake_case` spelling used on the Python and artifact wires.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::PerCoordinate => "per_coordinate",
-            Self::Global => "global",
-            Self::Inapplicable => "inapplicable",
-        }
-    }
-
-    /// Parse the wire spelling.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "per_coordinate" => Some(Self::PerCoordinate),
-            "global" => Some(Self::Global),
-            "inapplicable" => Some(Self::Inapplicable),
-            _ => None,
-        }
+named_variants! {
+    DiagnosticScope {
+        PerCoordinate => "per_coordinate",
+        Global => "global",
+        Inapplicable => "inapplicable",
     }
 }
 

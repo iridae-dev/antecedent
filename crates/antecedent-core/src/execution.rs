@@ -4,7 +4,8 @@
 //! or selects architecture-specific behavior outside [`KernelPolicy`].
 //!
 //! CPU and RAM admission is a shared lease. Taking a lease decrements the
-//! budget. [`MemoryBudget`] is a planner limit and is never decremented.
+//! budget. The [`AdmissionPool`] byte capacity is also the planner limit that
+//! [`ExecutionContext::memory_limit_bytes`] reports; there is no second memory account.
 //! [`ExecutionContext::map_indexed`] takes one [`AdmissionPool`] lease for its
 //! workers and returns that lease on success, failure, and cancellation. A
 //! child lease is drawn from its parent's remainder, release returns that
@@ -68,28 +69,6 @@ pub enum Determinism {
     PreferFast,
     /// Require bitwise-reproducible results for a fixed seed and thread count.
     Strict,
-}
-
-/// Memory budget for planned allocations.
-///
-/// These fields are planner limits. No path decrements them. Actual byte
-/// reservations use [`AdmissionPool`], installed with [`ExecutionContext::with_admission`].
-/// A parallel [`ExecutionContext::map_indexed`] leases worker slots; its callers
-/// reserve their scratch bytes separately, so nested work can use the same account.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct MemoryBudget {
-    /// Soft limit in bytes; planners should refuse or stream above this.
-    pub soft_limit_bytes: Option<u64>,
-    /// Hard limit in bytes; exceeding is a resource error.
-    pub hard_limit_bytes: Option<u64>,
-}
-
-impl MemoryBudget {
-    /// Unlimited budget (still subject to OS limits).
-    #[must_use]
-    pub const fn unlimited() -> Self {
-        Self { soft_limit_bytes: None, hard_limit_bytes: None }
-    }
 }
 
 /// Whether an architecture-SIMD kernel path is compiled into this build.
@@ -482,8 +461,9 @@ pub const fn checked_byte_sum(left: u64, right: u64) -> Option<u64> {
 /// Shared CPU and RAM budget.
 ///
 /// [`Self::available`] is what no open lease holds. Granting a lease decrements it. Two contexts
-/// that install the same pool compete for that one remainder. [`MemoryBudget`] is not decremented.
-/// [`ExecutionContext::map_indexed`] consults this pool for its one worker lease.
+/// that install the same pool compete for that one remainder. The byte capacity is also the planner
+/// limit ([`ExecutionContext::memory_limit_bytes`]). [`ExecutionContext::map_indexed`] consults
+/// this pool for its one worker lease.
 #[derive(Clone)]
 pub struct AdmissionPool {
     shared: Arc<SharedAdmission>,
@@ -717,14 +697,19 @@ fn credit(
     Ok(())
 }
 
-fn close_slot(state: &mut AdmissionState, index: usize) -> AdmissionRemainder {
+/// Return slot `index` to its parent or the pool.
+///
+/// When the credit does not fit, the slot is left in the table with its holdings, nothing is
+/// returned, and the overflow is reported. Nothing is dropped silently.
+fn close_slot(
+    state: &mut AdmissionState,
+    index: usize,
+) -> Result<AdmissionRemainder, AdmissionError> {
     let id = state.leases[index].id;
     let parent = state.leases[index].parent;
     let threads = state.leases[index].threads;
     let bytes = state.leases[index].bytes;
-    if let Err(error) = credit(state, parent, threads, bytes) {
-        panic!("admission credit overflow on lease {id}: {error}; the lease stays in the table");
-    }
+    credit(state, parent, threads, bytes)?;
     for slot in &mut state.leases {
         if slot.parent == Some(id) {
             slot.parent = parent;
@@ -738,7 +723,7 @@ fn close_slot(state: &mut AdmissionState, index: usize) -> AdmissionRemainder {
             held.merge(returned);
         }
     }
-    AdmissionRemainder::new(threads, bytes)
+    Ok(AdmissionRemainder::new(threads, bytes))
 }
 
 /// Return every slot marked `cancelled`, visiting each slot once.
@@ -747,30 +732,33 @@ fn close_slot(state: &mut AdmissionState, index: usize) -> AdmissionRemainder {
 /// were already kept and could miss a slot that slid into the removed index
 /// only on a later pass.
 #[cfg(test)]
-fn reap_cancelled(state: &mut AdmissionState) -> (usize, usize) {
+fn reap_cancelled(state: &mut AdmissionState) -> Result<(usize, usize), AdmissionError> {
     let mut index = 0;
     let mut removed = 0;
     let mut visits = 0;
     while index < state.leases.len() {
         visits += 1;
         if state.leases[index].cancelled {
-            close_slot(state, index);
+            close_slot(state, index)?;
             removed += 1;
         } else {
             index += 1;
         }
     }
-    (removed, visits)
+    Ok((removed, visits))
 }
 
-fn close_and_notify(shared: &SharedAdmission, id: u64) -> AdmissionRemainder {
+fn close_and_notify(
+    shared: &SharedAdmission,
+    id: u64,
+) -> Result<AdmissionRemainder, AdmissionError> {
     let mut guard = lock_mutex(&shared.state);
     let Some(index) = lease_index(&guard.leases, id) else {
-        return AdmissionRemainder::zero();
+        return Ok(AdmissionRemainder::zero());
     };
-    let remainder = close_slot(&mut guard, index);
+    let remainder = close_slot(&mut guard, index)?;
     shared.released.notify_all();
-    remainder
+    Ok(remainder)
 }
 
 /// A hold on CPU slots and RAM bytes.
@@ -907,10 +895,28 @@ impl AdmissionLease {
     ///
     /// Outstanding children keep their portion. That portion is not part of the returned
     /// remainder; each child returns it when that child is released.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the credit does not fit ([`Self::try_release`] reports it instead). The
+    /// lease then stays in the pool's table with its holdings charged.
     #[must_use = "the remainder is the CPU and RAM returned to the parent"]
     pub fn release(self) -> AdmissionRemainder {
+        match self.try_release() {
+            Ok(remainder) => remainder,
+            Err(error) => panic!("admission release failed: {error}"),
+        }
+    }
+
+    /// [`Self::release`], reporting a credit that does not fit instead of panicking.
+    ///
+    /// # Errors
+    ///
+    /// [`AdmissionError::Overflow`] when returning the holdings would overflow the parent or
+    /// the pool counters. The lease stays in the table with its holdings still charged.
+    pub fn try_release(self) -> Result<AdmissionRemainder, AdmissionError> {
         if !self.active.swap(false, Ordering::SeqCst) {
-            return AdmissionRemainder::zero();
+            return Ok(AdmissionRemainder::zero());
         }
         close_and_notify(&self.shared, self.id)
     }
@@ -919,7 +925,11 @@ impl AdmissionLease {
 impl Drop for AdmissionLease {
     fn drop(&mut self) {
         if self.active.swap(false, Ordering::SeqCst) {
-            let _ = close_and_notify(&self.shared, self.id);
+            if let Err(error) = close_and_notify(&self.shared, self.id) {
+                // The lease stays charged in the table. An accounting break is loud, but
+                // never a second panic while one is already unwinding.
+                assert!(std::thread::panicking(), "admission release failed: {error}");
+            }
         }
     }
 }
@@ -975,7 +985,9 @@ impl CancelWait {
     }
 }
 
-/// Test-only observation counter. It is not a field of [`CancelWait`].
+/// Test-only observation counter. It is not a field of [`CancelWait`], and it is compiled
+/// only for this crate's tests or under the `test-support` feature.
+#[cfg(any(test, feature = "test-support"))]
 struct AfterChecks {
     wait: CancelWait,
     left: AtomicUsize,
@@ -983,6 +995,7 @@ struct AfterChecks {
 
 enum CancelFlag {
     Production(CancelWait),
+    #[cfg(any(test, feature = "test-support"))]
     AfterChecks(AfterChecks),
 }
 
@@ -999,6 +1012,7 @@ impl CancelFlag {
     fn wait(&self) -> &CancelWait {
         match self {
             Self::Production(wait) => wait,
+            #[cfg(any(test, feature = "test-support"))]
             Self::AfterChecks(checks) => &checks.wait,
         }
     }
@@ -1018,13 +1032,16 @@ impl CancelFlag {
     /// Production reads the flag. [`CancellationToken::cancel_after_checks`] spends one
     /// observation first. That counter lives only on [`Self::AfterChecks`].
     fn is_cancelled(&self) -> bool {
-        if let Self::AfterChecks(checks) = self {
-            let expired = checks
-                .left
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
-                .is_err();
-            if expired {
-                checks.wait.wake();
+        #[cfg(any(test, feature = "test-support"))]
+        {
+            if let Self::AfterChecks(checks) = self {
+                let expired = checks
+                    .left
+                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+                    .is_err();
+                if expired {
+                    checks.wait.wake();
+                }
             }
         }
         self.is_requested()
@@ -1061,7 +1078,8 @@ impl CancellationToken {
     /// test can stop a search deterministically in the middle (every budget
     /// charge observes the token once). The counter is a separate flag body.
     /// [`Self::new`] does not carry it.
-    // doc(hidden): test helper called from integration tests across the workspace.
+    // Available to other crates' tests through the `test-support` feature only.
+    #[cfg(any(test, feature = "test-support"))]
     #[doc(hidden)]
     #[must_use]
     pub fn cancel_after_checks(checks: usize) -> Self {
@@ -1485,8 +1503,6 @@ pub struct ExecutionContext {
     pub determinism: Determinism,
     /// RNG factory (no global RNG).
     pub rng: RngFactory,
-    /// Memory budget.
-    pub memory: MemoryBudget,
     /// Cancellation token.
     pub cancellation: CancellationToken,
     /// Admission pool later acquires decrement. Clones share this handle until
@@ -1521,7 +1537,6 @@ impl ExecutionContext {
             parallelism: Parallelism::serial(),
             determinism: Determinism::Strict,
             rng: RngFactory::from_seed(seed),
-            memory: MemoryBudget::unlimited(),
             admission: AdmissionPool::fixed(1, u64::MAX),
             cancellation: CancellationToken::new(),
             progress: None,
@@ -1563,7 +1578,6 @@ impl ExecutionContext {
     /// caller with a serial inner context and spawns nothing. A second parallel call waits until the pool
     /// can hold that lease. The serial path does not take a lease, so a nested
     /// map on [`Self::serial_inner`] does not wait on the outer hold.
-    /// [`MemoryBudget`] is not consulted.
     ///
     /// # Errors
     ///
@@ -1674,6 +1688,51 @@ impl ExecutionContext {
         E: Send,
         F: Fn(usize, &Self, &mut S) -> Result<T, E> + Sync,
     {
+        self.map_indexed_with_scratch_waiting(n, make_scratch, f, MapWait::UntilAvailable)
+    }
+
+    /// [`Self::map_indexed_with_scratch`] that never waits for worker slots.
+    ///
+    /// The worker lease is taken in one immediate step. When the pool has fewer free slots
+    /// than requested, the map runs on as many workers as that refusal reported free, and
+    /// on the caller with a serial inner context when fewer than two are free. A caller
+    /// that already holds other leases on this pool cannot be blocked by a competing study.
+    ///
+    /// # Errors
+    ///
+    /// Returns the lowest-index error produced by `f`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a worker fails to write a slot at or below the first error.
+    pub fn map_indexed_with_scratch_if_free<T, S, E, F>(
+        &self,
+        n: usize,
+        make_scratch: impl Fn() -> S + Sync,
+        f: F,
+    ) -> Result<Vec<T>, E>
+    where
+        T: Send,
+        S: Send,
+        E: Send,
+        F: Fn(usize, &Self, &mut S) -> Result<T, E> + Sync,
+    {
+        self.map_indexed_with_scratch_waiting(n, make_scratch, f, MapWait::IfFree)
+    }
+
+    fn map_indexed_with_scratch_waiting<T, S, E, F>(
+        &self,
+        n: usize,
+        make_scratch: impl Fn() -> S + Sync,
+        f: F,
+        wait: MapWait,
+    ) -> Result<Vec<T>, E>
+    where
+        T: Send,
+        S: Send,
+        E: Send,
+        F: Fn(usize, &Self, &mut S) -> Result<T, E> + Sync,
+    {
         if n == 0 {
             return Ok(Vec::new());
         }
@@ -1701,11 +1760,18 @@ impl ExecutionContext {
             let mut scratch = make_scratch();
             return (0..n).map(|index| f(index, self, &mut scratch)).collect();
         };
-        let Ok(lease) = self.acquire_map_lease(worker_threads) else {
+        let acquired = match wait {
+            MapWait::UntilAvailable => {
+                self.acquire_map_lease(worker_threads).map(|lease| (worker_threads, lease))
+            }
+            MapWait::IfFree => self.acquire_map_lease_if_free(worker_threads),
+        };
+        let Ok((granted, lease)) = acquired else {
             let mut scratch = make_scratch();
             let inner = self.serial_inner();
             return (0..n).map(|index| f(index, &inner, &mut scratch)).collect();
         };
+        let threads = usize::try_from(granted).unwrap_or(threads).min(threads);
         let inner = self.serial_inner();
         let mut slots: Vec<Option<Result<T, E>>> = (0..n).map(|_| None).collect();
         let first_failure = AtomicUsize::new(usize::MAX);
@@ -1772,6 +1838,26 @@ impl ExecutionContext {
         requested.min(pool_slots)
     }
 
+    /// Immediate worker lease that shrinks to the free slots the pool reports when it
+    /// refuses, down to two. The count granted is returned with the lease.
+    fn acquire_map_lease_if_free(
+        &self,
+        threads: u32,
+    ) -> Result<(u32, AdmissionLease), AdmissionError> {
+        let mut want = threads;
+        loop {
+            match self.acquire_request(AdmissionRequest::new(want, 0), None) {
+                Ok(lease) => return Ok((want, lease)),
+                Err(AdmissionError::ExceedsRemainder { remaining_threads, .. })
+                    if remaining_threads >= 2 && remaining_threads < want =>
+                {
+                    want = remaining_threads;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
     fn acquire_map_lease(&self, threads: u32) -> Result<AdmissionLease, AdmissionError> {
         let request = AdmissionRequest::new(threads, 0);
         admit(
@@ -1797,7 +1883,6 @@ impl ExecutionContext {
             parallelism: Parallelism::bounded(threads),
             determinism: Determinism::Strict,
             rng: RngFactory::from_seed(seed),
-            memory: MemoryBudget::unlimited(),
             admission: AdmissionPool::fixed(threads.get(), u64::MAX),
             cancellation: CancellationToken::new(),
             progress: None,
@@ -1811,12 +1896,42 @@ impl ExecutionContext {
     /// Install `pool` on this context.
     ///
     /// Later acquires, including [`Self::map_indexed`], decrement `pool`. A clone taken
-    /// before this call keeps the pool it already held. [`Self::memory`] is not an
-    /// admission account and is left unchanged.
+    /// before this call keeps the pool it already held. The pool's byte capacity becomes
+    /// this context's planner limit ([`Self::memory_limit_bytes`]).
     #[must_use]
     pub fn with_admission(mut self, pool: AdmissionPool) -> Self {
         self.admission = pool;
         self
+    }
+
+    /// Planner byte limit: the byte capacity of [`Self::admission`], or `None` when that
+    /// capacity is `u64::MAX` (unlimited).
+    ///
+    /// This is the pool's capacity, not what is free. Planners refuse or stream work
+    /// whose bytes exceed it, and the same pool refuses a lease that would exceed it.
+    #[must_use]
+    pub fn memory_limit_bytes(&self) -> Option<u64> {
+        let capacity = self.admission.byte_budget();
+        (capacity != u64::MAX).then_some(capacity)
+    }
+
+    /// Replace this context's pool with a fresh one of the same thread budget and a byte
+    /// capacity of `limit` (`None` is unlimited). Clones taken earlier keep their pool. A
+    /// limit the pool already has leaves the pool, and everything sharing it, in place.
+    #[must_use]
+    pub fn with_memory_limit(mut self, limit: Option<u64>) -> Self {
+        self.set_memory_limit(limit);
+        self
+    }
+
+    /// In-place form of [`Self::with_memory_limit`].
+    pub fn set_memory_limit(&mut self, limit: Option<u64>) {
+        if self.memory_limit_bytes() == limit {
+            // Already the capacity: keep the pool, and the leases and clones sharing it.
+            return;
+        }
+        self.admission =
+            AdmissionPool::fixed(self.admission.thread_budget(), limit.unwrap_or(u64::MAX));
     }
 
     /// The pool later acquires decrement.
@@ -1830,7 +1945,7 @@ impl ExecutionContext {
     /// # Errors
     ///
     /// [`AdmissionError::ExceedsRemainder`] when the pool's remainder is short.
-    /// That refusal charges nothing. [`MemoryBudget`] is not consulted.
+    /// That refusal charges nothing.
     /// [`AdmissionError::Cancelled`] when this context is already cancelled.
     /// [`AdmissionError::Overflow`] when the lease id does not fit in `u64`.
     ///
@@ -1905,6 +2020,13 @@ impl ExecutionContext {
             wait,
         )
     }
+}
+
+/// Whether a parallel map waits for its worker slots.
+#[derive(Clone, Copy)]
+enum MapWait {
+    UntilAvailable,
+    IfFree,
 }
 
 /// A shared-scheduler refusal or the original lowest-index task error.
@@ -2017,7 +2139,7 @@ impl core::fmt::Debug for ExecutionContext {
             .field("parallelism", &self.parallelism)
             .field("determinism", &self.determinism)
             .field("rng", &self.rng)
-            .field("memory", &self.memory)
+            .field("memory_limit_bytes", &self.memory_limit_bytes())
             .field("cancellation_cancelled", &self.cancellation.is_cancelled())
             .field("progress_is_some", &self.progress.is_some())
             .field("kernel_policy", &self.kernel_policy)
@@ -2210,7 +2332,7 @@ mod tests {
     }
 
     #[test]
-    fn credit_overflow_panics_and_leaves_the_lease() {
+    fn credit_overflow_is_a_typed_error_and_leaves_the_lease() {
         let mut state = AdmissionState {
             thread_budget: u32::MAX,
             byte_budget: 0,
@@ -2227,16 +2349,8 @@ mod tests {
             next_id: 8,
             blocked_waiters: 0,
         };
-        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            close_slot(&mut state, 0);
-        }));
-        let payload = panicked.expect_err("credit overflow must panic");
-        let text = payload
-            .downcast_ref::<String>()
-            .map(String::as_str)
-            .or_else(|| payload.downcast_ref::<&str>().copied())
-            .unwrap_or_default();
-        assert!(text.contains("overflow"), "{text}");
+        let refused = close_slot(&mut state, 0).expect_err("credit overflow must be reported");
+        assert!(matches!(refused, AdmissionError::Overflow), "{refused}");
         assert_eq!(state.leases.len(), 1);
         assert_eq!(state.leases[0].id, 7);
         assert!(!state.leases[0].cancelled);
@@ -2331,7 +2445,7 @@ mod tests {
             next_id: 5,
             blocked_waiters: 0,
         };
-        let (removed, visits) = reap_cancelled(&mut state);
+        let (removed, visits) = reap_cancelled(&mut state).unwrap();
         assert_eq!(removed, 2);
         assert_eq!(visits, 4, "a restart would visit kept slots again");
         assert_eq!(state.leases.iter().map(|slot| slot.id).collect::<Vec<_>>(), vec![2, 4]);
@@ -2529,7 +2643,7 @@ mod tests {
         let shared = AdmissionPool::fixed(4, 500);
         let study_a = ExecutionContext::for_tests(1).with_admission(shared.clone());
         let study_b = ExecutionContext::for_tests(2).with_admission(shared.clone());
-        assert!(study_a.memory.hard_limit_bytes.is_none());
+        assert_eq!(study_a.memory_limit_bytes(), Some(500));
         assert_eq!(shared.thread_budget(), 4);
         assert_eq!(shared.byte_budget(), 500);
         let gate = Arc::new(Barrier::new(2));
@@ -2682,9 +2796,7 @@ mod tests {
     }
 
     fn parallel_context(pool: &AdmissionPool, seed: u64) -> ExecutionContext {
-        let mut ctx = ExecutionContext::production(seed, 2).with_admission(pool.clone());
-        ctx.memory.hard_limit_bytes = Some(pool.byte_budget());
-        ctx
+        ExecutionContext::production(seed, 2).with_admission(pool.clone())
     }
 
     struct HoldState {
@@ -2896,8 +3008,7 @@ mod tests {
     #[test]
     fn map_workers_stay_within_the_pool() {
         let shared = AdmissionPool::fixed(2, 1_000);
-        let mut ctx = ExecutionContext::production(1, 8).with_admission(shared.clone());
-        ctx.memory = MemoryBudget { soft_limit_bytes: Some(32), hard_limit_bytes: Some(64) };
+        let ctx = ExecutionContext::production(1, 8).with_admission(shared.clone());
         let barrier = Arc::new(Barrier::new(2));
         let inflight = Arc::new(AtomicUsize::new(0));
         let peak = Arc::new(AtomicUsize::new(0));
@@ -2920,16 +3031,14 @@ mod tests {
         assert_eq!(out, (0..8).collect::<Vec<_>>());
         assert_eq!(peak.load(Ordering::SeqCst), 2);
         assert_eq!(inflight.load(Ordering::SeqCst), 0);
-        assert_eq!(ctx.memory.soft_limit_bytes, Some(32));
-        assert_eq!(ctx.memory.hard_limit_bytes, Some(64));
+        assert_eq!(ctx.memory_limit_bytes(), Some(1_000));
         assert_eq!(shared.available(), AdmissionRemainder::new(2, 1_000));
     }
 
     #[test]
     fn explicit_byte_account_refuses_before_the_pool_is_charged() {
         let shared = AdmissionPool::fixed(4, 100);
-        let mut study = ExecutionContext::for_tests(1).with_admission(shared.clone());
-        study.memory = MemoryBudget { soft_limit_bytes: Some(10), hard_limit_bytes: Some(100) };
+        let study = ExecutionContext::for_tests(1).with_admission(shared.clone());
         let refused = study.acquire_admission(1, 101).unwrap_err();
         assert!(matches!(
             refused,
@@ -2946,21 +3055,20 @@ mod tests {
             AdmissionError::ExceedsRemainder { requested_bytes: 150, remaining_bytes: 100, .. }
         ));
         assert_eq!(shared.available(), AdmissionRemainder::new(4, 100));
-        assert_eq!(study.memory.soft_limit_bytes, Some(10));
-        assert_eq!(study.memory.hard_limit_bytes, Some(100));
+        assert_eq!(study.memory_limit_bytes(), Some(100));
         let granted = study.acquire_admission(1, 100).unwrap();
         assert_eq!(granted.remainder().bytes(), 100);
         assert_eq!(shared.available().bytes(), 0);
         drop(granted);
         assert_eq!(shared.available().bytes(), 100);
-        assert_eq!(study.memory.hard_limit_bytes, Some(100));
+        assert_eq!(study.memory_limit_bytes(), Some(100));
     }
 
     #[test]
     fn pool_refuses_a_request_it_cannot_fund() {
         let shared = AdmissionPool::fixed(2, 40);
         let study = ExecutionContext::for_tests(1).with_admission(shared.clone());
-        assert!(study.memory.hard_limit_bytes.is_none());
+        assert_eq!(study.memory_limit_bytes(), Some(40));
         let threads = study.acquire_admission(3, 10).unwrap_err();
         assert!(matches!(
             threads,
@@ -2983,7 +3091,7 @@ mod tests {
         ));
         assert_eq!(shared.available(), AdmissionRemainder::new(2, 40));
         assert_eq!(shared.blocked_waiters(), 0);
-        assert!(study.memory.hard_limit_bytes.is_none());
+        assert_eq!(study.memory_limit_bytes(), Some(40));
     }
 
     #[test]
@@ -3001,7 +3109,7 @@ mod tests {
             Err(AdmissionError::Overflow)
         ));
         assert_eq!(shared.available(), AdmissionRemainder::new(2, 32));
-        assert_eq!(study.memory, MemoryBudget::unlimited());
+        assert_eq!(study.memory_limit_bytes(), Some(32));
     }
 
     #[test]

@@ -55,6 +55,7 @@ pub use did::{DidSamplingDesign, PanelDidQuery};
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
 pub use functional::OutcomeFunctional;
+pub use history_match::HistoryMatchQuery;
 pub use interference::{
     AssignmentDesign, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
     ExposurePropensityProvenance, InterferenceFunctional, InterferenceQuery,
@@ -77,7 +78,6 @@ pub use response::{
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
 };
-pub use history_match::HistoryMatchQuery;
 pub use sequential_contrast::SequentialContrastQuery;
 pub use smoothed_dose::{SmoothedDoseTransportQuery, SmoothingKernel};
 pub use survival::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};

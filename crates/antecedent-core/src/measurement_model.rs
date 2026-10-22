@@ -38,6 +38,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::identity::{CanonicalWriter, SemanticDigest};
+use crate::named_variants;
 
 /// Format version of the canonical measurement-model encoding.
 pub const MEASUREMENT_MODEL_FORMAT: u16 = 1;
@@ -72,36 +73,18 @@ pub enum MeasurementKind {
     Derived,
 }
 
+named_variants! {
+    MeasurementKind {
+        Observed => "observed",
+        LatentScientific => "latent_scientific",
+        NoisyMisclassified => "noisy_misclassified",
+        ProbabilisticFeatureAssignment => "probabilistic_feature_assignment",
+        LearnedVectorRepresentation => "learned_vector_representation",
+        Derived => "derived",
+    }
+}
+
 impl MeasurementKind {
-    /// Every kind.
-    pub const ALL: [Self; 6] = [
-        Self::Observed,
-        Self::LatentScientific,
-        Self::NoisyMisclassified,
-        Self::ProbabilisticFeatureAssignment,
-        Self::LearnedVectorRepresentation,
-        Self::Derived,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Observed => "observed",
-            Self::LatentScientific => "latent_scientific",
-            Self::NoisyMisclassified => "noisy_misclassified",
-            Self::ProbabilisticFeatureAssignment => "probabilistic_feature_assignment",
-            Self::LearnedVectorRepresentation => "learned_vector_representation",
-            Self::Derived => "derived",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Observed => 1,
@@ -132,34 +115,17 @@ pub enum MeasurementRoute {
     ExternalLatentPosterior,
 }
 
+named_variants! {
+    MeasurementRoute {
+        ClassicalContinuousError => "classical_continuous_error",
+        BinaryMisclassification => "binary_misclassification",
+        RepeatedMeasurements => "repeated_measurements",
+        ProbabilisticCategorical => "probabilistic_categorical",
+        ExternalLatentPosterior => "external_latent_posterior",
+    }
+}
+
 impl MeasurementRoute {
-    /// Every route.
-    pub const ALL: [Self; 5] = [
-        Self::ClassicalContinuousError,
-        Self::BinaryMisclassification,
-        Self::RepeatedMeasurements,
-        Self::ProbabilisticCategorical,
-        Self::ExternalLatentPosterior,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ClassicalContinuousError => "classical_continuous_error",
-            Self::BinaryMisclassification => "binary_misclassification",
-            Self::RepeatedMeasurements => "repeated_measurements",
-            Self::ProbabilisticCategorical => "probabilistic_categorical",
-            Self::ExternalLatentPosterior => "external_latent_posterior",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|route| route.as_str() == name)
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::ClassicalContinuousError => 1,
@@ -906,23 +872,11 @@ pub enum ParameterUncertainty {
     NotPropagated,
 }
 
-impl ParameterUncertainty {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Propagated => "propagated",
-            Self::DeclaredExact => "declared_exact",
-            Self::NotPropagated => "not_propagated",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Propagated, Self::DeclaredExact, Self::NotPropagated]
-            .into_iter()
-            .find(|value| value.as_str() == name)
+named_variants! {
+    ParameterUncertainty {
+        Propagated => "propagated",
+        DeclaredExact => "declared_exact",
+        NotPropagated => "not_propagated",
     }
 }
 

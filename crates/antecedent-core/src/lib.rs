@@ -42,6 +42,7 @@ pub mod assumption;
 pub mod calibration_basis;
 pub mod callback;
 pub mod cancellation_boundary;
+pub mod canonical_encode;
 pub mod device_reservation;
 pub mod diagnostic;
 pub mod error;
@@ -66,6 +67,7 @@ pub mod provider_capability;
 pub mod query;
 pub mod reason_code;
 pub mod recalc;
+pub mod refusal;
 pub mod response;
 pub mod rng_key;
 pub mod route_memory;
@@ -73,7 +75,6 @@ pub mod sampling_design;
 pub mod schema;
 pub mod scientific_target;
 pub mod scratch_admission;
-pub mod scratch_pool;
 pub mod search;
 pub use search::{
     DEFAULT_SEARCH_MEMORY_BYTES, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
@@ -94,14 +95,15 @@ pub use callback::{
     BatchCallback, CallbackCall, CallbackError, CallbackImplementation, CallbackOutput,
     CallbackRefusal, CallbackSpec, PinnedDependency, Portability, RecoveryMismatch, RecoveryRecord,
 };
+pub use canonical_encode::CanonicalEncode;
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use execution::{
     ARCH_SIMD_COMPILED, AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy,
     CancellationToken, CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext,
-    ExecutionReceipt, ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget,
-    MonteCarloError, NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory,
-    StreamDomain, WeakCancellationToken, default_user_threads,
+    ExecutionReceipt, ExecutionRequestState, KernelPolicy, MonteCarloBudget, MonteCarloError,
+    NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory, StreamDomain,
+    WeakCancellationToken, default_user_threads,
 };
 pub use execution::{GOLDEN_GAMMA, derive_stream, mix64, splitmix64};
 pub use identification::{IdentificationStatus, POSTERIOR_MASS_TOLERANCE};
@@ -115,13 +117,15 @@ pub use ids::{
     QueryId, RegimeId, StateVersion, VariableId,
 };
 pub use inference_realization::{
-    ASSUMPTION_BRANCH_TAG, AssumptionBranch, DeclarationError, GENERALIZED_BAYES_TAG,
-    GeneralizedBayes, IdentifyingRestriction, LearningRate, LikelihoodModel, LossModel,
-    MissingLearningRate, NextIdentificationAttempt, ORDINARY_BAYESIAN_LIKELIHOOD_TAG,
-    OrdinaryBayesianLikelihood, PARTIAL_IDENTIFICATION_ENVELOPE_TAG, PartialIdentificationEnvelope,
-    PosteriorSample, PosteriorSampleKind, PosteriorSampleRefusal, Prior,
-    PriorIdentificationRefusal, RealizationKind, RefusedSampleKind, RestrictedPosterior,
-    SCORE_FREQUENTIST_TAG, SampleNextAttempt, ScoreFrequentist, ScoreModel,
+    ASSUMPTION_BRANCH_TAG, ATTACH_RESTRICTION_ON_ASSUMPTION_BRANCH, AssumptionBranch,
+    DeclarationError, GENERALIZED_BAYES_TAG, GeneralizedBayes, IDENTIFICATION_ATTEMPTS,
+    IdentifyingRestriction, LearningRate, LikelihoodModel, LossModel, MissingLearningRate,
+    ORDINARY_BAYESIAN_LIKELIHOOD_TAG, OrdinaryBayesianLikelihood,
+    PARTIAL_IDENTIFICATION_ENVELOPE_TAG, PartialIdentificationEnvelope, PosteriorSample,
+    PosteriorSampleKind, PosteriorSampleRefusal, Prior, PriorIdentificationRefusal,
+    REPORT_AS_IDENTIFIED_SET, REPORT_AS_SCORE_ESTIMATE, REPORT_POSTERIOR_UNDER_DECLARED_LIKELIHOOD,
+    RealizationKind, RefusedSampleKind, RestrictedPosterior, SCORE_FREQUENTIST_TAG,
+    ScoreFrequentist, ScoreModel,
 };
 pub use interval::IntervalMethod;
 pub use intervention::{
@@ -141,8 +145,9 @@ pub use physical_operator::{
     SourceDependencyId,
 };
 pub use provider_capability::{
-    CapabilityRequest, CapabilitySet, CompiledCapabilityRequest, FailedCapabilityAttempt,
-    ProviderCapability, ProviderDeclaration, ProviderDeclarationError, ProviderId,
+    CapabilityAnswer, CapabilityRequest, CapabilitySet, CompiledCapabilityRequest,
+    FailedCapabilityAttempt, ProviderCapability, ProviderCapabilityRefusal, ProviderDeclaration,
+    ProviderDeclarationError, ProviderId, UnansweredCapability,
 };
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
@@ -178,6 +183,7 @@ pub use query::{
     WorldSpec,
 };
 pub use query::{SmoothedDoseTransportQuery, SmoothingKernel};
+pub use refusal::{NextAttempt, Refusal, Refused};
 pub use response::{
     CausalResponse, CredibleDraws, DiagnosticScope, HorizonIdentification, IdentifiedSet,
     IntervalInterpretation, ResponseEnvelope, ResponseIdentification, ResponseUncertainty,

@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, count, encode_variables};
+use crate::identity::CanonicalWriter;
 use crate::ids::{DistributionRef, EnvironmentId, VariableId};
 
 use super::attribution::OrderedFloatBits;
@@ -20,6 +22,22 @@ pub enum PredicateExpr {
     Named(Arc<str>),
     /// Explicit row indices into the bound tabular view.
     Rows(Arc<[usize]>),
+}
+
+impl CanonicalEncode for PredicateExpr {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Named(name) => {
+                writer.word(1).text(name);
+            }
+            Self::Rows(rows) => {
+                writer.word(2).word(count(rows.len()));
+                for row in rows.as_ref() {
+                    writer.word(count(*row));
+                }
+            }
+        }
+    }
 }
 
 impl PredicateExpr {
@@ -96,6 +114,41 @@ pub enum TargetPopulation {
         /// Cutoff `c` (finite; `-0.0` is stored as `0.0`).
         cutoff: OrderedFloatBits,
     },
+}
+
+impl CanonicalEncode for TargetPopulation {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::AllObserved => {
+                writer.word(1);
+            }
+            Self::Treated => {
+                writer.word(2);
+            }
+            Self::Untreated => {
+                writer.word(3);
+            }
+            Self::Environment(id) => {
+                writer.word(4).word(u64::from(id.raw()));
+            }
+            Self::Predicate(predicate) => {
+                writer.word(5);
+                predicate.encode(writer);
+            }
+            Self::CustomDistribution(id) => {
+                writer.word(6).word(u64::from(id.raw()));
+            }
+            Self::RowWeights { weights, depends_on } => {
+                writer.word(7).bytes(weights);
+                encode_variables(writer, depends_on);
+            }
+            Self::LocalAtCutoff { running, cutoff } => {
+                writer.word(8);
+                running.encode(writer);
+                writer.real(cutoff.to_f64());
+            }
+        }
+    }
 }
 
 impl TargetPopulation {

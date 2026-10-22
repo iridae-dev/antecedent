@@ -22,7 +22,7 @@ pub const MAX_TEMPORAL_RESPONSE_HORIZONS: usize = 512;
 /// five unavoidable cell-scaled `f64` values (mean, lower, upper, dose, horizon)
 /// to 40 MB before support labels and allocator overhead. It is an absolute
 /// materialization guard, not a mathematical restriction; execution also
-/// honors [`crate::MemoryBudget`] when the caller supplies one.
+/// honors [`crate::ExecutionContext::memory_limit_bytes`] when the caller supplies one.
 pub const MAX_TEMPORAL_RESPONSE_CELLS: usize = 1_000_000;
 
 /// Licensed temporal-response query policy, for language facades.

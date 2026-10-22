@@ -104,6 +104,15 @@ impl OperatorEffect {
         matches!(self, Self::Solve | Self::Scan)
     }
 
+    /// Whether a declaration of this effect may set [`FrozenFitReuse::Allowed`].
+    ///
+    /// Only an effect that produces or consumes a fit, or transports a law from a
+    /// fit, has a frozen fit to reuse. Every other effect has none.
+    #[must_use]
+    pub const fn may_allow_frozen_fit_reuse(self) -> bool {
+        matches!(self, Self::Fit | Self::Transport | Self::ReuseFrozenFit)
+    }
+
     /// Whether `role` is a product of this effect.
     ///
     /// Any other output would change population, history, or a scientific
@@ -370,6 +379,15 @@ pub enum OperatorError {
     /// Frozen-fit reuse was declared with reuse forbidden.
     #[error("frozen-fit reuse must declare that frozen-fit reuse is allowed")]
     ReuseRequiresFrozenFit,
+    /// A fit declared no new nuisance fit.
+    #[error("a fit must claim a new nuisance fit; declaring no evidence claim hides the fit")]
+    FitMustClaimNuisanceFit,
+    /// Frozen-fit reuse was allowed on an effect that has no frozen fit.
+    #[error("{effect} has no frozen fit, so it cannot allow frozen-fit reuse")]
+    FrozenFitReuseNotApplicable {
+        /// Effect that declared reuse allowed.
+        effect: OperatorEffect,
+    },
     /// An output role would change population, history, or a scientific obligation.
     #[error(
         "{effect} cannot output {role}; that would change population, history, or a scientific obligation"
@@ -413,6 +431,10 @@ impl Operator {
     ///   reuse and reuse is forbidden.
     /// * [`OperatorError::SilentObligationChange`] when an output role is not
     ///   owned by the effect.
+    /// * [`OperatorError::FitMustClaimNuisanceFit`] when a fit declares
+    ///   [`EvidenceClaims::none`].
+    /// * [`OperatorError::FrozenFitReuseNotApplicable`] when reuse is allowed on an
+    ///   effect that has no frozen fit.
     pub fn new(declaration: OperatorDeclaration) -> Result<Self, OperatorError> {
         let effect = declaration.effect;
         let graph = declaration.graph;
@@ -450,6 +472,14 @@ impl Operator {
             if !effect.owns_output(*role) {
                 return Err(OperatorError::SilentObligationChange { effect, role: *role });
             }
+        }
+        if effect == OperatorEffect::Fit && !new_nuisance_fit {
+            return Err(OperatorError::FitMustClaimNuisanceFit);
+        }
+        if declaration.frozen_fit_reuse == FrozenFitReuse::Allowed
+            && !effect.may_allow_frozen_fit_reuse()
+        {
+            return Err(OperatorError::FrozenFitReuseNotApplicable { effect });
         }
         Ok(Self {
             effect,
@@ -788,6 +818,49 @@ mod tests {
         assert!(!operator.causal_feedback());
         assert_eq!(operator.effect().as_str(), "fit");
         assert_eq!(operator.graph().as_str(), "execution");
+    }
+
+    #[test]
+    fn a_fit_must_claim_a_nuisance_fit() {
+        let err =
+            Operator::new(declaration(OperatorEffect::Fit, OperatorGraph::Execution)).unwrap_err();
+        assert_eq!(err, OperatorError::FitMustClaimNuisanceFit);
+        let err = Operator::new(
+            declaration(OperatorEffect::Fit, OperatorGraph::Execution)
+                .with_evidence_claims(EvidenceClaims::observation_read()),
+        )
+        .unwrap_err();
+        assert!(matches!(err, OperatorError::UndeclaredReadOrFit { .. }));
+    }
+
+    #[test]
+    fn frozen_fit_reuse_is_refused_on_effects_with_no_frozen_fit() {
+        let cases = [
+            (OperatorEffect::Read, OperatorGraph::Provenance),
+            (OperatorEffect::Select, OperatorGraph::Provenance),
+            (OperatorEffect::Prior, OperatorGraph::Provenance),
+            (OperatorEffect::Condition, OperatorGraph::Causal),
+            (OperatorEffect::Intervene, OperatorGraph::Causal),
+            (OperatorEffect::Solve, OperatorGraph::Causal),
+            (OperatorEffect::Scan, OperatorGraph::Causal),
+        ];
+        for (effect, graph) in cases {
+            assert!(!effect.may_allow_frozen_fit_reuse());
+            let mut built =
+                declaration(effect, graph).with_frozen_fit_reuse(FrozenFitReuse::Allowed);
+            if effect == OperatorEffect::Read {
+                built = built.with_evidence_claims(EvidenceClaims::observation_read());
+            }
+            assert_eq!(
+                Operator::new(built).unwrap_err(),
+                OperatorError::FrozenFitReuseNotApplicable { effect }
+            );
+        }
+        for effect in
+            [OperatorEffect::Fit, OperatorEffect::Transport, OperatorEffect::ReuseFrozenFit]
+        {
+            assert!(effect.may_allow_frozen_fit_reuse());
+        }
     }
 
     #[test]

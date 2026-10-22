@@ -4,6 +4,9 @@
 
 use std::sync::Arc;
 
+use crate::canonical_encode::{CanonicalEncode, flag, i64_bits};
+use crate::identity::CanonicalWriter;
+
 /// Private-use marker for a symbolic intervention coordinate (`do(V)` with
 /// unspecified level). Stored as [`Value::Label`] so it participates in
 /// `Eq`/`Hash` (unlike `f64::NAN`, which breaks hash-consing).
@@ -121,6 +124,28 @@ impl PartialEq for Value {
 }
 
 impl Eq for Value {}
+
+impl CanonicalEncode for Value {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Float64(number) => {
+                writer.word(1).real(*number);
+            }
+            Self::Int64(number) => {
+                writer.word(2).word(i64_bits(*number));
+            }
+            Self::Bool(bit) => {
+                writer.word(3).word(flag(*bit));
+            }
+            Self::Category(code) => {
+                writer.word(4).word(u64::from(*code));
+            }
+            Self::Label(label) => {
+                writer.word(5).text(label);
+            }
+        }
+    }
+}
 
 impl core::hash::Hash for Value {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
