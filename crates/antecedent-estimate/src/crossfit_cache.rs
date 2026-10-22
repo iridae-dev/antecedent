@@ -30,10 +30,9 @@
 //! A cache is used only inside [`CrossfitNuisanceCache::scope`], on the
 //! calling thread: the batch runner opens one scope per query, so the
 //! single-query estimators need no new parameters. Learner-backed DML and
-//! doubly robust fits are owned by the same cache: it retains their prepared
-//! problems, charges them to the same retention budget, and their cross-fitted
-//! predictions (`learn_nuisance::cached_aipw_nuisances`) hang off that retained
-//! problem, so every worker holding it shares them. Bootstrap replicates never
+//! doubly robust fits use the same cache: it retains their prepared problems under
+//! the same retention budget, and their cross-fitted predictions live in the
+//! [`LearnerNuisanceStore`] it shares among compatible problems. Bootstrap replicates never
 //! use the cache. Retained inputs are bounded by [`MAX_RETAINED_VALUES`]; past
 //! the bound a fit simply runs unshared.
 //!
@@ -414,6 +413,62 @@ impl OutcomeLease {
         let counter = if reused { &self.cache.outcome_reuses } else { &self.cache.outcome_fits };
         counter.fetch_add(1, Ordering::AcqRel);
         note_use(None, Some(self.entry.id), &self.cache);
+    }
+}
+
+/// Most learner-backed nuisance bundles one prepared problem retains.
+const MAX_LEARNER_BUNDLES: usize = 8;
+
+/// Learner-backed (DML / doubly robust) cross-fitted bundles of one prepared problem.
+///
+/// [`share_learner_preparation`] gives every compatible problem of a cache scope the same
+/// store, so the bundles are shared under the cache's retention budget
+/// ([`learner_preparation_cost`]) and across threads. Lookup is exact on the entry's key.
+#[derive(Default)]
+pub(crate) struct LearnerNuisanceStore {
+    entries: Mutex<Vec<Arc<crate::learn_nuisance::AipwCacheEntry>>>,
+}
+
+impl std::fmt::Debug for LearnerNuisanceStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LearnerNuisanceStore").finish_non_exhaustive()
+    }
+}
+
+impl LearnerNuisanceStore {
+    /// The retained entries, for inspection.
+    pub(crate) fn lock(
+        &self,
+    ) -> std::sync::LockResult<MutexGuard<'_, Vec<Arc<crate::learn_nuisance::AipwCacheEntry>>>>
+    {
+        self.entries.lock()
+    }
+
+    /// The entry whose key `matches`, or a new one from `make`.
+    ///
+    /// Idle entries are evicted to stay within [`MAX_LEARNER_BUNDLES`]; one that a caller
+    /// still holds is never evicted, so a further key computes outside the store instead of
+    /// exceeding the bound.
+    pub(crate) fn entry(
+        &self,
+        matches: impl Fn(&crate::learn_nuisance::AipwCacheEntry) -> bool,
+        make: impl FnOnce() -> crate::learn_nuisance::AipwCacheEntry,
+    ) -> Result<Arc<crate::learn_nuisance::AipwCacheEntry>, EstimationError> {
+        let mut entries = self.entries.lock().map_err(|_| poisoned())?;
+        if let Some(entry) = entries.iter().find(|entry| matches(entry)) {
+            return Ok(Arc::clone(entry));
+        }
+        while entries.len() >= MAX_LEARNER_BUNDLES {
+            let Some(index) = entries.iter().position(|entry| Arc::strong_count(entry) == 1) else {
+                break;
+            };
+            entries.remove(index);
+        }
+        let entry = Arc::new(make());
+        if entries.len() < MAX_LEARNER_BUNDLES {
+            entries.push(Arc::clone(&entry));
+        }
+        Ok(entry)
     }
 }
 

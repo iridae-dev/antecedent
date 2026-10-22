@@ -25,8 +25,7 @@ use crate::util::stats_err;
 #[derive(Clone, Debug)]
 pub struct PreparedPropensityProblem {
     /// Shared learner nuisance cache; changing any fit input invalidates reuse.
-    pub(crate) learner_cache:
-        Arc<std::sync::Mutex<Vec<Arc<crate::learn_nuisance::AipwCacheEntry>>>>,
+    pub(crate) learner_cache: Arc<crate::crossfit_cache::LearnerNuisanceStore>,
     /// Column-major `[1 | Z…]` design used to fit the propensity model.
     pub design_matrix: Arc<[f64]>,
     /// Number of design columns (`1 + adjustment_set.len()`).

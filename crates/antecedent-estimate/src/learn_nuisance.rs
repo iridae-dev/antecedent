@@ -473,12 +473,8 @@ pub(crate) fn cached_aipw_nuisances(
     };
     check_cancel()?;
     require_populated_arms(&problem.treatment)?;
-    let entry = {
-        let mut cache = problem
-            .learner_cache
-            .lock()
-            .map_err(|_| EstimationError::stats_msg("nuisance cache lock poisoned"))?;
-        if let Some(entry) = cache.iter().find(|entry| {
+    let entry = problem.learner_cache.entry(
+        |entry| {
             Arc::ptr_eq(&entry.design, &problem.design_matrix)
                 && Arc::ptr_eq(&entry.outcome_values, &problem.outcome)
                 && Arc::ptr_eq(&entry.treatment_values, &problem.treatment)
@@ -502,43 +498,26 @@ pub(crate) fn cached_aipw_nuisances(
                     (Some(a), Some(b)) => Arc::ptr_eq(a, b),
                     _ => false,
                 }
-        }) {
-            Arc::clone(entry)
-        } else {
-            // Bound idle retention without evicting an in-flight initialization.
-            while cache.len() >= 8 {
-                let Some(index) = cache.iter().position(|entry| Arc::strong_count(entry) == 1)
-                else {
-                    break;
-                };
-                cache.remove(index);
-            }
-            let entry = Arc::new(AipwCacheEntry {
-                design: Arc::clone(&problem.design_matrix),
-                outcome_values: Arc::clone(&problem.outcome),
-                treatment_values: Arc::clone(&problem.treatment),
-                nrows: problem.nrows,
-                ncols: problem.design_ncols,
-                outcome,
-                treatment,
-                folds,
-                seed: ctx.rng.master_seed(),
-                row_index: Arc::clone(&problem.row_index),
-                fold_assignment: problem.fold_assignment.clone(),
-                fold_units: problem.fold_units.clone(),
-                fold_unit_kind: problem.fold_unit_kind,
-                fold_seed: problem.fold_seed,
-                weights: problem.sampling_weights.as_ref().map(|s| Arc::clone(&s.weights)),
-                result: std::sync::Mutex::new(None),
-            });
-            // All eight slots can be initialized concurrently. An additional key
-            // computes outside the retained cache instead of exceeding its budget.
-            if cache.len() < 8 {
-                cache.push(Arc::clone(&entry));
-            }
-            entry
-        }
-    };
+        },
+        || AipwCacheEntry {
+            design: Arc::clone(&problem.design_matrix),
+            outcome_values: Arc::clone(&problem.outcome),
+            treatment_values: Arc::clone(&problem.treatment),
+            nrows: problem.nrows,
+            ncols: problem.design_ncols,
+            outcome,
+            treatment,
+            folds,
+            seed: ctx.rng.master_seed(),
+            row_index: Arc::clone(&problem.row_index),
+            fold_assignment: problem.fold_assignment.clone(),
+            fold_units: problem.fold_units.clone(),
+            fold_unit_kind: problem.fold_unit_kind,
+            fold_seed: problem.fold_seed,
+            weights: problem.sampling_weights.as_ref().map(|s| Arc::clone(&s.weights)),
+            result: std::sync::Mutex::new(None),
+        },
+    )?;
     // Only callers for this exact key wait on the fit. Failure leaves it retryable.
     let mut slot = loop {
         check_cancel()?;
