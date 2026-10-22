@@ -223,6 +223,9 @@ impl PreparedJointResponse {
         }
         let established = obligations.iter().all(IdentificationObligation::is_identified_claim);
         let contrast = contrast_coefficients(target, &world_ids)?;
+        if let Some(coefficients) = &contrast {
+            require_estimable_under_additivity(coefficients, &weights)?;
+        }
         let target = retained_target(&source, target)?;
         let mut parts = CompiledProductParts::new(
             IdentificationOutcome::Identified,
@@ -898,6 +901,30 @@ fn retained_target(
     ))
 }
 
+/// Refuse a contrast the additive Gaussian mean cannot move.
+///
+/// The fitted mean is additive in the treatments, so a contrast whose world weights cancel
+/// (the product interaction `Y(a,b) − Y(a,0) − Y(0,b) + Y(0,0)`) would report exactly zero
+/// with zero standard error: an artifact of the model, not an estimate. That functional needs
+/// a route that fits the cell means.
+fn require_estimable_under_additivity(
+    coefficients: &[f64],
+    weights: &[Vec<f64>],
+) -> Result<(), CausalError> {
+    let width = weights.first().map_or(0, Vec::len);
+    let scale = weights.iter().flatten().fold(1.0_f64, |m, w| m.max(w.abs()));
+    let cancels = (0..width).all(|column| {
+        let combined: f64 = coefficients.iter().zip(weights).map(|(c, row)| c * row[column]).sum();
+        combined.abs() <= 8.0 * f64::EPSILON * scale
+    });
+    if cancels {
+        return Err(unsupported(
+            "the additive Gaussian response gives this contrast zero by construction; an interaction needs the cell-mean family route",
+        ));
+    }
+    Ok(())
+}
+
 fn contrast_coefficients(
     target: &ScientificTarget,
     world_ids: &[ScientificWorldId],
@@ -1088,6 +1115,25 @@ mod tests {
         )
     }
 
+    /// The four interaction cells under a linear contrast the additive response can move.
+    fn four_cell_response_target() -> ScientificTarget {
+        let cell_means = target(true);
+        let TargetForm::Contrast(interaction) = cell_means.form() else { unreachable!() };
+        let id = ScientificWorldId::from_raw;
+        ScientificTarget::new(
+            TargetForm::Contrast(
+                InterventionContrast::linear(
+                    interaction.worlds().clone(),
+                    [(id(0), -3.0), (id(1), 1.0), (id(2), 1.0), (id(3), 1.0)],
+                    id(0),
+                )
+                .unwrap(),
+            ),
+            cell_means.assumptions().clone(),
+            cell_means.inference(),
+        )
+    }
+
     #[test]
     fn joint_gaussian_compiles_without_fit_executes_shared_fit_and_retargets_after_builder_disposal()
      {
@@ -1115,14 +1161,18 @@ mod tests {
             .abs()
                 < 1e-12
         );
-        let interaction = program.retarget(&target(true), &ctx).unwrap();
+        assert!(
+            program.retarget(&target(true), &ctx).is_err(),
+            "an additive response must refuse an interaction contrast rather than report zero"
+        );
+        let cells = four_cell_response_target();
+        let interaction = program.retarget(&cells, &ctx).unwrap();
         let second = observe_with_context(&ctx, || interaction.execute(&ctx));
         assert_eq!(second.report.counts(Operation::AdjustedFit).attempted, 0);
         assert_eq!(second.report.counts(Operation::Identification).attempted, 0);
         let second = second.result.unwrap();
-        assert!(second.evaluation().contrast.unwrap().value.abs() < 1e-12);
-        // The additive interaction cancels, but a coordinated intervention must
-        // also produce a useful nonzero, jointly licensed response contrast.
+        // The additive response cannot express an interaction, but a coordinated
+        // intervention must also produce a useful nonzero, jointly licensed response contrast.
         let baseline = target(false);
         let TargetForm::Contrast(baseline_contrast) = baseline.form() else { unreachable!() };
         let linear_target = ScientificTarget::new(
@@ -1245,20 +1295,24 @@ mod tests {
                 (worlds[evaluation.draw_count + draw] - worlds[draw]).to_bits()
             );
         }
-        let retargeted = program.retarget(&target(true), &ctx).unwrap();
+        let retargeted = program.retarget(&four_cell_response_target(), &ctx).unwrap();
         let attempt = observe_with_context(&ctx, || retargeted.execute(&ctx));
         assert_eq!(attempt.report.counts(Operation::AdjustedFit).attempted, 0);
-        assert!(
-            attempt
-                .result
-                .unwrap()
-                .evaluation()
-                .contrast_draws
-                .as_ref()
-                .unwrap()
-                .iter()
-                .all(|value| value.abs() < 1e-12)
-        );
+        let retargeted_result = attempt.result.unwrap();
+        let cell = retargeted_result.evaluation();
+        let cell_worlds = cell.posterior_draws.as_ref().unwrap();
+        let cell_contrasts = cell.contrast_draws.as_ref().unwrap();
+        let draws = cell.draw_count;
+        let mut moved = false;
+        for draw in 0..draws {
+            let combined = -3.0 * cell_worlds[draw]
+                + cell_worlds[draws + draw]
+                + cell_worlds[2 * draws + draw]
+                + cell_worlds[3 * draws + draw];
+            assert!((cell_contrasts[draw] - combined).abs() < 1e-9);
+            moved |= cell_contrasts[draw].abs() > 1e-9;
+        }
+        assert!(moved, "the four-cell linear contrast must be a real draw, not an additive zero");
         source.refresh(data(1.0), &ctx).unwrap();
         let updated = source.compile_joint_response(&target(false), &ctx).unwrap();
         assert_ne!(program.source_digest(), updated.source_digest());
@@ -1371,7 +1425,7 @@ mod tests {
         assert_eq!(replay.evaluation().posterior_draws, result.evaluation().posterior_draws);
         let current = program.consume_current(&bytes, &ctx).unwrap();
         assert_eq!(current.identification().identity(), result.identification().identity());
-        let changed_target = program.retarget(&target(true), &ctx).unwrap();
+        let changed_target = program.retarget(&four_cell_response_target(), &ctx).unwrap();
         assert!(matches!(
             changed_target.consume_current(&bytes, &ctx),
             Err(JointResponseArtifactError::Mismatch)

@@ -68,6 +68,19 @@ supported source/design proofs and joint-assignment attempts. Unsupported worlds
 remain unresolved or model-conditional; per-period assignment does not silently
 identify an entire trajectory.
 
+Inspection lists the design attempts in order, including the ones that failed: the
+joint Gaussian route, observational joint adjustment, and known randomized
+assignment of whole programs. Every refused or unsupported attempt names the next
+attempt (for example, collecting positive-probability whole-program assignments).
+A confounded design with unsupported joint worlds therefore keeps its fitted
+mechanism, but withholds a causal claim for those worlds.
+
+The static joint Gaussian response is additive in its treatments. It refuses a contrast
+whose world weights cancel under that model (the product interaction), because the answer
+would be zero with zero standard error by construction; an interaction is estimated from
+the cell-mean family contrast, or from the nonlinear panel family. A linear contrast of
+the same worlds that the additive mean can move is executed from the retained fit.
+
 Rust `mean_source`, `law_source` and `project_*_source` ports retain scientific
 standing and the exact projected question for decision and search consumers.
 Model-conditional consumption must be explicit. Accessors named `numerical_*`
