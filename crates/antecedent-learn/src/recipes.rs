@@ -984,27 +984,31 @@ fn require_capabilities(
     provider: &ProviderDeclaration,
     required: &[ProviderCapability],
 ) -> Result<(), RecipeError> {
-    for &capability in required {
-        let request = CapabilityRequest::new(capability);
-        let missing = |failed: FailedCapabilityAttempt| RecipeError::MissingCapability {
+    let missing = |capability: ProviderCapability, failed: FailedCapabilityAttempt| {
+        RecipeError::MissingCapability {
             provider: failed.provider(),
             provider_name: failed.provider_name().to_owned(),
             capability,
             legal_next: failed.legal_next(),
             next_attempt: DECLARE_REQUIRED_CAPABILITIES,
-        };
-        if is_log_density_or_update(capability) {
-            provider.compile(request).map_err(missing)?;
-            if provider.compile_verified(request).is_err() {
-                return Err(RecipeError::UnansweredCall {
-                    provider: provider.id(),
-                    provider_name: provider.name().to_owned(),
-                    capability,
-                    next_attempt: ANSWER_CAPABILITY_CALL,
-                });
-            }
-        } else if let Err(failed) = provider.compile(request) {
-            return Err(missing(failed));
+        }
+    };
+    // Every declaration is checked before any call is probed, so a missing declaration is
+    // reported ahead of an unanswered call.
+    for &capability in required {
+        provider
+            .compile(CapabilityRequest::new(capability))
+            .map_err(|failed| missing(capability, failed))?;
+    }
+    for &capability in required.iter().filter(|&&capability| is_log_density_or_update(capability))
+    {
+        if provider.compile_verified(CapabilityRequest::new(capability)).is_err() {
+            return Err(RecipeError::UnansweredCall {
+                provider: provider.id(),
+                provider_name: provider.name().to_owned(),
+                capability,
+                next_attempt: ANSWER_CAPABILITY_CALL,
+            });
         }
     }
     Ok(())

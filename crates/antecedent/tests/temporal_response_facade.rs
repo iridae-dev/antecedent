@@ -321,7 +321,7 @@ fn temporal_surface_honors_execution_memory_budget() {
     ctx.set_memory_limit(Some(159));
 
     let error = study.run(&ctx).unwrap_err();
-    assert!(error.to_string().contains("at least 160 output bytes"), "got {error}");
+    assert!(error.to_string().contains("exceeds memory limit 159"), "got {error}");
 }
 
 #[test]
