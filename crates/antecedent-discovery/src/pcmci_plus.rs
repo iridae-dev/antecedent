@@ -149,7 +149,7 @@ impl PcmciPlus {
         )?;
         crate::ci::ensure_ci_fits_frame(&*self.engine.ci, frame)?;
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
-        if let Some(hard) = ctx.memory.hard_limit_bytes {
+        if let Some(hard) = ctx.memory_limit_bytes() {
             if frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {
                     message: "lagged frames exceed ExecutionContext memory hard limit",

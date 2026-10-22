@@ -1219,7 +1219,6 @@ fn reduce(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_core::MemoryBudget;
 
     use crate::test_support::{d, v};
 
@@ -1353,7 +1352,7 @@ mod tests {
         let error = reduce(&diagram, &query, &mut search).unwrap_err();
         assert_eq!(search.stop_of(&error), antecedent_core::SearchStop::Operations);
         let mut small = ExecutionContext::for_tests(1);
-        small.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(8) };
+        small.set_memory_limit(Some(8));
         let mut search = SharedSearch::new(SearchBudget::new(limits, &small).unwrap());
         let error = reduce(&diagram, &query, &mut search).unwrap_err();
         assert_eq!(search.stop_of(&error), antecedent_core::SearchStop::Memory);
@@ -1423,7 +1422,7 @@ mod tests {
         assert_eq!(search.stop_of(&error), antecedent_core::SearchStop::Operations);
         assert_eq!(search.operations(), 1, "the search test ran, the check test did not");
         let mut small = ExecutionContext::for_tests(1);
-        small.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(8) };
+        small.set_memory_limit(Some(8));
         let mut search = SharedSearch::new(SearchBudget::new(limits, &small).unwrap());
         let error =
             verify_search_reduction(&diagram, &query, &[], &[v(2)], &mut search).unwrap_err();
@@ -1464,7 +1463,7 @@ mod tests {
         assert!(limit >= dropped && limit >= reduction.max(classical).max(binding));
         let at = |hard: u64| {
             let mut tight = ExecutionContext::for_tests(1);
-            tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(hard) };
+            tight.set_memory_limit(Some(hard));
             decide_admg_conditional_transport(&diagram, &query, &catalog, limits, &tight).unwrap()
         };
         let ConditionalTransportDecision::Exhausted(receipt) = at(limit) else {
@@ -1539,8 +1538,7 @@ mod tests {
             "the witness attempt charges {attempt} bytes"
         );
         let mut tight = ExecutionContext::for_tests(1);
-        tight.memory =
-            MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(witness_peak - 1) };
+        tight.set_memory_limit(Some(witness_peak - 1));
         let ConditionalTransportDecision::Exhausted(receipt) =
             decide_admg_conditional_transport(&diagram, &query, &catalog, limits, &tight).unwrap()
         else {

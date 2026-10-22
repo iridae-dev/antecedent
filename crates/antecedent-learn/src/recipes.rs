@@ -30,8 +30,8 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use antecedent_core::{
-    CapabilityRequest, InferenceSelection, ProviderCapability, ProviderDeclaration, ProviderId,
-    is_blank,
+    CapabilityRequest, FailedCapabilityAttempt, InferenceSelection, ProviderCapability,
+    ProviderDeclaration, ProviderId, is_blank,
 };
 
 /// Name frequentist, Bayesian, or generalized Bayesian on a component, or omit it.
@@ -334,7 +334,6 @@ impl Recipe {
             return Err(prediction_only_likelihood(self.kind, provider));
         }
         require_capabilities(provider, self.required)?;
-        probe_required_calls(provider, self.required)?;
         Ok(AcceptedProvider { provider: provider.id(), recipe: *self })
     }
 
@@ -965,26 +964,6 @@ fn prediction_only_likelihood(kind: RecipeKind, provider: &ProviderDeclaration) 
     }
 }
 
-fn probe_required_calls(
-    provider: &ProviderDeclaration,
-    required: &[ProviderCapability],
-) -> Result<(), RecipeError> {
-    for &capability in required {
-        if !is_log_density_or_update(capability) {
-            continue;
-        }
-        if let Err(failed) = provider.probe(CapabilityRequest::new(capability)) {
-            return Err(RecipeError::UnansweredCall {
-                provider: failed.provider(),
-                provider_name: failed.provider_name().to_owned(),
-                capability: failed.capability(),
-                next_attempt: ANSWER_CAPABILITY_CALL,
-            });
-        }
-    }
-    Ok(())
-}
-
 const fn is_log_density_or_update(capability: ProviderCapability) -> bool {
     matches!(
         capability,
@@ -994,19 +973,38 @@ const fn is_log_density_or_update(capability: ProviderCapability) -> bool {
     )
 }
 
+/// Check every required capability against the declaration, and each required
+/// log density or update against the body as well.
+///
+/// A log density or update is compiled with
+/// [`ProviderDeclaration::compile_verified`], so a declared call the body does
+/// not supply is refused. Other capabilities have no body call to probe, so the
+/// declaration is the only evidence and the plain compile is the check.
 fn require_capabilities(
     provider: &ProviderDeclaration,
     required: &[ProviderCapability],
 ) -> Result<(), RecipeError> {
     for &capability in required {
-        if let Err(failed) = provider.compile(CapabilityRequest::new(capability)) {
-            return Err(RecipeError::MissingCapability {
-                provider: failed.provider(),
-                provider_name: failed.provider_name().to_owned(),
-                capability,
-                legal_next: failed.legal_next(),
-                next_attempt: DECLARE_REQUIRED_CAPABILITIES,
-            });
+        let request = CapabilityRequest::new(capability);
+        let missing = |failed: FailedCapabilityAttempt| RecipeError::MissingCapability {
+            provider: failed.provider(),
+            provider_name: failed.provider_name().to_owned(),
+            capability,
+            legal_next: failed.legal_next(),
+            next_attempt: DECLARE_REQUIRED_CAPABILITIES,
+        };
+        if is_log_density_or_update(capability) {
+            provider.compile(request).map_err(missing)?;
+            if provider.compile_verified(request).is_err() {
+                return Err(RecipeError::UnansweredCall {
+                    provider: provider.id(),
+                    provider_name: provider.name().to_owned(),
+                    capability,
+                    next_attempt: ANSWER_CAPABILITY_CALL,
+                });
+            }
+        } else if let Err(failed) = provider.compile(request) {
+            return Err(missing(failed));
         }
     }
     Ok(())
@@ -1569,10 +1567,7 @@ mod tests {
             }
         );
         let answering = declared.answering([ProviderCapability::DifferentiableLogDensity]);
-        assert_eq!(
-            glm.accept_provider(&answering).unwrap().provider(),
-            ProviderId::from_raw(21)
-        );
+        assert_eq!(glm.accept_provider(&answering).unwrap().provider(), ProviderId::from_raw(21));
 
         let bayes = Recipe::new(RecipeKind::LinearGaussian, InferenceSelection::Bayesian).unwrap();
         let likelihood = declare(

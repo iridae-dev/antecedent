@@ -887,7 +887,7 @@ pub fn decide_scenario_question(
         question: question.clone(),
         decisions,
         receipt,
-        limits: ScenarioDecisionLimits { budget, memory_limit_bytes: ctx.memory.hard_limit_bytes },
+        limits: ScenarioDecisionLimits { budget, memory_limit_bytes: ctx.memory_limit_bytes() },
     })
 }
 

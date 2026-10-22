@@ -111,6 +111,7 @@ use super::procedure_law::{apply_exploration_floor, first_maximum, normalize_pro
 use super::procedure_repeated_measures::{CellLabel, MAX_UNIT_LAG};
 use super::procedure_simulation::{MAX_SIMULATION_REPLICATIONS, draw};
 use super::procedure_uncertainty::DERIVED_UNMEASURED;
+use antecedent_core::named_variants;
 
 /// Most binary responses per participant.
 pub const MAX_PARTICIPANT_RESPONSES: u32 = 32;
@@ -687,26 +688,16 @@ pub enum StopReason {
     Horizon,
 }
 
+named_variants! {
+    StopReason {
+        ExpectedLoss => "expected_loss",
+        Futility => "futility",
+        RecruitmentCap => "recruitment_cap",
+        Horizon => "horizon",
+    }
+}
+
 impl StopReason {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ExpectedLoss => "expected_loss",
-            Self::Futility => "futility",
-            Self::RecruitmentCap => "recruitment_cap",
-            Self::Horizon => "horizon",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::ExpectedLoss, Self::Futility, Self::RecruitmentCap, Self::Horizon]
-            .into_iter()
-            .find(|reason| reason.as_str() == name)
-    }
-
     /// Whether a declared decision, rather than the schedule, ended the
     /// procedure.
     #[must_use]

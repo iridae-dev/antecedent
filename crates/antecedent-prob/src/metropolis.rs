@@ -119,15 +119,12 @@ where
         let mut rng =
             ctx.rng.stream(antecedent_core::derive_stream(0x4359_434c_4943_4d48, chain as u64));
         let (mut current, mut logp) = if spread > 0.0 {
-            let mut start_rng = ctx
-                .rng
-                .stream(antecedent_core::derive_stream(0x4359_434c_5354_5254, chain as u64));
+            let mut start_rng =
+                ctx.rng.stream(antecedent_core::derive_stream(0x4359_434c_5354_5254, chain as u64));
             let mut found = None;
             for _ in 0..64 {
-                let start: Vec<f64> = initial
-                    .iter()
-                    .map(|x| x + spread * standard_normal(&mut start_rng))
-                    .collect();
+                let start: Vec<f64> =
+                    initial.iter().map(|x| x + spread * standard_normal(&mut start_rng)).collect();
                 let logp = log_density(&start);
                 if logp.is_finite() {
                     found = Some((start, logp));
@@ -173,9 +170,13 @@ mod tests {
         let options =
             MetropolisOptions { chains: 4, warmup: 400, draws: 3000, proposal_scale: 1.0 };
         let run = || {
-            sample_metropolis_dispersed(&[0.0], 4.0, options, &ExecutionContext::for_tests(42), |x| {
-                -0.5 * x[0].powi(2)
-            })
+            sample_metropolis_dispersed(
+                &[0.0],
+                4.0,
+                options,
+                &ExecutionContext::for_tests(42),
+                |x| -0.5 * x[0].powi(2),
+            )
             .unwrap()
         };
         let a = run();

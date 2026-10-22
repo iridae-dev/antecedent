@@ -867,10 +867,9 @@ pub(crate) fn fill_resample_weight_batch(
 /// the output does not depend on the thread count; the first error wins.
 ///
 /// Scratch is one length-`n` buffer per worker. The worker count does not exceed
-/// the admission pool. A product that overflows, a byte count above the hard
-/// limit, or a pool that cannot fund that scratch returns before `fill` runs
-/// and before any scratch buffer is allocated. [`ExecutionContext::memory`] is
-/// not decremented.
+/// the admission pool. A product that overflows or a pool that cannot fund
+/// that scratch returns before `fill` runs and before any scratch buffer is
+/// allocated.
 fn fill_replicate_rows<T: Copy + Send>(
     ctx: &ExecutionContext,
     n: usize,
@@ -929,8 +928,8 @@ fn fill_replicate_rows<T: Copy + Send>(
 ///
 /// # Errors
 ///
-/// The product does not fit in `u64`, the hard byte limit is lower, the
-/// admission pool cannot fund it, or the study is cancelled. Nothing is
+/// The product does not fit in `u64`, the admission pool cannot fund it, or
+/// the study is cancelled. Nothing is
 /// allocated.
 fn admit_resample_scratch<T>(
     ctx: &ExecutionContext,
@@ -945,9 +944,6 @@ fn admit_resample_scratch<T>(
         ScratchRefusal::Overflow => {
             DataError::InvalidArgument { message: "resample scratch size overflow".into() }
         }
-        ScratchRefusal::HardLimit { .. } => DataError::InvalidArgument {
-            message: "resample scratch exceeds the hard byte limit".into(),
-        },
         ScratchRefusal::PoolShort { .. } => DataError::InvalidArgument {
             message: "admission pool cannot fund the resample scratch".into(),
         },
@@ -1143,8 +1139,8 @@ mod tests {
 
     use antecedent_core::execution::AdmissionPool;
     use antecedent_core::{
-        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, MemoryBudget, RoleHint,
-        SmallRoleSet, ValueType, VariableId,
+        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+        VariableId,
     };
 
     use super::*;
@@ -1616,8 +1612,7 @@ mod tests {
         let replicates = 8usize;
         let scratch_bytes = u64::try_from(n * 2 * size_of::<u64>()).unwrap();
         let shared = AdmissionPool::fixed(2, scratch_bytes);
-        let mut ctx = ExecutionContext::production(1, 8).with_admission(shared.clone());
-        ctx.memory = MemoryBudget { soft_limit_bytes: Some(1), hard_limit_bytes: None };
+        let ctx = ExecutionContext::production(1, 8).with_admission(shared.clone());
         let barrier = Arc::new(Barrier::new(2));
         let inflight = Arc::new(AtomicUsize::new(0));
         let peak = Arc::new(AtomicUsize::new(0));
@@ -1636,8 +1631,7 @@ mod tests {
         assert_eq!(peak.load(Ordering::SeqCst), 2);
         assert!(n * 2 * size_of::<u64>() <= usize::try_from(shared.byte_budget()).unwrap());
         assert_eq!(inflight.load(Ordering::SeqCst), 0);
-        assert_eq!(ctx.memory.soft_limit_bytes, Some(1));
-        assert!(ctx.memory.hard_limit_bytes.is_none());
+        assert_eq!(ctx.memory_limit_bytes(), Some(scratch_bytes));
         assert_eq!(shared.available().threads(), 2);
         assert_eq!(shared.available().bytes(), scratch_bytes);
     }
@@ -1647,9 +1641,8 @@ mod tests {
         let n = 4usize;
         let replicates = 2usize;
         let bytes = u64::try_from(n * size_of::<GlobalId>()).unwrap();
-        let mut ctx = ExecutionContext::for_tests(1)
+        let ctx = ExecutionContext::for_tests(1)
             .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, bytes - 1));
-        ctx.memory = MemoryBudget { soft_limit_bytes: Some(1), hard_limit_bytes: Some(bytes - 1) };
         let mut out = vec![GlobalId::new(9); n * replicates];
         let error = fill_resample_index_batch(
             ResamplingPlan::IidBootstrap,
@@ -1663,8 +1656,7 @@ mod tests {
         .unwrap_err();
         assert!(error.to_string().contains("admission pool"), "{error}");
         assert!(out.iter().all(|id| id.get() == 9));
-        assert_eq!(ctx.memory.soft_limit_bytes, Some(1));
-        assert_eq!(ctx.memory.hard_limit_bytes, Some(bytes - 1));
+        assert_eq!(ctx.memory_limit_bytes(), Some(bytes - 1));
     }
 
     #[test]
@@ -1682,7 +1674,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(calls.load(Ordering::SeqCst), 0);
         assert!(error.to_string().contains("overflow"), "{error}");
-        assert_eq!(ctx.memory, MemoryBudget::unlimited());
+        assert!(ctx.memory_limit_bytes().is_none());
     }
 
     #[test]
@@ -1775,7 +1767,7 @@ mod tests {
         assert!(out.iter().all(|value| *value == 7));
         assert_eq!(shared.available().threads(), 2);
         assert_eq!(shared.available().bytes(), bytes - 1);
-        assert!(ctx.memory.hard_limit_bytes.is_none());
+        assert_eq!(ctx.memory_limit_bytes(), Some(bytes - 1));
     }
 
     #[test]

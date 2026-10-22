@@ -213,7 +213,7 @@ impl FittedEffect {
             .and_then(|n| n.checked_mul(8))
             .ok_or(FittedEffectError::InvalidArgument("prediction workspace overflow"))?;
         if ctx.cancellation.is_cancelled()
-            || ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes as u64 > limit)
+            || ctx.memory_limit_bytes().is_some_and(|limit| bytes as u64 > limit)
         {
             return Err(FittedEffectError::InvalidArgument(
                 "prediction workspace budget/cancellation",

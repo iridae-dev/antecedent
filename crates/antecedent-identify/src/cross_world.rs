@@ -222,8 +222,7 @@ pub fn check_cross_world_edges(
     ) {
         return Err(CrossWorldRefusal::graph(refusal.to_string()));
     }
-    let order = topological_order(node_count, edges)
-        .expect("a directed cycle was already refused");
+    let order = topological_order(node_count, edges).expect("a directed cycle was already refused");
     let mut sorted = edges.to_vec();
     sorted.sort_unstable();
     sorted.dedup();

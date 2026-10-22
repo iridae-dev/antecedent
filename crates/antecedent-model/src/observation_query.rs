@@ -49,6 +49,7 @@ use std::collections::BTreeSet;
 use antecedent_core::ExecutionContext;
 
 use crate::compose::{ComposedFinite, CompositionError, FiniteLaw};
+use antecedent_core::named_variants;
 
 /// Largest observation count an evidence-requirement solve may search or return.
 pub const MAX_REQUIRED_OBSERVATIONS: u64 = 1 << 24;
@@ -73,24 +74,10 @@ pub enum Direction {
     Lower,
 }
 
-impl Direction {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Raise => "raise",
-            Self::Lower => "lower",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "raise" => Some(Self::Raise),
-            "lower" => Some(Self::Lower),
-            _ => None,
-        }
+named_variants! {
+    Direction {
+        Raise => "raise",
+        Lower => "lower",
     }
 }
 

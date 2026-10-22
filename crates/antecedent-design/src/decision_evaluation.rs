@@ -189,10 +189,7 @@ pub fn evaluate_on_means(
 
 fn means_insufficient(needed: Vec<SourceRepresentation>) -> EvaluationError {
     let predictions = needed.iter().any(|representation| {
-        matches!(
-            representation,
-            SourceRepresentation::Cdf | SourceRepresentation::QuantileFunction
-        )
+        matches!(representation, SourceRepresentation::Cdf | SourceRepresentation::QuantileFunction)
     });
     let draws = needed.iter().any(|representation| {
         matches!(

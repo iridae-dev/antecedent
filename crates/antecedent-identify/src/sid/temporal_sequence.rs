@@ -1024,7 +1024,7 @@ fn decide_inner(
     spec.check_catalog(catalog)?;
     catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
     let query = spec.question(source, target);
-    let limits = TemporalDecisionLimits { budget, memory_limit_bytes: ctx.memory.hard_limit_bytes };
+    let limits = TemporalDecisionLimits { budget, memory_limit_bytes: ctx.memory_limit_bytes() };
     let mut receipt = None;
     let mut histories = HistoryLattice::default();
     let outcome: TemporalOutcome;

@@ -222,10 +222,7 @@ fn negative_and_positive_zero_utilities_are_tied() {
     zero.actions[1].inputs = zero.actions[0].inputs.clone();
     let result = evaluate_contract_on_means(&zero, &source("mean")).unwrap();
     assert_eq!(result.verdict, Verdict::Indistinguishable(vec!["wait".into(), "treat".into()]));
-    assert_eq!(
-        result.criterion_label,
-        "expected utility of a frequentist point estimate",
-    );
+    assert_eq!(result.criterion_label, "expected utility of a frequentist point estimate",);
 }
 
 #[test]

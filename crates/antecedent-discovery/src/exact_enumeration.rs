@@ -94,7 +94,7 @@ impl ExactDagPosterior {
         // exact labeled DAG counts for the supported sizes 0..=6.
         let dag_counts: [u64; 7] = [1, 1, 3, 25, 543, 29_281, 3_781_503];
         let est_bytes = dag_counts[n].saturating_mul(32);
-        if let Some(hard) = ctx.memory.hard_limit_bytes {
+        if let Some(hard) = ctx.memory_limit_bytes() {
             if est_bytes > hard {
                 return Err(DiscoveryError::Resource(format!(
                     "exact DAG enumeration needs ~{est_bytes} bytes; hard limit {hard}"
@@ -400,7 +400,7 @@ mod tests {
     fn exact_enumeration_honors_memory_budget_and_hard_node_cap() {
         let (data, variables) = chain_tabular(20, 5);
         let mut context = ExecutionContext::for_tests(1);
-        context.memory.hard_limit_bytes = Some(1);
+        context.set_memory_limit(Some(1));
         let result = ExactDagPosterior::new().run(
             &data,
             &variables,

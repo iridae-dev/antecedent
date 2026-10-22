@@ -21,10 +21,9 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CanonicalWriter, Diagnostic, IdentificationStatus, ParametricAssumption,
-    PriorAssumption, ScientificTarget, ScientificWorldId, SemanticDigest, TargetForm, Value,
-    VariableId,
+    AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource, AssumptionStatus,
+    CanonicalEncode, CanonicalWriter, Diagnostic, IdentificationStatus, ScientificTarget,
+    ScientificWorldId, SemanticDigest, TargetForm, VariableId,
 };
 use antecedent_expr::{
     CausalExprArena, ContrastOp, DomainRef, ExprId, ExprListId, ExprNode, IdentifiedEstimand,
@@ -993,7 +992,7 @@ fn write_arena(writer: &mut CanonicalWriter, arena: &CausalExprArena) {
         writer.word(count(assignments.len()));
         for assignment in assignments {
             writer.word(u64::from(assignment.variable.raw()));
-            write_value(writer, &assignment.value);
+            assignment.value.encode(writer);
         }
     }
     writer.word(count(arena.list_count()));
@@ -1087,31 +1086,6 @@ fn write_contrast_op(writer: &mut CanonicalWriter, op: ContrastOp) {
     }
 }
 
-fn write_value(writer: &mut CanonicalWriter, value: &Value) {
-    match value {
-        Value::Float64(number) => {
-            writer.word(1);
-            writer.real(*number);
-        }
-        Value::Int64(number) => {
-            writer.word(2);
-            writer.word(u64::from_le_bytes(number.to_le_bytes()));
-        }
-        Value::Bool(bit) => {
-            writer.word(3);
-            writer.word(u64::from(u8::from(*bit)));
-        }
-        Value::Category(code) => {
-            writer.word(4);
-            writer.word(u64::from(*code));
-        }
-        Value::Label(label) => {
-            writer.word(5);
-            writer.text(label);
-        }
-    }
-}
-
 fn write_derivation(writer: &mut CanonicalWriter, derivation: &crate::result::DerivationTrace) {
     writer.word(count(derivation.steps.len()));
     for step in &derivation.steps {
@@ -1128,72 +1102,10 @@ fn write_assumptions(writer: &mut CanonicalWriter, assumptions: &AssumptionSet) 
 }
 
 fn write_assumption_record(writer: &mut CanonicalWriter, record: &AssumptionRecord) {
-    write_assumption(writer, &record.assumption);
+    record.assumption.encode(writer);
     write_assumption_source(writer, &record.source);
     write_assumption_scope(writer, &record.scope);
     writer.word(assumption_status_code(record.status));
-}
-
-fn write_assumption(writer: &mut CanonicalWriter, assumption: &Assumption) {
-    match assumption {
-        Assumption::CausalMarkov => {
-            writer.word(1);
-        }
-        Assumption::Faithfulness => {
-            writer.word(2);
-        }
-        Assumption::CausalSufficiency => {
-            writer.word(3);
-        }
-        Assumption::Consistency => {
-            writer.word(4);
-        }
-        Assumption::Positivity => {
-            writer.word(5);
-        }
-        Assumption::NoInterference => {
-            writer.word(6);
-        }
-        Assumption::Stationarity => {
-            writer.word(7);
-        }
-        Assumption::PiecewiseStationarity => {
-            writer.word(8);
-        }
-        Assumption::NoSelectionBias => {
-            writer.word(9);
-        }
-        Assumption::ExclusionRestriction { instrument } => {
-            writer.word(10);
-            writer.word(u64::from(instrument.raw()));
-        }
-        Assumption::Monotonicity => {
-            writer.word(11);
-        }
-        Assumption::ParametricRestriction(restriction) => {
-            writer.word(12);
-            write_parametric(writer, restriction);
-        }
-        Assumption::PriorRestriction(restriction) => {
-            writer.word(13);
-            write_prior(writer, restriction);
-        }
-        Assumption::Custom { id, description } => {
-            writer.word(14);
-            writer.text(id);
-            writer.text(description);
-        }
-    }
-}
-
-fn write_parametric(writer: &mut CanonicalWriter, restriction: &ParametricAssumption) {
-    writer.text(&restriction.id);
-    writer.text(&restriction.description);
-}
-
-fn write_prior(writer: &mut CanonicalWriter, restriction: &PriorAssumption) {
-    writer.text(&restriction.id);
-    writer.text(&restriction.description);
 }
 
 fn write_assumption_source(writer: &mut CanonicalWriter, source: &AssumptionSource) {

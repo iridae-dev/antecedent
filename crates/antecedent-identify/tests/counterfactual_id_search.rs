@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     CounterfactualEvent, CounterfactualEventQuery, EdgeRoute, ExecutionContext, ExogenousCoupling,
-    MemoryBudget, RegimeId, SearchLimits, SearchStop, Value, VariableId, WorldId, WorldSpec,
+    RegimeId, SearchLimits, SearchStop, Value, VariableId, WorldId, WorldSpec,
 };
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
 use antecedent_identify::counterfactual_id::{
@@ -888,7 +888,7 @@ fn the_one_budget_stops_with_receipts_never_a_verdict() {
     );
     // Memory: the context's hard limit caps the search.
     let mut small = ctx();
-    small.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(64) };
+    small.set_memory_limit(Some(64));
     let refusal = decide_counterfactual_id(
         &problem,
         &query,

@@ -233,8 +233,7 @@ impl ResourceBudget {
     /// context sets none).
     #[must_use]
     pub fn from_context(ctx: &ExecutionContext) -> Self {
-        let configured =
-            [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes].into_iter().flatten().min();
+        let configured = ctx.memory_limit_bytes();
         Self {
             max_work: MAX_SIMULATION_WORK,
             max_memory_bytes: configured.unwrap_or(MAX_SIMULATION_MEMORY_BYTES),

@@ -929,7 +929,7 @@ fn decide_enumerated(
         question: question.clone(),
         decisions,
         receipt: receipt.clone(),
-        limits: ScenarioDecisionLimits { budget, memory_limit_bytes: ctx.memory.hard_limit_bytes },
+        limits: ScenarioDecisionLimits { budget, memory_limit_bytes: ctx.memory_limit_bytes() },
     };
     Ok(CpdagCompletionDecision {
         cpdag_identity: enumeration.cpdag_identity,

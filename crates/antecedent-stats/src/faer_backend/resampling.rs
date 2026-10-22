@@ -58,8 +58,6 @@ impl ResampledLeastSquares {
             || ctx.kernel_policy.force_scalar
             || !ctx.cache_policy.enabled
             || ctx.cancellation.is_cancelled()
-            || ctx.memory.hard_limit_bytes.is_some()
-            || ctx.memory.soft_limit_bytes.is_some()
             || ctx.admission.byte_budget() != u64::MAX
             || ctx.cache_policy.max_bytes.is_some_and(|cap| retained as u64 > cap)
             || x[..cells].iter().chain(y).any(|v| !v.is_finite())

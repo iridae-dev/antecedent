@@ -487,8 +487,7 @@ impl MzTransportDerivation {
             depth: record.search.depth_limit,
         };
         let memory_cap = ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .map_or(MZ_TRANSPORT_MEMORY_BYTES, |h| h.min(MZ_TRANSPORT_MEMORY_BYTES));
         if stored.operations > limits.operations
             || stored.depth > limits.depth

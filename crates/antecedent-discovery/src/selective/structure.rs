@@ -16,6 +16,7 @@ use antecedent_graph::{
 };
 
 use super::identity::Digest;
+use antecedent_core::named_variants;
 
 const STRUCTURE_TAG: &str = "antecedent.selective_discovery.structure.v1";
 
@@ -32,26 +33,16 @@ pub enum StructureClass {
     TemporalCpdag,
 }
 
+named_variants! {
+    StructureClass {
+        Cpdag => "cpdag",
+        Pag => "pag",
+        TemporalDag => "temporal_dag",
+        TemporalCpdag => "temporal_cpdag",
+    }
+}
+
 impl StructureClass {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Cpdag => "cpdag",
-            Self::Pag => "pag",
-            Self::TemporalDag => "temporal_dag",
-            Self::TemporalCpdag => "temporal_cpdag",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Cpdag, Self::Pag, Self::TemporalDag, Self::TemporalCpdag]
-            .into_iter()
-            .find(|class| class.as_str() == name)
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Cpdag => 0,
@@ -131,6 +122,15 @@ pub enum Mark {
     Conflict,
 }
 
+named_variants! {
+    Mark {
+        Tail => "tail",
+        Arrow => "arrow",
+        Circle => "circle",
+        Conflict => "conflict",
+    }
+}
+
 impl Mark {
     const fn from_endpoint(endpoint: Endpoint) -> Self {
         match endpoint {
@@ -139,25 +139,6 @@ impl Mark {
             Endpoint::Circle => Self::Circle,
             Endpoint::Conflict => Self::Conflict,
         }
-    }
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Tail => "tail",
-            Self::Arrow => "arrow",
-            Self::Circle => "circle",
-            Self::Conflict => "conflict",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Tail, Self::Arrow, Self::Circle, Self::Conflict]
-            .into_iter()
-            .find(|mark| mark.as_str() == name)
     }
 
     const fn tag(self) -> u64 {

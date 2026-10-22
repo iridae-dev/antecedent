@@ -15,6 +15,7 @@ use super::{
     MAX_ACTIONS, MAX_HORIZON, MAX_LABEL_BYTES, MAX_STATES, PROBABILITY_TOLERANCE,
     SEQUENTIAL_EVALUATION_IDENTITY_VERSION, SequentialEvaluationError, SequentialResult,
 };
+use antecedent_core::named_variants;
 
 /// What taking an action does to the episode.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -28,26 +29,14 @@ pub enum ActionRole {
     Commit,
 }
 
+named_variants! {
+    ActionRole {
+        Continue => "continue",
+        Commit => "commit",
+    }
+}
+
 impl ActionRole {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Continue => "continue",
-            Self::Commit => "commit",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "continue" => Some(Self::Continue),
-            "commit" => Some(Self::Commit),
-            _ => None,
-        }
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Continue => 1,
@@ -68,26 +57,14 @@ pub enum CensoringRule {
     Forfeit,
 }
 
+named_variants! {
+    CensoringRule {
+        Refuse => "refuse",
+        Forfeit => "forfeit",
+    }
+}
+
 impl CensoringRule {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Refuse => "refuse",
-            Self::Forfeit => "forfeit",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "refuse" => Some(Self::Refuse),
-            "forfeit" => Some(Self::Forfeit),
-            _ => None,
-        }
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Refuse => 1,

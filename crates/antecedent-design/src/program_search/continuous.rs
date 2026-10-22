@@ -221,7 +221,7 @@ impl PreparedContinuousProgramSearch {
             .ok_or_else(|| {
                 ProgramSearchError::Resource("continuous history quote overflow".into())
             })?;
-        if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
+        if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
             return Err(ProgramSearchError::Resource(
                 "continuous attempt history exceeds hard limit".into(),
             ));

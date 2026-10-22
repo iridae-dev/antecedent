@@ -63,6 +63,7 @@ use thiserror::Error;
 use crate::quantile::{QuantileRule, equal_tail_interval_sorted};
 use crate::special::normal_ppf;
 use crate::synthesis::{SynthesisError, check_covariance};
+use antecedent_core::named_variants;
 
 /// Label of a spread computed under a licensed dependence route.
 pub const UNCALIBRATED_SPREAD_LABEL: &str = "uncalibrated_spread";
@@ -315,27 +316,17 @@ pub enum ValueFunctional {
     SquaredDifference,
 }
 
+named_variants! {
+    ValueFunctional {
+        Product => "product",
+        Ratio => "ratio",
+        Minimum => "minimum",
+        Maximum => "maximum",
+        SquaredDifference => "squared_difference",
+    }
+}
+
 impl ValueFunctional {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Product => "product",
-            Self::Ratio => "ratio",
-            Self::Minimum => "minimum",
-            Self::Maximum => "maximum",
-            Self::SquaredDifference => "squared_difference",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Product, Self::Ratio, Self::Minimum, Self::Maximum, Self::SquaredDifference]
-            .into_iter()
-            .find(|f| f.as_str() == name)
-    }
-
     /// The function's value.
     #[must_use]
     pub fn value(self, x: f64, y: f64) -> f64 {

@@ -170,11 +170,7 @@ impl CheckedCitation {
     /// `route` is supplied by [`ExplicitLicense::try_new`]; this constructor
     /// names the estimator.
     #[must_use = "a blank checked-execution citation is refused"]
-    pub fn try_new(
-        estimator: &str,
-        test: &str,
-        assertion: &str,
-    ) -> Result<Self, LicenseRefusal> {
+    pub fn try_new(estimator: &str, test: &str, assertion: &str) -> Result<Self, LicenseRefusal> {
         if is_blank(estimator) || is_blank(test) || is_blank(assertion) {
             return Err(LicenseRefusal::blank_citation());
         }
@@ -250,21 +246,13 @@ impl ExplicitLicense {
         if !owned.iter().any(|estimator| estimator == route_estimator) {
             return Err(LicenseRefusal::not_this_license(
                 &route,
-                format!(
-                    "{} is licensed for {}",
-                    route.coordinate(),
-                    join_estimators(&owned)
-                ),
+                format!("{} is licensed for {}", route.coordinate(), join_estimators(&owned)),
             ));
         }
         if !citations_cover(&owned, citations) {
             return Err(LicenseRefusal::not_this_license(
                 &route,
-                format!(
-                    "{} is licensed for {}",
-                    route.coordinate(),
-                    join_estimators(&owned)
-                ),
+                format!("{} is licensed for {}", route.coordinate(), join_estimators(&owned)),
             ));
         }
         let identification = optional_note(&route, "identification", identification)?;
@@ -562,11 +550,7 @@ impl LicenseRefusal {
             coordinate: route.coordinate(),
             standing: CellStanding::Unlicensed,
             detail: "recipe_license.unlicensed",
-            message: format!(
-                "recipe {} leaves {} unlicensed",
-                recipe.kind(),
-                route.coordinate()
-            ),
+            message: format!("recipe {} leaves {} unlicensed", recipe.kind(), route.coordinate()),
             next: NAME_LICENSED_ROUTE,
         }
     }
@@ -712,10 +696,8 @@ fn licensed_obligations(
     }
     if let Some(matrix) = matrix {
         let route_estimator = matrix.route_estimator;
-        let listed = license
-            .estimators()
-            .iter()
-            .any(|estimator| estimator.as_str() == route_estimator);
+        let listed =
+            license.estimators().iter().any(|estimator| estimator.as_str() == route_estimator);
         if is_blank(route_estimator) || !listed {
             return Err(LicenseRefusal::not_this_license(
                 route,
@@ -758,11 +740,7 @@ fn licensed_obligations(
 fn licensed_for(route: &SupportRoute, license: &ExplicitLicense) -> LicenseRefusal {
     LicenseRefusal::not_this_license(
         route,
-        format!(
-            "{} is licensed for {}",
-            route.coordinate(),
-            join_estimators(license.estimators())
-        ),
+        format!("{} is licensed for {}", route.coordinate(), join_estimators(license.estimators())),
     )
 }
 

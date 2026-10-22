@@ -193,7 +193,7 @@ fn workspace(
         .and_then(|n| n.checked_mul(8))
         .ok_or(LearnError::Shape { message: "categorical workspace overflow" })?;
     if ctx.cancellation.is_cancelled()
-        || ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes as u64 > limit)
+        || ctx.memory_limit_bytes().is_some_and(|limit| bytes as u64 > limit)
     {
         return Err(LearnError::Unsupported {
             message: "categorical workspace budget/cancellation",

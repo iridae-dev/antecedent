@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime,
-    ExecutionContext, InterventionAssignment, MemoryBudget, RegimeBinding, RegimeId, RegimeKind,
-    SamplingDesign, SearchLimits, SearchReceipt, SearchStop, Value, VariableId,
+    ExecutionContext, InterventionAssignment, RegimeBinding, RegimeId, RegimeKind, SamplingDesign,
+    SearchLimits, SearchReceipt, SearchStop, Value, VariableId,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::{
@@ -412,7 +412,7 @@ fn memory_exhaustion_is_a_receipt_and_is_checked_on_every_charge() {
     // One live engine step on the four-node graph is estimated at 1536 bytes.
     for (limit, consumed) in [(1024, None), (3 * 1536, Some(3))] {
         let mut ctx = ExecutionContext::for_tests(1);
-        ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(limit) };
+        ctx.set_memory_limit(Some(limit));
         let receipt = exhausted(&figure_1_graph(), &q, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx);
         assert_eq!(receipt.stop, SearchStop::Memory);
         assert_eq!(receipt.memory_limit_bytes, Some(limit));
@@ -732,7 +732,7 @@ fn a_checked_replay_reproduces_the_stored_search_receipt_and_refuses_any_edit() 
     let tight = SearchLimits { operations: record.search.operations_limit - 1, depth: 24 };
     assert_eq!(replay(&record, tight, &ctx).unwrap_err(), bounds);
     let mut limited = ExecutionContext::for_tests(1);
-    limited.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1 << 20) };
+    limited.set_memory_limit(Some(1 << 20));
     assert_eq!(replay(&record, MZ_TRANSPORT_DEFAULT_LIMITS, &limited).unwrap_err(), bounds);
 }
 

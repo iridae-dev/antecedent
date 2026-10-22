@@ -12,8 +12,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     CancellationToken, DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime,
-    ExecutionContext, MemoryBudget, RegimeId, RegimeKind, SearchLimits, SearchStop, VariableDomain,
-    VariableId,
+    ExecutionContext, RegimeId, RegimeKind, SearchLimits, SearchStop, VariableDomain, VariableId,
 };
 use antecedent_graph::{Cpdag, DenseNodeId, NodeRef};
 use antecedent_identify::ClassicalTransportQuery;
@@ -530,7 +529,7 @@ fn cpdag_budget_stop_enumeration() {
 
     // Memory: live completion bytes are charged against the hard limit.
     let mut small = ExecutionContext::for_tests(1);
-    small.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(800) };
+    small.set_memory_limit(Some(800));
     let limited = run(&case, BIG, &small);
     assert_eq!(limited.receipt.as_ref().unwrap().stop, SearchStop::Memory);
     assert_eq!(limited.completions.len(), 1);

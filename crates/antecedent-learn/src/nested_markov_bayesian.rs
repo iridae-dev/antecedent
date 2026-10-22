@@ -298,13 +298,7 @@ pub fn fit(
 ) -> Result<Posterior, BayesianRefusal> {
     validate(counts, prior, options)?;
     let required = (options.chains * options.draws * OUTPUTS * 8 * 4 + 65536) as u64;
-    if ctx
-        .memory
-        .hard_limit_bytes
-        .into_iter()
-        .chain(ctx.memory.soft_limit_bytes)
-        .any(|limit| required > limit)
-    {
+    if ctx.memory_limit_bytes().into_iter().any(|limit| required > limit) {
         return Err(BayesianRefusal::Budget("posterior/diagnostic memory limit"));
     }
     let mut shapes = [(0.0, 0.0); 3];
@@ -489,7 +483,7 @@ mod tests {
             ));
         }
         let mut small_memory = ExecutionContext::for_tests(0);
-        small_memory.memory.hard_limit_bytes = Some(0);
+        small_memory.set_memory_limit(Some(0));
         assert!(matches!(
             fit(&[1; 16], &prior, &Options::default(), &small_memory),
             Err(BayesianRefusal::Budget(_))

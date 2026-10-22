@@ -471,7 +471,7 @@ fn memory_and_cancellation_are_observed_by_the_shared_budget() {
     assert_eq!(receipt.memory_limit_bytes, Some(64));
     // The context's hard limit also bounds the cap.
     let mut limited = ctx();
-    limited.memory.hard_limit_bytes = Some(100);
+    limited.set_memory_limit(Some(100));
     let error = decide_observation_recovery(
         &model.graph,
         &model.query(),

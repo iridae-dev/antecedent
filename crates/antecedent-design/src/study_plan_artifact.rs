@@ -595,8 +595,7 @@ impl StudyPlanArtifactWire {
         }
         let stored = self.premises.limits;
         let memory_cap = ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .map_or(limits.memory_limit_bytes, |h| h.min(limits.memory_limit_bytes));
         if stored.operations > limits.search.operations
             || stored.depth > limits.search.depth

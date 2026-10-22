@@ -338,7 +338,7 @@ fn check_cache_memory(
         .and_then(|n| n.checked_add(intermediates))
         .and_then(|n| n.checked_add(data.factor_cache_bytes()?))
         .ok_or_else(bad)?;
-    if ctx.memory.hard_limit_bytes.is_some_and(|n| u64::try_from(bytes).map_or(true, |b| b > n)) {
+    if ctx.memory_limit_bytes().is_some_and(|n| u64::try_from(bytes).map_or(true, |b| b > n)) {
         return Err(bad());
     }
     Ok(())
@@ -406,8 +406,7 @@ impl Preflight<'_> {
         self.intermediate_bytes.set(bytes);
         if self
             .ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .is_some_and(|limit| u64::try_from(bytes).map_or(true, |b| b > limit))
         {
             return Err(EvalError::ProviderKind("exact memory budget exceeded"));
@@ -832,9 +831,9 @@ mod tests {
                 .is_err()
         );
         let plan = compile(&ctx, ExactEvaluationLimits::default()).unwrap();
-        ctx.memory.hard_limit_bytes = Some(1);
+        ctx.set_memory_limit(Some(1));
         assert!(plan.evaluate(&ctx).is_err());
-        ctx.memory.hard_limit_bytes = None;
+        ctx.set_memory_limit(None);
         ctx.cancellation.cancel();
         assert!(plan.evaluate(&ctx).is_err());
         assert!(compile(&ctx, ExactEvaluationLimits::default()).is_err());

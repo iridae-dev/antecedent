@@ -2403,8 +2403,7 @@ pub(crate) fn refuse_over_budget(
         return Err(IdentificationError::Cancelled);
     }
     if ctx
-        .memory
-        .hard_limit_bytes
+        .memory_limit_bytes()
         .is_some_and(|limit| u64::try_from(bytes).map_or(true, |bytes| bytes > limit))
     {
         return Err(IdentificationError::budget(budget));
@@ -2426,9 +2425,9 @@ mod tests {
     }
     #[test]
     fn live_bytes_are_cumulative_across_the_stages_of_one_decision() {
-        use antecedent_core::{MemoryBudget, SearchBudget};
+        use antecedent_core::SearchBudget;
         let mut ctx = ExecutionContext::for_tests(1);
-        ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(250) };
+        ctx.set_memory_limit(Some(250));
         let limits = SearchLimits { operations: 100, depth: 8 };
         // Each stage alone fits 250 bytes; the retained first stage does not leave
         // room for the second.

@@ -601,14 +601,14 @@ fn a_conditioning_set_over_the_memory_limit_is_refused_not_truncated() {
     let cond: Vec<(VariableId, Lag)> =
         (2..42u32).map(|raw| (VariableId::from_raw(raw), Lag::CONTEMPORANEOUS)).collect();
     let mut tight = ExecutionContext::for_tests(1);
-    tight.memory.hard_limit_bytes = Some(10_000);
+    tight.set_memory_limit(Some(10_000));
     let error = engine.ci_statistic(&frame, link, &cond, &mut ws, &tight).unwrap_err();
     assert!(matches!(error, DiscoveryError::Resource(_)), "{error:?}");
 
     // The capacity is the largest conditioning set the limit admits.
     let rows = frame.column(0).len();
     let limit = 400_000;
-    tight.memory.hard_limit_bytes = Some(limit);
+    tight.set_memory_limit(Some(limit));
     let capacity = ci_conditioning_capacity(&frame, &tight);
     assert!(ci_query_bytes(rows, capacity) <= limit);
     assert!(ci_query_bytes(rows, capacity + 1) > limit);

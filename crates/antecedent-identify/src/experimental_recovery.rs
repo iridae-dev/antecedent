@@ -63,7 +63,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use antecedent_core::VariableId;
+use antecedent_core::{NextAttempt, VariableId};
 
 use crate::experiment_moments::{
     ConstraintColumnReport, TargetConstraintBlock, constraint_column_report,
@@ -440,22 +440,10 @@ pub enum DesignFault {
     RankDeclarationOnUncoveredTarget,
 }
 
-/// The attempt a refusal points to.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum NextAttempt {
-    /// Satisfy this module's clamp-experiment recipe.
-    ClampExperimentRecipe,
-}
-
-impl NextAttempt {
-    /// Stable name of the next attempt.
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::ClampExperimentRecipe => CLAMP_EXPERIMENT_RECIPE,
-        }
-    }
-}
+/// The attempt a refusal points to: satisfy this module's clamp-experiment
+/// recipe.
+pub const CLAMP_EXPERIMENT_RECIPE_ATTEMPT: NextAttempt =
+    NextAttempt::new(CLAMP_EXPERIMENT_RECIPE, "satisfy the clamp-experiment recipe");
 
 /// A refusal of an attempt that is not yet this recipe, or that breaks a
 /// precondition of it. The next attempt is the clamp-experiment recipe.
@@ -677,7 +665,7 @@ fn recovery_from_matrix(
 fn refuse(reason: RefusalReason) -> ExperimentalRecoveryDecision {
     ExperimentalRecoveryDecision::Refused(RecipeRefusal {
         reason,
-        next_attempt: NextAttempt::ClampExperimentRecipe,
+        next_attempt: CLAMP_EXPERIMENT_RECIPE_ATTEMPT,
     })
 }
 
@@ -1544,17 +1532,17 @@ fn mass_weight(weight: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        AssembledCoefficientRecovery, CLAMP_EXPERIMENT_RECIPE, ClampExogeneity, ClampExperimentSet,
-        DeclarationRecovery, DeclaredClampExperiment, DeclaredEquationRank, DeclaredNoiseLaw,
-        DesignFault, DirectCoefficient, DrawAdmissibility, ExperimentDesign,
-        ExperimentalRecoveryDecision, FiniteSampleConditioning, InadmissibleCoefficientDraw,
-        JointRecoveryDraw, LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt, NotThisRecipe,
-        PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability, RecoveredCoefficientPoint,
-        RecoveredCoefficientUncertainty, RecoveryAttempt, RecoveryDrawInput, RecoveryWarning,
-        RefusalReason, RegimeAssumption, UncertaintyFault, UniquenessRestriction, UnresolvedReason,
-        WeakStability, as_recovered_mechanism, decide_experimental_recovery,
-        joint_draw_from_blocks, recover_assembled_coefficients, recover_declared_coefficients,
-        regime_is_identified,
+        AssembledCoefficientRecovery, CLAMP_EXPERIMENT_RECIPE, CLAMP_EXPERIMENT_RECIPE_ATTEMPT,
+        ClampExogeneity, ClampExperimentSet, DeclarationRecovery, DeclaredClampExperiment,
+        DeclaredEquationRank, DeclaredNoiseLaw, DesignFault, DirectCoefficient, DrawAdmissibility,
+        ExperimentDesign, ExperimentalRecoveryDecision, FiniteSampleConditioning,
+        InadmissibleCoefficientDraw, JointRecoveryDraw, LATENT_VARIABLE_EXPANSION_ATTEMPT,
+        NotThisRecipe, PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability,
+        RecoveredCoefficientPoint, RecoveredCoefficientUncertainty, RecoveryAttempt,
+        RecoveryDrawInput, RecoveryWarning, RefusalReason, RegimeAssumption, UncertaintyFault,
+        UniquenessRestriction, UnresolvedReason, WeakStability, as_recovered_mechanism,
+        decide_experimental_recovery, joint_draw_from_blocks, recover_assembled_coefficients,
+        recover_declared_coefficients, regime_is_identified,
     };
     use crate::experiment_moments::{
         ConstraintRow, RegimeSample, TargetConstraintBlock, UnitColumn,
@@ -1649,7 +1637,7 @@ mod tests {
             panic!("expected a refusal");
         };
         assert_eq!(refusal.reason, RefusalReason::ObservationalEquilibriumOls);
-        assert_eq!(refusal.next_attempt, NextAttempt::ClampExperimentRecipe);
+        assert_eq!(refusal.next_attempt, CLAMP_EXPERIMENT_RECIPE_ATTEMPT);
         assert_eq!(refusal.next_attempt.name(), CLAMP_EXPERIMENT_RECIPE);
     }
 
@@ -1811,7 +1799,7 @@ mod tests {
             panic!("expected a regime refusal");
         };
         assert_eq!(refusal.reason, RefusalReason::DependentRegimes);
-        assert_eq!(refusal.next_attempt, NextAttempt::ClampExperimentRecipe);
+        assert_eq!(refusal.next_attempt, CLAMP_EXPERIMENT_RECIPE_ATTEMPT);
     }
 
     #[test]
@@ -2026,7 +2014,7 @@ mod tests {
                 refusal.reason,
                 RefusalReason::UniquenessRestrictionIsNotAStabilityCertificate
             );
-            assert_eq!(refusal.next_attempt, NextAttempt::ClampExperimentRecipe);
+            assert_eq!(refusal.next_attempt, CLAMP_EXPERIMENT_RECIPE_ATTEMPT);
         }
 
         let nodes = three();

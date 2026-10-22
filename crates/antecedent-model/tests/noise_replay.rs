@@ -10,9 +10,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    CancellationToken, CausalRng, ExecutionContext, MemoryBudget, StochasticPolicy,
-};
+use antecedent_core::{CancellationToken, CausalRng, ExecutionContext, StochasticPolicy};
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
 use antecedent_model::{
@@ -283,7 +281,7 @@ fn a_table_over_the_memory_limit_is_refused_before_allocating() {
     let model = chain();
     let view = ModelView::observational(&model);
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1_000) };
+    ctx.set_memory_limit(Some(1_000));
 
     let err = NoiseTable::sample(&view, 1_000, &ctx).unwrap_err();
     assert_eq!(
@@ -295,7 +293,7 @@ fn a_table_over_the_memory_limit_is_refused_before_allocating() {
         }
     );
     // Sampling retains the table and the values: twice the bytes.
-    ctx.memory.hard_limit_bytes = Some(1_000 * 3 * 8);
+    ctx.set_memory_limit(Some(1_000 * 3 * 8));
     NoiseTable::sample(&view, 1_000, &ctx).unwrap();
     let err = NoiseReplayer::new().sample(&view, 1_000, &ctx).unwrap_err();
     assert!(matches!(err, ModelError::ResourceLimit { required_bytes: 48_000, .. }), "{err:?}");

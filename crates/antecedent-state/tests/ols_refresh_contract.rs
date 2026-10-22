@@ -46,7 +46,13 @@ fn appended_rows_and_windows_equal_the_reference_without_a_rebuild() {
     assert_eq!(fit.append_window("series_a", &rows(5..9)).unwrap(), RefreshOutcome::Updated);
     assert_eq!(fit.append_window("series_a", &rows(9..12)).unwrap(), RefreshOutcome::Updated);
     assert_eq!(fit.recomputes(), 0);
-    assert_fit(&fit, 12, [0.629_451_864_218_141_1, 1.612_687_813_021_702_4], 0.049_203_811_908_736_7, 68.75);
+    assert_fit(
+        &fit,
+        12,
+        [0.629_451_864_218_141_1, 1.612_687_813_021_702_4],
+        0.049_203_811_908_736_7,
+        68.75,
+    );
     close(fit.snapshot().xtx[3], 17.860_000_000_000_003, "xtx");
     assert_eq!(fit.ledger().rows, 12);
 }
@@ -56,7 +62,13 @@ fn evicting_a_row_recomputes_and_equals_the_reference_on_the_rest() {
     let mut fit = full();
     assert_eq!(fit.evict_row(3).unwrap(), RefreshOutcome::Recomputed);
     assert_eq!(fit.recomputes(), 1);
-    assert_fit(&fit, 11, [0.629_022_421_524_663_8, 1.606_367_713_004_484], 0.054_378_574_987_543_48, 53.54);
+    assert_fit(
+        &fit,
+        11,
+        [0.629_022_421_524_663_8, 1.606_367_713_004_484],
+        0.054_378_574_987_543_48,
+        53.54,
+    );
     assert_eq!(fit.ledger().rows, 11);
     assert!(fit.evict_row(3).is_err(), "the row is gone");
 }
@@ -66,11 +78,23 @@ fn a_mask_recomputes_and_keeps_the_rows_retained() {
     let mut fit = full();
     fit.set_mask(0, true).unwrap();
     fit.set_mask(11, true).unwrap();
-    assert_fit(&fit, 10, [0.683_378_746_594_005_2, 1.600_817_438_692_098_1], 0.043_079_019_073_569_37, 66.54);
+    assert_fit(
+        &fit,
+        10,
+        [0.683_378_746_594_005_2, 1.600_817_438_692_098_1],
+        0.043_079_019_073_569_37,
+        66.54,
+    );
     assert_eq!((fit.ledger().rows, fit.ledger().live_rows), (12, 10));
     fit.set_mask(0, false).unwrap();
     fit.set_mask(11, false).unwrap();
-    assert_fit(&fit, 12, [0.629_451_864_218_141_1, 1.612_687_813_021_702_4], 0.049_203_811_908_736_7, 68.75);
+    assert_fit(
+        &fit,
+        12,
+        [0.629_451_864_218_141_1, 1.612_687_813_021_702_4],
+        0.049_203_811_908_736_7,
+        68.75,
+    );
 }
 
 #[test]
@@ -78,7 +102,13 @@ fn integer_count_weights_equal_row_repetition() {
     let mut fit = full();
     fit.set_weight(5, 3.0).unwrap();
     fit.set_count(7, 0).unwrap();
-    assert_fit(&fit, 13, [0.633_712_419_772_548_2, 1.538_509_176_894_493_2], 0.022_458_721_888_403_223, 49.21);
+    assert_fit(
+        &fit,
+        13,
+        [0.633_712_419_772_548_2, 1.538_509_176_894_493_2],
+        0.022_458_721_888_403_223,
+        49.21,
+    );
 }
 
 #[test]

@@ -40,8 +40,8 @@ use antecedent_data::{SamplingRegularity, TimeIndex};
 use thiserror::Error;
 
 use crate::information_time::{
-    AvailableOutcome, CadenceTick, ForwardOnly, InformationRefusal, InformationUse, ObservedCadence,
-    RetrospectivePermission, admit_delayed_outcome,
+    AvailableOutcome, CadenceTick, ForwardOnly, InformationRefusal, InformationUse,
+    ObservedCadence, RetrospectivePermission, admit_delayed_outcome,
 };
 
 /// Exclusive end of an operator, in the cadence's nanoseconds.
@@ -1732,8 +1732,7 @@ mod tests {
     fn a_contemporaneous_initial_law_is_present() {
         let (cadence, horizon, _) = frame_inputs();
         let transition =
-            Transition::try_new(cadence, horizon, InitialLaw::contemporaneous_observed())
-                .unwrap();
+            Transition::try_new(cadence, horizon, InitialLaw::contemporaneous_observed()).unwrap();
         assert!(transition.frame().initial_law().name().is_none());
     }
 
@@ -1778,8 +1777,8 @@ mod tests {
 
     #[test]
     fn a_horizon_past_the_cadence_is_refused() {
-        let error = Transition::try_new(regular(10, 4), Horizon::ending_at(50), origin())
-            .unwrap_err();
+        let error =
+            Transition::try_new(regular(10, 4), Horizon::ending_at(50), origin()).unwrap_err();
         match error {
             HistoryOperatorError::HorizonCrossesCadence { end_ns, interval_ns, declared_ticks } => {
                 assert_eq!(end_ns, 50);

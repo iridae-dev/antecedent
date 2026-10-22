@@ -38,6 +38,7 @@ use antecedent_contract::{
 };
 
 use crate::signal::RefusalBuilder;
+use antecedent_core::named_variants;
 use antecedent_core::{CanonicalWriter, blake3_hex};
 use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::error::IoError;
@@ -323,60 +324,30 @@ pub enum NodeKind {
     FrozenScores,
 }
 
+named_variants! {
+    NodeKind {
+        CausalContract => "causal_contract",
+        ExecutionOrFit => "execution_or_fit",
+        ExternalClaim => "external_claim",
+        Attestation => "attestation",
+        EvidenceRelationship => "evidence_relationship",
+        QuantityCoordinates => "quantity_coordinates",
+        SupportTrustCalibration => "support_trust_calibration",
+        Distribution => "distribution",
+        Transformation => "transformation",
+        DecisionContract => "decision_contract",
+        DecisionResult => "decision_result",
+        Sensitivity => "sensitivity",
+        StudyRanking => "study_ranking",
+        Rollout => "rollout",
+        InverseQuery => "inverse_query",
+        RepairReport => "repair_report",
+        RecalculationReceipt => "recalculation_receipt",
+        FrozenScores => "frozen_scores",
+    }
+}
+
 impl NodeKind {
-    /// Every kind.
-    pub const ALL: [Self; 18] = [
-        Self::CausalContract,
-        Self::ExecutionOrFit,
-        Self::ExternalClaim,
-        Self::Attestation,
-        Self::EvidenceRelationship,
-        Self::QuantityCoordinates,
-        Self::SupportTrustCalibration,
-        Self::Distribution,
-        Self::Transformation,
-        Self::DecisionContract,
-        Self::DecisionResult,
-        Self::Sensitivity,
-        Self::StudyRanking,
-        Self::Rollout,
-        Self::InverseQuery,
-        Self::RepairReport,
-        Self::RecalculationReceipt,
-        Self::FrozenScores,
-    ];
-
-    /// Stable `snake_case` wire name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CausalContract => "causal_contract",
-            Self::ExecutionOrFit => "execution_or_fit",
-            Self::ExternalClaim => "external_claim",
-            Self::Attestation => "attestation",
-            Self::EvidenceRelationship => "evidence_relationship",
-            Self::QuantityCoordinates => "quantity_coordinates",
-            Self::SupportTrustCalibration => "support_trust_calibration",
-            Self::Distribution => "distribution",
-            Self::Transformation => "transformation",
-            Self::DecisionContract => "decision_contract",
-            Self::DecisionResult => "decision_result",
-            Self::Sensitivity => "sensitivity",
-            Self::StudyRanking => "study_ranking",
-            Self::Rollout => "rollout",
-            Self::InverseQuery => "inverse_query",
-            Self::RepairReport => "repair_report",
-            Self::RecalculationReceipt => "recalculation_receipt",
-            Self::FrozenScores => "frozen_scores",
-        }
-    }
-
-    /// Parse the wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     /// The lineage stage the kind occupies in the bundle's Merkle chain.
     #[must_use]
     pub const fn stage(self) -> CompositionStage {
@@ -430,31 +401,13 @@ pub enum EvidenceRelationship {
     Independent,
 }
 
-impl EvidenceRelationship {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::SharedData => "shared_data",
-            Self::SharedPrior => "shared_prior",
-            Self::SharedFittedModel => "shared_fitted_model",
-            Self::UnknownDependence => "unknown_dependence",
-            Self::Independent => "independent",
-        }
-    }
-
-    /// Parse the wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::SharedData,
-            Self::SharedPrior,
-            Self::SharedFittedModel,
-            Self::UnknownDependence,
-            Self::Independent,
-        ]
-        .into_iter()
-        .find(|relationship| relationship.as_str() == name)
+named_variants! {
+    EvidenceRelationship {
+        SharedData => "shared_data",
+        SharedPrior => "shared_prior",
+        SharedFittedModel => "shared_fitted_model",
+        UnknownDependence => "unknown_dependence",
+        Independent => "independent",
     }
 }
 

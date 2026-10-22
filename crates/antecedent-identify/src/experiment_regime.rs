@@ -26,7 +26,7 @@
 //! dependence premise on a regime that shares its source with no other regime
 //! claims a shared disturbance with nothing, and is refused. A target
 //! outside the regime's sampling units is an incompatible regime and is refused.
-//! Every refusal names [`NextRegimeAttempt::RepairMaskOrPremise`]: repair the
+//! Every refusal names [`REPAIR_MASK_OR_PREMISE_ATTEMPT`]: repair the
 //! mask or the premise, and do not fit the mechanism on the illegal regime.
 //!
 //! The declarations are inputs a later
@@ -52,7 +52,7 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
-use antecedent_core::{Value, VariableId};
+use antecedent_core::{NextAttempt, Value, VariableId};
 
 /// Stable name of the repair a refused regime points at.
 ///
@@ -330,42 +330,22 @@ impl fmt::Display for RegimeRefusalReason {
     }
 }
 
-/// The attempt a refusal points to.
+/// The attempt a refusal points to: repair the declaration.
 ///
-/// The attempt is to repair the declaration. It is not a fit of the mechanism.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum NextRegimeAttempt {
-    /// Repair the mask or the premise. Do not fit the mechanism on the illegal regime.
-    RepairMaskOrPremise,
-}
-
-impl NextRegimeAttempt {
-    /// Stable name of the repair.
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::RepairMaskOrPremise => REPAIR_MASK_OR_PREMISE,
-        }
-    }
-}
-
-impl fmt::Display for NextRegimeAttempt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::RepairMaskOrPremise => f.write_str("repair the mask or the premise"),
-        }
-    }
-}
+/// Repair the mask or the premise. Do not fit the mechanism on the illegal
+/// regime. It is not a fit of the mechanism.
+pub const REPAIR_MASK_OR_PREMISE_ATTEMPT: NextAttempt =
+    NextAttempt::new(REPAIR_MASK_OR_PREMISE, "repair the mask or the premise");
 
 /// A contract refused before recovery.
 ///
-/// `next_attempt` is always [`NextRegimeAttempt::RepairMaskOrPremise`].
+/// `next_attempt` is always [`REPAIR_MASK_OR_PREMISE_ATTEMPT`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct RegimeRefusal {
     /// Why the contract was refused.
     pub reason: RegimeRefusalReason,
     /// What to attempt next. Not a mechanism fit.
-    pub next_attempt: NextRegimeAttempt,
+    pub next_attempt: NextAttempt,
 }
 
 impl fmt::Display for RegimeRefusal {
@@ -439,7 +419,7 @@ impl RegimeContractDecision {
 /// The function inspects the declared targets, sampling units, populations,
 /// premises, source identities, and mask. It does not estimate effects, invert
 /// a constraint, or complete a mechanism matrix. A refusal's next attempt is
-/// [`NextRegimeAttempt::RepairMaskOrPremise`].
+/// [`REPAIR_MASK_OR_PREMISE_ATTEMPT`].
 #[must_use = "a refusal must be repaired before any mechanism is fit"]
 pub fn validate_regime_contract(contract: &RegimeContract) -> RegimeContractDecision {
     if let Some(reason) = contract_fault(contract) {
@@ -485,23 +465,15 @@ pub fn validate_regime_contract_with_passive_units(
     if let Some(reason) = shared_source_fault(&contract.regimes) {
         return refuse(reason);
     }
-    let regimes: Vec<ExperimentRegime> = contract
-        .regimes
-        .iter()
-        .map(|regime| omit_passive(regime, &declared))
-        .collect();
+    let regimes: Vec<ExperimentRegime> =
+        contract.regimes.iter().map(|regime| omit_passive(regime, &declared)).collect();
     for (index, regime) in regimes.iter().enumerate() {
         if regime.units.is_empty() {
             return refuse(RegimeRefusalReason::EmptySamplingUnits { regime: index });
         }
     }
-    let dropped = contract
-        .mask
-        .dropped
-        .iter()
-        .copied()
-        .filter(|unit| !declared.contains(unit))
-        .collect();
+    let dropped =
+        contract.mask.dropped.iter().copied().filter(|unit| !declared.contains(unit)).collect();
     RegimeContractDecision::Accepted(AcceptedRegimeContract {
         regimes,
         mask: UnitMask { dropped },
@@ -529,12 +501,7 @@ fn omit_passive(regime: &ExperimentRegime, passive: &BTreeSet<VariableId>) -> Ex
             .filter(|target| !passive.contains(&target.unit))
             .cloned()
             .collect(),
-        units: regime
-            .units
-            .iter()
-            .copied()
-            .filter(|unit| !passive.contains(unit))
-            .collect(),
+        units: regime.units.iter().copied().filter(|unit| !passive.contains(unit)).collect(),
         population: regime.population,
         premise: regime.premise,
         source: regime.source,
@@ -584,7 +551,7 @@ fn passive_mask_fault(
 fn refuse(reason: RegimeRefusalReason) -> RegimeContractDecision {
     RegimeContractDecision::Refused(RegimeRefusal {
         reason,
-        next_attempt: NextRegimeAttempt::RepairMaskOrPremise,
+        next_attempt: REPAIR_MASK_OR_PREMISE_ATTEMPT,
     })
 }
 
@@ -690,9 +657,9 @@ fn shared_source_fault(regimes: &[ExperimentRegime]) -> Option<RegimeRefusalReas
 #[cfg(test)]
 mod tests {
     use super::{
-        DependencePremise, ExperimentRegime, NextRegimeAttempt, PassiveUnitDeclaration,
-        PopulationId, REPAIR_MASK_OR_PREMISE, RegimeContract, RegimeContractDecision,
-        RegimeIntervention, RegimeRefusalReason, SourceIdentity, UnitMask,
+        DependencePremise, ExperimentRegime, PassiveUnitDeclaration, PopulationId,
+        REPAIR_MASK_OR_PREMISE, REPAIR_MASK_OR_PREMISE_ATTEMPT, RegimeContract,
+        RegimeContractDecision, RegimeIntervention, RegimeRefusalReason, SourceIdentity, UnitMask,
         validate_regime_contract, validate_regime_contract_with_passive_units,
     };
     use antecedent_core::{Value, VariableId};
@@ -733,7 +700,7 @@ mod tests {
             panic!("expected a refusal before recovery");
         };
         assert_eq!(refusal.reason, reason);
-        assert_eq!(refusal.next_attempt, NextRegimeAttempt::RepairMaskOrPremise);
+        assert_eq!(refusal.next_attempt, REPAIR_MASK_OR_PREMISE_ATTEMPT);
         assert_eq!(refusal.next_attempt.name(), REPAIR_MASK_OR_PREMISE);
         let message = refusal.to_string();
         assert!(message.contains("repair the mask or the premise"), "{message}");
@@ -898,9 +865,12 @@ mod tests {
         };
         assert_eq!(accepted.passive_units(), &[unit(0)]);
         assert!(accepted.regimes().iter().all(|regime| !regime.units.contains(&unit(0))));
-        assert!(accepted.regimes().iter().all(|regime| {
-            regime.targets.iter().all(|target| target.unit != unit(0))
-        }));
+        assert!(
+            accepted
+                .regimes()
+                .iter()
+                .all(|regime| { regime.targets.iter().all(|target| target.unit != unit(0)) })
+        );
         assert_eq!(accepted.regimes()[1].targets[0].unit, unit(1));
     }
 

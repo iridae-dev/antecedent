@@ -6,7 +6,7 @@
 
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext,
-    Intervention, MemoryBudget, RegimeId, RegimeKind, SearchLimits, SearchStop, Value, VariableId,
+    Intervention, RegimeId, RegimeKind, SearchLimits, SearchStop, Value, VariableId,
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
@@ -987,7 +987,7 @@ fn depth_and_memory_stops_are_receipts_and_memory_is_checked_on_every_charge() {
     assert_eq!(receipt.explored, ["stage:rule_two_reduction"]);
     // Memory: a hard limit below one live state stops at the first charge.
     let mut tight = ExecutionContext::for_tests(1);
-    tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(600) };
+    tight.set_memory_limit(Some(600));
     let ConditionalTransportDecision::Exhausted(receipt) = decide_admg_conditional_transport(
         &diagram,
         &q,
@@ -1004,7 +1004,7 @@ fn depth_and_memory_stops_are_receipts_and_memory_is_checked_on_every_charge() {
     // A limit the reduction fits but the cumulative stages do not: the stop lands
     // in a later stage, so memory was charged after the first stage too.
     let mut later = ExecutionContext::for_tests(1);
-    later.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(4_000) };
+    later.set_memory_limit(Some(4_000));
     let ConditionalTransportDecision::Exhausted(receipt) = decide_admg_conditional_transport(
         &diagram,
         &q,

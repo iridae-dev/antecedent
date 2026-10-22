@@ -3,7 +3,7 @@
 //! Addition retains separate monomials. Products use an error-free FMA split
 //! so a rounded coefficient cannot silently certify roots of another equation.
 use crate::{
-    equation_system::{Interval, PolynomialEquation, PolynomialSystem, Monomial},
+    equation_system::{Interval, Monomial, PolynomialEquation, PolynomialSystem},
     mechanism_expr::MechanismExpression as E,
     nonlinear_equilibrium::{Activation, Clamp, EquilibriumError, EquilibriumModel},
 };

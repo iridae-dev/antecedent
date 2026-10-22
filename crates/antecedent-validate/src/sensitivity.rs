@@ -897,7 +897,7 @@ fn neighborhood_loo_predict_pair(
         .and_then(|words| words.checked_mul(word))
         .and_then(|bytes| u64::try_from(bytes).ok())
         .unwrap_or(u64::MAX);
-    if let Some(limit_bytes) = ctx.memory.hard_limit_bytes {
+    if let Some(limit_bytes) = ctx.memory_limit_bytes() {
         if required > limit_bytes {
             return Err(ValidationError::Stats(antecedent_stats::StatsError::ResourceLimit {
                 message: "neighborhood sensitivity smoother",

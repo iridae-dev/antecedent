@@ -66,7 +66,7 @@ fn ci_query_bytes(n_rows: usize, z_len: usize) -> u64 {
 /// memory limit; unbounded when no limit is set. The kernel allocates its workspace from the
 /// query, so memory is the only ceiling on the conditioning-set size.
 pub(crate) fn ci_conditioning_capacity(frame: &LaggedFrame, ctx: &ExecutionContext) -> usize {
-    let Some(hard) = ctx.memory.hard_limit_bytes else {
+    let Some(hard) = ctx.memory_limit_bytes() else {
         return usize::MAX;
     };
     let n_rows = frame_rows(frame);
@@ -89,7 +89,7 @@ fn ensure_ci_query_fits(
     z_len: usize,
     ctx: &ExecutionContext,
 ) -> Result<(), DiscoveryError> {
-    match ctx.memory.hard_limit_bytes {
+    match ctx.memory_limit_bytes() {
         Some(hard) if ci_query_bytes(n_rows, z_len) > hard => {
             Err(DiscoveryError::Resource(format!(
                 "a CI query with {z_len} conditioning columns on {n_rows} rows needs {} bytes, \
@@ -543,7 +543,7 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
-        if let Some(hard) = ctx.memory.hard_limit_bytes {
+        if let Some(hard) = ctx.memory_limit_bytes() {
             if frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {
                     message: "lagged frames exceed ExecutionContext memory hard limit",

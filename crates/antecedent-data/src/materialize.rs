@@ -141,7 +141,7 @@ impl PreparationBudget {
     #[must_use]
     pub fn from_limits(ctx: &ExecutionContext) -> Self {
         let free = ctx.admission().available().bytes();
-        Self::new(ctx.memory.hard_limit_bytes.map_or(free, |limit| limit.min(free)))
+        Self::new(ctx.memory_limit_bytes().map_or(free, |limit| limit.min(free)))
     }
 }
 

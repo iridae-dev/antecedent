@@ -14,8 +14,8 @@ use std::sync::{Arc, Mutex};
 use antecedent_core::{
     CancellationToken, DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog,
     EvidenceCatalogDelta, EvidenceKind, EvidenceRegime, ExecutionContext, InterventionAssignment,
-    MemoryBudget, ProgressSink, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, SearchLimits,
-    SearchStop, Value, VariableCoordinate, VariableDomain, VariableId,
+    ProgressSink, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, SearchLimits, SearchStop,
+    Value, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::{
@@ -404,7 +404,7 @@ fn depth_memory_and_cancellation_stop_the_one_plan_budget() {
     assert_eq!(refusal.receipt.as_ref().map(|r| r.depth_limit), Some(1));
     // Memory: the context's hard limit is the effective cap, observed per charge.
     let mut tight = ExecutionContext::for_tests(1);
-    tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(64) };
+    tight.set_memory_limit(Some(64));
     let refusal =
         plan(&mz(fig_1_sources()), &base, &candidates, StudyPlanLimits::default(), &tight)
             .unwrap_err();

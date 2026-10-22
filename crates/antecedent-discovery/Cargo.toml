@@ -28,6 +28,7 @@ antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 antecedent-test-support = { workspace = true }
 criterion = { workspace = true }
 serde_json = { workspace = true }

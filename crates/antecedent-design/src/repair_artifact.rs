@@ -1407,8 +1407,7 @@ impl RepairReportArtifact {
         self.check_shape()?;
         let stored = self.premises.limits;
         let memory_cap = ctx
-            .memory
-            .hard_limit_bytes
+            .memory_limit_bytes()
             .map_or(limits.memory_limit_bytes, |h| h.min(limits.memory_limit_bytes));
         let effective = self.report.receipt.memory_limit_bytes;
         if stored.operations > limits.search.operations

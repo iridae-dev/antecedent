@@ -20,9 +20,9 @@ use std::sync::Arc;
 
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceRegime, ExecutionContext, InterventionAssignment, MemoryBudget, ProgressSink,
-    RegimeBinding, RegimeId, RegimeKind, SamplingDesign, SearchStop, Value, VariableCoordinate,
-    VariableDomain, VariableId,
+    EvidenceRegime, ExecutionContext, InterventionAssignment, ProgressSink, RegimeBinding,
+    RegimeId, RegimeKind, SamplingDesign, SearchStop, Value, VariableCoordinate, VariableDomain,
+    VariableId,
 };
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, ExactTransportData, LawTolerance};
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
@@ -1082,8 +1082,7 @@ fn depth_and_memory_stops_are_receipts_checked_on_every_charge() {
     assert!(line > 0, "every resolved line adds live state");
     let range_bytes = full.receipt.live_state_bytes - 18 * line;
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory =
-        MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(range_bytes + 2 * line) };
+    ctx.set_memory_limit(Some(range_bytes + 2 * line));
     let stopped =
         run_ctx(&model, &spec(Some(0.5), Some(0.5)).with_threshold(baseline + 0.4), &ctx).unwrap();
     assert_eq!(stopped.receipt.stop, Some(SearchStop::Memory));
@@ -1091,7 +1090,7 @@ fn depth_and_memory_stops_are_receipts_checked_on_every_charge() {
     assert_eq!(stopped.receipt.explored.len(), 3, "range and two frontier lines fit");
     assert_eq!(stopped.range, full.range);
     // A cap below the range state refuses before the range, with the receipt.
-    ctx.memory.hard_limit_bytes = Some(8);
+    ctx.set_memory_limit(Some(8));
     match run_ctx(&model, &spec(Some(0.5), Some(0.5)), &ctx) {
         Err(JointSensitivityError::Budget(receipt)) => {
             assert_eq!(receipt.stop, SearchStop::Memory);

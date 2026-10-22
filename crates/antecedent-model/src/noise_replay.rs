@@ -395,7 +395,7 @@ fn check_budget(
     n_nodes: usize,
 ) -> Result<(), ModelError> {
     check_cancelled(ctx)?;
-    let Some(limit_bytes) = ctx.memory.hard_limit_bytes else {
+    let Some(limit_bytes) = ctx.memory_limit_bytes() else {
         return Ok(());
     };
     let required_bytes = NoiseTable::bytes_for(n_rows, n_nodes)

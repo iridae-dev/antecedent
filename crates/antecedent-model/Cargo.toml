@@ -48,6 +48,7 @@ ml-forest = ["antecedent-learn/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 antecedent-identify = { workspace = true }
 criterion = { workspace = true }
 serde_json = { workspace = true }

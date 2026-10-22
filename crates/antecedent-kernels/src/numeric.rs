@@ -429,10 +429,7 @@ mod tests {
         let reverse = [1.0, -shift, 1.0, shift];
         let forward_sum = CompensatedSum::of(forward);
         let reverse_sum = CompensatedSum::of(reverse);
-        assert!(
-            ulps_between(forward_sum, reverse_sum) <= 4,
-            "{forward_sum} vs {reverse_sum}"
-        );
+        assert!(ulps_between(forward_sum, reverse_sum) <= 4, "{forward_sum} vs {reverse_sum}");
         assert!(ulps_between(forward_sum, 2.0) <= 4, "{forward_sum}");
         assert!(ulps_between(reverse_sum, 2.0) <= 4, "{reverse_sum}");
         assert!(

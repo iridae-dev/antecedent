@@ -754,10 +754,7 @@ mod tests {
         let y = [1.0, 1.0];
         let mut ws = LeastSquaresWorkspace::default();
         let err = FaerBackend.least_squares(&x, 2, 3, &y, &mut ws).unwrap_err();
-        assert!(
-            matches!(err, StatsError::RankDeficient { ncols: 3, .. }),
-            "{err:?}"
-        );
+        assert!(matches!(err, StatsError::RankDeficient { ncols: 3, .. }), "{err:?}");
         assert!(matches!(
             FaerBackend.least_squares(&x, 2, 3, &y[..1], &mut ws),
             Err(StatsError::Shape { .. })

@@ -247,11 +247,7 @@ impl PreparedFiniteProgramSearch {
         let bytes = retained_bytes
             .checked_add(scratch_bytes)
             .ok_or_else(|| ProgramSearchError::Resource("quote overflow".into()))?;
-        if [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes]
-            .into_iter()
-            .flatten()
-            .any(|limit| bytes > limit)
-        {
+        if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
             return Err(ProgramSearchError::Resource(
                 "search exceeds configured memory limit".into(),
             ));

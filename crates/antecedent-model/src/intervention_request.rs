@@ -114,10 +114,7 @@ impl InterventionRequest {
     #[must_use]
     pub fn binding(&self) -> InterventionBinding {
         let Self::HardClamp(request) = self;
-        InterventionBinding {
-            target: request.target.clone(),
-            identity: request.identity.clone(),
-        }
+        InterventionBinding { target: request.target.clone(), identity: request.identity.clone() }
     }
 }
 
@@ -592,10 +589,10 @@ mod tests {
 
     #[test]
     fn the_same_set_is_the_cyclic_clamp_and_other_operations_are_refused() {
-        use antecedent_core::{Intervention, MechanismOverride, TemporalPolicy, Value};
-        use antecedent_graph::Dag;
         use crate::compile::CompiledCausalModel;
         use crate::overlay::InterventionOverlay;
+        use antecedent_core::{Intervention, MechanismOverride, TemporalPolicy, Value};
+        use antecedent_graph::Dag;
 
         let model = map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0]);
         let set = Intervention::set(node(0), Value::f64(2.0));
@@ -813,10 +810,7 @@ mod tests {
         match &report.family {
             FamilyCertificate::Insufficient { rho_abs_upper, next_attempt, identification } => {
                 assert!(*rho_abs_upper >= 1.0);
-                assert_eq!(
-                    next_attempt,
-                    &NextAttempt::QuerySpecificFreeBlock { free: vec![0, 1] }
-                );
+                assert_eq!(next_attempt, &NextAttempt::QuerySpecificFreeBlock { free: vec![0, 1] });
                 assert_eq!(*identification, IdentificationStatus::NotMarkedUnidentified);
             }
             FamilyCertificate::Admitted { .. } => {
@@ -990,8 +984,7 @@ mod tests {
         assert!(matches!(free.block().uniqueness, Uniqueness::Unique));
         assert_eq!(free.physical_stability(), PhysicalStability::Unclaimed);
         assert_eq!(free.identification(), IdentificationStatus::NotMarkedUnidentified);
-        let report =
-            assess(&model, &HardClamp::try_new(3, &[2]).expect("clamp")).expect("report");
+        let report = assess(&model, &HardClamp::try_new(3, &[2]).expect("clamp")).expect("report");
         assert!(!report.family.is_admitted());
         assert_eq!(report.physical_stability, PhysicalStability::Unclaimed);
     }

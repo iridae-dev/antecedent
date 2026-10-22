@@ -10,9 +10,9 @@ use std::sync::Arc;
 
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceRegime, ExecutionContext, InterventionAssignment, LawOrigin, MemoryBudget,
-    RegimeBinding, RegimeId, RegimeKind, SamplingDesign, SearchLimits, SearchStop, Value,
-    VariableCoordinate, VariableDomain, VariableId,
+    EvidenceRegime, ExecutionContext, InterventionAssignment, LawOrigin, RegimeBinding, RegimeId,
+    RegimeKind, SamplingDesign, SearchLimits, SearchStop, Value, VariableCoordinate,
+    VariableDomain, VariableId,
 };
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{Admg, DenseNodeId};
@@ -563,7 +563,7 @@ fn memory_exhaustion_is_a_receipt_and_is_checked_on_every_charge() {
     let g = chain();
     for limit in [16u64, 512, 2048] {
         let mut ctx = ExecutionContext::for_tests(1);
-        ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(limit) };
+        ctx.set_memory_limit(Some(limit));
         let decision =
             decide_mixed_source(&g, &query(), &complementary(), MIXED_SOURCE_DEFAULT_LIMITS, &ctx)
                 .unwrap();

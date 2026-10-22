@@ -714,15 +714,9 @@ mod tests {
         )
         .unwrap();
         assert!(is_feedback_certified(&feedback));
-        let product = identify(
-            HistoryIdentificationTarget::PulseParentAdjustment,
-            &graph,
-            0,
-            9,
-            None,
-            bound,
-        )
-        .unwrap();
+        let product =
+            identify(HistoryIdentificationTarget::PulseParentAdjustment, &graph, 0, 9, None, bound)
+                .unwrap();
         assert!(!is_feedback_certified(&product));
         let HistoryIdentification::PulseFallback(fallback) = &product else {
             panic!("the narrow pulse route yields the pulse fallback");

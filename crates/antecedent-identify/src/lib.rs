@@ -24,8 +24,8 @@ mod class_envelope_cache;
 pub mod compiled_product;
 pub mod counterfactual_id;
 pub mod cross_world;
-pub mod cyclic_id;
 pub mod cyclic_calculus;
+pub mod cyclic_id;
 pub mod efficient;
 pub(crate) mod enum_masks;
 pub mod envelope;
@@ -178,6 +178,8 @@ mod test_support {
 pub mod discovered_transport;
 pub mod discovered_transport_temporal;
 #[cfg(test)]
+mod experiment_moments_noisy;
+#[cfg(test)]
 mod id_scm_property;
 #[cfg(test)]
 mod mag_id_bruteforce;
@@ -203,15 +205,16 @@ pub use envelope::{
 };
 pub use error::{IdentificationBudget, IdentificationError};
 pub use experiment_regime::{
-    AcceptedRegimeContract, DependencePremise, ExperimentRegime, NextRegimeAttempt, PopulationId,
-    REPAIR_MASK_OR_PREMISE, RegimeContract, RegimeContractDecision, RegimeIntervention,
-    RegimeRefusal, RegimeRefusalReason, SourceIdentity, UnitMask, validate_regime_contract,
+    AcceptedRegimeContract, DependencePremise, ExperimentRegime, PopulationId,
+    REPAIR_MASK_OR_PREMISE, REPAIR_MASK_OR_PREMISE_ATTEMPT, RegimeContract, RegimeContractDecision,
+    RegimeIntervention, RegimeRefusal, RegimeRefusalReason, SourceIdentity, UnitMask,
+    validate_regime_contract,
 };
 pub use experimental_recovery::{
-    CLAMP_EXPERIMENT_RECIPE, ClampExogeneity, ClampExperimentSet, CoefficientRecovery,
-    DeclaredClampExperiment, DeclaredEquationRank, DeclaredNoiseLaw, DesignFault,
-    DirectCoefficient, ExperimentDesign, ExperimentalRecoveryDecision,
-    LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt, NotThisRecipe, PRIOR_REGULARIZATION_ATTEMPT,
+    CLAMP_EXPERIMENT_RECIPE, CLAMP_EXPERIMENT_RECIPE_ATTEMPT, ClampExogeneity, ClampExperimentSet,
+    CoefficientRecovery, DeclaredClampExperiment, DeclaredEquationRank, DeclaredNoiseLaw,
+    DesignFault, DirectCoefficient, ExperimentDesign, ExperimentalRecoveryDecision,
+    LATENT_VARIABLE_EXPANSION_ATTEMPT, NotThisRecipe, PRIOR_REGULARIZATION_ATTEMPT,
     PhysicalDynamicalStability, RecipeRefusal, RecoveryAttempt, RefusalReason, RegimeAssumption,
     UnresolvedDirection, UnresolvedReason, WeakStability, decide_experimental_recovery,
 };

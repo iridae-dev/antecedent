@@ -31,6 +31,7 @@ use crate::objective::DesignObjective;
 use crate::preposterior::{DecisionPrior, DecisionSignal};
 use crate::ranker::{DecisionRegistry, DesignEvaluationContext, DesignRankConfig, DesignRanker};
 use crate::result::ScoreEvaluation;
+use antecedent_core::named_variants;
 
 /// What a comparison asks of its policy's first decision.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -47,24 +48,12 @@ pub enum ComparisonKind {
     ChooseAfterObservation,
 }
 
-impl ComparisonKind {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ActNow => "act_now",
-            Self::Wait => "wait",
-            Self::CollectEvidence => "collect_evidence",
-            Self::ChooseAfterObservation => "choose_after_observation",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::ActNow, Self::Wait, Self::CollectEvidence, Self::ChooseAfterObservation]
-            .into_iter()
-            .find(|kind| kind.as_str() == name)
+named_variants! {
+    ComparisonKind {
+        ActNow => "act_now",
+        Wait => "wait",
+        CollectEvidence => "collect_evidence",
+        ChooseAfterObservation => "choose_after_observation",
     }
 }
 

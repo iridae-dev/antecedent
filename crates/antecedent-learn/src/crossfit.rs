@@ -3,10 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::device_reservation::{
-    admit_fold, nested_thread_request, place_physical_predictions, CpuAdmissionError, FoldAdmission,
-    LearnerAdmission,
+    CpuAdmissionError, FoldAdmission, LearnerAdmission, admit_fold, nested_thread_request,
+    place_physical_predictions,
 };
-use antecedent_core::scratch_pool::{ScratchKind, ScratchPool};
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
 use antecedent_kernels::{ViewError, shuffled_fold_assignment};
 
@@ -130,31 +129,23 @@ fn scatter_fold_predictions(
     Ok((predictions, model_provenance))
 }
 
-fn fold_scratch() -> Result<ScratchPool, LearnError> {
-    ScratchPool::bounded(ScratchKind::Fold, 2, F64_BYTES).map_err(|_| LearnError::Shape {
-        message: "cross-fit scratch account overflowed",
-    })
-}
-
 fn accounted_bytes(rows: usize) -> Result<u64, LearnError> {
-    let rows = u64::try_from(rows).map_err(|_| LearnError::Shape {
-        message: "cross-fit fold byte account overflowed",
-    })?;
-    rows.checked_mul(F64_BYTES).ok_or(LearnError::Shape {
-        message: "cross-fit fold byte account overflowed",
-    })
+    let rows = u64::try_from(rows)
+        .map_err(|_| LearnError::Shape { message: "cross-fit fold byte account overflowed" })?;
+    rows.checked_mul(F64_BYTES)
+        .ok_or(LearnError::Shape { message: "cross-fit fold byte account overflowed" })
 }
 
 fn admission_to_learn(error: CpuAdmissionError) -> LearnError {
     match error {
         CpuAdmissionError::Cancelled => LearnError::Cancelled,
-        CpuAdmissionError::FoldExceedsLease { .. } => LearnError::Unsupported {
-            message: "cross-fit fold exceeds the shared admission lease",
-        },
-        CpuAdmissionError::LearnerExceedsLease { .. } => LearnError::Unsupported {
-            message: "cross-fit learner exceeds the fold lease",
-        },
-        CpuAdmissionError::Scratch(_) => {
+        CpuAdmissionError::FoldExceedsLease { .. } => {
+            LearnError::Unsupported { message: "cross-fit fold exceeds the shared admission lease" }
+        }
+        CpuAdmissionError::LearnerExceedsLease { .. } => {
+            LearnError::Unsupported { message: "cross-fit learner exceeds the fold lease" }
+        }
+        CpuAdmissionError::Scratch { .. } => {
             LearnError::Unsupported { message: "cross-fit scratch is full" }
         }
         _ => LearnError::Unsupported { message: "cross-fit admission was refused" },
@@ -163,15 +154,14 @@ fn admission_to_learn(error: CpuAdmissionError) -> LearnError {
 
 fn lease_fold(
     ctx: &ExecutionContext,
-    scratch: &ScratchPool,
     rows: usize,
 ) -> Result<(FoldAdmission, LearnerAdmission), LearnError> {
     let accounted = accounted_bytes(rows)?;
     let threads = nested_thread_request(ctx.admission().available().threads());
-    let fold = admit_fold(ctx, scratch, threads, accounted).map_err(admission_to_learn)?;
+    let fold = admit_fold(ctx, threads, accounted, F64_BYTES).map_err(admission_to_learn)?;
     let learner_threads = nested_thread_request(fold.held_threads());
     let learner =
-        fold.admit_learner(scratch, learner_threads, accounted).map_err(admission_to_learn)?;
+        fold.admit_learner(learner_threads, accounted, F64_BYTES).map_err(admission_to_learn)?;
     Ok((fold, learner))
 }
 
@@ -313,11 +303,11 @@ fn fit_one_fold(
     if train.is_empty() || valid.is_empty() {
         return Err(LearnError::Shape { message: "empty cross-fit train or valid fold" });
     }
-    let rows = train.len().checked_add(valid.len()).ok_or(LearnError::Shape {
-        message: "cross-fit fold byte account overflowed",
-    })?;
-    let scratch = fold_scratch()?;
-    let (mut fold_hold, mut learner_hold) = lease_fold(ctx, &scratch, rows)?;
+    let rows = train
+        .len()
+        .checked_add(valid.len())
+        .ok_or(LearnError::Shape { message: "cross-fit fold byte account overflowed" })?;
+    let (mut fold_hold, mut learner_hold) = lease_fold(ctx, rows)?;
     stop_if_cancelled(&mut learner_hold, &mut fold_hold, ctx)?;
     let train_view = x.with_rows(RowSelection::new(&train))?;
     let valid_view = x.with_rows(RowSelection::new(&valid))?;
@@ -443,11 +433,11 @@ pub fn cross_fit_selected(
         if train.is_empty() {
             return Err(LearnError::Shape { message: "empty training role in cross-fit fold" });
         }
-        let rows = train.len().checked_add(valid.len()).ok_or(LearnError::Shape {
-            message: "cross-fit fold byte account overflowed",
-        })?;
-        let scratch = fold_scratch()?;
-        let (mut fold_hold, mut learner_hold) = lease_fold(inner, &scratch, rows)?;
+        let rows = train
+            .len()
+            .checked_add(valid.len())
+            .ok_or(LearnError::Shape { message: "cross-fit fold byte account overflowed" })?;
+        let (mut fold_hold, mut learner_hold) = lease_fold(inner, rows)?;
         stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
         let fitted = factory.fit(x.with_rows(RowSelection::new(&train))?, y, None, inner)?;
         let mut preds = vec![0.0; valid.len()];
@@ -562,9 +552,7 @@ mod tests {
         let view = DesignView::from_column_major(&x, n, 2).unwrap();
         let error =
             cross_fit(&LinearLearner, view, TargetView::new(&y), 4, &ctx, None).unwrap_err();
-        assert!(
-            matches!(error, LearnError::Unsupported { message } if message.contains("lease"))
-        );
+        assert!(matches!(error, LearnError::Unsupported { message } if message.contains("lease")));
         assert_eq!(pool.available().bytes(), 8);
         assert_eq!(pool.available().threads(), 1);
     }
@@ -579,9 +567,7 @@ mod tests {
         let view = DesignView::from_column_major(&x, n, 2).unwrap();
         let error =
             cross_fit(&LinearLearner, view, TargetView::new(&y), 4, &ctx, None).unwrap_err();
-        assert!(
-            matches!(error, LearnError::Cancelled)
-        );
+        assert!(matches!(error, LearnError::Cancelled));
         assert_eq!(pool.available().bytes(), 1_000);
         assert_eq!(pool.available().threads(), 1);
     }

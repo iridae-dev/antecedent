@@ -32,8 +32,6 @@ impl<'a> CovarianceCiSession<'a> {
             || cells > 4_000_000
             || ctx.kernel_policy.force_scalar
             || !ctx.cache_policy.enabled
-            || ctx.memory.hard_limit_bytes.is_some()
-            || ctx.memory.soft_limit_bytes.is_some()
             || ctx.admission.byte_budget() != u64::MAX
             || ctx.cache_policy.max_bytes.is_some_and(|limit| bytes as u64 > limit)
         {
@@ -231,7 +229,7 @@ mod tests {
         ctx.cache_policy = antecedent_core::CachePolicy::enabled(Some(0));
         assert!(CovarianceCiSession::prepare(&cols, &ctx).is_none());
         ctx.cache_policy = antecedent_core::CachePolicy::enabled(None);
-        ctx.memory.hard_limit_bytes = Some(1);
+        ctx.set_memory_limit(Some(1));
         assert!(CovarianceCiSession::prepare(&cols, &ctx).is_none());
     }
 }

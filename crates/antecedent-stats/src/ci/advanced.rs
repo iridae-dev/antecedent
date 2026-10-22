@@ -2167,8 +2167,7 @@ mod tests {
             ));
         }
         let mut limited = ExecutionContext::for_tests(10);
-        limited.memory =
-            antecedent_core::MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1_024) };
+        limited.set_memory_limit(Some(1_024));
         assert!(matches!(
             GpdcNystrom::new().test_batch_adhoc(&req, &mut ws, &limited),
             Err(StatsError::ResourceLimit { .. })
