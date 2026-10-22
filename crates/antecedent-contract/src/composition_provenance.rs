@@ -10,6 +10,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use antecedent_core::identity::CanonicalWriter;
+use antecedent_core::named_variants;
 
 /// Maximum links in one chain.
 pub const MAX_CHAIN_LINKS: usize = 4_096;
@@ -39,41 +40,18 @@ pub enum CompositionStage {
     Claim,
 }
 
-impl CompositionStage {
-    /// Stable `snake_case` name for wires.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CausalContract => "causal_contract",
-            Self::Evidence => "evidence",
-            Self::Data => "data",
-            Self::ExternalProvider => "external_provider",
-            Self::DistributionArtifact => "distribution_artifact",
-            Self::Transformation => "transformation",
-            Self::DecisionContract => "decision_contract",
-            Self::SensitivityInput => "sensitivity_input",
-            Self::StudyRankingProvider => "study_ranking_provider",
-            Self::Claim => "claim",
-        }
-    }
-
-    /// Parse the wire spelling.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::CausalContract,
-            Self::Evidence,
-            Self::Data,
-            Self::ExternalProvider,
-            Self::DistributionArtifact,
-            Self::Transformation,
-            Self::DecisionContract,
-            Self::SensitivityInput,
-            Self::StudyRankingProvider,
-            Self::Claim,
-        ]
-        .into_iter()
-        .find(|stage| stage.as_str() == name)
+named_variants! {
+    CompositionStage {
+        CausalContract => "causal_contract",
+        Evidence => "evidence",
+        Data => "data",
+        ExternalProvider => "external_provider",
+        DistributionArtifact => "distribution_artifact",
+        Transformation => "transformation",
+        DecisionContract => "decision_contract",
+        SensitivityInput => "sensitivity_input",
+        StudyRankingProvider => "study_ranking_provider",
+        Claim => "claim",
     }
 }
 

@@ -17,6 +17,7 @@ use crate::{
     ExternalVerificationError, ProviderObjectIdentity, UtilityMonotonicity, VerificationProbe,
     VerificationProbeKind, capability_name, probe_name,
 };
+use antecedent_core::named_variants;
 
 const RECEIPT_TAG: &str = "antecedent.provider_verification.receipt.v1";
 const CONTRACT_TAG: &str = "antecedent.provider_verification.contract.v1";
@@ -38,26 +39,14 @@ pub enum VerifiedContractKind {
     Execution,
 }
 
-impl VerifiedContractKind {
-    /// Stable wire name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Law => "law",
-            Self::Posterior => "posterior",
-            Self::Signal => "signal",
-            Self::Evidence => "evidence",
-            Self::Utility => "utility",
-            Self::Execution => "execution",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Law, Self::Posterior, Self::Signal, Self::Evidence, Self::Utility, Self::Execution]
-            .into_iter()
-            .find(|kind| kind.as_str() == name)
+named_variants! {
+    VerifiedContractKind {
+        Law => "law",
+        Posterior => "posterior",
+        Signal => "signal",
+        Evidence => "evidence",
+        Utility => "utility",
+        Execution => "execution",
     }
 }
 

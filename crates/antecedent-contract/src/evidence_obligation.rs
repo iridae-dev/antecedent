@@ -29,6 +29,7 @@ use std::{
 };
 
 use crate::{ObligationRecord, ObligationScope, ScientificQuantity};
+use antecedent_core::named_variants;
 use antecedent_core::{EvidenceCatalog, FactorNeed, VariableId};
 
 /// Declared bound on the variable coordinates of one obligation.
@@ -61,42 +62,21 @@ pub enum EvidenceObligationKind {
     EstablishAssumption,
 }
 
+named_variants! {
+    EvidenceObligationKind {
+        Measure => "measure",
+        Intervene => "intervene",
+        ObservePopulation => "observe_population",
+        ObserveEnvironment => "observe_environment",
+        IncreaseSample => "increase_sample",
+        ProvideJointLaw => "provide_joint_law",
+        ProvideConditionalLaw => "provide_conditional_law",
+        EstablishSupport => "establish_support",
+        EstablishAssumption => "establish_assumption",
+    }
+}
+
 impl EvidenceObligationKind {
-    /// Every kind, in declaration order.
-    pub const ALL: [Self; 9] = [
-        Self::Measure,
-        Self::Intervene,
-        Self::ObservePopulation,
-        Self::ObserveEnvironment,
-        Self::IncreaseSample,
-        Self::ProvideJointLaw,
-        Self::ProvideConditionalLaw,
-        Self::EstablishSupport,
-        Self::EstablishAssumption,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Measure => "measure",
-            Self::Intervene => "intervene",
-            Self::ObservePopulation => "observe_population",
-            Self::ObserveEnvironment => "observe_environment",
-            Self::IncreaseSample => "increase_sample",
-            Self::ProvideJointLaw => "provide_joint_law",
-            Self::ProvideConditionalLaw => "provide_conditional_law",
-            Self::EstablishSupport => "establish_support",
-            Self::EstablishAssumption => "establish_assumption",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     /// Whether a proposed study could ever address this kind. Only
     /// [`Self::EstablishAssumption`] cannot: a study produces evidence, it does
     /// not prove an assumption.

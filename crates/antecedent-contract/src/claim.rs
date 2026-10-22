@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use crate::provenance::{ProvenanceGraph, ProvenanceNode};
 use crate::reasoning::ReasoningView;
+use antecedent_core::named_variants;
 use antecedent_core::{CalibrationBasis, ContractIdentities, SemanticDigest};
 
 /// Kind of value a claim carries. Refusals and bounds are first-class.
@@ -33,35 +34,15 @@ pub enum ClaimKind {
     Incomplete,
 }
 
-impl ClaimKind {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Point => "point",
-            Self::Bounds => "bounds",
-            Self::Mixture => "mixture",
-            Self::Response => "response",
-            Self::PolicyValue => "policy_value",
-            Self::Refusal => "refusal",
-            Self::Incomplete => "incomplete",
-        }
-    }
-
-    /// Inverse of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::Point,
-            Self::Bounds,
-            Self::Mixture,
-            Self::Response,
-            Self::PolicyValue,
-            Self::Refusal,
-            Self::Incomplete,
-        ]
-        .into_iter()
-        .find(|kind| kind.as_str() == name)
+named_variants! {
+    ClaimKind {
+        Point => "point",
+        Bounds => "bounds",
+        Mixture => "mixture",
+        Response => "response",
+        PolicyValue => "policy_value",
+        Refusal => "refusal",
+        Incomplete => "incomplete",
     }
 }
 
@@ -83,35 +64,18 @@ pub enum DomainStatus {
     Unknown,
 }
 
+named_variants! {
+    DomainStatus {
+        Identified => "identified",
+        Supported => "supported",
+        Evaluated => "evaluated",
+        OutsideScope => "outside_scope",
+        Contradicted => "contradicted",
+        Unknown => "unknown",
+    }
+}
+
 impl DomainStatus {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Identified => "identified",
-            Self::Supported => "supported",
-            Self::Evaluated => "evaluated",
-            Self::OutsideScope => "outside_scope",
-            Self::Contradicted => "contradicted",
-            Self::Unknown => "unknown",
-        }
-    }
-
-    /// Inverse of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::Identified,
-            Self::Supported,
-            Self::Evaluated,
-            Self::OutsideScope,
-            Self::Contradicted,
-            Self::Unknown,
-        ]
-        .into_iter()
-        .find(|status| status.as_str() == name)
-    }
-
     /// Whether the status asserts something (identified, supported, evaluated).
     #[must_use]
     const fn is_positive(self) -> bool {

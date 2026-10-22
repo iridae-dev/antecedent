@@ -30,6 +30,7 @@ use crate::{
     LawProviderContract, PosteriorProviderContract, ProviderObjectIdentity,
     ProviderVerificationReceipt, ScientificQuantity, SignalProviderContract,
 };
+use antecedent_core::named_variants;
 
 /// Version word written into every callback declaration identity. Bump only
 /// when the canonical encoding below changes.
@@ -56,26 +57,15 @@ pub enum CallbackKind {
     Nested,
 }
 
+named_variants! {
+    CallbackKind {
+        Law => "law",
+        Posterior => "posterior",
+        Nested => "nested",
+    }
+}
+
 impl CallbackKind {
-    /// Every kind.
-    pub const ALL: [Self; 3] = [Self::Law, Self::Posterior, Self::Nested];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Law => "law",
-            Self::Posterior => "posterior",
-            Self::Nested => "nested",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Law => 1,
@@ -102,29 +92,17 @@ pub enum CallbackOperation {
     PosteriorUpdate,
 }
 
+named_variants! {
+    CallbackOperation {
+        Mean => "mean",
+        Sample => "sample",
+        Cdf => "cdf",
+        Quantile => "quantile",
+        PosteriorUpdate => "posterior_update",
+    }
+}
+
 impl CallbackOperation {
-    /// Every operation, in canonical order.
-    pub const ALL: [Self; 5] =
-        [Self::Mean, Self::Sample, Self::Cdf, Self::Quantile, Self::PosteriorUpdate];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Mean => "mean",
-            Self::Sample => "sample",
-            Self::Cdf => "cdf",
-            Self::Quantile => "quantile",
-            Self::PosteriorUpdate => "posterior_update",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|operation| operation.as_str() == name)
-    }
-
     /// The provider capability the operation is.
     #[must_use]
     pub const fn capability(self) -> ExternalCapability {
@@ -178,36 +156,18 @@ pub enum DependencyKind {
     ClosureState,
 }
 
+named_variants! {
+    DependencyKind {
+        Data => "data",
+        Model => "model",
+        Environment => "environment",
+        File => "file",
+        RemoteService => "remote_service",
+        ClosureState => "closure_state",
+    }
+}
+
 impl DependencyKind {
-    /// Every kind.
-    pub const ALL: [Self; 6] = [
-        Self::Data,
-        Self::Model,
-        Self::Environment,
-        Self::File,
-        Self::RemoteService,
-        Self::ClosureState,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Data => "data",
-            Self::Model => "model",
-            Self::Environment => "environment",
-            Self::File => "file",
-            Self::RemoteService => "remote_service",
-            Self::ClosureState => "closure_state",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     const fn tag(self) -> u64 {
         match self {
             Self::Data => 1,

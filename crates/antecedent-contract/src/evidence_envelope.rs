@@ -16,7 +16,9 @@
 use std::sync::Arc;
 
 use antecedent_core::text::is_blank;
-use antecedent_core::{CanonicalWriter, SemanticDigest, SupportStatus};
+use antecedent_core::{
+    CanonicalWriter, Refusal, SemanticDigest, SupportStatus, impl_refused, named_variants,
+};
 
 use crate::{QuantityMismatch, ScientificQuantity};
 
@@ -44,61 +46,26 @@ pub enum UncertaintyAxis {
     MonteCarlo,
 }
 
+named_variants! {
+    UncertaintyAxis {
+        Parameter => "parameter",
+        Sampling => "sampling",
+        Predictive => "predictive",
+        Structural => "structural",
+        Measurement => "measurement",
+        Identification => "identification",
+        MonteCarlo => "monte_carlo",
+    }
+}
+
 impl UncertaintyAxis {
-    /// Every axis, in canonical order.
-    pub const ALL: [Self; 7] = [
-        Self::Parameter,
-        Self::Sampling,
-        Self::Predictive,
-        Self::Structural,
-        Self::Measurement,
-        Self::Identification,
-        Self::MonteCarlo,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Parameter => "parameter",
-            Self::Sampling => "sampling",
-            Self::Predictive => "predictive",
-            Self::Structural => "structural",
-            Self::Measurement => "measurement",
-            Self::Identification => "identification",
-            Self::MonteCarlo => "monte_carlo",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|axis| axis.as_str() == name)
-    }
-
     /// Domain tag written into the canonical identity. Zero is reserved for absence.
     const fn wire(self) -> u64 {
-        match self {
-            Self::Parameter => 1,
-            Self::Sampling => 2,
-            Self::Predictive => 3,
-            Self::Structural => 4,
-            Self::Measurement => 5,
-            Self::Identification => 6,
-            Self::MonteCarlo => 7,
-        }
+        self as u64 + 1
     }
 
     const fn index(self) -> usize {
-        match self {
-            Self::Parameter => 0,
-            Self::Sampling => 1,
-            Self::Predictive => 2,
-            Self::Structural => 3,
-            Self::Measurement => 4,
-            Self::Identification => 5,
-            Self::MonteCarlo => 6,
-        }
+        self as usize
     }
 }
 
@@ -160,7 +127,7 @@ impl AxisInterval {
 /// be stored only under the axis it was constructed for.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct UncertaintyAxes {
-    slots: [Option<AxisInterval>; 7],
+    slots: [Option<AxisInterval>; UncertaintyAxis::ALL.len()],
 }
 
 impl UncertaintyAxes {
@@ -169,7 +136,7 @@ impl UncertaintyAxes {
     /// Absence is not a zero interval on any axis.
     #[must_use]
     pub const fn absent() -> Self {
-        Self { slots: [None; 7] }
+        Self { slots: [None; UncertaintyAxis::ALL.len()] }
     }
 
     /// The interval stored on `axis`, or absence.
@@ -464,7 +431,7 @@ impl EvidenceEnvelopeError {
     /// The refusal as `(code, detail, message)`.
     #[must_use]
     pub const fn refusal(self) -> (&'static str, &'static str, &'static str) {
-        (self.code, self.detail, self.message)
+        Refusal::new(self.code, self.detail, self.message).into_parts()
     }
 
     const fn new(
@@ -494,6 +461,8 @@ impl EvidenceEnvelopeError {
         )
     }
 }
+
+impl_refused!(EvidenceEnvelopeError, static_message);
 
 fn binding_error(detail: &'static str, message: &'static str) -> EvidenceEnvelopeError {
     EvidenceEnvelopeError::new(
@@ -687,7 +656,15 @@ mod tests {
         let missing = absent.require_interval(UncertaintyAxis::Parameter).unwrap_err();
         assert_eq!(missing.detail, "evidence_envelope.absent_axis");
         assert_eq!(missing.axis, Some(UncertaintyAxis::Parameter));
-        assert_eq!(missing.message, "an empty uncertainty axis is absence, not a zero interval");
+        // Every axis is independently absent, and a present interval fills only its own.
+        for axis in UncertaintyAxis::ALL {
+            let interval = AxisInterval::try_new(axis, 1.0, 2.0).unwrap();
+            let filled = absent.insert(interval);
+            assert_eq!(filled.require_interval(axis), Ok(interval));
+            for other in UncertaintyAxis::ALL.into_iter().filter(|other| *other != axis) {
+                assert_eq!(filled.require_interval(other).unwrap_err().axis, Some(other));
+            }
+        }
 
         let zero = AxisInterval::try_new(UncertaintyAxis::Parameter, 0.0, 0.0).unwrap();
         let present = absent.insert(zero);
@@ -700,9 +677,6 @@ mod tests {
 
     #[test]
     fn identity_includes_the_binding_and_every_axis() {
-        assert_eq!(UncertaintyAxis::ALL.map(UncertaintyAxis::wire), [1, 2, 3, 4, 5, 6, 7]);
-        assert_eq!(UncertaintyAxis::ALL.map(UncertaintyAxis::index), [0, 1, 2, 3, 4, 5, 6]);
-
         let base = envelope(UncertaintyAxes::absent());
         assert_eq!(base.identity(), envelope(UncertaintyAxes::absent()).identity());
 
@@ -754,5 +728,111 @@ mod tests {
             EvidenceEnvelope::try_new(premises, UncertaintyAxes::absent()).unwrap_err().detail,
             "evidence_envelope.premises",
         );
+    }
+
+    #[test]
+    fn insertion_order_does_not_change_equality_or_identity() {
+        let sampling = AxisInterval::try_new(UncertaintyAxis::Sampling, 0.1, 0.4).unwrap();
+        let monte_carlo = AxisInterval::try_new(UncertaintyAxis::MonteCarlo, 0.0, 0.01).unwrap();
+        let forward = envelope(UncertaintyAxes::absent().insert(sampling).insert(monte_carlo));
+        let reverse = envelope(UncertaintyAxes::absent().insert(monte_carlo).insert(sampling));
+        assert_eq!(forward, reverse);
+        assert_eq!(forward.identity(), reverse.identity());
+    }
+
+    #[test]
+    fn replacing_an_axis_interval_replaces_the_statement_and_the_identity() {
+        let narrow = AxisInterval::try_new(UncertaintyAxis::Parameter, 0.4, 0.6).unwrap();
+        let wide = AxisInterval::try_new(UncertaintyAxis::Parameter, 0.1, 0.9).unwrap();
+        let first = UncertaintyAxes::absent().insert(narrow);
+        let replaced = first.insert(wide);
+        assert_eq!(replaced.get(UncertaintyAxis::Parameter), Some(wide));
+        assert_eq!(replaced, UncertaintyAxes::absent().insert(wide));
+        assert_ne!(envelope(first).identity(), envelope(replaced).identity());
+    }
+
+    #[test]
+    fn each_endpoint_of_an_interval_changes_the_identity() {
+        let base = AxisInterval::try_new(UncertaintyAxis::Predictive, 0.2, 0.8).unwrap();
+        let lower = AxisInterval::try_new(UncertaintyAxis::Predictive, 0.25, 0.8).unwrap();
+        let upper = AxisInterval::try_new(UncertaintyAxis::Predictive, 0.2, 0.85).unwrap();
+        let identities = [base, lower, upper]
+            .map(|interval| envelope(UncertaintyAxes::absent().insert(interval)).identity());
+        assert_ne!(identities[0], identities[1]);
+        assert_ne!(identities[0], identities[2]);
+        assert_ne!(identities[1], identities[2]);
+        // A swapped pair is not the same statement.
+        let swapped = AxisInterval::try_new(UncertaintyAxis::Predictive, 0.8, 0.2);
+        assert_eq!(swapped.unwrap_err().axis, Some(UncertaintyAxis::Predictive));
+    }
+
+    #[test]
+    fn non_finite_endpoints_are_refused_and_name_their_axis() {
+        for axis in UncertaintyAxis::ALL {
+            for (lower, upper) in [
+                (f64::NEG_INFINITY, 0.0),
+                (0.0, f64::INFINITY),
+                (f64::NAN, f64::NAN),
+                (0.0, f64::NAN),
+            ] {
+                let refused = AxisInterval::try_new(axis, lower, upper).unwrap_err();
+                assert_eq!(refused.axis, Some(axis));
+                assert_eq!(refused.detail, "evidence_envelope.interval_bounds");
+            }
+            // A point interval at the extremes of the finite range is still a statement.
+            assert!(AxisInterval::try_new(axis, f64::MAX, f64::MAX).is_ok());
+            assert!(AxisInterval::try_new(axis, f64::MIN, f64::MAX).is_ok());
+        }
+    }
+
+    #[test]
+    fn duplicate_blank_and_empty_string_bindings_are_refused() {
+        let mut duplicate = binding();
+        duplicate.premises = Arc::from([Arc::from("a"), Arc::from("a")]);
+        assert_eq!(
+            EvidenceEnvelope::try_new(duplicate, UncertaintyAxes::absent()).unwrap_err().detail,
+            "evidence_envelope.premises",
+        );
+
+        let mut blank_premise = binding();
+        blank_premise.premises = Arc::from([Arc::from(" ")]);
+        assert_eq!(blank_premise.validate().unwrap_err().detail, "evidence_envelope.premises");
+
+        // An empty origin is a recorded blank, which is refused; an absent origin is fine.
+        let mut empty_origin = binding();
+        empty_origin.origins.source = Some(Arc::from(""));
+        assert_eq!(empty_origin.validate().unwrap_err().detail, "evidence_envelope.origin");
+        let mut no_origin = binding();
+        no_origin.origins.source = None;
+        assert!(no_origin.validate().is_ok());
+        assert_ne!(
+            envelope(UncertaintyAxes::absent()).identity(),
+            EvidenceEnvelope::try_new(no_origin, UncertaintyAxes::absent()).unwrap().identity(),
+        );
+
+        let mut blank_time = binding();
+        blank_time.world.time_id = "\t".into();
+        assert_eq!(blank_time.validate().unwrap_err().detail, "evidence_envelope.time");
+
+        let mut blank_support = binding();
+        blank_support.support.domain_id = " ".into();
+        assert_eq!(blank_support.validate().unwrap_err().detail, "evidence_envelope.support");
+
+        for calibration in [
+            EvidenceCalibration::Calibrated { record_id: " ".into() },
+            EvidenceCalibration::Unavailable { reason: "".into() },
+        ] {
+            let mut blank = binding();
+            blank.calibration = calibration;
+            assert_eq!(blank.validate().unwrap_err().detail, "evidence_envelope.calibration");
+        }
+    }
+
+    #[test]
+    fn a_quantity_that_is_not_identified_is_refused_at_the_binding() {
+        let mut units = binding();
+        units.quantity.units = " ".into();
+        assert_eq!(units.validate().unwrap_err().detail, "evidence_envelope.quantity");
+        assert!(EvidenceEnvelope::try_new(units, UncertaintyAxes::absent()).is_err());
     }
 }

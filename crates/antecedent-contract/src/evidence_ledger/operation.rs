@@ -7,6 +7,7 @@ use antecedent_core::{CanonicalWriter, SemanticDigest};
 use super::ids::{ObservationId, OperationId, ResultId, SourceId, digest_word};
 use super::overlap::MassAccount;
 use super::source::SourceDeclaration;
+use antecedent_core::named_variants;
 
 /// The distinct ways evidence can be combined or re-used. None implies
 /// another, and each has its own overlap policy in the ledger.
@@ -25,33 +26,13 @@ pub enum SynthesisKind {
     RepeatedObservationUse,
 }
 
-impl SynthesisKind {
-    /// Every kind in a fixed order.
-    pub const ALL: [Self; 5] = [
-        Self::StatisticalPooling,
-        Self::BayesianBorrowing,
-        Self::CausalTransport,
-        Self::EvidenceReuse,
-        Self::RepeatedObservationUse,
-    ];
-
-    /// Stable `snake_case` name. The first four coincide with the names of
-    /// the design-layer composition operations.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::StatisticalPooling => "statistical_pooling",
-            Self::BayesianBorrowing => "bayesian_borrowing",
-            Self::CausalTransport => "causal_transport",
-            Self::EvidenceReuse => "evidence_reuse",
-            Self::RepeatedObservationUse => "repeated_observation_use",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
+named_variants! {
+    SynthesisKind {
+        StatisticalPooling => "statistical_pooling",
+        BayesianBorrowing => "bayesian_borrowing",
+        CausalTransport => "causal_transport",
+        EvidenceReuse => "evidence_reuse",
+        RepeatedObservationUse => "repeated_observation_use",
     }
 }
 

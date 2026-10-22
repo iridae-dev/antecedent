@@ -27,7 +27,7 @@
 use std::{collections::BTreeSet, error::Error, fmt, sync::Arc};
 
 use antecedent_core::text::is_blank;
-use antecedent_core::{CanonicalWriter, SemanticDigest};
+use antecedent_core::{CanonicalWriter, NextAttempt, SemanticDigest, impl_refused, named_variants};
 
 use crate::evidence_ledger::MAX_COMBINATION_SOURCES;
 
@@ -44,11 +44,27 @@ const MARGINAL_DETAIL: &str = "joint_alignment.marginal_array";
 const INVALID_DETAIL: &str = "joint_alignment.invalid_declaration";
 const DRAW_COUNT_DETAIL: &str = "joint_alignment.draw_count_mismatch";
 
-const DECLARE_SHARED_AXES: &str =
-    "declare the shared axes, including covariance cross terms for a joint contrast";
-const RETAIN_DROPPED_MASS: &str = "retain failed and unidentified mass in the joint law";
-const DECLARE_PRODUCT_LAW: &str = "declare the product law";
-const REPAIR_DECLARATION: &str = "repair the axis declaration";
+/// Declare the shared axes. A joint contrast includes covariance cross terms.
+pub const DECLARE_SHARED_AXES: NextAttempt = NextAttempt::new(
+    "declare_shared_axes",
+    "declare the shared axes, including covariance cross terms for a joint contrast",
+);
+
+/// Put failed and unidentified mass back into the law.
+pub const RETAIN_DROPPED_MASS: NextAttempt =
+    NextAttempt::new("retain_dropped_mass", "retain failed and unidentified mass in the joint law");
+
+/// Name the product. It is an assumption, not a measured joint.
+pub const DECLARE_PRODUCT_LAW: NextAttempt =
+    NextAttempt::new("declare_product_law", "declare the product law");
+
+/// Replace a blank, empty, or repeated declaration.
+pub const REPAIR_DECLARATION: NextAttempt =
+    NextAttempt::new("repair_declaration", "repair the axis declaration");
+
+/// Every declaration a refused alignment names.
+pub const NEXT_ATTEMPTS: [NextAttempt; 4] =
+    [DECLARE_SHARED_AXES, RETAIN_DROPPED_MASS, DECLARE_PRODUCT_LAW, REPAIR_DECLARATION];
 
 /// An axis a joint law is indexed by.
 ///
@@ -72,38 +88,19 @@ pub enum JointAxisKind {
     History,
 }
 
+named_variants! {
+    JointAxisKind {
+        GraphAtom => "graph_atom",
+        BootstrapReplicate => "bootstrap_replicate",
+        ParameterDraw => "parameter_draw",
+        Outcome => "outcome",
+        Trajectory => "trajectory",
+        CounterfactualWorld => "counterfactual_world",
+        History => "history",
+    }
+}
+
 impl JointAxisKind {
-    /// Every axis, in canonical order.
-    pub const ALL: [Self; 7] = [
-        Self::GraphAtom,
-        Self::BootstrapReplicate,
-        Self::ParameterDraw,
-        Self::Outcome,
-        Self::Trajectory,
-        Self::CounterfactualWorld,
-        Self::History,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::GraphAtom => "graph_atom",
-            Self::BootstrapReplicate => "bootstrap_replicate",
-            Self::ParameterDraw => "parameter_draw",
-            Self::Outcome => "outcome",
-            Self::Trajectory => "trajectory",
-            Self::CounterfactualWorld => "counterfactual_world",
-            Self::History => "history",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not an axis"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     /// A replicate stream, posterior, or world produces this kind.
     const fn is_law_axis(self) -> bool {
         matches!(
@@ -372,23 +369,10 @@ pub enum MassFate {
     Dropped,
 }
 
-impl MassFate {
-    /// Both fates, in declaration order.
-    pub const ALL: [Self; 2] = [Self::Retained, Self::Dropped];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Retained => "retained",
-            Self::Dropped => "dropped",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not a mass fate"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|fate| fate.as_str() == name)
+named_variants! {
+    MassFate {
+        Retained => "retained",
+        Dropped => "dropped",
     }
 }
 
@@ -445,24 +429,11 @@ pub enum JointConsumer {
     ResponseSurface,
 }
 
-impl JointConsumer {
-    /// Every consumer, in canonical order.
-    pub const ALL: [Self; 3] = [Self::Coordinate, Self::Contrast, Self::ResponseSurface];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Coordinate => "coordinate",
-            Self::Contrast => "contrast",
-            Self::ResponseSurface => "response_surface",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not a consumer"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|consumer| consumer.as_str() == name)
+named_variants! {
+    JointConsumer {
+        Coordinate => "coordinate",
+        Contrast => "contrast",
+        ResponseSurface => "response_surface",
     }
 }
 
@@ -480,26 +451,12 @@ pub enum LawCoupling {
     Marginal,
 }
 
-impl LawCoupling {
-    /// Every coupling, in declaration order.
-    pub const ALL: [Self; 4] =
-        [Self::MeasuredJoint, Self::DeclaredProduct, Self::UndeclaredProduct, Self::Marginal];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::MeasuredJoint => "measured_joint",
-            Self::DeclaredProduct => "declared_product",
-            Self::UndeclaredProduct => "undeclared_product",
-            Self::Marginal => "marginal",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not a coupling"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|coupling| coupling.as_str() == name)
+named_variants! {
+    LawCoupling {
+        MeasuredJoint => "measured_joint",
+        DeclaredProduct => "declared_product",
+        UndeclaredProduct => "undeclared_product",
+        Marginal => "marginal",
     }
 }
 
@@ -680,23 +637,10 @@ pub enum AlignedLaw {
     DeclaredProduct,
 }
 
-impl AlignedLaw {
-    /// Both recorded laws, in declaration order.
-    pub const ALL: [Self; 2] = [Self::MeasuredJoint, Self::DeclaredProduct];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::MeasuredJoint => "measured_joint",
-            Self::DeclaredProduct => "declared_product",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not an aligned law"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|law| law.as_str() == name)
+named_variants! {
+    AlignedLaw {
+        MeasuredJoint => "measured_joint",
+        DeclaredProduct => "declared_product",
     }
 }
 
@@ -710,23 +654,10 @@ pub enum JointCovariance {
     NotMeasured,
 }
 
-impl JointCovariance {
-    /// Both records, in declaration order.
-    pub const ALL: [Self; 2] = [Self::CrossTerms, Self::NotMeasured];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CrossTerms => "cross_terms",
-            Self::NotMeasured => "not_measured",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not a covariance record"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|record| record.as_str() == name)
+named_variants! {
+    JointCovariance {
+        CrossTerms => "cross_terms",
+        NotMeasured => "not_measured",
     }
 }
 
@@ -800,64 +731,6 @@ impl JointAlignment {
     }
 }
 
-/// The declaration that would make a refused alignment legal.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[non_exhaustive]
-pub enum NextAttempt {
-    /// Declare the shared axes. A joint contrast includes covariance cross terms.
-    DeclareSharedAxes,
-    /// Put failed and unidentified mass back into the law.
-    RetainDroppedMass,
-    /// Name the product. It is an assumption, not a measured joint.
-    DeclareProductLaw,
-    /// Replace a blank, empty, or repeated declaration.
-    RepairDeclaration,
-}
-
-impl NextAttempt {
-    /// Every attempt, in the order refusals are checked.
-    pub const ALL: [Self; 4] = [
-        Self::DeclareSharedAxes,
-        Self::RetainDroppedMass,
-        Self::DeclareProductLaw,
-        Self::RepairDeclaration,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::DeclareSharedAxes => "declare_shared_axes",
-            Self::RetainDroppedMass => "retain_dropped_mass",
-            Self::DeclareProductLaw => "declare_product_law",
-            Self::RepairDeclaration => "repair_declaration",
-        }
-    }
-
-    /// Prose printed after `next attempt:`.
-    #[must_use]
-    pub const fn sentence(self) -> &'static str {
-        match self {
-            Self::DeclareSharedAxes => DECLARE_SHARED_AXES,
-            Self::RetainDroppedMass => RETAIN_DROPPED_MASS,
-            Self::DeclareProductLaw => DECLARE_PRODUCT_LAW,
-            Self::RepairDeclaration => REPAIR_DECLARATION,
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not a next attempt"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|attempt| attempt.as_str() == name)
-    }
-}
-
-impl fmt::Display for NextAttempt {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.sentence())
-    }
-}
-
 /// A refused joint-law alignment.
 ///
 /// [`Self::next_attempt`] is the legal declaration. [`Self::message`] states
@@ -909,6 +782,8 @@ impl fmt::Display for JointAlignmentError {
 
 impl Error for JointAlignmentError {}
 
+impl_refused!(JointAlignmentError);
+
 fn law_text(value: &str, what: &str) -> Result<Arc<str>, JointAlignmentError> {
     if is_blank(value) {
         return Err(invalid(format!("a {what} is blank")));
@@ -921,7 +796,7 @@ fn invalid(message: impl Into<String>) -> JointAlignmentError {
         code: INVALID_CODE,
         detail: INVALID_DETAIL,
         message: message.into(),
-        next: NextAttempt::RepairDeclaration,
+        next: REPAIR_DECLARATION,
     }
 }
 
@@ -986,7 +861,7 @@ fn draw_count_mismatch(arrays: &[LawArray]) -> Option<JointAlignmentError> {
             other.label(),
             other.len(),
         ),
-        next: NextAttempt::RepairDeclaration,
+        next: REPAIR_DECLARATION,
     })
 }
 
@@ -1042,7 +917,7 @@ fn dropped_mass(arrays: &[LawArray]) -> Option<JointAlignmentError> {
         code: INVALID_CODE,
         detail: DROPPED_MASS_DETAIL,
         message: format!("dropped {phrase} from {labels}"),
-        next: NextAttempt::RetainDroppedMass,
+        next: RETAIN_DROPPED_MASS,
     })
 }
 
@@ -1051,7 +926,7 @@ fn undeclared_product() -> JointAlignmentError {
         code: JOINT_CODE,
         detail: UNDECLARED_PRODUCT_DETAIL,
         message: String::from("an undeclared product law is not a measured joint"),
-        next: NextAttempt::DeclareProductLaw,
+        next: DECLARE_PRODUCT_LAW,
     }
 }
 
@@ -1060,7 +935,7 @@ fn marginal_array() -> JointAlignmentError {
         code: JOINT_CODE,
         detail: MARGINAL_DETAIL,
         message: String::from("a marginal array is not a joint uncertainty procedure"),
-        next: NextAttempt::DeclareSharedAxes,
+        next: DECLARE_SHARED_AXES,
     }
 }
 
@@ -1120,7 +995,7 @@ fn mismatch_error(arrays: &[LawArray], mismatch: &Mismatch<'_>) -> JointAlignmen
         code: JOINT_CODE,
         detail: UNRELATED_DETAIL,
         message,
-        next: NextAttempt::DeclareSharedAxes,
+        next: DECLARE_SHARED_AXES,
     }
 }
 
@@ -1144,8 +1019,9 @@ fn common_length(arrays: &[LawArray]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AlignedLaw, JointAlignmentRequest, JointAxis, JointAxisKind, JointConsumer,
-        JointCovariance, LawArray, LawCoupling, MassAccount, MassFate, NextAttempt, ProducingLaw,
+        AlignedLaw, DECLARE_PRODUCT_LAW, DECLARE_SHARED_AXES, JointAlignmentRequest, JointAxis,
+        JointAxisKind, JointConsumer, JointCovariance, LawArray, LawCoupling, MassAccount,
+        MassFate, ProducingLaw, REPAIR_DECLARATION, RETAIN_DROPPED_MASS,
     };
 
     fn axis(kind: JointAxisKind, id: &str) -> JointAxis {
@@ -1213,7 +1089,7 @@ mod tests {
         assert!(err.message().contains(&right));
         assert!(!err.message().contains("do(a,b)"));
         assert!(!err.message().contains("do(a,0)"));
-        assert_eq!(err.next_attempt(), NextAttempt::DeclareSharedAxes);
+        assert_eq!(err.next_attempt(), DECLARE_SHARED_AXES);
         assert_eq!(
             err.next_attempt().sentence(),
             "declare the shared axes, including covariance cross terms for a joint contrast",
@@ -1263,7 +1139,7 @@ mod tests {
         assert!(err.message().contains(&left_digest));
         assert!(err.message().contains(&right_digest));
         assert!(!err.message().contains("shared"));
-        assert_eq!(err.next_attempt(), NextAttempt::DeclareSharedAxes);
+        assert_eq!(err.next_attempt(), DECLARE_SHARED_AXES);
         assert!(JointAxis::try_new(JointAxisKind::BootstrapReplicate, "shared").is_err());
     }
 
@@ -1350,7 +1226,7 @@ mod tests {
         assert_eq!(err.detail(), "joint_alignment.draw_count_mismatch");
         assert!(err.message().contains("`contrast` has 4"));
         assert!(err.message().contains("`surface` has 9"));
-        assert_eq!(err.next_attempt(), NextAttempt::RepairDeclaration);
+        assert_eq!(err.next_attempt(), REPAIR_DECLARATION);
         // Declared products do not need the draws to correspond.
         let contrast = contrast_array(4, "do(a,b)", MassAccount::retained());
         let surface = surface_array(9, "do(a,b)", MassAccount::retained());
@@ -1369,7 +1245,7 @@ mod tests {
         assert_eq!(err.detail(), "joint_alignment.dropped_mass");
         assert!(err.message().contains("failed mass"));
         assert!(err.message().contains("contrast"));
-        assert_eq!(err.next_attempt(), NextAttempt::RetainDroppedMass);
+        assert_eq!(err.next_attempt(), RETAIN_DROPPED_MASS);
         assert!(err.next_attempt().sentence().contains("failed"));
         assert!(err.next_attempt().sentence().contains("unidentified"));
     }
@@ -1384,7 +1260,7 @@ mod tests {
             .expect_err("dropped unidentified mass");
         assert!(err.message().contains("unidentified mass"));
         assert!(!err.message().contains("failed mass"));
-        assert_eq!(err.next_attempt(), NextAttempt::RetainDroppedMass);
+        assert_eq!(err.next_attempt(), RETAIN_DROPPED_MASS);
     }
 
     #[test]
@@ -1397,7 +1273,7 @@ mod tests {
         assert_eq!(err.code(), "joint_law_required");
         assert_eq!(err.detail(), "joint_alignment.undeclared_product");
         assert!(err.message().contains("undeclared product"));
-        assert_eq!(err.next_attempt(), NextAttempt::DeclareProductLaw);
+        assert_eq!(err.next_attempt(), DECLARE_PRODUCT_LAW);
     }
 
     #[test]
@@ -1426,7 +1302,7 @@ mod tests {
         assert_eq!(err.code(), "joint_law_required");
         assert_eq!(err.detail(), "joint_alignment.marginal_array");
         assert!(err.message().contains("marginal array is not a joint"));
-        assert_eq!(err.next_attempt(), NextAttempt::DeclareSharedAxes);
+        assert_eq!(err.next_attempt(), DECLARE_SHARED_AXES);
     }
 
     #[test]
@@ -1468,7 +1344,7 @@ mod tests {
         assert_eq!(refusal.code(), "invalid_argument");
         assert_eq!(refusal.detail(), "joint_alignment.invalid_declaration");
         assert!(refusal.message().contains(&MAX_COMBINATION_SOURCES.to_string()));
-        assert_eq!(refusal.next_attempt(), NextAttempt::RepairDeclaration);
+        assert_eq!(refusal.next_attempt(), REPAIR_DECLARATION);
 
         let one = contrast_array(4, "do(a,b)", MassAccount::retained());
         let mut arrays = Vec::new();
@@ -1481,6 +1357,6 @@ mod tests {
         let refusal = request.expect_err("too many arrays");
         assert!(refusal.message().contains(&MAX_COMBINATION_SOURCES.to_string()));
         assert!(refusal.message().contains("arrays"));
-        assert_eq!(refusal.next_attempt(), NextAttempt::RepairDeclaration);
+        assert_eq!(refusal.next_attempt(), REPAIR_DECLARATION);
     }
 }

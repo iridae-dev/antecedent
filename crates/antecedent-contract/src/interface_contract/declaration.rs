@@ -26,6 +26,7 @@ use crate::composition_provenance::CompositionStage;
 use crate::evidence_ledger::SourceId;
 use crate::quantity::meaning_tag;
 use crate::{DistributionMeaning, ExternalCapability, ScientificQuantity};
+use antecedent_core::named_variants;
 
 /// Version word written into every interface contract identity. Bump only
 /// when the canonical encoding below changes.
@@ -64,40 +65,20 @@ pub enum ContractOperation {
     Posterior,
 }
 
+named_variants! {
+    ContractOperation {
+        Point => "point",
+        Mean => "mean",
+        Law => "law",
+        Draws => "draws",
+        JointDraws => "joint_draws",
+        Covariance => "covariance",
+        Interval => "interval",
+        Posterior => "posterior",
+    }
+}
+
 impl ContractOperation {
-    /// Every operation, in canonical order.
-    pub const ALL: [Self; 8] = [
-        Self::Point,
-        Self::Mean,
-        Self::Law,
-        Self::Draws,
-        Self::JointDraws,
-        Self::Covariance,
-        Self::Interval,
-        Self::Posterior,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Point => "point",
-            Self::Mean => "mean",
-            Self::Law => "law",
-            Self::Draws => "draws",
-            Self::JointDraws => "joint_draws",
-            Self::Covariance => "covariance",
-            Self::Interval => "interval",
-            Self::Posterior => "posterior",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|operation| operation.as_str() == name)
-    }
-
     /// Canonical tag word of the operation.
     #[must_use]
     pub const fn tag(self) -> u64 {
@@ -160,25 +141,12 @@ pub enum UncertaintyParadigm {
     Empirical,
 }
 
-impl UncertaintyParadigm {
-    /// Every paradigm.
-    pub const ALL: [Self; 4] = [Self::Posterior, Self::Sampling, Self::Resampling, Self::Empirical];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Posterior => "posterior",
-            Self::Sampling => "sampling",
-            Self::Resampling => "resampling",
-            Self::Empirical => "empirical",
-        }
-    }
-
-    /// Parse the name written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|paradigm| paradigm.as_str() == name)
+named_variants! {
+    UncertaintyParadigm {
+        Posterior => "posterior",
+        Sampling => "sampling",
+        Resampling => "resampling",
+        Empirical => "empirical",
     }
 }
 
@@ -287,20 +255,10 @@ pub enum CalibrationRequirement {
     Measured,
 }
 
-impl CalibrationRequirement {
-    /// Stable `snake_case` label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::NotRequired => "not_required",
-            Self::Measured => "measured",
-        }
-    }
-
-    /// Parse the label written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::NotRequired, Self::Measured].into_iter().find(|r| r.as_str() == name)
+named_variants! {
+    CalibrationRequirement {
+        NotRequired => "not_required",
+        Measured => "measured",
     }
 }
 
@@ -337,25 +295,15 @@ pub enum DependenceRequirement {
     DisjointEvidence,
 }
 
+named_variants! {
+    DependenceRequirement {
+        Unconstrained => "unconstrained",
+        DeclaredEvidence => "declared_evidence",
+        DisjointEvidence => "disjoint_evidence",
+    }
+}
+
 impl DependenceRequirement {
-    /// Stable `snake_case` label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Unconstrained => "unconstrained",
-            Self::DeclaredEvidence => "declared_evidence",
-            Self::DisjointEvidence => "disjoint_evidence",
-        }
-    }
-
-    /// Parse the label written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Unconstrained, Self::DeclaredEvidence, Self::DisjointEvidence]
-            .into_iter()
-            .find(|r| r.as_str() == name)
-    }
-
     /// Whether the evidence of the input must be declared.
     #[must_use]
     pub const fn requires_declared(self) -> bool {

@@ -26,6 +26,7 @@ use super::matrix::{
     StoppingRuleKind, procedure_status,
 };
 use crate::ExternalRefusal;
+use antecedent_core::named_variants;
 
 /// Version word of the canonical contract encoding. Bump when the encoding
 /// below changes.
@@ -107,20 +108,10 @@ pub enum SpendingKind {
     PocockType,
 }
 
-impl SpendingKind {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::OBrienFlemingType => "obrien_fleming_type",
-            Self::PocockType => "pocock_type",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::OBrienFlemingType, Self::PocockType].into_iter().find(|k| k.as_str() == name)
+named_variants! {
+    SpendingKind {
+        OBrienFlemingType => "obrien_fleming_type",
+        PocockType => "pocock_type",
     }
 }
 
@@ -134,20 +125,10 @@ pub enum BoundarySidedness {
     TwoSidedSymmetric,
 }
 
-impl BoundarySidedness {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::OneSidedUpper => "one_sided_upper",
-            Self::TwoSidedSymmetric => "two_sided_symmetric",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::OneSidedUpper, Self::TwoSidedSymmetric].into_iter().find(|k| k.as_str() == name)
+named_variants! {
+    BoundarySidedness {
+        OneSidedUpper => "one_sided_upper",
+        TwoSidedSymmetric => "two_sided_symmetric",
     }
 }
 

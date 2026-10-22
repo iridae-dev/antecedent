@@ -73,6 +73,7 @@ use crate::{
     DistributionMeaning, ExternalPosteriorKind, ExternalRefusal, ExternalScientificObject,
     ExternalTrustState, ProviderTrust, ScientificQuantity,
 };
+use antecedent_core::named_variants;
 
 /// Version word written into every identity of this module. Bump only when a
 /// canonical encoding below changes.
@@ -201,22 +202,10 @@ pub enum SourceTrustRequirement {
     ExactRequestVerified,
 }
 
-impl SourceTrustRequirement {
-    /// Stable `snake_case` label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::AttestationAccepted => "attestation_accepted",
-            Self::ExactRequestVerified => "exact_request_verified",
-        }
-    }
-
-    /// Parse the label written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::AttestationAccepted, Self::ExactRequestVerified]
-            .into_iter()
-            .find(|requirement| requirement.as_str() == name)
+named_variants! {
+    SourceTrustRequirement {
+        AttestationAccepted => "attestation_accepted",
+        ExactRequestVerified => "exact_request_verified",
     }
 }
 
@@ -611,22 +600,10 @@ pub enum TransportedInputPolicy {
     AcceptsTransported,
 }
 
-impl TransportedInputPolicy {
-    /// Stable `snake_case` label.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::NativeTargetOnly => "native_target_only",
-            Self::AcceptsTransported => "accepts_transported",
-        }
-    }
-
-    /// Parse the label written by [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::NativeTargetOnly, Self::AcceptsTransported]
-            .into_iter()
-            .find(|policy| policy.as_str() == name)
+named_variants! {
+    TransportedInputPolicy {
+        NativeTargetOnly => "native_target_only",
+        AcceptsTransported => "accepts_transported",
     }
 }
 

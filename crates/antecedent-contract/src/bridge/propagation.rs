@@ -625,12 +625,14 @@ pub(super) fn sorted_assumptions(assumptions: &[BridgeAssumption]) -> Vec<Bridge
 /// Bind `map`'s image of `source` to the contract's assumptions, in identity order.
 ///
 /// # Errors
-/// The source interval or the map is not one [`support_image`] accepts.
+/// The contract is not licensed ([`BridgeContract::check_licensing`]), or the
+/// source interval or the map is not one [`support_image`] accepts.
 pub fn preserved_support(
     contract: &BridgeContract,
     map: SupportMap,
     source: ValueInterval,
 ) -> Result<PreservedSupport, BridgeRefusal> {
+    contract.check_licensing()?;
     let image = support_image(map, source)?;
     Ok(PreservedSupport {
         assumptions: sorted_assumptions(&contract.assumptions),
@@ -656,15 +658,16 @@ fn affine_coefficients(mapping: &BridgeMapping) -> Result<(f64, f64), BridgeRefu
 /// treated as zero.
 ///
 /// # Errors
-/// The mapping is not affine or identity; mapping uncertainty or source
-/// dependence is missing or not well formed; the source moments are not
-/// finite and non-negative; the covariance is not feasible; the propagated
-/// mean or variance is not finite.
+/// The contract is not licensed; the mapping is not affine or identity;
+/// mapping uncertainty or source dependence is missing or not well formed; the
+/// source moments are not finite and non-negative; the covariance is not
+/// feasible; the propagated mean or variance is not finite.
 pub(super) fn propagate_affine(
     contract: &BridgeContract,
     source_mean: f64,
     source_variance: f64,
 ) -> Result<PropagatedUncertainty, BridgeRefusal> {
+    contract.check_licensing()?;
     let (intercept, slope) = affine_coefficients(&contract.mapping)?;
     let Some(uncertainty) = contract.mapping_uncertainty.clone() else {
         return Err(mapping_uncertainty_missing());
@@ -864,6 +867,7 @@ pub(super) fn validate_finite_affine_mapping(
     slopes: &[f64],
     source: &[f64],
 ) -> Result<(), BridgeRefusal> {
+    contract.check_licensing()?;
     if source.is_empty()
         || intercepts.len() != source.len()
         || slopes.len() != source.len()

@@ -19,6 +19,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::{Refusal, impl_refused, named_variants};
+
 use crate::evidence_envelope::UncertaintyAxis;
 
 const PARAMETER_POSTERIOR_PORTS: &[EvidencePort] = &[EvidencePort::ParameterPosterior];
@@ -65,44 +67,22 @@ pub enum EvidencePort {
     Scenario,
 }
 
+named_variants! {
+    EvidencePort {
+        Mean => "mean",
+        CovarianceInfluence => "covariance_influence",
+        ConfidenceRegion => "confidence_region",
+        SamplingLaw => "sampling_law",
+        ParameterPosterior => "parameter_posterior",
+        PredictiveLaw => "predictive_law",
+        InterventionalLaw => "interventional_law",
+        IdentifiedSet => "identified_set",
+        Likelihood => "likelihood",
+        Scenario => "scenario",
+    }
+}
+
 impl EvidencePort {
-    /// Every port, in declaration order.
-    pub const ALL: [Self; 10] = [
-        Self::Mean,
-        Self::CovarianceInfluence,
-        Self::ConfidenceRegion,
-        Self::SamplingLaw,
-        Self::ParameterPosterior,
-        Self::PredictiveLaw,
-        Self::InterventionalLaw,
-        Self::IdentifiedSet,
-        Self::Likelihood,
-        Self::Scenario,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Mean => "mean",
-            Self::CovarianceInfluence => "covariance_influence",
-            Self::ConfidenceRegion => "confidence_region",
-            Self::SamplingLaw => "sampling_law",
-            Self::ParameterPosterior => "parameter_posterior",
-            Self::PredictiveLaw => "predictive_law",
-            Self::InterventionalLaw => "interventional_law",
-            Self::IdentifiedSet => "identified_set",
-            Self::Likelihood => "likelihood",
-            Self::Scenario => "scenario",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|port| port.as_str() == name)
-    }
-
     /// Envelope axis this port reports, when the port is an uncertainty statement.
     ///
     /// [`Self::Mean`], [`Self::Likelihood`], and [`Self::Scenario`] report no
@@ -214,7 +194,7 @@ impl EvidencePortError {
     /// The refusal as `(code, detail, message)`.
     #[must_use]
     pub const fn refusal(self) -> (&'static str, &'static str, &'static str) {
-        (self.code, self.detail, self.message)
+        Refusal::new(self.code, self.detail, self.message).into_parts()
     }
 
     const fn coercion(source: EvidencePort, request: DecisionRequest) -> Self {
@@ -228,6 +208,8 @@ impl EvidencePortError {
         }
     }
 }
+
+impl_refused!(EvidencePortError, static_message);
 
 const fn coercion_message(source: EvidencePort, request: DecisionRequest) -> &'static str {
     match (source, request) {

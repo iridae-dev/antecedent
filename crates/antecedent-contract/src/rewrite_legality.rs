@@ -21,10 +21,15 @@
 
 use std::{collections::BTreeSet, error::Error, fmt, sync::Arc};
 
-use antecedent_core::{CanonicalWriter, SemanticDigest, text::is_blank};
+use antecedent_core::{
+    CanonicalWriter, NextAttempt, SemanticDigest, named_variants, text::is_blank,
+};
+
+use crate::evidence_ledger::MAX_TEXT_BYTES;
 
 const INVALID_CODE: &str = antecedent_core::reason_code!("invalid_argument");
 const BLANK_DETAIL: &str = "rewrite_legality.blank_identity";
+const TOO_LONG_DETAIL: &str = "rewrite_legality.identity_too_long";
 const TAG_SELECTED_ROWS: &str = "rewrite_legality.selected_rows";
 const TAG_FOLDS: &str = "rewrite_legality.fold_assignment";
 const TAG_POPULATION: &str = "rewrite_legality.population_id";
@@ -53,30 +58,18 @@ pub enum PreservationAxis {
     Uncertainty,
 }
 
-impl PreservationAxis {
-    /// Every axis, in refusal order.
-    pub const ALL: [Self; 6] = [
-        Self::SampleSelection,
-        Self::Folds,
-        Self::Population,
-        Self::History,
-        Self::Dependence,
-        Self::Uncertainty,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::SampleSelection => "sample_selection",
-            Self::Folds => "folds",
-            Self::Population => "population",
-            Self::History => "history",
-            Self::Dependence => "dependence",
-            Self::Uncertainty => "uncertainty",
-        }
+named_variants! {
+    PreservationAxis {
+        SampleSelection => "sample_selection",
+        Folds => "folds",
+        Population => "population",
+        History => "history",
+        Dependence => "dependence",
+        Uncertainty => "uncertainty",
     }
+}
 
+impl PreservationAxis {
     /// Prose name used in a refusal message.
     #[must_use]
     pub const fn phrase(self) -> &'static str {
@@ -94,19 +87,13 @@ impl PreservationAxis {
     #[must_use]
     pub const fn next_attempt(self) -> NextAttempt {
         match self {
-            Self::SampleSelection => NextAttempt::RetainSampleSelection,
-            Self::Folds => NextAttempt::RetainFolds,
-            Self::Population => NextAttempt::RetainPopulation,
-            Self::History => NextAttempt::RetainHistory,
-            Self::Dependence => NextAttempt::RetainDependence,
-            Self::Uncertainty => NextAttempt::RetainUncertainty,
+            Self::SampleSelection => RETAIN_SAMPLE_SELECTION,
+            Self::Folds => RETAIN_FOLDS,
+            Self::Population => RETAIN_POPULATION,
+            Self::History => RETAIN_HISTORY,
+            Self::Dependence => RETAIN_DEPENDENCE,
+            Self::Uncertainty => RETAIN_UNCERTAINTY,
         }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not an axis"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|axis| axis.as_str() == name)
     }
 
     const fn detail(self) -> &'static str {
@@ -127,80 +114,43 @@ impl fmt::Display for PreservationAxis {
     }
 }
 
-/// What to do after a rewrite is refused.
-///
-/// [`Self::sentence`] is the attempt. [`Self::as_str`] is its stable name.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[non_exhaustive]
-pub enum NextAttempt {
-    /// Keep the rows the unrewritten frame selected.
-    RetainSampleSelection,
-    /// Keep the declared fold assignment.
-    RetainFolds,
-    /// Keep the declared population.
-    RetainPopulation,
-    /// Keep the declared history.
-    RetainHistory,
-    /// Keep the declared dependence.
-    RetainDependence,
-    /// Keep the declared uncertainty.
-    RetainUncertainty,
-    /// Replace a blank identity before checking a rewrite.
-    NamePreservedIdentity,
-}
+/// Keep the rows the unrewritten frame selected.
+pub const RETAIN_SAMPLE_SELECTION: NextAttempt =
+    NextAttempt::new("retain_sample_selection", "retain the original sample selection");
 
-impl NextAttempt {
-    /// Every attempt, in refusal order, then the blank-identity attempt.
-    pub const ALL: [Self; 7] = [
-        Self::RetainSampleSelection,
-        Self::RetainFolds,
-        Self::RetainPopulation,
-        Self::RetainHistory,
-        Self::RetainDependence,
-        Self::RetainUncertainty,
-        Self::NamePreservedIdentity,
-    ];
+/// Keep the declared fold assignment.
+pub const RETAIN_FOLDS: NextAttempt = NextAttempt::new("retain_folds", "retain the declared folds");
 
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::RetainSampleSelection => "retain_sample_selection",
-            Self::RetainFolds => "retain_folds",
-            Self::RetainPopulation => "retain_population",
-            Self::RetainHistory => "retain_history",
-            Self::RetainDependence => "retain_dependence",
-            Self::RetainUncertainty => "retain_uncertainty",
-            Self::NamePreservedIdentity => "name_preserved_identity",
-        }
-    }
+/// Keep the declared population.
+pub const RETAIN_POPULATION: NextAttempt =
+    NextAttempt::new("retain_population", "retain the declared population");
 
-    /// Prose printed after `next attempt:`.
-    #[must_use]
-    pub const fn sentence(self) -> &'static str {
-        match self {
-            Self::RetainSampleSelection => "retain the original sample selection",
-            Self::RetainFolds => "retain the declared folds",
-            Self::RetainPopulation => "retain the declared population",
-            Self::RetainHistory => "retain the declared history",
-            Self::RetainDependence => "retain the declared dependence",
-            Self::RetainUncertainty => "retain the declared uncertainty",
-            Self::NamePreservedIdentity => "name the preserved identity",
-        }
-    }
+/// Keep the declared history.
+pub const RETAIN_HISTORY: NextAttempt =
+    NextAttempt::new("retain_history", "retain the declared history");
 
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not a next attempt"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|attempt| attempt.as_str() == name)
-    }
-}
+/// Keep the declared dependence.
+pub const RETAIN_DEPENDENCE: NextAttempt =
+    NextAttempt::new("retain_dependence", "retain the declared dependence");
 
-impl fmt::Display for NextAttempt {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.sentence())
-    }
-}
+/// Keep the declared uncertainty.
+pub const RETAIN_UNCERTAINTY: NextAttempt =
+    NextAttempt::new("retain_uncertainty", "retain the declared uncertainty");
+
+/// Replace a blank or over-long identity before checking a rewrite.
+pub const NAME_PRESERVED_IDENTITY: NextAttempt =
+    NextAttempt::new("name_preserved_identity", "name the preserved identity");
+
+/// Every attempt, in refusal order, then the identity attempt.
+pub const NEXT_ATTEMPTS: [NextAttempt; 7] = [
+    RETAIN_SAMPLE_SELECTION,
+    RETAIN_FOLDS,
+    RETAIN_POPULATION,
+    RETAIN_HISTORY,
+    RETAIN_DEPENDENCE,
+    RETAIN_UNCERTAINTY,
+    NAME_PRESERVED_IDENTITY,
+];
 
 /// Identity of one preserved axis. Not a row number.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -208,7 +158,13 @@ struct AxisId(Arc<str>);
 
 impl AxisId {
     fn try_new(text: &str, axis: PreservationAxis) -> Result<Self, RewriteRefusal> {
-        if is_blank(text) { Err(blank(axis)) } else { Ok(Self(Arc::from(text))) }
+        if is_blank(text) {
+            Err(blank(axis))
+        } else if text.len() > MAX_TEXT_BYTES {
+            Err(too_long(axis))
+        } else {
+            Ok(Self(Arc::from(text)))
+        }
     }
 
     fn as_str(&self) -> &str {
@@ -238,9 +194,9 @@ impl PreservedIdentities {
     ///
     /// # Errors
     ///
-    /// A blank identity. The axis is the first blank one in
-    /// [`PreservationAxis`] order, and the next attempt is
-    /// [`NextAttempt::NamePreservedIdentity`].
+    /// A blank identity, or one longer than [`MAX_TEXT_BYTES`] bytes. The axis
+    /// is the first such one in [`PreservationAxis`] order, and the next
+    /// attempt is [`NAME_PRESERVED_IDENTITY`].
     pub fn try_new(
         sample_selection: &str,
         folds: &str,
@@ -293,8 +249,8 @@ impl FrameContents {
     ///
     /// # Errors
     ///
-    /// A blank id, a repeated row id, or a fold list whose length is not the
-    /// number of selected rows. The axis is the earliest one in
+    /// A blank id, an id longer than [`MAX_TEXT_BYTES`] bytes, a repeated row
+    /// id, or a fold list whose length is not the number of selected rows. The axis is the earliest one in
     /// [`PreservationAxis`] order.
     pub fn try_new(
         row_ids: &[&str],
@@ -310,6 +266,12 @@ impl FrameContents {
                     "a selected row id is blank",
                 ));
             }
+            if row.len() > MAX_TEXT_BYTES {
+                return Err(content_refusal(
+                    PreservationAxis::SampleSelection,
+                    &format!("a selected row id is longer than {MAX_TEXT_BYTES} bytes"),
+                ));
+            }
             if !seen.insert(*row) {
                 return Err(content_refusal(
                     PreservationAxis::SampleSelection,
@@ -320,6 +282,12 @@ impl FrameContents {
         for fold in fold_ids {
             if is_blank(fold) {
                 return Err(content_refusal(PreservationAxis::Folds, "a fold id is blank"));
+            }
+            if fold.len() > MAX_TEXT_BYTES {
+                return Err(content_refusal(
+                    PreservationAxis::Folds,
+                    &format!("a fold id is longer than {MAX_TEXT_BYTES} bytes"),
+                ));
             }
         }
         if row_ids.len() != fold_ids.len() {
@@ -334,8 +302,20 @@ impl FrameContents {
                 "the population id is blank",
             ));
         }
+        if population_id.len() > MAX_TEXT_BYTES {
+            return Err(content_refusal(
+                PreservationAxis::Population,
+                &format!("the population id is longer than {MAX_TEXT_BYTES} bytes"),
+            ));
+        }
         if is_blank(history) {
             return Err(content_refusal(PreservationAxis::History, "the history is blank"));
+        }
+        if history.len() > MAX_TEXT_BYTES {
+            return Err(content_refusal(
+                PreservationAxis::History,
+                &format!("the history is longer than {MAX_TEXT_BYTES} bytes"),
+            ));
         }
         let mut order: Vec<usize> = (0..row_ids.len()).collect();
         order.sort_by_key(|&index| row_ids[index]);
@@ -1019,7 +999,7 @@ fn frame_binding(kind: &'static str) -> RewriteRefusal {
         message: format!("{kind} needs one executed fingerprint for each compared frame"),
         kind: Some(kind),
         axis: PreservationAxis::SampleSelection,
-        next: NextAttempt::RetainSampleSelection,
+        next: RETAIN_SAMPLE_SELECTION,
     }
 }
 
@@ -1099,6 +1079,17 @@ fn altered(kind: &'static str, axis: PreservationAxis, because: &str) -> Rewrite
     }
 }
 
+fn too_long(axis: PreservationAxis) -> RewriteRefusal {
+    RewriteRefusal {
+        code: INVALID_CODE,
+        detail: TOO_LONG_DETAIL,
+        message: format!("the {} identity is longer than {MAX_TEXT_BYTES} bytes", axis.phrase()),
+        kind: None,
+        axis,
+        next: NAME_PRESERVED_IDENTITY,
+    }
+}
+
 fn blank(axis: PreservationAxis) -> RewriteRefusal {
     RewriteRefusal {
         code: INVALID_CODE,
@@ -1106,7 +1097,7 @@ fn blank(axis: PreservationAxis) -> RewriteRefusal {
         message: format!("the {} identity is blank", axis.phrase()),
         kind: None,
         axis,
-        next: NextAttempt::NamePreservedIdentity,
+        next: NAME_PRESERVED_IDENTITY,
     }
 }
 
@@ -1197,9 +1188,11 @@ mod tests {
     use std::error::Error;
 
     use super::{
-        FrameContents, NextAttempt, NuisanceEffect, PreparationEffect, PreservationAxis,
-        PreservedIdentities, PushdownEffect, Rewrite, SummaryEffect, TileEffect,
+        FrameContents, NAME_PRESERVED_IDENTITY, NEXT_ATTEMPTS, NuisanceEffect, PreparationEffect,
+        PreservationAxis, PreservedIdentities, PushdownEffect, RETAIN_DEPENDENCE,
+        RETAIN_SAMPLE_SELECTION, Rewrite, SummaryEffect, TileEffect,
     };
+    use antecedent_core::NextAttempt;
 
     fn identities() -> PreservedIdentities {
         PreservedIdentities::try_new(
@@ -1490,7 +1483,7 @@ mod tests {
         );
         let err = pushdown.check().expect_err("sample selection is earlier");
         assert_eq!(err.axis(), PreservationAxis::SampleSelection);
-        assert_eq!(err.next_attempt(), NextAttempt::RetainSampleSelection);
+        assert_eq!(err.next_attempt(), RETAIN_SAMPLE_SELECTION);
         assert!(err.message().contains("cohort closure"));
         assert!(!err.message().contains("population-other"));
 
@@ -1523,7 +1516,7 @@ mod tests {
         );
         let err = shared.check().expect_err("left consumer");
         assert_eq!(err.axis(), PreservationAxis::Dependence);
-        assert_eq!(err.next_attempt(), NextAttempt::RetainDependence);
+        assert_eq!(err.next_attempt(), RETAIN_DEPENDENCE);
         assert!(err.message().contains("left-dependence"));
         assert!(!err.message().contains("right-dependence"));
     }
@@ -1542,7 +1535,7 @@ mod tests {
             assert_eq!(err.kind(), None);
             assert_eq!(err.code(), "invalid_argument");
             assert_eq!(err.detail(), "rewrite_legality.blank_identity");
-            assert_eq!(err.next_attempt(), NextAttempt::NamePreservedIdentity);
+            assert_eq!(err.next_attempt(), NAME_PRESERVED_IDENTITY);
             assert_eq!(err.next_attempt().as_str(), "name_preserved_identity");
             assert!(err.message().contains(axis.phrase()));
             assert!(err.to_string().contains(err.next_attempt().sentence()));
@@ -1553,20 +1546,20 @@ mod tests {
     #[test]
     fn axis_and_attempt_names_round_trip() {
         assert_eq!(PreservationAxis::ALL.len(), 6);
-        assert_eq!(NextAttempt::ALL.len(), 7);
+        assert_eq!(NEXT_ATTEMPTS.len(), 7);
         assert_eq!(PreservationAxis::from_name("row_index"), None);
-        assert_eq!(NextAttempt::from_name("drop_rows"), None);
+        assert_eq!(NextAttempt::from_name(&NEXT_ATTEMPTS, "drop_rows"), None);
         for axis in PreservationAxis::ALL {
             assert_eq!(PreservationAxis::from_name(axis.as_str()), Some(axis));
             assert_eq!(axis.to_string(), axis.as_str());
             let attempt = axis.next_attempt();
-            assert_ne!(attempt, NextAttempt::NamePreservedIdentity);
-            assert_eq!(NextAttempt::from_name(attempt.as_str()), Some(attempt));
+            assert_ne!(attempt, NAME_PRESERVED_IDENTITY);
+            assert_eq!(NextAttempt::from_name(&NEXT_ATTEMPTS, attempt.as_str()), Some(attempt));
             assert_eq!(attempt.to_string(), attempt.sentence());
         }
         assert_eq!(
-            NextAttempt::from_name("name_preserved_identity"),
-            Some(NextAttempt::NamePreservedIdentity)
+            NextAttempt::from_name(&NEXT_ATTEMPTS, "name_preserved_identity"),
+            Some(NAME_PRESERVED_IDENTITY)
         );
     }
 
@@ -1759,7 +1752,7 @@ mod tests {
         assert_eq!(err.detail(), "rewrite_legality.frame_binding");
         assert_eq!(err.kind(), Some(Rewrite::COLUMN_FILTER_PUSHDOWN));
         assert_eq!(err.axis(), PreservationAxis::SampleSelection);
-        assert_eq!(err.next_attempt(), NextAttempt::RetainSampleSelection);
+        assert_eq!(err.next_attempt(), RETAIN_SAMPLE_SELECTION);
         assert!(err.message().contains("fingerprint"));
 
         let preparation = Rewrite::shared_row_design_preparation(
@@ -1771,5 +1764,26 @@ mod tests {
         let err = preparation.with_frames(&rows, &[&rows]).expect_err("one claim");
         assert_eq!(err.detail(), "rewrite_legality.frame_binding");
         assert_eq!(err.kind(), Some(Rewrite::SHARED_ROW_DESIGN_PREPARATION));
+    }
+
+    #[test]
+    fn identity_text_is_capped() {
+        use crate::evidence_ledger::MAX_TEXT_BYTES;
+
+        let long = "x".repeat(MAX_TEXT_BYTES + 1);
+        let err = PreservedIdentities::try_new("a", "b", "c", &long, "e", "f")
+            .expect_err("over-long identity");
+        assert_eq!(err.detail(), "rewrite_legality.identity_too_long");
+        assert_eq!(err.axis(), PreservationAxis::History);
+        assert_eq!(err.next_attempt(), NAME_PRESERVED_IDENTITY);
+
+        let err = FrameContents::try_new(&[long.as_str()], &["f"], "p", "h")
+            .expect_err("over-long row id");
+        assert_eq!(err.axis(), PreservationAxis::SampleSelection);
+        let err =
+            FrameContents::try_new(&["r"], &["f"], &long, "h").expect_err("over-long population");
+        assert_eq!(err.axis(), PreservationAxis::Population);
+        let at_cap = "x".repeat(MAX_TEXT_BYTES);
+        assert!(FrameContents::try_new(&[at_cap.as_str()], &["f"], "p", "h").is_ok());
     }
 }

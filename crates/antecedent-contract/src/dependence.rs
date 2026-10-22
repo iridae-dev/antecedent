@@ -11,7 +11,8 @@
 //!
 //! A parameter id is not a dependence factor. Independent studies that inform
 //! one parameter, with disjoint rows and no other shared factor, are
-//! independent. Factor ids are compared after trimming and case-folding. An
+//! independent. Factor ids are compared after trimming, case-folding, dropping
+//! invisible format characters, and composing common Latin accents. An
 //! assessment names at most [`MAX_COMBINATION_SOURCES`] sources.
 //!
 //! An independence claim is [`DependenceContract::try_claim_independent`].
@@ -25,7 +26,16 @@
 
 use std::{collections::BTreeSet, error::Error, fmt, sync::Arc};
 
-use crate::evidence_ledger::MAX_COMBINATION_SOURCES;
+use crate::evidence_ledger::{MAX_COMBINATION_SOURCES, MAX_TEXT_BYTES};
+use antecedent_core::{Refused, impl_refused, named_variants};
+
+/// Most factors one source names across every kind.
+///
+/// With [`MAX_COMBINATION_SOURCES`] this bounds an assessment at a fixed
+/// number of set intersections.
+pub const MAX_FACTORS_PER_SOURCE: usize = 1024;
+
+const KIND_COUNT: usize = SharedFactorKind::ALL.len();
 
 const BLANK_CODE: &str = antecedent_core::reason_code!("invalid_argument");
 const SHARED_CODE: &str = antecedent_core::reason_code!("evidence_double_counted");
@@ -36,9 +46,12 @@ const BLANK_FACTOR_DETAIL: &str = "dependence.blank_factor_id";
 const SHARED_DETAIL: &str = "dependence.shared_factor";
 const UNKNOWN_DETAIL: &str = "dependence.overlap_unknown";
 const TOO_MANY_DETAIL: &str = "dependence.too_many_sources";
+const TOO_MANY_FACTORS_DETAIL: &str = "dependence.too_many_factors";
+const TOO_LONG_DETAIL: &str = "dependence.text_too_long";
 
 const BLANK_SOURCE_MESSAGE: &str = "a source id is blank";
 const BLANK_FACTOR_MESSAGE: &str = "a factor id is blank";
+const TOO_LONG_MESSAGE: &str = "an id is longer than the text limit";
 
 /// A kind of factor that two evidence sources can share.
 ///
@@ -67,54 +80,46 @@ pub enum SharedFactorKind {
     Period,
 }
 
-impl SharedFactorKind {
-    /// Every kind, in canonical order.
-    pub const ALL: [Self; 7] = [
-        Self::Row,
-        Self::Cluster,
-        Self::Model,
-        Self::Parameter,
-        Self::Prior,
-        Self::Disturbance,
-        Self::Period,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Row => "row",
-            Self::Cluster => "cluster",
-            Self::Model => "model",
-            Self::Parameter => "parameter",
-            Self::Prior => "prior",
-            Self::Disturbance => "disturbance",
-            Self::Period => "period",
-        }
+named_variants! {
+    SharedFactorKind {
+        Row => "row",
+        Cluster => "cluster",
+        Model => "model",
+        Parameter => "parameter",
+        Prior => "prior",
+        Disturbance => "disturbance",
+        Period => "period",
     }
+}
 
-    /// Parse the spelling of [`Self::as_str`].
+impl SharedFactorKind {
+    /// Position of this kind in [`Self::ALL`].
     #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
+    pub const fn index(self) -> usize {
+        self as usize
     }
 }
 
 /// Identity of one shared factor.
 ///
-/// Blank text is refused. Comparison trims surrounding whitespace and folds
-/// case, so `Row-1` and ` row-1 ` name the same factor. The stored text is
-/// that normalized form.
+/// Blank text is refused. Comparison trims surrounding whitespace, folds case,
+/// drops invisible format characters, and composes common Latin letter and
+/// combining-mark pairs, so `Row-1`, ` row-1 `, and `ro\u{200B}w-1` name the
+/// same factor. The stored text is that normalized form.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SharedFactorId(Arc<str>);
 
 impl SharedFactorId {
     fn try_new(text: &str) -> Result<Self, DependenceError> {
-        let trimmed = text.trim();
+        if text.len() > MAX_TEXT_BYTES {
+            return Err(DependenceError::too_long());
+        }
+        let folded = fold_identity(text);
+        let trimmed = folded.trim();
         if antecedent_core::is_blank(trimmed) {
             return Err(DependenceError::blank(BLANK_FACTOR_DETAIL, BLANK_FACTOR_MESSAGE));
         }
-        Ok(Self(Arc::from(trimmed.to_lowercase())))
+        Ok(Self(Arc::from(trimmed)))
     }
 
     /// Text of this identity.
@@ -167,15 +172,10 @@ impl fmt::Display for SharedFactor {
 ///
 /// An empty set of a kind means the source declared that it uses none of that
 /// kind. It is distinct from an undeclared overlap on [`DependenceSource`].
+/// A source names at most [`MAX_FACTORS_PER_SOURCE`] factors in total.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SharedFactorSets {
-    rows: BTreeSet<SharedFactorId>,
-    clusters: BTreeSet<SharedFactorId>,
-    models: BTreeSet<SharedFactorId>,
-    parameters: BTreeSet<SharedFactorId>,
-    priors: BTreeSet<SharedFactorId>,
-    disturbances: BTreeSet<SharedFactorId>,
-    periods: BTreeSet<SharedFactorId>,
+    by_kind: [BTreeSet<SharedFactorId>; KIND_COUNT],
 }
 
 impl SharedFactorSets {
@@ -183,70 +183,57 @@ impl SharedFactorSets {
     #[must_use]
     pub const fn empty() -> Self {
         Self {
-            rows: BTreeSet::new(),
-            clusters: BTreeSet::new(),
-            models: BTreeSet::new(),
-            parameters: BTreeSet::new(),
-            priors: BTreeSet::new(),
-            disturbances: BTreeSet::new(),
-            periods: BTreeSet::new(),
+            by_kind: [
+                BTreeSet::new(),
+                BTreeSet::new(),
+                BTreeSet::new(),
+                BTreeSet::new(),
+                BTreeSet::new(),
+                BTreeSet::new(),
+                BTreeSet::new(),
+            ],
         }
     }
 
     /// Record `id` under `kind`. A repeated id is stored once.
     ///
-    /// A blank id leaves the sets unchanged.
+    /// A refused id leaves the sets unchanged.
     ///
     /// # Errors
     ///
-    /// Returns an error when `id` is empty or only whitespace.
-    #[must_use = "a blank factor id is refused"]
+    /// Returns an error when `id` is empty, only whitespace, or longer than
+    /// [`MAX_TEXT_BYTES`] bytes, or when the source would name more than
+    /// [`MAX_FACTORS_PER_SOURCE`] factors.
+    #[must_use = "a refused factor id is not recorded"]
     pub fn try_insert(
         &mut self,
         kind: SharedFactorKind,
         id: impl AsRef<str>,
     ) -> Result<(), DependenceError> {
         let id = SharedFactorId::try_new(id.as_ref())?;
-        self.ids_mut(kind).insert(id);
+        if !self.ids(kind).contains(&id) && self.len() >= MAX_FACTORS_PER_SOURCE {
+            return Err(DependenceError::too_many_factors());
+        }
+        self.by_kind[kind.index()].insert(id);
         Ok(())
     }
 
     /// Identities recorded for `kind`, in order.
     #[must_use]
     pub fn ids(&self, kind: SharedFactorKind) -> &BTreeSet<SharedFactorId> {
-        match kind {
-            SharedFactorKind::Row => &self.rows,
-            SharedFactorKind::Cluster => &self.clusters,
-            SharedFactorKind::Model => &self.models,
-            SharedFactorKind::Parameter => &self.parameters,
-            SharedFactorKind::Prior => &self.priors,
-            SharedFactorKind::Disturbance => &self.disturbances,
-            SharedFactorKind::Period => &self.periods,
-        }
+        &self.by_kind[kind.index()]
+    }
+
+    /// Number of factors recorded across every kind.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.by_kind.iter().map(BTreeSet::len).sum()
     }
 
     /// Whether every kind is empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.rows.is_empty()
-            && self.clusters.is_empty()
-            && self.models.is_empty()
-            && self.parameters.is_empty()
-            && self.priors.is_empty()
-            && self.disturbances.is_empty()
-            && self.periods.is_empty()
-    }
-
-    fn ids_mut(&mut self, kind: SharedFactorKind) -> &mut BTreeSet<SharedFactorId> {
-        match kind {
-            SharedFactorKind::Row => &mut self.rows,
-            SharedFactorKind::Cluster => &mut self.clusters,
-            SharedFactorKind::Model => &mut self.models,
-            SharedFactorKind::Parameter => &mut self.parameters,
-            SharedFactorKind::Prior => &mut self.priors,
-            SharedFactorKind::Disturbance => &mut self.disturbances,
-            SharedFactorKind::Period => &mut self.periods,
-        }
+        self.by_kind.iter().all(BTreeSet::is_empty)
     }
 
     fn contains(&self, factor: &SharedFactor) -> bool {
@@ -597,7 +584,7 @@ impl DependenceError {
     /// The refusal as `(code, detail, explanation)`.
     #[must_use]
     pub fn refusal(&self) -> (&'static str, &'static str, &str) {
-        (self.code, self.detail, self.message.as_str())
+        self.as_refusal().into_parts()
     }
 
     fn blank(detail: &'static str, message: &'static str) -> Self {
@@ -612,6 +599,19 @@ impl DependenceError {
     fn unknown_contract(contract: DependenceContract) -> Self {
         let message = unknown_message(contract.unknown_sources());
         Self { code: UNKNOWN_CODE, detail: UNKNOWN_DETAIL, message, next: Some(contract) }
+    }
+
+    fn too_many_factors() -> Self {
+        Self {
+            code: BLANK_CODE,
+            detail: TOO_MANY_FACTORS_DETAIL,
+            message: format!("a source names at most {MAX_FACTORS_PER_SOURCE} factors"),
+            next: None,
+        }
+    }
+
+    fn too_long() -> Self {
+        Self::blank(TOO_LONG_DETAIL, TOO_LONG_MESSAGE)
     }
 
     fn too_many(count: usize) -> Self {
@@ -634,6 +634,8 @@ impl fmt::Display for DependenceError {
 }
 
 impl Error for DependenceError {}
+
+impl_refused!(DependenceError);
 
 /// Which covariance terms a combination requests.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -736,9 +738,97 @@ fn checked_text(
 ) -> Result<Arc<str>, DependenceError> {
     if antecedent_core::is_blank(text) {
         Err(DependenceError::blank(detail, message))
+    } else if text.len() > MAX_TEXT_BYTES {
+        Err(DependenceError::too_long())
     } else {
         Ok(Arc::from(text))
     }
+}
+
+/// Canonical spelling of a factor id.
+///
+/// Three steps, in order. Invisible format characters (zero-width space and
+/// joiners, directional marks and isolates, the word joiner, soft hyphen,
+/// byte-order mark, and variation selectors) are dropped. The rest is lowercased
+/// with the standard library's Unicode lowercase. Then a lowercase Latin letter
+/// followed by a grave, acute, circumflex, tilde, diaeresis, ring, cedilla, or
+/// caron combining mark is composed into the single precomposed letter, so the
+/// decomposed and composed spellings of those letters agree.
+///
+/// This is not full Unicode normalization. The workspace carries no
+/// normalization table, so decompositions outside that Latin set, and
+/// compatibility forms such as full-width letters, stay distinct. Callers spell
+/// such an id in one form.
+fn fold_identity(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars().filter(|ch| !is_invisible_format(*ch)).flat_map(char::to_lowercase) {
+        if let Some(composed) = out.chars().next_back().and_then(|base| compose(base, ch)) {
+            out.pop();
+            out.push(composed);
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+const fn is_invisible_format(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{00AD}'
+            | '\u{061C}'
+            | '\u{180E}'
+            | '\u{200B}'..='\u{200F}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2060}'..='\u{2064}'
+            | '\u{2066}'..='\u{206F}'
+            | '\u{FE00}'..='\u{FE0F}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Precomposed lowercase Latin letter for `base` followed by `mark`.
+const fn compose(base: char, mark: char) -> Option<char> {
+    Some(match (mark, base) {
+        ('\u{0300}', 'a') => 'à',
+        ('\u{0300}', 'e') => 'è',
+        ('\u{0300}', 'i') => 'ì',
+        ('\u{0300}', 'o') => 'ò',
+        ('\u{0300}', 'u') => 'ù',
+        ('\u{0301}', 'a') => 'á',
+        ('\u{0301}', 'e') => 'é',
+        ('\u{0301}', 'i') => 'í',
+        ('\u{0301}', 'o') => 'ó',
+        ('\u{0301}', 'u') => 'ú',
+        ('\u{0301}', 'y') => 'ý',
+        ('\u{0301}', 'c') => 'ć',
+        ('\u{0301}', 'n') => 'ń',
+        ('\u{0301}', 's') => 'ś',
+        ('\u{0301}', 'z') => 'ź',
+        ('\u{0302}', 'a') => 'â',
+        ('\u{0302}', 'e') => 'ê',
+        ('\u{0302}', 'i') => 'î',
+        ('\u{0302}', 'o') => 'ô',
+        ('\u{0302}', 'u') => 'û',
+        ('\u{0303}', 'a') => 'ã',
+        ('\u{0303}', 'n') => 'ñ',
+        ('\u{0303}', 'o') => 'õ',
+        ('\u{0308}', 'a') => 'ä',
+        ('\u{0308}', 'e') => 'ë',
+        ('\u{0308}', 'i') => 'ï',
+        ('\u{0308}', 'o') => 'ö',
+        ('\u{0308}', 'u') => 'ü',
+        ('\u{0308}', 'y') => 'ÿ',
+        ('\u{030A}', 'a') => 'å',
+        ('\u{0327}', 'c') => 'ç',
+        ('\u{030C}', 'c') => 'č',
+        ('\u{030C}', 'e') => 'ě',
+        ('\u{030C}', 'n') => 'ň',
+        ('\u{030C}', 'r') => 'ř',
+        ('\u{030C}', 's') => 'š',
+        ('\u{030C}', 'z') => 'ž',
+        _ => return None,
+    })
 }
 
 fn empty_slice<T>() -> Box<[T]> {
@@ -799,10 +889,10 @@ fn witness<'a>(
 #[cfg(test)]
 mod tests {
     use super::{
-        CovarianceTerms, DependenceContract, DependenceSource, DependenceStatus, SharedFactorKind,
-        SharedFactorSets,
+        CovarianceTerms, DependenceContract, DependenceSource, DependenceStatus,
+        MAX_FACTORS_PER_SOURCE, SharedFactorKind, SharedFactorSets,
     };
-    use crate::evidence_ledger::MAX_COMBINATION_SOURCES;
+    use crate::evidence_ledger::{MAX_COMBINATION_SOURCES, MAX_TEXT_BYTES};
 
     const KINDS: [SharedFactorKind; 7] = [
         SharedFactorKind::Row,
@@ -1128,6 +1218,31 @@ mod tests {
     }
 
     #[test]
+    fn padded_cased_zero_width_and_decomposed_ids_collide() {
+        let spellings = [
+            "caf\u{e9}-1",
+            "  CAF\u{c9}-1  ",
+            "cafe\u{301}-1",
+            "caf\u{200B}e\u{301}-1",
+            "\u{FEFF}Caf\u{200D}\u{e9}-1\u{2060}",
+        ];
+        let mut factors = SharedFactorSets::empty();
+        for spelling in spellings {
+            factors.try_insert(SharedFactorKind::Row, spelling).expect("factor");
+        }
+        assert_eq!(factors.ids(SharedFactorKind::Row).len(), 1);
+        assert_eq!(
+            factors.ids(SharedFactorKind::Row).iter().next().expect("row").as_str(),
+            "caf\u{e9}-1"
+        );
+        let left = declared("left", &[(SharedFactorKind::Row, "Ro\u{200B}w-1")]);
+        let right = declared("right", &[(SharedFactorKind::Row, " ROW-1 ")]);
+        assert!(contract_of(&[left, right]).is_dependent());
+        let mut blank = SharedFactorSets::empty();
+        assert!(blank.try_insert(SharedFactorKind::Row, " \u{200B}\u{FEFF} ").is_err());
+    }
+
+    #[test]
     fn shared_parameter_of_independent_studies_is_not_dependence() {
         let left = declared(
             "study-a",
@@ -1181,6 +1296,22 @@ mod tests {
         let claim = DependenceContract::try_claim_independent(&sources).expect_err("over the cap");
         assert_eq!(claim.detail(), "dependence.too_many_sources");
         assert!(claim.into_contract().is_none());
+    }
+
+    #[test]
+    fn oversized_ids_and_factor_lists_are_refused() {
+        let mut sets = SharedFactorSets::empty();
+        let long = "x".repeat(MAX_TEXT_BYTES + 1);
+        let refused = sets.try_insert(SharedFactorKind::Row, &long).expect_err("long id");
+        assert_eq!(refused.detail(), "dependence.text_too_long");
+        assert!(DependenceSource::try_declared(&long, SharedFactorSets::empty()).is_err());
+        for index in 0..MAX_FACTORS_PER_SOURCE {
+            sets.try_insert(SharedFactorKind::Row, format!("row-{index}")).expect("within cap");
+        }
+        sets.try_insert(SharedFactorKind::Row, "row-0").expect("repeat is not a new factor");
+        let refused = sets.try_insert(SharedFactorKind::Model, "extra").expect_err("past cap");
+        assert_eq!(refused.detail(), "dependence.too_many_factors");
+        assert_eq!(sets.len(), MAX_FACTORS_PER_SOURCE);
     }
 
     #[test]

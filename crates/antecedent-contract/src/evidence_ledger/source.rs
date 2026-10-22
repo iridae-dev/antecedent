@@ -10,6 +10,7 @@ use antecedent_core::{CanonicalWriter, SemanticDigest};
 use super::ids::{
     LEDGER_IDENTITY_VERSION, ObservationId, OperationId, SourceId, digest_word, finish,
 };
+use antecedent_core::named_variants;
 
 /// What a ledger entry is.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -27,34 +28,17 @@ pub enum SourceKind {
     ExternalClaim,
 }
 
+named_variants! {
+    SourceKind {
+        ObservationSet => "observation_set",
+        Experiment => "experiment",
+        Prior => "prior",
+        FittedModel => "fitted_model",
+        ExternalClaim => "external_claim",
+    }
+}
+
 impl SourceKind {
-    /// Every kind, in a fixed order.
-    pub const ALL: [Self; 5] = [
-        Self::ObservationSet,
-        Self::Experiment,
-        Self::Prior,
-        Self::FittedModel,
-        Self::ExternalClaim,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ObservationSet => "observation_set",
-            Self::Experiment => "experiment",
-            Self::Prior => "prior",
-            Self::FittedModel => "fitted_model",
-            Self::ExternalClaim => "external_claim",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     /// Whether a model or claim: the kinds a supersession may replace.
     #[must_use]
     pub const fn is_model_or_claim(self) -> bool {

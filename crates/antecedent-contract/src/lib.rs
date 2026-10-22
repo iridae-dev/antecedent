@@ -55,6 +55,7 @@ pub mod transform;
 pub mod transport_result;
 pub mod transport_revalidation;
 
+pub use antecedent_core::refusal::{NextAttempt, Refusal, Refused};
 pub use capability::{
     BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
     OperationReport, PremiseChange, SemanticApplicability,
@@ -75,8 +76,8 @@ pub use dependence::{
 };
 pub use evidence_effects::{
     EFFECT_IDENTITY_VERSION, EffectId, EvidenceEffect, EvidenceEffectError, EvidenceEffectLedger,
-    EvidenceOperator, MAX_RECORDED_EFFECTS, NextAttempt as EffectNextAttempt, NumericalAdmission,
-    RecordedEffect,
+    EvidenceOperator, MAX_RECORDED_EFFECTS, NumericalAdmission, RECORD_DEPENDENT_POOLING,
+    RECORD_THEN_COMBINE, RecordedEffect,
 };
 pub use evidence_envelope::{
     AxisInterval, EvidenceBinding, EvidenceCalibration, EvidenceEnvelope, EvidenceEnvelopeError,
@@ -108,7 +109,6 @@ pub use external_refusal::{
 pub use joint_alignment::{
     AlignedLaw, JointAlignment, JointAlignmentError, JointAlignmentRequest, JointAxis,
     JointAxisKind, JointConsumer, JointCovariance, LawArray, LawCoupling, MassAccount, MassFate,
-    NextAttempt as JointNextAttempt,
 };
 pub use joint_law_rule::{
     ASSUMPTION_RANGE_LABEL, ComposedCoordinate, ComposedIntervalPlan, CoverageRecord,

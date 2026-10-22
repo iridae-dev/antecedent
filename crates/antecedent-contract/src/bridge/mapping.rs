@@ -35,6 +35,7 @@ use super::refusal::{
     outside_validated_range, validation_r_squared_too_low, validation_trials_too_few,
     youden_too_small,
 };
+use antecedent_core::named_variants;
 
 /// Fewest validation trials a trial-level mapping may declare.
 pub const MIN_VALIDATION_TRIALS: u32 = 3;
@@ -55,24 +56,12 @@ pub enum MappingKind {
     MeasurementCorrection,
 }
 
-impl MappingKind {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Identity => "identity",
-            Self::Affine => "affine",
-            Self::TrialLevelLinear => "trial_level_linear",
-            Self::MeasurementCorrection => "measurement_correction",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Identity, Self::Affine, Self::TrialLevelLinear, Self::MeasurementCorrection]
-            .into_iter()
-            .find(|kind| kind.as_str() == name)
+named_variants! {
+    MappingKind {
+        Identity => "identity",
+        Affine => "affine",
+        TrialLevelLinear => "trial_level_linear",
+        MeasurementCorrection => "measurement_correction",
     }
 }
 

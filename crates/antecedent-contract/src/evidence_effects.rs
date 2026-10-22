@@ -26,13 +26,14 @@ use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
 
-use antecedent_core::{CanonicalWriter, SemanticDigest};
+use antecedent_core::{CanonicalWriter, NextAttempt, Refused, SemanticDigest, impl_refused};
 
 use crate::dependence::{DependenceContract, DependenceError, DependenceSource, SharedFactorKind};
 use crate::evidence_ledger::{
     EvidenceLedger, LedgerError, MAX_COMBINATION_SOURCES, MAX_RESULTS, MAX_TEXT_BYTES, Overlap,
     ResultId, SourceId, SynthesisKind,
 };
+use antecedent_core::named_variants;
 
 const IDENTITY_TAG: &str = "antecedent.contract.evidence_effect.v1";
 
@@ -101,42 +102,21 @@ pub enum EvidenceOperator {
     Envelope,
 }
 
+named_variants! {
+    EvidenceOperator {
+        Pooling => "pooling",
+        HierarchicalBorrowing => "hierarchical_borrowing",
+        Transport => "transport",
+        Bridge => "bridge",
+        FrozenReuse => "frozen_reuse",
+        RepeatedObservationUse => "repeated_observation_use",
+        Mixture => "mixture",
+        Marginalization => "marginalization",
+        Envelope => "envelope",
+    }
+}
+
 impl EvidenceOperator {
-    /// Every operator, in declaration order.
-    pub const ALL: [Self; 9] = [
-        Self::Pooling,
-        Self::HierarchicalBorrowing,
-        Self::Transport,
-        Self::Bridge,
-        Self::FrozenReuse,
-        Self::RepeatedObservationUse,
-        Self::Mixture,
-        Self::Marginalization,
-        Self::Envelope,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Pooling => "pooling",
-            Self::HierarchicalBorrowing => "hierarchical_borrowing",
-            Self::Transport => "transport",
-            Self::Bridge => "bridge",
-            Self::FrozenReuse => "frozen_reuse",
-            Self::RepeatedObservationUse => "repeated_observation_use",
-            Self::Mixture => "mixture",
-            Self::Marginalization => "marginalization",
-            Self::Envelope => "envelope",
-        }
-    }
-
-    /// Parse the spelling of [`Self::as_str`].
-    #[must_use = "an unknown name is not an operator"]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|operator| operator.as_str() == name)
-    }
-
     /// Ledger synthesis this operator extends, when the ledger already names it.
     ///
     /// Bridge, mixture, marginalization, and envelope have no synthesis kind.
@@ -184,60 +164,20 @@ impl fmt::Display for EvidenceOperator {
     }
 }
 
-/// The attempt a refused numerical combination names.
+/// The attempt a refused numerical combination names: record the effect, then
+/// combine.
 ///
-/// [`Self::PHRASE`] is the whole attempt: record the effect, then combine.
-/// [`Self::operator`] is the effect that attempt records.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct NextAttempt {
-    operator: EvidenceOperator,
-    dependent: bool,
-}
+/// [`EvidenceEffectError::requested_operator`] is the effect that attempt
+/// records.
+pub const RECORD_THEN_COMBINE: NextAttempt =
+    NextAttempt::new("record_then_combine", "record the effect, then combine");
 
-impl NextAttempt {
-    /// Wording of the next attempt.
-    pub const PHRASE: &'static str = "record the effect, then combine";
-
-    /// Wording when the pool has to be recorded as dependent.
-    pub const DEPENDENT_PHRASE: &'static str =
-        "record the pooling effect as dependent, then combine";
-
-    /// Record `operator`, then combine under that same operator.
-    #[must_use]
-    pub const fn record_then_combine(operator: EvidenceOperator) -> Self {
-        Self { operator, dependent: false }
-    }
-
-    /// Record a pooling effect as dependent, then combine.
-    #[must_use]
-    pub const fn record_dependent_pooling() -> Self {
-        Self { operator: EvidenceOperator::Pooling, dependent: true }
-    }
-
-    /// The effect the next attempt records.
-    #[must_use]
-    pub const fn operator(self) -> EvidenceOperator {
-        self.operator
-    }
-
-    /// Whether the next attempt records the pool as dependent.
-    #[must_use]
-    pub const fn is_dependent(self) -> bool {
-        self.dependent
-    }
-
-    /// Wording of this attempt.
-    #[must_use]
-    pub const fn phrase(self) -> &'static str {
-        if self.dependent { Self::DEPENDENT_PHRASE } else { Self::PHRASE }
-    }
-}
-
-impl fmt::Display for NextAttempt {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.phrase())
-    }
-}
+/// The attempt a refused pool names when the sources are dependent: record the
+/// pool as dependent, then combine.
+pub const RECORD_DEPENDENT_POOLING: NextAttempt = NextAttempt::new(
+    "record_dependent_pooling",
+    "record the pooling effect as dependent, then combine",
+);
 
 /// Identity of one recorded effect.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -983,13 +923,13 @@ impl EvidenceEffectError {
     /// The refusal as `(code, detail, explanation)`.
     #[must_use]
     pub fn refusal(&self) -> (&'static str, &'static str, &str) {
-        (self.code, self.detail, self.message.as_str())
+        self.as_refusal().into_parts()
     }
 
     /// The next attempt, when combination was refused.
     ///
     /// Present when the effect was not recorded or another operator was
-    /// offered in its place. The attempt is [`NextAttempt::PHRASE`].
+    /// offered in its place. The attempt is [`RECORD_THEN_COMBINE.sentence()`].
     #[must_use = "the next attempt is to record the effect, then combine"]
     pub const fn next_attempt(&self) -> Option<NextAttempt> {
         self.next
@@ -1056,11 +996,11 @@ impl EvidenceEffectError {
     }
 
     fn dependence_not_consulted() -> Self {
-        let next = NextAttempt::record_then_combine(EvidenceOperator::Pooling);
+        let next = RECORD_THEN_COMBINE;
         let mut message = String::from(
             "pooling is refused until dependence and ledger overlap are consulted; next attempt: ",
         );
-        message.push_str(next.phrase());
+        message.push_str(next.sentence());
         Self {
             code: antecedent_core::reason_code!("cell_not_licensed"),
             detail: NOT_CONSULTED_DETAIL,
@@ -1080,10 +1020,10 @@ impl EvidenceEffectError {
     }
 
     fn dependent_pool(detail: &'static str, prefix: &str) -> Self {
-        let next = NextAttempt::record_dependent_pooling();
+        let next = RECORD_DEPENDENT_POOLING;
         let mut message = String::from(prefix);
         message.push_str("; next attempt: ");
-        message.push_str(next.phrase());
+        message.push_str(next.sentence());
         Self {
             code: antecedent_core::reason_code!("evidence_double_counted"),
             detail,
@@ -1113,11 +1053,11 @@ impl EvidenceEffectError {
     }
 
     fn not_recorded(operator: EvidenceOperator) -> Self {
-        let next = NextAttempt::record_then_combine(operator);
+        let next = RECORD_THEN_COMBINE;
         let mut message = String::from("numerical combination of `");
         message.push_str(operator.as_str());
         message.push_str("` is refused until the effect is recorded; next attempt: ");
-        message.push_str(NextAttempt::PHRASE);
+        message.push_str(RECORD_THEN_COMBINE.sentence());
         Self {
             code: antecedent_core::reason_code!("cell_not_licensed"),
             detail: NOT_RECORDED_DETAIL,
@@ -1129,14 +1069,14 @@ impl EvidenceEffectError {
     }
 
     fn not_interchangeable(recorded: EvidenceOperator, requested: EvidenceOperator) -> Self {
-        let next = NextAttempt::record_then_combine(requested);
+        let next = RECORD_THEN_COMBINE;
         let mut message = String::from(substitution_sentence(recorded, requested));
         message.push_str(" (`");
         message.push_str(recorded.as_str());
         message.push_str("` is not `");
         message.push_str(requested.as_str());
         message.push_str("`); next attempt: ");
-        message.push_str(NextAttempt::PHRASE);
+        message.push_str(RECORD_THEN_COMBINE.sentence());
         Self {
             code: antecedent_core::reason_code!("distribution_meaning_mismatch"),
             detail: NOT_INTERCHANGEABLE_DETAIL,
@@ -1155,6 +1095,8 @@ impl fmt::Display for EvidenceEffectError {
 }
 
 impl Error for EvidenceEffectError {}
+
+impl_refused!(EvidenceEffectError);
 
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 enum SubjectKey {
@@ -1323,7 +1265,8 @@ fn different_operator_on_same_subjects<'a>(
 #[cfg(test)]
 mod tests {
     use super::{
-        EvidenceEffect, EvidenceEffectLedger, EvidenceOperator, NextAttempt, PooledSource,
+        EvidenceEffect, EvidenceEffectLedger, EvidenceOperator, PooledSource,
+        RECORD_DEPENDENT_POOLING, RECORD_THEN_COMBINE,
     };
     use crate::dependence::{DependenceSource, SharedFactorKind, SharedFactorSets};
     use crate::evidence_ledger::{
@@ -1468,8 +1411,8 @@ mod tests {
             let missing = ledger.try_combine(effect).expect_err("before record");
             assert_eq!(missing.code(), "cell_not_licensed");
             assert_eq!(missing.detail(), "evidence_effects.effect_not_recorded");
-            assert!(missing.message().contains(NextAttempt::PHRASE));
-            assert_eq!(missing.next_attempt().expect("next").operator(), operator);
+            assert!(missing.message().contains(RECORD_THEN_COMBINE.sentence()));
+            assert_eq!(missing.requested_operator().expect("requested"), operator);
 
             let id = ledger.record(effect.clone()).expect("record");
             assert_eq!(ledger.record(effect.clone()).expect("idempotent"), id);
@@ -1518,9 +1461,9 @@ mod tests {
             ("cell_not_licensed", "evidence_effects.effect_not_recorded", err.message(),)
         );
         assert!(err.message().contains("refused until the effect is recorded"));
-        assert!(err.message().contains(NextAttempt::PHRASE));
-        assert_eq!(err.next_attempt().expect("next").to_string(), NextAttempt::PHRASE);
-        assert_eq!(err.next_attempt().expect("next").operator(), EvidenceOperator::Pooling);
+        assert!(err.message().contains(RECORD_THEN_COMBINE.sentence()));
+        assert_eq!(err.next_attempt().expect("next").to_string(), RECORD_THEN_COMBINE.sentence());
+        assert_eq!(err.requested_operator().expect("requested"), EvidenceOperator::Pooling);
         assert!(err.recorded_operator().is_none());
         assert_eq!(err.requested_operator(), Some(EvidenceOperator::Pooling));
         assert!(antecedent_core::reason_code::is_runtime_refusal(err.code()));
@@ -1530,7 +1473,7 @@ mod tests {
         assert_eq!(missing_dependence.detail(), "evidence_effects.dependence_not_consulted");
         assert!(missing_dependence.message().contains("consulted"));
         assert_eq!(
-            missing_dependence.next_attempt().expect("next").operator(),
+            missing_dependence.requested_operator().expect("requested"),
             EvidenceOperator::Pooling
         );
 
@@ -1564,16 +1507,16 @@ mod tests {
         assert_eq!(err.code(), "distribution_meaning_mismatch");
         assert_eq!(err.detail(), "evidence_effects.operators_not_interchangeable");
         assert!(err.message().contains("a mixture is not a pool"));
-        assert!(err.message().contains(NextAttempt::PHRASE));
+        assert!(err.message().contains(RECORD_THEN_COMBINE.sentence()));
         assert_eq!(err.recorded_operator(), Some(EvidenceOperator::Mixture));
         assert_eq!(err.requested_operator(), Some(EvidenceOperator::Pooling));
-        assert_eq!(err.next_attempt().expect("next").operator(), EvidenceOperator::Pooling);
+        assert_eq!(err.requested_operator().expect("requested"), EvidenceOperator::Pooling);
         assert!(antecedent_core::reason_code::is_runtime_refusal(err.code()));
 
         let as_pool =
             ledger.try_combine_as(mixture_id, EvidenceOperator::Pooling).expect_err("as pool");
         assert!(as_pool.message().contains("a mixture is not a pool"));
-        assert_eq!(as_pool.next_attempt().expect("next").operator(), EvidenceOperator::Pooling);
+        assert_eq!(as_pool.requested_operator().expect("requested"), EvidenceOperator::Pooling);
 
         let bridge = EvidenceEffect::bridge(source_at(3), "endpoint").expect("bridge");
         let bridge_id = ledger.record(bridge).expect("record bridge");
@@ -1584,7 +1527,7 @@ mod tests {
         assert_eq!(as_transport.recorded_operator(), Some(EvidenceOperator::Bridge));
         assert_eq!(as_transport.requested_operator(), Some(EvidenceOperator::Transport));
         assert_eq!(
-            as_transport.next_attempt().expect("next").operator(),
+            as_transport.requested_operator().expect("requested"),
             EvidenceOperator::Transport
         );
 
@@ -1597,7 +1540,7 @@ mod tests {
         assert_eq!(as_marginal.recorded_operator(), Some(EvidenceOperator::Envelope));
         assert_eq!(as_marginal.requested_operator(), Some(EvidenceOperator::Marginalization));
         assert_eq!(
-            as_marginal.next_attempt().expect("next").operator(),
+            as_marginal.requested_operator().expect("requested"),
             EvidenceOperator::Marginalization
         );
 
@@ -1607,7 +1550,7 @@ mod tests {
         ledger.record(reused).expect("record reuse");
         let not_marginal = ledger.try_combine(&marginal).expect_err("reuse is not a marginal");
         assert!(not_marginal.message().contains("two effects are not interchangeable"));
-        assert!(not_marginal.message().contains(NextAttempt::PHRASE));
+        assert!(not_marginal.message().contains(RECORD_THEN_COMBINE.sentence()));
         assert_eq!(not_marginal.recorded_operator(), Some(EvidenceOperator::FrozenReuse));
         assert_eq!(not_marginal.requested_operator(), Some(EvidenceOperator::Marginalization));
 
@@ -1629,10 +1572,10 @@ mod tests {
                     continue;
                 }
                 let err = refusal.expect("distinct operators");
-                assert!(err.message().contains(NextAttempt::PHRASE));
+                assert!(err.message().contains(RECORD_THEN_COMBINE.sentence()));
                 assert_eq!(err.recorded_operator(), Some(recorded));
                 assert_eq!(err.requested_operator(), Some(requested));
-                assert_eq!(err.next_attempt().expect("next").operator(), requested);
+                assert_eq!(err.requested_operator().expect("requested"), requested);
                 assert!(err.message().contains(sentence(recorded, requested)), "{}", err.message(),);
             }
         }
@@ -1707,8 +1650,7 @@ mod tests {
         assert_eq!(refused.detail(), "evidence_effects.shared_rows");
         assert_eq!(refused.code(), "evidence_double_counted");
         assert!(refused.message().contains("share rows"));
-        assert!(refused.next_attempt().expect("next").is_dependent());
-        assert_eq!(refused.next_attempt().expect("next").phrase(), NextAttempt::DEPENDENT_PHRASE);
+        assert_eq!(refused.next_attempt(), Some(RECORD_DEPENDENT_POOLING));
         assert!(ledger.recorded().is_empty());
 
         let id = ledger.record(dependent.clone()).expect("record dependent");
@@ -1776,7 +1718,7 @@ mod tests {
         ledger.consult(&shared, &evidence).expect("consult shared rows");
         let after = ledger.try_combine(&effect).expect_err("combine checks dependence");
         assert_eq!(after.detail(), "evidence_effects.shared_rows");
-        assert!(after.next_attempt().expect("next").is_dependent());
+        assert_eq!(after.next_attempt(), Some(RECORD_DEPENDENT_POOLING));
     }
 
     #[test]

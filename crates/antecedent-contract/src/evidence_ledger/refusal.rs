@@ -5,6 +5,7 @@
 use std::fmt;
 
 use super::ids::SourceId;
+use antecedent_core::{Refused, impl_refused};
 
 /// Why a ledger request was refused. Each kind maps to one registered reason
 /// code; the namespaced `detail` names the specific rule.
@@ -44,7 +45,7 @@ impl LedgerError {
     /// The refusal as `(code, detail, explanation)`.
     #[must_use]
     pub fn refusal(&self) -> (&'static str, &'static str, &str) {
-        (self.code, self.detail, &self.message)
+        self.as_refusal().into_parts()
     }
 
     /// Attach the sources the refusal is about.
@@ -62,3 +63,5 @@ impl fmt::Display for LedgerError {
 }
 
 impl std::error::Error for LedgerError {}
+
+impl_refused!(LedgerError);

@@ -14,6 +14,7 @@ use std::fmt;
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 
 use crate::evidence_ledger::SourceId;
+use antecedent_core::named_variants;
 
 /// Version word written into every graph identity.
 pub const COMPOSITION_GRAPH_VERSION: u64 = 1;
@@ -56,48 +57,24 @@ pub enum NodeKind {
     Claim,
 }
 
+named_variants! {
+    NodeKind {
+        CohortSource => "cohort_source",
+        Data => "data",
+        MeasurementModel => "measurement_model",
+        MechanismComposition => "mechanism_composition",
+        Bridge => "bridge",
+        LedgerResult => "ledger_result",
+        TransportedResult => "transported_result",
+        Decision => "decision",
+        ExternalProvider => "external_provider",
+        SelectionDiagram => "selection_diagram",
+        TargetPopulation => "target_population",
+        Claim => "claim",
+    }
+}
+
 impl NodeKind {
-    /// Every kind, in declaration order.
-    pub const ALL: [Self; 12] = [
-        Self::CohortSource,
-        Self::Data,
-        Self::MeasurementModel,
-        Self::MechanismComposition,
-        Self::Bridge,
-        Self::LedgerResult,
-        Self::TransportedResult,
-        Self::Decision,
-        Self::ExternalProvider,
-        Self::SelectionDiagram,
-        Self::TargetPopulation,
-        Self::Claim,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CohortSource => "cohort_source",
-            Self::Data => "data",
-            Self::MeasurementModel => "measurement_model",
-            Self::MechanismComposition => "mechanism_composition",
-            Self::Bridge => "bridge",
-            Self::LedgerResult => "ledger_result",
-            Self::TransportedResult => "transported_result",
-            Self::Decision => "decision",
-            Self::ExternalProvider => "external_provider",
-            Self::SelectionDiagram => "selection_diagram",
-            Self::TargetPopulation => "target_population",
-            Self::Claim => "claim",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
-    }
-
     /// Whether the node is a boundary transformation (it changes the meaning,
     /// population or representation of what flows through it).
     #[must_use]
@@ -134,36 +111,15 @@ pub enum DependencyKind {
     StructuralDerivation,
 }
 
-impl DependencyKind {
-    /// Every kind, in declaration order.
-    pub const ALL: [Self; 7] = [
-        Self::Data,
-        Self::Evidence,
-        Self::ModelVersion,
-        Self::Support,
-        Self::ProviderTrust,
-        Self::Calibration,
-        Self::StructuralDerivation,
-    ];
-
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Data => "data",
-            Self::Evidence => "evidence",
-            Self::ModelVersion => "model_version",
-            Self::Support => "support",
-            Self::ProviderTrust => "provider_trust",
-            Self::Calibration => "calibration",
-            Self::StructuralDerivation => "structural_derivation",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
+named_variants! {
+    DependencyKind {
+        Data => "data",
+        Evidence => "evidence",
+        ModelVersion => "model_version",
+        Support => "support",
+        ProviderTrust => "provider_trust",
+        Calibration => "calibration",
+        StructuralDerivation => "structural_derivation",
     }
 }
 
@@ -194,26 +150,16 @@ pub enum TrustStanding {
     Undeclared,
 }
 
+named_variants! {
+    TrustStanding {
+        NotApplicable => "not_applicable",
+        Held => "held",
+        Withdrawn => "withdrawn",
+        Undeclared => "undeclared",
+    }
+}
+
 impl TrustStanding {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::NotApplicable => "not_applicable",
-            Self::Held => "held",
-            Self::Withdrawn => "withdrawn",
-            Self::Undeclared => "undeclared",
-        }
-    }
-
-    /// Parse a wire name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::NotApplicable, Self::Held, Self::Withdrawn, Self::Undeclared]
-            .into_iter()
-            .find(|standing| standing.as_str() == name)
-    }
-
     /// The standing of a provider at a verification level. An unverified
     /// provider holds no trust; every other level holds the trust it was
     /// granted. Metadata never raises the level.

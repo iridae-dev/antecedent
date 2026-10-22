@@ -58,6 +58,7 @@ use std::collections::BTreeSet;
 
 use crate::ExternalRefusal;
 use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
+use antecedent_core::named_variants;
 
 /// Stage reported by every refusal of this module.
 pub const JOINT_LAW_STAGE: &str = "propagate";
@@ -113,41 +114,21 @@ pub enum PropagationClass {
     Transported,
 }
 
+named_variants! {
+    PropagationOperation {
+        LinearTransform => "linear_transform",
+        Contrast => "contrast",
+        Sum => "sum",
+        WeightedSum => "weighted_sum",
+        Product => "product",
+        NonlinearFunctional => "nonlinear_functional",
+        ChainedSampling => "chained_sampling",
+        Mixture => "mixture",
+        TransportedComposition => "transported_composition",
+    }
+}
+
 impl PropagationOperation {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::LinearTransform => "linear_transform",
-            Self::Contrast => "contrast",
-            Self::Sum => "sum",
-            Self::WeightedSum => "weighted_sum",
-            Self::Product => "product",
-            Self::NonlinearFunctional => "nonlinear_functional",
-            Self::ChainedSampling => "chained_sampling",
-            Self::Mixture => "mixture",
-            Self::TransportedComposition => "transported_composition",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::LinearTransform,
-            Self::Contrast,
-            Self::Sum,
-            Self::WeightedSum,
-            Self::Product,
-            Self::NonlinearFunctional,
-            Self::ChainedSampling,
-            Self::Mixture,
-            Self::TransportedComposition,
-        ]
-        .into_iter()
-        .find(|op| op.as_str() == name)
-    }
-
     /// The dependence class the operation needs.
     #[must_use]
     pub const fn class(self) -> PropagationClass {
@@ -187,33 +168,17 @@ pub enum InputRole {
     TransportFunctional,
 }
 
+named_variants! {
+    InputRole {
+        Estimate => "estimate",
+        TransportedInterval => "transported_interval",
+        SourceSampling => "source_sampling",
+        TargetSampling => "target_sampling",
+        TransportFunctional => "transport_functional",
+    }
+}
+
 impl InputRole {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Estimate => "estimate",
-            Self::TransportedInterval => "transported_interval",
-            Self::SourceSampling => "source_sampling",
-            Self::TargetSampling => "target_sampling",
-            Self::TransportFunctional => "transport_functional",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::Estimate,
-            Self::TransportedInterval,
-            Self::SourceSampling,
-            Self::TargetSampling,
-            Self::TransportFunctional,
-        ]
-        .into_iter()
-        .find(|role| role.as_str() == name)
-    }
-
     const fn is_transported(self) -> bool {
         !matches!(self, Self::Estimate)
     }
@@ -301,25 +266,13 @@ pub enum RequestedReading {
     Envelope,
 }
 
-impl RequestedReading {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Point => "point",
-            Self::Spread => "spread",
-            Self::Interval => "interval",
-            Self::Posterior => "posterior",
-            Self::Envelope => "envelope",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Point, Self::Spread, Self::Interval, Self::Posterior, Self::Envelope]
-            .into_iter()
-            .find(|reading| reading.as_str() == name)
+named_variants! {
+    RequestedReading {
+        Point => "point",
+        Spread => "spread",
+        Interval => "interval",
+        Posterior => "posterior",
+        Envelope => "envelope",
     }
 }
 
@@ -352,33 +305,17 @@ pub enum PropagationRoute {
     CorrelationRangeEnvelope,
 }
 
+named_variants! {
+    PropagationRoute {
+        LinearMoments => "linear_moments",
+        AlignedJointLaw => "aligned_joint_law",
+        KnownWeightMixture => "known_weight_mixture",
+        FrechetEnvelope => "frechet_envelope",
+        CorrelationRangeEnvelope => "correlation_range_envelope",
+    }
+}
+
 impl PropagationRoute {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::LinearMoments => "linear_moments",
-            Self::AlignedJointLaw => "aligned_joint_law",
-            Self::KnownWeightMixture => "known_weight_mixture",
-            Self::FrechetEnvelope => "frechet_envelope",
-            Self::CorrelationRangeEnvelope => "correlation_range_envelope",
-        }
-    }
-
-    /// Parse a stable name.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::LinearMoments,
-            Self::AlignedJointLaw,
-            Self::KnownWeightMixture,
-            Self::FrechetEnvelope,
-            Self::CorrelationRangeEnvelope,
-        ]
-        .into_iter()
-        .find(|route| route.as_str() == name)
-    }
-
     /// The label the route's result carries.
     #[must_use]
     pub const fn label(self) -> &'static str {
