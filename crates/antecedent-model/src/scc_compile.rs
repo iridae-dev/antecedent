@@ -59,6 +59,10 @@ use thiserror::Error;
 use crate::cyclic_component::{
     CyclicComponent, DAG_EQUILIBRIUM_ATTEMPT, ModelBinding, SCC_COMPILE_ATTEMPT,
 };
+use crate::linear_algebra::{
+    MatrixError, add_times_transpose, eye_minus_determinant2, matmul, max_abs_row_sum, transpose,
+    unit_diagonal_infinity_kappa2, zeros,
+};
 use crate::linear_solution::{
     FREE_BLOCK_EQUATION, HardClamp, IdentificationStatus, LinearSolutionError, LinearStructuralMap,
     PhysicalStability, SolvabilityRefusal, SolverConvergence, free_indices, pivots_regular,
@@ -572,16 +576,13 @@ pub fn route_linear_support(
     Ok(LinearSupportRoute::Acyclic { order: global })
 }
 
-fn dag_license_refusal() -> String {
-    antecedent_graph::error::CyclicDagRefusal {
-        operation: antecedent_graph::error::DagOperation::Simulation,
-        next_attempt: antecedent_graph::error::CyclicNextAttempt::Unlicensed {
-            consumer: "CompiledCausalModel",
-            attempt: "a directed cycle belongs in a CyclicDigraph; condensation describes \
-                      the feedback and does not sample or abduct. This compiler has no \
-                      cyclic license",
-        },
-    }
+pub(crate) fn dag_license_refusal() -> String {
+    antecedent_graph::error::CyclicDagRefusal::unlicensed(
+        antecedent_graph::error::DagOperation::Simulation,
+        "CompiledCausalModel",
+        "a directed cycle belongs in a CyclicDigraph; condensation describes the feedback and \
+         does not sample or abduct. This compiler has no cyclic license",
+    )
     .to_string()
 }
 
@@ -1261,7 +1262,7 @@ fn condition_of(
     }
     let transposed = transpose(matrix, m, m)?;
     let inverse_inf = hager_one_norm_inverse(&transposed, members)?;
-    let kappa = infinity_norm(matrix, m) * inverse_inf;
+    let kappa = max_abs_row_sum(matrix, m) * inverse_inf;
     if !kappa.is_finite() {
         return Err(SccCompileError::NonFiniteEquilibrium);
     }
@@ -1329,28 +1330,12 @@ fn exact_infinity_kappa(matrix: &[f64], m: usize) -> Option<f64> {
     match m {
         1 => Some(1.0),
         2 => {
-            let row = (1.0 + matrix[1].abs()).max(1.0 + matrix[2].abs());
-            let det = (1.0 - matrix[1] * matrix[2]).abs();
-            #[allow(
-                clippy::float_cmp,
-                reason = "a zero determinant has already been refused; this guards the division"
-            )]
-            if det == 0.0 || !row.is_finite() {
-                None
-            } else {
-                let kappa = (row * row) / det;
-                kappa.is_finite().then_some(kappa)
-            }
+            let (_, det) = eye_minus_determinant2([matrix[1], matrix[2]]);
+            let kappa = unit_diagonal_infinity_kappa2([matrix[1], matrix[2]], det);
+            kappa.is_finite().then_some(kappa)
         }
         _ => None,
     }
-}
-
-fn infinity_norm(matrix: &[f64], m: usize) -> f64 {
-    matrix.chunks_exact(m).fold(0.0, |best, row| {
-        let sum = row.iter().fold(0.0, |acc, entry| acc + entry.abs());
-        best.max(sum)
-    })
 }
 
 fn block_residual(
@@ -1496,61 +1481,6 @@ fn require_psd(covariance: &[f64], n: usize) -> Result<(), SccCompileError> {
     Ok(())
 }
 
-fn add_times_transpose(
-    left: &[f64],
-    right: &[f64],
-    out: &mut [f64],
-    rows: usize,
-    mid: usize,
-) -> Result<(), SccCompileError> {
-    for row in 0..rows {
-        for col in 0..rows {
-            let mut sum = 0.0;
-            for k in 0..mid {
-                sum += left[row * mid + k] * right[col * mid + k];
-            }
-            if !sum.is_finite() {
-                return Err(SccCompileError::NonFiniteEquilibrium);
-            }
-            out[row * rows + col] += sum;
-        }
-    }
-    Ok(())
-}
-
-fn matmul(
-    left: &[f64],
-    rows: usize,
-    mid: usize,
-    right: &[f64],
-    cols: usize,
-) -> Result<Vec<f64>, SccCompileError> {
-    let mut out = zeros(rows, cols)?;
-    for row in 0..rows {
-        for col in 0..cols {
-            let mut sum = 0.0;
-            for k in 0..mid {
-                sum += left[row * mid + k] * right[k * cols + col];
-            }
-            if !sum.is_finite() {
-                return Err(SccCompileError::NonFiniteEquilibrium);
-            }
-            out[row * cols + col] = sum;
-        }
-    }
-    Ok(out)
-}
-
-fn transpose(matrix: &[f64], rows: usize, cols: usize) -> Result<Vec<f64>, SccCompileError> {
-    let mut out = zeros(cols, rows)?;
-    for row in 0..rows {
-        for col in 0..cols {
-            out[col * rows + row] = matrix[row * cols + col];
-        }
-    }
-    Ok(out)
-}
-
 fn symmetrize(covariance: &mut [f64], n: usize) -> Result<(), SccCompileError> {
     for row in 0..n {
         for col in (row + 1)..n {
@@ -1593,11 +1523,15 @@ fn positions(n: usize, nodes: &[usize]) -> Result<Vec<Option<usize>>, SccCompile
     Ok(pos)
 }
 
-fn zeros(rows: usize, cols: usize) -> Result<Vec<f64>, SccCompileError> {
-    let len = rows
-        .checked_mul(cols)
-        .ok_or(SccCompileError::Shape { message: "block workspace length overflows usize" })?;
-    Ok(vec![0.0; len])
+impl From<MatrixError> for SccCompileError {
+    fn from(error: MatrixError) -> Self {
+        match error {
+            MatrixError::Overflow => {
+                Self::Shape { message: "block workspace length overflows usize" }
+            }
+            MatrixError::NonFinite => Self::NonFiniteEquilibrium,
+        }
+    }
 }
 
 #[cfg(test)]

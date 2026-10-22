@@ -53,6 +53,9 @@
 use antecedent_kernels::gauss_jordan_solve;
 use thiserror::Error;
 
+use crate::linear_algebra::{
+    eye_minus_determinant2, eye_minus_determinant3, max_abs_row_sum, unit_diagonal_infinity_kappa2,
+};
 use crate::scc_compile::{eye_minus_block, support_blocks};
 
 /// Equation of the free block under a hard clamp `H = a`.
@@ -865,20 +868,10 @@ fn solvability_refusal(block: &QueryBlock) -> Option<SolvabilityRefusal> {
 fn small_block_non_finite(k_ff: &[f64], order: usize) -> bool {
     match order {
         2 => {
-            let product = k_ff[1] * k_ff[2];
-            !product.is_finite() || !(1.0 - product).is_finite()
+            let (product, det) = eye_minus_determinant2([k_ff[1], k_ff[2]]);
+            !product.is_finite() || !det.is_finite()
         }
-        3 => {
-            let mut eye_minus = [0.0; 9];
-            for row in 0..3 {
-                for col in 0..3 {
-                    let coefficient = k_ff[row * 3 + col];
-                    eye_minus[row * 3 + col] =
-                        if row == col { 1.0 - coefficient } else { -coefficient };
-                }
-            }
-            !determinant3(&eye_minus).is_finite()
-        }
+        3 => !eye_minus_determinant3(k_ff).is_finite(),
         _ => false,
     }
 }
@@ -1034,8 +1027,7 @@ fn decide(
 fn closed_form_singular(k_ff: &[f64], free: &[usize]) -> Option<(Uniqueness, Conditioning)> {
     match free.len() {
         2 => {
-            let product = k_ff[1] * k_ff[2];
-            let det = 1.0 - product;
+            let (product, det) = eye_minus_determinant2([k_ff[1], k_ff[2]]);
             if !product.is_finite() || !det.is_finite() {
                 return Some(undetermined(free));
             }
@@ -1054,15 +1046,7 @@ fn closed_form_singular(k_ff: &[f64], free: &[usize]) -> Option<(Uniqueness, Con
             None
         }
         3 => {
-            let mut eye_minus = [0.0; 9];
-            for row in 0..3 {
-                for col in 0..3 {
-                    let coefficient = k_ff[row * 3 + col];
-                    eye_minus[row * 3 + col] =
-                        if row == col { 1.0 - coefficient } else { -coefficient };
-                }
-            }
-            let det = determinant3(&eye_minus);
+            let det = eye_minus_determinant3(k_ff);
             if !det.is_finite() {
                 return Some(undetermined(free));
             }
@@ -1083,9 +1067,9 @@ fn closed_form_singular(k_ff: &[f64], free: &[usize]) -> Option<(Uniqueness, Con
 }
 
 fn two_by_two_conditioning(k_ff: &[f64], free: &[usize]) -> (Uniqueness, Conditioning) {
-    let det = 1.0 - k_ff[1] * k_ff[2];
-    let row_sum = (1.0 + k_ff[1].abs()).max(1.0 + k_ff[2].abs());
-    let kappa = (row_sum * row_sum) / det.abs();
+    let off_diagonal = [k_ff[1], k_ff[2]];
+    let (_, det) = eye_minus_determinant2(off_diagonal);
+    let kappa = unit_diagonal_infinity_kappa2(off_diagonal, det);
     if !kappa.is_finite() {
         return (Uniqueness::Unique, not_estimated(free));
     }
@@ -1098,13 +1082,6 @@ fn neumann_block(norm: f64, free: &[usize]) -> (Uniqueness, Conditioning) {
         return (Uniqueness::Unique, not_estimated(free));
     }
     (Uniqueness::Unique, Conditioning::InfinityNorm { kappa, exact: false })
-}
-
-fn determinant3(m: &[f64; 9]) -> f64 {
-    let (a, b, c) = (m[0], m[1], m[2]);
-    let (d, e, f) = (m[3], m[4], m[5]);
-    let (g, h, i) = (m[6], m[7], m[8]);
-    a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
 }
 
 fn undetermined(free: &[usize]) -> (Uniqueness, Conditioning) {
@@ -1130,13 +1107,6 @@ fn abs_radius_upper(coefficients: &[f64], n: usize) -> f64 {
         return by_norm;
     }
     smaller_upper(by_norm, collatz_wielandt_upper(coefficients, n))
-}
-
-fn max_abs_row_sum(coefficients: &[f64], n: usize) -> f64 {
-    coefficients
-        .chunks_exact(n)
-        .map(|row| row.iter().map(|entry| entry.abs()).sum::<f64>())
-        .fold(0.0_f64, f64::max)
 }
 
 fn smaller_upper(left: f64, right: f64) -> f64 {
@@ -1247,14 +1217,8 @@ mod tests {
         let family = assess(model, &HardClamp::none(model.dimension()).expect("no clamp"))
             .expect("assessment")
             .family;
-        CyclicComponent::try_new(
-            "feedback",
-            "source-measurements",
-            &["solve-note"],
-            model,
-            &family,
-        )
-        .expect("component")
+        CyclicComponent::try_new("feedback", "source-measurements", &["solve-note"], model, &family)
+            .expect("component")
     }
 
     #[test]
@@ -1661,8 +1625,8 @@ mod tests {
         let clamp = HardClamp::try_new(2, &[0]).expect("clamp A");
         let levels = [0.0, 1.0, 2.0, -3.0];
         let disturbance_mean = vec![0.2, -0.1];
-        let batch = hard_clamp_mean_batch(&model, &clamp, &levels, &disturbance_mean)
-            .expect("batch");
+        let batch =
+            hard_clamp_mean_batch(&model, &clamp, &levels, &disturbance_mean).expect("batch");
         assert_eq!(batch.rows(), levels.len());
         let mut covariances = Vec::new();
         for (row, level) in levels.iter().enumerate() {

@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod affine_certificate;
 pub mod basis;
 pub mod batch;
 pub mod compile;
@@ -19,6 +20,7 @@ pub mod discretized_scm;
 pub mod discretized_scm_artifact;
 pub mod do_sampler;
 pub mod equation_system;
+pub mod equilibrium_polynomial;
 pub mod error;
 pub mod evaluate;
 pub mod falsify;
@@ -26,16 +28,15 @@ pub mod history_operators;
 pub mod information_time;
 pub mod intervention_request;
 pub mod lgssm;
+pub(crate) mod linear_algebra;
+pub mod linear_moments;
 pub mod linear_solution;
+pub mod local_cyclic;
 pub mod mechanism;
+pub mod mechanism_expr;
 pub mod mechanism_transport;
 pub mod model_collection;
 pub mod noise_replay;
-pub mod equilibrium_polynomial;
-pub mod linear_moments;
-pub mod affine_certificate;
-pub mod local_cyclic;
-pub mod mechanism_expr;
 pub mod nonlinear_equilibrium;
 pub mod observation_query;
 pub mod overlay;
