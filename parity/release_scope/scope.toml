@@ -1555,3 +1555,160 @@ status = "research"
 list = "research"
 source = "research"
 role = "optional numerical batching or Python preparation"
+
+[[entry]]
+id = "audit.discovery_gcm_attribution_compiler_routes"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "discover, attribute and simulate query kinds compiled with a CausalContract and ClaimEnvelope; discovered-graph provenance carried into identification and GCM fits; executing and explicitly unlicensed routes; the two fitting-gap rows closed or named attempts"
+owner = "crates/antecedent-discover, crates/antecedent-gcm, python/antecedent"
+reference = "parity/discovery.toml, parity/gcm.toml, parity/capabilities/route_manifest.toml"
+acceptance_fixtures = ["parity/fixtures/discovery_compiler_route.toml", "parity/fixtures/gcm_compiler_route.toml"]
+consumer = "compiler discover/attribute/simulate prepared handles; Python discovery and GCM wrappers"
+
+[[entry]]
+id = "audit.unified_plan_view"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "one PlanView per route, filled before execution without fitting, scanning, graph enumeration or simulation; per-route checked accessors removed; graph-posterior logical plan; Python mirror"
+owner = "crates/antecedent-compile, python/antecedent"
+reference = "parity/compiler.toml"
+acceptance_fixtures = ["parity/fixtures/plan_view_all_routes.toml"]
+consumer = "Study.inspect, prepared handles, Python inspect"
+
+[[entry]]
+id = "audit.compiler_bypass_closure"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "compiler-bypassing entry points hidden or token-gated; every off-matrix execution_only, fitting_gap and graphless route on the retained checked path with the same inspect and claim path; graphless Bayesian and temporal axes"
+owner = "crates/antecedent-estimate, crates/antecedent-compile, python/antecedent"
+reference = "parity/support_graphless.toml, parity/python_facade_surface.toml"
+acceptance_fixtures = ["parity/fixtures/compiler_bypass_surface.toml", "parity/fixtures/graphless_retained_program.toml"]
+consumer = "public Rust and Python facades; graphless route tests"
+
+[[entry]]
+id = "audit.host_integration_contract"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "versioned JSON Schema export for requests, CausalContract, ClaimEnvelope, refusals and supported/partial/unsupported statuses; stable refusal and error codes across Rust and Python; embedding guidance; minimal reference host without agent logic"
+owner = "crates/antecedent-compile, python/antecedent, examples"
+reference = "parity/python_facade_surface.toml"
+acceptance_fixtures = ["parity/fixtures/host_schema_export.toml", "examples/python/reference_host.py"]
+consumer = "reference host under examples; application and tool-layer hosts"
+
+[[entry]]
+id = "audit.report_from_contract"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "deterministic Markdown and HTML report rendered from CausalContract, ClaimEnvelope and PlanView with assumptions, diagnostics, uncertainty axes, refusals and limits and no new numerical content; Rust and Python"
+owner = "crates/antecedent-compile, python/antecedent"
+reference = "parity/compiler.toml"
+acceptance_fixtures = ["parity/fixtures/report_golden_markdown.md", "parity/fixtures/report_golden_html.html"]
+consumer = "golden-file tests; Python report API"
+
+[[entry]]
+id = "audit.staleness_drift_diagnostics"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "compiler-level comparison of new data with a stored plan or artifact (covariate shift, overlap and positivity change, assumption-check regressions, support loss, prior-likelihood conflict, period and population drift) returning reuse, refresh, re-identify or refuse with the changed dependency keys"
+owner = "crates/antecedent-compile"
+reference = "parity/compiler.toml"
+acceptance_fixtures = ["parity/fixtures/staleness_diagnostic.toml"]
+consumer = "host refresh decisions; later refresh-semantics audit"
+
+[[entry]]
+id = "audit.temporal_route_uncertainty"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "uncertainty procedures for temporal routes now reporting no interval, under the declared block, cluster or trajectory sampling design with horizon coupling, diagnostics and refusals; point-only routes carry a recorded reason"
+owner = "crates/antecedent-estimate"
+reference = "parity/support_licensed.toml, docs/user-facing-limits.md"
+acceptance_fixtures = ["parity/fixtures/temporal_uncertainty_procedures.toml"]
+consumer = "temporal licensed routes; later whole-procedure calibration"
+children = ["P07.derivative.temporal.frequentist", "P07.derivative.temporal.bayesian", "P13.attribution.temporal.frequentist", "P13.attribution.temporal.bayesian", "P14.temporal.frequentist", "P14.temporal.bayesian", "P15.conditional.temporal.frequentist", "P15.conditional.temporal.bayesian", "P15.projection.temporal.frequentist", "P15.projection.temporal.bayesian", "P15.pulse.temporal.frequentist", "P15.pulse.temporal.bayesian", "P15.sustained.temporal.frequentist", "P15.sustained.temporal.bayesian"]
+
+[[entry]]
+id = "audit.frequentist_bayesian_symmetry"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "closure of frequentist-only licensed cells, Bayesian scalar-refuter and posterior-predictive states, matched interval reporting on static counterfactual, attribution and transport, and a re-audited not-applicable list in which refusals are built or reclassified with a named next attempt"
+owner = "crates/antecedent-estimate"
+reference = "parity/support_n_a.toml, parity/support_licensed.toml"
+acceptance_fixtures = ["parity/fixtures/symmetry_matrix_audit.toml"]
+consumer = "support matrix gates"
+
+[[entry]]
+id = "audit.unbuilt_counterparts"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "counterparts that are unbuilt rather than impossible: temporal CPDAG and PAG average effect, temporal and Bayesian dose and quantile variants, temporal trials and interference, temporal survival, and measurement and composition routes with measurement-error propagation in transport"
+owner = "crates/antecedent-estimate"
+reference = "parity/method_children/children.toml"
+acceptance_fixtures = ["parity/fixtures/unbuilt_counterparts.toml"]
+consumer = "method children; route manifest"
+children = ["P06.temporal.frequentist", "P06.temporal.bayesian", "P07.continuous_dose.temporal.frequentist", "P07.continuous_dose.temporal.bayesian", "P07.smoothed_dose.temporal.frequentist", "P07.smoothed_dose.temporal.bayesian", "P07.dose_grid.temporal.frequentist", "P07.dose_grid.temporal.bayesian", "P07.dose_grid.static.bayesian", "P07.quantile.static.bayesian", "P07.quantile.temporal.frequentist", "P07.quantile.temporal.bayesian", "P09.two_arm.temporal.frequentist", "P09.two_arm.temporal.bayesian", "P09.multiarm.temporal.frequentist", "P09.multiarm.temporal.bayesian", "P09.categorical.temporal.frequentist", "P09.categorical.temporal.bayesian", "P09.factorial.temporal.frequentist", "P09.factorial.temporal.bayesian", "P09.interference.temporal.frequentist", "P09.interference.temporal.bayesian", "P10.temporal.frequentist", "P10.temporal.bayesian", "P16.static.frequentist", "P16.static.bayesian", "P16.temporal.frequentist", "P16.temporal.bayesian"]
+
+[[entry]]
+id = "audit.quasi_experimental_rollouts"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "heterogeneity-robust staggered difference-in-differences, unbalanced and covariate-adjusted panels, augmented panel DiD, synthetic control with intervals (multi-unit, conformal), temporal regression discontinuity and local ratio, fuzzy RD and regression kink intervals, each keeping its own assignment, pretrend and target-population assumptions"
+owner = "crates/antecedent-estimate"
+reference = "parity/method_children/children.toml"
+acceptance_fixtures = ["parity/fixtures/quasi_experimental_rollouts.toml"]
+consumer = "quasi-experimental routes and examples"
+
+[[entry]]
+id = "audit.target_native_validation_sensitivity"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "target-native refuters for conditional, derivative, temporal, mediation, world-valued and joint-contrast outputs in all four static/temporal by frequentist/Bayesian quadrants; derivative-native validation; E-value, partial-R2 benchmarking and Rosenbaum-style bounds as assumption ranges tied to the target"
+owner = "crates/antecedent-estimate"
+reference = "parity/method_children/children.toml"
+acceptance_fixtures = ["parity/fixtures/target_native_refuters.toml", "parity/fixtures/sensitivity_bounds.toml"]
+consumer = "Refute and sensitivity entry points"
+children = ["P13.refuter.static.frequentist", "P13.refuter.static.bayesian", "P13.refuter.temporal.frequentist", "P13.refuter.temporal.bayesian"]
+
+[[entry]]
+id = "audit.file_backed_ingestion_scale"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "Parquet and Arrow IPC table source behind the source contract with schema, categorical and timestamp fidelity, bounded-capacity route, Python path/dataset/Arrow-stream entry, row counts above 2^32 through checked ids, a runnable Parquet example, and wired or retired unused scale seams"
+owner = "crates/antecedent-data, python/antecedent"
+reference = "docs/user-facing-limits.md"
+acceptance_fixtures = ["parity/fixtures/parquet_ingestion.toml", "examples/python/parquet_e2e.py"]
+consumer = "prepared APIs from Python; Parquet example"
+
+[[entry]]
+id = "audit.data_quality_breadth"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "per-route supported missing-data policies with refusals naming the next attempt, multiple imputation with valid pooling, continuous measurement error beside binary misclassification, and shared unbalanced-panel preparation"
+owner = "crates/antecedent-data, crates/antecedent-estimate"
+reference = "docs/guides/missing-data.md, docs/measurement-models.md"
+acceptance_fixtures = ["parity/fixtures/missing_data_policies.toml", "parity/fixtures/measurement_error_continuous.toml"]
+consumer = "routes taking a missing policy; measurement-model corrections"
+
+[[entry]]
+id = "audit.experiment_planning_power"
+status = "mandatory"
+list = "mandatory"
+source = "scope_amendment_2026_10_22"
+role = "power, sample size and minimum detectable effect through the compiler for Bernoulli, complete, stratified, cluster, multi-arm, switchback and adaptive designs, frequentist (analytic and simulated) and Bayesian (assurance, posterior precision), in both directions, with assumptions retained in the contract and feeding bounded design ranking; refuses designs without establishable operating characteristics"
+owner = "crates/antecedent-design"
+reference = "docs/design-ranking.md"
+acceptance_fixtures = ["parity/fixtures/design_power_closed_form.toml", "parity/fixtures/design_power_simulation.toml"]
+consumer = "bounded design ranking candidates"

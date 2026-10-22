@@ -35,7 +35,7 @@ Graphless, closed, `execution_only`, and `fitting_gap` manifest rows are not lic
 
 | status | Rows |
 | --- | --- |
-| mandatory | 204 |
+| mandatory | 218 |
 | pending_attempt | 10 |
 | research | 5 |
 | closed_failed | 1 |
@@ -43,3 +43,5 @@ Graphless, closed, `execution_only`, and `fitting_gap` manifest rows are not lic
 204 mandatory rows: the original 192 rows (91 licensed routes, 94 counterparts, 5 feedback rows, Q04, and `X01.licensed_contrast`), plus Y18/Y19 and their ten acceptance children.
 
 For Y18/Y19 and their acceptance children, `implementation = "complete"` records the passed non-calibration implementation gate; `implementation_evidence` links the executing contract. Their `mandatory` status retains release scope. Calibration and attestation remain separate and unclaimed.
+
+The 22 October 2026 scope amendment adds 14 mandatory rows with ids `audit.*` and `source = "scope_amendment_2026_10_22"`: compiler routing of discovery, GCM and attribution, the unified plan view, compiler-bypass closure, the host-integration contract, contract reports, staleness diagnostics, temporal route uncertainty, frequentist/Bayesian symmetry, unbuilt counterparts, quasi-experimental rollouts, target-native validation and sensitivity, file-backed ingestion, data-quality breadth, and experiment planning. Each carries an `owner`, `acceptance_fixtures` (planned paths until built) and a `consumer`, and lists existing B03 `children` where a family owns them, so the audit can check them. Changing this list takes an explicit reviewed release decision.
