@@ -248,6 +248,10 @@ pub struct AipwAte {
     /// the first-endpoint unit labels, mapped to the complete-case rows before the cross-fit
     /// plan is built.
     pub source_cluster_ids: Option<Vec<u32>>,
+    /// Sampling design of the rows, for the bootstrap. Undeclared, the design is the one the
+    /// cluster labels or panel times imply; declared, a resample the design does not allow
+    /// (a row-level draw under a trajectory design, say) is refused.
+    pub sampling_design: crate::util::SamplingDeclaration,
     /// Second-endpoint labels of a dyadic [`ClusterDml`] declaration for every row of the
     /// source table. Exclusive with [`Self::cluster_ids_second`].
     pub source_cluster_ids_second: Option<Vec<u32>>,
@@ -319,6 +323,7 @@ impl AipwAte {
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
             source_cluster_ids: None,
+            sampling_design: crate::util::SamplingDeclaration::Undeclared,
             source_cluster_ids_second: None,
             cluster_ids_second: None,
             population_registry: None,
@@ -414,6 +419,15 @@ impl AipwAte {
     #[must_use]
     pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
         self.source_cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Declare the sampling design of the rows. The bootstrap then refuses a resample that
+    /// design does not allow: a row-level draw under independent subject trajectories, a
+    /// non-block draw of a dependent series, or a draw that ignores a panel's clusters.
+    #[must_use]
+    pub fn with_sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
+        self.sampling_design = crate::util::SamplingDeclaration::Declared(design);
         self
     }
 
@@ -1336,7 +1350,11 @@ impl AipwAte {
         let clusters = self.bootstrap_clusters(problem)?;
         let series_block = self.series_block(problem.nrows);
         crate::util::bootstrap_by_design(
-            crate::util::BootstrapDesign { clusters: clusters.as_deref(), series_block },
+            crate::util::BootstrapDesign {
+                clusters: clusters.as_deref(),
+                series_block,
+                declared: self.sampling_design,
+            },
             self.bootstrap_replicates,
             ctx,
             0xA1D5,
@@ -1477,6 +1495,7 @@ impl AipwAte {
             idx,
             clusters.as_deref(),
             series_block,
+            self.sampling_design,
         ) {
             Ok(()) => {}
             Err(EstimationError::Data(antecedent_data::DataError::Cancelled)) => {
@@ -1548,7 +1567,11 @@ impl AipwAte {
         let series_block = self.series_block(n);
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_by_design(
-            crate::util::BootstrapDesign { clusters: clusters.as_deref(), series_block },
+            crate::util::BootstrapDesign {
+                clusters: clusters.as_deref(),
+                series_block,
+                declared: self.sampling_design,
+            },
             self.bootstrap_replicates,
             ctx,
             0xA1D0_u64,
@@ -1691,6 +1714,10 @@ const PENALIZED_BOOTSTRAP_STREAM: u64 = 0xA1D7_0001;
 /// Cluster labels draw whole clusters. A series block draws contiguous blocks.
 /// Otherwise each row is one subject. `idx` follows the draw, so a cluster
 /// replicate may not have length `n`.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the draw is fixed by the replicate, the grouping, and the declared design together"
+)]
 fn fill_penalized_bootstrap_indexes(
     n: usize,
     replicate: u64,
@@ -1699,24 +1726,42 @@ fn fill_penalized_bootstrap_indexes(
     idx: &mut Vec<usize>,
     clusters: Option<&[u32]>,
     series_block: Option<usize>,
+    declared: crate::util::SamplingDeclaration,
 ) -> Result<(), EstimationError> {
     use antecedent_core::{DeclaredSamplingDesign, ResamplingRule};
     use antecedent_data::{DataError, ResamplingPlan};
 
+    let design_err = |error: antecedent_core::SamplingDesignError| {
+        EstimationError::Data(DataError::SamplingDesign(error))
+    };
     let plan = if clusters.is_some() {
-        DeclaredSamplingDesign::ClusteredPanel
-            .apply_resampling(ResamplingRule::WholeCluster)
-            .map_err(|error| EstimationError::Data(DataError::SamplingDesign(error)))?;
+        // Under independent subject trajectories the labels are subject ids, and drawing
+        // whole subjects is that design's own rule; every other design draws whole clusters.
+        let design = declared.resolve(DeclaredSamplingDesign::ClusteredPanel);
+        let rule = if matches!(design, DeclaredSamplingDesign::IndependentSubjectTrajectories) {
+            ResamplingRule::RowSubjectIid
+        } else {
+            ResamplingRule::WholeCluster
+        };
+        design.apply_resampling(rule).map_err(design_err)?;
         ResamplingPlan::ClusterBootstrap { cluster: antecedent_core::VariableId::from_raw(0) }
     } else if let Some(length) = series_block {
-        DeclaredSamplingDesign::DependentTimeSeries
+        declared
+            .resolve(DeclaredSamplingDesign::DependentTimeSeries)
             .apply_resampling(ResamplingRule::ContiguousBlock)
-            .map_err(|error| EstimationError::Data(DataError::SamplingDesign(error)))?;
+            .map_err(design_err)?;
         ResamplingPlan::MovingBlock { length }
     } else {
-        DeclaredSamplingDesign::IndependentSubjectTrajectories
-            .apply_resampling(ResamplingRule::RowSubjectIid)
-            .map_err(|error| EstimationError::Data(DataError::SamplingDesign(error)))?;
+        match declared {
+            crate::util::SamplingDeclaration::Undeclared => {
+                DeclaredSamplingDesign::IndependentSubjectTrajectories
+                    .apply_resampling(ResamplingRule::RowSubjectIid)
+            }
+            crate::util::SamplingDeclaration::Declared(design) => {
+                design.apply_resampling(ResamplingRule::RowIid)
+            }
+        }
+        .map_err(design_err)?;
         ResamplingPlan::IidBootstrap
     };
     antecedent_data::resample::fill_resample_index_replicate(
@@ -2895,6 +2940,7 @@ mod tests {
                 &mut idx,
                 None,
                 None,
+                crate::util::SamplingDeclaration::Undeclared,
             )
             .unwrap();
             let expect: Vec<usize> = batch[replicate * n..(replicate + 1) * n]
@@ -3032,5 +3078,41 @@ mod tests {
         let replicate_b = resampled_problem(&rewritten, &idx, None);
         let (_, fit_b) = est.crossfit_table(&replicate_b, false, &ctx(), None).unwrap();
         assert_eq!(fit_b.selections, fit.selections);
+    }
+
+    #[test]
+    fn aipw_bootstrap_follows_the_declared_sampling_design() {
+        use antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories;
+        let (data, estimand) = confounded_scm(400, 12);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let base = AipwAte { bootstrap_replicates: 6, ..AipwAte::new() };
+
+        // Undeclared, the rows are one-row subjects and the row draw is the default.
+        let prep = base.prepare(&data, &estimand, &query).unwrap();
+        base.fit(&prep, &mut AipwWorkspace::default(), &ctx(), AssumptionSet::new()).unwrap();
+
+        // A declared trajectory design with no subject labels is a row-level draw.
+        let declared = base.clone().with_sampling_design(IndependentSubjectTrajectories);
+        let prep = declared.prepare(&data, &estimand, &query).unwrap();
+        let refused =
+            declared.fit(&prep, &mut AipwWorkspace::default(), &ctx(), AssumptionSet::new());
+        assert!(
+            matches!(
+                refused,
+                Err(EstimationError::Data(antecedent_data::DataError::SamplingDesign(_)))
+            ),
+            "{refused:?}"
+        );
+
+        // With subject labels the whole trajectory is the draw, and the design allows it.
+        let subjects: Vec<u32> = (0..400).map(|i| u32::try_from(i / 4).unwrap_or(0)).collect();
+        let trajectories =
+            AipwAte { se_kind: AnalyticSeKind::Cluster, cluster_ids: Some(subjects), ..declared };
+        let prep = trajectories.prepare(&data, &estimand, &query).unwrap();
+        let fit = trajectories
+            .fit(&prep, &mut AipwWorkspace::default(), &ctx(), AssumptionSet::new())
+            .unwrap();
+        assert!(fit.se_bootstrap().is_some());
     }
 }

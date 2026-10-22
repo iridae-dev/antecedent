@@ -350,9 +350,7 @@ pub(crate) fn bootstrap_se(
 /// count). When an outer map already saturates the thread budget, `ctx` is serial and
 /// this path does not spawn. The worker count is also capped by the admission pool.
 /// The workers and index bytes are leased on that pool for the whole run, and refused
-/// before any replicate runs when they overflow, sit above
-/// [`ExecutionContext::memory`]'s hard limit, or no longer fit in the pool.
-/// [`ExecutionContext::memory`] is not decremented.
+/// before any replicate runs when they overflow or no longer fit in the pool.
 pub(crate) fn bootstrap_se_with_scratch<S, F>(
     replicates: u32,
     ctx: &ExecutionContext,
@@ -382,13 +380,39 @@ where
     }
     let rows = ReplicateRows::Rows { n, ctx, stream_base };
     if workers > 1 {
-        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, workers, make_scratch, estimate);
+        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, make_scratch, estimate);
     }
     evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
 }
 
 fn design_err(error: SamplingDesignError) -> EstimationError {
     EstimationError::Data(DataError::SamplingDesign(error))
+}
+
+/// Whether the caller declared the sampling design of the rows being resampled.
+///
+/// [`Self::Undeclared`] is an explicit choice, not a missing value: the design is then the
+/// one the row grouping implies (whole clusters are a clustered panel, blocks are a
+/// dependent series, single rows are independent subjects). [`Self::Declared`] holds the
+/// design the caller stated, and a draw that design does not allow is refused.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SamplingDeclaration {
+    /// No design declared: the grouping implies one.
+    #[default]
+    Undeclared,
+    /// The caller declared this design.
+    Declared(DeclaredSamplingDesign),
+}
+
+impl SamplingDeclaration {
+    /// The declared design, or `implied` when none was declared.
+    #[must_use]
+    pub const fn resolve(self, implied: DeclaredSamplingDesign) -> DeclaredSamplingDesign {
+        match self {
+            Self::Undeclared => implied,
+            Self::Declared(design) => design,
+        }
+    }
 }
 
 /// Source grouping that determines the resampling unit and dependence preservation.
@@ -398,6 +422,10 @@ pub(crate) struct BootstrapDesign<'a> {
     pub(crate) clusters: Option<&'a [u32]>,
     /// Contiguous time-series block length when no cluster labels are present.
     pub(crate) series_block: Option<usize>,
+    /// The sampling design the caller declared. An undeclared design takes the one the
+    /// grouping implies. A declared design that does not allow the draw the grouping
+    /// implies refuses it.
+    pub(crate) declared: SamplingDeclaration,
 }
 
 /// Bootstrap under the sampling design the labels declare.
@@ -422,10 +450,11 @@ where
     S: Send,
     F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
 {
-    let BootstrapDesign { clusters, series_block } = design;
+    let BootstrapDesign { clusters, series_block, declared } = design;
     if let Some(labels) = clusters {
         let grouped = ClusterRows::new(labels)?;
-        return bootstrap_se_clusters_with_scratch(
+        return bootstrap_se_clusters_under(
+            declared.resolve(DeclaredSamplingDesign::ClusteredPanel),
             replicates,
             ctx,
             stream_base,
@@ -436,6 +465,7 @@ where
     }
     if let Some(block_length) = series_block {
         return bootstrap_se_blocks_with_scratch(
+            declared.resolve(DeclaredSamplingDesign::DependentTimeSeries),
             replicates,
             ctx,
             stream_base,
@@ -445,13 +475,21 @@ where
             estimate,
         );
     }
-    DeclaredSamplingDesign::IndependentSubjectTrajectories
-        .apply_resampling(ResamplingRule::RowSubjectIid)
-        .map_err(design_err)?;
+    // No cluster labels and no block: every row is its own draw unit. Undeclared, the data
+    // carries one row per subject and the subject rule is that draw. A declared design
+    // never allows a row-level draw: a trajectory design needs subject labels, a panel
+    // cluster labels, and a series a block length.
+    match declared {
+        SamplingDeclaration::Undeclared => DeclaredSamplingDesign::IndependentSubjectTrajectories
+            .apply_resampling(ResamplingRule::RowSubjectIid),
+        SamplingDeclaration::Declared(design) => design.apply_resampling(ResamplingRule::RowIid),
+    }
+    .map_err(design_err)?;
     bootstrap_se_with_scratch(replicates, ctx, stream_base, n, make_scratch, estimate)
 }
 
 fn bootstrap_se_blocks_with_scratch<S, F>(
+    declared: DeclaredSamplingDesign,
     replicates: u32,
     ctx: &ExecutionContext,
     stream_base: u64,
@@ -464,9 +502,7 @@ where
     S: Send,
     F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
 {
-    DeclaredSamplingDesign::DependentTimeSeries
-        .apply_resampling(ResamplingRule::ContiguousBlock)
-        .map_err(design_err)?;
+    declared.apply_resampling(ResamplingRule::ContiguousBlock).map_err(design_err)?;
     if replicates == 0 || n == 0 {
         return Ok(BootstrapSeResult::skipped());
     }
@@ -488,7 +524,7 @@ where
     }
     let rows = ReplicateRows::Blocks { n, block_length, ctx, stream_base };
     if workers > 1 {
-        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, workers, make_scratch, estimate);
+        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, make_scratch, estimate);
     }
     evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
 }
@@ -501,8 +537,7 @@ where
 ///
 /// # Errors
 ///
-/// An index buffer that overflows, exceeds the hard byte limit, or no longer
-/// fits in the pool. Nothing is allocated.
+/// An index buffer that overflows or no longer fits in the pool. Nothing is allocated.
 fn admit_bootstrap_scratch(
     ctx: &ExecutionContext,
     n: usize,
@@ -516,9 +551,6 @@ fn admit_bootstrap_scratch(
             Ok(Some(lease))
         }
         Err(ScratchRefusal::Cancelled) => Ok(None),
-        Err(ScratchRefusal::HardLimit { .. }) => {
-            Err(EstimationError::data_msg("bootstrap index allocation exceeds the route budget"))
-        }
         Err(ScratchRefusal::PoolShort { .. }) => {
             Err(EstimationError::data_msg("admission pool cannot fund the bootstrap scratch"))
         }
@@ -577,6 +609,7 @@ impl ClusterRows {
     }
 
     /// Rows in the sample these clusters partition.
+    #[cfg(test)]
     pub(crate) fn row_count(&self) -> usize {
         self.rows
     }
@@ -626,6 +659,7 @@ impl ClusterRows {
 ///
 /// The admission pool cannot fund that worker buffer, the buffer is not addressable,
 /// or an `Err` from `estimate`.
+#[cfg(test)]
 pub(crate) fn bootstrap_se_clusters_with_scratch<S, F>(
     replicates: u32,
     ctx: &ExecutionContext,
@@ -638,9 +672,45 @@ where
     S: Send,
     F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
 {
-    DeclaredSamplingDesign::ClusteredPanel
-        .apply_resampling(ResamplingRule::WholeCluster)
-        .map_err(design_err)?;
+    bootstrap_se_clusters_under(
+        DeclaredSamplingDesign::ClusteredPanel,
+        replicates,
+        ctx,
+        stream_base,
+        clusters,
+        make_scratch,
+        estimate,
+    )
+}
+
+/// Whole-cluster bootstrap under the `declared` sampling design. The design refuses the
+/// draw when it does not bind whole-cluster resampling.
+///
+/// # Errors
+///
+/// The design refuses the draw, or the failures of [`bootstrap_se_clusters_with_scratch`].
+pub(crate) fn bootstrap_se_clusters_under<S, F>(
+    declared: DeclaredSamplingDesign,
+    replicates: u32,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    clusters: &ClusterRows,
+    make_scratch: impl Fn() -> S + Sync,
+    estimate: F,
+) -> Result<BootstrapSeResult, EstimationError>
+where
+    S: Send,
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+{
+    // Under independent subject trajectories the labels are subject ids, and drawing whole
+    // subjects is that design's own rule; every other design draws whole clusters.
+    let rule = match declared {
+        DeclaredSamplingDesign::IndependentSubjectTrajectories => ResamplingRule::RowSubjectIid,
+        DeclaredSamplingDesign::ClusteredPanel | DeclaredSamplingDesign::DependentTimeSeries => {
+            ResamplingRule::WholeCluster
+        }
+    };
+    declared.apply_resampling(rule).map_err(design_err)?;
     let groups = clusters.len();
     if replicates == 0 || groups == 0 {
         return Ok(BootstrapSeResult::skipped());
@@ -661,7 +731,7 @@ where
     }
     let rows = ReplicateRows::Clusters { members: clusters.members(), ceiling, ctx, stream_base };
     if workers > 1 {
-        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, workers, make_scratch, estimate);
+        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, make_scratch, estimate);
     }
     evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
 }
@@ -807,7 +877,6 @@ fn evaluate_bootstrap_parallel<S, F>(
     ctx: &ExecutionContext,
     rows: &ReplicateRows<'_>,
     n_rep: usize,
-    _workers: usize,
     make_scratch: impl Fn() -> S + Sync,
     estimate: F,
 ) -> Result<BootstrapSeResult, EstimationError>
@@ -817,7 +886,9 @@ where
 {
     let finished = std::sync::atomic::AtomicUsize::new(0);
     let first_cancel = std::sync::atomic::AtomicUsize::new(usize::MAX);
-    let values = ctx.map_indexed_with_scratch(
+    // The workers are leased without waiting: a bootstrap that finds the pool held by
+    // another study stays on its caller instead of queueing behind it.
+    let values = ctx.map_indexed_with_scratch_if_free(
         n_rep,
         || (make_scratch(), Vec::<usize>::new()),
         |r, inner, (scratch, idx): &mut (S, Vec<usize>)| {
@@ -1037,9 +1108,7 @@ mod tests {
     use std::sync::{Arc, Barrier};
 
     use antecedent_core::execution::AdmissionPool;
-    use antecedent_core::{
-        AdaptiveBootstrapBudget, CancellationToken, ExecutionContext, MemoryBudget,
-    };
+    use antecedent_core::{AdaptiveBootstrapBudget, CancellationToken, ExecutionContext};
 
     use super::*;
 
@@ -1411,8 +1480,7 @@ mod tests {
     #[test]
     fn bootstrap_workers_stay_within_the_pool() {
         let shared = AdmissionPool::fixed(2, 1 << 20);
-        let mut ctx = ExecutionContext::production(3, 8).with_admission(shared.clone());
-        ctx.memory = MemoryBudget { soft_limit_bytes: Some(1), hard_limit_bytes: None };
+        let ctx = ExecutionContext::production(3, 8).with_admission(shared.clone());
         let barrier = Arc::new(Barrier::new(2));
         let inflight = Arc::new(AtomicUsize::new(0));
         let peak = Arc::new(AtomicUsize::new(0));
@@ -1433,8 +1501,7 @@ mod tests {
         assert!(scratch_bytes <= usize::try_from(shared.byte_budget()).unwrap());
         assert_eq!(result.replicates_ok, 8);
         assert_eq!(inflight.load(Ordering::SeqCst), 0);
-        assert_eq!(ctx.memory.soft_limit_bytes, Some(1));
-        assert!(ctx.memory.hard_limit_bytes.is_none());
+        assert_eq!(ctx.memory_limit_bytes(), Some(1 << 20));
         assert_eq!(shared.available().threads(), 2);
         assert_eq!(shared.available().bytes(), 1 << 20);
     }
@@ -1499,12 +1566,13 @@ mod tests {
     }
 
     #[test]
-    fn memory_budget_does_not_refuse_bootstrap_the_pool_can_fund() {
+    fn a_pool_that_exactly_funds_the_bootstrap_scratch_runs_it() {
         let n = 8usize;
         let workers = 2usize;
         let bytes = u64::try_from(n * workers).unwrap() * u64::try_from(size_of::<u64>()).unwrap();
-        let mut ctx = ExecutionContext::production(1, u32::try_from(workers).unwrap());
-        ctx.memory = MemoryBudget { soft_limit_bytes: Some(1), hard_limit_bytes: Some(bytes - 1) };
+        let shared = AdmissionPool::fixed(u32::try_from(workers).unwrap(), bytes);
+        let ctx = ExecutionContext::production(1, u32::try_from(workers).unwrap())
+            .with_admission(shared.clone());
         let calls = AtomicUsize::new(0);
         let result = bootstrap_se(4, &ctx, 1, n, |_| {
             calls.fetch_add(1, Ordering::SeqCst);
@@ -1513,7 +1581,8 @@ mod tests {
         .unwrap();
         assert_eq!(result.replicates_ok, 4);
         assert_eq!(calls.load(Ordering::SeqCst), 4);
-        assert_eq!(ctx.memory.hard_limit_bytes, Some(bytes - 1));
+        assert_eq!(ctx.memory_limit_bytes(), Some(bytes));
+        assert_eq!(shared.available().bytes(), bytes);
     }
 
     #[test]
@@ -1522,9 +1591,8 @@ mod tests {
         let workers = 2usize;
         let bytes = u64::try_from(n * workers).unwrap() * u64::try_from(size_of::<u64>()).unwrap();
         let shared = AdmissionPool::fixed(u32::try_from(workers).unwrap(), bytes - 1);
-        let mut ctx = ExecutionContext::production(1, u32::try_from(workers).unwrap())
+        let ctx = ExecutionContext::production(1, u32::try_from(workers).unwrap())
             .with_admission(shared.clone());
-        ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: None };
         let calls = AtomicUsize::new(0);
         let error = bootstrap_se(4, &ctx, 1, n, |_| {
             calls.fetch_add(1, Ordering::SeqCst);
@@ -1535,8 +1603,121 @@ mod tests {
         assert!(error.to_string().contains("cannot fund"), "{error}");
         assert_eq!(shared.available().threads(), u32::try_from(workers).unwrap());
         assert_eq!(shared.available().bytes(), bytes - 1);
-        assert!(ctx.memory.hard_limit_bytes.is_none());
-        assert_eq!(ctx.memory.soft_limit_bytes, None);
+        assert_eq!(ctx.memory_limit_bytes(), Some(bytes - 1));
+    }
+
+    fn design_run(
+        design: BootstrapDesign<'_>,
+        n: usize,
+    ) -> (Result<BootstrapSeResult, EstimationError>, usize) {
+        let ctx = ExecutionContext::for_tests(5);
+        let calls = AtomicUsize::new(0);
+        let result = bootstrap_by_design(
+            design,
+            8,
+            &ctx,
+            3,
+            n,
+            || (),
+            |(), _rows| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                Ok(Some(1.0))
+            },
+        );
+        (result, calls.load(Ordering::Relaxed))
+    }
+
+    fn is_design_refusal(result: &Result<BootstrapSeResult, EstimationError>) -> bool {
+        matches!(result, Err(EstimationError::Data(DataError::SamplingDesign(_))))
+    }
+
+    #[test]
+    fn a_row_level_bootstrap_is_refused_under_every_declared_design() {
+        for design in DeclaredSamplingDesign::ALL {
+            let (result, calls) = design_run(
+                BootstrapDesign {
+                    clusters: None,
+                    series_block: None,
+                    declared: SamplingDeclaration::Declared(design),
+                },
+                12,
+            );
+            assert!(is_design_refusal(&result), "{design}: row draw was accepted");
+            assert_eq!(calls, 0, "{design}: a refused draw evaluated replicates");
+        }
+    }
+
+    #[test]
+    fn an_undeclared_design_takes_the_one_the_grouping_implies() {
+        let undeclared = SamplingDeclaration::Undeclared;
+        let labels = [0_u32, 0, 1, 1, 2, 2];
+        let (rows, _) = design_run(
+            BootstrapDesign { clusters: None, series_block: None, declared: undeclared },
+            6,
+        );
+        assert!(rows.is_ok());
+        let (clusters, _) = design_run(
+            BootstrapDesign { clusters: Some(&labels), series_block: None, declared: undeclared },
+            6,
+        );
+        assert!(clusters.is_ok());
+        let (blocks, _) = design_run(
+            BootstrapDesign { clusters: None, series_block: Some(2), declared: undeclared },
+            6,
+        );
+        assert!(blocks.is_ok());
+    }
+
+    #[test]
+    fn a_trajectory_bootstrap_draws_whole_subjects_under_the_trajectory_design() {
+        let subjects = [0_u32, 0, 0, 1, 1, 1, 2, 2, 2];
+        let ctx = ExecutionContext::for_tests(5);
+        let result = bootstrap_by_design(
+            BootstrapDesign {
+                clusters: Some(&subjects),
+                series_block: None,
+                declared: SamplingDeclaration::Declared(
+                    DeclaredSamplingDesign::IndependentSubjectTrajectories,
+                ),
+            },
+            16,
+            &ctx,
+            3,
+            subjects.len(),
+            || (),
+            |(), rows| {
+                let mut seen = [0_usize; 3];
+                for &row in rows {
+                    seen[subjects[row] as usize] += 1;
+                }
+                assert!(seen.iter().all(|count| count % 3 == 0), "a trajectory was split");
+                Ok(Some(1.0))
+            },
+        )
+        .expect("whole-subject draws are the trajectory rule");
+        assert_eq!(result.replicates_ok, 16);
+    }
+
+    #[test]
+    fn a_declared_design_refuses_the_grouping_that_contradicts_it() {
+        let labels = [0_u32, 0, 1, 1];
+        let series = SamplingDeclaration::Declared(DeclaredSamplingDesign::DependentTimeSeries);
+        let panel = SamplingDeclaration::Declared(DeclaredSamplingDesign::ClusteredPanel);
+        let (clusters_under_series, _) = design_run(
+            BootstrapDesign { clusters: Some(&labels), series_block: None, declared: series },
+            4,
+        );
+        assert!(is_design_refusal(&clusters_under_series));
+        let (blocks_under_panel, _) = design_run(
+            BootstrapDesign { clusters: None, series_block: Some(2), declared: panel },
+            4,
+        );
+        assert!(is_design_refusal(&blocks_under_panel));
+        let (blocks_under_series, _) = design_run(
+            BootstrapDesign { clusters: None, series_block: Some(2), declared: series },
+            4,
+        );
+        assert!(blocks_under_series.is_ok());
     }
 }
 

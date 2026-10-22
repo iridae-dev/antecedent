@@ -1430,8 +1430,7 @@ pub fn smoothed_dose_workspace_bytes(
 #[must_use]
 #[doc(hidden)]
 pub fn smoothed_dose_memory_cap(ctx: &ExecutionContext) -> u64 {
-    ctx.memory
-        .hard_limit_bytes
+    ctx.memory_limit_bytes()
         .map_or(SMOOTHED_DOSE_MAX_WORKSPACE_BYTES, |h| h.min(SMOOTHED_DOSE_MAX_WORKSPACE_BYTES))
 }
 
@@ -2164,10 +2163,10 @@ mod tests {
         assert!(refused(check_workspace(Some(cap + 1), &unlimited)));
         assert!(refused(check_workspace(None, &unlimited)));
         let mut raised = ExecutionContext::for_tests(0);
-        raised.memory.hard_limit_bytes = Some(u64::MAX);
+        raised.set_memory_limit(Some(u64::MAX));
         assert!(refused(check_workspace(Some(cap + 1), &raised)));
         let mut lowered = ExecutionContext::for_tests(0);
-        lowered.memory.hard_limit_bytes = Some(4096);
+        lowered.set_memory_limit(Some(4096));
         assert!(check_workspace(Some(4096), &lowered).is_ok());
         assert!(refused(check_workspace(Some(4097), &lowered)));
     }

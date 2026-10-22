@@ -248,7 +248,7 @@ pub fn estimate_trial_aipw(
         .and_then(|n| n.checked_mul(8))
         .and_then(|n| n.checked_add(options.bootstrap as usize * 16))
         .ok_or_else(|| EstimationError::data_msg("trial workspace overflow"))?;
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes as u64 > limit) {
+    if ctx.memory_limit_bytes().is_some_and(|limit| bytes as u64 > limit) {
         return Err(EstimationError::data_msg("trial workspace budget"));
     }
     let folds = trial_fold_assignment(input, options.folds);

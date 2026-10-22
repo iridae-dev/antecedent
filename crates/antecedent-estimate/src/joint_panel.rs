@@ -395,7 +395,7 @@ fn invalid(message: &str) -> PanelError {
     PanelError::Invalid(message.into())
 }
 pub(super) fn check_memory(ctx: &ExecutionContext, bytes: u64) -> Result<(), PanelError> {
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
+    if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
         return Err(PanelError::Resource(format!(
             "requires {bytes} admitted bytes above the declared hard memory limit"
         )));

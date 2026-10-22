@@ -43,7 +43,6 @@ use antecedent_core::device_reservation::{
     admit_fold, nested_thread_request, retain_scientific_f64, scientific_tolerance, select_compute,
     within_declared_tolerance,
 };
-use antecedent_core::scratch_pool::{ScratchKind, ScratchPool};
 
 use crate::error::EstimationError;
 use crate::joint_if::JointCovariance;
@@ -56,6 +55,9 @@ const CODE_TOLERANCE: f64 = 1e-12;
 /// Rows between cancellation polls in the raw-contrast pass, so a long input stops at a
 /// bounded granularity without a poll per row.
 const POLL_EVERY_ROWS: usize = 4096;
+
+/// Scratch bytes one fold and one learner each draw from the shared admission pool.
+const FOLD_SCRATCH_BYTES: u64 = 8;
 
 /// A diagnostic or covariance the route does not carry, with the registered code and the
 /// detail naming why. Absent is explicit; nothing here is a zero or a fabricated value.
@@ -544,13 +546,13 @@ pub fn small_cpu_contrast(
     }
     let bytes = sample_bytes(outcome.len())
         .ok_or_else(|| invalid_data("the sample byte account overflowed"))?;
-    let scratch = ScratchPool::bounded(ScratchKind::Fold, 2, 8)
-        .map_err(|_| invalid_data("the fold scratch account was refused"))?;
     let threads = nested_thread_request(ctx.admission().available().threads());
-    let mut fold = admit_fold(ctx, &scratch, threads, bytes).map_err(cpu_admission_error)?;
+    let mut fold =
+        admit_fold(ctx, threads, bytes, FOLD_SCRATCH_BYTES).map_err(cpu_admission_error)?;
     let learner_threads = nested_thread_request(fold.held_threads());
-    let mut learner =
-        fold.admit_learner(&scratch, learner_threads, bytes).map_err(cpu_admission_error)?;
+    let mut learner = fold
+        .admit_learner(learner_threads, bytes, FOLD_SCRATCH_BYTES)
+        .map_err(cpu_admission_error)?;
     if release_if_cancelled(&mut learner, &mut fold, ctx) {
         return Err(cancelled());
     }

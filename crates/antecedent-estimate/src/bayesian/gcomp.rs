@@ -443,8 +443,6 @@ impl BayesianGComputationAte {
         };
         if ctx.cache_policy.enabled
             && ctx.cache_policy.max_bytes.is_none()
-            && ctx.memory.soft_limit_bytes.is_none()
-            && ctx.memory.hard_limit_bytes.is_none()
             && ctx.admission.byte_budget() == u64::MAX
             && likelihood == BayesLikelihood::GaussianIdentity
             && whitened.is_none()

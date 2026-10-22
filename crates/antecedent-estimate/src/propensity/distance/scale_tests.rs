@@ -9,7 +9,7 @@
 
 use std::time::{Duration, Instant};
 
-use antecedent_core::{AssumptionSet, ExecutionContext, MemoryBudget};
+use antecedent_core::{AssumptionSet, ExecutionContext};
 use antecedent_stats::{StatsError, nearest_euclidean_scalar};
 
 use super::*;
@@ -27,7 +27,7 @@ const RETAINED_BYTES_PER_FEATURE_VALUE: u64 = 64 * 8;
 
 fn bounded(seed: u64, hard_limit_bytes: u64) -> ExecutionContext {
     let mut ctx = ExecutionContext::for_tests(seed);
-    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(hard_limit_bytes) };
+    ctx.set_memory_limit(Some(hard_limit_bytes));
     ctx
 }
 

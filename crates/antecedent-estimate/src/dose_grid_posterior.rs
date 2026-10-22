@@ -668,7 +668,7 @@ impl CompiledDoseGridPosterior {
         let bytes = u64::try_from(cells).ok().and_then(|n| n.checked_mul(8)).ok_or_else(|| {
             execution_refusal("dose_grid.resource_refused", "input byte size overflow")
         })?;
-        if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
+        if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
             return Err(execution_refusal(
                 "dose_grid.resource_refused",
                 "retained inputs exceed memory limit",
@@ -799,7 +799,7 @@ impl CompiledDoseGridPosterior {
             .ok_or_else(|| {
                 execution_refusal("dose_grid.resource_refused", "execution byte estimate overflow")
             })?;
-        if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
+        if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
             return Err(execution_refusal(
                 "dose_grid.resource_refused",
                 "execution exceeds memory limit",
@@ -943,7 +943,7 @@ mod retained_resource_tests {
         drop(in_flight);
         assert_eq!(pool.available().bytes(), available + old_bytes);
         let mut refused = ctx.clone();
-        refused.memory.hard_limit_bytes = Some(1);
+        refused.set_memory_limit(Some(1));
         assert!(program.execute(&refused).is_err());
         assert_eq!(earlier.n_draws, later.n_draws);
         drop(program);

@@ -536,12 +536,12 @@ fn evaluate_grid(
     validate_options(options)?;
     validate_dataset_aliases(functional.catalog(), &input.samples)?;
     let mut budget_ctx = ctx.clone();
-    budget_ctx.memory.hard_limit_bytes =
-        ctx.memory.hard_limit_bytes.map(|n| n / requests.len() as u64);
+    budget_ctx.set_memory_limit(ctx.memory_limit_bytes().map(|n| n / requests.len() as u64));
     let (fit_cost, reserved_bytes) =
         check_statistical_resources(input, functional, options, &budget_ctx)?;
-    budget_ctx.memory.hard_limit_bytes =
-        budget_ctx.memory.hard_limit_bytes.map(|limit| limit.saturating_sub(reserved_bytes as u64));
+    budget_ctx.set_memory_limit(
+        budget_ctx.memory_limit_bytes().map(|limit| limit.saturating_sub(reserved_bytes as u64)),
+    );
     let bootstrapping = options.bootstrap_replicates > 0
         && !input.samples.is_empty()
         && licensed_iid_dependence(functional.catalog(), &input.samples);
@@ -752,8 +752,7 @@ pub fn check_statistical_resources(
         .checked_add(width.checked_mul(retained_replicates).ok_or_else(overflow)?)
         .ok_or_else(overflow)?;
     if ctx
-        .memory
-        .hard_limit_bytes
+        .memory_limit_bytes()
         .is_some_and(|limit| u64::try_from(bytes).map_or(true, |n| n > limit))
     {
         return Err(overflow());

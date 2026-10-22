@@ -630,12 +630,7 @@ fn grid_rows(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<(Vec<DoseLevel>, Vec<DoseDerivative>), EstimationError> {
     let per_worker = request.dose.len().saturating_mul(128).saturating_add(8192) as u64;
-    let limit = ctx
-        .memory
-        .hard_limit_bytes
-        .unwrap_or(u64::MAX)
-        .min(ctx.memory.soft_limit_bytes.unwrap_or(u64::MAX))
-        .min(ctx.admission.available().bytes());
+    let limit = ctx.memory_limit_bytes().unwrap_or(u64::MAX).min(ctx.admission.available().bytes());
     if per_worker > limit {
         return Err(antecedent_stats::StatsError::ResourceLimit {
             message: "dose grid fit workspace",
@@ -761,12 +756,8 @@ pub fn estimate_dose_grid_functional_with_context(
     let (levels, derivatives, contrast) = match request.functional {
         DoseFunctional::Contrast { from, to } => {
             let bytes = request.dose.len().saturating_mul(128).saturating_add(8192) as u64;
-            let limit = ctx
-                .memory
-                .hard_limit_bytes
-                .unwrap_or(u64::MAX)
-                .min(ctx.memory.soft_limit_bytes.unwrap_or(u64::MAX))
-                .min(ctx.admission.available().bytes());
+            let limit =
+                ctx.memory_limit_bytes().unwrap_or(u64::MAX).min(ctx.admission.available().bytes());
             if bytes > limit {
                 return Err(antecedent_stats::StatsError::ResourceLimit {
                     message: "dose contrast workspace",
@@ -881,13 +872,13 @@ mod execution_tests {
             let expected = estimate_dose_grid_functional(&request).unwrap();
             let mut ctx = ExecutionContext::production(1, 4);
             for cap in [None, Some(dose.len() as u64 * 128 + 8192)] {
-                ctx.memory.hard_limit_bytes = cap;
+                ctx.set_memory_limit(cap);
                 let before = ctx.admission.available();
                 let actual = estimate_dose_grid_functional_with_context(&request, &ctx).unwrap();
                 assert_eq!(actual, expected);
                 assert_eq!(ctx.admission.available(), before);
             }
-            ctx.memory.hard_limit_bytes = Some(1);
+            ctx.set_memory_limit(Some(1));
             assert!(matches!(
                 estimate_dose_grid_functional_with_context(&request, &ctx),
                 Err(EstimationError::Stats(antecedent_stats::StatsError::ResourceLimit { .. }))

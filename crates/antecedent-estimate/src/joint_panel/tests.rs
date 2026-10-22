@@ -244,7 +244,7 @@ fn resource_refusal_and_cancellation_are_distinct_from_statistical_failure() {
         initial: None,
     };
     let mut limited = ExecutionContext::for_tests(2);
-    limited.memory.hard_limit_bytes = Some(8);
+    limited.set_memory_limit(Some(8));
     assert!(matches!(fit_panel(&data, &options, &limited), Err(PanelError::Resource(_))));
     let cancelled = ExecutionContext::for_tests(2);
     cancelled.cancellation.cancel();
@@ -350,7 +350,7 @@ fn batched_law_preserves_shared_worlds_failed_slots_and_releases_its_output_rese
     drop(law);
     assert_eq!(ctx.admission().available().bytes(), available);
     let mut limited = ExecutionContext::for_tests(43);
-    limited.memory.hard_limit_bytes = Some(retained - 1);
+    limited.set_memory_limit(Some(retained - 1));
     assert!(matches!(
         evaluate_panel_law(&data, &point, &draws, &programs, &limited),
         Err(PanelError::Resource(_))

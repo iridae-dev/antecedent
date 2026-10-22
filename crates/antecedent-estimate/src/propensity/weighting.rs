@@ -103,6 +103,10 @@ pub struct PropensityWeighting {
     /// Cluster label of every row of the source table, subset to the retained rows by their
     /// original index. Exclusive with [`Self::cluster_ids`].
     pub source_cluster_ids: Option<Vec<u32>>,
+    /// Sampling design of the rows, for the bootstrap. Undeclared, the design is the one the
+    /// cluster labels or panel times imply; declared, a resample the design does not allow
+    /// (a row-level draw under a trajectory design, say) is refused.
+    pub sampling_design: crate::util::SamplingDeclaration,
 }
 
 impl Default for PropensityWeighting {
@@ -126,6 +130,7 @@ impl PropensityWeighting {
             sampling_weights: None,
             cluster_ids: None,
             source_cluster_ids: None,
+            sampling_design: crate::util::SamplingDeclaration::Undeclared,
         }
     }
 
@@ -190,6 +195,15 @@ impl PropensityWeighting {
     #[must_use]
     pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
         self.source_cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Declare the sampling design of the rows. The bootstrap then refuses a resample that
+    /// design does not allow: a row-level draw under independent subject trajectories, a
+    /// non-block draw of a dependent series, or a draw that ignores a panel's clusters.
+    #[must_use]
+    pub fn with_sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
+        self.sampling_design = crate::util::SamplingDeclaration::Declared(design);
         self
     }
 
@@ -556,25 +570,20 @@ impl PropensityWeighting {
         let replicate = |scratch: &mut IpwReplicate, idx: &[usize]| {
             Ok(self.replicate_ate(problem, target, trim, scratch, idx))
         };
-        match self.clusters(problem)? {
-            Some(labels) => crate::util::bootstrap_se_clusters_with_scratch(
-                self.bootstrap_replicates,
-                ctx,
-                0x9A17_u64,
-                &crate::util::ClusterRows::new(&labels)?,
-                IpwReplicate::default,
-                replicate,
-            ),
-            None => crate::util::bootstrap_by_design(
-                crate::util::BootstrapDesign { clusters: None, series_block: None },
-                self.bootstrap_replicates,
-                ctx,
-                0x9A17_u64,
-                n,
-                IpwReplicate::default,
-                replicate,
-            ),
-        }
+        let labels = self.clusters(problem)?;
+        crate::util::bootstrap_by_design(
+            crate::util::BootstrapDesign {
+                clusters: labels.as_deref(),
+                series_block: None,
+                declared: self.sampling_design,
+            },
+            self.bootstrap_replicates,
+            ctx,
+            0x9A17_u64,
+            n,
+            IpwReplicate::default,
+            replicate,
+        )
     }
 
     /// The Hajek effect of one resample of the prepared rows, refitting the propensity model

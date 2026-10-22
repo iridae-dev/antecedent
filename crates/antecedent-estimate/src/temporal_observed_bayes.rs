@@ -734,7 +734,7 @@ pub fn estimate_observed_temporal_response(
         .collect::<Vec<_>>();
     let (n_parameters, bytes) =
         posterior_buffer_budget(&dimensions, data.row_count(), base.len(), count, cells)?;
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes as u128 > u128::from(limit)) {
+    if ctx.memory_limit_bytes().is_some_and(|limit| bytes as u128 > u128::from(limit)) {
         return Err(EstimationError::data_msg("observed temporal posterior exceeds memory budget"));
     }
     let mut draws = vec![0.0; count * cells];

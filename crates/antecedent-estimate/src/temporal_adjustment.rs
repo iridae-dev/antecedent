@@ -1095,7 +1095,9 @@ fn outcome_sample_anchor(
 ) -> Result<i32, EstimationError> {
     let history = match query.max_history_lag {
         Some(lag) => HistoryWindow::max_lag(lag),
-        None => HistoryWindow::planner_default(),
+        // With no declared cap the planner retains every tick the series has.
+        None => HistoryWindow::planner_default()
+            .resolve(u32::try_from(cadence.length).unwrap_or(u32::MAX)),
     };
     let admitted = admit_temporal_history(
         cadence,

@@ -242,6 +242,10 @@ pub struct LinearAdjustmentAte {
     /// subset to the retained rows by the design's row selection. Exclusive with
     /// [`Self::cluster_ids`].
     pub source_cluster_ids: Option<Vec<u32>>,
+    /// Sampling design of the rows, for the bootstrap. Undeclared, the design is the one the
+    /// cluster labels or panel times imply; declared, a resample the design does not allow
+    /// (a row-level draw under a trajectory design, say) is refused.
+    pub sampling_design: crate::util::SamplingDeclaration,
     /// Optional multiway cluster ids for [`AnalyticSeKind::Multiway`].
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels (length = prepared `nrows`) for panel HAC.
@@ -277,6 +281,7 @@ impl LinearAdjustmentAte {
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
             source_cluster_ids: None,
+            sampling_design: crate::util::SamplingDeclaration::Undeclared,
             multiway_ids: None,
             panel_times: None,
             fit_kind: LinearFitKind::Ols,
@@ -369,6 +374,15 @@ impl LinearAdjustmentAte {
     #[must_use]
     pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
         self.source_cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Declare the sampling design of the rows. The bootstrap then refuses a resample that
+    /// design does not allow: a row-level draw under independent subject trajectories, a
+    /// non-block draw of a dependent series, or a draw that ignores a panel's clusters.
+    #[must_use]
+    pub fn with_sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
+        self.sampling_design = crate::util::SamplingDeclaration::Declared(design);
         self
     }
 
@@ -1141,7 +1155,11 @@ impl LinearAdjustmentAte {
         let clusters = self.bootstrap_clusters(problem)?;
         let series_block = self.series_block(n);
         crate::util::bootstrap_by_design(
-            crate::util::BootstrapDesign { clusters: clusters.as_deref(), series_block },
+            crate::util::BootstrapDesign {
+                clusters: clusters.as_deref(),
+                series_block,
+                declared: self.sampling_design,
+            },
             self.bootstrap_replicates,
             ctx,
             0xA7E_u64,

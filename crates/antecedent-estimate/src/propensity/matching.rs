@@ -2131,10 +2131,10 @@ mod tests {
             )
         };
         let mut allowed = ExecutionContext::for_tests(1);
-        allowed.memory.hard_limit_bytes = Some(1024 * 1024);
+        allowed.set_memory_limit(Some(1024 * 1024));
         assert!(sample(&allowed).is_ok());
         let mut refused = ExecutionContext::for_tests(1);
-        refused.memory.hard_limit_bytes = Some(1);
+        refused.set_memory_limit(Some(1));
         let err = sample(&refused).unwrap_err();
         assert!(matches!(
             err,

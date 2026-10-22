@@ -496,7 +496,7 @@ fn depth_memory_and_cancellation_stop_the_shared_budget_too() {
     let depth = decide(&seq, SearchLimits { operations: 100_000, depth: 1 });
     assert!(matches!(depth.outcome, TemporalOutcome::Stopped { stop: SearchStop::Depth }));
     let mut small = ExecutionContext::for_tests(1);
-    small.memory = antecedent_core::MemoryBudget { hard_limit_bytes: Some(64), ..small.memory };
+    small.set_memory_limit(Some(64));
     let memory = decide_temporal_transport_sequence(
         &spec(),
         &seq,
@@ -843,7 +843,7 @@ fn operations_stop_inside_each_history_step_with_a_receipt_of_what_finished() {
 fn wide_decision(memory: Option<u64>) -> TemporalSequenceDecision {
     let (spec, catalog) = common::temporal_fixture::wide(5);
     let mut ctx = ExecutionContext::for_tests(1);
-    ctx.memory = antecedent_core::MemoryBudget { hard_limit_bytes: memory, ..ctx.memory };
+    ctx.set_memory_limit(memory);
     decide_temporal_transport_sequence(
         &spec,
         &sequence(1.0, 0.0),

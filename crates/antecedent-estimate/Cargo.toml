@@ -45,6 +45,7 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
+antecedent-core = { workspace = true, features = ["test-support"] }
 antecedent-contract = { workspace = true }
 antecedent-test-support = { workspace = true }
 criterion = { workspace = true }

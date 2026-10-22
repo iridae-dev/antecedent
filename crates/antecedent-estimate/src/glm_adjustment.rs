@@ -101,6 +101,10 @@ pub struct GlmAdjustmentAte {
     /// subset to the retained rows by the design's row selection. Exclusive with
     /// [`Self::cluster_ids`].
     pub source_cluster_ids: Option<Vec<u32>>,
+    /// Sampling design of the rows, for the bootstrap. Undeclared, the design is the one the
+    /// cluster labels or panel times imply; declared, a resample the design does not allow
+    /// (a row-level draw under a trajectory design, say) is refused.
+    pub sampling_design: crate::util::SamplingDeclaration,
     /// Optional multiway cluster ids.
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels for panel HAC sandwich SE.
@@ -134,6 +138,7 @@ impl GlmAdjustmentAte {
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
             source_cluster_ids: None,
+            sampling_design: crate::util::SamplingDeclaration::Undeclared,
             multiway_ids: None,
             panel_times: None,
             population_registry: None,
@@ -200,6 +205,15 @@ impl GlmAdjustmentAte {
     #[must_use]
     pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
         self.source_cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Declare the sampling design of the rows. The bootstrap then refuses a resample that
+    /// design does not allow: a row-level draw under independent subject trajectories, a
+    /// non-block draw of a dependent series, or a draw that ignores a panel's clusters.
+    #[must_use]
+    pub fn with_sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
+        self.sampling_design = crate::util::SamplingDeclaration::Declared(design);
         self
     }
 
@@ -528,7 +542,11 @@ impl GlmAdjustmentAte {
         });
         // Replicates own a cold workspace. A warm IRLS start would change the replicate fit.
         crate::util::bootstrap_by_design(
-            crate::util::BootstrapDesign { clusters: clusters.as_deref(), series_block },
+            crate::util::BootstrapDesign {
+                clusters: clusters.as_deref(),
+                series_block,
+                declared: self.sampling_design,
+            },
             self.bootstrap_replicates,
             ctx,
             0xC17A_u64,
@@ -1911,5 +1929,44 @@ mod tests {
                 }),
             );
         }
+    }
+
+    #[test]
+    fn glm_bootstrap_follows_the_declared_sampling_design() {
+        use antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories;
+        let (data, estimand) = binary_scm(400, 5);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let base = GlmAdjustmentAte { bootstrap_replicates: 6, ..GlmAdjustmentAte::new() };
+
+        let prep = base.prepare(&data, &estimand, &query).unwrap();
+        base.fit(&prep, &mut GlmAdjustmentWorkspace::default(), &ctx(), AssumptionSet::new())
+            .unwrap();
+
+        // A declared trajectory design with no subject labels is a row-level draw.
+        let declared = base.clone().with_sampling_design(IndependentSubjectTrajectories);
+        let prep = declared.prepare(&data, &estimand, &query).unwrap();
+        let refused = declared.fit(
+            &prep,
+            &mut GlmAdjustmentWorkspace::default(),
+            &ctx(),
+            AssumptionSet::new(),
+        );
+        assert!(
+            matches!(
+                refused,
+                Err(EstimationError::Data(antecedent_data::DataError::SamplingDesign(_)))
+            ),
+            "{refused:?}"
+        );
+
+        // With subject labels the whole trajectory is the draw, and the design allows it.
+        let subjects: Vec<u32> = (0..400).map(|i| u32::try_from(i / 4).unwrap_or(0)).collect();
+        let trajectories = GlmAdjustmentAte { cluster_ids: Some(subjects), ..declared };
+        let prep = trajectories.prepare(&data, &estimand, &query).unwrap();
+        let fit = trajectories
+            .fit(&prep, &mut GlmAdjustmentWorkspace::default(), &ctx(), AssumptionSet::new())
+            .unwrap();
+        assert!(fit.se_bootstrap().is_some());
     }
 }
