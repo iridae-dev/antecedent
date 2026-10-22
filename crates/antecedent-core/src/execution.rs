@@ -2227,18 +2227,15 @@ mod tests {
             next_id: 8,
             blocked_waiters: 0,
         };
-        let recorded = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-        let slot = std::sync::Arc::clone(&recorded);
-        let previous = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |info| {
-            *slot.lock().expect("panic text") = info.to_string();
-        }));
         let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             close_slot(&mut state, 0);
         }));
-        std::panic::set_hook(previous);
-        assert!(panicked.is_err(), "credit overflow must panic");
-        let text = recorded.lock().expect("panic text").clone();
+        let payload = panicked.expect_err("credit overflow must panic");
+        let text = payload
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| payload.downcast_ref::<&str>().copied())
+            .unwrap_or_default();
         assert!(text.contains("overflow"), "{text}");
         assert_eq!(state.leases.len(), 1);
         assert_eq!(state.leases[0].id, 7);
