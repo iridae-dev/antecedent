@@ -310,7 +310,6 @@ core crates/antecedent-core/src/sampling_design.rs
 core crates/antecedent-core/src/measurement_record.rs
 core crates/antecedent-core/src/rng_key.rs
 core crates/antecedent-data/src/source.rs
-core crates/antecedent-data/src/source_snapshot.rs
 core crates/antecedent-data/src/column_closure.rs
 core crates/antecedent-data/src/lazy_identity.rs
 core crates/antecedent-graph/src/cyclic.rs
