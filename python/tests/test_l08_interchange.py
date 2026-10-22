@@ -53,9 +53,9 @@ def _facts(
 
 
 def test_missing_target_and_blank_declarations_are_refused():
-    with pytest.raises(errors.CausalUnsupportedError, match="scientific target is missing"):
+    with pytest.raises(errors.CausalValueError, match="scientific target is missing"):
         _native.InspectionInputs().inspect()
-    with pytest.raises(errors.CausalUnsupportedError, match="declaration name must be non-blank"):
+    with pytest.raises(errors.CausalValueError, match="declaration name must be non-blank"):
         _native.InspectionInputs().with_evidence([" "])
     with pytest.raises(errors.CausalValueError, match="unknown assumption"):
         _native.InspectionInputs().with_assumptions(["not_an_assumption"])
@@ -95,7 +95,7 @@ def test_overflow_refuses():
         (0, 0, 0, _LIMIT, 0),
         (0, 0, 0, 0, _LIMIT),
     ):
-        with pytest.raises(errors.CausalUnsupportedError, match="overflowed u64"):
+        with pytest.raises(errors.CausalValueError, match="overflowed u64"):
             _counts(scans, copies, fits, tests, hits).try_add(one)
 
     unchanged = _counts(_LIMIT, 1, 2, 3, 4)
@@ -105,18 +105,18 @@ def test_overflow_refuses():
     assert unchanged.scans() == _LIMIT
 
     spill = _resources(1, 2, _LIMIT)
-    with pytest.raises(errors.CausalUnsupportedError, match="overflowed u64"):
+    with pytest.raises(errors.CausalValueError, match="overflowed u64"):
         spill.try_add(_resources(0, 0, 1))
     assert spill.spill_bytes() == _LIMIT
 
     digest = bytes([3]) * 32
     record = _facts(counts=_counts(_LIMIT, 0, 0, 0, 0), resources=spill, scientific=digest)
-    with pytest.raises(errors.CausalUnsupportedError, match="overflowed u64") as caught:
+    with pytest.raises(errors.CausalValueError, match="overflowed u64") as caught:
         record.try_add_counts(_counts(1, 0, 0, 0, 0))
-    assert type(caught.value) is errors.CausalUnsupportedError
+    assert type(caught.value) is errors.CausalValueError
     assert record.counts().scans() == _LIMIT
     assert record.scientific_identity() == digest
-    with pytest.raises(errors.CausalUnsupportedError, match="overflowed u64"):
+    with pytest.raises(errors.CausalValueError, match="overflowed u64"):
         record.try_add_resources(_resources(0, 0, 1))
     assert record.resources().spill_bytes() == _LIMIT
     assert record.scientific_identity() == digest

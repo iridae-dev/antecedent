@@ -417,8 +417,7 @@ fn knowledge_arg(text: Option<&str>) -> PyResult<BackgroundKnowledge> {
 
 /// The hex identity recorded on a result for the knowledge a run was given.
 fn knowledge_identity(knowledge: &BackgroundKnowledge) -> Option<String> {
-    (!knowledge.is_empty())
-        .then(|| antecedent_discovery::selective::digest_hex(&knowledge.identity()))
+    (!knowledge.is_empty()).then(|| antecedent_core::to_hex(&knowledge.identity()))
 }
 
 /// A facade discovery failure as a Python exception. Background knowledge the search cannot

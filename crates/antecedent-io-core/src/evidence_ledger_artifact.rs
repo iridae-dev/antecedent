@@ -430,10 +430,6 @@ pub fn covariance_has_cross_terms(studies: usize, covariance: &[f64]) -> bool {
 
 // -- hex and bits helpers --------------------------------------------------------------------
 
-fn hex(digest: SemanticDigest) -> String {
-    digest.to_hex()
-}
-
 fn bits(values: &[f64]) -> Vec<u64> {
     values.iter().map(|v| v.to_bits()).collect()
 }
@@ -478,7 +474,7 @@ fn lineage_to_wire(lineage: &Lineage) -> LineageWire {
             LineageWire { of: Some(of.to_hex()), ..empty() }
         }
         Lineage::Transform { of, transform } => {
-            LineageWire { of: Some(of.to_hex()), transform: Some(hex(*transform)), ..empty() }
+            LineageWire { of: Some(of.to_hex()), transform: Some(transform.to_hex()), ..empty() }
         }
         Lineage::PriorPlusLikelihood { prior, likelihood } => LineageWire {
             prior: Some(prior.to_hex()),
@@ -505,7 +501,7 @@ fn source_to_wire(source: &SourceDeclaration) -> SourceWire {
         transport: source.transport.as_ref().map(|t| TransportWire {
             source_populations: t.source_populations.clone(),
             target_population: t.target_population.clone(),
-            selection_diagram: hex(t.selection_diagram),
+            selection_diagram: t.selection_diagram.to_hex(),
             assumptions: t.assumptions.clone(),
         }),
     }
@@ -543,7 +539,7 @@ fn request_to_wire(request: &CombinationRequest) -> CombinationWire {
                 PoolingDependence::DeclaredCovariance { covariance, has_cross_covariance } => {
                     DependenceWire {
                         kind: "declared_covariance".to_owned(),
-                        covariance: Some(hex(covariance)),
+                        covariance: Some(covariance.to_hex()),
                         has_cross_covariance,
                         rho_lo_bits: None,
                         rho_hi_bits: None,
@@ -1163,7 +1159,7 @@ fn check(
     if ledger.head().to_hex() != meta.head {
         return Err(EvidenceLedgerArtifactError::ReplayMismatch("head identity"));
     }
-    if hex(ledger.state_digest()) != meta.state_digest {
+    if ledger.state_digest().to_hex() != meta.state_digest {
         return Err(EvidenceLedgerArtifactError::ReplayMismatch("state digest"));
     }
     // Syntheses: bound to ledger results and recomputed.
@@ -1271,7 +1267,7 @@ impl EvidenceLedgerArtifact {
             operations: ledger.operations().iter().map(operation_to_wire).collect(),
             syntheses: syntheses.iter().map(synthesis_to_wire).collect::<Result<Vec<_>, _>>()?,
             head: ledger.head().to_hex(),
-            state_digest: hex(ledger.state_digest()),
+            state_digest: ledger.state_digest().to_hex(),
             identity: String::new(),
         };
         meta.identity = compute_identity(&meta);

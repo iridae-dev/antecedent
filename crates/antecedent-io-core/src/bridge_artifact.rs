@@ -331,10 +331,6 @@ pub struct ScientificBridgeMeta {
 
 // -- hex and conversion helpers ---------------------------------------------------------------
 
-fn hex(digest: SemanticDigest) -> String {
-    digest.to_hex()
-}
-
 fn digest_of(
     text: &str,
     what: &'static str,
@@ -499,18 +495,18 @@ fn source_to_wire(claim: &ClaimEnvelope) -> Result<SourceWire, ScientificBridgeA
     };
     let identities = &claim.identities;
     Ok(SourceWire {
-        claim_id: hex(claim.claim_id),
+        claim_id: claim.claim_id.to_hex(),
         value_bits: value.to_bits(),
         units: claim.outcome_units.as_ref().map(ToString::to_string),
-        target: hex(identities.target),
-        identification: hex(identities.identification),
-        identification_product: identities.identification_product.map(hex),
-        inference_binding: hex(identities.inference_binding),
-        observation: hex(identities.observation),
-        data_snapshot: hex(identities.data_snapshot),
+        target: identities.target.to_hex(),
+        identification: identities.identification.to_hex(),
+        identification_product: identities.identification_product.map(|digest| digest.to_hex()),
+        inference_binding: identities.inference_binding.to_hex(),
+        observation: identities.observation.to_hex(),
+        data_snapshot: identities.data_snapshot.to_hex(),
         evaluated: claim.domains.evaluated.as_str().to_owned(),
         evidence: claim.evidence.iter().map(ToString::to_string).collect(),
-        execution: claim.execution.map(hex),
+        execution: claim.execution.map(|digest| digest.to_hex()),
     })
 }
 
@@ -623,10 +619,10 @@ fn check(
     )
     .map_err(refused)?;
     let mismatch = ScientificBridgeArtifactError::ReplayMismatch;
-    if hex(bridged.contract_identity) != meta.contract_identity {
+    if bridged.contract_identity.to_hex() != meta.contract_identity {
         return Err(mismatch("contract identity"));
     }
-    if hex(bridged.claim.claim_id) != meta.claim_id {
+    if bridged.claim.claim_id.to_hex() != meta.claim_id {
         return Err(mismatch("claim identity"));
     }
     if bridged.value.to_bits() != meta.value_bits {
@@ -724,8 +720,8 @@ impl ScientificBridgeArtifact {
             feature: SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE.to_owned(),
             contract: contract_to_wire(&bridged.contract)?,
             source: source_to_wire(source.claim)?,
-            contract_identity: hex(bridged.contract_identity),
-            claim_id: hex(bridged.claim.claim_id),
+            contract_identity: bridged.contract_identity.to_hex(),
+            claim_id: bridged.claim.claim_id.to_hex(),
             value_bits: bridged.value.to_bits(),
             transported: bridged.transported,
             fit: bridged.fit.as_ref().map(fit_to_wire),

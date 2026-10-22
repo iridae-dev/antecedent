@@ -25,11 +25,33 @@ use pyo3::prelude::*;
 use crate::name_errors::unknown_name;
 
 fn inspection_err(refusal: InspectionRefusal) -> PyErr {
-    crate::unsupported_message(refusal.to_string())
+    let message = refusal.to_string();
+    match refusal {
+        InspectionRefusal::MissingTarget
+        | InspectionRefusal::MissingAssumptions
+        | InspectionRefusal::MissingRealization
+        | InspectionRefusal::MissingEvidenceTransformations
+        | InspectionRefusal::MissingUncertaintyDemand
+        | InspectionRefusal::MissingReuse
+        | InspectionRefusal::MissingMaterialization
+        | InspectionRefusal::MissingEstimatedResources
+        | InspectionRefusal::MissingBackendPolicy
+        | InspectionRefusal::MissingPhysicalOperators
+        | InspectionRefusal::BlankName => {
+            crate::value_err_code(reason_code!("invalid_argument"), message)
+        }
+        _ => crate::unsupported_message(message),
+    }
 }
 
 fn fact_err(error: ExecutionFactError) -> PyErr {
-    crate::unsupported_message(error.to_string())
+    let message = error.to_string();
+    match error {
+        ExecutionFactError::Overflow => {
+            crate::value_err_code(reason_code!("invalid_argument"), message)
+        }
+        _ => crate::unsupported_message(message),
+    }
 }
 
 fn digest_of(bytes: Option<Vec<u8>>) -> PyResult<Option<SemanticDigest>> {
@@ -152,7 +174,9 @@ fn read_operators(rows: &[(u64, u64, u64, u64)]) -> PyResult<Vec<PhysicalOperato
             .source(SourceDependencyId::from_raw(source))
             .estimates(ByteEstimates::declared(scratch, retained, output))
             .build()
-            .map_err(|err| crate::unsupported_message(err.to_string()))?;
+            .map_err(|err| {
+                crate::value_err_code(reason_code!("invalid_argument"), err.to_string())
+            })?;
         operators.push(operator);
     }
     Ok(operators)
@@ -742,5 +766,53 @@ pub(crate) fn finish_observed<T>(
             error.value(py).setattr("execution_facts", facts)?;
             Err(error)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pyo3::prelude::*;
+
+    use super::{PyExecutionCounts, PyInspectionInputs};
+
+    fn assert_invalid_argument(py: Python<'_>, err: &PyErr) {
+        assert!(err.is_instance_of::<crate::CausalValidateError>(py));
+        assert!(!err.is_instance_of::<crate::CausalUnsupportedError>(py));
+        let code: String = err
+            .value(py)
+            .getattr("reason_code")
+            .expect("reason_code")
+            .extract()
+            .expect("reason text");
+        assert_eq!(code, antecedent_core::reason_code!("invalid_argument"));
+    }
+
+    #[test]
+    fn overflow_and_inspection_refusal_are_invalid_arguments() {
+        Python::initialize();
+        Python::attach(|py| {
+            let counts = PyExecutionCounts::new(u64::MAX, 0, 0, 0, 0);
+            let extra = Py::new(py, PyExecutionCounts::new(1, 0, 0, 0, 0)).expect("counts");
+            let overflow = match counts.try_add(py, extra) {
+                Err(err) => err,
+                Ok(_) => panic!("overflow"),
+            };
+            assert!(overflow.to_string().contains("overflowed u64"));
+            assert_invalid_argument(py, &overflow);
+
+            let missing = match PyInspectionInputs::new().inspect() {
+                Err(err) => err,
+                Ok(_) => panic!("missing target"),
+            };
+            assert!(missing.to_string().contains("scientific target is missing"));
+            assert_invalid_argument(py, &missing);
+
+            let blank = match PyInspectionInputs::new().with_evidence(vec![" ".to_owned()]) {
+                Err(err) => err,
+                Ok(_) => panic!("blank name"),
+            };
+            assert!(blank.to_string().contains("non-blank"));
+            assert_invalid_argument(py, &blank);
+        });
     }
 }

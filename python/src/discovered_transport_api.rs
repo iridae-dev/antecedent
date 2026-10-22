@@ -42,10 +42,6 @@ const STAGE: &str = "discovered_transport";
 
 type Reply = (Option<String>, Option<String>);
 
-fn hex(bytes: &[u8; 32]) -> String {
-    antecedent_discovery::selective::digest_hex(bytes)
-}
-
 fn status_label(status: EnvelopeStatus) -> &'static str {
     match status {
         EnvelopeStatus::IdentifiedInEveryMember => "identified_in_every_member",
@@ -105,9 +101,9 @@ fn envelope_json(report: &DiscoveredTransportReport) -> Json {
         "unresolved": unresolved,
         "assumptions": report.assumptions(),
         "selection_targets": report.selection_targets().iter().map(|t| t.raw()).collect::<Vec<_>>(),
-        "structure_identity": hex(report.structure_identity()),
-        "result_identity": hex(report.result_identity()),
-        "identity": hex(report.identity()),
+        "structure_identity": sd::hex(report.structure_identity()),
+        "result_identity": sd::hex(report.result_identity()),
+        "identity": sd::hex(report.identity()),
     })
 }
 
@@ -317,8 +313,8 @@ fn estimate_json(estimate: &DiscoveredTransportEstimate) -> Json {
         "levels": estimate.levels(),
         "members": members,
         "answer": answer_json(estimate.answer()),
-        "report_identity": hex(estimate.report_identity()),
-        "identity": hex(estimate.identity()),
+        "report_identity": sd::hex(estimate.report_identity()),
+        "identity": sd::hex(estimate.identity()),
     })
 }
 
@@ -442,7 +438,7 @@ fn verify_discovered_transport_estimate_artifact(artifact: &[u8], seed: u64) -> 
     .map_err(|e| crate::value_err(e.to_string()))?;
     Ok(json!({
         "answer": answer_json(&verified.answer),
-        "report_identity": hex(&verified.report_identity),
+        "report_identity": sd::hex(&verified.report_identity),
         "members": verified.members,
     })
     .to_string())
@@ -493,9 +489,9 @@ fn temporal_envelope_json(report: &DiscoveredTemporalTransportReport) -> Json {
         "history": envelope.history(),
         "horizon_steps": envelope.horizon_steps(),
         "max_lag": envelope.max_lag(),
-        "structure_identity": hex(report.structure_identity()),
-        "result_identity": report.result_identity().map(hex),
-        "identity": hex(report.identity()),
+        "structure_identity": sd::hex(report.structure_identity()),
+        "result_identity": report.result_identity().map(sd::hex),
+        "identity": sd::hex(report.identity()),
     })
 }
 

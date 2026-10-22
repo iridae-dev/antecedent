@@ -246,7 +246,7 @@ impl PyPreparedPolicy {
         // A runtime-bound program has no identity; every other program does.
         let identity = artifact::policy_program_identity(&interventions)
             .ok()
-            .map(|digest| blake3::Hash::from_bytes(digest).to_hex().to_string());
+            .map(|digest| antecedent_core::to_hex(&digest));
         let core = PreparedPolicy::prepare(&fitted.bind(py).borrow().inner.model, interventions)
             .map_err(py_err)?;
         Ok(Self { fitted, core, identity })
@@ -527,7 +527,7 @@ pub(crate) fn policy_program_identity(names: Vec<String>, policies: &str) -> PyR
     let interventions = artifact::interventions_from_named_json(policies, &index_resolver(&names))
         .map_err(io_err)?;
     let digest = artifact::policy_program_identity(&interventions).map_err(io_err)?;
-    Ok(blake3::Hash::from_bytes(digest).to_hex().to_string())
+    Ok(antecedent_core::to_hex(&digest))
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

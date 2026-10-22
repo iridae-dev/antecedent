@@ -318,10 +318,6 @@ pub struct CompositionVerificationMeta {
 
 // -- conversion -----------------------------------------------------------------------------------
 
-fn hex(digest: SemanticDigest) -> String {
-    digest.to_hex()
-}
-
 fn digest_of(
     text: &str,
     what: &'static str,
@@ -334,10 +330,10 @@ fn calibration_to_wire(c: &CalibrationDeclaration) -> CalibrationDeclarationWire
         CalibrationDeclaration::PointOnly => ("point_only", None, None, None),
         CalibrationDeclaration::Required => ("required", None, None, None),
         CalibrationDeclaration::Held { record, coordinate } => {
-            ("held", None, Some(hex(*record)), Some(hex(*coordinate)))
+            ("held", None, Some(record.to_hex()), Some(coordinate.to_hex()))
         }
         CalibrationDeclaration::Inherited { from, record, coordinate } => {
-            ("inherited", Some(from.clone()), Some(hex(*record)), Some(hex(*coordinate)))
+            ("inherited", Some(from.clone()), Some(record.to_hex()), Some(coordinate.to_hex()))
         }
     };
     CalibrationDeclarationWire { kind: kind.to_owned(), from, record, coordinate }
@@ -377,10 +373,10 @@ fn node_to_wire(node: &CompositionNode) -> NodeWire {
     NodeWire {
         key: node.key.clone(),
         kind: node.kind.as_str().to_owned(),
-        identity: hex(node.identity),
-        structure: node.structure.map(hex),
+        identity: node.identity.to_hex(),
+        structure: node.structure.map(|digest| digest.to_hex()),
         representation: node.representation.clone(),
-        coordinate: hex(node.coordinate),
+        coordinate: node.coordinate.to_hex(),
         unsupported: match &node.support {
             SupportStanding::Supported => None,
             SupportStanding::Unsupported { coordinates } => Some(coordinates.clone()),
@@ -606,7 +602,7 @@ fn claims_to_wire(
             calibration_from: claim.calibration.from.clone(),
             calibration_newly_required: claim.calibration.newly_required,
             calibration_detail: claim.calibration.detail.map(str::to_owned),
-            lineage: hex(view.identity()),
+            lineage: view.identity().to_hex(),
         });
     }
     Ok(out)
@@ -655,7 +651,7 @@ fn check(
     if claims_to_wire(&current, &revalidation, &shared)? != meta.claims {
         return Err(mismatch("classification"));
     }
-    if hex(revalidation.identity()) != meta.revalidation {
+    if revalidation.identity().to_hex() != meta.revalidation {
         return Err(mismatch("classification identity"));
     }
     let identity = compute_identity(meta)?;
@@ -745,8 +741,8 @@ fn build_meta(
         current: graph_to_wire(current),
         effects: effects_to_wire(effects)?,
         shared_data: shared_to_wire(shared),
-        ledger_state: ledger_state.map(hex),
-        revalidation: hex(revalidation.identity()),
+        ledger_state: ledger_state.map(|digest| digest.to_hex()),
+        revalidation: revalidation.identity().to_hex(),
         claims: claims_to_wire(current, &revalidation, shared)?,
         identity: String::new(),
     };

@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn the_price_floor_program_has_a_pinned_identity() {
         let digest = policy_program_identity(&[floor(0.85)]).unwrap();
-        let hex = blake3::Hash::from_bytes(digest).to_hex().to_string();
+        let hex = antecedent_core::to_hex(&digest);
         assert_eq!(hex, "4828012ed5bdb86f66847911617623031457a3373151fb18a2b4c54d3a051d04");
     }
 
@@ -737,7 +737,7 @@ mod tests {
             ciborium::from_reader(&bytes[POLICY_PROGRAM_MAGIC.len()..]).unwrap();
         assert_eq!(envelope.version, 1);
         assert_eq!(
-            blake3::Hash::from_bytes(envelope.identity).to_hex().to_string(),
+            antecedent_core::to_hex(&envelope.identity),
             "4828012ed5bdb86f66847911617623031457a3373151fb18a2b4c54d3a051d04"
         );
     }
