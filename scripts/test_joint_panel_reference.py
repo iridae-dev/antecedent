@@ -1,4 +1,4 @@
-"""Independent X06.1 fixture checks, with closed forms separate from the generator.
+"""Independent joint-panel fixture checks, with closed forms separate from the generator.
 
 SPDX-License-Identifier: MIT OR Apache-2.0
 """

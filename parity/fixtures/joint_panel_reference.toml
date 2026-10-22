@@ -1,4 +1,4 @@
-# Q01 independent reference input for X06.1, not a public route license.
+# Independent reference input for the joint panel workflow, not a public route license.
 id = "response.joint_panel_reference"
 capability_ids = []
 fixture_dir = "conformance/response/joint_panel"

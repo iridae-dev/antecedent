@@ -1,6 +1,6 @@
 # Independent two-channel panel reference
 
-This is the X06.1 reference design, shared by the production frequentist and Bayesian
+This is the independent reference design, shared by the production frequentist and Bayesian
 consumers. It is a fixture, not a fitted workflow or a new causal method. No
 production estimator, simulator, identification routine or external baseline is
 used to generate its truth. `reference.py --check` reproduces all six artifacts.
