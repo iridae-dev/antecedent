@@ -57,16 +57,13 @@ impl PreparedAdmg {
         admg.validate().map_err(IdentificationError::from)?;
         let topo: Arc<[DenseNodeId]> = Arc::from(admg.topological_order().ok_or_else(|| {
             IdentificationError::msg(
-                antecedent_graph::error::CyclicDagRefusal {
-                    operation: antecedent_graph::error::DagOperation::Identification,
-                    next_attempt: antecedent_graph::error::CyclicNextAttempt::Unlicensed {
-                        consumer: "prepared_admg",
-                        attempt: "a directed cycle belongs in a CyclicMixedGraph; condensation \
-                                  names the feedback and sigma_separates answers a \
-                                  conditional-independence question. This preparation has no \
-                                  cyclic identification license",
-                    },
-                }
+                antecedent_graph::error::CyclicDagRefusal::unlicensed(
+                    antecedent_graph::error::DagOperation::Identification,
+                    "prepared_admg",
+                    "a directed cycle belongs in a CyclicMixedGraph; condensation names the \
+                     feedback and sigma_separates answers a conditional-independence question. \
+                     This preparation has no cyclic identification license",
+                )
                 .to_string(),
             )
         })?);

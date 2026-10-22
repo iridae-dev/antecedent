@@ -339,7 +339,7 @@ mod tests {
         // force and what it consumed.
         let g = complete_undirected(8);
         let mut ctx = ExecutionContext::for_tests(0);
-        ctx.memory.hard_limit_bytes = Some(64 * 1024 * 1024);
+        ctx.set_memory_limit(Some(64 * 1024 * 1024));
         let limits = SearchLimits { operations: 500, depth: 40 };
         let mut sampler =
             CpdagCompletionSampler::with_budget(g.clone(), usize::MAX, limits, &ctx).unwrap();
@@ -356,7 +356,7 @@ mod tests {
 
         // A memory limit that cannot hold one partial orientation reports itself as the stop.
         let mut tight = ExecutionContext::for_tests(0);
-        tight.memory.hard_limit_bytes = Some(1);
+        tight.set_memory_limit(Some(1));
         let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
         let mut sampler =
             CpdagCompletionSampler::with_budget(g, usize::MAX, limits, &tight).unwrap();
@@ -500,7 +500,7 @@ mod tests {
     fn a_memory_limit_below_one_partial_orientation_stops_the_search() {
         let g = complete_undirected(4);
         let mut ctx = ExecutionContext::for_tests(0);
-        ctx.memory.hard_limit_bytes = Some(1);
+        ctx.set_memory_limit(Some(1));
         let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
         let mut sampler = CpdagCompletionSampler::with_budget(g, usize::MAX, limits, &ctx).unwrap();
         assert!(sampler.next().is_none());

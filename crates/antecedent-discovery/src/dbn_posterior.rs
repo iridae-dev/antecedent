@@ -203,7 +203,7 @@ impl DbnPosterior {
         let n_templates = (contemp.len() as u64).saturating_mul(lag_limit);
         // Three stored words per kept template, plus the score workspace.
         let est_bytes = n_templates.saturating_mul(32);
-        if let Some(hard) = ctx.memory.hard_limit_bytes {
+        if let Some(hard) = ctx.memory_limit_bytes() {
             if est_bytes > hard {
                 return Err(DiscoveryError::Resource(format!(
                     "exact DBN enumeration needs ~{est_bytes} bytes; hard limit {hard}"
@@ -481,10 +481,9 @@ pub fn temporal_dag_from_dbn_atoms(
         ));
     }
     if !mask_is_dag(cmask, n_vars) {
-        let refusal = antecedent_graph::error::CyclicDagRefusal {
-            operation: antecedent_graph::error::DagOperation::Discovery,
-            next_attempt: antecedent_graph::error::CyclicNextAttempt::Condensation,
-        };
+        let refusal = antecedent_graph::error::CyclicDagRefusal::condensation(
+            antecedent_graph::error::DagOperation::Discovery,
+        );
         return Err(DiscoveryError::data_msg(format!(
             "temporal_dag_from_dbn_atoms: contemporaneous mask is not a DAG; {refusal}"
         )));

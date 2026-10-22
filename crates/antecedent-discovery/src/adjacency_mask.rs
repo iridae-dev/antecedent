@@ -251,10 +251,9 @@ pub fn dag_from_adjacency_mask(
     let mask = mask.into();
     require_mask_capacity(n_vars, "dag_from_adjacency_mask")?;
     if !mask_is_dag(mask, n_vars) {
-        let refusal = antecedent_graph::error::CyclicDagRefusal {
-            operation: antecedent_graph::error::DagOperation::DagProjection,
-            next_attempt: antecedent_graph::error::CyclicNextAttempt::Condensation,
-        };
+        let refusal = antecedent_graph::error::CyclicDagRefusal::condensation(
+            antecedent_graph::error::DagOperation::DagProjection,
+        );
         return Err(DiscoveryError::data_msg(format!(
             "adjacency mask {mask:#x} is not a DAG on {n_vars} nodes; {refusal}. The mask was \
              not passed to Dag::insert_directed"

@@ -233,6 +233,24 @@ impl CyclicDagRefusal {
     pub const fn new(operation: DagOperation, next_attempt: CyclicNextAttempt) -> Self {
         Self { operation, next_attempt }
     }
+
+    /// Refusal of `operation` that points at condensation for the feedback structure.
+    #[must_use]
+    pub const fn condensation(operation: DagOperation) -> Self {
+        Self::new(operation, CyclicNextAttempt::Condensation)
+    }
+
+    /// Refusal of `operation` by a `consumer` that has no cyclic license.
+    ///
+    /// `attempt` names the next design for the same request.
+    #[must_use]
+    pub const fn unlicensed(
+        operation: DagOperation,
+        consumer: &'static str,
+        attempt: &'static str,
+    ) -> Self {
+        Self::new(operation, CyclicNextAttempt::Unlicensed { consumer, attempt })
+    }
 }
 
 /// Whether `edges` contain a directed cycle on nodes `0..node_count`.
@@ -430,14 +448,27 @@ mod tests {
         let sparse = [(100, 300), (300, 200), (200, 100)];
         assert!(sparse_directed_edges_contain_cycle(&sparse));
         assert!(!directed_edges_contain_cycle(3, &[(0, 1), (1, 2)]));
-        let refusal = CyclicDagRefusal::new(
-            DagOperation::Discovery,
-            CyclicNextAttempt::Condensation,
-        );
+        let refusal =
+            CyclicDagRefusal::new(DagOperation::Discovery, CyclicNextAttempt::Condensation);
         let text = refusal.to_string();
         assert!(text.contains("discovery"), "{text}");
         assert!(text.contains("condensation"), "{text}");
         assert!(text.contains("CyclicDigraph"), "{text}");
+    }
+
+    #[test]
+    fn refusal_constructors_match_the_explicit_forms() {
+        assert_eq!(
+            CyclicDagRefusal::condensation(DagOperation::Discovery),
+            CyclicDagRefusal::new(DagOperation::Discovery, CyclicNextAttempt::Condensation),
+        );
+        assert_eq!(
+            CyclicDagRefusal::unlicensed(DagOperation::Simulation, "example", "try this"),
+            CyclicDagRefusal::new(
+                DagOperation::Simulation,
+                CyclicNextAttempt::Unlicensed { consumer: "example", attempt: "try this" },
+            ),
+        );
     }
 
     #[test]

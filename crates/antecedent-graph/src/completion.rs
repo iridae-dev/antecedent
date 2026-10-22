@@ -1188,7 +1188,7 @@ mod tests {
         assert!(sampler.validation_report().operations_consumed > 0);
 
         let (limits, mut ctx) = search(10_000_000);
-        ctx.memory.hard_limit_bytes = Some(1);
+        ctx.set_memory_limit(Some(1));
         let sampler = CompletionSampler::with_budget(&pag, usize::MAX, limits, &ctx).unwrap();
         assert_eq!(sampler.search_stop(), Some(SearchStop::Memory));
         assert!(sampler.class_audit_incomplete());

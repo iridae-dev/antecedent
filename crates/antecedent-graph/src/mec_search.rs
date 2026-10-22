@@ -282,8 +282,7 @@ impl<G: MecCpdag> MecSearch<G> {
             limits,
             ctx: ReadOnlyContext(Arc::new(ctx.clone())),
             memory_limit_bytes: ctx
-                .memory
-                .hard_limit_bytes
+                .memory_limit_bytes()
                 .map_or(antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES, |hard| {
                     hard.min(antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES)
                 }),

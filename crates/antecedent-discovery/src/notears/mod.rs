@@ -377,18 +377,8 @@ impl Notears {
         edge_coefs
             .sort_by(|a, b| b.2.abs().partial_cmp(&a.2.abs()).unwrap_or(std::cmp::Ordering::Equal));
         let directed = dense_edge_ids(&edge_coefs);
-        if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
-            antecedent_graph::error::DagOperation::Discovery,
-            antecedent_graph::error::CyclicNextAttempt::Unlicensed {
-                consumer: "notears",
-                attempt: "thresholded weights that contain a directed cycle are not a DAG; read \
-                          the feedback from CyclicDigraph::condensation. This search does not \
-                          drop the weaker edges",
-            },
-            d,
-            &directed,
-        ) {
-            return Err(DiscoveryError::stats_msg(refusal.to_string()));
+        if antecedent_graph::error::directed_edges_contain_cycle(d, &directed) {
+            return Err(DiscoveryError::stats_msg(notears_cycle_refusal()));
         }
 
         let mut dag = Dag::empty();
@@ -405,19 +395,7 @@ impl Notears {
             match dag.insert_directed(from, to) {
                 Ok(()) => kept.push((par, child, w)),
                 Err(antecedent_graph::GraphError::Cycle { .. }) => {
-                    return Err(DiscoveryError::stats_msg(
-                        antecedent_graph::error::CyclicDagRefusal {
-                            operation: antecedent_graph::error::DagOperation::Discovery,
-                            next_attempt: antecedent_graph::error::CyclicNextAttempt::Unlicensed {
-                                consumer: "notears",
-                                attempt: "thresholded weights that contain a directed cycle are \
-                                          not a DAG; read the feedback from \
-                                          CyclicDigraph::condensation. This search does not drop \
-                                          the weaker edges",
-                            },
-                        }
-                        .to_string(),
-                    ));
+                    return Err(DiscoveryError::stats_msg(notears_cycle_refusal()));
                 }
                 Err(e) => return Err(DiscoveryError::from(e)),
             }
@@ -622,6 +600,17 @@ fn pairwise_accounting(
     );
     out.groups = pairs.into();
     out
+}
+
+/// The refusal for thresholded weights that contain a directed cycle.
+fn notears_cycle_refusal() -> String {
+    antecedent_graph::error::CyclicDagRefusal::unlicensed(
+        antecedent_graph::error::DagOperation::Discovery,
+        "notears",
+        "thresholded weights that contain a directed cycle are not a DAG; read the feedback \
+         from CyclicDigraph::condensation. This search does not drop the weaker edges",
+    )
+    .to_string()
 }
 
 #[cfg(test)]

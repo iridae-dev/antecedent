@@ -488,16 +488,14 @@ impl GraphPosterior {
         if self.atom_kind == GraphPosteriorAtomKind::Dag {
             for atom in self.atoms.iter() {
                 if !crate::adjacency_mask::mask_is_dag(*atom, self.n_vars) {
-                    let refusal = antecedent_graph::error::CyclicDagRefusal {
-                        operation: antecedent_graph::error::DagOperation::GraphPosterior,
-                        next_attempt: antecedent_graph::error::CyclicNextAttempt::Unlicensed {
-                            consumer: "graph_posterior",
-                            attempt: "a DAG-atom posterior does not drop a cyclic atom or mark it \
-                                      identified; hold the directed edges as a CyclicDigraph and \
-                                      read condensation, or ask sigma_separates for a \
-                                      conditional-independence question",
-                        },
-                    };
+                    let refusal = antecedent_graph::error::CyclicDagRefusal::unlicensed(
+                        antecedent_graph::error::DagOperation::GraphPosterior,
+                        "graph_posterior",
+                        "a DAG-atom posterior does not drop a cyclic atom or mark it \
+                         identified; hold the directed edges as a CyclicDigraph and read \
+                         condensation, or ask sigma_separates for a conditional-independence \
+                         question",
+                    );
                     return Err(DiscoveryError::data_msg(refusal.to_string()));
                 }
             }

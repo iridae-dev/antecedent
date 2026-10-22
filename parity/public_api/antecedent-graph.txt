@@ -832,7 +832,9 @@ pub fn <antecedent_graph::CpdagReview>::fn from_cpdag(graph: antecedent_graph::C
 pub fn <antecedent_graph::CpdagReview>::fn is_complete(&self) -> bool
 pub fn <antecedent_graph::CpdagReview>::fn orient_edge(self, from: antecedent_core::ids::VariableId, to: antecedent_core::ids::VariableId) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::CpdagReview>::fn try_into_dag(self) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicDagRefusal>::const fn condensation(operation: antecedent_graph::DagOperation) -> Self
 pub fn <antecedent_graph::CyclicDagRefusal>::const fn new(operation: antecedent_graph::DagOperation, next_attempt: antecedent_graph::CyclicNextAttempt) -> Self
+pub fn <antecedent_graph::CyclicDagRefusal>::const fn unlicensed(operation: antecedent_graph::DagOperation, consumer: &'static str, attempt: &'static str) -> Self
 pub fn <antecedent_graph::CyclicDigraph>::const fn empty() -> Self
 pub fn <antecedent_graph::CyclicDigraph>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::CyclicDigraph>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]

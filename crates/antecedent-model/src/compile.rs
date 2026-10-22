@@ -563,16 +563,7 @@ impl CompiledCausalModel {
     )]
     pub fn compile(graph: Dag) -> Result<Self, ModelError> {
         let order = graph.topological_order().ok_or_else(|| ModelError::NotDag {
-            message: antecedent_graph::error::CyclicDagRefusal {
-                operation: antecedent_graph::error::DagOperation::Simulation,
-                next_attempt: antecedent_graph::error::CyclicNextAttempt::Unlicensed {
-                    consumer: "CompiledCausalModel",
-                    attempt: "a directed cycle belongs in a CyclicDigraph; condensation describes \
-                              the feedback and does not sample or abduct. This compiler has no \
-                              cyclic license",
-                },
-            }
-            .to_string(),
+            message: crate::scc_compile::dag_license_refusal(),
         })?;
         let n = graph.node_count();
         let mut variables = Vec::with_capacity(n);

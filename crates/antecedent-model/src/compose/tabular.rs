@@ -21,13 +21,11 @@ use super::{COMPOSITION_STREAM_DOMAIN, CompositionError, noise_stream_index};
 /// A topological simulation refused a directed cycle and named the next attempt.
 fn cyclic_simulation_refusal(consumer: &'static str, attempt: &'static str) -> CompositionError {
     CompositionError::Numerical {
-        message: antecedent_graph::error::CyclicDagRefusal {
-            operation: antecedent_graph::error::DagOperation::Simulation,
-            next_attempt: antecedent_graph::error::CyclicNextAttempt::Unlicensed {
-                consumer,
-                attempt,
-            },
-        }
+        message: antecedent_graph::error::CyclicDagRefusal::unlicensed(
+            antecedent_graph::error::DagOperation::Simulation,
+            consumer,
+            attempt,
+        )
         .to_string(),
     }
 }
