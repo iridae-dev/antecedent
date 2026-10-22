@@ -6,11 +6,16 @@
 //! target digest is refused unless it is already the current digest. Reduced
 //! retention already refuses later operations through
 //! `antecedent_state::retention::RetentionMode`. This module does not declare
-//! a second retention type.
+//! a second retention type. A previous-release artifact is adopted by recomputing
+//! the current score-row digest and the current scientific-target digest, then
+//! loading the carried receipt. Route axes stay unmigrated.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::ScientificTarget;
+
 use crate::PayloadDigestWire;
+use crate::recalc_receipt_artifact::{RecalcReceiptArtifact, RecalcReceiptArtifactError};
 
 /// Kind string of the score-table row-index digest.
 pub const SCORE_ROW_IDENTITY_KIND: &str = "score_reuse.row_index";
@@ -257,6 +262,94 @@ pub fn adopt_carried_target_digest(
 #[must_use]
 pub const fn keep_refusal_reason(reason: &str) -> &str {
     reason
+}
+
+/// Why a previous-release artifact was not adopted.
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum PreviousReleaseError {
+    /// A score-row digest or a carried target digest was not the current digest.
+    #[error(transparent)]
+    Migration(#[from] MigrationError),
+    /// A fresh process reused a derived stage. That reuse stays in-process.
+    #[error("a fresh process cannot reuse derived stage {stage}; that reuse stays in-process only")]
+    FreshProcessReusedDerivedStage {
+        /// Stage the receipt marked reused.
+        stage: String,
+    },
+    /// The carried receipt failed a check other than fresh-process reuse.
+    #[error("the previous-release receipt was not loaded: {detail}")]
+    ReceiptNotLoaded {
+        /// The receipt error.
+        detail: String,
+    },
+    /// The artifact bytes are not the previous-release object.
+    #[error("the previous-release artifact does not decode")]
+    ArtifactNotDecoded,
+}
+
+/// What a previous-release artifact adopted under the current contracts.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdoptedRelease {
+    /// Current eight-byte score-row digest.
+    pub score_row_digest: [u8; 32],
+    /// Current scientific-target digest.
+    pub target_digest: [u8; 32],
+    /// `in_process` or `fresh_process`, as the receipt declares it.
+    pub boundary_name: String,
+    /// Stage label and status, in receipt order.
+    pub stage_status: Vec<(String, String)>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PreviousReleaseWire {
+    row_ids: Vec<u64>,
+    retained_score_digest: [u8; 32],
+    carried_target_digest: [u8; 32],
+    receipt: Vec<u8>,
+}
+
+/// Load a previous-release artifact: wide row ids, a carried target digest, and a receipt.
+///
+/// A nonempty four-byte score-row digest is refused. A carried target digest is
+/// kept only when it is already [`ScientificTarget::identity`]. A fresh-process
+/// receipt that reuses a derived stage is refused before the receipt identity is
+/// compared. Route axes are not migrated.
+///
+/// # Errors
+/// The bytes do not decode, either digest is not the current digest, or the
+/// receipt refuses, including a derived stage reused in a fresh process.
+#[must_use = "a previous-release artifact is refused when its digest or receipt does not adopt"]
+pub fn consume_previous_release_artifact(
+    bytes: &[u8],
+    target: &ScientificTarget,
+) -> Result<AdoptedRelease, PreviousReleaseError> {
+    let wire: PreviousReleaseWire =
+        serde_json::from_slice(bytes).map_err(|_| PreviousReleaseError::ArtifactNotDecoded)?;
+    let score_row_digest =
+        adopt_retained_score_row_digest(&wire.retained_score_digest, &wire.row_ids)?;
+    let target_digest =
+        adopt_carried_target_digest(&wire.carried_target_digest, target.identity().as_bytes())?;
+    let artifact = match RecalcReceiptArtifact::from_bytes(&wire.receipt, None) {
+        Ok(artifact) => artifact,
+        Err(RecalcReceiptArtifactError::FreshProcessReuse { stage }) => {
+            return Err(PreviousReleaseError::FreshProcessReusedDerivedStage { stage });
+        }
+        Err(error) => {
+            return Err(PreviousReleaseError::ReceiptNotLoaded { detail: error.to_string() });
+        }
+    };
+    let meta = artifact.meta();
+    Ok(AdoptedRelease {
+        score_row_digest,
+        target_digest,
+        boundary_name: meta.capabilities.boundary.clone(),
+        stage_status: meta
+            .entries
+            .iter()
+            .map(|entry| (entry.stage.clone(), entry.status.clone()))
+            .collect(),
+    })
 }
 
 #[cfg(test)]

@@ -553,6 +553,8 @@ impl core::clone::Clone for antecedent_core::recalc::StageEntry
 impl core::clone::Clone for antecedent_core::recalc::StageIdentities
 impl core::clone::Clone for antecedent_core::recalc::StageIdentity
 impl core::clone::Clone for antecedent_core::recalc::StageStatus
+impl core::clone::Clone for antecedent_core::scientific_target::HistoryIndexedExperiment
+impl core::clone::Clone for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::clone::Clone for antecedent_core::scratch_pool::ScratchFull
 impl core::clone::Clone for antecedent_core::scratch_pool::ScratchKind
 impl core::clone::Clone for antecedent_core::scratch_pool::ScratchPool
@@ -938,6 +940,8 @@ impl core::cmp::Eq for antecedent_core::recalc::StageEntry
 impl core::cmp::Eq for antecedent_core::recalc::StageIdentities
 impl core::cmp::Eq for antecedent_core::recalc::StageIdentity
 impl core::cmp::Eq for antecedent_core::recalc::StageStatus
+impl core::cmp::Eq for antecedent_core::scientific_target::HistoryIndexedExperiment
+impl core::cmp::Eq for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::cmp::Eq for antecedent_core::scratch_pool::ScratchFull
 impl core::cmp::Eq for antecedent_core::scratch_pool::ScratchKind
 impl core::cmp::Eq for antecedent_core::scratch_pool::ScratchPoolError
@@ -1419,6 +1423,8 @@ impl core::cmp::PartialEq for antecedent_core::recalc::StageEntry
 impl core::cmp::PartialEq for antecedent_core::recalc::StageIdentities
 impl core::cmp::PartialEq for antecedent_core::recalc::StageIdentity
 impl core::cmp::PartialEq for antecedent_core::recalc::StageStatus
+impl core::cmp::PartialEq for antecedent_core::scientific_target::HistoryIndexedExperiment
+impl core::cmp::PartialEq for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::cmp::PartialEq for antecedent_core::scratch_pool::ScratchFull
 impl core::cmp::PartialEq for antecedent_core::scratch_pool::ScratchKind
 impl core::cmp::PartialEq for antecedent_core::scratch_pool::ScratchPoolError
@@ -2016,6 +2022,8 @@ impl core::fmt::Debug for antecedent_core::recalc::StageEntry
 impl core::fmt::Debug for antecedent_core::recalc::StageIdentities
 impl core::fmt::Debug for antecedent_core::recalc::StageIdentity
 impl core::fmt::Debug for antecedent_core::recalc::StageStatus
+impl core::fmt::Debug for antecedent_core::scientific_target::HistoryIndexedExperiment
+impl core::fmt::Debug for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchFull
 impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchGuard
 impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchKind
@@ -2429,6 +2437,8 @@ impl core::hash::Hash for antecedent_core::recalc::Branch
 impl core::hash::Hash for antecedent_core::recalc::Revalidation
 impl core::hash::Hash for antecedent_core::recalc::Stage
 impl core::hash::Hash for antecedent_core::recalc::StageIdentity
+impl core::hash::Hash for antecedent_core::scientific_target::HistoryIndexedExperiment
+impl core::hash::Hash for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::hash::Hash for antecedent_core::scratch_pool::ScratchKind
 impl core::hash::Hash for antecedent_core::search_budget::AdmittedExactSearch
 impl core::hash::Hash for antecedent_core::search_budget::ApproximationEvidence
@@ -3135,6 +3145,8 @@ impl core::marker::Freeze for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Freeze for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
+impl core::marker::Freeze for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchFull [auto]
 impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchKind [auto]
 impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchPool [auto]
@@ -3603,6 +3615,8 @@ impl core::marker::Send for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Send for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Send for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Send for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Send for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
+impl core::marker::Send for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Send for antecedent_core::scratch_pool::ScratchFull [auto]
 impl core::marker::Send for antecedent_core::scratch_pool::ScratchGuard [auto]
 impl core::marker::Send for antecedent_core::scratch_pool::ScratchKind [auto]
@@ -4048,6 +4062,8 @@ impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageEntry
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageIdentities
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageIdentity
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageStatus
+impl core::marker::StructuralPartialEq for antecedent_core::scientific_target::HistoryIndexedExperiment
+impl core::marker::StructuralPartialEq for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::marker::StructuralPartialEq for antecedent_core::scratch_pool::ScratchFull
 impl core::marker::StructuralPartialEq for antecedent_core::scratch_pool::ScratchKind
 impl core::marker::StructuralPartialEq for antecedent_core::scratch_pool::ScratchPoolError
@@ -4515,6 +4531,8 @@ impl core::marker::Sync for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Sync for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
+impl core::marker::Sync for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Sync for antecedent_core::scratch_pool::ScratchFull [auto]
 impl core::marker::Sync for antecedent_core::scratch_pool::ScratchGuard [auto]
 impl core::marker::Sync for antecedent_core::scratch_pool::ScratchKind [auto]
@@ -4984,6 +5002,8 @@ impl core::marker::Unpin for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Unpin for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
+impl core::marker::Unpin for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchFull [auto]
 impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchGuard [auto]
 impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchKind [auto]
@@ -5457,6 +5477,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageE
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageIdentities [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchFull [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchGuard [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchKind [auto]
@@ -5925,6 +5947,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageEntr
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIdentities [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchFull [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchGuard [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchKind [auto]
@@ -7456,10 +7480,13 @@ pub fn <antecedent_core::SamplingDesignDeclaration>::const fn time_column_presen
 pub fn <antecedent_core::SamplingDesignError>::const fn route_diagnostic(self) -> core::option::Option<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_core::ScientificTarget>::const fn assumptions(&self) -> &antecedent_core::ModelAssumptions
 pub fn <antecedent_core::ScientificTarget>::const fn form(&self) -> &antecedent_core::TargetForm
+pub fn <antecedent_core::ScientificTarget>::const fn history_indexed_law(&self) -> core::option::Option<&antecedent_core::scientific_target::HistoryIndexedTargetLaw>
 pub fn <antecedent_core::ScientificTarget>::const fn inference(&self) -> antecedent_core::InferenceSelection
 pub fn <antecedent_core::ScientificTarget>::const fn new(form: antecedent_core::TargetForm, assumptions: antecedent_core::ModelAssumptions, inference: antecedent_core::InferenceSelection) -> Self
 pub fn <antecedent_core::ScientificTarget>::const fn with_inference(self, inference: antecedent_core::InferenceSelection) -> Self
 pub fn <antecedent_core::ScientificTarget>::fn identity(&self) -> antecedent_core::SemanticDigest
+pub fn <antecedent_core::ScientificTarget>::fn shared_temporal_horizon(&self) -> core::option::Option<u32>
+pub fn <antecedent_core::ScientificTarget>::fn with_history_indexed_law(self, law: antecedent_core::scientific_target::HistoryIndexedTargetLaw) -> Self
 pub fn <antecedent_core::ScientificWorldId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::ScientificWorldId>::const fn raw(self) -> u32
 pub fn <antecedent_core::ScoreFrequentist>::const fn kind(&self) -> antecedent_core::RealizationKind
@@ -8028,6 +8055,12 @@ pub fn <antecedent_core::recalc::StageIdentity>::fn revalidation_since(&self, re
 pub fn <antecedent_core::recalc::StageIdentity>::fn to_hex(&self) -> alloc::string::String
 pub fn <antecedent_core::recalc::StageStatus>::const fn revalidation(&self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_core::recalc::StageStatus>::const fn tag(&self) -> &'static str
+pub fn <antecedent_core::scientific_target::HistoryIndexedExperiment>::fn levels(&self) -> &[u32]
+pub fn <antecedent_core::scientific_target::HistoryIndexedExperiment>::fn mass(&self) -> f64
+pub fn <antecedent_core::scientific_target::HistoryIndexedTargetLaw>::fn coordinates(&self) -> &[antecedent_core::VariableId]
+pub fn <antecedent_core::scientific_target::HistoryIndexedTargetLaw>::fn experiments(&self) -> &[antecedent_core::scientific_target::HistoryIndexedExperiment]
+pub fn <antecedent_core::scientific_target::HistoryIndexedTargetLaw>::fn new(snapshot: impl core::convert::Into<alloc::sync::Arc<str>>, coordinates: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::VariableId>, experiments: impl core::iter::traits::collect::IntoIterator<Item = (alloc::vec::Vec<u32>, f64)>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
+pub fn <antecedent_core::scientific_target::HistoryIndexedTargetLaw>::fn snapshot(&self) -> &str
 pub fn <antecedent_core::scratch_pool::ScratchFull>::const fn capacity(self) -> u64
 pub fn <antecedent_core::scratch_pool::ScratchFull>::const fn kind(self) -> antecedent_core::scratch_pool::ScratchKind
 pub fn <antecedent_core::scratch_pool::ScratchFull>::const fn live(self) -> u64
@@ -8559,6 +8592,10 @@ pub struct antecedent_core::recalc::StageIdentities
 pub struct antecedent_core::recalc::StageIdentities has private fields
 pub struct antecedent_core::recalc::StageIdentity
 pub struct antecedent_core::recalc::StageIdentity has private fields
+pub struct antecedent_core::scientific_target::HistoryIndexedExperiment
+pub struct antecedent_core::scientific_target::HistoryIndexedExperiment has private fields
+pub struct antecedent_core::scientific_target::HistoryIndexedTargetLaw
+pub struct antecedent_core::scientific_target::HistoryIndexedTargetLaw has private fields
 pub struct antecedent_core::scratch_pool::ScratchFull
 pub struct antecedent_core::scratch_pool::ScratchFull has private fields
 pub struct antecedent_core::scratch_pool::ScratchGuard
@@ -9477,16 +9514,21 @@ pub variant antecedent_core::SchemaError::UnknownVariableName { name: alloc::str
 pub variant antecedent_core::ScientificTargetError::CallbackAction
 pub variant antecedent_core::ScientificTargetError::ConditioningIncludesOutcome
 pub variant antecedent_core::ScientificTargetError::ContrastWorldSet
+pub variant antecedent_core::ScientificTargetError::DuplicateHistory
+pub variant antecedent_core::ScientificTargetError::DuplicateHistoryCoordinate { id: antecedent_core::VariableId }
 pub variant antecedent_core::ScientificTargetError::DuplicateInterventionVariable { id: antecedent_core::VariableId }
 pub variant antecedent_core::ScientificTargetError::DuplicateWorldId { id: antecedent_core::ScientificWorldId }
+pub variant antecedent_core::ScientificTargetError::EmptyHistoryIndexedLaw
 pub variant antecedent_core::ScientificTargetError::EmptyMediators
 pub variant antecedent_core::ScientificTargetError::EmptyName { field: &'static str }
 pub variant antecedent_core::ScientificTargetError::EmptyWorlds
+pub variant antecedent_core::ScientificTargetError::HistoryWidth { index: usize }
 pub variant antecedent_core::ScientificTargetError::IncoherentContrast { reason: &'static str }
 pub variant antecedent_core::ScientificTargetError::IncompatibleBinding { field: &'static str }
 pub variant antecedent_core::ScientificTargetError::IncompatibleTime
 pub variant antecedent_core::ScientificTargetError::InterventionVariableMismatch { expected: antecedent_core::VariableId, got: antecedent_core::VariableId }
 pub variant antecedent_core::ScientificTargetError::InvalidAction { reason: alloc::string::String }
+pub variant antecedent_core::ScientificTargetError::InvalidHistoryMass
 pub variant antecedent_core::ScientificTargetError::InvalidLinearContrast { reason: &'static str }
 pub variant antecedent_core::ScientificTargetError::MediationArmsNotDistinct
 pub variant antecedent_core::ScientificTargetError::MediationNeedsCrossWorldPremises
@@ -9500,6 +9542,7 @@ pub variant antecedent_core::ScientificTargetError::ReferenceNotMarked { id: ant
 pub variant antecedent_core::ScientificTargetError::TreatmentEqualsOutcome { id: antecedent_core::VariableId }
 pub variant antecedent_core::ScientificTargetError::UnexpectedReference { id: antecedent_core::ScientificWorldId }
 pub variant antecedent_core::ScientificTargetError::UnknownWorld { id: antecedent_core::ScientificWorldId }
+pub variant antecedent_core::ScientificTargetError::UnnormalizedHistoryLaw
 pub variant antecedent_core::ScientificTargetError::WorldsNotDistinct
 pub variant antecedent_core::ScratchRefusal::Cancelled
 pub variant antecedent_core::ScratchRefusal::HardLimit { bytes: u64, limit: u64 }

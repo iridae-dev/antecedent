@@ -12,7 +12,8 @@
 //! it carries cross-world premises, and a contrast does not construct it.
 //!
 //! Nothing here identifies, fits, or estimates. [`InferenceSelection`] is recorded
-//! on a target and omitted from [`ScientificTarget::identity`].
+//! on a target and omitted from [`ScientificTarget::identity`]. A history-indexed
+//! target law is optional and enters the identity only when it is attached.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -179,6 +180,30 @@ pub enum ScientificTargetError {
         expected: VariableId,
         /// Variable the intervention assigns.
         got: VariableId,
+    },
+    /// A history-indexed law has no snapshot, coordinates, or experiments.
+    #[error("a history-indexed target law needs a snapshot, coordinates, and experiments")]
+    EmptyHistoryIndexedLaw,
+    /// An experiment's level vector does not match the coordinate list.
+    #[error("history-indexed experiment {index} does not match the coordinate width")]
+    HistoryWidth {
+        /// Position in the caller's experiment list.
+        index: usize,
+    },
+    /// Two experiments name the same history.
+    #[error("a history-indexed law names each history once")]
+    DuplicateHistory,
+    /// A mass is non-finite or negative.
+    #[error("a history-indexed mass must be finite and non-negative")]
+    InvalidHistoryMass,
+    /// The experiments do not form a probability law.
+    #[error("history-indexed masses must sum to one")]
+    UnnormalizedHistoryLaw,
+    /// A coordinate is listed twice.
+    #[error("coordinate {id} is repeated in the history-indexed law")]
+    DuplicateHistoryCoordinate {
+        /// Repeated coordinate.
+        id: VariableId,
     },
 }
 
@@ -1812,6 +1837,123 @@ impl MediationTarget {
     }
 }
 
+/// One history of a finite law over history-indexed experiments.
+///
+/// `levels` follows the coordinate order of the law. The mass is stored by its
+/// bit pattern so `-0.0` and `0.0` are one value.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct HistoryIndexedExperiment {
+    levels: Arc<[u32]>,
+    mass_bits: u64,
+}
+
+impl HistoryIndexedExperiment {
+    /// Level index of each coordinate.
+    #[must_use = "the levels are the history this experiment names"]
+    pub fn levels(&self) -> &[u32] {
+        &self.levels
+    }
+
+    /// Probability of this history.
+    #[must_use = "the mass is the probability of this history"]
+    pub fn mass(&self) -> f64 {
+        f64::from_bits(self.mass_bits)
+    }
+}
+
+/// Observational law of a target over history-indexed experiments.
+///
+/// This is the law a two-step horizon reads. A unit history, a source
+/// experiment, and an [`InitialLaw`] do not stand in for it.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct HistoryIndexedTargetLaw {
+    snapshot: Arc<str>,
+    coordinates: Arc<[VariableId]>,
+    experiments: Arc<[HistoryIndexedExperiment]>,
+}
+
+impl HistoryIndexedTargetLaw {
+    /// Declare the law. Experiments are stored in history order.
+    ///
+    /// # Errors
+    /// A blank snapshot, no coordinates or experiments, a repeated coordinate
+    /// or history, a width mismatch, a non-finite or negative mass, or masses
+    /// that do not sum to one within `1e-8`.
+    pub fn new(
+        snapshot: impl Into<Arc<str>>,
+        coordinates: impl IntoIterator<Item = VariableId>,
+        experiments: impl IntoIterator<Item = (Vec<u32>, f64)>,
+    ) -> Result<Self, ScientificTargetError> {
+        let snapshot = snapshot.into();
+        let mut seen = BTreeSet::new();
+        let mut coordinates_vec = Vec::new();
+        for id in coordinates {
+            if !seen.insert(id) {
+                return Err(ScientificTargetError::DuplicateHistoryCoordinate { id });
+            }
+            coordinates_vec.push(id);
+        }
+        if is_blank(&snapshot) || coordinates_vec.is_empty() {
+            return Err(ScientificTargetError::EmptyHistoryIndexedLaw);
+        }
+        let width = coordinates_vec.len();
+        let mut stored = Vec::new();
+        for (index, (levels, mass)) in experiments.into_iter().enumerate() {
+            if levels.len() != width {
+                return Err(ScientificTargetError::HistoryWidth { index });
+            }
+            stored.push(HistoryIndexedExperiment {
+                levels: Arc::from(levels),
+                mass_bits: history_mass_bits(mass)?,
+            });
+        }
+        if stored.is_empty() {
+            return Err(ScientificTargetError::EmptyHistoryIndexedLaw);
+        }
+        stored.sort_by(|left, right| left.levels.as_ref().cmp(right.levels.as_ref()));
+        if stored.windows(2).any(|pair| pair[0].levels == pair[1].levels) {
+            return Err(ScientificTargetError::DuplicateHistory);
+        }
+        let mut total = 0.0;
+        for experiment in &stored {
+            total += experiment.mass();
+        }
+        if !total.is_finite() || (total - 1.0).abs() > 1e-8 {
+            return Err(ScientificTargetError::UnnormalizedHistoryLaw);
+        }
+        Ok(Self {
+            snapshot,
+            coordinates: Arc::from(coordinates_vec),
+            experiments: Arc::from(stored),
+        })
+    }
+
+    /// Snapshot the masses were taken from.
+    #[must_use = "the snapshot identifies the law the masses came from"]
+    pub fn snapshot(&self) -> &str {
+        &self.snapshot
+    }
+
+    /// Coordinates, in the order of each experiment's levels.
+    #[must_use = "the coordinates order each experiment's levels"]
+    pub fn coordinates(&self) -> &[VariableId] {
+        &self.coordinates
+    }
+
+    /// Histories and their masses, in history order.
+    #[must_use = "the experiments are the history-indexed law"]
+    pub fn experiments(&self) -> &[HistoryIndexedExperiment] {
+        &self.experiments
+    }
+}
+
+fn history_mass_bits(mass: f64) -> Result<u64, ScientificTargetError> {
+    if !mass.is_finite() || mass < 0.0 {
+        return Err(ScientificTargetError::InvalidHistoryMass);
+    }
+    if mass == 0.0 { Ok(0.0f64.to_bits()) } else { Ok(mass.to_bits()) }
+}
+
 /// Which scientific object a [`ScientificTarget`] is.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
@@ -1828,17 +1970,21 @@ pub enum TargetForm {
     Mediation(MediationTarget),
 }
 
-/// Scientific target. Equality and [`Self::identity`] ignore [`InferenceSelection`].
+/// Scientific target. Equality and [`Self::identity`] ignore [`InferenceSelection`]
+/// and include a history-indexed target law when one is attached.
 #[derive(Clone, Debug)]
 pub struct ScientificTarget {
     form: TargetForm,
     assumptions: ModelAssumptions,
     inference: InferenceSelection,
+    history_indexed_law: Option<HistoryIndexedTargetLaw>,
 }
 
 impl PartialEq for ScientificTarget {
     fn eq(&self, other: &Self) -> bool {
-        self.form == other.form && self.assumptions == other.assumptions
+        self.form == other.form
+            && self.assumptions == other.assumptions
+            && self.history_indexed_law == other.history_indexed_law
     }
 }
 
@@ -1848,6 +1994,7 @@ impl Hash for ScientificTarget {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.form.hash(state);
         self.assumptions.hash(state);
+        self.history_indexed_law.hash(state);
     }
 }
 
@@ -1859,7 +2006,7 @@ impl ScientificTarget {
         assumptions: ModelAssumptions,
         inference: InferenceSelection,
     ) -> Self {
-        Self { form, assumptions, inference }
+        Self { form, assumptions, inference, history_indexed_law: None }
     }
 
     /// Scientific object.
@@ -1887,6 +2034,38 @@ impl ScientificTarget {
         self
     }
 
+    /// Attach the observational law over history-indexed experiments.
+    ///
+    /// The law is not an [`InitialLaw`] and is not filled in from unit histories.
+    #[must_use = "the history-indexed law is part of the target"]
+    pub fn with_history_indexed_law(mut self, law: HistoryIndexedTargetLaw) -> Self {
+        self.history_indexed_law = Some(law);
+        self
+    }
+
+    /// Law over history-indexed experiments, when the target declares one.
+    #[must_use = "absence means unit histories have not supplied a target law"]
+    pub const fn history_indexed_law(&self) -> Option<&HistoryIndexedTargetLaw> {
+        self.history_indexed_law.as_ref()
+    }
+
+    /// Horizon shared by every world, when every frame is temporal and they agree.
+    ///
+    /// A static frame, an empty target, or two different horizons yield [`None`].
+    #[must_use = "the horizon route admits only a shared horizon of two"]
+    pub fn shared_temporal_horizon(&self) -> Option<u32> {
+        let mut shared = None;
+        for frame in time_frames(&self.form) {
+            let horizon = frame.horizon_steps()?;
+            match shared {
+                None => shared = Some(horizon),
+                Some(existing) if existing != horizon => return None,
+                Some(_) => {}
+            }
+        }
+        shared
+    }
+
     /// BLAKE3 digest of the scientific fields via [`CanonicalWriter`].
     ///
     /// Population, worlds, horizon, history, initial law, quantity, conditioning,
@@ -1895,14 +2074,47 @@ impl ScientificTarget {
     /// scientific content. A caller-chosen world id or a reference flag does not.
     /// A world collection is that set of contents. A dose × time surface hashes
     /// each cell's content in grid order. Inference selection, assumption source
-    /// and status, and record order do not.
+    /// and status, and record order do not. A history-indexed target law is
+    /// appended only when one is attached, so a target without one keeps the
+    /// format-3 digest it had before that law existed.
     #[must_use]
     pub fn identity(&self) -> SemanticDigest {
         let mut writer = CanonicalWriter::new(SCIENTIFIC_TARGET_IDENTITY_TAG);
         writer.word(u64::from(SCIENTIFIC_TARGET_FORMAT));
         write_form(&mut writer, &self.form);
         write_assumptions(&mut writer, &self.assumptions);
+        if let Some(law) = &self.history_indexed_law {
+            write_history_indexed_law(&mut writer, law);
+        }
         SemanticDigest::from_bytes(writer.finish())
+    }
+}
+
+fn time_frames(form: &TargetForm) -> Vec<&TimeFrame> {
+    match form {
+        TargetForm::World(world) => vec![world.time()],
+        TargetForm::Worlds(worlds) => worlds.worlds().iter().map(InterventionWorld::time).collect(),
+        TargetForm::Contrast(contrast) => {
+            contrast.worlds().worlds().iter().map(InterventionWorld::time).collect()
+        }
+        TargetForm::DoseTime(surface) => {
+            surface.worlds().worlds().iter().map(InterventionWorld::time).collect()
+        }
+        TargetForm::Mediation(mediation) => vec![mediation.time()],
+    }
+}
+
+fn write_history_indexed_law(writer: &mut CanonicalWriter, law: &HistoryIndexedTargetLaw) {
+    writer.word(1);
+    writer.text(&law.snapshot);
+    write_vars(writer, &law.coordinates);
+    writer.word(count(law.experiments.len()));
+    for experiment in law.experiments.iter() {
+        writer.word(count(experiment.levels.len()));
+        for level in experiment.levels.iter() {
+            writer.word(u64::from(*level));
+        }
+        writer.word(experiment.mass_bits);
     }
 }
 

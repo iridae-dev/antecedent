@@ -386,6 +386,22 @@ name = "composition_cross_surface_slices"
 path = "tests/composition_cross_surface_slices.rs"
 
 [[test]]
+name = "cross_surface_horizon"
+path = "tests/cross_surface_horizon.rs"
+
+[[test]]
+name = "cross_surface_cyclic_feedback"
+path = "tests/cross_surface_cyclic_feedback.rs"
+
+[[test]]
+name = "cross_surface_refresh_withdrawal"
+path = "tests/cross_surface_refresh_withdrawal.rs"
+
+[[test]]
+name = "cross_surface_previous_release"
+path = "tests/cross_surface_previous_release.rs"
+
+[[test]]
 name = "flagship_decision_fixture"
 path = "tests/flagship_decision_fixture.rs"
 

@@ -289,6 +289,29 @@ impl Study {
             state: CyclicFamilyPreparedState { program: std::sync::Arc::new(program) },
         })
     }
+
+    /// Compile a recovered linear family. Any other family is refused.
+    ///
+    /// Compilation performs no fit and does not certify the draws. The recovered
+    /// law stays conditional on the clamp-experiment recovery named by the request.
+    ///
+    /// # Errors
+    /// The request is not a recovered linear family, or [`Self::prepare_cyclic_family`]
+    /// refuses the program.
+    pub fn prepare_recovered_linear(
+        request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
+        if !matches!(
+            request,
+            antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::RecoveredLinear { .. }
+        ) {
+            return Err(CyclicArtifactError::Invalid(
+                "prepare_recovered_linear accepts only a recovered linear family".into(),
+            ));
+        }
+        Self::prepare_cyclic_family(request, ctx)
+    }
 }
 impl PreparedStudy<CyclicFamilyPreparedState> {
     /// Inspect the frozen family and semantic program without executing its numerical engine.
@@ -404,13 +427,19 @@ mod recovered_linear {
         assert_eq!(inspection.preparation_evaluations, 0);
         assert_eq!(inspection.family, "recovered_linear");
         assert_eq!(inspection.execution_plans[0].semantics, SystemSemantics::EquilibriumScm);
-        assert!(inspection.execution_plans[0].blocks.iter().any(|block| {
-            matches!(block, ExecutionBlock::SimultaneousEquations { .. })
-        }));
+        assert!(
+            inspection.execution_plans[0]
+                .blocks
+                .iter()
+                .any(|block| { matches!(block, ExecutionBlock::SimultaneousEquations { .. }) })
+        );
         assert_eq!(inspection.execution_plans[1].semantics, SystemSemantics::AcyclicScm);
-        assert!(inspection.execution_plans[1].blocks.iter().all(|block| {
-            matches!(block, ExecutionBlock::Mechanism { .. })
-        }));
+        assert!(
+            inspection.execution_plans[1]
+                .blocks
+                .iter()
+                .all(|block| { matches!(block, ExecutionBlock::Mechanism { .. }) })
+        );
         let executed = prepared.estimate_observed(&ctx);
         assert_eq!(executed.report.counts(Operation::AdjustedFit).attempted, 0);
         let report = executed.result.unwrap();

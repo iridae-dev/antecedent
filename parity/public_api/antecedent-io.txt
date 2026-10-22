@@ -322,9 +322,11 @@ impl core::clone::Clone for antecedent_io::recovery_chain_artifact::ChainWitness
 impl core::clone::Clone for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain
 impl core::clone::Clone for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::clone::Clone for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire
+impl core::clone::Clone for antecedent_io::release_migration::AdoptedRelease
 impl core::clone::Clone for antecedent_io::release_migration::AxisStanding
 impl core::clone::Clone for antecedent_io::release_migration::ManifestRouteStatus
 impl core::clone::Clone for antecedent_io::release_migration::MigrationError
+impl core::clone::Clone for antecedent_io::release_migration::PreviousReleaseError
 impl core::clone::Clone for antecedent_io::release_migration::RouteAxis
 impl core::clone::Clone for antecedent_io::release_migration::TargetShape
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
@@ -512,9 +514,11 @@ impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::ChainQueryWire
 impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::ChainWitnessCheckWire
 impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::ChainWitnessWire
 impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
+impl core::cmp::Eq for antecedent_io::release_migration::AdoptedRelease
 impl core::cmp::Eq for antecedent_io::release_migration::AxisStanding
 impl core::cmp::Eq for antecedent_io::release_migration::ManifestRouteStatus
 impl core::cmp::Eq for antecedent_io::release_migration::MigrationError
+impl core::cmp::Eq for antecedent_io::release_migration::PreviousReleaseError
 impl core::cmp::Eq for antecedent_io::release_migration::RouteAxis
 impl core::cmp::Eq for antecedent_io::release_migration::TargetShape
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
@@ -786,9 +790,11 @@ impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::ChainRecov
 impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::ChainWitnessCheckWire
 impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::ChainWitnessWire
 impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
+impl core::cmp::PartialEq for antecedent_io::release_migration::AdoptedRelease
 impl core::cmp::PartialEq for antecedent_io::release_migration::AxisStanding
 impl core::cmp::PartialEq for antecedent_io::release_migration::ManifestRouteStatus
 impl core::cmp::PartialEq for antecedent_io::release_migration::MigrationError
+impl core::cmp::PartialEq for antecedent_io::release_migration::PreviousReleaseError
 impl core::cmp::PartialEq for antecedent_io::release_migration::RouteAxis
 impl core::cmp::PartialEq for antecedent_io::release_migration::TargetShape
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
@@ -897,6 +903,7 @@ impl core::convert::From<antecedent_estimate::error::EstimationError> for antece
 impl core::convert::From<antecedent_estimate::joint_panel::PanelError> for antecedent_io::joint_panel_artifact::PanelArtifactError
 impl core::convert::From<antecedent_estimate::response::joint_linear::JointLinearError> for antecedent_io::joint_response_artifact::JointResponseArtifactError
 impl core::convert::From<antecedent_identify::recovery_chain::ChainRecoveryError> for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
+impl core::convert::From<antecedent_io::release_migration::MigrationError> for antecedent_io::release_migration::PreviousReleaseError
 impl core::convert::From<antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
@@ -961,6 +968,7 @@ impl core::error::Error for antecedent_io::predictive_assessment_artifact::Predi
 impl core::error::Error for antecedent_io::recovery_artifact::RecoveryArtifactError
 impl core::error::Error for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::error::Error for antecedent_io::release_migration::MigrationError
+impl core::error::Error for antecedent_io::release_migration::PreviousReleaseError
 impl core::error::Error for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::error::Error for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactError
 impl core::error::Error for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
@@ -1255,9 +1263,11 @@ impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::ChainWitnessWi
 impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain
 impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire
+impl core::fmt::Debug for antecedent_io::release_migration::AdoptedRelease
 impl core::fmt::Debug for antecedent_io::release_migration::AxisStanding
 impl core::fmt::Debug for antecedent_io::release_migration::ManifestRouteStatus
 impl core::fmt::Debug for antecedent_io::release_migration::MigrationError
+impl core::fmt::Debug for antecedent_io::release_migration::PreviousReleaseError
 impl core::fmt::Debug for antecedent_io::release_migration::RouteAxis
 impl core::fmt::Debug for antecedent_io::release_migration::TargetShape
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport
@@ -1394,6 +1404,7 @@ impl core::fmt::Display for antecedent_io::predictive_assessment_artifact::Predi
 impl core::fmt::Display for antecedent_io::recovery_artifact::RecoveryArtifactError
 impl core::fmt::Display for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::fmt::Display for antecedent_io::release_migration::MigrationError
+impl core::fmt::Display for antecedent_io::release_migration::PreviousReleaseError
 impl core::fmt::Display for antecedent_io::release_migration::RouteAxis
 impl core::fmt::Display for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::fmt::Display for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactError
@@ -1752,9 +1763,11 @@ impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::ChainWitne
 impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::AdoptedRelease [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::AxisStanding [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::ManifestRouteStatus [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::MigrationError [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::RouteAxis [auto]
 impl core::marker::Freeze for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
@@ -2169,9 +2182,11 @@ impl core::marker::Send for antecedent_io::recovery_chain_artifact::ChainWitness
 impl core::marker::Send for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::marker::Send for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Send for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::marker::Send for antecedent_io::release_migration::AdoptedRelease [auto]
 impl core::marker::Send for antecedent_io::release_migration::AxisStanding [auto]
 impl core::marker::Send for antecedent_io::release_migration::ManifestRouteStatus [auto]
 impl core::marker::Send for antecedent_io::release_migration::MigrationError [auto]
+impl core::marker::Send for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::marker::Send for antecedent_io::release_migration::RouteAxis [auto]
 impl core::marker::Send for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
@@ -2528,9 +2543,11 @@ impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifac
 impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifact::ChainWitnessCheckWire
 impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifact::ChainWitnessWire
 impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::AdoptedRelease
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::AxisStanding
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::ManifestRouteStatus
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::MigrationError
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::PreviousReleaseError
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::RouteAxis
 impl core::marker::StructuralPartialEq for antecedent_io::release_migration::TargetShape
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
@@ -2921,9 +2938,11 @@ impl core::marker::Sync for antecedent_io::recovery_chain_artifact::ChainWitness
 impl core::marker::Sync for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::marker::Sync for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Sync for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::marker::Sync for antecedent_io::release_migration::AdoptedRelease [auto]
 impl core::marker::Sync for antecedent_io::release_migration::AxisStanding [auto]
 impl core::marker::Sync for antecedent_io::release_migration::ManifestRouteStatus [auto]
 impl core::marker::Sync for antecedent_io::release_migration::MigrationError [auto]
+impl core::marker::Sync for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::marker::Sync for antecedent_io::release_migration::RouteAxis [auto]
 impl core::marker::Sync for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
@@ -3338,9 +3357,11 @@ impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::ChainWitnes
 impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::AdoptedRelease [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::AxisStanding [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::ManifestRouteStatus [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::MigrationError [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::RouteAxis [auto]
 impl core::marker::Unpin for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
@@ -3753,9 +3774,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::AdoptedRelease [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::AxisStanding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::ManifestRouteStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::MigrationError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::RouteAxis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::TargetShape [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
@@ -4168,9 +4191,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_arti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::AdoptedRelease [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::AxisStanding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::ManifestRouteStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::MigrationError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::PreviousReleaseError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::RouteAxis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::TargetShape [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
@@ -5257,6 +5282,7 @@ pub enum antecedent_io::nested_markov_bayesian_artifact::BayesianFunctional
 pub enum antecedent_io::release_migration::AxisStanding
 pub enum antecedent_io::release_migration::ManifestRouteStatus
 pub enum antecedent_io::release_migration::MigrationError
+pub enum antecedent_io::release_migration::PreviousReleaseError
 pub enum antecedent_io::release_migration::RouteAxis
 pub enum antecedent_io::release_migration::TargetShape
 pub enum antecedent_io::scenario_covariance_artifact::CovarianceMethodWire
@@ -6940,6 +6966,10 @@ pub field antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire::var
 pub field antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire::version: u32
 pub field antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire::witness: core::option::Option<antecedent_io::recovery_chain_artifact::ChainWitnessWire>
 pub field antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire::witness_check: core::option::Option<antecedent_io::recovery_chain_artifact::ChainWitnessCheckWire>
+pub field antecedent_io::release_migration::AdoptedRelease::boundary_name: alloc::string::String
+pub field antecedent_io::release_migration::AdoptedRelease::score_row_digest: [u8; 32]
+pub field antecedent_io::release_migration::AdoptedRelease::stage_status: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub field antecedent_io::release_migration::AdoptedRelease::target_digest: [u8; 32]
 pub field antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport::derivation: antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation
 pub field antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport::estimate: antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate
 pub field antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport::request: antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest
@@ -8245,6 +8275,7 @@ pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_par
 pub fn antecedent_io::msm_sensitivity_adapter::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_io::release_migration::adopt_carried_target_digest(retained: &[u8; 32], current: &[u8; 32]) -> core::result::Result<[u8; 32], antecedent_io::release_migration::MigrationError>
 pub fn antecedent_io::release_migration::adopt_retained_score_row_digest(retained: &[u8; 32], row_ids: &[u64]) -> core::result::Result<[u8; 32], antecedent_io::release_migration::MigrationError>
+pub fn antecedent_io::release_migration::consume_previous_release_artifact(bytes: &[u8], target: &antecedent_core::scientific_target::ScientificTarget) -> core::result::Result<antecedent_io::release_migration::AdoptedRelease, antecedent_io::release_migration::PreviousReleaseError>
 pub fn antecedent_io::release_migration::current_score_row_digest(row_ids: &[u64]) -> [u8; 32]
 pub fn antecedent_io::release_migration::narrow_score_row_digest(row_ids: &[u32]) -> [u8; 32]
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io_core::error::IoError>
@@ -8607,6 +8638,7 @@ pub struct antecedent_io::recovery_chain_artifact::ChainWitnessCheckWire
 pub struct antecedent_io::recovery_chain_artifact::ChainWitnessWire
 pub struct antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain
 pub struct antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire
+pub struct antecedent_io::release_migration::AdoptedRelease
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 pub struct antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire
@@ -9621,6 +9653,10 @@ pub variant antecedent_io::release_migration::ManifestRouteStatus::Licensed
 pub variant antecedent_io::release_migration::MigrationError::AxisStillUnmigrated { axis: antecedent_io::release_migration::RouteAxis }
 pub variant antecedent_io::release_migration::MigrationError::CarriedTargetDigestNotTranslated
 pub variant antecedent_io::release_migration::MigrationError::ScoreRowDigestNotTranslated
+pub variant antecedent_io::release_migration::PreviousReleaseError::ArtifactNotDecoded
+pub variant antecedent_io::release_migration::PreviousReleaseError::FreshProcessReusedDerivedStage { stage: alloc::string::String }
+pub variant antecedent_io::release_migration::PreviousReleaseError::Migration(antecedent_io::release_migration::MigrationError)
+pub variant antecedent_io::release_migration::PreviousReleaseError::ReceiptNotLoaded { detail: alloc::string::String }
 pub variant antecedent_io::release_migration::RouteAxis::StaticBayesian
 pub variant antecedent_io::release_migration::RouteAxis::StaticFrequentist
 pub variant antecedent_io::release_migration::RouteAxis::TemporalBayesian
