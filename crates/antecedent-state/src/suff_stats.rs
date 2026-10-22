@@ -9,6 +9,7 @@
 
 #![allow(clippy::similar_names, reason = "xtx / xty")]
 
+use antecedent_kernels::numeric::CompensatedSum;
 use antecedent_kernels::{chol_solve_into, cholesky_spd_into};
 use antecedent_stats::accumulate_xtx_xty_row;
 
@@ -485,6 +486,37 @@ fn solve_gram(xtx: &[f64], xty: &[f64], ncols: usize) -> Result<Vec<f64>, StateE
     chol_solve_into(&factor, ncols, xty, &mut scratch, &mut beta);
     if beta.iter().any(|value| !value.is_finite()) {
         return Err(singular);
+    }
+    // Refine against an error-free residual: a coefficient near a large common offset
+    // otherwise carries a unit-in-the-last-place error that the residual variance squares.
+    let mut residual = vec![0.0; ncols];
+    let mut step = vec![0.0; ncols];
+    for _ in 0..3 {
+        for (i, slot) in residual.iter_mut().enumerate() {
+            let mut sum = CompensatedSum::default();
+            sum.add(xty[i]);
+            for (j, b) in beta.iter().enumerate() {
+                let a = xtx[i * ncols + j];
+                let product = a * b;
+                sum.add(-product);
+                sum.add(-a.mul_add(*b, -product));
+            }
+            *slot = sum.total();
+        }
+        chol_solve_into(&factor, ncols, &residual, &mut scratch, &mut step);
+        if step.iter().any(|value| !value.is_finite()) {
+            break;
+        }
+        let settled = step
+            .iter()
+            .zip(&beta)
+            .all(|(d, b)| d.abs() <= f64::EPSILON * b.abs().max(f64::MIN_POSITIVE));
+        for (b, d) in beta.iter_mut().zip(&step) {
+            *b += d;
+        }
+        if settled {
+            break;
+        }
     }
     Ok(beta)
 }

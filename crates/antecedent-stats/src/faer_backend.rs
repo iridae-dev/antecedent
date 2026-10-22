@@ -70,9 +70,9 @@ impl FaerBackend {
     ///
     /// # Errors
     ///
-    /// Shape mismatch, or a rank below the row count of a short design and below
-    /// the column count otherwise. A short full-row-rank design returns the
-    /// minimum-norm coefficients.
+    /// Shape mismatch, or a rank below the column count. A design with fewer rows than
+    /// columns never identifies its coefficients; it is rank deficient, and
+    /// [`Self::min_norm_least_squares`] is the explicit way to pick one solution.
     pub fn least_squares_coefficients(
         &self,
         x_colmajor: &[f64],
@@ -125,11 +125,10 @@ impl FaerBackend {
 
 /// Shared factorization, rank decision and solve for both output contracts.
 ///
-/// A short, wide design is a minimum-norm problem. [`StatsError::Shape`] is
-/// reserved for a buffer that does not match `nrows` and `ncols`.
-/// [`StatsError::RankDeficient`] is the numerical rank: below `ncols` when the
-/// design is tall or square, and below `nrows` when it is short and wide. A
-/// short design whose rank equals its row count is solved by the thin SVD.
+/// A short, wide design cannot identify its coefficients, so it is refused as rank
+/// deficient with the rank its rows allow; [`StatsError::Shape`] is reserved for a buffer
+/// that does not match `nrows` and `ncols`. Callers that want the minimum-norm selection
+/// ask for it through [`FaerBackend::min_norm_least_squares`].
 fn solve_full_rank(
     x: &[f64],
     nrows: usize,
@@ -143,19 +142,7 @@ fn solve_full_rank(
         return Err(StatsError::Shape { message: "X buffer too short" });
     }
     if nrows < ncols {
-        let fit = min_norm_on_column_major(
-            x,
-            nrows,
-            ncols,
-            y,
-            serial_scope(),
-            &mut FactorScratch::new(),
-            0,
-        )?;
-        if fit.rank < nrows {
-            return Err(StatsError::RankDeficient { rank: fit.rank, ncols });
-        }
-        return Ok((fit.coefficients, fit.rank, fit.diagnostics.rcond));
+        return Err(StatsError::RankDeficient { rank: nrows, ncols });
     }
     let mut scales = Vec::new();
     write_column_scales(x, nrows, ncols, &mut scales);
@@ -735,26 +722,32 @@ mod tests {
         assert!(matches!(err, StatsError::RankDeficient { .. }));
     }
 
-    /// Two independent rows and three columns. The minimum-norm solution of
-    /// `X β = [1, 1]` is `(1/3, 1/3, 2/3)`. The old path returned `Shape`.
+    /// Two independent rows and three columns identify no coefficient vector: the default
+    /// solve refuses, and the explicit minimum-norm solve of `X β = [1, 1]` is
+    /// `(1/3, 1/3, 2/3)`.
     #[test]
-    fn short_full_row_rank_is_minimum_norm() {
+    fn short_design_is_refused_and_minimum_norm_is_explicit() {
         let x = [1.0, 0.0, 0.0, 1.0, 1.0, 1.0];
         let y = [1.0, 1.0];
         let mut ws = LeastSquaresWorkspace::default();
-        let fit = FaerBackend.least_squares(&x, 2, 3, &y, &mut ws).expect("minimum norm");
+        assert!(matches!(
+            FaerBackend.least_squares(&x, 2, 3, &y, &mut ws),
+            Err(StatsError::RankDeficient { rank: 2, ncols: 3 })
+        ));
+        assert!(matches!(
+            FaerBackend.least_squares_coefficients(&x, 2, 3, &y),
+            Err(StatsError::RankDeficient { .. })
+        ));
+        let fit = FaerBackend.min_norm_least_squares(&x, 2, 3, &y).expect("minimum norm");
         assert_eq!(fit.rank, 2);
         let expect = [1.0 / 3.0, 1.0 / 3.0, 2.0 / 3.0];
         for (got, want) in fit.coefficients.iter().zip(expect) {
             assert!((got - want).abs() < 1e-10, "{got} vs {want}");
         }
         assert!(fit.rss < 1e-18, "rss {}", fit.rss);
-        let coefs = FaerBackend.least_squares_coefficients(&x, 2, 3, &y).expect("coefficients");
-        assert_eq!(coefs, fit.coefficients);
     }
 
-    /// Identical rows: numerical rank 1, which is below the row count. That is
-    /// rank deficiency, not a shape error for `nrows < ncols`.
+    /// A short design is rank deficient, not a shape error, whatever its rows are.
     #[test]
     fn short_rank_deficiency_is_not_a_shape_error() {
         let x = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
@@ -762,7 +755,7 @@ mod tests {
         let mut ws = LeastSquaresWorkspace::default();
         let err = FaerBackend.least_squares(&x, 2, 3, &y, &mut ws).unwrap_err();
         assert!(
-            matches!(err, StatsError::RankDeficient { rank, ncols: 3 } if rank < 2),
+            matches!(err, StatsError::RankDeficient { ncols: 3, .. }),
             "{err:?}"
         );
         assert!(matches!(
