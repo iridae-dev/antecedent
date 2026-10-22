@@ -501,6 +501,8 @@ impl ComposedLinearGaussian {
                 ),
             });
         }
+        // `n_rows * sources` is capped by `MAX_SAMPLE_CELLS` above, which bounds every column
+        // and latent draw below.
         let draw = |role: u64, name: &str| -> Result<Vec<f64>, CompositionError> {
             if ctx.cancellation.is_cancelled() {
                 return Err(CompositionError::Cancelled);

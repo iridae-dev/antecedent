@@ -531,6 +531,7 @@ impl MechanismPredictiveCheck {
             .ok_or_else(|| ModelError::Shape { message: "variable not in model".into() })?;
         let mut rng = CausalRng::from_seed(self.seed);
         let mut ws = MechanismWorkspace::default();
+        let _admitted = crate::sample::admit_cells(Some(ctx), self.n_sims, 1)?;
         let mut means = Vec::with_capacity(self.n_sims);
         for _ in 0..self.n_sims {
             let batch = sample_observational(model, observed.len(), &mut rng, &mut ws, ctx)?;

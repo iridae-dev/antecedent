@@ -728,10 +728,13 @@ impl TemporalLinearAdjustment {
         };
         let target: Vec<&[f64]> = point.scores.influence.as_deref().into_iter().collect();
         let kernel_bias = crate::temporal_block::kernel_bias_scale(&target, block_length);
-        let boot = (replicates > 0).then(|| {
+        let boot = if replicates > 0 {
+            // The gather buffers hold the design and outcome of one resample.
+            let _gather =
+                crate::util::admit_gather_scratch(ctx, rows, prep.design.ncols + 1, replicates)?;
             let mut x_boot = vec![0.0; rows * prep.design.ncols];
             let mut y_boot = vec![0.0; rows];
-            crate::temporal_block::row_block_bootstrap_vec(
+            let draws = crate::temporal_block::row_block_bootstrap_vec(
                 rows,
                 block_length,
                 replicates,
@@ -749,8 +752,12 @@ impl TemporalLinearAdjustment {
                         .ok()
                         .map(|ate| vec![ate])
                 },
-            )
-        });
+            );
+            draws.ensure_admitted()?;
+            Some(draws)
+        } else {
+            None
+        };
         let info = TemporalDependenceSe {
             block_length,
             rows,
@@ -803,8 +810,10 @@ impl TemporalLinearAdjustment {
         let block_length = antecedent_data::circular_block_length(structural_span, windows);
         let replicates = self.inner.bootstrap_replicates;
         let p = prep.design.ncols;
-        let boot = (replicates > 0).then(|| {
-            crate::temporal_block::gapped_row_block_bootstrap(
+        let boot = if replicates > 0 {
+            // A resample keeps at most every window, so one gather holds `windows` rows.
+            let _gather = crate::util::admit_gather_scratch(ctx, windows, p + 1, replicates)?;
+            let draws = crate::temporal_block::gapped_row_block_bootstrap(
                 &selection.complete,
                 block_length,
                 replicates,
@@ -827,8 +836,12 @@ impl TemporalLinearAdjustment {
                         .ok()
                         .map(|ate| vec![ate])
                 },
-            )
-        });
+            );
+            draws.ensure_admitted()?;
+            Some(draws)
+        } else {
+            None
+        };
         let info = TemporalDependenceSe {
             block_length,
             rows,

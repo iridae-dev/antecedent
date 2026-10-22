@@ -925,6 +925,7 @@ impl FunctionalDistribution {
         quantities.extend((0..point.atoms.len()).map(|i| PosteriorQuantityKind::Scalar {
             name: Arc::from(format!("probability_atom_{i}")),
         }));
+        let _admitted = crate::util::admit_array::<f64>(ctx, draws, quantities.len())?;
         let mut values = vec![0.0; draws * quantities.len()];
         let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 0xF01E_u64);
         let mut draw_ws = FunctionalDistributionWorkspace::default();
@@ -1269,6 +1270,7 @@ impl FunctionalEffect {
             ));
         }
         let draws = crate::require_bayesian_n_draws(n_draws)?;
+        let _admitted = crate::util::admit_array::<f64>(ctx, draws, 1)?;
         let mut values = Vec::with_capacity(draws);
         let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 0xF02E_u64);
         for _ in 0..draws {

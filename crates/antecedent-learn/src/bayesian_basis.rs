@@ -109,6 +109,7 @@ impl BayesianBasisGComputation {
         )?;
 
         let p = 2 + 3 * n_covariates;
+        let _design_admitted = admit_f64_cells(ctx, n, p)?;
         let mut design = vec![0.0; n * p];
         for r in 0..n {
             design[r] = 1.0;
@@ -164,6 +165,7 @@ impl BayesianBasisGComputation {
         };
         let beta_cols: Vec<&[f64]> =
             (0..p).map(|coefficient| fit.draws.column(coefficient)).collect::<Result<_, _>>()?;
+        let _draws_admitted = admit_f64_cells(ctx, spec.n_draws, 3 * n + 1)?;
         let (values, ate_draws) =
             evaluate_draws(&beta_cols, covariates_colmajor, n, n_covariates, spec.n_draws);
         let provenance = PosteriorPredictionProvenance {
@@ -255,6 +257,21 @@ fn is_binary_with_both_levels(treatment: &[f64]) -> bool {
     treatment.iter().all(|value| *value == 0.0 || *value == 1.0)
         && treatment.iter().any(|value| *value == 0.0)
         && treatment.iter().any(|value| *value == 1.0)
+}
+
+/// Lease `count * width` `f64` cells on the pool before the buffer is allocated.
+fn admit_f64_cells(
+    ctx: &ExecutionContext,
+    count: usize,
+    width: usize,
+) -> Result<antecedent_core::execution::AdmissionLease, LearnError> {
+    let bytes = count
+        .checked_mul(width)
+        .and_then(|cells| u64::try_from(cells.checked_mul(size_of::<f64>())?).ok())
+        .ok_or_else(|| LearnError::Backend("basis buffer size overflow".to_owned()))?;
+    ctx.acquire_admission(0, bytes).map_err(|error| {
+        LearnError::Backend(format!("admission pool cannot fund the basis buffers: {error}"))
+    })
 }
 
 fn evaluate_draws(

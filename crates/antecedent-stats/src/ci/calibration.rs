@@ -496,6 +496,7 @@ pub(crate) fn collect_null_pvalues_parcorr_like(
     let mut ws = CiWorkspace::default();
     let ctx = ExecutionContext::for_tests(seed);
     let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+    // Calibration harness: one p-value per trial on a context it builds itself, so no study pool exists to lease from.
     let mut out = Vec::with_capacity(trials as usize);
     for t in 0..trials {
         let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, trial_stream(0xCA12, t));

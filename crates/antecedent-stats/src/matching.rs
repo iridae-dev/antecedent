@@ -14,6 +14,7 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
 
 use crate::error::StatsError;
 
@@ -89,7 +90,7 @@ impl MatchingIndex {
         if features_rowmajor.iter().any(|v| !v.is_finite()) {
             return Err(StatsError::Shape { message: "matching features must be finite" });
         }
-        check_budget(ctx, "matching index", index_bytes(n, dim, distance))?;
+        let _admitted = check_budget(ctx, "matching index", index_bytes(n, dim, distance))?;
         let layout = match distance {
             MatchingDistance::Absolute => sorted_layout(features_rowmajor),
             MatchingDistance::Euclidean => {
@@ -270,7 +271,8 @@ impl MatchingIndex {
         if features_rowmajor.iter().any(|v| !v.is_finite()) {
             return Err(StatsError::Shape { message: "matching features must be finite" });
         }
-        check_budget(ctx, "k-th self-distance search", self_distance_bytes(n, k, ctx))?;
+        let _admitted =
+            check_budget(ctx, "k-th self-distance search", self_distance_bytes(n, k, ctx))?;
         let tree = KdTree::build(features_rowmajor, n, dim, ctx)?;
         tree.kth_self_distances(features_rowmajor, dim, distance, k, &mut out[..n], ctx)
     }
@@ -344,7 +346,8 @@ impl MatchingIndex {
         }
         match &self.layout {
             Layout::Tree(tree) => {
-                check_budget(ctx, "k-th self-distance search", self_distance_bytes(n, k, ctx))?;
+                let _admitted =
+                    check_budget(ctx, "k-th self-distance search", self_distance_bytes(n, k, ctx))?;
                 tree.kth_self_distances(
                     &self.features,
                     self.dim,
@@ -506,16 +509,16 @@ fn unbounded_context() -> ExecutionContext {
     ExecutionContext::production(0, 1)
 }
 
-/// Refuse when the context is cancelled, when `bytes` is `None` because the size
-/// math overflowed, or when `bytes` exceeds the hard memory limit.
+/// Lease `bytes` on the admission pool, or refuse when the context is cancelled, when `bytes`
+/// is `None` because the size math overflowed, or when the pool cannot fund it.
 ///
-/// `None` is not zero and is not allocated. The limit is the admission pool's byte
-/// capacity; this check does not decrement it.
+/// `None` is not zero and is not allocated. The returned lease holds the bytes until it is
+/// dropped; keep it for as long as the planned buffers live.
 pub(crate) fn check_budget(
     ctx: &ExecutionContext,
     what: &'static str,
     bytes: Option<u64>,
-) -> Result<(), StatsError> {
+) -> Result<AdmissionLease, StatsError> {
     if ctx.cancellation.is_cancelled() {
         return Err(StatsError::Cancelled);
     }
@@ -526,13 +529,18 @@ pub(crate) fn check_budget(
             limit_bytes: ctx.memory_limit_bytes().unwrap_or(u64::MAX),
         });
     };
-    let Some(limit_bytes) = ctx.memory_limit_bytes() else {
-        return Ok(());
-    };
+    let limit_bytes = ctx.memory_limit_bytes().unwrap_or(u64::MAX);
     if required_bytes > limit_bytes {
         return Err(StatsError::ResourceLimit { message: what, required_bytes, limit_bytes });
     }
-    Ok(())
+    ctx.acquire_admission(0, required_bytes).map_err(|error| match error {
+        AdmissionError::Cancelled => StatsError::Cancelled,
+        _ => StatsError::ResourceLimit {
+            message: what,
+            required_bytes,
+            limit_bytes: ctx.admission().available().bytes(),
+        },
+    })
 }
 
 /// Bytes a freshly built index over `n` donors of `dim` features retains.

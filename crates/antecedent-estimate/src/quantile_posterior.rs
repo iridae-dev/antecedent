@@ -91,6 +91,7 @@ pub fn randomized_quantile_posterior(
     let control_alpha: Vec<f64> = control_counts.iter().map(|c| bin_concentration + c).collect();
     let treated_alpha: Vec<f64> = treated_counts.iter().map(|c| bin_concentration + c).collect();
     let mut rng = CausalRng::from_seed(seed);
+    let _admitted = crate::util::admit_bound_array::<f64>(draws, 2)?;
     let mut control_draws = Vec::with_capacity(draws);
     let mut treated_draws = Vec::with_capacity(draws);
     for _ in 0..draws {

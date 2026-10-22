@@ -97,6 +97,13 @@ pub fn estimate_static_mediation(
     // Shared tolerant bootstrap: a singular or under-determined replicate is a
     // soft failure (counted, the loop continues), cancellation aborts, and more
     // than half failed withholds the SE. Replicate accounting is the real count.
+    // Each worker holds one resampled copy of the rows.
+    let _gather = crate::util::admit_gather_scratch(
+        ctx,
+        1,
+        std::mem::size_of_val(rows.as_slice()).div_ceil(size_of::<f64>()),
+        replicates,
+    )?;
     let boot = crate::util::bootstrap_se_with_scratch(
         replicates,
         ctx,

@@ -546,6 +546,7 @@ fn combine(
     let pooled: f64 =
         weights.iter().zip(&mapped).map(|(w, m)| w * antecedent_kernels::mean(m)).sum();
     let counts = allocate(&weights, request.resolution);
+    // `resolution` is capped by MAX_PRIOR_RESOLUTION above.
     let mut draws = Vec::with_capacity(request.resolution);
     for ((source, values), &count) in sources.iter().zip(&mapped).zip(&counts) {
         let source_mean = antecedent_kernels::mean(values);

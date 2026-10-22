@@ -737,6 +737,12 @@ pub fn estimate_observed_temporal_response(
     if ctx.memory_limit_bytes().is_some_and(|limit| bytes as u128 > u128::from(limit)) {
         return Err(EstimationError::data_msg("observed temporal posterior exceeds memory budget"));
     }
+    let _admitted =
+        ctx.acquire_admission(0, u64::try_from(bytes).unwrap_or(u64::MAX)).map_err(|error| {
+            EstimationError::data_msg(format!(
+                "observed temporal posterior is not admitted: {error}"
+            ))
+        })?;
     let mut draws = vec![0.0; count * cells];
     let mut parameters = Vec::with_capacity(count * n_parameters);
     for chain in 0..chains {

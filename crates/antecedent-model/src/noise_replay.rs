@@ -125,8 +125,17 @@ impl NoiseTable {
             return Err(ModelError::Shape { message: "n_rows must be > 0".into() });
         }
         view.overlay.validate()?;
+        let _admitted = check_budget(ctx, 1, n_rows, view.model.n_nodes())?;
+        Self::sample_admitted(view, n_rows, ctx)
+    }
+
+    /// [`Self::sample`] after the caller has leased the table.
+    fn sample_admitted(
+        view: &ModelView<'_>,
+        n_rows: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, ModelError> {
         let n_nodes = view.model.n_nodes();
-        check_budget(ctx, 1, n_rows, n_nodes)?;
         let mut values = vec![0.0; n_rows * n_nodes];
         let mut origins = Vec::with_capacity(n_nodes);
         for node in 0..n_nodes {
@@ -386,21 +395,22 @@ fn check_cancelled(ctx: &ExecutionContext) -> Result<(), ModelError> {
     if ctx.cancellation.is_cancelled() { Err(ModelError::Cancelled) } else { Ok(()) }
 }
 
-/// Refuse before allocating `tables` matrices of `n_rows x n_nodes` doubles when they exceed
-/// the context's hard memory limit, and observe cancellation.
+/// Lease `tables` matrices of `n_rows x n_nodes` doubles on the context's admission pool
+/// before they are allocated, and observe cancellation.
+///
+/// Refuses with [`ModelError::ResourceLimit`] when the matrices exceed the pool's byte
+/// capacity or its free bytes. Hold the lease until the matrices are dropped.
 fn check_budget(
     ctx: &ExecutionContext,
     tables: usize,
     n_rows: usize,
     n_nodes: usize,
-) -> Result<(), ModelError> {
+) -> Result<antecedent_core::execution::AdmissionLease, ModelError> {
     check_cancelled(ctx)?;
-    let Some(limit_bytes) = ctx.memory_limit_bytes() else {
-        return Ok(());
-    };
     let required_bytes = NoiseTable::bytes_for(n_rows, n_nodes)
         .and_then(|b| b.checked_mul(tables as u64))
         .unwrap_or(u64::MAX);
+    let limit_bytes = ctx.memory_limit_bytes().unwrap_or(u64::MAX);
     if required_bytes > limit_bytes {
         return Err(ModelError::ResourceLimit {
             message: NOISE_TABLE_BUDGET,
@@ -408,7 +418,14 @@ fn check_budget(
             limit_bytes,
         });
     }
-    Ok(())
+    ctx.acquire_admission(0, required_bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => ModelError::Cancelled,
+        _ => ModelError::ResourceLimit {
+            message: NOISE_TABLE_BUDGET,
+            required_bytes,
+            limit_bytes: ctx.admission().available().bytes(),
+        },
+    })
 }
 
 /// Draw `node`'s noise column on stream family `draw`, block by block.
@@ -635,7 +652,20 @@ impl NoiseReplayer {
     ) -> Result<ValueBatch, ModelError> {
         let table = source.shape_table();
         let (n_rows, n_nodes) = (table.n_rows, table.n_nodes);
-        check_budget(ctx, 1, n_rows, n_nodes)?;
+        let _admitted = check_budget(ctx, 1, n_rows, n_nodes)?;
+        self.replay_admitted(view, source, policy_salt, ctx)
+    }
+
+    /// [`Self::replay`] after the caller has leased the output.
+    fn replay_admitted(
+        &mut self,
+        view: &ModelView<'_>,
+        source: NoiseSource<'_>,
+        policy_salt: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<ValueBatch, ModelError> {
+        let table = source.shape_table();
+        let (n_rows, n_nodes) = (table.n_rows, table.n_nodes);
         let mut values = vec![0.0; n_rows * n_nodes];
         let outcome = self.replay_into(view, source, policy_salt, &mut values, ctx)?;
         if outcome.cancelled {
@@ -658,9 +688,14 @@ impl NoiseReplayer {
         n_rows: usize,
         ctx: &ExecutionContext,
     ) -> Result<(ValueBatch, NoiseTable), ModelError> {
-        check_budget(ctx, 2, n_rows, view.model.n_nodes())?;
-        let table = NoiseTable::sample(view, n_rows, ctx)?;
-        let values = self.replay(view, NoiseSource::Table(&table), 0, ctx)?;
+        // One lease covers the retained table and the replayed values together.
+        let _admitted = check_budget(ctx, 2, n_rows, view.model.n_nodes())?;
+        if n_rows == 0 {
+            return Err(ModelError::Shape { message: "n_rows must be > 0".into() });
+        }
+        view.overlay.validate()?;
+        let table = NoiseTable::sample_admitted(view, n_rows, ctx)?;
+        let values = self.replay_admitted(view, NoiseSource::Table(&table), 0, ctx)?;
         Ok((values, table))
     }
 }

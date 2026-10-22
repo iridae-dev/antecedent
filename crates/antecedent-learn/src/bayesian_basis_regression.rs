@@ -225,6 +225,17 @@ impl KnownVarianceBasisRegression {
         let covariance = fit.cov.ok_or_else(|| {
             LearnError::Backend("the known-variance fit returned no exact covariance".to_owned())
         })?;
+        // The retained draws are leased before the copy out of the fit is allocated.
+        let _admitted = spec
+            .n_draws
+            .checked_mul(p)
+            .and_then(|cells| u64::try_from(cells.checked_mul(size_of::<f64>())?).ok())
+            .ok_or_else(|| LearnError::Backend("posterior draw size overflow".to_owned()))
+            .and_then(|bytes| {
+                ctx.acquire_admission(0, bytes).map_err(|error| {
+                    LearnError::Backend(format!("admission pool cannot fund the draws: {error}"))
+                })
+            })?;
         let mut draws = Vec::with_capacity(spec.n_draws * p);
         for coefficient in 0..p {
             draws.extend_from_slice(fit.draws.column(coefficient)?);

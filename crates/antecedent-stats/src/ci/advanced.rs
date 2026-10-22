@@ -1063,7 +1063,8 @@ fn nystrom_fit(
 ) -> Result<NystromFit, StatsError> {
     let m = gp.inducing_points.min(n);
     let zdim = z.len();
-    crate::matching::check_budget(ctx, "GPDC Nystrom fit", nystrom_bytes(n, zdim, m))?;
+    let _admitted =
+        crate::matching::check_budget(ctx, "GPDC Nystrom fit", nystrom_bytes(n, zdim, m))?;
     let z_std = standardized_z(columns, z, n)?;
     let rows = nystrom_inducing_rows(n, m, gp.inducing_seed, z);
     let mut inducing = Vec::with_capacity(m * zdim);

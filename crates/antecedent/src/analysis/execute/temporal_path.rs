@@ -4030,6 +4030,7 @@ fn summarize_observation_bootstrap(
         return band;
     }
     let z = crate::result::reported_se_interval_z();
+    // One scalar per retained replicate draw, which the bootstrap already admitted.
     let mut values = Vec::with_capacity(draws.len());
     for (cell, &mid) in center.iter().enumerate() {
         values.clear();

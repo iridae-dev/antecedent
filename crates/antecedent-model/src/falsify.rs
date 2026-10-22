@@ -401,6 +401,7 @@ fn draw_permutations(n: usize, requested: usize, rng: &mut CausalRng) -> (Vec<Ve
         shuffle(&mut all, rng);
         return (all, true);
     }
+    // `requested` is capped by `MAX_GRAPH_PERMUTATIONS` in the config validation.
     let mut drawn = Vec::with_capacity(requested);
     for _ in 0..requested {
         let mut perm: Vec<usize> = (0..n).collect();

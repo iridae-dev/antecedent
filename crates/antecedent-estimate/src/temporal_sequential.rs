@@ -1700,6 +1700,7 @@ fn estimate_sequential_with_gaps(
         )
         .with_kernel_bias(&target),
     };
+    boot.ensure_admitted()?;
     let kernel_bias = boot.kernel_bias;
     let se = boot.se_result(0);
     let mut effect = EffectEstimate::from_parts(

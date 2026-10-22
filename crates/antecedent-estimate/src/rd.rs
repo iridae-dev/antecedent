@@ -593,6 +593,9 @@ impl SharpRegressionDiscontinuity {
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.nrows;
+        // Each worker gathers `n * RD_NCOLS` design cells and `n` outcomes.
+        let _gather =
+            crate::util::admit_gather_scratch(ctx, n, RD_NCOLS + 1, self.bootstrap_replicates)?;
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,

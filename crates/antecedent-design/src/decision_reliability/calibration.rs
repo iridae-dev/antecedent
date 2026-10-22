@@ -402,6 +402,7 @@ pub fn simulate_selection_draws(
     }
     let n = design.n_draws;
     let k = design.true_means.len();
+    // Known-optimum calibration harness: the design declares `n_draws` and runs on no study context.
     let mut columns = vec![vec![0.0_f64; n]; k];
     let (coupling, segments) = match design.coupling {
         NoiseCoupling::SharedStream { correlation } => {

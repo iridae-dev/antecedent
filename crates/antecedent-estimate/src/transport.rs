@@ -440,6 +440,8 @@ pub fn trial_to_target_bayesian_bootstrap(
         })
         .collect();
     let mut rng = CausalRng::from_seed(seed);
+    // This entry has no context; the bound workflow account is charged when there is one.
+    let _admitted = crate::util::admit_bound_array::<f64>(n_draws, 1)?;
     let mut draws = Vec::with_capacity(n_draws);
     for _ in 0..n_draws {
         let weights =

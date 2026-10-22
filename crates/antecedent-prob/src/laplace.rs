@@ -466,7 +466,11 @@ pub fn sample_gaussian_mvn(
     }
     let chol = cholesky_spd(cov, ncols)?;
     let mut rng = crate::streams::direct_draw_rng(seed);
-    let mut values = vec![0.0; n_draws * ncols];
+    let cells = n_draws
+        .checked_mul(ncols)
+        .ok_or(ProbError::Shape { message: "draw buffer size overflow" })?;
+    let _admitted = crate::admission::admit_cells(None, cells)?;
+    let mut values = vec![0.0; cells];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
         for j in 0..ncols {

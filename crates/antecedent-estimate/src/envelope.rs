@@ -181,6 +181,7 @@ pub fn aggregate_effect_envelope(
     // contract. These are pseudo-random mixture draws, not aligned averages or
     // deterministic thinning of potentially ordered within-model draws.
     let mut rng = CausalRng::from_seed(0x454E_5645_4C4F_5045);
+    let _admitted = crate::util::admit_bound_array::<f64>(n_draws, 1)?;
     let mut mixture = Vec::with_capacity(n_draws);
     for _ in 0..n_draws {
         let target = rng.next_f64();

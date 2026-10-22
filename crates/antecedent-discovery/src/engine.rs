@@ -637,6 +637,7 @@ impl PcmciEngine {
     ) -> Result<(Vec<TargetParents>, Vec<DiscoveryIteration>, u64), DiscoveryError> {
         if threads <= 1 || variables.len() <= 1 {
             let mut all_parents = Vec::with_capacity(variables.len());
+            // One record per variable, so graph-sized, not data-sized.
             let mut iterations = Vec::with_capacity(variables.len());
             let mut ci_tests = 0u64;
             for &target in variables {

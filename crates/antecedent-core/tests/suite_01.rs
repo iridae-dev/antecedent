@@ -7,3 +7,5 @@
 mod identity_properties_standing;
 #[path = "recalc_plan.rs"]
 mod recalc_plan;
+#[path = "unleased_parallelism.rs"]
+mod unleased_parallelism;

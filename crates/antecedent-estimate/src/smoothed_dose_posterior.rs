@@ -163,6 +163,7 @@ pub fn smoothed_dose_posterior(
     let functionals = grid_functionals(query, input, model, &target);
     let minimum_local_rows = local_rows(query, input, &source, model.min_local_rows)?;
     let size = functionals.len();
+    let _admitted = crate::util::admit_bound_array::<f64>(model.draws, size)?;
     let mut draws = vec![0.0; model.draws * size];
     for (k, coefficients) in fit.coefficients.chunks(width).enumerate() {
         for (g, row) in functionals.iter().enumerate() {

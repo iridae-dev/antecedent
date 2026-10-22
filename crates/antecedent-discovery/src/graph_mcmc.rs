@@ -102,6 +102,20 @@ where
     S: Send,
     F: Fn(usize, &ExecutionContext) -> Result<ChainOutput<S>, DiscoveryError> + Sync,
 {
+    // Every chain keeps a trace and a score per draw, and the merge copies them once more;
+    // both are leased before any chain starts.
+    let bytes = n_chains
+        .checked_mul(n_draws)
+        .and_then(|cells| cells.checked_mul(n_params.saturating_add(1)))
+        .and_then(|cells| cells.checked_mul(2 * size_of::<f64>()))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| DiscoveryError::Resource("chain trace size overflow".to_owned()))?;
+    let _traces = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => DiscoveryError::Cancelled,
+        other => DiscoveryError::Resource(format!(
+            "admission pool cannot fund the chain traces: {other}"
+        )),
+    })?;
     // One call per chain index. `map_indexed` assigns chain `i` the stream the worker
     // opens for `i`, and a panic in `worker` propagates with its payload.
     let outputs = ctx.map_indexed(n_chains, |chain, inner| worker(chain, inner))?;

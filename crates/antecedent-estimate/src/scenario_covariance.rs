@@ -672,6 +672,8 @@ pub fn shared_row_bootstrap_covariance(
     let mut digest = seed_digest(scenarios, &identity, "shared_row_bootstrap");
     digest.word(options.seed);
     digest.word(widen(options.replicates));
+    check_cancel(ctx)?;
+    let _admitted = crate::util::admit_array::<f64>(ctx, options.replicates, k + 1)?;
     let mut counts = vec![0_u32; identity.n];
     let mut tally = Tally {
         values: Vec::with_capacity(options.replicates * k),

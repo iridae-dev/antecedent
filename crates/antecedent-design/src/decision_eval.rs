@@ -321,6 +321,7 @@ fn build_table_with(
             columns.push(column);
         }
         let mut row_values = vec![0.0; columns.len()];
+        // One scalar per draw of a source the caller already holds.
         let mut per_draw = Vec::with_capacity(n_draws);
         for draw in 0..n_draws {
             for (slot, column) in columns.iter().enumerate() {

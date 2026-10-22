@@ -137,6 +137,7 @@ pub fn distribution_change_robust(
         let estimate = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
         (v0, v_full, estimate)
     } else {
+        let _scratch = admit_payoff_scratch(ctx, options.n_samples, graph_model.n_nodes())?;
         let mut payoff = RobustMechanismPayoff::new(
             graph_model.clone(),
             baseline_mechs,
@@ -394,6 +395,28 @@ struct RobustMechanismPayoff<'a> {
 struct McSampling {
     n_samples: usize,
     seed: u64,
+}
+
+/// Lease the sample matrix and noise column each payoff holds: one for the caller and one
+/// per forked worker, before any is allocated.
+fn admit_payoff_scratch(
+    ctx: &ExecutionContext,
+    n_samples: usize,
+    n_nodes: usize,
+) -> Result<antecedent_core::execution::AdmissionLease, AttributionError> {
+    let holders = usize::try_from(ctx.parallelism.max_threads.get()).unwrap_or(usize::MAX);
+    let bytes = n_samples
+        .max(1)
+        .checked_mul(n_nodes.saturating_add(1))
+        .and_then(|cells| cells.checked_mul(size_of::<f64>()))
+        .and_then(|bytes| bytes.checked_mul(holders.max(1)))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| AttributionError::Budget {
+            message: "robust payoff scratch size overflow".to_owned(),
+        })?;
+    ctx.acquire_admission(0, bytes).map_err(|error| AttributionError::Budget {
+        message: format!("admission pool cannot fund the robust payoff scratch: {error}"),
+    })
 }
 
 impl<'a> RobustMechanismPayoff<'a> {

@@ -1349,6 +1349,13 @@ impl AipwAte {
         let fold_seed = ctx.rng.master_seed();
         let clusters = self.bootstrap_clusters(problem)?;
         let series_block = self.series_block(problem.nrows);
+        // Each replicate clones the problem with a resampled design and four row vectors.
+        let _gather = crate::util::admit_gather_scratch(
+            ctx,
+            problem.nrows,
+            problem.design_ncols + 4,
+            self.bootstrap_replicates,
+        )?;
         crate::util::bootstrap_by_design(
             crate::util::BootstrapDesign {
                 clusters: clusters.as_deref(),
@@ -1565,6 +1572,9 @@ impl AipwAte {
         let ncols = problem.design_ncols;
         let clusters = self.bootstrap_clusters(problem)?;
         let series_block = self.series_block(n);
+        // Each worker gathers the design, three vectors, and four trimmed copies.
+        let _gather =
+            crate::util::admit_gather_scratch(ctx, n, ncols + 8, self.bootstrap_replicates)?;
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_by_design(
             crate::util::BootstrapDesign {

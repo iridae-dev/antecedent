@@ -302,6 +302,7 @@ impl CountFittedModel {
         }
         let point = self.point(query, prior_alpha)?;
         let mut rng = SplitMix(seed ^ 0x9e37_79b9_7f4a_7c15);
+        let _admitted = crate::util::admit_bound_array::<f64>(draws as usize, 1)?;
         let mut values = Vec::with_capacity(draws as usize);
         let mut tables: Vec<Vec<f64>> = self
             .nodes

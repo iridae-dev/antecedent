@@ -142,6 +142,7 @@ impl BootstrapRefute {
         if boot.cancelled {
             return Err(ValidationError::Cancelled);
         }
+        boot.ensure_admitted().map_err(ValidationError::from)?;
         require_survivors(boot.draws.len(), self.replicates)?;
         let scale = boot.fixed_b();
         let centre_rows: Vec<usize> = (0..aligned.rows).collect();
@@ -202,6 +203,14 @@ impl BootstrapRefute {
                 .dependence_block_length(&prep, temporal.indexer)
                 .map_err(ValidationError::from)?,
         };
+        // The full-sample refit and each replicate gather a design and an outcome.
+        let _gather = antecedent_estimate::util::admit_gather_scratch(
+            ctx,
+            rows.rows,
+            prep.design.ncols + 1,
+            self.replicates,
+        )
+        .map_err(ValidationError::from)?;
         let mut x_boot = vec![0.0; rows.rows * prep.design.ncols];
         let mut y_boot = vec![0.0; rows.rows];
         // The replicates refit least squares. When the published estimate is
@@ -246,6 +255,7 @@ impl BootstrapRefute {
         if boot.cancelled {
             return Err(ValidationError::Cancelled);
         }
+        boot.ensure_admitted().map_err(ValidationError::from)?;
         require_survivors(boot.draws.len(), self.replicates)?;
         let scale = boot.fixed_b();
         Ok(coverage_report(
@@ -287,6 +297,15 @@ impl BootstrapRefute {
         let span =
             (temporal.indexer.history() as usize + temporal.indexer.horizon() as usize).max(1);
         let block = antecedent_data::circular_block_length(span, selection.complete.len());
+        // The full-sample refit and each replicate gather a design and an outcome; a replicate
+        // keeps at most every window.
+        let _gather = antecedent_estimate::util::admit_gather_scratch(
+            ctx,
+            selection.complete.len().max(rows),
+            p + 1,
+            self.replicates,
+        )
+        .map_err(ValidationError::from)?;
         let all_rows: Vec<usize> = (0..rows).collect();
         let mut x_full = vec![0.0; rows * p];
         let mut y_full = vec![0.0; rows];
@@ -316,6 +335,7 @@ impl BootstrapRefute {
         if boot.cancelled {
             return Err(ValidationError::Cancelled);
         }
+        boot.ensure_admitted().map_err(ValidationError::from)?;
         require_survivors(boot.draws.len(), self.replicates)?;
         let scale = boot.fixed_b();
         Ok(coverage_report(

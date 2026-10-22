@@ -110,6 +110,7 @@ pub fn estimate_bayesian_robust_ate(
     let n = input.row_ids.len();
     let plan = fold_plan(input, options.folds)?;
     let x = make_design(input);
+    let _admitted = crate::util::admit_array::<f64>(ctx, options.draws, 2)?;
     let mut effects = Vec::with_capacity(options.draws);
     let mut refits = Vec::with_capacity(options.draws);
     for draw in 0..options.draws {

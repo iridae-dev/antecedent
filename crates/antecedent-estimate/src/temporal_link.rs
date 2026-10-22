@@ -487,6 +487,7 @@ impl BayesianTemporalLink {
         }
         let functional_at_mode = design.mean_contrast(link, &fit.map);
         let mut beta = vec![0.0_f64; design.ncols];
+        let _admitted = crate::util::admit_bound_array::<f64>(self.n_draws, 1)?;
         let mut draws = Vec::with_capacity(self.n_draws);
         for draw in 0..self.n_draws {
             for column in 0..design.ncols {

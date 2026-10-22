@@ -24,10 +24,45 @@ pub fn sample_observational(
     n_rows: usize,
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
-    _ctx: &ExecutionContext,
+    ctx: &ExecutionContext,
 ) -> Result<ValueBatch, ModelError> {
     let view = ModelView::observational(model);
-    sample_with_overlay(&view, n_rows, rng, ws)
+    sample_with_overlay_admitted(&view, n_rows, rng, ws, None, Some(ctx))
+}
+
+/// Lease `rows * width` `f64` cells before the sampler allocates them.
+///
+/// With a context the lease is taken on its pool; without one the workflow account bound by
+/// [`antecedent_core::numerical_admission`] is charged, and a direct call outside any
+/// workflow has no pool and returns `None`. Hold the lease until the buffer is dropped.
+pub(crate) fn admit_cells(
+    ctx: Option<&ExecutionContext>,
+    rows: usize,
+    width: usize,
+) -> Result<Option<antecedent_core::execution::AdmissionLease>, ModelError> {
+    let required = rows
+        .checked_mul(width)
+        .and_then(|cells| cells.checked_mul(size_of::<f64>()))
+        .and_then(|bytes| u64::try_from(bytes).ok());
+    let Some(bytes) = required else {
+        return Err(ModelError::ResourceLimit {
+            message: "sample buffer",
+            required_bytes: u64::MAX,
+            limit_bytes: ctx.and_then(ExecutionContext::memory_limit_bytes).unwrap_or(u64::MAX),
+        });
+    };
+    let outcome = match ctx {
+        Some(ctx) => Some(ctx.acquire_admission(0, bytes)),
+        None => antecedent_core::numerical_admission::acquire(bytes),
+    };
+    outcome.transpose().map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => ModelError::Cancelled,
+        _ => ModelError::ResourceLimit {
+            message: "sample buffer",
+            required_bytes: bytes,
+            limit_bytes: ctx.map_or(0, |ctx| ctx.admission().available().bytes()),
+        },
+    })
 }
 
 /// Sample observational draws into a caller-owned column-major buffer.
@@ -92,9 +127,22 @@ fn sample_with_overlay_ctx(
     ws: &mut MechanismWorkspace,
     ctx: Option<&ExecutionContext>,
 ) -> Result<ValueBatch, ModelError> {
+    sample_with_overlay_admitted(view, n_rows, rng, ws, ctx, ctx)
+}
+
+/// [`sample_with_overlay_ctx`] that charges the output to `admit` and polls `poll`.
+fn sample_with_overlay_admitted(
+    view: &ModelView<'_>,
+    n_rows: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+    poll: Option<&ExecutionContext>,
+    admit: Option<&ExecutionContext>,
+) -> Result<ValueBatch, ModelError> {
     let n_nodes = view.model.n_nodes();
+    let _admitted = admit_cells(admit, n_rows, n_nodes)?;
     let mut values_buf = vec![0.0; n_rows.saturating_mul(n_nodes)];
-    sample_with_overlay_polled(view, n_rows, rng, ws, &mut values_buf, ctx)?;
+    sample_with_overlay_polled(view, n_rows, rng, ws, &mut values_buf, poll)?;
     Ok(ValueBatch { n_rows, n_nodes, values: std::sync::Arc::from(values_buf) })
 }
 
@@ -502,6 +550,7 @@ fn sample_conditional_interventional_lw(
     };
 
     // Systematic resampling.
+    let _accepted_admitted = admit_cells(Some(ctx), n_rows, n_nodes)?;
     let mut accepted = vec![0.0; n_rows * n_nodes];
     let u0 = rng.next_f64() / n_rows as f64;
     let mut cdf = 0.0;
@@ -554,6 +603,8 @@ fn weighted_particles(
     let ClampedEvidence { is_condition, at: condition_at } = evidence;
 
     let n_nodes = model.n_nodes();
+    // Particles, log-weights, density scratch, and the clamped column.
+    let _admitted = admit_cells(eval.ctx, n_particles, n_nodes.saturating_add(3))?;
     let mut particle_buf = vec![0.0; n_particles.saturating_mul(n_nodes)];
     let mut log_w = vec![0.0; n_particles];
     let mut lp_buf = vec![0.0; n_particles];
@@ -639,6 +690,7 @@ where
     let PredictiveDraws { rows_per_draw: n_rows_per_draw, n_draws } = draws;
     let n_nodes = model.n_nodes();
     let total_rows = n_rows_per_draw.saturating_mul(n_draws);
+    let _admitted = admit_cells(Some(ctx), total_rows, n_nodes)?;
     let mut all = vec![0.0; total_rows * n_nodes];
     for d in 0..n_draws {
         draw_updater(d, model)?;

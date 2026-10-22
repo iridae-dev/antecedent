@@ -26,6 +26,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
 
 /// Most simulation work one request may do: replications times units times
 /// measurements per unit.
@@ -314,10 +315,14 @@ pub(crate) struct SimulationShape {
 }
 
 /// A simulation the budget admitted.
-#[derive(Clone, Copy, Debug)]
+///
+/// Holds the bytes on the workflow's admission pool, when a workflow account is bound, until
+/// the simulation drops it.
+#[derive(Debug)]
 pub(crate) struct Admitted {
     pub work_planned: u64,
     pub estimated_peak_bytes: u64,
+    _lease: Option<AdmissionLease>,
 }
 
 impl ResourceBudget {
@@ -345,7 +350,19 @@ impl ResourceBudget {
                 requested: bytes.unwrap_or(u64::MAX),
             });
         };
-        Ok(Admitted { work_planned: work, estimated_peak_bytes: bytes })
+        // The planned peak is also charged to the workflow account bound by
+        // `numerical_admission`; a direct call outside any workflow has no pool to charge.
+        let lease =
+            antecedent_core::numerical_admission::acquire(bytes).transpose().map_err(|error| {
+                CapacityError::SimulationMemory {
+                    limit: match error {
+                        AdmissionError::ExceedsRemainder { remaining_bytes, .. } => remaining_bytes,
+                        _ => 0,
+                    },
+                    requested: bytes,
+                }
+            })?;
+        Ok(Admitted { work_planned: work, estimated_peak_bytes: bytes, _lease: lease })
     }
 }
 

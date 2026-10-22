@@ -1000,8 +1000,7 @@ fn require_capabilities(
             .compile(CapabilityRequest::new(capability))
             .map_err(|failed| missing(capability, failed))?;
     }
-    for &capability in required.iter().filter(|&&capability| is_log_density_or_update(capability))
-    {
+    for &capability in required.iter().filter(|&&capability| is_log_density_or_update(capability)) {
         if provider.compile_verified(CapabilityRequest::new(capability)).is_err() {
             return Err(RecipeError::UnansweredCall {
                 provider: provider.id(),

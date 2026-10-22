@@ -984,6 +984,29 @@ fn draw_joint(
 ) -> Result<JointDraws, Refused> {
     let dim = posterior.n_coefficients();
     let width = dim + effects.vectors.len();
+    if ctx.cancellation.is_cancelled() {
+        return Err(Box::new(refuse(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            DETAIL_CANCELLED,
+            "draw",
+            "learned joint transport was cancelled",
+        )));
+    }
+    // The retained draws are leased on the pool before they are allocated.
+    let _admitted = options
+        .draws
+        .checked_mul(width)
+        .and_then(|cells| u64::try_from(cells.checked_mul(size_of::<f64>())?).ok())
+        .ok_or("draw buffer size overflow".to_owned())
+        .and_then(|bytes| ctx.acquire_admission(0, bytes).map_err(|error| error.to_string()))
+        .map_err(|detail| {
+            Box::new(refuse(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "learned_joint_transport.admission_refused",
+                "draw",
+                format!("the admission pool cannot fund the joint draws: {detail}"),
+            ))
+        })?;
     let mut values = Vec::with_capacity(options.draws * width);
     let mut parameters = vec![0.0; dim];
     for draw in 0..options.draws {

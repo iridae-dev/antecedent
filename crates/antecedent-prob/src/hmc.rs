@@ -390,6 +390,15 @@ fn fit_hmc_resolved(
     // residual σ², so its absolute prior precision is V0^{-1} at σ² ≡ 1.
     let prec = prior.coefficient_precision(&coef_prior)?;
     let n_keep = fit_opts.n_draws;
+    // Each chain keeps `n_keep * dim` draws, the merged copy holds them again, and the packed
+    // output is another block of the same width, all live at the merge.
+    let _admitted = crate::admission::admit_cells(
+        ctx,
+        hmc.n_chains
+            .checked_mul(n_keep)
+            .and_then(|draws| draws.checked_mul(dim.checked_mul(3)?))
+            .ok_or(ProbError::Shape { message: "draw buffer size overflow" })?,
+    )?;
 
     let run = |chain: usize, ws: &mut LaplaceWorkspace| -> Result<ChainRun, ProbError> {
         if let Some(model) = gaussian_model {

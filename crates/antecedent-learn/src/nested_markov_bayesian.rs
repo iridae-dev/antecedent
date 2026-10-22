@@ -301,6 +301,9 @@ pub fn fit(
     if ctx.memory_limit_bytes().into_iter().any(|limit| required > limit) {
         return Err(BayesianRefusal::Budget("posterior/diagnostic memory limit"));
     }
+    let _admitted = ctx
+        .acquire_admission(0, required)
+        .map_err(|_| BayesianRefusal::Budget("posterior/diagnostic admission pool"))?;
     let mut shapes = [(0.0, 0.0); 3];
     for k in 0..3 {
         shapes[k] = (prior.alpha[k], prior.beta[k]);

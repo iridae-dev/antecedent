@@ -352,6 +352,7 @@ impl SimulationBasedCalibration {
                 })())
             },
         )?;
+        let _admitted = crate::common::admit_cells(Some(ctx), self.n_reps as usize, 1)?;
         let mut ranks = Vec::with_capacity(self.n_reps as usize);
         let mut rank_draw_count = None;
         for outcome in outcomes {

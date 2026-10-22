@@ -34,6 +34,7 @@ pub(super) fn simultaneous_multiplier_band(
         ));
     }
     let mut rng = CausalRng::from_seed(seed);
+    let _admitted = crate::util::admit_bound_array::<f64>(replicates as usize, 1)?;
     let mut maxima = Vec::with_capacity(replicates as usize);
     let mut multipliers = vec![0.0; sample_size];
     for _ in 0..replicates {

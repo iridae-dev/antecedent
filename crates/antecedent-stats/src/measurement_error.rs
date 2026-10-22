@@ -1499,6 +1499,7 @@ pub fn combine_imputations_linear(
         return Err(MeasurementErrorError::Shape("draws do not form draw_count x n"));
     }
     let exact = ErrorVariance::known(0.0, 0.0)?;
+    // One coefficient vector per imputation of draws the caller already holds (`draws.len() == n * draw_count`).
     let mut betas = Vec::with_capacity(draw_count);
     let mut covs = Vec::with_capacity(draw_count);
     for s in 0..draw_count {

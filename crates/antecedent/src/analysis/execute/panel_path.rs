@@ -2917,6 +2917,12 @@ fn panel_unit_bootstrap(
     let fresh_ids: Vec<u32> = (0..u32::try_from(units).unwrap_or(u32::MAX)).collect();
     let mut rng = ctx.rng.stream_for(StreamDomain::Panel, 0xC1A5_5E11);
     let mut workspace = EstimationWorkspace::default();
+    // One scalar per replicate. A pool that cannot fund them withholds the bootstrap SE, which
+    // is how this helper reports any bootstrap that cannot complete.
+    let Ok(_admitted) = ctx.acquire_admission_product(0, u64::from(replicates), 8) else {
+        out.cancelled = ctx.cancellation.is_cancelled();
+        return out;
+    };
     let mut draws = Vec::with_capacity(replicates as usize);
     let mut attempted = 0usize;
     for _ in 0..replicates {

@@ -101,6 +101,7 @@ pub fn fit_basis_regression(
         &BayesFitOptions { n_draws: draws, seed, ..BayesFitOptions::default() },
         &mut LaplaceWorkspace::default(),
     )?;
+    let _admitted = crate::util::admit_bound_array::<f64>(draws, width)?;
     let mut coefficients = vec![0.0; draws * width];
     for j in 0..width {
         let column = fit.draws.column(j)?;

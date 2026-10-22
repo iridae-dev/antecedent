@@ -125,6 +125,7 @@ pub fn randomized_piecewise_survival_posterior(
     let treated_rmst_mean = rmst_mean(&treated);
 
     let mut rng = CausalRng::from_seed(seed);
+    let _admitted = crate::util::admit_bound_array::<f64>(draws, 2)?;
     let mut survival_difference = Vec::with_capacity(draws);
     let mut rmst_difference = Vec::with_capacity(draws);
     for _ in 0..draws {

@@ -335,6 +335,7 @@ fn ratio_posterior(
             "lagged-instrument posterior covariance is not positive definite",
         )
     })?;
+    let _admitted = crate::util::admit_bound_array::<f64>(sampling.draws, 1)?;
     let mut effect_draws = Vec::with_capacity(sampling.draws);
     for draw in 0..sampling.draws {
         let pi = samples[sampling.draws + draw];

@@ -307,6 +307,7 @@ impl CheckedAttributionOperation {
         let AttributionProcedure::SharedDirichletRowWeights { draws } = self.procedure else {
             return Ok(None);
         };
+        let _admitted = admit_posterior_columns(ctx, draws, observed_scores.len())?;
         let mut columns = observed_scores
             .iter()
             .map(|score| {
@@ -384,8 +385,10 @@ impl CheckedAttributionOperation {
             .len();
         let options = antecedent_attribution::DistributionChangeOptions::default();
         let mut rng = ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, 0xC4A6_7A7E);
-        let mut totals = Vec::with_capacity(draws);
+        let _totals_admitted = admit_posterior_columns(ctx, draws, 1)?;
+        let mut component_admitted = None;
         let mut components: Option<Vec<(String, Vec<f64>)>> = None;
+        let mut totals = Vec::with_capacity(draws);
         for _ in 0..draws {
             if ctx.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled {
@@ -423,6 +426,10 @@ impl CheckedAttributionOperation {
                     message: "Bayesian change attribution draw changed component set".into(),
                 });
             }
+            if component_admitted.is_none() {
+                // The component count is known once the first draw returns.
+                component_admitted = Some(admit_posterior_columns(ctx, draws, columns.len())?);
+            }
             for (column, component) in columns.iter_mut().zip(draw.contributions.iter()) {
                 column.1.push(component.contribution);
             }
@@ -442,6 +449,27 @@ impl CheckedAttributionOperation {
             true,
         )?))
     }
+}
+
+/// Lease `draws * columns` posterior values on the pool before the columns are filled.
+fn admit_posterior_columns(
+    ctx: &ExecutionContext,
+    draws: usize,
+    columns: usize,
+) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+    let bytes = draws
+        .checked_mul(columns)
+        .and_then(|cells| cells.checked_mul(size_of::<f64>()))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| CausalError::Resource {
+            message: "attribution posterior size overflow".to_owned(),
+        })?;
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: super::super::stage::STAGE_ESTIMATE_POINT }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })
 }
 
 /// A `TemporalDag` publishes the point, and for Bayesian the posterior mean, with no interval.

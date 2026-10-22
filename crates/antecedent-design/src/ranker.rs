@@ -376,6 +376,7 @@ impl DesignRanker {
         O: Clone + Sync,
     {
         let (active, decision, all_exact) = (scoring.active, scoring.decision, scoring.all_exact);
+        // Per-candidate draw lists grow only under the Monte Carlo budget below.
         let mut draws: Vec<Vec<f64>> = vec![Vec::new(); active.len()];
         let mut n_samples: u64 = 0;
         let mut budget = MonteCarloBudget::default();

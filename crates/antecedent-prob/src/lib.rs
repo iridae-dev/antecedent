@@ -12,6 +12,7 @@
     )
 )]
 
+pub(crate) mod admission;
 pub mod backend;
 pub mod conjugate;
 pub mod conjugate_moment_match;

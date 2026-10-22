@@ -571,6 +571,13 @@ impl PropensityWeighting {
             Ok(self.replicate_ate(problem, target, trim, scratch, idx))
         };
         let labels = self.clusters(problem)?;
+        // Each worker gathers the design and five row vectors.
+        let _gather = crate::util::admit_gather_scratch(
+            ctx,
+            n,
+            problem.design_ncols + 5,
+            self.bootstrap_replicates,
+        )?;
         crate::util::bootstrap_by_design(
             crate::util::BootstrapDesign {
                 clusters: labels.as_deref(),

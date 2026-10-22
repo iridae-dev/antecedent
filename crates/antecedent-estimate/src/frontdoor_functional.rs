@@ -268,6 +268,8 @@ impl FrontDoorFunctional {
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.nrows;
         let k = problem.mediators.len();
+        // Each worker gathers treatment, outcome, and `k` mediator columns.
+        let _gather = crate::util::admit_gather_scratch(ctx, n, k + 2, self.bootstrap_replicates)?;
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,

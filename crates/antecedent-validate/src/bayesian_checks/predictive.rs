@@ -578,6 +578,7 @@ impl PriorPredictiveCheck {
         };
         let mut rng = CausalRng::from_seed(self.seed);
         let mut noise_rng = CausalRng::from_seed(self.seed ^ REPLICATE_NOISE_STREAM);
+        let _admitted = crate::common::admit_cells(Some(ctx), self.n_sims as usize, 2)?;
         let mut mean_summaries = Vec::with_capacity(self.n_sims as usize);
         let mut disp_summaries = Vec::with_capacity(self.n_sims as usize);
         let mut beta = vec![0.0; p];
@@ -765,7 +766,7 @@ impl PosteriorPredictiveCheck {
         problem: &PreparedBayesianProblem,
         posterior: &CausalPosterior,
     ) -> Result<PredictiveCheckReport, ValidationError> {
-        self.check_with_policy(problem, posterior, KernelPolicy::default_policy())
+        self.check_with_policy(problem, posterior, KernelPolicy::default_policy(), None)
     }
 
     /// [`Self::check`] using the kernel policy on `ctx`.
@@ -783,7 +784,7 @@ impl PosteriorPredictiveCheck {
         posterior: &CausalPosterior,
         ctx: &ExecutionContext,
     ) -> Result<PredictiveCheckReport, ValidationError> {
-        self.check_with_policy(problem, posterior, ctx.kernel_policy)
+        self.check_with_policy(problem, posterior, ctx.kernel_policy, Some(ctx))
     }
 
     #[allow(
@@ -795,6 +796,7 @@ impl PosteriorPredictiveCheck {
         problem: &PreparedBayesianProblem,
         posterior: &CausalPosterior,
         policy: KernelPolicy,
+        ctx: Option<&ExecutionContext>,
     ) -> Result<PredictiveCheckReport, ValidationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
@@ -803,6 +805,7 @@ impl PosteriorPredictiveCheck {
         if n_draws == 0 {
             return Err(ValidationError::estimation_msg("no posterior draws for PPC"));
         }
+        let _admitted = crate::common::admit_cells(ctx, n_draws, 2)?;
         let mut rng = CausalRng::from_seed(self.seed ^ REPLICATE_NOISE_STREAM);
         let mut mean_summaries = Vec::with_capacity(n_draws);
         let mut disp_summaries = Vec::with_capacity(n_draws);
@@ -877,6 +880,7 @@ impl PosteriorPredictiveCheck {
         if n_draws == 0 {
             return Err(ValidationError::estimation_msg("no posterior draws for PPC"));
         }
+        let _admitted = crate::common::admit_cells(None, n_draws, n)?;
         let mut rng = CausalRng::from_seed(self.seed ^ REPLICATE_NOISE_STREAM);
         let mut values = Vec::with_capacity(n_draws * n);
         let mut y_pred = vec![0.0; n];

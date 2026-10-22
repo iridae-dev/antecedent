@@ -1028,6 +1028,7 @@ fn assemble_posterior_draws(
     let effect_idx = quantities.len();
     quantities.push(PosteriorQuantityKind::Effect { name: Arc::from("ate") });
     let n_q = quantities.len();
+    let _admitted = crate::util::admit_bound_array::<f64>(n_draws, n_q)?;
     let mut values = vec![0.0; n_draws * n_q];
     for (qi, q) in mechanism_draws.schema.quantities.iter().enumerate() {
         let dest = quantities.iter().position(|qq| qq == q).ok_or_else(|| {

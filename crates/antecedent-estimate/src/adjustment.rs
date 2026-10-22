@@ -1154,6 +1154,8 @@ impl LinearAdjustmentAte {
             .flatten();
         let clusters = self.bootstrap_clusters(problem)?;
         let series_block = self.series_block(n);
+        // Each worker gathers `n * p` design cells and `n` outcomes.
+        let _gather = crate::util::admit_gather_scratch(ctx, n, p + 1, self.bootstrap_replicates)?;
         crate::util::bootstrap_by_design(
             crate::util::BootstrapDesign {
                 clusters: clusters.as_deref(),

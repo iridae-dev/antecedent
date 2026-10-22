@@ -557,7 +557,11 @@ fn draw_mvn_known_sigma(
     let ncols = mean.len();
     let chol = cholesky_spd(cov, ncols)?;
     let mut rng = crate::streams::direct_draw_rng(seed);
-    let mut values = vec![0.0; n_draws * ncols];
+    let cells = n_draws
+        .checked_mul(ncols)
+        .ok_or(ProbError::Shape { message: "draw buffer size overflow" })?;
+    let _admitted = crate::admission::admit_cells(None, cells)?;
+    let mut values = vec![0.0; cells];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
         if antecedent_core::numerical_admission::is_cancelled() {
@@ -606,7 +610,11 @@ fn draw_nig(
 ) -> Result<Arc<[f64]>, ProbError> {
     let ncols = mean.len();
     let mut rng = crate::streams::direct_draw_rng(seed);
-    let mut values = vec![0.0; n_draws * (ncols + 1)];
+    let cells = n_draws
+        .checked_mul(ncols + 1)
+        .ok_or(ProbError::Shape { message: "draw buffer size overflow" })?;
+    let _admitted = crate::admission::admit_cells(None, cells)?;
+    let mut values = vec![0.0; cells];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
         if antecedent_core::numerical_admission::is_cancelled() {

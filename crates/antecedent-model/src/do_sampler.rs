@@ -221,6 +221,8 @@ impl KdeDoSampler {
         ctx: &ExecutionContext,
     ) -> Result<DoSampleResult, ModelError> {
         let batch = sample_interventional(model, interventions, n_draws, rng, ws, ctx)?;
+        // The result copies the outcome column and carries one weight per draw.
+        let _admitted = crate::sample::admit_cells(Some(ctx), n_draws, 2)?;
         let dense = model
             .dense_of(self.outcome)
             .ok_or_else(|| ModelError::Shape { message: "outcome not in model".into() })?;
@@ -391,6 +393,7 @@ impl McmcDoSampler {
         let mut current = pilot_col[0];
         let mut accepted = 0usize;
         let mut total = 0usize;
+        let _admitted = crate::sample::admit_cells(Some(ctx), n_samples, 1)?;
         let mut out = Vec::with_capacity(n_samples);
         let iters = self.burn_in + n_samples * self.thin.max(1);
         // Degenerate pilot (near-zero bandwidth) → independent draws from the pilot

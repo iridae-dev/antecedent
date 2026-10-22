@@ -151,6 +151,7 @@ pub fn fixed_dose_policy_posterior(
     let h = window.bandwidth;
     let mut minimum_local_rows = usize::MAX;
     let mut fractions = Vec::new();
+    let _admitted = crate::util::admit_bound_array::<f64>(window.draws, 2)?;
     let mut policy_draws = vec![0.0; window.draws];
     let mut reference_draws = vec![0.0; window.draws];
     let mut exact = Exact::default();

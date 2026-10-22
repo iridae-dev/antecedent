@@ -1123,6 +1123,64 @@ pub(crate) const STABILITY_ALPHA: f64 = 0.05;
 /// Replicates per query-native stability check (mediation and functional refuters).
 pub(crate) const STABILITY_REPLICATES: u32 = 20;
 
+/// Lease `count * width` `f64` values that a check retains, before the buffer is built.
+///
+/// With a context the lease is taken on its pool. Without one the workflow account bound by
+/// [`antecedent_core::numerical_admission`] is charged, and a direct call outside any
+/// workflow has no pool and returns `None`. Hold the lease until the buffer is dropped.
+///
+/// # Errors
+///
+/// [`ValidationError::Cancelled`] when the study is cancelled, otherwise a refusal when the
+/// byte count overflows or the pool cannot fund it. Nothing is allocated.
+pub(crate) fn admit_cells(
+    ctx: Option<&ExecutionContext>,
+    count: usize,
+    width: usize,
+) -> Result<Option<antecedent_core::execution::AdmissionLease>, ValidationError> {
+    let bytes = count
+        .checked_mul(width)
+        .and_then(|cells| cells.checked_mul(size_of::<f64>()))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| ValidationError::estimation_msg("check buffer size overflow"))?;
+    let outcome = match ctx {
+        Some(ctx) => Some(ctx.acquire_admission(0, bytes)),
+        None => antecedent_core::numerical_admission::acquire(bytes),
+    };
+    outcome.transpose().map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => ValidationError::Cancelled,
+        other => ValidationError::estimation_msg(format!(
+            "admission pool cannot fund the check buffers: {other}"
+        )),
+    })
+}
+
+/// Lease the result vectors of `replicates` replicate values before any is computed.
+///
+/// A replicate loop returns `replicates` values of `T`, held once by their block and again
+/// by the merged vector. The lease holds those bytes on the pool and no CPU slots, because
+/// the parallel map leases its workers itself. Hold the result until the values are returned.
+///
+/// # Errors
+///
+/// [`ValidationError::Cancelled`] when the study is cancelled, otherwise a refusal when the
+/// byte count overflows or the pool cannot fund it. Nothing is allocated.
+pub(crate) fn admit_replicate_results<T>(
+    ctx: &ExecutionContext,
+    replicates: u32,
+) -> Result<antecedent_core::execution::AdmissionLease, ValidationError> {
+    let bytes = u64::from(replicates)
+        .checked_mul(size_of::<T>().max(1) as u64)
+        .and_then(|bytes| bytes.checked_mul(2))
+        .ok_or_else(|| ValidationError::estimation_msg("replicate result size overflow"))?;
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => ValidationError::Cancelled,
+        other => ValidationError::estimation_msg(format!(
+            "admission pool cannot fund the replicate results: {other}"
+        )),
+    })
+}
+
 /// Run `one(state, ctx, r)` for `r in 0..replicates` and return the results in replicate order.
 ///
 /// The replicates are split into contiguous blocks, one per worker of `ctx`'s pool; every block
@@ -1140,6 +1198,7 @@ pub(crate) fn map_replicates<S, T: Send>(
     if total == 0 {
         return Ok(Vec::new());
     }
+    let _results = admit_replicate_results::<T>(ctx, replicates)?;
     let blocks = (ctx.parallelism.max_threads.get() as usize).clamp(1, total);
     let per_block = total.div_ceil(blocks);
     let results = ctx.map_indexed(total.div_ceil(per_block), |block, inner| {
@@ -1178,6 +1237,7 @@ pub(crate) fn map_problem_replicates<S, T: Send>(
     let plan = compile_replicate_plan(problem)?;
     let shared = shared_for_replicates(problem, plan.as_ref());
     if let Some(refit) = problem.effect_refit {
+        let _results = admit_replicate_results::<T>(ctx, replicates)?;
         let mut state = init();
         let mut out = Vec::with_capacity(replicates as usize);
         for r in 0..replicates {
@@ -1204,6 +1264,7 @@ pub(crate) fn map_drawn_replicates<D: Sync, S, T: Send>(
     compute: impl Fn(&mut S, &ExecutionContext, u32, &D) -> Result<T, ValidationError> + Sync,
 ) -> Result<Vec<T>, ValidationError> {
     let workers = ctx.parallelism.max_threads.get() as usize;
+    let _results = admit_replicate_results::<T>(ctx, replicates)?;
     let mut out = Vec::with_capacity(replicates as usize);
     if workers <= 1 {
         let mut state = init();
@@ -1261,6 +1322,7 @@ pub(crate) fn map_drawn_problem_replicates<D: Sync, S, T: Send>(
     let plan = compile_replicate_plan(problem)?;
     let shared = shared_for_replicates(problem, plan.as_ref());
     if let Some(refit) = problem.effect_refit {
+        let _results = admit_replicate_results::<T>(ctx, replicates)?;
         let mut state = init();
         let mut out = Vec::with_capacity(replicates as usize);
         for r in 0..replicates {

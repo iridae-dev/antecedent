@@ -540,6 +540,8 @@ impl GlmAdjustmentAte {
             };
             antecedent_data::circular_block_length(span, n)
         });
+        // Each worker gathers `n * p` design cells and three length-`n` vectors.
+        let _gather = crate::util::admit_gather_scratch(ctx, n, p + 3, self.bootstrap_replicates)?;
         // Replicates own a cold workspace. A warm IRLS start would change the replicate fit.
         crate::util::bootstrap_by_design(
             crate::util::BootstrapDesign {

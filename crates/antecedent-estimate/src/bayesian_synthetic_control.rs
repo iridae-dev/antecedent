@@ -369,6 +369,7 @@ pub fn fit_bayesian_synthetic_control(
             run_chain(&panel, spec, seed, per_chain)
         })
         .collect();
+    let _admitted = crate::util::admit_bound_array::<f64>(CHAINS * per_chain, 4)?;
     let mut samples = Vec::with_capacity(CHAINS * per_chain * 2);
     for chain in &chains {
         for (gap, sigma2) in chain.gaps.iter().zip(&chain.sigma2) {

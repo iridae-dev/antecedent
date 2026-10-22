@@ -388,6 +388,13 @@ impl PropensityStratification {
             Ok(self.replicate_ate(problem, n_strata, trim, scratch, idx))
         };
         let labels = self.clusters(problem)?;
+        // Each worker gathers the design and four row vectors.
+        let _gather = crate::util::admit_gather_scratch(
+            ctx,
+            problem.nrows,
+            problem.design_ncols + 4,
+            self.bootstrap_replicates,
+        )?;
         crate::util::bootstrap_by_design(
             crate::util::BootstrapDesign {
                 clusters: labels.as_deref(),

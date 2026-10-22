@@ -241,6 +241,7 @@ fn fit_bayesian_iv_inner(
         known_variances.map(|v| v.treatment),
     )?;
     let stage_draws = first_stage_draws(stage_mean, &stage_cov, draws, seed)?;
+    let _admitted = crate::util::admit_bound_array::<f64>(draws, 2)?;
     let mut effect_draws = Vec::with_capacity(draws);
     let mut log_weights = Vec::with_capacity(draws);
     for draw_idx in 0..draws {

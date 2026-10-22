@@ -569,6 +569,98 @@ fn index_buffer_bytes(slots: usize) -> Result<u64, EstimationError> {
         })
 }
 
+/// Lease `count * width` values of `T` that a draw loop retains, before the buffer is built.
+///
+/// The lease holds bytes on the pool and no CPU slots. Hold it until the buffer is dropped or
+/// handed to an owner that holds its own reservation.
+///
+/// # Errors
+///
+/// The study is cancelled, the byte product overflows, or the admission pool cannot fund it.
+/// Nothing is allocated.
+pub(crate) fn admit_array<T>(
+    ctx: &ExecutionContext,
+    count: usize,
+    width: usize,
+) -> Result<antecedent_core::execution::AdmissionLease, EstimationError> {
+    let bytes = count
+        .checked_mul(width)
+        .and_then(|cells| cells.checked_mul(size_of::<T>().max(1)))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| EstimationError::data_msg("draw buffer size overflow"))?;
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => EstimationError::unsupported(
+            "execution cancelled before the draw buffers were admitted",
+        ),
+        other => EstimationError::data_msg(format!(
+            "admission pool cannot fund the draw buffers: {other}"
+        )),
+    })
+}
+
+/// [`admit_array`] for a function with no [`ExecutionContext`]: the workflow account bound by
+/// [`antecedent_core::numerical_admission`], or `None` when the call is made outside any
+/// workflow and nothing is charged.
+///
+/// # Errors
+///
+/// As [`admit_array`].
+pub(crate) fn admit_bound_array<T>(
+    count: usize,
+    width: usize,
+) -> Result<Option<antecedent_core::execution::AdmissionLease>, EstimationError> {
+    let bytes = count
+        .checked_mul(width)
+        .and_then(|cells| cells.checked_mul(size_of::<T>().max(1)))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| EstimationError::data_msg("draw buffer size overflow"))?;
+    antecedent_core::numerical_admission::acquire(bytes).transpose().map_err(|error| {
+        EstimationError::data_msg(format!("admission pool cannot fund the draw buffers: {error}"))
+    })
+}
+
+/// Lease the per-worker gather buffers of one bootstrap, before any replicate runs.
+///
+/// Each worker holds `rows * cells_per_row` `f64` cells (the resampled design, outcome and
+/// working vectors it gathers into). The lease holds those bytes for all workers and no CPU
+/// slots, because the parallel map leases the workers itself. Adaptive early-stop runs one
+/// worker. A whole-cluster resample may exceed `rows` by the cluster-size slack, which
+/// [`bootstrap_by_design`] admits separately as its index lease. Hold the returned lease
+/// across the bootstrap call. `None` means the study was cancelled; the bootstrap that
+/// follows reports that itself, so a caller may ignore it.
+///
+/// # Errors
+///
+/// The byte product overflows or the admission pool cannot fund it. Nothing is allocated.
+pub fn admit_gather_scratch(
+    ctx: &ExecutionContext,
+    rows: usize,
+    cells_per_row: usize,
+    replicates: u32,
+) -> Result<Option<ScratchLease>, EstimationError> {
+    if replicates == 0 || rows == 0 {
+        return Ok(None);
+    }
+    let per_worker = rows
+        .checked_mul(cells_per_row)
+        .and_then(|cells| cells.checked_mul(size_of::<f64>()))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| {
+            EstimationError::data_msg("bootstrap gather allocation exceeds addressable capacity")
+        })?;
+    let work_items = if ctx.adaptive_bootstrap.enabled { 1 } else { replicates as usize };
+    match ctx.admit_index_bytes(work_items, per_worker) {
+        Ok(lease) => Ok(Some(lease)),
+        Err(ScratchRefusal::Cancelled) => Ok(None),
+        Err(ScratchRefusal::PoolShort { .. }) => Err(EstimationError::data_msg(
+            "admission pool cannot fund the bootstrap gather buffers",
+        )),
+        Err(_) => Err(EstimationError::data_msg(
+            "bootstrap gather allocation exceeds addressable capacity",
+        )),
+    }
+}
+
 /// The rows of each cluster, in ascending label order, for whole-cluster resampling.
 #[derive(Clone, Debug)]
 pub(crate) struct ClusterRows {

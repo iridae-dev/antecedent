@@ -88,6 +88,7 @@ pub fn bayesian_bootstrap_score_posteriors(
     {
         return Err(refused("score posterior requires two draws and a coverage in (0, 1)"));
     }
+    let _admitted = crate::util::admit_array::<f64>(ctx, options.draws, columns.len())?;
     let mut stores: Vec<Vec<f64>> =
         columns.iter().map(|_| Vec::with_capacity(options.draws)).collect();
     for draw in 0..options.draws {

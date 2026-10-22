@@ -8,6 +8,9 @@ use antecedent_kernels::standard_normal;
 use crate::error::StateError;
 use crate::retention::RetentionPolicy;
 
+/// Most particles one filter state holds (two `f64` buffers of this length).
+pub const MAX_PARTICLES: usize = 1 << 24;
+
 /// Linear-Gaussian state-space model: `x_t = a x_{t-1} + σ_proc ε`, `y_t = x_t + σ_obs η`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LgssmParams {
@@ -87,6 +90,11 @@ impl ParticleFilterState {
     ) -> Result<Self, StateError> {
         if n_particles == 0 {
             return Err(StateError::Shape("n_particles must be > 0".into()));
+        }
+        // The filter state is a long-lived handle with no execution context to lease from, so
+        // its two `f64` buffers are bounded by this ceiling instead (at most 256 MiB).
+        if n_particles > MAX_PARTICLES {
+            return Err(StateError::Shape(format!("n_particles must be at most {MAX_PARTICLES}")));
         }
         if !params.a.is_finite()
             || !params.process_std.is_finite()

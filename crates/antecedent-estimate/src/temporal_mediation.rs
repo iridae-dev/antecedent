@@ -432,6 +432,7 @@ impl TemporalMediationEstimator {
                 )
                 .with_kernel_bias(&influence_refs),
             };
+            boot.ensure_admitted()?;
             let [total, direct, mediated] = [0, 1, 2].map(|k| boot.se_result(k));
             block.total = total.se;
             block.direct = direct.se;

@@ -773,6 +773,8 @@ impl FrontDoorTwoStage {
         if let Some(labels) = &clusters {
             crate::se::require_clusters(Some(labels.as_ref()), n)?;
         }
+        // Each worker gathers treatment, outcome, and `k` mediator columns.
+        let _gather = crate::util::admit_gather_scratch(ctx, n, k + 2, self.bootstrap_replicates)?;
         // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_by_design(
             crate::util::BootstrapDesign {

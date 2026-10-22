@@ -752,6 +752,7 @@ fn run_replicates<E: TemporalEstimator + ?Sized>(
 ) -> Result<Vec<ReplicateRecord>, EstimationError> {
     let mut base = CanonicalWriter::new(REPLICATE_ID_TAG);
     base.word(config.seed).word(panel.digest);
+    let _admitted = crate::util::admit_array::<ReplicateRecord>(ctx, config.replicates, 1)?;
     let mut records = Vec::with_capacity(config.replicates);
     for index in 0..config.replicates {
         crate::transport::refuse_cancelled(ctx, "temporal dependent interval replicate")?;

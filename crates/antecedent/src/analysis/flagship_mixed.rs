@@ -446,6 +446,7 @@ const ROUTE_STACK_BYTES: usize = 16 * 1024 * 1024;
 fn on_route_stack<T: Send>(
     run: impl FnOnce() -> Result<T, FlagshipError> + Send,
 ) -> Result<T, FlagshipError> {
+    // One scoped thread only for a larger stack: the caller blocks on it, so no parallelism is added and the route admits its own work.
     std::thread::scope(|scope| {
         let handle = std::thread::Builder::new()
             .stack_size(ROUTE_STACK_BYTES)

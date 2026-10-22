@@ -254,6 +254,7 @@ impl BayesianTemporalPropensity {
                 "Laplace mode length does not match the design",
             ));
         }
+        let _admitted = crate::util::admit_bound_array::<f64>(self.n_draws, design.ncols)?;
         let mut draws = Vec::with_capacity(self.n_draws * design.ncols);
         for draw in 0..self.n_draws {
             for column in 0..design.ncols {
