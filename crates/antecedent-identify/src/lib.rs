@@ -193,9 +193,8 @@ pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph};
 pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
 pub use compiled_product::{
-    AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
-    IdentificationClaimClass, IdentificationOutcome, ProductRefusal, RequiredFactor,
-    UnresolvedObligation, WorldObligation,
+    CompiledIdentificationProduct, CompiledProductParts, IdentificationClaimClass,
+    IdentificationOutcome, ProductRefusal, RequiredFactor, UnresolvedObligation,
 };
 pub use efficient::EfficientBackdoorIdentifier;
 pub use envelope::{

@@ -278,16 +278,6 @@ pub struct IdentificationObligation {
     numerical_value: Option<f64>,
 }
 
-/// Obligation for one intervention world.
-///
-/// This is [`IdentificationObligation`]. The name remains for existing imports.
-pub type WorldObligation = IdentificationObligation;
-
-/// Obligation for the assembled functional.
-///
-/// This is [`IdentificationObligation`]. The name remains for existing imports.
-pub type AssembledFunctionalObligation = IdentificationObligation;
-
 impl PartialEq for IdentificationObligation {
     fn eq(&self, other: &Self) -> bool {
         self.world == other.world

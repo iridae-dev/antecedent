@@ -410,7 +410,7 @@ mod tests {
     #[test]
     fn a_different_target_digest_is_not_adopted() {
         let current = target(TargetForm::World(world(1, true, 0.0))).identity();
-        let other = target(TargetForm::World(world(2, true, 0.0))).identity();
+        let other = target(TargetForm::World(world(1, true, 1.0))).identity();
         let current_bytes = *current.as_bytes();
         let other_bytes = *other.as_bytes();
         assert_eq!(

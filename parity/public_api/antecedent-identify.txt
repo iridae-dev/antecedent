@@ -5794,8 +5794,6 @@ pub trait antecedent_identify::Identifier<G>: sealed::Sealed
 pub trait fn fn antecedent_identify::Identifier::identify(&self, prepared: &<Self as antecedent_identify::Identifier>::Prepared, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub trait fn fn antecedent_identify::Identifier::prepare(&self, graph: &G, assumptions: &antecedent_core::assumption::AssumptionSet) -> core::result::Result<<Self as antecedent_identify::Identifier>::Prepared, antecedent_identify::IdentificationError>
 pub trait type antecedent_identify::Identifier::Prepared
-pub type antecedent_identify::AssembledFunctionalObligation = antecedent_identify::compiled_product::IdentificationObligation
-pub type antecedent_identify::WorldObligation = antecedent_identify::compiled_product::IdentificationObligation
 pub use antecedent_identify::IdentificationStatus = result::IdentificationStatus
 pub use antecedent_identify::IdentifiedEstimand = result::IdentifiedEstimand
 pub use antecedent_identify::auto::AutoIdentifier = antecedent_identify::AutoIdentifier
@@ -5805,7 +5803,6 @@ pub use antecedent_identify::backdoor::BackdoorIdentifier = antecedent_identify:
 pub use antecedent_identify::backdoor::PreparedIdentificationGraph = antecedent_identify::PreparedIdentificationGraph
 pub use antecedent_identify::bounds::BinaryIvLaw = antecedent_identify::BinaryIvLaw
 pub use antecedent_identify::bounds::binary_iv_ate_bounds = antecedent_identify::binary_iv_ate_bounds
-pub use antecedent_identify::compiled_product::AssembledFunctionalObligation = antecedent_identify::AssembledFunctionalObligation
 pub use antecedent_identify::compiled_product::CompiledIdentificationProduct = antecedent_identify::CompiledIdentificationProduct
 pub use antecedent_identify::compiled_product::CompiledProductParts = antecedent_identify::CompiledProductParts
 pub use antecedent_identify::compiled_product::IdentificationClaimClass = antecedent_identify::IdentificationClaimClass
@@ -5813,7 +5810,6 @@ pub use antecedent_identify::compiled_product::IdentificationOutcome = anteceden
 pub use antecedent_identify::compiled_product::ProductRefusal = antecedent_identify::ProductRefusal
 pub use antecedent_identify::compiled_product::RequiredFactor = antecedent_identify::RequiredFactor
 pub use antecedent_identify::compiled_product::UnresolvedObligation = antecedent_identify::UnresolvedObligation
-pub use antecedent_identify::compiled_product::WorldObligation = antecedent_identify::WorldObligation
 pub use antecedent_identify::efficient::EfficientBackdoorIdentifier = antecedent_identify::EfficientBackdoorIdentifier
 pub use antecedent_identify::envelope::GraphFeature = antecedent_identify::GraphFeature
 pub use antecedent_identify::envelope::GraphIdentificationCase = antecedent_identify::GraphIdentificationCase
