@@ -187,6 +187,7 @@ where
     }));
     let slot: (Mutex<Option<PyResult<T>>>, Condvar) = (Mutex::new(None), Condvar::new());
     let observation = antecedent_core::execution_attempt::ObservationToken::capture();
+    // One worker only so the calling thread can poll signals; it runs the same work serially, so no extra parallelism is added and the work admits itself.
     let outcome = std::thread::scope(|s| {
         let worker_scope = Arc::clone(&scope);
         let slot = &slot;
