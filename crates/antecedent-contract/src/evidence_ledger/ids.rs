@@ -89,21 +89,7 @@ impl ObservationId {
 /// Parse 64 lowercase or uppercase hex characters into a digest.
 #[must_use]
 pub fn parse_digest_hex(text: &str) -> Option<SemanticDigest> {
-    let bytes = text.as_bytes();
-    if bytes.len() != 64 {
-        return None;
-    }
-    let nibble = |c: u8| match c {
-        b'0'..=b'9' => Some(c - b'0'),
-        b'a'..=b'f' => Some(c - b'a' + 10),
-        b'A'..=b'F' => Some(c - b'A' + 10),
-        _ => None,
-    };
-    let mut out = [0u8; 32];
-    for (slot, pair) in out.iter_mut().zip(bytes.chunks_exact(2)) {
-        *slot = (nibble(pair[0])? << 4) | nibble(pair[1])?;
-    }
-    Some(SemanticDigest::from_bytes(out))
+    antecedent_core::digest_from_hex(text).map(SemanticDigest::from_bytes)
 }
 
 pub(crate) fn finish(writer: &CanonicalWriter) -> SemanticDigest {

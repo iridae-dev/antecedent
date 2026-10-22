@@ -46,20 +46,7 @@ pub fn digest_hex(digest: &Digest) -> String {
 /// Parse 64 lowercase hex characters.
 #[must_use]
 pub fn digest_from_hex(text: &str) -> Option<Digest> {
-    let bytes = text.as_bytes();
-    if bytes.len() != 64 {
-        return None;
-    }
-    let nibble = |c: u8| match c {
-        b'0'..=b'9' => Some(c - b'0'),
-        b'a'..=b'f' => Some(c - b'a' + 10),
-        _ => None,
-    };
-    let mut out = [0u8; 32];
-    for (slot, pair) in out.iter_mut().zip(bytes.chunks_exact(2)) {
-        *slot = (nibble(pair[0])? << 4) | nibble(pair[1])?;
-    }
-    Some(out)
+    antecedent_core::digest_from_lower_hex(text)
 }
 
 fn scalar_tag(scalar: ScalarType) -> u64 {

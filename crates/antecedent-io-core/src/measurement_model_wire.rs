@@ -654,15 +654,9 @@ fn identities_to_wire(model: &MeasurementModel) -> MeasurementIdentityWire {
 }
 
 fn digest_from_hex(hex: &str) -> Result<SemanticDigest, IoError> {
-    if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err(convert("a digest is 64 hexadecimal characters"));
-    }
-    let mut bytes = [0_u8; 32];
-    for (i, slot) in bytes.iter_mut().enumerate() {
-        *slot = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16)
-            .map_err(|_| convert("a digest is 64 hexadecimal characters"))?;
-    }
-    Ok(SemanticDigest::from_bytes(bytes))
+    antecedent_core::digest_from_hex(hex)
+        .map(SemanticDigest::from_bytes)
+        .ok_or_else(|| convert("a digest is 64 hexadecimal characters"))
 }
 
 fn record_to_wire(record: &CorrectedFunctionalRecord) -> RecordWire {

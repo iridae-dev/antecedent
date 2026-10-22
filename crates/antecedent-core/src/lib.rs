@@ -109,8 +109,8 @@ pub use execution::{GOLDEN_GAMMA, derive_stream, mix64, splitmix64};
 pub use identification::{IdentificationStatus, POSTERIOR_MASS_TOLERANCE};
 pub use identity::{
     CanonicalWriter, ContractIdentities, FNV1A_64_OFFSET, FNV1A_64_PRIME, Fnv1a64, IDENTITY_FORMAT,
-    IDENTITY_FORMAT_TAG, IdentityDomain, IdentityRef, SemanticDigest, blake3_hex, fnv1a_u64,
-    to_hex,
+    IDENTITY_FORMAT_TAG, IdentityDomain, IdentityRef, SemanticDigest, blake3_hex,
+    derive_key_digest, digest_from_hex, digest_from_lower_hex, fnv1a_u64, to_hex,
 };
 pub use ids::{
     CategoryDomainId, ComponentId, DistributionRef, DynamicRuleId, EnvironmentId, Lag, ModelId,

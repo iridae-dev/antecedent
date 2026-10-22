@@ -119,9 +119,7 @@ pub(super) fn seal_frame(frame: &mut [u8]) {
 }
 
 fn payload_digest(payload: &[u8]) -> [u8; 32] {
-    let mut hasher = blake3::Hasher::new_derive_key(DIGEST_DOMAIN);
-    hasher.update(payload);
-    hasher.finalize().into()
+    antecedent_core::derive_key_digest(DIGEST_DOMAIN, &[payload])
 }
 
 /// The digest a sealed frame carries.

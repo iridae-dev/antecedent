@@ -70,10 +70,10 @@ use crate::wire::{AdmgWire, CpdagWire, DagWire, EndpointWire, PagWire, SchemaWir
 /// changes the advertised digest. See the module docs for the encoding table.
 #[must_use]
 pub fn digest_canonical(domain: IdentityDomain, payload: &[u8]) -> SemanticDigest {
-    let mut hasher = blake3::Hasher::new_derive_key(domain.derive_key());
-    hasher.update(&IDENTITY_FORMAT.to_le_bytes());
-    hasher.update(payload);
-    SemanticDigest::from_bytes(*hasher.finalize().as_bytes())
+    SemanticDigest::from_bytes(antecedent_core::derive_key_digest(
+        domain.derive_key(),
+        &[&IDENTITY_FORMAT.to_le_bytes(), payload],
+    ))
 }
 
 /// Digest a serializable payload.
@@ -639,11 +639,15 @@ impl TargetIdentityWire {
 /// it is a [`antecedent_core::CanonicalWriter`] stream with its own domain tag.
 #[must_use]
 pub fn payload_digest(kind: &str, bytes: &[u8]) -> [u8; 32] {
-    *payload_hasher(kind, |hasher| {
-        hasher.update(bytes);
-    })
-    .finalize()
-    .as_bytes()
+    antecedent_core::derive_key_digest(
+        PAYLOAD_CONTEXT,
+        &[
+            &IDENTITY_FORMAT.to_le_bytes(),
+            &(kind.len() as u64).to_le_bytes(),
+            kind.as_bytes(),
+            bytes,
+        ],
+    )
 }
 
 /// Same framing as [`payload_digest`], writing the CBOR of `value` straight
@@ -654,8 +658,11 @@ pub(crate) fn payload_digest_of<T: Serialize>(kind: &str, value: &T) -> Result<[
     Ok(*hasher.finalize().as_bytes())
 }
 
+/// Key-derivation context of [`payload_digest`] and [`payload_digest_of`].
+const PAYLOAD_CONTEXT: &str = "antecedent.identity.payload";
+
 fn payload_hasher(kind: &str, prime: impl FnOnce(&mut blake3::Hasher)) -> blake3::Hasher {
-    let mut hasher = blake3::Hasher::new_derive_key("antecedent.identity.payload");
+    let mut hasher = blake3::Hasher::new_derive_key(PAYLOAD_CONTEXT);
     hasher.update(&IDENTITY_FORMAT.to_le_bytes());
     hasher.update(&(kind.len() as u64).to_le_bytes());
     hasher.update(kind.as_bytes());
@@ -3262,6 +3269,25 @@ mod tests {
             data_snapshot_digest(&networked).unwrap(),
             data_snapshot_digest(&reassigned).unwrap()
         );
+    }
+
+    #[test]
+    fn derive_key_helpers_reproduce_the_streamed_idioms() {
+        let payload = b"payload bytes";
+        let mut hasher = blake3::Hasher::new_derive_key(IdentityDomain::Target.derive_key());
+        hasher.update(&IDENTITY_FORMAT.to_le_bytes());
+        hasher.update(payload);
+        assert_eq!(
+            digest_canonical(IdentityDomain::Target, payload),
+            SemanticDigest::from_bytes(*hasher.finalize().as_bytes())
+        );
+
+        let mut hasher = blake3::Hasher::new_derive_key("antecedent.identity.payload");
+        hasher.update(&IDENTITY_FORMAT.to_le_bytes());
+        hasher.update(&(4_u64).to_le_bytes());
+        hasher.update(b"kind");
+        hasher.update(payload);
+        assert_eq!(payload_digest("kind", payload), *hasher.finalize().as_bytes());
     }
 
     #[test]

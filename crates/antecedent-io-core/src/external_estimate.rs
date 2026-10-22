@@ -505,12 +505,8 @@ pub fn parse_digest_hex(hex: &str) -> Result<[u8; 32], IoError> {
     if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(IoError::Convert("digest hex must be hexadecimal digits".into()));
     }
-    let mut out = [0u8; 32];
-    for (idx, chunk) in hex.as_bytes().chunks(2).enumerate() {
-        let text = std::str::from_utf8(chunk).map_err(|err| IoError::Convert(err.to_string()))?;
-        out[idx] = u8::from_str_radix(text, 16).map_err(|err| IoError::Convert(err.to_string()))?;
-    }
-    Ok(out)
+    antecedent_core::digest_from_hex(hex)
+        .ok_or_else(|| IoError::Convert("digest hex must be hexadecimal digits".into()))
 }
 
 /// Decode an external-estimate receipt and return its claim section.

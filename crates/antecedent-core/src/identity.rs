@@ -216,6 +216,50 @@ pub fn blake3_hex(bytes: &[u8]) -> String {
     blake3::hash(bytes).to_hex().to_string()
 }
 
+/// BLAKE3 derive-key digest of `parts` fed in order under the key-derivation `context`.
+///
+/// The parts are concatenated with no framing of their own: callers that need length
+/// prefixes or a format word pass those as explicit parts. The byte stream hashed is
+/// exactly `context`-keyed BLAKE3 over `parts[0] || parts[1] || ...`.
+#[must_use]
+pub fn derive_key_digest(context: &str, parts: &[&[u8]]) -> [u8; 32] {
+    let mut hasher = blake3::Hasher::new_derive_key(context);
+    for part in parts {
+        hasher.update(part);
+    }
+    *hasher.finalize().as_bytes()
+}
+
+/// Parse 64 hex characters, lowercase or uppercase, into 32 bytes.
+#[must_use]
+pub fn digest_from_hex(text: &str) -> Option<[u8; 32]> {
+    parse_hex32(text, true)
+}
+
+/// Parse 64 lowercase hex characters into 32 bytes; uppercase is refused.
+#[must_use]
+pub fn digest_from_lower_hex(text: &str) -> Option<[u8; 32]> {
+    parse_hex32(text, false)
+}
+
+fn parse_hex32(text: &str, accept_upper: bool) -> Option<[u8; 32]> {
+    let bytes = text.as_bytes();
+    if bytes.len() != 64 {
+        return None;
+    }
+    let nibble = |c: u8| match c {
+        b'0'..=b'9' => Some(c - b'0'),
+        b'a'..=b'f' => Some(c - b'a' + 10),
+        b'A'..=b'F' if accept_upper => Some(c - b'A' + 10),
+        _ => None,
+    };
+    let mut out = [0u8; 32];
+    for (slot, pair) in out.iter_mut().zip(bytes.chunks_exact(2)) {
+        *slot = (nibble(pair[0])? << 4) | nibble(pair[1])?;
+    }
+    Some(out)
+}
+
 /// Identity encoding format. Bump only when the canonical payload changes.
 ///
 /// Version 2 canonicalizes graph edge order, replaces debug-rendered estimator
@@ -556,5 +600,32 @@ mod tests {
         let mut b = CanonicalWriter::new("t");
         b.bytes(b"xy");
         assert_eq!(a.finish(), b.finish());
+    }
+
+    #[test]
+    fn derive_key_digest_feeds_parts_unframed_in_order() {
+        let mut hasher = blake3::Hasher::new_derive_key("antecedent.test.derive");
+        hasher.update(&7_u16.to_le_bytes());
+        hasher.update(b"payload");
+        let expected = *hasher.finalize().as_bytes();
+        let parts: [&[u8]; 2] = [&7_u16.to_le_bytes(), b"payload"];
+        assert_eq!(derive_key_digest("antecedent.test.derive", &parts), expected);
+        // Part boundaries carry no framing: the same octets split elsewhere agree.
+        let joined: [&[u8]; 1] = [b"\x07\x00payload"];
+        assert_eq!(derive_key_digest("antecedent.test.derive", &joined), expected);
+        assert_ne!(derive_key_digest("antecedent.test.other", &joined), expected);
+    }
+
+    #[test]
+    fn hex_parsers_round_trip_and_differ_only_on_case() {
+        let bytes: [u8; 32] = core::array::from_fn(|i| (i as u8).wrapping_mul(37).wrapping_add(11));
+        let lower = to_hex(&bytes);
+        let upper = lower.to_uppercase();
+        assert_eq!(digest_from_hex(&lower), Some(bytes));
+        assert_eq!(digest_from_hex(&upper), Some(bytes));
+        assert_eq!(digest_from_lower_hex(&lower), Some(bytes));
+        assert_eq!(digest_from_lower_hex(&upper), None);
+        assert_eq!(digest_from_hex(&lower[..62]), None);
+        assert_eq!(digest_from_hex(&format!("{}g", &lower[..63])), None);
     }
 }
