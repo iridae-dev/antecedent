@@ -459,9 +459,19 @@ fn tiered_unknown_scenarios(
             response: None,
         });
     }
-    let (lo, hi) = values
-        .iter()
-        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| (lo.min(*v), hi.max(*v)));
+    let finite = values.iter().copied().filter(|value| value.is_finite());
+    let (mut lo, mut hi) = finite
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), value| (lo.min(value), hi.max(value)));
+    if !(lo.is_finite() && hi.is_finite() && lo <= hi) {
+        let span = intervals
+            .iter()
+            .filter(|(lower, upper)| lower.is_finite() && upper.is_finite() && lower <= upper);
+        (lo, hi) = span.fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), (lower, upper)| {
+            (lo.min(*lower), hi.max(*upper))
+        });
+    }
+    let identified_set = (lo.is_finite() && hi.is_finite() && lo <= hi)
+        .then(|| super::scalar_identified_set(lo, hi));
     let identified_set_interval = super::posterior_identified_set_interval(
         atoms.iter().filter_map(|atom| atom.posterior.as_ref()),
         rows,
@@ -474,7 +484,7 @@ fn tiered_unknown_scenarios(
         unidentified_mass: 0.0,
         unevaluable_mass: 0.0,
         subsampled_out_mass: 0.0,
-        identified_set: Some(super::scalar_identified_set(lo, hi)),
+        identified_set,
         identified_set_interval,
         conditional_on_identified: None,
         full_mass_scope: true,

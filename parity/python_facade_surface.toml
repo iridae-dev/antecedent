@@ -761,6 +761,18 @@ status = "bound"
 python = "native:python/src/forward_source_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::joint_panel::declare_joint_panel_exogenous_context"
+kind = "fn"
+status = "internal"
+reason = "called inside prepare_joint_panel when the declaration sets exogenous context; Python reaches it through antecedent.joint_panel and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::joint_panel_target"
+kind = "fn"
+status = "internal"
+reason = "builds the panel target inside prepare_joint_panel; Python reaches it through antecedent.joint_panel and has no separate call"
+
+[[entry]]
 rust = "antecedent::analysis::joint_law_composed_basis::composed_basis"
 kind = "fn"
 status = "bound"
@@ -2348,6 +2360,12 @@ rust = "antecedent::PreparedCpdagCompletionScenarios"
 kind = "type"
 status = "bound"
 python = "antecedent.transport._cpdag_scenarios.CpdagScenarioResult"
+
+[[entry]]
+rust = "antecedent::PreparedJointResponse"
+kind = "type"
+status = "internal"
+reason = "retained joint-world program lowered from a prepared response and held by the joint-panel static source; Python reaches the panel through antecedent.joint_panel.PreparedPanel and has no separate type"
 
 [[entry]]
 rust = "antecedent::PreparedLearnedContinuous"

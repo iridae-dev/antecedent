@@ -78,7 +78,12 @@ impl PreparedStudy {
         let treatment: Vec<f64> = data.float64_values(query.treatment)?.clone();
         let nrows = treatment.len();
         let mut x_colmajor = vec![1.0_f64; nrows];
+        // The propensity conditions on the adjustment covariates. The treatment being
+        // scored and the outcome are not columns of that design.
         for variable in cache.estimand.adjustment_set.iter().copied() {
+            if variable == query.treatment || variable == query.outcome {
+                continue;
+            }
             x_colmajor.extend_from_slice(&data.float64_values(variable)?);
         }
         let columns = x_colmajor.len().checked_div(nrows).unwrap_or(0);

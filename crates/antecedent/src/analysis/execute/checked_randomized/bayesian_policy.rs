@@ -53,10 +53,10 @@ pub(super) fn admit_bayesian_policy(
     {
         return Err(crate::compile_reason!(
             "invalid_argument",
-            "the Bayesian policy value needs subject-excluded outcome predictions: declare \
-             disjoint training subjects or valid cross-fit fold ownership. Next attempt: refit \
-             the predictions on rows disjoint from the scored subjects, or omit them to use the \
-             inverse-probability score"
+            "prediction ownership requires disjoint training subjects or valid cross-fit fold \
+             ownership before the Bayesian policy value will read outcome predictions. Next \
+             attempt: refit the predictions on rows disjoint from the scored subjects, or omit \
+             them to use the inverse-probability score"
         ));
     }
     Ok(())

@@ -762,7 +762,10 @@ fn apply_design_contract(
                     | EstimatorId::BayesianSwitchback
             )
         })
-        || carry.estimator_spec.as_ref().is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_)))
+        || carry
+            .estimator_spec
+            .as_ref()
+            .is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_)))
     {
         return Err(CausalError::Unsupported {
             message: "design-based query estimators are fixed; custom estimators are not accepted",
@@ -816,6 +819,11 @@ fn retarget_cutoff_estimand(
 
 fn admit_executable_route(estimand: RetargetedEstimand) -> Result<ExecutableRoute, CausalError> {
     let RetargetedEstimand(Spine { mut carry, graph, graph_posterior, query }) = estimand;
+    // An estimator that does not implement this inference mode is refused for that
+    // mismatch before a likelihood or route check the estimator never reads.
+    if let Some(estimator) = carry.estimator {
+        refuse_estimator_inference_mismatch(&query, estimator, &carry.inference)?;
+    }
     refuse_unsupported_likelihood(
         &query,
         &carry.data,
