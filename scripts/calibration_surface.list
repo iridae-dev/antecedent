@@ -672,7 +672,6 @@ allow design crates/antecedent/src/analysis/execute/class_posterior_response.rs 
 allow design crates/antecedent/src/analysis/execute/compile.rs antecedent_contract
 allow design crates/antecedent/src/analysis/execute/dispatch.rs prepare
 # Shared bare names with the design crate. The route fits the retained linear program.
-allow design crates/antecedent/src/analysis/execute/lowered_route.rs Utility antecedent_contract build refused unresolved_obligations
 allow design crates/antecedent/src/analysis/four_way.rs Utility antecedent_contract build decide refused
 allow design crates/antecedent/src/analysis/execute/mod.rs antecedent_contract antecedent_io
 allow design crates/antecedent/src/analysis/execute/panel_path.rs finish prepare
@@ -981,7 +980,6 @@ allow design crates/antecedent/src/analysis/prepared/mod.rs prepare seal
 allow design crates/antecedent/src/analysis/prepared/operations.rs evaluate finish prepare quantity
 allow design crates/antecedent/src/analysis/prepared/prepare.rs prepare
 # LifecycleInput::Utility shares a bare name with a design type. This module does not call it.
-allow design crates/antecedent/src/analysis/prepared/recompile.rs Utility
 allow design crates/antecedent/src/analysis/prepared/prepare_identification.rs prepare
 allow design crates/antecedent/src/analysis/prepared/retarget.rs antecedent_contract refusal
 allow design crates/antecedent/src/analysis/prepared/seal.rs names prepare
@@ -1579,7 +1577,6 @@ allow cross_world_interval crates/antecedent/src/analysis/execute/dispatch.rs re
 allow cross_world_interval crates/antecedent/src/analysis/execute/pag_path.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/execute/response_path.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/execute/static_path.rs resolve
-allow cross_world_interval crates/antecedent/src/analysis/execute/lowered_route.rs refused
 allow cross_world_interval crates/antecedent/src/analysis/four_way.rs refused
 allow cross_world_interval crates/antecedent/src/analysis/joint_law_composed_basis.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/joint_law_propagation.rs resolve
@@ -1775,7 +1772,6 @@ allow adaptive_interval crates/antecedent/src/analysis/execute/execute_helpers_r
 allow adaptive_interval crates/antecedent/src/analysis/execute/execute_helpers_route.rs cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/panel_path.rs antecedent_stats cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/static_path.rs cancelled
-allow adaptive_interval crates/antecedent/src/analysis/execute/lowered_route.rs antecedent_stats cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_class_effect_core.rs cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_effect_core.rs cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_mediation_core.rs cancelled
