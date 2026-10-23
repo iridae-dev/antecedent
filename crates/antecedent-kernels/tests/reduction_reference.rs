@@ -121,7 +121,7 @@ fn selected(x: &[f64], bytes: Option<&[u8]>) -> Vec<f64> {
         Some(bytes) => x
             .iter()
             .enumerate()
-            .filter(|(i, _)| bytes[i / 8] >> (i % 8) & 1 == 1)
+            .filter(|(i, _)| (bytes[i / 8] >> (i % 8)) & 1 == 1)
             .map(|(_, v)| *v)
             .collect(),
     }

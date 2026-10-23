@@ -703,6 +703,10 @@ impl CheckedPanelDidOperation {
         Ok((sums, counts, cell_clusters))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one augmented-panel execution: the outcome-change model, its interval and the identified finish share the same fit"
+    )]
     fn execute_augmented_panel(
         &self,
         data: &TabularData,
@@ -1298,6 +1302,10 @@ fn did_sampling_assumption(
 }
 
 /// Assumptions a `DiD` design declares: the common ones plus its staggered or augmented additions.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the declared assumption ledger of one DiD design is a single ordered list"
+)]
 fn panel_did_assumptions(query: &antecedent_core::PanelDidQuery) -> antecedent_core::AssumptionSet {
     let mut assumptions = antecedent_core::AssumptionSet::default();
     for assumption in

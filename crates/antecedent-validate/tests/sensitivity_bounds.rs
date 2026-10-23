@@ -20,6 +20,7 @@ fn scalar(source: u8) -> RefutationTarget {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "no confounding returns the input estimate unchanged")]
 fn evalue_range_states_the_assumption_the_range_and_the_break_even_values() {
     let (bounds, range) = evalue_range(
         scalar(1),

@@ -229,6 +229,10 @@ fn envelope_span(bundle: &antecedent_identify::TemporalClassEnvelope) -> usize {
     clippy::too_many_arguments,
     reason = "the frozen atoms, their weights and points, the published point and its assumptions, the cap flag, the reporting plan and the context are distinct inputs"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one completion-mixture uncertainty: the sampling and Bayesian branches publish over the same frozen atoms"
+)]
 pub(super) fn class_scalar_uncertainty(
     atoms: &[FrozenAtom],
     weights: &[f64],
@@ -1452,7 +1456,7 @@ struct PooledAtoms {
 impl PooledAtoms {
     fn push(&mut self, fitted: ClassPoints<'_>, weight: f64, truncated: bool) {
         let total: f64 = fitted.weights.iter().sum();
-        if !(total > 0.0) {
+        if total.is_nan() || total <= 0.0 {
             return;
         }
         self.truncated |= truncated;

@@ -4,17 +4,17 @@
 //! Every check runs on a Pulse witness: the unit contrast at one horizon (with an
 //! intervention level's own intervention as the active arm), identified by the same
 //! horizon-specific proof, estimand and lag indexer the published value used. The
-//! TemporalDag Pulse-native suite runs on each witness (overlap, the temporal placebo
+//! `TemporalDag` Pulse-native suite runs on each witness (overlap, the temporal placebo
 //! and pre-period checks, and under `full` the circular-block bootstrap stability under
 //! the declared dependent-series design), exactly as the graph-posterior temporal cells
 //! run it on each atom. Bayesian studies fit each witness's posterior and add the prior
 //! and posterior predictive checks and, under `full`, prior sensitivity.
 //!
-//! * A TemporalDag level has one witness per requested horizon.
-//! * A TemporalCpdag / TemporalPag level has one witness per identified completion per
+//! * A `TemporalDag` level has one witness per requested horizon.
+//! * A `TemporalCpdag` / `TemporalPag` level has one witness per identified completion per
 //!   horizon; completions are not mixed, and a per-horizon disagreement diagnostic
 //!   reports how far the completions' witness effects spread.
-//! * A temporal derivative (TemporalDag or class) has one witness per completion at its
+//! * A temporal derivative (`TemporalDag` or class) has one witness per completion at its
 //!   one horizon. Its state adds `derivative.support` and `derivative.finite_difference`
 //!   (the unit-step difference of the identified levels — the weight-mixed witness
 //!   effect — against the published identity-scale slope).
@@ -35,13 +35,21 @@ use super::{
 pub(super) type TemporalLevelRefutation =
     (Vec<antecedent_validate::RefutationReport>, Vec<PredictiveCheckReport>, Vec<Diagnostic>);
 
+/// Reports, predictive checks and notes of the Pulse witnesses, with each witness's effect.
+pub(super) type PulseWitnessRefutation = (
+    Vec<antecedent_validate::RefutationReport>,
+    Vec<PredictiveCheckReport>,
+    Vec<Diagnostic>,
+    Vec<f64>,
+);
+
 /// One Pulse witness: a horizon's (and, on a class, a completion's) identified
 /// unit contrast with the products the published value used.
 pub(super) struct PulseWitnessSite {
     /// Horizon-and-completion key (the class completion key, or the horizon).
     pub(super) key: u64,
     pub(super) horizon: u32,
-    /// Completion mass (one on a TemporalDag).
+    /// Completion mass (one on a `TemporalDag`).
     pub(super) weight: f64,
     pub(super) witness: TemporalEffectQuery,
     pub(super) estimand: IdentifiedEstimand,
@@ -82,7 +90,7 @@ pub(super) fn level_witness(
     })
 }
 
-/// Run the per-horizon Pulse-witness refuter state of a TemporalDag intervention level.
+/// Run the per-horizon Pulse-witness refuter state of a `TemporalDag` intervention level.
 ///
 /// # Errors
 ///
@@ -115,7 +123,7 @@ pub(super) fn refute_temporal_intervention(
     Ok((reports, checks, notes))
 }
 
-/// Run the per-completion, per-horizon refuter state of a TemporalCpdag / TemporalPag
+/// Run the per-completion, per-horizon refuter state of a `TemporalCpdag` / `TemporalPag`
 /// intervention level.
 ///
 /// # Errors
@@ -145,7 +153,7 @@ pub(super) fn refute_temporal_class_intervention(
     Ok((reports, checks, notes))
 }
 
-/// Run the refuter state of a temporal derivative (TemporalDag or class).
+/// Run the refuter state of a temporal derivative (`TemporalDag` or class).
 ///
 /// # Errors
 ///
@@ -246,20 +254,16 @@ fn disagreement_note(horizon: u32, values: &[f64]) -> Diagnostic {
 /// # Errors
 ///
 /// A witness that cannot be prepared, cancellation, or a validator failure.
+#[allow(
+    clippy::too_many_lines,
+    reason = "every witness shares the preparation, the refuter suite and the Bayesian checks of one replicate loop"
+)]
 pub(super) fn refute_pulse_witness_sites(
     study: &super::Study,
     data: &TimeSeriesData,
     sites: &[PulseWitnessSite],
     ctx: &ExecutionContext,
-) -> Result<
-    (
-        Vec<antecedent_validate::RefutationReport>,
-        Vec<PredictiveCheckReport>,
-        Vec<Diagnostic>,
-        Vec<f64>,
-    ),
-    CausalError,
-> {
+) -> Result<PulseWitnessRefutation, CausalError> {
     let tabular = TabularData::new(data.storage().clone());
     let mut reports = Vec::new();
     let mut checks = Vec::new();

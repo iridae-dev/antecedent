@@ -31,6 +31,9 @@ use antecedent_stats::power::critical_value;
 
 use crate::error::CausalError;
 
+/// Outcomes tagged with their treatment indicator.
+type TaggedOutcomes = Vec<(f64, bool)>;
+
 /// Semantic operation tag of every planning simulation stream.
 const PLANNING_OPERATION: u64 = u64::from_le_bytes(*b"planning");
 
@@ -181,7 +184,7 @@ impl Simulation<'_> {
         let n = outcomes.len();
         let binary = self.request.assumptions.outcome.is_binary();
         if k == 0 {
-            let (t, c): (Vec<(f64, bool)>, Vec<(f64, bool)>) =
+            let (t, c): (TaggedOutcomes, TaggedOutcomes) =
                 outcomes.iter().copied().zip(treated.iter().copied()).partition(|(_, w)| *w);
             let t: Vec<f64> = t.into_iter().map(|(y, _)| y).collect();
             let c: Vec<f64> = c.into_iter().map(|(y, _)| y).collect();
@@ -519,15 +522,10 @@ impl Simulation<'_> {
                 }
             }
             ArmComparison::ManyToOne { multiplicity, power } => {
-                let critical: Vec<f64> = self
-                    .result
-                    .analytic
-                    .family
-                    .as_ref()
-                    .map(|family| family.critical.clone())
-                    .unwrap_or_else(|| {
-                        vec![critical_value(self.alpha() / k as f64, df, self.two_sided()); k]
-                    });
+                let critical: Vec<f64> = self.result.analytic.family.as_ref().map_or_else(
+                    || vec![critical_value(self.alpha() / k as f64, df, self.two_sided()); k],
+                    |family| family.critical.clone(),
+                );
                 let statistics: Vec<f64> = samples[1..]
                     .iter()
                     .map(|arm| {

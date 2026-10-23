@@ -254,7 +254,7 @@ impl ChangeAttributionResult {
     }
 
     /// Mark the attribution as the payload of a compiled study result.
-    pub(crate) fn from_compiled_study(mut self) -> Self {
+    pub(crate) fn with_compiled_study_origin(mut self) -> Self {
         self.from_study = true;
         self
     }

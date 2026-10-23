@@ -888,6 +888,10 @@ impl super::Study {
     /// Identify + plug-in estimate for an interventional distribution on a
     /// supplied DAG, or on a finite-discrete ADMG via general ID (bidirected
     /// edges stay; they are not dropped to coerce a DAG).
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one interventional distribution: the identification, the plug-in estimate and the identified finish run in sequence"
+    )]
     pub(super) fn execute_distribution(
         &self,
         data: &TabularData,

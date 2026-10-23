@@ -507,6 +507,10 @@ fn draw_coefficients(
 /// # Errors
 /// A non-positive prior scale, fewer than two draws, a factor fit that fails, admission or
 /// cancellation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one posterior draw loop whose per-draw buffers and shortfall count feed the summary"
+)]
 pub fn fit_regime_survival_posterior(
     data: &Trajectories,
     floor: f64,

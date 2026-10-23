@@ -28,14 +28,14 @@ pub(crate) fn admit_cells(
     let bytes = cells
         .checked_mul(size_of::<f64>())
         .and_then(|bytes| u64::try_from(bytes).ok())
-        .ok_or_else(|| refused("draw buffer size overflow".to_owned()))?;
+        .ok_or_else(|| refused("draw buffer size overflow"))?;
     let outcome = match ctx {
         Some(ctx) => Some(ctx.acquire_admission(0, bytes)),
         None => antecedent_core::numerical_admission::acquire(bytes),
     };
-    outcome.transpose().map_err(|error| refused(error.to_string()))
+    outcome.transpose().map_err(|error| refused(&error.to_string()))
 }
 
-fn refused(detail: String) -> ProbError {
+fn refused(detail: &str) -> ProbError {
     ProbError::Numerical { message: format!("prob.resource_refused: {detail}") }
 }

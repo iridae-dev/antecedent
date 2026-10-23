@@ -7,7 +7,7 @@
 //! populations inform how much. Their logits are modelled as draws from a population
 //! distribution, `logit(se_k) ~ N(mu_se, tau_se^2)` and likewise for specificity, with each
 //! population's validation sample giving `logit(se_k)` up to its sampling variance. The
-//! between-population variance `tau^2` is estimated (DerSimonian and Laird), so the
+//! between-population variance `tau^2` is estimated (`DerSimonian` and Laird), so the
 //! uncertainty of the invariance premise is propagated rather than assumed away: an invariant
 //! error is the special case `tau^2 = 0`, and a heterogeneous one widens the target's
 //! predictive error rates.
@@ -21,7 +21,7 @@
 //! counted, and a prevalence outside `[0, 1]` is truncated and counted. The result is an
 //! uncalibrated simulation interval: no coverage is claimed.
 //!
-//! References: DerSimonian and Laird (1986), doi:10.1016/0197-2456(86)90046-2; Rogan and
+//! References: `DerSimonian` and Laird (1986), doi:10.1016/0197-2456(86)90046-2; Rogan and
 //! Gladen (1978), doi:10.1093/oxfordjournals.aje.a112510.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -152,6 +152,10 @@ fn target_law(pooled: (f64, f64, f64), own: Option<(f64, f64)>) -> (f64, f64) {
 /// validation margin, a target sample with no rows or more positives than rows, fewer than
 /// 1000 draws, more than five percent of draws with a non-positive Youden index (the pooled
 /// rates leave the target unidentified), admission or cancellation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear procedure: validate the request, pool the rates, draw the corrected prevalence and summarize the draws"
+)]
 pub fn transport_pooled_differential_prevalence(
     request: PooledDifferentialRequest<'_>,
     ctx: &ExecutionContext,

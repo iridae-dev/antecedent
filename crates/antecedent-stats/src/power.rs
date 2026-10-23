@@ -146,7 +146,7 @@ pub fn critical_value(alpha: f64, df: Option<f64>, two_sided: bool) -> f64 {
 /// either tail and its power counts both tails.
 #[must_use]
 pub fn t_test_power(noncentrality: f64, df: Option<f64>, alpha: f64, two_sided: bool) -> f64 {
-    if !(alpha.is_finite() && alpha > 0.0 && alpha < 1.0) || !noncentrality.is_finite() {
+    if !(alpha.is_finite() && alpha > 0.0 && alpha < 1.0 && noncentrality.is_finite()) {
         return f64::NAN;
     }
     let critical = critical_value(alpha, df, two_sided);
@@ -166,8 +166,12 @@ fn shifted_cdf(t: f64, df: Option<f64>, noncentrality: f64) -> f64 {
 /// freedom and noncentrality `lambda` (Poisson mixture of central beta tails).
 #[must_use]
 pub fn noncentral_f_sf(x: f64, df1: f64, df2: f64, lambda: f64) -> f64 {
-    if !(df1.is_finite() && df1 > 0.0 && df2.is_finite() && df2 > 0.0)
-        || !(lambda.is_finite() && lambda >= 0.0)
+    if !(df1.is_finite()
+        && df1 > 0.0
+        && df2.is_finite()
+        && df2 > 0.0
+        && lambda.is_finite()
+        && lambda >= 0.0)
         || x.is_nan()
     {
         return f64::NAN;
@@ -375,7 +379,7 @@ impl EquicorrelatedComparisons {
     /// that any null comparison reaches `c` is `alpha`.
     #[must_use]
     pub fn dunnett_critical(&self, alpha: f64) -> Option<f64> {
-        if !self.valid() || !(alpha.is_finite() && alpha > 0.0 && alpha < 1.0) {
+        if !(self.valid() && alpha.is_finite() && alpha > 0.0 && alpha < 1.0) {
             return None;
         }
         let (mut low, mut high) = (0.0_f64, 1.0_f64);

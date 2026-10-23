@@ -252,17 +252,14 @@ impl ColumnState {
         for row in 0..array.len() {
             let local = array.key(row);
             let code = local.and_then(|key| remap.get(key).copied().flatten());
-            match (local, code) {
-                (Some(key), Some(code)) => {
-                    let label = dictionary[key].as_deref().unwrap_or(NO_LEVEL_PLACEHOLDER);
-                    self.hasher.label(label);
-                    validity[row / 8] |= 1 << (row % 8);
-                    codes.push(CategoryCode::from_raw(code));
-                }
-                _ => {
-                    self.hasher.null();
-                    codes.push(CategoryCode::from_raw(0));
-                }
+            if let (Some(key), Some(code)) = (local, code) {
+                let label = dictionary[key].as_deref().unwrap_or(NO_LEVEL_PLACEHOLDER);
+                self.hasher.label(label);
+                validity[row / 8] |= 1 << (row % 8);
+                codes.push(CategoryCode::from_raw(code));
+            } else {
+                self.hasher.null();
+                codes.push(CategoryCode::from_raw(0));
             }
         }
         let validity = crate::column::ValidityBitmap::from_bytes(validity, array.len())?;
@@ -350,7 +347,7 @@ where
     T: ArrowPrimitiveType,
 {
     let mut values = Vec::with_capacity(array.len());
-    for value in array.iter() {
+    for value in array {
         match value {
             None => {
                 hasher.null();
@@ -377,7 +374,7 @@ where
     T::Native: Into<i64>,
 {
     let mut values = Vec::with_capacity(array.len());
-    for value in array.iter() {
+    for value in array {
         match value {
             None => {
                 hasher.null();
@@ -437,7 +434,7 @@ fn booleans(
 ) -> Result<OwnedColumn, FileSourceError> {
     let flags = array.as_boolean();
     let mut values = Vec::with_capacity(flags.len());
-    for value in flags.iter() {
+    for value in flags {
         match value {
             None => {
                 hasher.null();

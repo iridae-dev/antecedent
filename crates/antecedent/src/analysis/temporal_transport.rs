@@ -316,10 +316,6 @@ fn marginal_history_law(
         let entry = merged.entry(projected).or_insert(0.0);
         *entry += mass;
     }
-    HistoryIndexedTargetLaw::new(
-        law.snapshot_identity(),
-        coordinates.iter().copied(),
-        merged.into_iter(),
-    )
-    .map_err(|error| law_refusal(TARGET_LAW_MISMATCH, &error.to_string()))
+    HistoryIndexedTargetLaw::new(law.snapshot_identity(), coordinates.iter().copied(), merged)
+        .map_err(|error| law_refusal(TARGET_LAW_MISMATCH, &error.to_string()))
 }

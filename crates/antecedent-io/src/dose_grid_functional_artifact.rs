@@ -602,7 +602,7 @@ impl DoseGridRequestWire {
         let mut result = self.render(&row, &points, design);
         if let Some(section) = bias_aware {
             if section.band_lower.is_some() {
-                result.simultaneous_band = DOSE_GRID_BAND_BIAS_AWARE.to_owned();
+                DOSE_GRID_BAND_BIAS_AWARE.clone_into(&mut result.simultaneous_band);
             }
             result.bias_aware = Some(section);
         }

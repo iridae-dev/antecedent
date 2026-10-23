@@ -25,6 +25,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::cmp::Ordering;
 use std::sync::Arc;
 
 use antecedent_contract::DataClassification;
@@ -60,6 +61,9 @@ use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::lowered::{LoweredProgram, UncertaintyReading};
 use crate::result::StudyResult;
+
+/// Float columns to replace, each with its new values.
+type ColumnReplacements = Vec<(VariableId, Arc<[f64]>)>;
 
 /// Stamp every refutation `result` carries with the lowered program that produced it.
 ///
@@ -167,6 +171,10 @@ fn labelled(prefix: &str, values: &[f64]) -> (Vec<Arc<str>>, Vec<f64>) {
 /// A result whose target has no finite point value (a partially identified envelope, a
 /// graph-dependent response, a distribution, a mediation decomposition with a missing
 /// component, or no scalar estimate).
+#[allow(
+    clippy::type_complexity,
+    reason = "the public signature returns the family, labels and values as one tuple"
+)]
 pub fn result_target_values(
     result: &StudyResult,
 ) -> Result<(TargetFamily, Vec<Arc<str>>, Vec<f64>), CausalError> {
@@ -718,13 +726,12 @@ impl PreparedRefit<'_> {
 
     /// Prepare `study` (a one-change copy of this handle's study) on `data` and execute it.
     fn compile_and_run(
-        &self,
         mut study: crate::analysis::execute::Study,
-        data: Modal,
+        data: &Modal,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         study.refute = crate::analysis::builder::RefuteSuite::None;
-        study.data = match &data {
+        study.data = match data {
             Modal::Tabular(d) => DataInput::Tabular(d.clone()),
             Modal::Series(d) => match &study.data {
                 DataInput::Event(_) => DataInput::Event(d.clone()),
@@ -733,7 +740,7 @@ impl PreparedRefit<'_> {
             Modal::Panel(d) => DataInput::Panel(d.clone()),
         };
         let prepared = study.prepare(ctx)?;
-        match &data {
+        match data {
             Modal::Tabular(d) => prepared.estimate(d, ctx),
             Modal::Series(d) => prepared.estimate_series(d, ctx),
             Modal::Panel(d) => prepared.estimate_panel(d, ctx),
@@ -754,10 +761,10 @@ impl PreparedRefit<'_> {
         }
     }
 
-    fn column_of<'s>(
-        storage: &'s antecedent_data::OwnedColumnarStorage,
+    fn column_of(
+        storage: &antecedent_data::OwnedColumnarStorage,
         id: VariableId,
-    ) -> Result<&'s [f64], TargetRefitError> {
+    ) -> Result<&[f64], TargetRefitError> {
         float_column(storage, id).ok_or_else(|| {
             unsupported(
                 "the perturbed column is not a float64 column",
@@ -932,7 +939,7 @@ impl PreparedRefit<'_> {
         };
         let plant = |storage: &antecedent_data::OwnedColumnarStorage,
                      u: &[f64]|
-         -> Result<Vec<(VariableId, Arc<[f64]>)>, TargetRefitError> {
+         -> Result<ColumnReplacements, TargetRefitError> {
             if strength == 0.0 {
                 return Ok(Vec::new());
             }
@@ -940,7 +947,12 @@ impl PreparedRefit<'_> {
             let y = Self::column_of(storage, self.outcome)?;
             out.push((self.outcome, y.iter().zip(u).map(|(y, u)| y + strength * u).collect()));
             let t = Self::column_of(storage, self.treatment)?;
-            if !t.iter().all(|v| *v == 0.0 || *v == 1.0) {
+            #[allow(
+                clippy::float_cmp,
+                reason = "a binary treatment is coded exactly 0.0 or 1.0, so exact equality is the test"
+            )]
+            let binary = t.iter().all(|v| *v == 0.0 || *v == 1.0);
+            if !binary {
                 out.push((
                     self.treatment,
                     t.iter().zip(u).map(|(t, u)| t + strength * u).collect(),
@@ -951,7 +963,8 @@ impl PreparedRefit<'_> {
         let name = |storage: &antecedent_data::OwnedColumnarStorage| {
             let names: Vec<&str> =
                 storage.schema().variables().iter().map(|v| v.name.as_ref()).collect();
-            (0..)
+            // Among `names.len() + 1` candidates at least one is free.
+            (0..=names.len())
                 .map(|i| format!("simulated_common_cause_{i}"))
                 .find(|candidate| !names.contains(&candidate.as_str()))
                 .unwrap_or_default()
@@ -1007,7 +1020,7 @@ impl PreparedRefit<'_> {
         };
         let mut study = self.study().clone();
         study.graph = Arc::new(self.graph_with_common_cause(u_id)?);
-        let refitted = self.compile_and_run(study, data, ctx).map_err(|error| {
+        let refitted = Self::compile_and_run(study, &data, ctx).map_err(|error| {
             unsupported(
                 format!("the study with the simulated common cause declared did not run: {error}"),
                 "a route that admits an extra declared covariate",
@@ -1044,6 +1057,11 @@ impl PreparedRefit<'_> {
                 }
                 let mut rows: Vec<usize> = (0..n).collect();
                 shuffle(rng, &mut rows);
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "the subset fraction lies in (0, 1), and the saturating cast is clamped into [1, n]"
+                )]
                 let kept = ((fraction * n as f64).round() as usize).clamp(1, n);
                 let mut keep = vec![false; n];
                 for &row in &rows[..kept] {
@@ -1141,6 +1159,11 @@ impl PreparedRefit<'_> {
                     return Err(unsupported("a window needs at least two periods", "more data"));
                 }
                 // A contiguous window keeps every lag the procedure reads inside the window.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "the subset fraction lies in (0, 1), and the saturating cast is clamped into [1, n]"
+                )]
                 let width = ((fraction * n as f64).round() as usize).clamp(1, n);
                 let start = unbiased_index(rng, n - width + 1);
                 match truncated_series(series, start, start + width)? {
@@ -1166,24 +1189,21 @@ impl PreparedRefit<'_> {
             }
             TargetPerturbation::NegativeControlOutcome { replicate } => {
                 let weights = resample(replicate, rng)?;
-                match outcome_control {
-                    Some(control) => {
-                        let values: Arc<[f64]> = Arc::from(Self::column_of(storage, control)?);
-                        series_with(series, &[(self.outcome, values)], None, weights)
-                    }
-                    None => {
-                        // Lagged placebo: the outcome moved back past the longest lag, which no
-                        // treatment the target reads can have caused.
-                        let back = isize::try_from(span).unwrap_or(isize::MAX);
-                        let (values, _) = shifted(Self::column_of(storage, self.outcome)?, -back);
-                        let rows = window_weights(n, 2 * span, n);
-                        series_with(
-                            series,
-                            &[(self.outcome, values)],
-                            None,
-                            Some(times(&rows, weights)),
-                        )
-                    }
+                if let Some(control) = outcome_control {
+                    let values: Arc<[f64]> = Arc::from(Self::column_of(storage, control)?);
+                    series_with(series, &[(self.outcome, values)], None, weights)
+                } else {
+                    // Lagged placebo: the outcome moved back past the longest lag, which no
+                    // treatment the target reads can have caused.
+                    let back = isize::try_from(span).unwrap_or(isize::MAX);
+                    let (values, _) = shifted(Self::column_of(storage, self.outcome)?, -back);
+                    let rows = window_weights(n, 2 * span, n);
+                    series_with(
+                        series,
+                        &[(self.outcome, values)],
+                        None,
+                        Some(times(&rows, weights)),
+                    )
                 }
             }
             TargetPerturbation::PreTrend { replicate, lead } => {
@@ -1277,6 +1297,10 @@ impl PreparedRefit<'_> {
         })
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one exhaustive match over the perturbations of a panel"
+    )]
     fn panel_refit(
         &self,
         panel: &PanelData,
@@ -1352,6 +1376,11 @@ impl PreparedRefit<'_> {
             TargetPerturbation::Subset { fraction, .. } => {
                 let mut order: Vec<usize> = (0..units.len()).collect();
                 shuffle(rng, &mut order);
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "the subset fraction lies in (0, 1), and the saturating cast is clamped into [1, units]"
+                )]
                 let kept = ((fraction * units.len() as f64).round() as usize).clamp(1, units.len());
                 let mut chosen: Vec<usize> = order[..kept].to_vec();
                 chosen.sort_unstable();
@@ -1367,36 +1396,35 @@ impl PreparedRefit<'_> {
                 }
             }
             TargetPerturbation::NegativeControlOutcome { replicate } => {
-                let swapped = match self.options.negative_control_outcome {
-                    Some(control) => swap_all(self.outcome, control)?,
-                    None => {
-                        let span =
-                            isize::try_from(max_graph_lag(self.study()) + 1).unwrap_or(isize::MAX);
-                        units
-                            .iter()
-                            .map(|unit| {
-                                let (values, _) = shifted(
-                                    Self::column_of(unit.series.storage(), self.outcome)?,
-                                    -span,
-                                );
-                                let rows = unit.series.row_count();
-                                let skip = usize::try_from(span).unwrap_or(rows);
-                                Ok(PanelUnit {
-                                    unit_id: unit.unit_id,
-                                    series: Self::cut(
-                                        &series_with(
-                                            &unit.series,
-                                            &[(self.outcome, values)],
-                                            None,
-                                            None,
-                                        )?,
-                                        skip,
-                                        rows,
+                let swapped = if let Some(control) = self.options.negative_control_outcome {
+                    swap_all(self.outcome, control)?
+                } else {
+                    let span =
+                        isize::try_from(max_graph_lag(self.study()) + 1).unwrap_or(isize::MAX);
+                    units
+                        .iter()
+                        .map(|unit| {
+                            let (values, _) = shifted(
+                                Self::column_of(unit.series.storage(), self.outcome)?,
+                                -span,
+                            );
+                            let rows = unit.series.row_count();
+                            let skip = usize::try_from(span).unwrap_or(rows);
+                            Ok(PanelUnit {
+                                unit_id: unit.unit_id,
+                                series: Self::cut(
+                                    &series_with(
+                                        &unit.series,
+                                        &[(self.outcome, values)],
+                                        None,
+                                        None,
                                     )?,
-                                })
+                                    skip,
+                                    rows,
+                                )?,
                             })
-                            .collect::<Result<Vec<_>, TargetRefitError>>()?
-                    }
+                        })
+                        .collect::<Result<Vec<_>, TargetRefitError>>()?
                 };
                 if replicate == 0 {
                     rebuild(swapped)?
@@ -1534,7 +1562,7 @@ impl PreparedRefit<'_> {
             alternative.prior_scale *= factor;
             study.inference = InferenceMode::Bayesian(alternative);
             let refitted =
-                self.compile_and_run(study, self.modal_data(), ctx).map_err(|error| {
+                Self::compile_and_run(study, &self.modal_data(), ctx).map_err(|error| {
                     unsupported(
                         format!("the study under prior scale x{factor} did not run: {error}"),
                         "a Bayesian route whose prior scale can be varied",
@@ -1565,6 +1593,10 @@ impl PreparedRefit<'_> {
     /// `(β_s, σ_s)` of its reference posterior the program is run on the noiseless outcome
     /// `μ_s = Xβ_s` (the target of the draw) and on a replicated outcome `μ_s + σ_s ε`; the
     /// observed target is compared with the replicated ones.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the fit, its Cholesky factor and the draws share one reference design in sequence"
+    )]
     fn posterior_predictive(
         &self,
         ctx: &ExecutionContext,
@@ -1622,7 +1654,7 @@ impl PreparedRefit<'_> {
                     s -= l[i * p + q] * l[j * p + q];
                 }
                 if i == j {
-                    if !(s > 0.0) {
+                    if s.partial_cmp(&0.0) != Some(Ordering::Greater) {
                         return Err(unsupported(
                             "the treatment and adjustment design is rank deficient",
                             "a full-rank adjustment",
@@ -1677,7 +1709,7 @@ impl PreparedRefit<'_> {
                         format!("the program did not run on a reference-model replicate: {error}"),
                         "a route that admits replicated outcomes",
                     ),
-                    other => other,
+                    other @ TargetRefitError::Unsupported { .. } => other,
                 })
             };
             thetas.extend(run(mean.into())?);
@@ -1695,6 +1727,10 @@ impl PreparedRefit<'_> {
 
     /// The fitted response curve of a point derivative at the five points the derivative
     /// diagnostics read, through the compiler: the study's mean-curve query on the same data.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one check that classifies the derivative, picks its step and fits its curve once"
+    )]
     fn response_curve(&self, ctx: &ExecutionContext) -> Result<(f64, f64, f64), TargetRefitError> {
         let Some(response) = self.result.response() else {
             return Err(unsupported(
@@ -1732,23 +1768,22 @@ impl PreparedRefit<'_> {
             }
         };
         let reported = *self.original.first().ok_or_else(|| unsupported("no value", "a target"))?;
-        let step = match self.options.derivative_step {
-            Some(step) => step,
-            None => {
-                let column: Vec<f64> = match self.data {
-                    PreparedTargetData::Panel(panel) => panel
-                        .units()
-                        .iter()
-                        .filter_map(|u| float_column(u.series.storage(), treatment))
-                        .flatten()
-                        .copied()
-                        .collect(),
-                    _ => float_column(self.storage(), treatment)
-                        .map(<[f64]>::to_vec)
-                        .unwrap_or_default(),
-                };
-                0.25 * sample_sd(&column)
-            }
+        let step = if let Some(step) = self.options.derivative_step {
+            step
+        } else {
+            let column: Vec<f64> = match self.data {
+                PreparedTargetData::Panel(panel) => panel
+                    .units()
+                    .iter()
+                    .filter_map(|u| float_column(u.series.storage(), treatment))
+                    .flatten()
+                    .copied()
+                    .collect(),
+                _ => {
+                    float_column(self.storage(), treatment).map(<[f64]>::to_vec).unwrap_or_default()
+                }
+            };
+            0.25 * sample_sd(&column)
         };
         if !(step.is_finite() && step > 0.0) {
             return Err(unsupported(
@@ -1765,21 +1800,21 @@ impl PreparedRefit<'_> {
             }));
             let mut study = self.study().clone();
             study.query = query;
-            let refitted = match self.compile_and_run(study.clone(), self.modal_data(), ctx) {
-                Ok(result) => result,
-                Err(_) => {
+            let refitted =
+                if let Ok(result) = Self::compile_and_run(study.clone(), &self.modal_data(), ctx) {
+                    result
+                } else {
                     // The derivative's own estimator may not serve a mean curve; let the
                     // compiler choose the curve estimator of the same data and graph.
                     study.estimator = None;
                     study.estimator_spec = None;
-                    self.compile_and_run(study, self.modal_data(), ctx).map_err(|error| {
+                    Self::compile_and_run(study, &self.modal_data(), ctx).map_err(|error| {
                         unsupported(
                             format!("the study's mean curve did not run: {error}"),
                             "a graph and data that identify the dose-response curve",
                         )
                     })?
-                }
-            };
+                };
             let curve = refitted
                 .response()
                 .and_then(|r| match &r.estimate {

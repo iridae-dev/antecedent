@@ -1077,8 +1077,7 @@ fn action_matches_time(action: &WorldAction, time: &TimeFrame) -> bool {
         (ActionKind::Structural(actions), TimeKind::Equilibrium | TimeKind::Stationary) => {
             !actions.iter().any(StructuralAction::is_initial_state)
         }
-        (ActionKind::Interventions(_), _)
-        | (ActionKind::Schedule { .. }, _)
+        (ActionKind::Interventions(_) | ActionKind::Schedule { .. }, _)
         | (ActionKind::Structural(_), TimeKind::Static | TimeKind::Temporal { .. }) => false,
     }
 }

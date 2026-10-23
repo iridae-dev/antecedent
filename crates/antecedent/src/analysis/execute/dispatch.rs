@@ -795,16 +795,15 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let cache = match self.reuse_static_identification(physical) {
-            Some((cache, _)) => cache,
-            None => {
-                super::report_identify_compute(ctx);
-                std::sync::Arc::new(self.prepare_static_identification(physical)?.ok_or_else(
-                    || CausalError::Compile {
-                        message: "series attribution identified no structural product".into(),
-                    },
-                )?)
-            }
+        let cache = if let Some((cache, _)) = self.reuse_static_identification(physical) {
+            cache
+        } else {
+            super::report_identify_compute(ctx);
+            std::sync::Arc::new(self.prepare_static_identification(physical)?.ok_or_else(|| {
+                CausalError::Compile {
+                    message: "series attribution identified no structural product".into(),
+                }
+            })?)
         };
         super::CheckedAttributionOperation::checked(self, physical, &cache)?
             .execute_series(series, ctx)
@@ -976,18 +975,15 @@ impl super::Study {
                     && self.bootstrap_replicates > 0
                     && self.graph.as_dag().is_some() =>
             {
-                let cache = match self.reuse_static_identification(physical) {
-                    Some((cache, _)) => cache,
-                    None => {
-                        super::report_identify_compute(ctx);
-                        std::sync::Arc::new(
-                            self.prepare_static_identification(physical)?.ok_or_else(|| {
-                                CausalError::Compile {
-                                    message: "attribution identified no structural product".into(),
-                                }
-                            })?,
-                        )
-                    }
+                let cache = if let Some((cache, _)) = self.reuse_static_identification(physical) {
+                    cache
+                } else {
+                    super::report_identify_compute(ctx);
+                    std::sync::Arc::new(self.prepare_static_identification(physical)?.ok_or_else(
+                        || CausalError::Compile {
+                            message: "attribution identified no structural product".into(),
+                        },
+                    )?)
                 };
                 super::CheckedAttributionOperation::checked(self, physical, &cache)?
                     .execute(data, ctx)

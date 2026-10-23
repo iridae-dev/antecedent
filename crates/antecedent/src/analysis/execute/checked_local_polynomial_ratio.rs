@@ -142,6 +142,10 @@ impl CheckedLocalPolynomialRatioOperation {
         Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one local-ratio execution: the bandwidth, the fit, its interval and the identified finish run in sequence on one frozen plan"
+    )]
     pub(crate) fn execute(
         &self,
         data: &TabularData,
@@ -305,6 +309,10 @@ impl Study {
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "a linear construction of the declared assumption ledger and the estimand expression of one local ratio"
+)]
 pub(crate) fn local_polynomial_ratio_identification(
     query: &antecedent_core::LocalPolynomialRatioQuery,
 ) -> (IdentificationResult, IdentifiedEstimand) {

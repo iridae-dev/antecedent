@@ -216,6 +216,10 @@ pub struct ConformalSyntheticFit {
 ///
 /// An unbalanced or misaligned panel, fewer than two donors, too few pre-periods for a 5%
 /// conformal test (at least 19), no post-period, cancellation or a refused admission.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one procedure: the pre-period fit, the per-period effects and the conformal inversion share the donor series"
+)]
 pub fn conformal_synthetic_control(
     panel: &SyntheticRolloutPanel<'_>,
     treated: &str,

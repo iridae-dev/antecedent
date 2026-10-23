@@ -334,7 +334,7 @@ impl Study {
         same_inputs: impl FnOnce(&CachedStaticIdentification) -> bool,
     ) -> Option<(Arc<CachedStaticIdentification>, bool)> {
         self.reuse_static_identification(plan)
-            .filter(|(cache, prepared)| *prepared || same_inputs(&**cache))
+            .filter(|(cache, prepared)| *prepared || same_inputs(cache))
     }
 
     /// PAG envelope to reuse.

@@ -120,8 +120,8 @@ pub(crate) fn retention_key(study: &Study) -> Option<[u8; 32]> {
         }
     }
     writer
-        .opt_text(study.identifier.as_ref().map(|identifier| identifier.as_str()))
-        .opt_text(study.estimator.as_ref().map(|estimator| estimator.as_str()))
+        .opt_text(study.identifier.as_ref().map(crate::IdentifierId::as_str))
+        .opt_text(study.estimator.as_ref().map(crate::EstimatorId::as_str))
         .opt_text(study.estimator_spec.as_deref().map(|spec| spec.id().as_str()))
         .word(u64::from(study.inference.is_bayesian()));
     Some(writer.finish())

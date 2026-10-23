@@ -599,7 +599,10 @@ impl NodeProgram {
             return Err(ModelError::Cancelled);
         }
         let bytes = self.column_workspace_bytes()?;
-        if ctx.and_then(|ctx| ctx.memory_limit_bytes()).is_some_and(|limit| bytes > limit) {
+        if ctx
+            .and_then(antecedent_core::ExecutionContext::memory_limit_bytes)
+            .is_some_and(|limit| bytes > limit)
+        {
             return Err(refusal_budget(
                 "column program scratch exceeds declared hard memory limit".into(),
             )
@@ -990,7 +993,7 @@ pub fn apply_node_program(
     // is called once on the whole batch, so a program with one runs on every row at once.
     let block = if program.callbacks.is_empty() { n.min(PROGRAM_BLOCK_ROWS) } else { n };
     let need = program.max_stack.saturating_mul(block);
-    if let Some(limit) = ctx.and_then(|c| c.memory_limit_bytes()) {
+    if let Some(limit) = ctx.and_then(antecedent_core::ExecutionContext::memory_limit_bytes) {
         let bytes = (need as u64).saturating_mul(8);
         if bytes > limit {
             return Err(refusal_budget(format!(

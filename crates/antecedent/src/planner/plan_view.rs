@@ -1077,6 +1077,10 @@ struct AtomIdentification {
 }
 
 impl MixtureView {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "indexes the retained atoms of every cache kind, then folds the sampled graphs into one view"
+    )]
     fn of(
         program: &LoweredProgram,
         caches: &[IdentificationCache],
@@ -1340,13 +1344,13 @@ impl PlanView {
         Self {
             route,
             stage,
+            program,
             identification,
             physical,
             uncertainty,
             support,
             mixture,
             operation,
-            program,
         }
     }
 
@@ -1850,7 +1854,10 @@ pub(crate) mod checks {
                 );
                 assert_eq!(
                     view.identification().product().map(super::ProductView::identity),
-                    retained.product.as_ref().map(|product| product.identity()),
+                    retained
+                        .product
+                        .as_ref()
+                        .map(antecedent_identify::CompiledIdentificationProduct::identity),
                     "{name}: product identity"
                 );
                 IdentificationKind::Retained

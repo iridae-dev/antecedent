@@ -13,7 +13,7 @@
 //! which is why the selection is paired with it. The plug-in is not the full rdrobust
 //! selector (no iterated pilot or regularization term).
 //!
-//! **Diagnostics.** A McCrary binned-density test of a discontinuity in the running
+//! **Diagnostics.** A `McCrary` binned-density test of a discontinuity in the running
 //! variable's density at the cutoff (a manipulation check), and the robust bias-corrected
 //! jump of each declared baseline covariate at the cutoff (a balance check). Neither is part
 //! of identification: a clean density or balance check does not establish continuity of the
@@ -69,7 +69,7 @@ pub struct LocalRatioDesign {
     pub select_bandwidth: bool,
     /// The running variable is calendar time: replicates of the within-side block bootstrap.
     pub temporal_replicates: Option<u32>,
-    /// Run the McCrary density test at the cutoff.
+    /// Run the `McCrary` density test at the cutoff.
     pub density_test: bool,
 }
 
@@ -84,7 +84,7 @@ pub struct BandwidthChoice {
     pub capped: bool,
 }
 
-/// McCrary density discontinuity test at the cutoff.
+/// `McCrary` density discontinuity test at the cutoff.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DensityTest {
     /// `ln f̂₊ − ln f̂₋`.
@@ -283,9 +283,9 @@ fn boundary_constants(nu: usize) -> Option<(f64, f64)> {
     let inverse = crate::util::invert_rows(&gamma)?;
     let bias: f64 = (0..size).map(|k| inverse[nu][k] * lambda[k]).sum();
     let mut variance = 0.0;
-    for j in 0..size {
-        for k in 0..size {
-            variance += inverse[nu][j] * psi[j][k] * inverse[k][nu];
+    for (j, psi_row) in psi.iter().enumerate() {
+        for (k, psi_jk) in psi_row.iter().enumerate() {
+            variance += inverse[nu][j] * psi_jk * inverse[k][nu];
         }
     }
     Some((bias, variance))
@@ -349,7 +349,7 @@ pub fn mse_optimal_bandwidth(
     let curvature = (third_derivative(true)? - sign * third_derivative(false)?) / 6.0;
     let bias = b_nu * curvature;
     let variance_constant = v_nu * variance / density;
-    if !(variance_constant > 0.0 && variance_constant.is_finite()) || !bias.is_finite() {
+    if !(variance_constant > 0.0 && variance_constant.is_finite() && bias.is_finite()) {
         return None;
     }
     if bias.abs() <= 1e-12 {
@@ -363,7 +363,7 @@ pub fn mse_optimal_bandwidth(
     (bandwidth.is_finite() && bandwidth > 0.0).then_some(bandwidth)
 }
 
-/// McCrary's binned-density test of a jump in the running variable's density at `cutoff`,
+/// `McCrary`'s binned-density test of a jump in the running variable's density at `cutoff`,
 /// with local linear triangular smoothing of the bin heights within `bandwidth`.
 #[allow(
     clippy::cast_possible_truncation,
@@ -372,7 +372,7 @@ pub fn mse_optimal_bandwidth(
 #[must_use]
 pub fn density_test(running: &[f64], cutoff: f64, bandwidth: f64) -> Option<DensityTest> {
     let n = running.len();
-    if n < 4 * MIN_SIDE_ROWS || !(bandwidth > 0.0) {
+    if n < 4 * MIN_SIDE_ROWS || bandwidth.is_nan() || bandwidth <= 0.0 {
         return None;
     }
     let mean = running.iter().sum::<f64>() / n as f64;

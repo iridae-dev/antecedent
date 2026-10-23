@@ -260,7 +260,7 @@ fn stationary_ou_information_matches_closed_form_and_bootstrap_spread() {
 
 /// `dx/dt = -k x` with true `k = 2`, eight trajectories, Gaussian measurement sd 0.05.
 fn decay_problem(seed: u64) -> OdeInferenceProblem {
-    let mut rng = RngFactory::from_seed(seed).stream(0x4f44_45);
+    let mut rng = RngFactory::from_seed(seed).stream(0x004f_4445);
     let times = vec![0.0, 0.25, 0.5, 1.0];
     let data = (0..8_u32)
         .map(|i| {

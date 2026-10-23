@@ -81,7 +81,10 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
                 continue;
             }
             rust_files(&path, out);
-        } else if name.ends_with(".rs") && !name.ends_with("tests.rs") && name != "tests.rs" {
+        } else if path.extension().is_some_and(|ext| ext == "rs")
+            && !name.ends_with("tests.rs")
+            && name != "tests.rs"
+        {
             out.push(path);
         }
     }

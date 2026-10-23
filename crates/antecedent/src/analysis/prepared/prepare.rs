@@ -237,16 +237,15 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<Vec<IdentificationCache>, CausalError> {
         let mut caches = Vec::new();
-        match self.graph_posterior.as_ref() {
-            Some(posterior) => self.identify_graph_posterior_caches(posterior, ctx, &mut caches)?,
-            None => {
-                self.identify_single_graph_caches(plan, &mut caches)?;
-                // The posterior builders report `identify.compute` themselves; the
-                // single-graph, class, temporal and transport products identify
-                // without a progress hook, so report once when any was built.
-                if !caches.is_empty() {
-                    crate::analysis::execute::report_identify_compute(ctx);
-                }
+        if let Some(posterior) = self.graph_posterior.as_ref() {
+            self.identify_graph_posterior_caches(posterior, ctx, &mut caches)?;
+        } else {
+            self.identify_single_graph_caches(plan, &mut caches)?;
+            // The posterior builders report `identify.compute` themselves; the
+            // single-graph, class, temporal and transport products identify
+            // without a progress hook, so report once when any was built.
+            if !caches.is_empty() {
+                crate::analysis::execute::report_identify_compute(ctx);
             }
         }
         Ok(caches)

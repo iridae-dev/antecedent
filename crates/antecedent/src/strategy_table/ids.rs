@@ -1447,6 +1447,7 @@ pub fn require_identified(result: &IdentificationResult) -> Result<(), CausalErr
 
 /// Whether an estimand method is compatible with an estimator.
 #[must_use]
+#[allow(clippy::too_many_lines, reason = "one exhaustive match over every estimator id")]
 pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &EstimatorId) -> bool {
     match estimator {
         EstimatorId::LinearAdjustmentAte

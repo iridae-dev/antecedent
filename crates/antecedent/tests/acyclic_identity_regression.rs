@@ -19,6 +19,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use antecedent::{Dag, RefuteSuite, Study};
@@ -181,7 +182,10 @@ fn current() -> BTreeMap<String, String> {
 }
 
 fn render(digests: &BTreeMap<String, String>) -> String {
-    digests.iter().map(|(name, hex)| format!("{name}={hex}\n")).collect()
+    digests.iter().fold(String::new(), |mut out, (name, hex)| {
+        writeln!(out, "{name}={hex}").expect("writing to a String cannot fail");
+        out
+    })
 }
 
 #[test]

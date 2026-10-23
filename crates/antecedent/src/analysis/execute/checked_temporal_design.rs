@@ -212,6 +212,10 @@ impl CheckedTemporalDesignOperation {
     }
 
     /// Run the design's procedure.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "a single exhaustive dispatch over the temporal design's assignment and functional"
+    )]
     fn fit(&self, data: &TabularData, ctx: &ExecutionContext) -> Result<FitOutput, CausalError> {
         let query = &self.query;
         let outcome = read_column(data, query.outcome)?;
@@ -273,7 +277,7 @@ impl CheckedTemporalDesignOperation {
                 unpaired: pairs.unpaired,
                 minimum_probability: f64::NAN,
                 replicates: (fit.posterior.is_none())
-                    .then(|| (fit.replicates.0 as u64, fit.replicates.1 as u64)),
+                    .then_some((fit.replicates.0 as u64, fit.replicates.1 as u64)),
                 functional: format!("quantile:{level}"),
                 uncertainty: if fit.posterior.is_some() {
                     "bayesian_bootstrap_over_units_weighted_quantile"
@@ -351,56 +355,46 @@ impl CheckedTemporalDesignOperation {
             ));
         }
         let mut functional = "mean".to_owned();
-        let summary = match draws {
-            Some(draws) => {
-                let posterior =
-                    bayesian_bootstrap(&accumulated, draws, ctx).map_err(CausalError::from)?;
-                Summary::Posterior(match validation {
-                    Some(counts) => {
-                        functional = "mean; outcome misclassification corrected".to_owned();
-                        correct_posterior(posterior, &scores.coordinates, counts, ctx)
-                            .map_err(CausalError::from)?
-                    }
-                    None => posterior,
-                })
-            }
-            None => {
-                let mut summary = sampling_summary(&accumulated).map_err(CausalError::from)?;
-                if let Some(counts) = validation {
-                    let youden =
-                        correct_sampling(&mut summary, &scores.coordinates, &scores.family, counts)
-                            .map_err(CausalError::from)?;
-                    functional = format!(
-                        "mean; outcome misclassification corrected (Youden index {youden})"
-                    );
-                    return Ok(FitOutput {
-                        coordinates: scores.coordinates,
-                        family: scores.family,
-                        uncertainty: summary.method,
-                        summary: Summary::Sampling(summary),
-                        pairs: scores.pairs,
-                        clusters: accumulated.clusters(),
-                        unpaired: pairs.unpaired,
-                        minimum_probability: scores.minimum_probability,
-                        replicates: None,
-                        functional,
-                    });
+        let summary = if let Some(draws) = draws {
+            let posterior =
+                bayesian_bootstrap(&accumulated, draws, ctx).map_err(CausalError::from)?;
+            Summary::Posterior(match validation {
+                Some(counts) => {
+                    "mean; outcome misclassification corrected".clone_into(&mut functional);
+                    correct_posterior(posterior, &scores.coordinates, counts, ctx)
+                        .map_err(CausalError::from)?
                 }
-                if scores.band.len() > 1 {
-                    sup_t_band(
-                        &accumulated,
-                        &mut summary,
-                        &scores.band,
-                        DEFAULT_BAND_REPLICATES,
-                        ctx,
-                    )
+                None => posterior,
+            })
+        } else {
+            let mut summary = sampling_summary(&accumulated).map_err(CausalError::from)?;
+            if let Some(counts) = validation {
+                let youden =
+                    correct_sampling(&mut summary, &scores.coordinates, &scores.family, counts)
+                        .map_err(CausalError::from)?;
+                functional =
+                    format!("mean; outcome misclassification corrected (Youden index {youden})");
+                return Ok(FitOutput {
+                    coordinates: scores.coordinates,
+                    family: scores.family,
+                    uncertainty: summary.method,
+                    summary: Summary::Sampling(summary),
+                    pairs: scores.pairs,
+                    clusters: accumulated.clusters(),
+                    unpaired: pairs.unpaired,
+                    minimum_probability: scores.minimum_probability,
+                    replicates: None,
+                    functional,
+                });
+            }
+            if scores.band.len() > 1 {
+                sup_t_band(&accumulated, &mut summary, &scores.band, DEFAULT_BAND_REPLICATES, ctx)
                     .map_err(CausalError::from)?;
-                }
-                if scores.family.len() > 1 {
-                    summary.holm_adjusted_p = Some(holm_adjusted(&summary, &scores.family));
-                }
-                Summary::Sampling(summary)
             }
+            if scores.family.len() > 1 {
+                summary.holm_adjusted_p = Some(holm_adjusted(&summary, &scores.family));
+            }
+            Summary::Sampling(summary)
         };
         let uncertainty = match &summary {
             Summary::Sampling(sampling) => sampling.method,
@@ -435,7 +429,7 @@ impl CheckedTemporalDesignOperation {
                 two_arm_scores(pairs, outcome, assignment, probability, unit, floor)
             }
             TemporalAssignment::MultiArm { assignment, probabilities, arms, ordered, .. } => {
-                let labels: Vec<String> = arms.iter().map(|arm| arm.to_string()).collect();
+                let labels: Vec<String> = arms.iter().map(ToString::to_string).collect();
                 multi_arm_scores(
                     pairs,
                     outcome,
@@ -547,7 +541,7 @@ impl CheckedTemporalDesignOperation {
             clusters: fit.subjects,
             unpaired: 0,
             minimum_probability: fit.minimum_regime_probability,
-            replicates: (!posterior).then(|| (fit.replicates.0 as u64, fit.replicates.1 as u64)),
+            replicates: (!posterior).then_some((fit.replicates.0 as u64, fit.replicates.1 as u64)),
             functional: match fit.posterior_positivity_shortfall {
                 Some(shortfall) => format!(
                     "survival:horizon={horizon}; posterior share of draws below the positivity \

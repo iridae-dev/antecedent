@@ -4,8 +4,8 @@
 //!   attribution and change attribution: a requested replicate count publishes a
 //!   bootstrap standard error, keeps failed replicates as failed mass, does not depend
 //!   on the thread count, and leases from the admission pool before it allocates.
-//! * The class-aware (Cpdag) and TemporalDag intervention-level refuter states.
-//! * The Bayesian joint intervention level on a CoDetermined tier closure.
+//! * The class-aware (Cpdag) and `TemporalDag` intervention-level refuter states.
+//! * The Bayesian joint intervention level on a `CoDetermined` tier closure.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;

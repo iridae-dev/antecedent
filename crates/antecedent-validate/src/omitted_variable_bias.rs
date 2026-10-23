@@ -56,9 +56,11 @@ impl LinearAdjustmentSummary {
     /// A non-finite estimate, a non-positive standard error, or fewer than two degrees of
     /// freedom.
     pub fn new(estimate: f64, standard_error: f64, dof: f64) -> Result<Self, ValidationError> {
-        if !estimate.is_finite()
-            || !(standard_error.is_finite() && standard_error > 0.0)
-            || !(dof.is_finite() && dof >= 2.0)
+        if !(estimate.is_finite()
+            && standard_error.is_finite()
+            && standard_error > 0.0
+            && dof.is_finite()
+            && dof >= 2.0)
         {
             return Err(ValidationError::NotApplicable {
                 message: "omitted-variable-bias analysis needs a finite estimate, a positive \
@@ -172,7 +174,7 @@ pub fn benchmark_bound(
     kd: f64,
     ky: f64,
 ) -> Result<BenchmarkBound, ValidationError> {
-    if !(0.0..1.0).contains(&r2dxj) || !(0.0..1.0).contains(&r2yxj) || !(kd > 0.0 && ky > 0.0) {
+    if !((0.0..1.0).contains(&r2dxj) && (0.0..1.0).contains(&r2yxj) && kd > 0.0 && ky > 0.0) {
         return Err(ValidationError::NotApplicable {
             message: "benchmark partial R2 values must lie in [0, 1) and multipliers must be \
                       positive",
@@ -265,7 +267,7 @@ pub fn linear_adjustment_fit(
     without_d.extend(covariates.iter().map(Vec::as_slice));
     let (_, rss_without_d) = fit(&without_d, outcome)?;
     let dof = (n - p) as f64;
-    if !(rss_full > 0.0) || !(rss_without_d > rss_full) {
+    if !(rss_full > 0.0 && rss_without_d > rss_full) {
         return Err(ValidationError::NotApplicable {
             message: "the treatment explains no residual outcome variance, or the outcome is \
                       fitted exactly",
@@ -319,9 +321,12 @@ pub fn ovb_range(
     alpha: f64,
     r2yz_extreme: f64,
 ) -> Result<AssumptionRange, ValidationError> {
-    if !(q > 0.0 && q.is_finite())
-        || !(alpha > 0.0 && alpha < 1.0)
-        || !(r2yz_extreme > 0.0 && r2yz_extreme <= 1.0)
+    if !(q > 0.0
+        && q.is_finite()
+        && alpha > 0.0
+        && alpha < 1.0
+        && r2yz_extreme > 0.0
+        && r2yz_extreme <= 1.0)
     {
         return Err(ValidationError::NotApplicable {
             message: "q must be positive, alpha must lie in (0, 1) and the extreme outcome \
@@ -408,6 +413,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "a zero treatment benchmark maps to exactly zero")]
     fn benchmarks_scale_with_the_multipliers() {
         let b = benchmark_bound(0.0, 0.1, 1.0, 1.0).unwrap();
         assert_eq!(b.r2dz, 0.0);

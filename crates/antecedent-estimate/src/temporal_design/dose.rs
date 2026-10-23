@@ -260,16 +260,15 @@ fn smoothed(
         coordinates.push(format!("smoothed_contrast:{active}-{control}"));
     }
     coordinates.extend(points.iter().map(|at| format!("smoothed_response@{at}")));
-    let (sampling, posterior) = match posterior_draws {
-        Some(draws) => (None, Some(super::bayesian_bootstrap(&accumulated, draws, ctx)?)),
-        None => {
-            let mut summary = super::sampling_summary(&accumulated)?;
-            if contrast.is_none() && points.len() > 1 {
-                let band: Vec<usize> = (0..points.len()).collect();
-                super::sup_t_band(&accumulated, &mut summary, &band, band_replicates, ctx)?;
-            }
-            (Some(summary), None)
+    let (sampling, posterior) = if let Some(draws) = posterior_draws {
+        (None, Some(super::bayesian_bootstrap(&accumulated, draws, ctx)?))
+    } else {
+        let mut summary = super::sampling_summary(&accumulated)?;
+        if contrast.is_none() && points.len() > 1 {
+            let band: Vec<usize> = (0..points.len()).collect();
+            super::sup_t_band(&accumulated, &mut summary, &band, band_replicates, ctx)?;
         }
+        (Some(summary), None)
     };
     Ok(DoseFit {
         coordinates,
@@ -328,11 +327,11 @@ fn local_smoother(
     let coordinate = usize::from(derivative);
     let mut weights = Vec::with_capacity(n);
     let mut residuals = Vec::with_capacity(n);
-    for p in 0..n {
+    for (p, &omega_p) in omega.iter().enumerate() {
         let u = prepared.dose[p] - at;
         let x = [1.0, u, u * u];
         let row = cholesky_solve(&factor, 3, &x);
-        weights.push(row[coordinate] * omega[p]);
+        weights.push(row[coordinate] * omega_p);
         residuals.push(prepared.outcome[p] - (beta[0] + beta[1] * u + beta[2] * u * u));
     }
     Ok(LocalSmoother { weights, value: beta[coordinate], residuals })
@@ -341,6 +340,10 @@ fn local_smoother(
 #[allow(
     clippy::too_many_arguments,
     reason = "one grid fit: data, bandwidth, grid, coordinate, bias bound, inference and budget"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one grid fit: pointwise local fits, the cluster covariance and the intervals share the residual matrix"
 )]
 fn local_quadratic(
     prepared: &Prepared,

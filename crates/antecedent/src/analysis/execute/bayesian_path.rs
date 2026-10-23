@@ -440,8 +440,11 @@ fn tiered_unknown_scenarios(
         let at = |q: f64| {
             let last = draws.len().saturating_sub(1);
             let position = (last as f64 * q).round();
-            // The rounded position of a probability lies in [0, last].
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "the rounded position of a probability lies in [0, last]"
+            )]
             let position = position as usize;
             draws.get(position.min(last)).copied().unwrap_or(f64::NAN)
         };

@@ -350,6 +350,10 @@ fn graphs_of_every_class() -> Vec<(&'static str, crate::AcceptedGraph)> {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "a linear test script that changes every identification input in turn"
+)]
 fn a_retained_identification_is_reused_only_by_a_study_with_the_same_identification_inputs() {
     use std::sync::Arc;
 
@@ -358,6 +362,10 @@ fn a_retained_identification_is_reused_only_by_a_study_with_the_same_identificat
 
     use crate::analysis::builder::{RdConfig, TransportTrialSpec};
     use crate::{BayesianConfig, ClassPrior, EstimatorId, IdentifierId, InferenceMode};
+
+    fn config(study: &mut Study) -> &mut crate::analysis::execute::StudyConfig {
+        Arc::make_mut(&mut study.config)
+    }
 
     let ctx = ExecutionContext::for_tests(5);
     let study = linear_study();
@@ -376,9 +384,6 @@ fn a_retained_identification_is_reused_only_by_a_study_with_the_same_identificat
         edit(&mut changed);
         changed
     };
-    fn config(study: &mut Study) -> &mut crate::analysis::execute::StudyConfig {
-        Arc::make_mut(&mut study.config)
-    }
     let mut changed: Vec<(&str, Study)> = vec![
         (
             "effect modifiers",

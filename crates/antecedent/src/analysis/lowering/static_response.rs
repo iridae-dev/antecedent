@@ -604,6 +604,7 @@ fn physical_operators(
         .collect()
 }
 
+#[allow(clippy::needless_pass_by_value, reason = "Result::map_err consumes its error")]
 pub(super) fn target_error(error: ScientificTargetError) -> CausalError {
     CausalError::Compile { message: format!("scientific target: {error}") }
 }

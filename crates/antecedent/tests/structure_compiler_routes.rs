@@ -54,7 +54,7 @@ fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
 }
 
 /// `z -> t -> y`, `z -> y` with uniform (non-Gaussian) noise, so every search
-/// has a structure to find and LiNGAM can orient it.
+/// has a structure to find and `LiNGAM` can orient it.
 fn chain_table(n: usize, seed: u64) -> TabularData {
     let mut rng = CausalRng::from_seed(seed);
     let mut uniform = || 2.0 * rng.next_f64() - 1.0;

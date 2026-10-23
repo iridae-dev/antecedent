@@ -17,7 +17,7 @@ use antecedent_data::MissingPolicy;
 /// The registry text, compiled in.
 const REGISTRY: &str = include_str!("../../../../parity/missing_policy_support.toml");
 
-/// Every query kind, in declaration order. [`query_kind_index`] is an exhaustive match, so a
+/// Every query kind, in declaration order. `query_kind_index` is an exhaustive match, so a
 /// new [`CausalQueryKind`] fails to compile until it is listed here and given its rows (or
 /// left without one, which refuses every declaration).
 pub const ALL_QUERY_KINDS: [CausalQueryKind; 29] = [
@@ -53,6 +53,7 @@ pub const ALL_QUERY_KINDS: [CausalQueryKind; 29] = [
 ];
 
 /// Position of `kind` in [`ALL_QUERY_KINDS`].
+#[cfg(test)]
 #[must_use]
 pub(crate) const fn query_kind_index(kind: CausalQueryKind) -> usize {
     match kind {
@@ -291,7 +292,7 @@ pub(crate) fn parse_registry(text: &str) -> Result<Vec<MissingRouteSupport>, Str
     }
     let mut table = Vec::with_capacity(rows.len());
     for (index, fields) in rows.into_iter().enumerate() {
-        table.push(parse_row(index, fields)?);
+        table.push(parse_row(index, &fields)?);
     }
     for (i, a) in table.iter().enumerate() {
         for b in &table[i + 1..] {
@@ -354,7 +355,7 @@ fn parse_string(text: &str) -> Result<String, String> {
     Ok(inner.to_owned())
 }
 
-fn parse_row(index: usize, fields: Vec<(String, Value)>) -> Result<MissingRouteSupport, String> {
+fn parse_row(index: usize, fields: &[(String, Value)]) -> Result<MissingRouteSupport, String> {
     let at = |message: String| format!("route {}: {message}", index + 1);
     let text = |key: &str| -> Result<String, String> {
         match fields.iter().find(|(k, _)| k == key) {

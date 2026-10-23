@@ -317,6 +317,7 @@ fn schema(study: &Study) -> Option<&CausalSchema> {
     }
 }
 
+#[allow(clippy::needless_pass_by_value, reason = "Result::map_err consumes its error")]
 fn target_error(error: ScientificTargetError) -> CausalError {
     CausalError::Compile { message: format!("graph-posterior scientific target: {error}") }
 }

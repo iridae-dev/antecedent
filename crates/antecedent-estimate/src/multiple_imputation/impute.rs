@@ -29,6 +29,9 @@ const LOGISTIC_RIDGE: f64 = 1e-4;
 /// Relative jitter added to a diagonal that failed to factor.
 const JITTER: f64 = 1e-9;
 
+/// Writes row `i`'s design (intercept, then the other variables) from the current columns.
+type DesignRow<'a> = dyn Fn(usize, &mut [f64], &[Vec<f64>]) + 'a;
+
 /// One variable of the imputation model: its name and its values, `NaN` where missing.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImputationColumn {
@@ -422,7 +425,8 @@ impl Imputer {
         };
         let observed = &self.observed_rows[j];
         let mut x = vec![0.0; k];
-        match self.kinds[j] {
+        let kind = self.kinds[j];
+        match kind {
             VariableKind::Continuous => {
                 let mut gram = vec![0.0; k * k];
                 let mut cross = vec![0.0; k];
@@ -474,7 +478,7 @@ impl Imputer {
         j: usize,
         weights: &[f64],
         current: &[Vec<f64>],
-        design: &dyn Fn(usize, &mut [f64], &[Vec<f64>]),
+        design: &DesignRow<'_>,
     ) -> Result<Vec<f64>, MultipleImputationError> {
         let k = self.names.len();
         let observed = &self.observed_rows[j];

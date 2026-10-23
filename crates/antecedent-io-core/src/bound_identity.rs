@@ -246,6 +246,7 @@ pub enum BoundRefusal {
 /// It covers the slot, payload, coordinates, prior, alignment, and cyclic-solution
 /// tag, each with a fixed width so no two facets can trade bytes. It does not
 /// read [`BoundIdentity::self_description`].
+#[must_use]
 pub fn facet_digest(bound: &BoundIdentity) -> SemanticDigest {
     let mut hasher = blake3::Hasher::new_derive_key("antecedent bound identity facets");
     hasher.update(&[slot_tag(bound.slot)]);
@@ -326,27 +327,11 @@ pub fn bind_all(
     bound: &BoundIdentities,
     expected: &ExpectedIdentities,
 ) -> Result<[BoundMatch; 5], BoundRefusal> {
-    let target = match bind(IdentitySlot::Target, &bound.target, expected.target.as_ref()) {
-        Ok(matched) => matched,
-        Err(refusal) => return Err(refusal),
-    };
-    let program = match bind(IdentitySlot::Program, &bound.program, expected.program.as_ref()) {
-        Ok(matched) => matched,
-        Err(refusal) => return Err(refusal),
-    };
-    let source = match bind(IdentitySlot::Source, &bound.source, expected.source.as_ref()) {
-        Ok(matched) => matched,
-        Err(refusal) => return Err(refusal),
-    };
-    let inference =
-        match bind(IdentitySlot::Inference, &bound.inference, expected.inference.as_ref()) {
-            Ok(matched) => matched,
-            Err(refusal) => return Err(refusal),
-        };
-    let claim = match bind(IdentitySlot::Claim, &bound.claim, expected.claim.as_ref()) {
-        Ok(matched) => matched,
-        Err(refusal) => return Err(refusal),
-    };
+    let target = bind(IdentitySlot::Target, &bound.target, expected.target.as_ref())?;
+    let program = bind(IdentitySlot::Program, &bound.program, expected.program.as_ref())?;
+    let source = bind(IdentitySlot::Source, &bound.source, expected.source.as_ref())?;
+    let inference = bind(IdentitySlot::Inference, &bound.inference, expected.inference.as_ref())?;
+    let claim = bind(IdentitySlot::Claim, &bound.claim, expected.claim.as_ref())?;
     Ok([target, program, source, inference, claim])
 }
 

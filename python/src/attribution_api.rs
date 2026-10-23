@@ -42,8 +42,11 @@ fn change_of(
     }
 }
 
+/// Column means of a draw batch, its row and column counts and its flat values.
+type SampleParts = (Vec<f64>, usize, usize, Vec<f64>);
+
 /// Column means of a draw batch, its shape and its flat values.
-fn sample_parts(samples: &antecedent_model::ValueBatch) -> (Vec<f64>, usize, usize, Vec<f64>) {
+fn sample_parts(samples: &antecedent_model::ValueBatch) -> SampleParts {
     let mut means = Vec::with_capacity(samples.n_nodes);
     for i in 0..samples.n_nodes {
         let start = i * samples.n_rows;
@@ -61,7 +64,7 @@ fn sample_route(
     n_draws: usize,
     seed: u64,
     ctx: &ExecutionContext,
-) -> PyResult<((Vec<f64>, usize, usize, Vec<f64>), RouteRecord)> {
+) -> PyResult<(SampleParts, RouteRecord)> {
     let target = SimulationTarget::InterventionalSample {
         interventions: Arc::from([iv]),
         draws: n_draws,

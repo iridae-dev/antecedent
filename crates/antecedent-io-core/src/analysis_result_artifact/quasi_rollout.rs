@@ -11,6 +11,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::cmp::Ordering;
+
 use serde::{Deserialize, Serialize};
 
 use super::AnalysisResultWire;
@@ -210,7 +212,9 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
     {
         return fail("replicate counts do not add up");
     }
-    if rollout.critical_value.is_some_and(|critical| !(critical >= NORMAL_Q975 - 1e-12)) {
+    if rollout.critical_value.is_some_and(|critical| {
+        critical.partial_cmp(&(NORMAL_Q975 - 1e-12)).is_none_or(Ordering::is_lt)
+    }) {
         return fail("a simultaneous critical value is below the pointwise quantile");
     }
     let near = |a: f64, b: f64| (a - b).abs() <= 1e-9 * (1.0 + a.abs().max(b.abs()));
@@ -225,7 +229,7 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
             // A conformal set is the hull of the accepted effects and need not contain the
             // pre-period point; a standard-error interval is centred on its estimate.
             if let Some(se) = effect.standard_error {
-                if !(se > 0.0)
+                if se.partial_cmp(&0.0) != Some(Ordering::Greater)
                     || !near(interval[0], effect.estimate - NORMAL_Q975 * se)
                     || !near(interval[1], effect.estimate + NORMAL_Q975 * se)
                 {

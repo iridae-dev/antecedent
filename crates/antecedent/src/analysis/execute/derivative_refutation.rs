@@ -74,8 +74,9 @@ pub(super) fn derivative_scalar(response: &CausalResponse) -> (f64, f64) {
         ResponseIdentification::PointIdentified(value)
         | ResponseIdentification::PartiallyIdentified(value) => match value {
             ResponseValue::Scalar(value) => *value,
-            ResponseValue::Vector(values) => values.first().copied().unwrap_or(f64::NAN),
-            ResponseValue::Jacobian { values, .. } => values.first().copied().unwrap_or(f64::NAN),
+            ResponseValue::Vector(values) | ResponseValue::Jacobian { values, .. } => {
+                values.first().copied().unwrap_or(f64::NAN)
+            }
             ResponseValue::Surface { .. } | ResponseValue::Envelope(_) => f64::NAN,
         },
         ResponseIdentification::GraphDependent(_) | ResponseIdentification::Unidentified { .. } => {
@@ -89,6 +90,10 @@ pub(super) fn derivative_scalar(response: &CausalResponse) -> (f64, f64) {
     (value, se)
 }
 
+/// Refutation reports, posterior predictive checks and diagnostics of one derivative refuter run.
+pub(super) type DerivativeRefutationOutput =
+    (Vec<RefutationReport>, Vec<antecedent_validate::PredictiveCheckReport>, Vec<Diagnostic>);
+
 /// Run the derivative refuter state.
 ///
 /// # Errors
@@ -98,10 +103,7 @@ pub(super) fn derivative_scalar(response: &CausalResponse) -> (f64, f64) {
 pub(super) fn refute_derivative(
     input: &DerivativeRefutationInput<'_>,
     ctx: &ExecutionContext,
-) -> Result<
-    (Vec<RefutationReport>, Vec<antecedent_validate::PredictiveCheckReport>, Vec<Diagnostic>),
-    CausalError,
-> {
+) -> Result<DerivativeRefutationOutput, CausalError> {
     let mut reports = Vec::new();
     let mut checks = Vec::new();
     let mut diagnostics = Vec::new();
@@ -357,6 +359,10 @@ fn finite_difference(
 /// Whole-procedure row bootstrap of the derivative's first component. The outer error
 /// is a hard failure (cancellation, admission); the inner one names why the check does
 /// not apply.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one whole-procedure bootstrap: the admission, the replicate loop and the stability verdict share the replicate state"
+)]
 fn bootstrap_stability(
     input: &DerivativeRefutationInput<'_>,
     value: f64,

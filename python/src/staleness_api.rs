@@ -65,7 +65,7 @@ impl PyPreparedAnalysis {
             let baseline = study.staleness_baseline(&policy, &ctx).map_err(py_err)?;
             baseline
                 .export()
-                .map_err(|error| crate::value_err(&format!("staleness baseline: {error}")))
+                .map_err(|error| crate::value_err(format!("staleness baseline: {error}")))
         })?;
         Ok(PyBytes::new(py, &bytes))
     }

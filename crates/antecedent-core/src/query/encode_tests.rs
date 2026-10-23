@@ -454,6 +454,10 @@ fn every_average_and_temporal_field_reaches_the_encoding() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear list of single-field mutations, each checked against the same base query"
+)]
 fn every_counterfactual_and_attribution_field_reaches_the_encoding() {
     check(
         CausalQuery::Counterfactual,
@@ -606,6 +610,10 @@ fn every_mediation_distribution_and_path_field_reaches_the_encoding() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear list of single-field mutations, each checked against the same base query"
+)]
 fn every_response_field_reaches_the_encoding() {
     let point = |at: f64, order: u8, scale: DerivativeScale| ResponseFunctional::PointDerivative {
         outcome: v(1),
@@ -862,6 +870,10 @@ fn every_transport_and_catalog_field_reaches_the_encoding() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear list of single-field mutations, each checked against the same base query"
+)]
 fn every_design_query_field_reaches_the_encoding() {
     check(
         CausalQuery::Interference,

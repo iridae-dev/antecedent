@@ -1492,6 +1492,10 @@ impl CyclicWorldResults {
     }
 
     /// Results in world order.
+    #[allow(
+        clippy::iter_without_into_iter,
+        reason = "the public surface keeps one explicit world-order iterator"
+    )]
     pub fn iter(
         &self,
     ) -> std::collections::btree_map::Iter<'_, ScientificWorldId, CyclicWorldResult> {
@@ -1877,6 +1881,9 @@ pub fn evaluate_linear_worlds(
     CyclicWorldResults::try_from_results(results)
 }
 
+/// The free block's mean, its covariance and the free node indices.
+type FreeBlockMoments = (Vec<f64>, Vec<f64>, Vec<usize>);
+
 /// Gaussian moments of the free block without a family certificate.
 ///
 /// `(I - K_FF) μ_F = c_F + K_FH a + μ_ε,F` and
@@ -1887,7 +1894,7 @@ fn direct_free_block_moments(
     clamp_nodes: &[usize],
     levels: &[f64],
     disturbance: &GaussianDisturbance,
-) -> Result<(Vec<f64>, Vec<f64>, Vec<usize>), SolvabilityRefusal> {
+) -> Result<FreeBlockMoments, SolvabilityRefusal> {
     let n = model.dimension();
     let (k, c) = (model.coefficients(), model.intercept());
     let (mu, sigma) = (disturbance.mean(), disturbance.covariance());

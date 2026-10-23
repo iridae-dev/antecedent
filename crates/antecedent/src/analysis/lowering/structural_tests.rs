@@ -105,7 +105,8 @@ fn mediation_lowers_the_theorem_target_the_executor_checks() {
         assert_eq!(statistical.estimator(), Some(EstimatorId::StaticMediationLinear));
         assert!(matches!(statistical.realization(), Realization::Frequentist(_)));
         assert!(statistical.resampling().is_none());
-        let roles: Vec<_> = statistical.models().iter().map(|model| model.role()).collect();
+        let roles: Vec<_> =
+            statistical.models().iter().map(crate::planner::statistical::ModelSlot::role).collect();
         assert_eq!(roles, [ModelRole::Mediator, ModelRole::Outcome]);
         assert_eq!(statistical.models()[1].output(), Some(v(2)));
 

@@ -323,7 +323,9 @@ fn typed_linear_worlds_run_on_the_prepared_handle() {
                 assert!(answer.certificate.certified);
                 answer.world
             }
-            other => panic!("specified world expected, got {other:?}"),
+            other @ CyclicInterventionWorld::Recovered { .. } => {
+                panic!("specified world expected, got {other:?}")
+            }
         })
         .collect();
     assert_eq!(ids, [4, 6]);

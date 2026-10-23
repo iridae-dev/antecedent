@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             sampler: joint_panel_fixture::posterior_sampling(),
         },
     ] {
-        let ctx = ExecutionContext::production(20261021, 1);
+        let ctx = ExecutionContext::production(20_261_021, 1);
         let prepared = {
             let source = joint_panel_fixture::source(false);
             let mut request = joint_panel_fixture::request(&source, false, inference);
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             prepared.fits_performed()
         );
     }
-    let ctx = ExecutionContext::production(20261021, 1);
+    let ctx = ExecutionContext::production(20_261_021, 1);
     let data = joint_panel_fixture::whole_program_source();
     let mut request =
         joint_panel_fixture::request(&data, false, PanelInference::Frequentist { draws: 0 });

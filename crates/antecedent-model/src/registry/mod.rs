@@ -458,7 +458,7 @@ impl MechanismRegistry {
         weights: &[f64],
         cancelled: &dyn Fn() -> bool,
     ) -> Result<CompiledMechanismStore, ModelError> {
-        self.refit_with_weights(model, data, assignments, weights, false, cancelled)
+        Self::refit_with_weights(model, data, assignments, weights, false, cancelled)
     }
 
     /// Refit standard mechanisms under frequency weights (bootstrap counts),
@@ -481,11 +481,10 @@ impl MechanismRegistry {
         counts: &[f64],
         cancelled: &dyn Fn() -> bool,
     ) -> Result<CompiledMechanismStore, ModelError> {
-        self.refit_with_weights(model, data, assignments, counts, true, cancelled)
+        Self::refit_with_weights(model, data, assignments, counts, true, cancelled)
     }
 
     fn refit_with_weights(
-        &self,
         model: &CompiledCausalModel,
         data: &TabularData,
         assignments: &[MechanismAssignment],

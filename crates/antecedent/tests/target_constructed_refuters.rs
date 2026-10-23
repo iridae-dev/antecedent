@@ -162,7 +162,7 @@ fn the_graph_negative_control_exposure_flags_a_planted_unobserved_confounder() {
 /// `y_t = 0.5 x_{t-1} + anticipation · x_{t+1} + e_t` with independent `x`.
 fn series(n: usize, seed: u64, anticipation: f64) -> TimeSeriesData {
     let mut rng = CausalRng::from_seed(seed);
-    let x: Vec<f64> = (0..n + 1).map(|_| standard_normal(&mut rng)).collect();
+    let x: Vec<f64> = (0..=n).map(|_| standard_normal(&mut rng)).collect();
     let y: Vec<f64> = (0..n)
         .map(|t| {
             let past = if t > 0 { x[t - 1] } else { 0.0 };

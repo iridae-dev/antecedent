@@ -111,6 +111,10 @@ impl super::CheckedLocalPolynomialRatioOperation {
     }
 
     /// The within-side block Bayesian-bootstrap posterior of a local ratio in calendar time.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one calendar-time posterior: the block Bayesian bootstrap, its summary and the rollout payload read the same fit"
+    )]
     pub(super) fn execute_bayesian_temporal(
         &self,
         data: &TabularData,
@@ -227,17 +231,20 @@ impl super::CheckedLocalPolynomialRatioOperation {
         Ok(result)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "a linear assembly of the design effect, its diagnostics and its notes from one fit"
+    )]
     fn design_report(&self, fit: &LocalRatioDesignFit) -> RolloutReport {
         let temporal = fit.temporal.as_ref();
-        let (standard_error, interval) = match temporal {
-            Some(record) => (record.ratio.standard_error, record.ratio.interval),
-            None => {
-                let available = fit.fit.standard_error.is_finite() && fit.fit.standard_error > 0.0;
-                (
-                    available.then_some(fit.fit.standard_error),
-                    available.then_some([fit.fit.ci_lower, fit.fit.ci_upper]),
-                )
-            }
+        let (standard_error, interval) = if let Some(record) = temporal {
+            (record.ratio.standard_error, record.ratio.interval)
+        } else {
+            let available = fit.fit.standard_error.is_finite() && fit.fit.standard_error > 0.0;
+            (
+                available.then_some(fit.fit.standard_error),
+                available.then_some([fit.fit.ci_lower, fit.fit.ci_upper]),
+            )
         };
         let overall = DesignEffect {
             standard_error,

@@ -126,6 +126,10 @@ pub(super) fn bayesian_response_estimator_in_force(
 ///
 /// Cancellation, a design the outcome regression cannot be prepared on, or a
 /// refit failure on the primary fit or the prior-sensitivity grid.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one Bayesian refuter state: the primary fit, the predictive checks and the prior-sensitivity grid read the same prepared design"
+)]
 pub(super) fn refute_bayesian_intervention_level(
     input: &BayesianLevelRefutationInput<'_>,
     ctx: &ExecutionContext,

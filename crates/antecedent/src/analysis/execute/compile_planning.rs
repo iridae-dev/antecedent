@@ -132,7 +132,7 @@ impl PlanningPlan {
         }
         let scoped = ctx.enter_lowered_dispatch(self.identity());
         let request = self.program.request();
-        let mut result = plan_analytic(request).map_err(refusal)?;
+        let mut result = plan_analytic(request).map_err(|error| refusal(&error))?;
         if let Some(spec) = request.simulation {
             let workers = u64::from(scoped.parallelism.max_threads.get());
             let quote = SimulationQuote::quote(
@@ -170,7 +170,7 @@ impl PlanningPlan {
 }
 
 /// Map a planning refusal to the reason-coded compile refusal it is.
-fn refusal(refusal: PlanningRefusal) -> CausalError {
+fn refusal(refusal: &PlanningRefusal) -> CausalError {
     CausalError::Compile { message: refusal.to_string() }
 }
 
@@ -184,7 +184,7 @@ fn planning_program(
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: "compile" });
     }
-    request.validate().map_err(refusal)?;
+    request.validate().map_err(|error| refusal(&error))?;
     let simulation = match request.simulation {
         None => None,
         Some(spec) => {

@@ -195,6 +195,10 @@ pub enum CausalQuery {
 
 /// The variant tag, then the payload's own canonical encoding.
 impl CanonicalEncode for CausalQuery {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one exhaustive match assigning each query variant its tag"
+    )]
     fn encode(&self, writer: &mut CanonicalWriter) {
         match self {
             Self::AverageEffect(query) => {

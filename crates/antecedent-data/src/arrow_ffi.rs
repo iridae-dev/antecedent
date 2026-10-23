@@ -191,12 +191,12 @@ impl ArrowCStream {
         })
     }
 
-    /// Read every batch, up to 65_536. Chunks are not concatenated.
+    /// Read every batch, up to `65_536`. Chunks are not concatenated.
     ///
     /// # Errors
     ///
     /// When the stream schema or a later batch cannot be imported, or the stream
-    /// yields more than 65_536 batches. The stream is released on both success
+    /// yields more than `65_536` batches. The stream is released on both success
     /// and failure.
     pub fn into_batches(self) -> Result<(SchemaRef, Vec<RecordBatch>), DataError> {
         let reader = self.into_reader()?;

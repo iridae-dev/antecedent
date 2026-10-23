@@ -264,6 +264,10 @@ impl super::CheckedPanelDidOperation {
     }
 
     /// The payload and notes of a fitted rollout.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "a linear assembly of the rollout effects, diagnostics and notes from one fit"
+    )]
     fn report(&self, fit: &RolloutDidFit, rows: usize) -> RolloutReport {
         let robust = self.query.robust.clone().unwrap_or_default();
         let two_period = self.query.design == DidSamplingDesign::CovariateAdjustedTwoPeriod;

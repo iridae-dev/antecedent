@@ -1174,6 +1174,7 @@ fn noise_structure(
 
 /// Run the attribution `query` states on `fitted`, with the engine every
 /// `attribute_*` entry runs.
+#[allow(clippy::too_many_lines, reason = "one exhaustive match over every attribution target")]
 pub(crate) fn run_attribute(
     fitted: &FittedGcm,
     graph: &Dag,
@@ -1763,7 +1764,6 @@ pub(crate) fn attach_specifications(
                  StudyBuilder::discovery"
             ));
         }
-        (CausalQuery::Discover(_), None) => {}
         (_, Some(_)) => {
             return Err(crate::compile_reason!(
                 "option_not_applicable",

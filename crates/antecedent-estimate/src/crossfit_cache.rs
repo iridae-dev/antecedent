@@ -437,6 +437,7 @@ impl std::fmt::Debug for LearnerNuisanceStore {
 
 impl LearnerNuisanceStore {
     /// The retained entries, for inspection.
+    #[cfg(test)]
     pub(crate) fn lock(
         &self,
     ) -> std::sync::LockResult<MutexGuard<'_, Vec<Arc<crate::learn_nuisance::AipwCacheEntry>>>>

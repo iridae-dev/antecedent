@@ -42,6 +42,10 @@ use std::sync::Arc;
     clippy::cast_possible_truncation,
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one estimation: the row selection, the point fit, the shared bootstrap and the effect assembly"
+)]
 pub fn estimate_static_mediation(
     data: &TabularData,
     graph: &Dag,

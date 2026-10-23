@@ -12,12 +12,12 @@ use super::{
 };
 use crate::graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_core::{
-    AttributeQuery, AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery,
-    DiscoverQuery, HistoryMatchQuery, InterferenceQuery, InterventionalDistributionQuery,
+    AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, DiscoverQuery,
+    HistoryMatchQuery, InterferenceQuery, InterventionalDistributionQuery,
     LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MediationQuery, NestedCounterfactualQuery,
     PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery, RandomizedEffectQuery, ResponseQuery,
-    SequentialContrastQuery, SimulateQuery, SurvivalQuery, SyntheticControlQuery,
-    TemporalDesignQuery, TemporalEffectQuery, TransportQuery,
+    SequentialContrastQuery, SurvivalQuery, SyntheticControlQuery, TemporalDesignQuery,
+    TemporalEffectQuery, TransportQuery,
 };
 use antecedent_data::{MultiEnvironmentData, PanelData, TabularData, TimeSeriesData};
 
@@ -236,7 +236,6 @@ pub(crate) enum RouteInput<'a> {
     },
     /// A static structure search over tabular data.
     DiscoverStatic {
-        data: &'a TabularData,
         query: &'a DiscoverQuery,
     },
     /// A temporal structure search over series, event, panel or multi-environment data.
@@ -247,13 +246,11 @@ pub(crate) enum RouteInput<'a> {
     /// Attribution on mechanisms fitted on a supplied or accepted DAG.
     GcmAttributeDag {
         data: &'a TabularData,
-        query: &'a AttributeQuery,
         graph: &'a Dag,
     },
     /// Simulation on mechanisms fitted on a supplied or accepted DAG.
     GcmSimulateDag {
         data: &'a TabularData,
-        query: &'a SimulateQuery,
         graph: &'a Dag,
     },
 }
@@ -301,8 +298,8 @@ fn structure_route_input<'a>(
     graph: GraphRef<'a>,
 ) -> Option<RouteInput<'a>> {
     Some(match (route, graph, &study.query, &study.data) {
-        (AnalysisRoute::Discover, _, CausalQuery::Discover(query), DataInput::Tabular(data)) => {
-            RouteInput::DiscoverStatic { data, query }
+        (AnalysisRoute::Discover, _, CausalQuery::Discover(query), DataInput::Tabular(_)) => {
+            RouteInput::DiscoverStatic { query }
         }
         (AnalysisRoute::Discover, _, CausalQuery::Discover(query), data) => {
             RouteInput::DiscoverTemporal {
@@ -318,15 +315,15 @@ fn structure_route_input<'a>(
         (
             AnalysisRoute::Attribute,
             GraphRef::Dag(graph),
-            CausalQuery::Attribute(query),
+            CausalQuery::Attribute(_),
             DataInput::Tabular(data),
-        ) => RouteInput::GcmAttributeDag { data, query, graph },
+        ) => RouteInput::GcmAttributeDag { data, graph },
         (
             AnalysisRoute::Simulate,
             GraphRef::Dag(graph),
-            CausalQuery::Simulate(query),
+            CausalQuery::Simulate(_),
             DataInput::Tabular(data),
-        ) => RouteInput::GcmSimulateDag { data, query, graph },
+        ) => RouteInput::GcmSimulateDag { data, graph },
         _ => return None,
     })
 }

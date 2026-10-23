@@ -396,7 +396,7 @@ fn outcome_error_under_an_identity_link_passes_through() {
     )
     .unwrap();
     // Oracle: the simple least-squares slope.
-    let nf = n as f64;
+    let nf = f64::from(n);
     let (tb, yb) = (t.iter().sum::<f64>() / nf, y.iter().sum::<f64>() / nf);
     let sxy: f64 = t.iter().zip(&y).map(|(a, b)| (a - tb) * (b - yb)).sum();
     let sxx: f64 = t.iter().map(|a| (a - tb) * (a - tb)).sum();

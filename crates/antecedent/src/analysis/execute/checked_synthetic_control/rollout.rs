@@ -67,6 +67,10 @@ fn estimation(error: antecedent_estimate::EstimationError) -> CausalError {
 
 impl super::CheckedSyntheticControlOperation {
     /// Execute a synthetic panel with conformal or placebo-variance intervals.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one rollout execution: the fit, its interval method and the rollout payload share the same fit"
+    )]
     pub(super) fn execute_rollout(
         &self,
         data: &TabularData,
@@ -181,6 +185,10 @@ impl super::CheckedSyntheticControlOperation {
     }
 
     /// The Bayesian posterior of the post-weighted average effect of a multi-unit rollout.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one Bayesian rollout: the posterior fit, its draw summaries and the rollout payload read the same draws"
+    )]
     pub(super) fn execute_bayesian_rollout(
         &self,
         data: &TabularData,
@@ -326,6 +334,10 @@ impl super::CheckedSyntheticControlOperation {
     /// It is a different object from the conformal set: a model-based predictive interval for
     /// the counterfactual path under the declared Gaussian error model and Dirichlet prior,
     /// not a finite-sample permutation guarantee.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one posterior predictive execution: the fit, the per-period effect draws and the payload read the same draws"
+    )]
     fn execute_bayesian_predictive(
         &self,
         data: &TabularData,
@@ -333,6 +345,7 @@ impl super::CheckedSyntheticControlOperation {
         config: &super::BayesianConfig,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        use antecedent_estimate::rollout_resampling::DesignEffectKind;
         let started = Instant::now();
         let units: Vec<String> = self.query.units.iter().map(ToString::to_string).collect();
         let spec = BayesianSyntheticControlSpec::new(
@@ -368,7 +381,6 @@ impl super::CheckedSyntheticControlOperation {
             effect.comparison = fit.donor_weight_means.len();
             effect
         };
-        use antecedent_estimate::rollout_resampling::DesignEffectKind;
         let mut effects = vec![effect(DesignEffectKind::Overall, &fit.effect_draws)];
         let mut columns: Vec<(antecedent_prob::PosteriorQuantityKind, Vec<f64>)> =
             vec![(effect_quantity("att"), fit.effect_draws.clone())];

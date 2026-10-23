@@ -241,6 +241,10 @@ fn invalid(message: impl Into<String>) -> EstimationError {
 /// Misaligned columns, a unit whose cohort or cluster changes, a repeated unit-period, a
 /// negative cohort or non-positive period, a covariate missing at a unit's first kept row, no
 /// treated cohort, or (for Sun–Abraham) an unbalanced panel.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass that validates the panel and gathers its units, each check refusing with its own message"
+)]
 pub fn prepare(
     panel: &RolloutPanel<'_>,
     spec: &RolloutDidSpec,
@@ -752,48 +756,7 @@ fn evaluate(
     let weights: Vec<f64> =
         prepared.units.iter().map(|unit| cluster_weights[unit.cluster]).collect();
     let delta = spec.anticipation;
-    let mut cells: BTreeMap<(i64, i64), Cell> = BTreeMap::new();
-    let mut unimputed = 0usize;
-    // Pre-adoption contrasts come from the 2×2 comparisons for every estimator.
-    let pre_base = match spec.estimator {
-        RolloutDidEstimator::SunAbraham => DidBasePeriod::Universal,
-        _ => spec.base_period,
-    };
-    for &group in &prepared.cohorts {
-        if let Comparison::LastCohort(last) = comparison {
-            if group == last {
-                continue;
-            }
-        }
-        for &period in &prepared.periods {
-            let event_time = period - group;
-            let post = event_time >= -delta;
-            let base = if post || pre_base == DidBasePeriod::Universal {
-                group - 1 - delta
-            } else {
-                match prepared.periods.iter().rev().find(|candidate| **candidate < period) {
-                    Some(previous) => *previous,
-                    None => continue,
-                }
-            };
-            if base == period || !prepared.periods.contains(&base) {
-                continue;
-            }
-            let cell = if post && spec.estimator == RolloutDidEstimator::Imputation {
-                None
-            } else {
-                two_by_two(prepared, spec, comparison, &weights, group, period, base)?
-            };
-            if let Some(cell) = cell {
-                cells.insert((group, period), cell);
-            }
-        }
-    }
-    if spec.estimator == RolloutDidEstimator::Imputation {
-        let (imputed, missing) = imputation_cells(prepared, delta, &weights)?;
-        unimputed = missing;
-        cells.extend(imputed);
-    }
+    let (cells, unimputed) = group_time_cells(prepared, spec, comparison, &weights)?;
     let cohort_size: BTreeMap<i64, f64> = prepared
         .cohorts
         .iter()
@@ -1074,6 +1037,64 @@ fn weighted_logistic(rows: &[(Vec<f64>, f64, f64)]) -> Option<Vec<f64>> {
         }
     }
     None
+}
+
+/// The group-time cells of one evaluation under unit weights `weights`, with the count of
+/// treated observations the imputation estimator cannot impute.
+#[allow(
+    clippy::type_complexity,
+    reason = "the cells and the unimputed count are returned together"
+)]
+fn group_time_cells(
+    prepared: &PreparedRollout,
+    spec: &RolloutDidSpec,
+    comparison: Comparison,
+    weights: &[f64],
+) -> Result<(BTreeMap<(i64, i64), Cell>, usize), &'static str> {
+    let delta = spec.anticipation;
+    let mut cells: BTreeMap<(i64, i64), Cell> = BTreeMap::new();
+    let mut unimputed = 0usize;
+    // Pre-adoption contrasts come from the 2×2 comparisons for every estimator.
+    let pre_base = match spec.estimator {
+        RolloutDidEstimator::SunAbraham => DidBasePeriod::Universal,
+        _ => spec.base_period,
+    };
+    for &group in &prepared.cohorts {
+        if let Comparison::LastCohort(last) = comparison {
+            if group == last {
+                continue;
+            }
+        }
+        for &period in &prepared.periods {
+            let event_time = period - group;
+            let post = event_time >= -delta;
+            let base = if post || pre_base == DidBasePeriod::Universal {
+                group - 1 - delta
+            } else {
+                match prepared.periods.iter().rev().find(|candidate| **candidate < period) {
+                    Some(previous) => *previous,
+                    None => continue,
+                }
+            };
+            if base == period || !prepared.periods.contains(&base) {
+                continue;
+            }
+            let cell = if post && spec.estimator == RolloutDidEstimator::Imputation {
+                None
+            } else {
+                two_by_two(prepared, spec, comparison, weights, group, period, base)?
+            };
+            if let Some(cell) = cell {
+                cells.insert((group, period), cell);
+            }
+        }
+    }
+    if spec.estimator == RolloutDidEstimator::Imputation {
+        let (imputed, missing) = imputation_cells(prepared, delta, weights)?;
+        unimputed = missing;
+        cells.extend(imputed);
+    }
+    Ok((cells, unimputed))
 }
 
 /// Unit and period effects fitted on the untreated observations by weighted alternating

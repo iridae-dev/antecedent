@@ -319,6 +319,10 @@ const fn publishes_interventional_law(cell: RouteCell) -> bool {
 /// - a parameter posterior demanded of a sampling, exact or set realization
 ///   (a confidence interval is not a posterior);
 /// - an outcome law demanded of a route whose answer is not an interventional law.
+#[allow(
+    clippy::result_large_err,
+    reason = "the carrier refusal is built once at compile time and converted at once into the shared rejection"
+)]
 pub(crate) fn require_carrier(
     cell: RouteCell,
     realization: &Realization,

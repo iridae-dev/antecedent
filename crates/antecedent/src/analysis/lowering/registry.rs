@@ -122,6 +122,7 @@ macro_rules! route_lowerings {
             }
 
             /// The family that lowers this cell.
+            #[cfg(test)]
             #[allow(
                 clippy::match_same_arms,
                 reason = "one arm per route cell so the table reads cell by cell"

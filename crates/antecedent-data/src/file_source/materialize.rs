@@ -417,7 +417,7 @@ impl Builder {
                 OwnedColumn::Timestamp(TimestampColumn::new(id, values, validity)?)
             }
             Values::Codes(codes) => {
-                let domain = domain.ok_or_else(|| {
+                let domain = domain.ok_or({
                     FileSourceError::Data(DataError::TypeMismatch { id, expected: "categorical" })
                 })?;
                 OwnedColumn::Categorical(CategoricalColumn::try_new(id, codes, validity, domain)?)

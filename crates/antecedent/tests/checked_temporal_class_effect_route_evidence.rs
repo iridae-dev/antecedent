@@ -81,6 +81,10 @@ fn truth(graph: &SourceGraph, multi_step: bool) -> f64 {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "a linear test script over every graph, suite and effect coordinate"
+)]
 fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs() {
     let ctx = ExecutionContext::for_tests(977);
     let suites = [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full];

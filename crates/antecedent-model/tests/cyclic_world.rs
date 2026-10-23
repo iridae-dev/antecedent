@@ -34,6 +34,9 @@ use antecedent_model::nonlinear_equilibrium::{
 };
 use antecedent_model::scc_compile::{CompileBudget, GaussianDisturbance};
 
+/// The mean and covariance of one world.
+type Moments = (Vec<f64>, Vec<f64>);
+
 const EXACT: f64 = 1.0e-12;
 
 fn var(index: u32) -> VariableId {
@@ -329,6 +332,10 @@ fn assert_names(refusal: &CyclicInterventionRefusal, expected: NextAttempt) {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "a linear script of one request per refusal, each checked for its next attempt"
+)]
 fn every_refusal_names_its_next_attempt() {
     let linear = CyclicFamily::LinearEquilibrium;
     let vars = variables(2);
@@ -564,7 +571,8 @@ fn acyclic_specification_matches_an_independent_linear_moment_computation() {
         (mean, covariance)
     };
 
-    let cases: Vec<(CyclicWorldRequest, (Vec<f64>, Vec<f64>))> = vec![
+    // The reference mean and covariance of one world.
+    let cases: Vec<(CyclicWorldRequest, Moments)> = vec![
         (CyclicWorldRequest::observational(world(0)), reference(&[], &[], &[])),
         (CyclicWorldRequest::new(world(1), [set(1, 2.0)]), reference(&[(1, 2.0)], &[], &[])),
         (CyclicWorldRequest::new(world(2), [shift(0, 0.5)]), reference(&[], &[], &[(0, 0.5)])),

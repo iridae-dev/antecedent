@@ -254,7 +254,7 @@ fn equilibrium_worlds_share_their_disturbance_draws() {
     let solved = |world: usize, draw: usize| match &worlds[world].outcome {
         CyclicWorldOutcomeAnswer::EquilibriumDraws { outcomes } => match &outcomes[draw] {
             EquilibriumOutcome::Solved(result) => result.values.clone(),
-            other => panic!("draw {draw} was {other:?}"),
+            other @ EquilibriumOutcome::Failed(_) => panic!("draw {draw} was {other:?}"),
         },
         other => panic!("world {world} was {other:?}"),
     };

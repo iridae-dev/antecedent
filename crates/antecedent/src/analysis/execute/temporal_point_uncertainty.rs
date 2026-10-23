@@ -602,8 +602,12 @@ fn quantile(sorted: &[f64], p: f64) -> f64 {
         return f64::NAN;
     }
     let position = p.clamp(0.0, 1.0) * (sorted.len() - 1) as f64;
-    let low = position.floor() as usize;
-    let high = position.ceil() as usize;
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the clamped position lies in [0, len - 1], so its floor and ceiling are valid indices"
+    )]
+    let (low, high) = (position.floor() as usize, position.ceil() as usize);
     let fraction = position - low as f64;
     sorted[low] + (sorted[high] - sorted[low]) * fraction
 }
@@ -771,7 +775,7 @@ pub(super) fn posterior_diagnostic(draws: &PointPosteriorDraws, functional: &str
 pub(super) fn weighted_outputs(values: &[Vec<f64>], weights: &[f64]) -> Option<Vec<f64>> {
     let width = values.first()?.len();
     let total: f64 = weights.iter().sum();
-    if values.len() != weights.len() || !(total > 0.0) {
+    if values.len() != weights.len() || total.is_nan() || total <= 0.0 {
         return None;
     }
     let mut out = vec![0.0; width];

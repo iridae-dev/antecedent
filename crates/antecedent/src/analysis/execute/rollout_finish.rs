@@ -140,10 +140,9 @@ pub(super) fn finish_rollout<Q: Clone + RandomizedTrialQuery, E>(
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "unlicensed route: the {} intervals come from the design's whole-procedure path \
-             ({}); their repeated-sampling coverage is unmeasured and no scalar interval is \
-             published on the effect",
-            design, uncertainty
+            "unlicensed route: the {design} intervals come from the design's whole-procedure \
+             path ({uncertainty}); their repeated-sampling coverage is unmeasured and no scalar \
+             interval is published on the effect"
         ),
     ));
     let mut result = finish_identified_execute_with_context(

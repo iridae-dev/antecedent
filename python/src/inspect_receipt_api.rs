@@ -781,23 +781,18 @@ mod tests {
         Python::attach(|py| {
             let counts = PyExecutionCounts::new(u64::MAX, 0, 0, 0, 0);
             let extra = Py::new(py, PyExecutionCounts::new(1, 0, 0, 0, 0)).expect("counts");
-            let overflow = match counts.try_add(py, extra) {
-                Err(err) => err,
-                Ok(_) => panic!("overflow"),
-            };
+            let Err(overflow) = counts.try_add(py, extra) else { panic!("overflow") };
             assert!(overflow.to_string().contains("overflowed u64"));
             assert_invalid_argument(py, &overflow);
 
-            let missing = match PyInspectionInputs::new().inspect() {
-                Err(err) => err,
-                Ok(_) => panic!("missing target"),
+            let Err(missing) = PyInspectionInputs::new().inspect() else {
+                panic!("missing target")
             };
             assert!(missing.to_string().contains("scientific target is missing"));
             assert_invalid_argument(py, &missing);
 
-            let blank = match PyInspectionInputs::new().with_evidence(vec![" ".to_owned()]) {
-                Err(err) => err,
-                Ok(_) => panic!("blank name"),
+            let Err(blank) = PyInspectionInputs::new().with_evidence(vec![" ".to_owned()]) else {
+                panic!("blank name")
             };
             assert!(blank.to_string().contains("non-blank"));
             assert_invalid_argument(py, &blank);

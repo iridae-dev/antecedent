@@ -364,6 +364,7 @@ pub(crate) fn theorem_mediation_target(
 }
 
 /// The refusal wording the mediation executors have always reported.
+#[allow(clippy::needless_pass_by_value, reason = "Result::map_err consumes its error")]
 fn mediation_target_error(error: antecedent_core::ScientificTargetError) -> CausalError {
     CausalError::Compile { message: format!("mediation scientific target: {error}") }
 }

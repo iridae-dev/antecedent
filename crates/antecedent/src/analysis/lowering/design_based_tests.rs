@@ -157,7 +157,10 @@ fn sequential_contrast_lowers_its_regime_contrast_and_cross_fit() {
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(DRAWS)),
     ));
     assert!(matches!(bayesian.statistical().realization(), Realization::Bayesian(_)));
-    assert_eq!(bayesian.statistical().posterior().map(|plan| plan.draws()), Some(DRAWS));
+    assert_eq!(
+        bayesian.statistical().posterior().map(crate::planner::statistical::PosteriorPlan::draws),
+        Some(DRAWS)
+    );
     assert_ne!(bayesian.identity(), program.identity(), "inference enters the identity");
     let other_regime =
         compiled(&sequential_study(&data, contrast_query([1, 0]), InferenceMode::Frequentist));

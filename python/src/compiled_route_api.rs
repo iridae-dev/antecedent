@@ -26,6 +26,9 @@ use pyo3::types::PyModule;
 
 use crate::py_err;
 
+/// Provenance entries of an accepted structure, by key.
+type Provenance = HashMap<String, String>;
+
 /// The data a structure search reads.
 pub(crate) enum DiscoverInput {
     /// Static rows.
@@ -323,7 +326,7 @@ impl PyCompiledRoute {
         &self,
         py: Python<'_>,
         accept_discovered: bool,
-    ) -> PyResult<(Py<PyAny>, Option<HashMap<String, String>>)> {
+    ) -> PyResult<(Py<PyAny>, Option<Provenance>)> {
         let record = self.record.clone();
         let accepted = crate::detach_catch(py, move || {
             record.execution.accept(accept_discovered, &record.ctx).map_err(py_err)

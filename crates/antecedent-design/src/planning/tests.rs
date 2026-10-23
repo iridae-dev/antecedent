@@ -51,7 +51,7 @@ fn two_sample_t_sizes_match_cohen() {
         size(100_000),
     )
     .unwrap();
-    assert!((small.units as i64 - 788).abs() <= 4, "{}", small.units);
+    assert!(small.units.abs_diff(788) <= 4, "{}", small.units);
 }
 
 #[test]

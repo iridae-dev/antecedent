@@ -322,7 +322,7 @@ impl<'a> Planner<'a> {
             }
             PlannedDesign::Switchback { .. } => units >= 1,
             PlannedDesign::GroupSequential { information_fractions, .. } => {
-                let looks = self.look_units(units, information_fractions);
+                let looks = Self::look_units(units, information_fractions);
                 let increasing = looks.windows(2).all(|w| w[1] > w[0]);
                 let first = looks.first().copied().unwrap_or(0);
                 let (c, t) = self.two_arm(first);
@@ -341,7 +341,7 @@ impl<'a> Planner<'a> {
         })
     }
 
-    fn look_units(&self, units: u64, fractions: &[f64]) -> Vec<u64> {
+    fn look_units(units: u64, fractions: &[f64]) -> Vec<u64> {
         let last = fractions.len().saturating_sub(1);
         fractions
             .iter()
@@ -635,7 +635,7 @@ impl<'a> Planner<'a> {
         effect: f64,
         fractions: &[f64],
     ) -> Result<PowerDetail, PlanningRefusal> {
-        let looks = self.look_units(units, fractions);
+        let looks = Self::look_units(units, fractions);
         let critical = self.boundary(&looks, units)?;
         let law = self.contrast_law(units, effect);
         let variance = law.mean_variance();

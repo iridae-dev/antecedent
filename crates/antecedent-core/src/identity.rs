@@ -631,7 +631,9 @@ mod tests {
 
     #[test]
     fn hex_parsers_round_trip_and_differ_only_on_case() {
-        let bytes: [u8; 32] = core::array::from_fn(|i| (i as u8).wrapping_mul(37).wrapping_add(11));
+        let bytes: [u8; 32] = core::array::from_fn(|i| {
+            u8::try_from(i).expect("index below 32").wrapping_mul(37).wrapping_add(11)
+        });
         let lower = to_hex(&bytes);
         let upper = lower.to_uppercase();
         assert_eq!(digest_from_hex(&lower), Some(bytes));

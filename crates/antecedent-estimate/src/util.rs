@@ -315,6 +315,18 @@ pub(crate) fn adaptive_bootstrap_should_stop(
     budget.enabled && successful >= budget.required_replicates()
 }
 
+/// The bootstrap standard error with no per-worker scratch (see [`bootstrap_se_with_scratch`]).
+#[cfg(test)]
+pub(crate) fn bootstrap_se(
+    replicates: u32,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    n: usize,
+    estimate: impl Fn(&[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+) -> Result<BootstrapSeResult, EstimationError> {
+    bootstrap_se_with_scratch(replicates, ctx, stream_base, n, || (), |(), idx| estimate(idx))
+}
+
 /// IID bootstrap standard error with failure accounting and optional early-stop.
 ///
 /// Each replicate draws `n` row indexes from the resample stream keyed by
@@ -332,17 +344,8 @@ pub(crate) fn adaptive_bootstrap_should_stop(
 /// enables it) and the successful count reaches the budget's Monte Carlo error floor
 /// before the request is exhausted, returns with `early_stopped = true` and the actual
 /// count. Otherwise every requested replicate is evaluated.
-pub(crate) fn bootstrap_se(
-    replicates: u32,
-    ctx: &ExecutionContext,
-    stream_base: u64,
-    n: usize,
-    estimate: impl Fn(&[usize]) -> Result<Option<f64>, EstimationError> + Sync,
-) -> Result<BootstrapSeResult, EstimationError> {
-    bootstrap_se_with_scratch(replicates, ctx, stream_base, n, || (), |(), idx| estimate(idx))
-}
-
-/// [`bootstrap_se`] with per-worker scratch so replicate evaluation can run
+///
+/// Replicate evaluation carries per-worker scratch so it can run
 /// under [`ExecutionContext::parallelism`] without a shared `&mut` workspace.
 ///
 /// Retained index memory is `n` times the worker count (one buffer on the serial and
@@ -488,6 +491,10 @@ where
     bootstrap_se_with_scratch(replicates, ctx, stream_base, n, make_scratch, estimate)
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the block path of the dispatcher above, taking its arguments plus the block length"
+)]
 fn bootstrap_se_blocks_with_scratch<S, F>(
     declared: DeclaredSamplingDesign,
     replicates: u32,

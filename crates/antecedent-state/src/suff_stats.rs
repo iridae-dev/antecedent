@@ -431,9 +431,8 @@ impl LinearOlsSuffStats {
     /// That admits the rounding between the raw products and the centered scatter,
     /// and still refuses a write that moves an O(1) moment by a unit.
     fn published_matches_scatter(&self) -> bool {
-        let joint_dim = match self.ncols.checked_add(1) {
-            Some(dim) => dim,
-            None => return false,
+        let Some(joint_dim) = self.ncols.checked_add(1) else {
+            return false;
         };
         if self.joint.dim != joint_dim || self.joint.n != self.n {
             return false;

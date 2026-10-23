@@ -95,7 +95,7 @@ fn carrier_refusal(error: &CausalError) -> DecisionCarrierError {
     let CompileCause::Decision(refusal) = failure.cause() else {
         panic!("expected a decision-carrier refusal, got {error}");
     };
-    *refusal
+    **refusal
 }
 
 fn ranking_wire(candidates: &[&str]) -> DesignRankingRequestWire {

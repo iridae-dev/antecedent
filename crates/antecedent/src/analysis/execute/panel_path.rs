@@ -1075,16 +1075,16 @@ impl super::Study {
             horizon,
             run.query.target_population.clone(),
         );
-        let bundle =
-            match self.retained_temporal_class_horizon(run.physical, horizon_query.horizon_steps) {
-                Some(bundle) => bundle,
-                None => {
-                    if !run.identify_cached {
-                        report_identify_compute(run.ctx);
-                    }
-                    self.identify_temporal_class(run.identifier_id, &horizon_query)?
-                }
-            };
+        let bundle = if let Some(bundle) =
+            self.retained_temporal_class_horizon(run.physical, horizon_query.horizon_steps)
+        {
+            bundle
+        } else {
+            if !run.identify_cached {
+                report_identify_compute(run.ctx);
+            }
+            self.identify_temporal_class(run.identifier_id, &horizon_query)?
+        };
         let envelope = &bundle.envelope.envelope;
         state.diagnostics.push(super::temporal_path::temporal_class_envelope_diagnostic(
             envelope,

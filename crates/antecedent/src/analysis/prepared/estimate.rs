@@ -183,7 +183,7 @@ impl PreparedStudy {
         let lowered = self.plan.require_lowered(None)?.identity();
         let scoped = ctx.enter_lowered_dispatch(lowered);
         let mut result = if crate::analysis::missing_imputation::imputes(self.study()) {
-            self.estimate_imputed(data, shared, &scoped, notes)?
+            self.estimate_imputed(data, shared.as_ref(), &scoped, notes)?
         } else {
             self.estimate_click(data, shared, &scoped, notes)?
         };
@@ -200,7 +200,7 @@ impl PreparedStudy {
     fn estimate_imputed(
         &self,
         data: &TabularData,
-        shared: Option<Arc<crate::analysis::batch::SharedBatchDesign>>,
+        shared: Option<&Arc<crate::analysis::batch::SharedBatchDesign>>,
         ctx: &ExecutionContext,
         notes: &ClickNotes,
     ) -> Result<StudyResult, CausalError> {
@@ -210,7 +210,7 @@ impl PreparedStudy {
             ctx,
             |table, ctx| {
                 let mut inner = ClickNotes::deferred();
-                self.estimate_click(table, shared.clone(), ctx, &mut inner)
+                self.estimate_click(table, shared.cloned(), ctx, &mut inner)
             },
         )?;
         if !notes.defers_contract() {

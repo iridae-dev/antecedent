@@ -231,7 +231,9 @@ impl SimulateQuery {
     #[must_use]
     pub fn endpoints(&self) -> (Option<VariableId>, Option<VariableId>) {
         match &self.target {
-            SimulationTarget::InterventionalSample { interventions, .. } => {
+            SimulationTarget::InterventionalSample { interventions, .. }
+            | SimulationTarget::NoiseSample { interventions, .. }
+            | SimulationTarget::NoiseReplay { interventions, .. } => {
                 (interventions.first().and_then(Intervention::primary_variable), None)
             }
             SimulationTarget::PolicyValue { interventions, outcome, .. } => {
@@ -239,10 +241,6 @@ impl SimulateQuery {
             }
             SimulationTarget::UnitEffects { treatment, outcome, .. } => {
                 (Some(*treatment), Some(*outcome))
-            }
-            SimulationTarget::NoiseSample { interventions, .. }
-            | SimulationTarget::NoiseReplay { interventions, .. } => {
-                (interventions.first().and_then(Intervention::primary_variable), None)
             }
             SimulationTarget::Counterfactual { interventions, outcomes } => (
                 interventions.first().and_then(Intervention::primary_variable),

@@ -307,7 +307,6 @@ impl CyclicLayerDigests {
     }
 
     /// Program-slot identity the consumer expects, with the cyclic-solution tag.
-    #[must_use]
     pub const fn expected_program(&self) -> ExpectedIdentity {
         ExpectedIdentity {
             payload: self.program,

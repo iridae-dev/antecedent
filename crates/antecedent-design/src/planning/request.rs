@@ -925,7 +925,10 @@ impl PlanningRequest {
                 | PlanningCriterion::CorrectDecision { .. }
         );
         match &design {
-            PlannedDesign::Bernoulli | PlannedDesign::Complete => Ok(()),
+            PlannedDesign::Bernoulli
+            | PlannedDesign::Complete
+            | PlannedDesign::Interference { .. }
+            | PlannedDesign::OutcomeAdaptive { .. } => Ok(()),
             PlannedDesign::Stratified { strata } => {
                 if strata.is_empty() || strata.len() > MAX_STRATA {
                     return Err(PlanningRefusal::invalid(
@@ -967,9 +970,12 @@ impl PlanningRequest {
                 Ok(())
             }
             PlannedDesign::Cluster { mean_cluster_size, icc, cluster_size_cv } => {
-                if !(mean_cluster_size.is_finite() && *mean_cluster_size >= 1.0)
-                    || !(icc.is_finite() && (0.0..1.0).contains(icc))
-                    || !(cluster_size_cv.is_finite() && *cluster_size_cv >= 0.0)
+                if !(mean_cluster_size.is_finite()
+                    && *mean_cluster_size >= 1.0
+                    && icc.is_finite()
+                    && (0.0..1.0).contains(icc)
+                    && cluster_size_cv.is_finite()
+                    && *cluster_size_cv >= 0.0)
                 {
                     return Err(PlanningRefusal::invalid(
                         "planning.cluster",
@@ -1128,13 +1134,12 @@ impl PlanningRequest {
                 }
                 Ok(())
             }
-            PlannedDesign::Interference { .. } | PlannedDesign::OutcomeAdaptive { .. } => Ok(()),
         }
     }
 
     fn check_goal_and_simulation(&self) -> Result<(), PlanningRefusal> {
         match self.goal {
-            PlanningGoal::SampleSize { max_units } if max_units == 0 => {
+            PlanningGoal::SampleSize { max_units: 0 } => {
                 return Err(PlanningRefusal::invalid("planning.goal", "max_units must be > 0"));
             }
             PlanningGoal::Evaluate { units } | PlanningGoal::MinimumDetectableEffect { units }

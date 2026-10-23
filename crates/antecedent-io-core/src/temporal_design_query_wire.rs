@@ -140,7 +140,7 @@ pub struct TemporalDesignQueryWire {
 }
 
 fn texts(values: &[Arc<str>]) -> Vec<String> {
-    values.iter().map(|value| value.to_string()).collect()
+    values.iter().map(std::string::ToString::to_string).collect()
 }
 
 fn arcs(values: &[String]) -> Arc<[Arc<str>]> {
@@ -256,6 +256,10 @@ impl TemporalDesignQueryWire {
     ///
     /// # Errors
     /// An arm index that does not fit, or a query its own validation refuses.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one exhaustive match converting every assignment wire arm to its domain arm"
+    )]
     pub fn to_domain(&self) -> Result<TemporalDesignQuery, IoError> {
         let assignment = match &self.assignment {
             TemporalAssignmentWire::TwoArm { assignment, probability } => {

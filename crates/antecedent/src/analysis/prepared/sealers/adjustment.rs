@@ -514,17 +514,17 @@ pub(super) fn frontdoor_linear(cx: &SealContext<'_>) -> SealOutcome {
                     && matches!(query.target_population, TargetPopulation::AllObserved)
                     && cx.binding.estimator.is(EstimatorId::FrontDoorTwoStage) =>
             {
-                let fitter = match analysis.estimator_spec.as_deref() {
-                    Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) => {
+                let fitter =
+                    if let Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) =
+                        analysis.estimator_spec.as_deref()
+                    {
                         (**config).clone()
-                    }
-                    _ => {
+                    } else {
                         let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
                         fitter.sampling_design =
                             crate::estimator_spec::declared_sampling(analysis.sampling_design);
                         fitter
-                    }
-                };
+                    };
                 let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
                 Some(CheckedFrontDoorOperation { fitter, preparation })
             }

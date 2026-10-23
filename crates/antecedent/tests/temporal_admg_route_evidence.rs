@@ -794,7 +794,8 @@ fn frontdoor_series() -> (TabularData, Admg, f64) {
         }
     }
     let n = values[0].len();
-    let stride = (7919..).find(|stride| gcd(*stride, n) == 1).unwrap();
+    // Within `n + 1` consecutive candidates one is 1 modulo `n`, hence coprime to it.
+    let stride = (7919..=7919 + n).find(|stride| gcd(*stride, n) == 1).unwrap();
     let order: Vec<usize> = (0..n).map(|row| (row * stride) % n).collect();
     let shuffled: Vec<Vec<f64>> =
         values.iter().map(|column| order.iter().map(|&row| column[row]).collect()).collect();

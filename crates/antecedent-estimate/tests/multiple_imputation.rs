@@ -205,7 +205,10 @@ fn the_joint_normal_model_recovers_the_truth_and_refuses_an_incomplete_binary() 
     )
     .unwrap_err();
     assert_eq!(refused.code(), "missing_policy_not_applicable");
-    assert_eq!(refused.next_attempt().map(|a| a.name()), Some("chained_equations"));
+    assert_eq!(
+        refused.next_attempt().map(antecedent_core::NextAttempt::name),
+        Some("chained_equations")
+    );
 }
 
 #[test]
@@ -243,7 +246,10 @@ fn missing_not_at_random_is_refused_with_a_sensitivity_analysis() {
     let refused = multiple_imputation::check_spec(&spec).unwrap_err();
     assert_eq!(refused.code(), "missing_policy_not_applicable");
     assert_eq!(refused.detail(), "multiple_imputation.not_at_random");
-    assert_eq!(refused.next_attempt().map(|a| a.name()), Some("sensitivity_analysis"));
+    assert_eq!(
+        refused.next_attempt().map(antecedent_core::NextAttempt::name),
+        Some("sensitivity_analysis")
+    );
     assert!(refused.message().contains("next attempt"));
     assert!(multiple_imputation::check_spec(&ImputationSpec::new().with_imputations(1)).is_err());
     assert!(multiple_imputation::check_spec(&ImputationSpec::new().with_iterations(0)).is_err());
@@ -266,11 +272,17 @@ fn the_sampling_design_governs_the_imputation_unit() {
     let refused =
         multiple_imputation::bind_units(Some(DeclaredSamplingDesign::ClusteredPanel), None, 6)
             .unwrap_err();
-    assert_eq!(refused.next_attempt().map(|a| a.name()), Some("supply_cluster_labels"));
+    assert_eq!(
+        refused.next_attempt().map(antecedent_core::NextAttempt::name),
+        Some("supply_cluster_labels")
+    );
     let series =
         multiple_imputation::bind_units(Some(DeclaredSamplingDesign::DependentTimeSeries), None, 6)
             .unwrap_err();
-    assert_eq!(series.next_attempt().map(|a| a.name()), Some("temporal_complete_case"));
+    assert_eq!(
+        series.next_attempt().map(antecedent_core::NextAttempt::name),
+        Some("temporal_complete_case")
+    );
     assert!(multiple_imputation::bind_units(None, Some(groups), 5).is_err());
 
     // Whole-cluster draws: rows of one cluster share one bootstrap weight, and the result
@@ -392,5 +404,8 @@ fn unidentified_conditional_models_are_refused() {
     )
     .unwrap_err();
     assert_eq!(refused.detail(), "multiple_imputation.not_identified");
-    assert_eq!(refused.next_attempt().map(|a| a.name()), Some("complete_case"));
+    assert_eq!(
+        refused.next_attempt().map(antecedent_core::NextAttempt::name),
+        Some("complete_case")
+    );
 }

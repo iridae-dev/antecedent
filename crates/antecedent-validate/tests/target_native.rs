@@ -151,7 +151,13 @@ impl TargetRefit for AdjustmentRefit {
             TargetPerturbation::Subset { fraction, .. } => {
                 let mut rows: Vec<usize> = (0..n).collect();
                 shuffle(rng, &mut rows);
-                rows.truncate((fraction * n as f64) as usize);
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "a subset fraction in (0, 1) keeps between zero and n rows"
+                )]
+                let keep = (fraction * n as f64) as usize;
+                rows.truncate(keep);
                 let (t, x, y) = self.rows(&rows);
                 self.values(&t, &x, &y, None)
             }
@@ -270,7 +276,7 @@ fn a_scalar_average_effect_refuter_cannot_certify_another_target() {
             assert_eq!(*claim_family, TargetFamily::WorldValued);
             assert!(next_attempt.contains("target-native suite"));
         }
-        other => panic!("unexpected {other:?}"),
+        other @ TargetCertificationError::TargetMismatch { .. } => panic!("unexpected {other:?}"),
     }
     assert!(error.to_string().contains("cannot certify a world_valued target"));
     // The scalar target itself may cite it.

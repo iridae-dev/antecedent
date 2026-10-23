@@ -4,7 +4,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::float_cmp)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::float_cmp,
+    reason = "the streamed summary must equal the resident result bit for bit, so the comparison is exact"
+)]
 
 use std::path::PathBuf;
 

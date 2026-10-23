@@ -499,6 +499,10 @@ pub struct DynamicPosterior {
 
 type Fallible<T> = Result<T, EquilibriumError>;
 
+/// One clamp assignment's stationary law: the clamps, the mean, the free coordinates and the
+/// Cholesky factor of their covariance block.
+type ClampLaw<'a> = (&'a [Clamp], Vec<f64>, Vec<usize>, Vec<f64>);
+
 /// One fitted family: likelihood on the original data, unit resampling and simulation.
 trait Family: Sync {
     type Data;
@@ -889,7 +893,7 @@ impl Family for OuFamily<'_> {
         let model = self.model(&self.estimate);
         let n = model.center.len();
         // Consecutive rows with one clamp assignment share a law and its factor.
-        let mut previous: Option<(&[Clamp], Vec<f64>, Vec<usize>, Vec<f64>)> = None;
+        let mut previous: Option<ClampLaw<'_>> = None;
         let mut rows = Vec::with_capacity(self.problem.rows.len());
         for row in &self.problem.rows {
             if previous.as_ref().is_none_or(|(clamps, ..)| *clamps != row.clamps.as_slice()) {

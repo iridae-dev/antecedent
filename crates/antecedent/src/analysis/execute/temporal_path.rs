@@ -625,7 +625,6 @@ impl super::Study {
     }
 
     pub(crate) fn mediation_adjustment(
-        &self,
         graph: &TemporalDag,
         query: &antecedent_core::MediationQuery,
         horizon: u32,
@@ -802,7 +801,7 @@ impl super::Study {
         };
         let reused = reused.as_ref().map(|(cache, _)| &**cache);
         let clicks = mediation_horizon_clicks(&cache, query, |horizon| {
-            self.mediation_adjustment(graph, query, horizon, reused)
+            Self::mediation_adjustment(graph, query, horizon, reused)
         })?;
         let fit = fit_temporal_mediation(
             &TemporalMediationInputs {
@@ -828,6 +827,10 @@ impl super::Study {
         Ok(result)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one temporal response execution: identification, estimation, refutation and finish run in sequence"
+    )]
     pub(super) fn execute_temporal_response(
         &self,
         data: &TimeSeriesData,
@@ -1876,6 +1879,10 @@ impl super::Study {
     /// circular-block band when a single completion identifies, the identified
     /// set diagnostics, the structural mixture and the identified-execute
     /// finish.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one class response finish: the band, the identified-set diagnostics and the mixture read the same swept atoms"
+    )]
     fn finish_temporal_class_response(
         &self,
         sweep: &ClassResponseSweep<'_>,

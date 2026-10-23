@@ -298,8 +298,10 @@ pub fn run_target_plan(
             message: "the refit's original vector does not match its target dimension",
         });
     }
-    if !(config.alpha > 0.0 && config.alpha < 1.0)
-        || !(config.subset_fraction > 0.0 && config.subset_fraction < 1.0)
+    if !(config.alpha > 0.0
+        && config.alpha < 1.0
+        && config.subset_fraction > 0.0
+        && config.subset_fraction < 1.0)
         || config.pre_trend_lead == 0
     {
         return Err(ValidationError::NotApplicable {

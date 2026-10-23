@@ -15,14 +15,15 @@ use super::{
 use crate::analysis::proof_support::proof_supplies_full;
 use antecedent_core::StreamDomain;
 
+/// Inference procedure over the heterogeneity best-score counterfactual fit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum CounterfactualProcedure {
-    HeterogeneityBestScorePoint,
-    HeterogeneityBestScoreDirichletRowWeights {
+    Point,
+    DirichletRowWeights {
         draws: usize,
     },
     /// Frequentist whole-procedure multinomial row bootstrap of the mean ITE.
-    HeterogeneityBestScoreRowBootstrap {
+    RowBootstrap {
         replicates: u32,
     },
 }
@@ -30,7 +31,7 @@ pub(crate) enum CounterfactualProcedure {
 impl CounterfactualProcedure {
     pub(crate) fn for_inference(inference: &InferenceMode) -> Result<Self, CausalError> {
         match inference {
-            InferenceMode::Frequentist => Ok(Self::HeterogeneityBestScorePoint),
+            InferenceMode::Frequentist => Ok(Self::Point),
             InferenceMode::Bayesian(config) => {
                 if config.has_transfer() {
                     return Err(CausalError::Unsupported {
@@ -43,7 +44,7 @@ impl CounterfactualProcedure {
                         message: "Bayesian counterfactuals require at least two posterior draws",
                     });
                 }
-                Ok(Self::HeterogeneityBestScoreDirichletRowWeights { draws })
+                Ok(Self::DirichletRowWeights { draws })
             }
         }
     }
@@ -60,9 +61,9 @@ impl CounterfactualProcedure {
         design: Option<antecedent_core::DeclaredSamplingDesign>,
     ) -> Result<Self, CausalError> {
         match self {
-            Self::HeterogeneityBestScorePoint if replicates > 0 => {
+            Self::Point if replicates > 0 => {
                 super::gcm_bootstrap::require_subject_resampling(design)?;
-                Ok(Self::HeterogeneityBestScoreRowBootstrap { replicates })
+                Ok(Self::RowBootstrap { replicates })
             }
             other => Ok(other),
         }
@@ -70,14 +71,10 @@ impl CounterfactualProcedure {
 
     fn matches_inference(&self, inference: &InferenceMode) -> bool {
         match (self, inference) {
-            (
-                Self::HeterogeneityBestScorePoint | Self::HeterogeneityBestScoreRowBootstrap { .. },
-                InferenceMode::Frequentist,
-            ) => true,
-            (
-                Self::HeterogeneityBestScoreDirichletRowWeights { draws },
-                InferenceMode::Bayesian(config),
-            ) => *draws == config.n_draws,
+            (Self::Point | Self::RowBootstrap { .. }, InferenceMode::Frequentist) => true,
+            (Self::DirichletRowWeights { draws }, InferenceMode::Bayesian(config)) => {
+                *draws == config.n_draws
+            }
             _ => false,
         }
     }
@@ -166,14 +163,13 @@ mod checked_counterfactual_plan_tests {
     fn refuses_procedure_inference_mismatch_and_wrong_draw_count() {
         let frequentist = InferenceMode::Frequentist;
         assert!(
-            !CounterfactualProcedure::HeterogeneityBestScoreDirichletRowWeights { draws: 32 }
+            !CounterfactualProcedure::DirichletRowWeights { draws: 32 }
                 .matches_inference(&frequentist)
         );
 
         let bayesian = InferenceMode::Bayesian(BayesianConfig::laplace());
-        assert!(!CounterfactualProcedure::HeterogeneityBestScorePoint.matches_inference(&bayesian));
-        let wrong_draws =
-            CounterfactualProcedure::HeterogeneityBestScoreDirichletRowWeights { draws: 33 };
+        assert!(!CounterfactualProcedure::Point.matches_inference(&bayesian));
+        let wrong_draws = CounterfactualProcedure::DirichletRowWeights { draws: 33 };
         assert!(!wrong_draws.matches_inference(&bayesian));
         let matching = CounterfactualProcedure::for_inference(&bayesian).unwrap();
         assert!(matching.matches_inference(&bayesian));
@@ -215,6 +211,10 @@ fn noise_inference_label(kind: antecedent_counterfactual::NoiseInferenceKind) ->
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one counterfactual execution: the procedure's estimate, the homogeneity verdict and the identified finish share every fitted product"
+)]
 fn execute_checked_counterfactual_plan(
     plan: &CheckedCounterfactualPlan,
     data: &TabularData,
@@ -240,30 +240,26 @@ fn execute_checked_counterfactual_plan(
         status: identification.status,
     };
     let mut bootstrap_note = None;
-    let (estimate, posterior, ite) =
-        if let CounterfactualProcedure::HeterogeneityBestScoreDirichletRowWeights { draws } =
-            &plan.procedure
-        {
-            dirichlet_counterfactual_estimate(&refit, ite, *draws, ctx)?
-        } else if let CounterfactualProcedure::HeterogeneityBestScoreRowBootstrap { replicates } =
-            &plan.procedure
-        {
-            let (estimate, note) =
-                bootstrap_counterfactual_estimate(&refit, &ite, *replicates, ctx)?;
-            bootstrap_note = Some(note);
-            (estimate, None, ite)
-        } else {
-            (
-                EffectEstimate::new(
-                    ite.mean_ite,
-                    f64::NAN,
-                    identification.required_assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                ),
-                None,
-                ite,
-            )
-        };
+    let (estimate, posterior, ite) = if let CounterfactualProcedure::DirichletRowWeights { draws } =
+        &plan.procedure
+    {
+        dirichlet_counterfactual_estimate(&refit, ite, *draws, ctx)?
+    } else if let CounterfactualProcedure::RowBootstrap { replicates } = &plan.procedure {
+        let (estimate, note) = bootstrap_counterfactual_estimate(&refit, &ite, *replicates, ctx)?;
+        bootstrap_note = Some(note);
+        (estimate, None, ite)
+    } else {
+        (
+            EffectEstimate::new(
+                ite.mean_ite,
+                f64::NAN,
+                identification.required_assumptions.clone(),
+                OverlapPolicy::ExplicitOverride,
+            ),
+            None,
+            ite,
+        )
+    };
     let verdict = homogeneity_verdict(graph, &mechanism_assignments, treatment, outcome);
     let mut estimate = estimate;
     estimate.heterogeneity.unit_effects_homogeneous =
@@ -324,9 +320,7 @@ fn execute_checked_counterfactual_plan(
         .extras(IdentifiedExecuteExtras {
             gcm: Some(GcmSlot::Counterfactual(ite)),
             bootstrap_replicates_requested: Some(match plan.procedure {
-                CounterfactualProcedure::HeterogeneityBestScoreRowBootstrap { replicates }
-                    if bootstrapped =>
-                {
+                CounterfactualProcedure::RowBootstrap { replicates } if bootstrapped => {
                     Some(replicates)
                 }
                 _ => None,

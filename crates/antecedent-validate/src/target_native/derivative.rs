@@ -178,7 +178,7 @@ impl LocalLinearity {
 }
 
 fn check_step(step: f64, tolerance: f64, points: usize) -> Result<(), ValidationError> {
-    if !(step.is_finite() && step > 0.0) || !(tolerance.is_finite() && tolerance > 0.0) {
+    if !(step.is_finite() && step > 0.0 && tolerance.is_finite() && tolerance > 0.0) {
         return Err(ValidationError::NotApplicable {
             message: "derivative checks need a positive finite step and tolerance",
         });

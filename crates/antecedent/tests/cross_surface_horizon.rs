@@ -44,7 +44,7 @@ fn experiment_coordinates(spec: &TemporalSequenceSpec) -> Vec<VariableId> {
     coordinates
 }
 
-fn endpoints<'a>(sequence: &'a [Value]) -> SequenceEndpoints<'a> {
+fn endpoints(sequence: &[Value]) -> SequenceEndpoints<'_> {
     SequenceEndpoints { sequence, source: "source", target: "target" }
 }
 
@@ -112,7 +112,7 @@ fn prepare(
     )
 }
 
-fn refusal(error: IoError) -> String {
+fn refusal(error: &IoError) -> String {
     error.to_string()
 }
 
@@ -131,7 +131,7 @@ fn history_indexed_law_licenses_the_two_step_horizon_and_reloads() {
     assert!(bare.history_indexed_law().is_none());
     assert_eq!(bare.shared_temporal_horizon(), Some(2));
     let missing = prepare(data.clone(), &bare, &sequence(0.0, 1.0)).unwrap_err();
-    let missing = refusal(missing);
+    let missing = refusal(&missing);
     assert!(missing.contains("temporal_transport.target_law_missing"), "{missing}");
     assert!(missing.contains("unit histories do not supply the target law"), "{missing}");
 
@@ -145,7 +145,7 @@ fn history_indexed_law_licenses_the_two_step_horizon_and_reloads() {
     let with_law = scientific_target(2, Some(law.clone()));
     assert_ne!(bare.identity(), with_law.identity());
     let from_experiments = prepare(source_only, &with_law, &sequence(0.0, 1.0)).unwrap_err();
-    let from_experiments = refusal(from_experiments);
+    let from_experiments = refusal(&from_experiments);
     assert!(
         from_experiments.contains("temporal_transport.target_law_missing"),
         "{from_experiments}"
@@ -166,7 +166,7 @@ fn history_indexed_law_licenses_the_two_step_horizon_and_reloads() {
     let histories =
         ExactTransportData::try_new(vec![fit_binary_history_joint(&panel).unwrap()], 4096).unwrap();
     let from_histories = prepare(histories, &with_law, &sequence(0.0, 1.0)).unwrap_err();
-    let from_histories = refusal(from_histories);
+    let from_histories = refusal(&from_histories);
     assert!(from_histories.contains("temporal_transport.target_law_missing"), "{from_histories}");
     assert!(
         from_histories.contains("unit histories do not supply the target law"),
@@ -181,13 +181,13 @@ fn history_indexed_law_licenses_the_two_step_horizon_and_reloads() {
     .unwrap();
     let mismatched = scientific_target(2, Some(wrong));
     let mismatch = prepare(data.clone(), &mismatched, &sequence(0.0, 1.0)).unwrap_err();
-    let mismatch = refusal(mismatch);
+    let mismatch = refusal(&mismatch);
     assert!(mismatch.contains("temporal_transport.target_law_mismatch"), "{mismatch}");
 
     let short = scientific_target(1, Some(law));
     assert_eq!(short.shared_temporal_horizon(), Some(1));
     let horizon = prepare(data.clone(), &short, &sequence(0.0, 1.0)).unwrap_err();
-    let horizon = refusal(horizon);
+    let horizon = refusal(&horizon);
     assert!(horizon.contains("temporal_transport.horizon"), "{horizon}");
 
     let licensed = scientific_target(2, Some(declared_law(&data)));

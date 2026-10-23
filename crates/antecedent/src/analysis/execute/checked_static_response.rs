@@ -578,6 +578,10 @@ impl super::Study {
     /// Execute a retained static DAG mean curve or intervention g-computation
     /// plan. This adapter deliberately does not resolve IDs from the builder or
     /// re-run identification.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one retained static response plan: the curve or level fit, its uncertainty and the identified finish run in sequence"
+    )]
     pub(crate) fn execute_checked_static_dag_response(
         &self,
         data: &TabularData,

@@ -49,6 +49,7 @@ impl PreparedExecution {
         self.operation().rebind_for_dispatch(data)
     }
 
+    #[cfg(test)]
     pub(crate) fn checked_linear(
         &self,
     ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {

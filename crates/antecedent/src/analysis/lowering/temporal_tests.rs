@@ -307,7 +307,13 @@ fn series_effect_program_reads_the_study_configuration() {
     let bayesian_plan = compile(&bayesian);
     let bayesian_program = bayesian_plan.lowered().unwrap();
     assert!(matches!(bayesian_program.statistical().realization(), Realization::Bayesian(_)));
-    assert_eq!(bayesian_program.statistical().posterior().map(|plan| plan.draws()), Some(64));
+    assert_eq!(
+        bayesian_program
+            .statistical()
+            .posterior()
+            .map(crate::planner::statistical::PosteriorPlan::draws),
+        Some(64)
+    );
     assert_eq!(bayesian_program.claim().uncertainty(), UncertaintyReading::Posterior);
     assert_ne!(bayesian_program.identity(), base);
 }
@@ -421,8 +427,8 @@ fn multi_horizon_mediation_states_one_target_per_horizon() {
         InferenceSelection::Frequentist,
     )
     .unwrap();
-    let lowered: Vec<_> = targets.iter().map(|target| target.identity()).collect();
-    let expected: Vec<_> = frozen.iter().map(|target| target.identity()).collect();
+    let lowered: Vec<_> = targets.iter().map(antecedent_core::ScientificTarget::identity).collect();
+    let expected: Vec<_> = frozen.iter().map(antecedent_core::ScientificTarget::identity).collect();
     assert_eq!(lowered, expected);
     assert_eq!(lowered.len(), 2);
     assert_ne!(lowered[0], lowered[1], "each horizon is its own target");

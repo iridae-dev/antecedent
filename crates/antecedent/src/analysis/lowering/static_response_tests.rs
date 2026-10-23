@@ -100,7 +100,8 @@ fn mean_curve_lowers_one_world_per_grid_level_and_its_cross_fit() {
     let options = antecedent_estimate::ContinuousResponseOptions::default();
     assert_eq!(statistical.folds().map(|folds| folds.folds()), Some(options.folds));
     assert!(statistical.resampling().is_none(), "the curve's uncertainty is its influence");
-    let roles: Vec<_> = statistical.models().iter().map(|model| model.role()).collect();
+    let roles: Vec<_> =
+        statistical.models().iter().map(crate::planner::statistical::ModelSlot::role).collect();
     assert_eq!(roles, [ModelRole::Outcome, ModelRole::Propensity]);
     assert_eq!(statistical.models()[0].output(), Some(Y));
     let design = program.physical().design();
@@ -115,7 +116,10 @@ fn mean_curve_lowers_one_world_per_grid_level_and_its_cross_fit() {
     let posterior = lowered(&dag_study(mean_curve(&[-0.5, 0.0, 0.5]), bayesian()));
     assert_eq!(posterior.statistical().estimator(), Some(EstimatorId::ResponseBayesian));
     assert!(matches!(posterior.statistical().realization(), Realization::Bayesian(_)));
-    assert_eq!(posterior.statistical().posterior().map(|plan| plan.draws()), Some(48));
+    assert_eq!(
+        posterior.statistical().posterior().map(crate::planner::statistical::PosteriorPlan::draws),
+        Some(48)
+    );
     assert_ne!(posterior.identity(), program.identity(), "the inference changed");
 }
 

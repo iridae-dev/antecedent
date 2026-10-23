@@ -195,6 +195,10 @@ pub(super) fn assemble(input: FinishInput) -> Result<Study, CausalError> {
     Ok(into_study(exposure))
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "destructures every builder field once and moves each into the carried spine"
+)]
 fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
     refuse_conflicting_inputs(&input)?;
 
@@ -592,19 +596,20 @@ fn refuse_structure_route_options(query: &CausalQuery, carry: &Carry) -> Result<
         ));
     }
     if matches!(carry.inference, InferenceMode::Bayesian(_)) {
-        return Err(match query {
-            CausalQuery::Discover(_) => crate::unsupported_reason!(
+        return Err(if let CausalQuery::Discover(_) = query {
+            crate::unsupported_reason!(
                 "option_not_applicable",
                 "a discovery method declares its own inference mode: a structure posterior \
                  (exact, order, structure, CI-screened or DBN) is Bayesian by its method; leave \
                  the study's inference at its default"
-            ),
-            _ => crate::unsupported_reason!(
+            )
+        } else {
+            crate::unsupported_reason!(
                 "option_not_applicable",
                 "attribution and simulation on a fitted model report the fitted model's answer; \
                  for the Dirichlet mechanism-refit posterior use AnomalyAttribution, \
                  ChangeAttribution or Counterfactual under Bayesian inference"
-            ),
+            )
         });
     }
     Ok(())
@@ -900,6 +905,10 @@ fn refuse_longitudinal_regime_mismatch(
     Ok(())
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear sequence of design-contract refusals checked in a fixed order"
+)]
 fn apply_design_contract(
     query: &CausalQuery,
     graph: &AcceptedGraph,

@@ -480,6 +480,7 @@ fn world(
     .map_err(target_error)
 }
 
+#[allow(clippy::needless_pass_by_value, reason = "Result::map_err consumes its error")]
 fn target_error(error: ScientificTargetError) -> CausalError {
     CausalError::Compile { message: format!("static effect scientific target: {error}") }
 }
@@ -526,7 +527,7 @@ const fn claim_kind(status: IdentificationStatus) -> ClaimKind {
         | IdentificationStatus::IdentifiedUnderPriorRestrictions => ClaimKind::Point,
         IdentificationStatus::PartiallyIdentified => ClaimKind::Bounds,
         IdentificationStatus::GraphDependent => ClaimKind::Mixture,
-        _ => ClaimKind::Incomplete,
+        IdentificationStatus::NotIdentified => ClaimKind::Incomplete,
     }
 }
 
@@ -638,6 +639,7 @@ fn fold_plan(
 }
 
 /// Models the estimator fits, with the variables each reads and predicts.
+#[allow(clippy::too_many_lines, reason = "one exhaustive match over the static-effect estimators")]
 fn model_slots(
     study: &Study,
     estimator: Option<EstimatorId>,
@@ -685,12 +687,11 @@ fn model_slots(
             slot(ModelRole::Outcome, "ridge", tz, y),
         ],
         EstimatorId::Dml => {
-            let (outcome, propensity) = match spec {
-                Some(EstimatorSpec::Dml(config)) => (config.outcome, config.treatment),
-                _ => {
-                    let defaults = antecedent_estimate::DmlAte::new();
-                    (defaults.outcome, defaults.treatment)
-                }
+            let (outcome, propensity) = if let Some(EstimatorSpec::Dml(config)) = spec {
+                (config.outcome, config.treatment)
+            } else {
+                let defaults = antecedent_estimate::DmlAte::new();
+                (defaults.outcome, defaults.treatment)
             };
             vec![
                 slot(ModelRole::Propensity, &propensity.identity(), z.to_vec(), treatment),
@@ -698,14 +699,11 @@ fn model_slots(
             ]
         }
         EstimatorId::DrLearner => {
-            let (outcome, propensity, last) = match spec {
-                Some(EstimatorSpec::DrLearner(config)) => {
-                    (config.outcome, config.treatment, config.final_learner)
-                }
-                _ => {
-                    let defaults = antecedent_estimate::DrLearner::new();
-                    (defaults.outcome, defaults.treatment, defaults.final_learner)
-                }
+            let (outcome, propensity, last) = if let Some(EstimatorSpec::DrLearner(config)) = spec {
+                (config.outcome, config.treatment, config.final_learner)
+            } else {
+                let defaults = antecedent_estimate::DrLearner::new();
+                (defaults.outcome, defaults.treatment, defaults.final_learner)
             };
             vec![
                 slot(ModelRole::Propensity, &propensity.identity(), z.to_vec(), treatment),

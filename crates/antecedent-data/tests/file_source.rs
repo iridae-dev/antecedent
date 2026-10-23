@@ -8,7 +8,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::float_cmp)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::float_cmp,
+    reason = "test file: fixtures unwrap, and read-back values are compared exactly"
+)]
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -87,6 +92,10 @@ fn write_ipc_file(path: &Path, batch: &RecordBatch, rows_per_batch: usize) {
 }
 
 /// Twelve rows over every readable kind, with nulls in each nullable column.
+#[allow(
+    clippy::too_many_lines,
+    reason = "a linear fixture spelling out one column per readable kind"
+)]
 fn mixed_batch() -> RecordBatch {
     let levels: ArrayRef = Arc::new(StringArray::from(vec!["low", "mid", "high"]));
     let keys = Int8Array::from(vec![

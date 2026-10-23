@@ -42,6 +42,7 @@ fn dag() -> Dag {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "a linear test script over every propensity estimator")]
 fn propensity_estimators_retain_procedure_through_public_lifecycle() {
     let base_data = make_data(0.0);
     let graph = dag();

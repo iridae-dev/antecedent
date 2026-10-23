@@ -188,7 +188,7 @@ mod tests {
     #[test]
     fn accepted_path_is_direct_arrow_and_lazy_is_not_adopted() {
         assert_eq!(super::ACCEPTED_PREPARATION_PATH, "direct_arrow");
-        assert!(!super::LAZY_BACKEND_ADOPTED);
+        const { assert!(!super::LAZY_BACKEND_ADOPTED) };
         assert_eq!(
             super::PreparationBackend::accepted().admit().expect("direct arrow").as_str(),
             "direct_arrow"

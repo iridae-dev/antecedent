@@ -528,7 +528,13 @@ fn a_strong_prior_does_not_repair_a_null_direction() {
     let estimate = posterior_recovery(&fit, &unknown).expect("posterior");
     assert!(estimate.identified_posteriors().is_empty());
     assert!(estimate.law().draws().iter().all(|draw| draw.coefficients().is_empty()));
-    assert!(estimate.law().draws().iter().all(|draw| draw.is_inadmissible()));
+    assert!(
+        estimate
+            .law()
+            .draws()
+            .iter()
+            .all(antecedent_identify::experimental_recovery::JointRecoveryDraw::is_inadmissible)
+    );
 }
 
 fn draw_moments(estimate: &RecoveredEstimate, target: DirectCoefficient) -> (f64, f64) {

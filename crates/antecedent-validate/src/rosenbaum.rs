@@ -341,7 +341,7 @@ pub fn matched_sets_upper_p(
         expectation += m;
         variance += v;
     }
-    if !(variance > 0.0) {
+    if variance.is_nan() || variance <= 0.0 {
         return Err(ValidationError::NotApplicable {
             message: "every matched set has constant scores; the test is undefined",
         });

@@ -149,8 +149,8 @@ fn data_digest(request: &R) -> Result<[u8; 32], CyclicArtifactError> {
     match request {
         R::FrequentistBootstrap { rows, .. }
         | R::ParameterPosterior { rows, .. }
-        | R::GradientFit { rows, .. } => json_digest(TAG, &("rows", rows)),
-        R::OuFit { rows, .. } => json_digest(TAG, &("rows", rows)),
+        | R::GradientFit { rows, .. }
+        | R::OuFit { rows, .. } => json_digest(TAG, &("rows", rows)),
         R::JointCounterfactual { rows, observations, measurement_variances, .. } => {
             json_digest(TAG, &("rows_observations", rows, observations, measurement_variances))
         }
@@ -268,6 +268,7 @@ fn count(value: usize) -> Option<u64> {
 
 /// How `request` realizes its answer.
 #[must_use]
+#[allow(clippy::too_many_lines, reason = "one exhaustive match over every cyclic family request")]
 pub fn cyclic_realization(request: &R) -> CyclicRealization {
     match request {
         R::FrequentistBootstrap { replicates, .. } => CyclicRealization {

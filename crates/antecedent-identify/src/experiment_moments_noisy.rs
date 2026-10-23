@@ -311,6 +311,10 @@ fn integer_samples_match_the_exact_rational_moments() {
     let contract = accepted(vec![regime(&[0, 1], &[0], 1), regime(&[0, 1], &[1], 2)]);
     let mut noise = Normals::new(5);
     for rows in [3_usize, 7, 12] {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "a rounded standard normal times 20 is far inside the i64 range"
+        )]
         let draw = |noise: &mut Normals| -> Vec<i64> {
             (0..rows).map(|_| (noise.draw() * 20.0).round() as i64 + 1000).collect()
         };

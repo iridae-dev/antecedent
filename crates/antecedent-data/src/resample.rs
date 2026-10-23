@@ -279,6 +279,10 @@ fn refuse_row_iid(design: DeclaredSamplingDesign) -> DataError {
     }
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "private helper shared by the two grouped draws; each argument is a distinct input of the one draw"
+)]
 fn draw_grouped_units(
     design: DeclaredSamplingDesign,
     resampling: ResamplingRule,

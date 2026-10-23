@@ -33,7 +33,7 @@ pub fn circular_block_positions_into(
 ///
 /// The surface evaluates `cbar(a)'β` at many cells, so each replicate keeps the whole
 /// coefficient vector and the resampled design column means for every horizon, rather
-/// than collapsing to a single SE the way [`crate::util::bootstrap_se`] does. Failure
+/// than collapsing to a single SE the way [`crate::util::bootstrap_se_with_scratch`] does. Failure
 /// accounting matches that helper: too few survivors, or more than
 /// [`BOOTSTRAP_MAX_FAILURE_FRAC`] soft failures, means no bootstrap SE is reported.
 pub(super) struct SurfaceBootstrap {

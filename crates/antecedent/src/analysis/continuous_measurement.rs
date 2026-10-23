@@ -111,6 +111,10 @@ impl PreparedMeasurementModel {
     /// error in the outcome (remedy: the binary misclassification route), an
     /// implied reliability at or below the floor, a bootstrap that cannot be
     /// funded or is unstable; or cancellation.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "preserve the established public signature that takes the input by value"
+    )]
     pub fn estimate_continuous(
         &self,
         input: ContinuousErrorInput,

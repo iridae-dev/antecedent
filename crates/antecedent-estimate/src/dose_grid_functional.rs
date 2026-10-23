@@ -919,6 +919,10 @@ type BiasAwareColumns = (Vec<f64>, Vec<f64>, Vec<Vec<f64>>, Vec<f64>);
 /// # Errors
 /// The ordinary refusals of the row; a curvature bound that is negative or not finite; fewer
 /// than two band replicates for a grid; a singular local fit; admission or cancellation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one pipeline from the local fits to pointwise intervals and the band, all sharing the same influence columns"
+)]
 pub fn estimate_dose_grid_bias_aware(
     request: &DoseGridRequest<'_>,
     curvature_bound: f64,

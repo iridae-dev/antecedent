@@ -92,11 +92,11 @@ fn decided() -> CountsWire {
 }
 
 fn numbers(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| byte.to_string()).collect::<Vec<_>>().join(",")
+    bytes.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(",")
 }
 
 fn artifact(score: &[u8; 32], target_digest: &[u8; 32], receipt: &[u8]) -> Vec<u8> {
-    let rows = ROW_IDS.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",");
+    let rows = ROW_IDS.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(",");
     format!(
         concat!(
             r#"{{"row_ids":[{}],"retained_score_digest":[{}],"#,

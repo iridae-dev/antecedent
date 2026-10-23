@@ -192,6 +192,10 @@ fn stacked_posterior(posteriors: &[CausalPosterior]) -> Result<CausalPosterior, 
 /// The imputation model's refusals, a fit's error, an estimator multiple imputation does
 /// not pool on this route cell, or an analysed variable outside the imputation model that
 /// is itself incomplete.
+#[allow(
+    clippy::too_many_lines,
+    reason = "impute, fit and pool share the run's borrowed state in one sequence"
+)]
 pub(crate) fn impute_fit_pool<F>(
     study: &Study,
     data: &TabularData,

@@ -277,45 +277,7 @@ impl PanelLayout {
         observed: &[bool],
     ) -> Result<PanelBalanceReport, PanelPreparationError> {
         let n = subjects.len();
-        if periods.len() != n || observed.len() != n {
-            return Err(PanelPreparationError::argument(
-                LENGTH_DETAIL,
-                format!(
-                    "{n} subjects, {} periods and {} observed flags; the panel needs one of \
-                     each per row",
-                    periods.len(),
-                    observed.len()
-                ),
-            ));
-        }
-        if n == 0 {
-            return Err(PanelPreparationError::argument(
-                EMPTY_DETAIL,
-                "the panel has no rows".to_owned(),
-            ));
-        }
-        let mut order: Vec<usize> = (0..n).collect();
-        order.sort_unstable_by(|&a, &b| {
-            subjects[a]
-                .as_ref()
-                .cmp(subjects[b].as_ref())
-                .then(periods[a].cmp(&periods[b]))
-                .then(a.cmp(&b))
-        });
-        for pair in order.windows(2) {
-            let (a, b) = (pair[0], pair[1]);
-            if periods[a] == periods[b] && subjects[a].as_ref() == subjects[b].as_ref() {
-                return Err(PanelPreparationError::argument(
-                    DUPLICATE_DETAIL,
-                    format!(
-                        "rows {a} and {b} both carry unit '{}' at period {}; a panel has one \
-                         row per unit-period",
-                        short_label(subjects[a].as_ref()),
-                        periods[a]
-                    ),
-                ));
-            }
-        }
+        let order = canonical_row_order(subjects, periods, observed)?;
         let mut grid: Vec<i64> = periods.to_vec();
         grid.sort_unstable();
         grid.dedup();
@@ -380,6 +342,56 @@ impl PanelLayout {
             observed: observed.into(),
         })
     }
+}
+
+/// The rows sorted by (unit, period, row), after checking the slices agree in length, the
+/// table is not empty and no (unit, period) pair repeats.
+fn canonical_row_order<S: AsRef<str>>(
+    subjects: &[S],
+    periods: &[i64],
+    observed: &[bool],
+) -> Result<Vec<usize>, PanelPreparationError> {
+    let n = subjects.len();
+    if periods.len() != n || observed.len() != n {
+        return Err(PanelPreparationError::argument(
+            LENGTH_DETAIL,
+            format!(
+                "{n} subjects, {} periods and {} observed flags; the panel needs one of \
+                 each per row",
+                periods.len(),
+                observed.len()
+            ),
+        ));
+    }
+    if n == 0 {
+        return Err(PanelPreparationError::argument(
+            EMPTY_DETAIL,
+            "the panel has no rows".to_owned(),
+        ));
+    }
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_unstable_by(|&a, &b| {
+        subjects[a]
+            .as_ref()
+            .cmp(subjects[b].as_ref())
+            .then(periods[a].cmp(&periods[b]))
+            .then(a.cmp(&b))
+    });
+    for pair in order.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        if periods[a] == periods[b] && subjects[a].as_ref() == subjects[b].as_ref() {
+            return Err(PanelPreparationError::argument(
+                DUPLICATE_DETAIL,
+                format!(
+                    "rows {a} and {b} both carry unit '{}' at period {}; a panel has one \
+                     row per unit-period",
+                    short_label(subjects[a].as_ref()),
+                    periods[a]
+                ),
+            ));
+        }
+    }
+    Ok(order)
 }
 
 /// How a panel's rows are kept for analysis.
@@ -931,7 +943,7 @@ impl PanelBalanceReport {
                 continue;
             }
             keep[row] = true;
-            if !prev.is_some_and(|p| p + 1 == g) {
+            if prev.is_none_or(|p| p + 1 != g) {
                 self.flush_run(summary, &mut current, start, prev, runs);
                 start = g;
             }

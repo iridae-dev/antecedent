@@ -436,7 +436,7 @@ fn multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals()
     }
     for (label, unit_level, adoption) in &all {
         for (t, common) in trend.iter().enumerate() {
-            let period = t as i64 + 1;
+            let period = i64::try_from(t).expect("a period index fits in i64") + 1;
             let effect = if adoption.is_some_and(|a| period >= a) { 2.0 } else { 0.0 };
             y.push(unit_level + common + effect + 0.3 * rng.normal());
             units.push(Arc::clone(label));
@@ -593,6 +593,7 @@ fn a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_desi
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the artifact must carry every estimate exactly")]
 fn the_rollout_section_round_trips_through_the_result_artifact_and_re_derives_its_summary() {
     let (data, units, periods, cohorts) = staggered(13, 60, 0.0);
     let query = rollout_query(

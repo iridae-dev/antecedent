@@ -320,6 +320,7 @@ fn dose_time_target(
     Ok(ScientificTarget::new(TargetForm::DoseTime(surface), assumptions, inference))
 }
 
+#[allow(clippy::needless_pass_by_value, reason = "Result::map_err consumes its error")]
 fn target_error(error: ScientificTargetError) -> CausalError {
     CausalError::Compile { message: format!("temporal scientific target: {error}") }
 }
@@ -667,7 +668,9 @@ fn class_history(class: &CachedTemporalClassIdentification, per_horizon: bool) -
     let horizons = class.by_horizon.iter().filter(|_| per_horizon).map(|(_, envelope)| envelope);
     std::iter::once(&class.envelope)
         .chain(horizons)
-        .flat_map(|envelope| envelope.indexers.iter().map(|indexer| indexer.history()))
+        .flat_map(|envelope| {
+            envelope.indexers.iter().map(antecedent_core::TemporalIndexer::history)
+        })
         .max()
 }
 

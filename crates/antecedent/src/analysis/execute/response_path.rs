@@ -158,6 +158,10 @@ fn graph_posterior_structural_atoms(
 }
 
 impl super::Study {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one graph-posterior response: every atom's fit, the mixture and the identified finish share the frozen posterior"
+    )]
     pub(super) fn execute_graph_posterior_response(
         &self,
         data: &TabularData,
@@ -694,6 +698,10 @@ impl super::Study {
     }
 
     /// Identify and estimate a continuous response, including licensed observation correction.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one continuous response execution: identification, observation correction, estimation, refutation and finish run in sequence"
+    )]
     pub(super) fn execute_response(
         &self,
         data: &TabularData,
@@ -1206,7 +1214,7 @@ impl super::Study {
         )
     }
 
-    /// Bayesian joint level on a CoDetermined tier closure: response.bayesian over the
+    /// Bayesian joint level on a `CoDetermined` tier closure: response.bayesian over the
     /// closure's generalized adjustment set, one posterior over every coordinate of the
     /// joint arm. The outcome regression is additive in the treatments, so the level is
     /// that model's joint level, not the saturated cell mean cell.aipw estimates. The

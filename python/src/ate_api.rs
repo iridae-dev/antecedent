@@ -955,7 +955,8 @@ pub(crate) fn ate_result_from_analysis(
             .anomaly()
             .map(|scores| crate::gcm_api::anomaly_scores_from_rust(scores.iter().cloned(), names)),
         change_attribution: result.change_attribution().map(|change| {
-            crate::gcm_api::change_result_from_rust(change.clone(), names).from_compiled_study()
+            crate::gcm_api::change_result_from_rust(change.clone(), names)
+                .with_compiled_study_origin()
         }),
         evidence_status,
         allowlist_reason,

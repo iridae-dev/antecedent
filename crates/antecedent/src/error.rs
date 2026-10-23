@@ -165,7 +165,13 @@ pub enum CompileCause {
     Serialization(#[from] IoError),
     /// A decision demanded a carrier the statistical program cannot publish.
     #[error(transparent)]
-    Decision(#[from] crate::analysis::DecisionCarrierError),
+    Decision(Box<crate::analysis::DecisionCarrierError>),
+}
+
+impl From<crate::analysis::DecisionCarrierError> for CompileCause {
+    fn from(error: crate::analysis::DecisionCarrierError) -> Self {
+        Self::Decision(Box::new(error))
+    }
 }
 
 /// A compile refusal raised from a typed cause ([`CausalError::Rejected`]).

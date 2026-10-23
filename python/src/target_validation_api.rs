@@ -71,13 +71,12 @@ fn target_of(
     source: Option<&str>,
 ) -> PyResult<RefutationTarget> {
     let family = family_of(family)?;
-    let source = match source {
-        Some(text) => parse_source(text)?,
-        None => {
-            let mut writer = antecedent_core::CanonicalWriter::new("antecedent.python_target");
-            writer.texts(&labels[..]);
-            writer.finish()
-        }
+    let source = if let Some(text) = source {
+        parse_source(text)?
+    } else {
+        let mut writer = antecedent_core::CanonicalWriter::new("antecedent.python_target");
+        writer.texts(&labels[..]);
+        writer.finish()
     };
     RefutationTarget::new(family, TargetQuadrant { temporal, bayesian }, labels, source)
         .map_err(py_err)

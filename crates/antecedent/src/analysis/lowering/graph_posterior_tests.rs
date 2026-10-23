@@ -401,8 +401,8 @@ fn every_graph_posterior_cell_lowers_a_complete_program_that_execution_stamps() 
             assert_eq!(lowered.route(), name);
             assert_eq!(lowered.depth(), LoweringDepth::Complete, "{name} lowers completely");
             match (cell, lowered.scientific().target()) {
-                (GraphPosteriorCell::CrossWorld, ProblemTarget::QueryFunctional { .. }) => {}
-                (_, ProblemTarget::Target(_) | ProblemTarget::Targets(_)) => {}
+                (GraphPosteriorCell::CrossWorld, ProblemTarget::QueryFunctional { .. })
+                | (_, ProblemTarget::Target(_) | ProblemTarget::Targets(_)) => {}
                 (_, other) => panic!("{name} lowers no world-indexed target: {other:?}"),
             }
             assert_eq!(

@@ -210,6 +210,10 @@ fn verify_experiment_artifacts(
     artifact
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "a linear test script that checks the decision and then the next study"
+)]
 fn verify_decision_and_next_study(
     original: &JointPanelResult,
     updated: &PanelExperimentResult,
