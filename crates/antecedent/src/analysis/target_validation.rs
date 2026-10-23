@@ -14,9 +14,11 @@
 //!   whole target vector back from the refitted result. Refuters the generic data perturbation
 //!   cannot construct for a route are returned as typed refusals naming the next attempt.
 //! * [`certify_result_refutations`] binds target-native reports to the result's claim and
-//!   refuses any report on another target; the claim itself refuses scalar average-effect
-//!   refutations for any other target ([`refuse_scalar_refutations_for_result`], enforced by
-//!   [`StudyResult::claim`]).
+//!   refuses any report on another target; the claim itself refuses a refutation its own
+//!   program did not produce when its target is not the scalar average effect
+//!   ([`refuse_scalar_refutations_for_result`], enforced by [`StudyResult::claim`]). Route
+//!   reports are stamped with the producing lowered program where an execution returns its
+//!   result, so a route's own reports always pass.
 //!
 //! Every report is a diagnostic: thresholds are conventions, and calibration of the
 //! refuters is not measured here.
@@ -49,16 +51,19 @@ use crate::error::CausalError;
 use crate::planner::lowered::{LoweredProgram, UncertaintyReading};
 use crate::result::StudyResult;
 
-/// Refuter-name prefixes of query-native reports: they refute the query's own target, not
-/// the scalar average effect.
-const QUERY_NATIVE_PREFIXES: [&str; 5] =
-    ["mediation.", "distribution.", "path.", "functional.", "target."];
-
-/// Whether a scalar-suite report refutes the scalar average effect (every report the scalar
-/// suites produce, apart from the query-native mediation, distribution, path-specific and
-/// functional ones).
-fn is_scalar_average_effect_report(report: &RefutationReport) -> bool {
-    !QUERY_NATIVE_PREFIXES.iter().any(|prefix| report.refuter.starts_with(prefix))
+/// Stamp every refutation `result` carries with the lowered program that produced it.
+///
+/// Called where an execution of a compiled program returns its result (dispatch, the prepared
+/// click, the prepared contract binding and the prepared second-click refute): the reports in
+/// the result at that point were produced by that program for its own target, whatever
+/// suite produced them. A report already stamped keeps its producer.
+pub(crate) fn stamp_route_refutations(result: &mut StudyResult) {
+    if let Some(program) = result.lowered_identity {
+        let program = *program.as_bytes();
+        for report in &mut result.refutations {
+            report.stamp_producer(program);
+        }
+    }
 }
 
 impl LoweredProgram {
@@ -256,12 +261,20 @@ pub fn result_refutation_target(result: &StudyResult) -> Result<RefutationTarget
         .map_err(CausalError::from)
 }
 
-/// Refuse the scalar average-effect refutations `result` carries when its target is another.
+/// Refuse refutations `result` carries that its own program did not produce, when its target
+/// is not the scalar average effect.
+///
+/// Provenance decides, not the report's name: a report the result's lowered program produced
+/// during its own execution (stamped by [`stamp_route_refutations`]) speaks to that program's
+/// target and passes, whatever suite produced it. Any other report (built outside a compiled
+/// execution, or produced by another program) can only be a scalar average-effect refutation,
+/// and it does not certify another target. A result no lowered program produced defines no
+/// target to compare with and is left to the claim's own identity checks.
 ///
 /// # Errors
 ///
-/// [`TargetCertificationError::ScalarRefuterForOtherTarget`] for the first scalar
-/// average-effect report on a result whose target is not that scalar.
+/// [`TargetCertificationError::ScalarRefuterForOtherTarget`] for the first such report on a
+/// result whose target is not the scalar average effect.
 pub fn refuse_scalar_refutations_for_result(
     result: &StudyResult,
 ) -> Result<(), TargetCertificationError> {
@@ -269,20 +282,20 @@ pub fn refuse_scalar_refutations_for_result(
     if family == TargetFamily::ScalarAverageEffect {
         return Ok(());
     }
-    let scalar: Vec<RefutationReport> = result
-        .refutations
-        .iter()
-        .filter(|report| is_scalar_average_effect_report(report))
-        .cloned()
-        .collect();
+    let Some(program) = result.lowered_identity else {
+        return Ok(());
+    };
+    let program = *program.as_bytes();
+    let foreign: Vec<RefutationReport> =
+        result.refutations.iter().filter(|report| !report.stamped_by(&program)).cloned().collect();
     // The family alone decides; the labels and source only name the claim in the error.
-    let claim = RefutationTarget::new(family, result_quadrant(result), ["claim"], [0; 32])
+    let claim = RefutationTarget::new(family, result_quadrant(result), ["claim"], program)
         .map_err(|_| TargetCertificationError::ScalarRefuterForOtherTarget {
             refuter: Arc::from("unknown"),
             claim_family: family,
             next_attempt: antecedent_validate::target_native::TARGET_NATIVE_NEXT_ATTEMPT,
         })?;
-    refuse_scalar_reports_for_target(&claim, &scalar)
+    refuse_scalar_reports_for_target(&claim, &foreign)
 }
 
 /// Bind target-native `reports` to `result`'s claim.

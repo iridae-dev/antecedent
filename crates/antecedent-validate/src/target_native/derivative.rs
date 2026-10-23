@@ -338,8 +338,13 @@ mod tests {
         assert!(linear.max_nonlinearity() < 1e-12);
         assert!(linear.passed());
         let curved = local_linearity(|x| Ok((5.0 * x).exp()), &xs, 0.5, 0.1, 1e-12).unwrap();
-        // exp(5x): f''/f' = 5, so the relative error over h = 0.5 is about 5 * 0.5 / 2.
-        assert!(curved.max_nonlinearity() > 1.0);
+        // For exp(c x) the ratio (f(x+h) - 2 f(x) + f(x-h)) / (f(x+h) - f(x-h)) is
+        // (cosh(ch) - 1) / sinh(ch) = tanh(ch / 2) at every x: tanh(1.25) = 0.848 here (the
+        // continuous approximation c h / 2 = 1.25 overstates it), far above the 0.1 bar.
+        let expected = (1.25_f64).tanh();
+        for value in &curved.nonlinearity {
+            assert!((value - expected).abs() < 1e-12, "{value}");
+        }
         assert!(!curved.passed());
     }
 }

@@ -8,8 +8,8 @@ use std::sync::Arc;
 use antecedent::analysis::target_validation::{
     PreparedTargetData, RefutationTarget, TargetCertificationError, TargetFamily,
     TargetRefitOptions, TargetRefutationConfig, TargetRefuterKind, TargetSuite,
-    certify_result_refutations, refute_prepared_target, result_refutation_target,
-    result_target_family, result_target_values,
+    certify_result_refutations, refuse_scalar_refutations_for_result, refute_prepared_target,
+    result_refutation_target, result_target_family, result_target_values,
 };
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
@@ -159,6 +159,37 @@ fn the_claim_refuses_a_scalar_average_effect_refutation_of_a_derivative() {
     assert!(message.contains("next attempt"), "{message}");
     assert!(matches!(
         certify_result_refutations(&certified_by_ate, &[]),
+        Err(TargetCertificationError::ScalarRefuterForOtherTarget { .. })
+    ));
+}
+
+#[test]
+fn a_report_the_route_produced_for_its_own_target_is_accepted() {
+    let (data, graph) = fixture(300);
+    let ctx = ExecutionContext::for_tests(64);
+    let prepared = prepared(&data, &graph, &ctx);
+    let clean = prepared.estimate(&data, &ctx).unwrap();
+    let contract = prepared.contract().unwrap();
+    let program = *clean.lowered_program_identity().unwrap().as_bytes();
+    let report = || RefutationReport::new("sensitivity.evalue", 2.0, 2.0, 3.1, true, true, None, 0);
+
+    // Stamped by the result's own program: a route-native report, whatever its name.
+    let mut native = clean.clone();
+    let mut own = report();
+    own.stamp_producer(program);
+    native.refutations.push(own);
+    assert!(refuse_scalar_refutations_for_result(&native).is_ok());
+    if let Err(error) = native.claim(&contract, &ctx) {
+        assert!(!error.to_string().contains("cannot certify"), "{error}");
+    }
+
+    // Stamped by another program: refused, like an unstamped scalar report.
+    let mut foreign = clean.clone();
+    let mut theirs = report();
+    theirs.stamp_producer([7; 32]);
+    foreign.refutations.push(theirs);
+    assert!(matches!(
+        refuse_scalar_refutations_for_result(&foreign),
         Err(TargetCertificationError::ScalarRefuterForOtherTarget { .. })
     ));
 }

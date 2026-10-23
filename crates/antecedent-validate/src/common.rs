@@ -80,6 +80,11 @@ pub struct RefutationReport {
     pub failure_condition: Option<Arc<str>>,
     /// Number of replicate estimates.
     pub replicates: u32,
+    /// Identity of the compiled program whose own execution produced this report, stamped
+    /// when that execution returns its result (see [`Self::stamped_by`]). `None` for a report
+    /// built outside a compiled execution: such a report cannot certify a claim on any target
+    /// other than the scalar average effect.
+    pub produced_by: Option<[u8; 32]>,
 }
 
 /// Which [`RefutationReport`] fields a [`RefutationReportBuilder`] has already set.
@@ -112,6 +117,20 @@ pub(crate) struct RefutationReportBuilder {
 }
 
 impl RefutationReport {
+    /// Record that the compiled program `program` produced this report for its own result.
+    /// A report already stamped keeps its producer.
+    pub fn stamp_producer(&mut self, program: [u8; 32]) {
+        if self.produced_by.is_none() {
+            self.produced_by = Some(program);
+        }
+    }
+
+    /// Whether the compiled program `program` produced this report.
+    #[must_use]
+    pub fn stamped_by(&self, program: &[u8; 32]) -> bool {
+        self.produced_by.as_ref() == Some(program)
+    }
+
     /// Start a report named `refuter`. Every other field is set by the builder.
     pub(crate) fn builder(refuter: impl Into<Arc<str>>) -> RefutationReportBuilder {
         RefutationReportBuilder {
@@ -285,6 +304,7 @@ impl RefutationReportBuilder {
             passed: self.passed,
             failure_condition: self.failure_condition,
             replicates: self.replicates,
+            produced_by: None,
         }
     }
 }
