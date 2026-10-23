@@ -13,6 +13,8 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from pydantic import PrivateAttr
+
 from ._report import ResultModel
 
 __all__ = [
@@ -159,7 +161,21 @@ class ProgramPlanView(ResultModel):
     uncertainty: PlanUncertaintyDemand
     support: PlanSupportView
     mixture: PlanMixtureView | None = None
-    operation: Mapping[str, Any] | None = None
+    _operation: dict[str, Any] | None = PrivateAttr(default=None)
+
+    @property
+    def operation(self) -> dict[str, Any] | None:
+        """The sealed operation preparation retained: ``kind`` and its inspection record.
+
+        A fresh plain ``dict`` with ``list`` sequences on every read, as the
+        per-route inspection records it replaces returned.
+        """
+        return _plain(self._operation)
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = super().to_dict()
+        payload["operation"] = self.operation
+        return payload
 
     @classmethod
     def from_json(cls, raw: str) -> ProgramPlanView:
@@ -230,12 +246,23 @@ class ProgramPlanView(ResultModel):
             uncertainty=PlanUncertaintyDemand(**payload["uncertainty"]),
             support=PlanSupportView(**payload["support"]),
             mixture=None if mixture is None else PlanMixtureView(**mixture),
-            operation=detail,
         )
-        return cls(**payload)
+        payload.pop("operation", None)
+        view = cls(**payload)
+        view._operation = _plain(detail)
+        return view
 
     def __repr__(self) -> str:
         return (
             f"<ProgramPlanView route={self.route!r} stage={self.stage!r} "
             f"identification={self.identification.kind!r} identity={self.identity[:12]!r}>"
         )
+
+
+def _plain(value: Any) -> Any:
+    """``value`` with every mapping a ``dict`` and every sequence a ``list``."""
+    if isinstance(value, Mapping):
+        return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(item) for item in value]
+    return value

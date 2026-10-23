@@ -796,6 +796,11 @@ applies_to = ["runtime_refusal"]
 meaning = "Execution was handed a physical plan that carries no lowered program for its route, or whose lowered program was compiled for a different route. Only `Study::compile` lowers a route; a plan built from a logical record alone cannot be dispatched."
 
 [[code]]
+id = "plan_view_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "The handle executes no lowered study program (a transport stage or a policy-program handle), so it has no plan view of compiler layers to read."
+
+[[code]]
 id = "public_builder_reentry"
 applies_to = ["runtime_refusal"]
 meaning = "Compile, prepare or one-shot run was called with a context that is already inside the dispatch of a lowered program. A dispatched route executes its retained program and does not build and run another public study."

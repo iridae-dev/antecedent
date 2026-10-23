@@ -57,7 +57,7 @@ def test_plan_view_reads_every_layer_before_any_estimate() -> None:
     assert identification.installed_at_prepare is True
     static = identification.retained[0]
     assert static["kind"] == "static"
-    assert static["estimands"][0]["adjustment_set"] == ["z"]
+    assert list(static["estimands"][0]["adjustment_set"]) == ["z"]
     assert static["assumptions"], "the assumptions identification relies on are listed"
     assert identification.unresolved_obligations == []
 
