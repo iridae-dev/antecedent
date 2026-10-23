@@ -114,6 +114,26 @@ impl PreparedStudy<CyclicPreparedState> {
     ) -> Result<(CyclicExecutionReport, Vec<u8>), CyclicArtifactError> {
         self.state.product.export(artifact_id, ctx)
     }
+
+    /// The same frozen request as a family program, which shares rebinding,
+    /// evidence projection, keyed replay and fit reuse with every other family.
+    ///
+    /// Compilation does not fit. The family program keeps its own fit cache: a fit
+    /// already performed by this handle is not transferred.
+    ///
+    /// # Errors
+    /// Invalid program inputs, cancellation, or retained-resource refusal.
+    pub fn to_family(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
+        Study::prepare_cyclic_family(
+            &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::System {
+                request: self.request().clone(),
+            },
+            ctx,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -312,8 +332,60 @@ impl Study {
         }
         Self::prepare_cyclic_family(request, ctx)
     }
+
+    /// Compile a linear law to be recovered from clamp experiments. Any other
+    /// family is refused.
+    ///
+    /// Compilation admits the worlds on the retained units and does not fit.
+    /// Execution fits the declared regimes and draws the declared uncertainty; the
+    /// law stays conditional on the clamp-experiment recipe and grants no
+    /// scientific license.
+    ///
+    /// # Errors
+    /// The request is not an experimental recovery, a world names an action a
+    /// recovered law cannot evaluate, or [`Self::prepare_cyclic_family`] refuses it.
+    pub fn prepare_experimental_recovery(
+        request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
+        if !matches!(
+            request,
+            antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::ExperimentalRecovery { .. }
+        ) {
+            return Err(CyclicArtifactError::Invalid(
+                "prepare_experimental_recovery accepts only an experimental recovery family; \
+                 next attempt: prepare a supplied law with prepare_recovered_linear"
+                    .into(),
+            ));
+        }
+        Self::prepare_cyclic_family(request, ctx)
+    }
 }
 impl PreparedStudy<CyclicFamilyPreparedState> {
+    /// Execute and return the intervention worlds, keyed by scientific world id,
+    /// with their certificates, solve routes and failed or withheld mass.
+    ///
+    /// # Errors
+    /// A family without intervention worlds (the refusal names the typed
+    /// families), failed execution, cancellation, or resource refusal.
+    pub fn interventions(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        Vec<antecedent_io::cyclic_family_artifact::CyclicInterventionWorld>,
+        CyclicArtifactError,
+    > {
+        let report = self.estimate(ctx)?;
+        self.state.program.request().intervention_worlds(&report).ok_or_else(|| {
+            CyclicArtifactError::Invalid(format!(
+                "family `{}` has no intervention worlds; next attempt: declare the worlds as \
+                 typed interventions with `linear_worlds`, `equilibrium_worlds`, `ode_worlds`, \
+                 `recovered_linear` or `experimental_recovery`",
+                self.state.program.request().family_name()
+            ))
+        })
+    }
+
     /// Inspect the frozen family and semantic program without executing its numerical engine.
     #[must_use]
     pub fn inspect(&self) -> CyclicFamilyPreparedInspection {
@@ -418,6 +490,7 @@ mod recovered_linear {
             outcome: 1,
             source_id: "clamp-experiments".into(),
             certifying_evidence: vec!["held-out-regime".into()],
+            uncertainty: antecedent_io::cyclic_family_artifact::RecoveredDrawOriginWire::Supplied,
         };
         let ctx = ExecutionContext::for_tests(1);
         let prepared = observe(&ctx, || Study::prepare_cyclic_family(&request, &ctx));

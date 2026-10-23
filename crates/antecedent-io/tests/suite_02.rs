@@ -3,6 +3,8 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "cyclic_family_typed.rs"]
+mod cyclic_family_typed;
 #[path = "nonlinear_mediation_artifact.rs"]
 mod nonlinear_mediation_artifact;
 #[path = "period_refresh_summary_artifact.rs"]

@@ -85,6 +85,7 @@ fn recovered_request() -> CyclicFamilyRequest {
         outcome: 1,
         source_id: "clamp-experiments".into(),
         certifying_evidence: vec!["held-out-regime".into()],
+        uncertainty: antecedent_io::cyclic_family_artifact::RecoveredDrawOriginWire::Supplied,
     }
 }
 
@@ -225,4 +226,165 @@ fn specified_and_recovered_cycles_execute_and_reload() {
     let identity = exported.identity.clone();
     drop(prepared);
     assert_eq!(consume_cyclic_family(&bytes, &identity, &ctx()).unwrap(), exported);
+}
+
+fn schema() -> antecedent::analysis::cyclic_evidence::CyclicEvidenceSchema {
+    antecedent::analysis::cyclic_evidence::CyclicEvidenceSchema {
+        id: "feedback".into(),
+        population: "bench".into(),
+        variables: vec![("a".into(), "volt".into()), ("b".into(), "volt".into())],
+    }
+}
+
+#[test]
+fn recovered_worlds_are_keyed_and_their_draw_origin_sets_the_evidence_port() {
+    use antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector as S;
+    use antecedent_io::cyclic_family_artifact::{CyclicInterventionWorld, RecoveredDrawOriginWire};
+
+    let refused = Study::prepare_experimental_recovery(&recovered_request(), &ctx()).unwrap_err();
+    assert!(matches!(
+        refused,
+        CyclicArtifactError::Invalid(message) if message.contains("next attempt")
+    ));
+
+    let response = S::Response { world: 1, noise_row: 0, variable: 1 };
+    let within = S::RecoveredDraw { world: 1, draw: 0, variable: 1 };
+    let supplied = Study::prepare_recovered_linear(&recovered_request(), &ctx()).unwrap();
+    let worlds = supplied.interventions(&ctx()).unwrap();
+    assert_eq!(worlds.len(), 2);
+    assert!(matches!(&worlds[1], CyclicInterventionWorld::Recovered { world: 1, .. }));
+    let evidence =
+        supplied.cyclic_evidence(schema(), vec![response.clone(), within.clone()], &ctx()).unwrap();
+    let ports: Vec<&str> = evidence.report().columns.iter().map(|c| c.port.as_str()).collect();
+    assert_eq!(ports, ["interventional_law", "interventional_law"]);
+
+    let mut declared = recovered_request();
+    if let CyclicFamilyRequest::RecoveredLinear { uncertainty, .. } = &mut declared {
+        *uncertainty = RecoveredDrawOriginWire::AsymptoticNormal { draws: 3, seed: 0 };
+    }
+    let sampled = Study::prepare_recovered_linear(&declared, &ctx()).unwrap();
+    let evidence = sampled.cyclic_evidence(schema(), vec![response, within], &ctx()).unwrap();
+    let columns = &evidence.report().columns;
+    assert_eq!(columns[0].port, "sampling_law");
+    assert_eq!(columns[0].uncertainty_axes, ["sampling"]);
+    assert_eq!(columns[0].samples.len(), 3);
+    assert!(columns[0].samples[1].is_none(), "the marked draw keeps its slot");
+    assert_eq!(columns[1].port, "interventional_law");
+    let bytes = evidence.export(&ctx()).unwrap();
+    let identity = evidence.report().identity.clone();
+    drop(sampled);
+    let replayed =
+        antecedent::analysis::cyclic_evidence::CyclicEvidence::consume(&bytes, &identity, &ctx())
+            .unwrap();
+    assert_eq!(replayed.report(), evidence.report());
+}
+
+#[test]
+fn typed_linear_worlds_run_on_the_prepared_handle() {
+    use antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector as S;
+    use antecedent_io::cyclic_family_artifact::{
+        CertificateDemandWire, CyclicComponentWire, CyclicInterventionWire,
+        CyclicInterventionWorld, CyclicWorldWire, LinearCyclicWire,
+    };
+    let request = CyclicFamilyRequest::LinearWorlds {
+        variables: vec![0, 1],
+        model: LinearCyclicWire {
+            coefficients: vec![0.0, 0.4, 0.5, 0.0],
+            intercept: vec![0.0, 0.0],
+            noise_mean: vec![0.0, 0.0],
+            noise_covariance: vec![1.0, 0.0, 0.0, 1.0],
+        },
+        component: CyclicComponentWire {
+            component_id: "feedback".into(),
+            source_id: "specification".into(),
+            certifying_evidence: vec!["bench-test".into()],
+        },
+        worlds: vec![
+            CyclicWorldWire {
+                world: 4,
+                interventions: vec![CyclicInterventionWire::Set { variable: 0, value: 2.0 }],
+                initial_states: vec![],
+            },
+            CyclicWorldWire {
+                world: 6,
+                interventions: vec![CyclicInterventionWire::Shift { variable: 0, delta: 1.0 }],
+                initial_states: vec![],
+            },
+        ],
+        certificate: CertificateDemandWire::Required,
+    };
+    let prepared = Study::prepare_cyclic_family(&request, &ctx()).unwrap();
+    assert_eq!(prepared.inspect().family, "linear_worlds");
+    let worlds = prepared.interventions(&ctx()).unwrap();
+    let ids: Vec<u32> = worlds
+        .iter()
+        .map(|world| match world {
+            CyclicInterventionWorld::Specified { answer } => {
+                assert!(answer.certificate.certified);
+                answer.world
+            }
+            other => panic!("specified world expected, got {other:?}"),
+        })
+        .collect();
+    assert_eq!(ids, [4, 6]);
+    let evidence = prepared
+        .cyclic_evidence(schema(), vec![S::World { world: 6, variable: 1, time: None }], &ctx())
+        .unwrap();
+    let column = &evidence.report().columns[0];
+    assert_eq!(column.port, "interventional_law");
+    assert!((column.samples[0].unwrap() - 0.625).abs() < 1e-10);
+
+    let stationary = Study::prepare_cyclic_family(
+        &CyclicFamilyRequest::OuStationary {
+            model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck {
+                drift: vec![-1.0],
+                center: vec![0.0],
+                diffusion: vec![2.0],
+            },
+        },
+        &ctx(),
+    )
+    .unwrap();
+    assert!(matches!(
+        stationary.interventions(&ctx()).unwrap_err(),
+        CyclicArtifactError::Invalid(message) if message.contains("next attempt")
+    ));
+}
+
+#[test]
+fn the_single_system_handle_shares_family_rebinding_and_evidence() {
+    use antecedent::analysis::cyclic_evidence::CyclicEvidenceSelector as S;
+    let specified = CyclicExecutionRequest {
+        model: model(),
+        fit: None,
+        worlds: vec![vec![], vec![Clamp { variable: 0, value: 2.0 }]],
+        noise: vec![vec![1.0, 0.0]],
+        initial: vec![0.0, 0.0],
+        policy: SolvePolicy::default(),
+        factual: None,
+    };
+    let system = Study::prepare_cyclic(specified.clone(), &ctx()).unwrap();
+    let direct = system.estimate(&ctx()).unwrap();
+    let family = system.to_family(&ctx()).unwrap();
+    assert_eq!(family.inspect().family, "system");
+    assert_eq!(family.inspect().preparation_evaluations, 0);
+    let report = family.estimate(&ctx()).unwrap();
+    let CyclicFamilyAnswer::System(answer) = &report.answer else { panic!("system answer") };
+    assert_eq!(answer.worlds, direct.worlds);
+    let evidence = family
+        .cyclic_evidence(
+            schema(),
+            vec![S::Action { world: 0, noise_row: 0, variable: 1, counterfactual: false }],
+            &ctx(),
+        )
+        .unwrap();
+    assert!((evidence.report().columns[0].samples[0].unwrap() - 0.625).abs() < 1e-6);
+    let mut retargeted = specified;
+    retargeted.worlds = vec![vec![Clamp { variable: 0, value: -1.0 }]];
+    let rebound =
+        family.rebind(&CyclicFamilyRequest::System { request: retargeted }, &ctx()).unwrap();
+    let (exported, bytes) = rebound.export(&ctx()).unwrap();
+    let CyclicFamilyAnswer::System(answer) = &exported.answer else { panic!("system answer") };
+    assert!((answer.worlds[0][0].values[1] + 0.5).abs() < 1e-6);
+    assert_eq!(consume_cyclic_family(&bytes, &exported.identity, &ctx()).unwrap(), exported);
 }

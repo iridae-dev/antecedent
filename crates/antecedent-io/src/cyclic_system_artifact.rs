@@ -149,7 +149,7 @@ impl CyclicExecutionRequest {
         prepared.estimate(ctx)
     }
 
-    fn execute_bound(
+    pub(crate) fn execute_bound(
         &self,
         fit: Option<&CyclicFit>,
         ctx: &ExecutionContext,

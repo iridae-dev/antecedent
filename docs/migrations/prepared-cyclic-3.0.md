@@ -63,3 +63,32 @@ inadmissible draws stay in the result. An acyclic free support uses the DAG
 schedule. A directed cycle is still refused by that algorithm, with its existing
 next attempt, and only then compiled under the cyclic license. The recovered law
 stays model-conditional. Compilation grants no scientific license.
+
+## Typed worlds, recovered laws and dynamic inference
+
+The family program also accepts worlds named by variable id and core
+interventions: `linear_worlds`, `equilibrium_worlds` and `ode_worlds`. Each world
+is admitted at preparation; an action the family cannot perform is refused with
+its next attempt and is never rewritten into another action. Results carry the
+scientific world id, the uniqueness certificate (never physical stability), the
+solve route, and failed and withheld mass. `interventions()` on the prepared
+family returns these worlds for every family that has them.
+
+`experimental_recovery` fits a linear law from declared clamp-experiment regimes
+at execution, draws its asymptotic-normal, bootstrap or identified-subspace
+posterior uncertainty, and evaluates hard-clamp worlds from the portable law.
+Unresolved directions stay unresolved in every draw. `recovered_linear` gains an
+optional draw origin; a request without one keeps its encoding and identity.
+Evidence projections put a declared sampling law on the sampling port, a posterior
+on the parameter-posterior port, and the law within one draw on the interventional
+port. Supplied draws keep their previous projection.
+
+`dynamic_inference` adds a bootstrap sampling law, observed information, or a
+posterior to ODE, stationary OU and shared-mechanism OU fits; changing only the
+method or the quantities reuses the fit. The single-system handle converts to a
+family program with `to_family`, which shares rebinding, evidence and replay.
+
+Fit reuse is keyed by the typed fit dependencies of each family, not by the
+encoded request with fields removed. The standalone recovery-plan byte format in
+`antecedent-estimate` (`export_retained_recovery_plan`, `consume_recovery_artifact`)
+is retired; recovered laws are exchanged through the family artifact.

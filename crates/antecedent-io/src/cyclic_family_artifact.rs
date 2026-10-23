@@ -19,6 +19,21 @@ pub use compiled::CompiledCyclicFamilyProgram;
 use compiled::FrozenFamilyFitValue;
 pub(crate) use compiled::FrozenGaussianDensity;
 
+#[path = "cyclic_family_worlds.rs"]
+mod worlds;
+pub use worlds::{
+    CertificateDemandWire, CoefficientCovarianceWire, CoefficientPriorWire,
+    ConstraintWeightingWire, CyclicActionAnswer, CyclicComponentWire, CyclicInitialStateWire,
+    CyclicInterventionWire, CyclicInterventionWorld, CyclicWorldAnswer, CyclicWorldOutcomeAnswer,
+    CyclicWorldWire, DisturbanceDivisorWire, DisturbancePriorWire, DynamicFitAnswer,
+    DynamicInferenceAnswer, DynamicMethodWire, DynamicProblemWire, ExperimentRegimeWire,
+    ExperimentalFitOptionsWire, ExperimentalRecoveryReport, LinearCyclicWire, NextAttemptAnswer,
+    RecoveredDrawOriginWire, RecoveredDrawStatusWire, RecoveredKeyedWorld, RecoveredLawCoefficient,
+    RecoveredLawDraw, RecoveredLawProduct, RecoveryInferenceWire, RecoveryPriorWire,
+    RegimeClampWire, RegimeSampleWire, ResamplingRuleWire, SamplingDesignWire, UnitColumnWire,
+    WorldCertificateAnswer, WorldSolvedByAnswer,
+};
+
 /// Explicit multi-chain sampling/replay policy.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -354,6 +369,99 @@ pub enum CyclicFamilyRequest {
         source_id: String,
         /// Evidence that may certify the component. Never a substitute for a draw.
         certifying_evidence: Vec<String>,
+        /// How the draws were produced. Supplied draws declare no meaning and are
+        /// omitted from the encoding, so existing requests keep their identity.
+        #[serde(default, skip_serializing_if = "RecoveredDrawOriginWire::is_supplied")]
+        uncertainty: RecoveredDrawOriginWire,
+    },
+    /// Linear equilibrium recovered from randomized clamp experiments.
+    ///
+    /// Preparation admits the worlds and does not fit. Execution fits the
+    /// declared regimes, draws the declared uncertainty, and evaluates each
+    /// hard-clamp world from the portable law. Unresolved directions stay
+    /// unresolved in every draw; the law stays conditional on the recipe.
+    ExperimentalRecovery {
+        /// Declared regimes, in sample order.
+        regimes: Vec<ExperimentRegimeWire>,
+        /// Units the mask removes before recovery.
+        #[serde(default)]
+        dropped: Vec<u32>,
+        /// One sample per regime.
+        samples: Vec<RegimeSampleWire>,
+        /// Fit options.
+        #[serde(default)]
+        options: ExperimentalFitOptionsWire,
+        /// How the uncertainty of the law is produced.
+        inference: RecoveryInferenceWire,
+        /// Hard-clamp worlds named by variable id.
+        worlds: Vec<CyclicWorldWire>,
+        /// Outcome variable id; a retained unit.
+        outcome: u32,
+        /// Source of the recovered model. It does not certify the component.
+        source_id: String,
+        /// Evidence that may certify the component.
+        certifying_evidence: Vec<String>,
+    },
+    /// Specified linear Gaussian equilibrium under typed interventions.
+    LinearWorlds {
+        /// Variable ids in model order.
+        variables: Vec<u32>,
+        /// Structural map and disturbance law.
+        model: LinearCyclicWire,
+        /// Component identity and certifying evidence.
+        component: CyclicComponentWire,
+        /// Worlds named by variable id.
+        worlds: Vec<CyclicWorldWire>,
+        /// Whether an uncertified world is answered.
+        certificate: CertificateDemandWire,
+    },
+    /// Specified nonlinear equilibrium under typed interventions, over shared draws.
+    EquilibriumWorlds {
+        /// Variable ids; equation `k` is the mechanism of variable `k`.
+        variables: Vec<u32>,
+        /// Specified model.
+        model: antecedent_model::nonlinear_equilibrium::EquilibriumModel,
+        /// Worlds named by variable id.
+        worlds: Vec<CyclicWorldWire>,
+        /// Disturbance draws shared by every world, one row per draw.
+        noise: Vec<Vec<f64>>,
+        /// Numerical initial guess; not a causal initial state.
+        initial: Vec<f64>,
+        /// Numerical and certificate policy.
+        policy: antecedent_model::nonlinear_equilibrium::SolvePolicy,
+    },
+    /// Specified continuous-time system under typed interventions and initial-state changes.
+    OdeWorlds {
+        /// Variable ids in state order.
+        variables: Vec<u32>,
+        /// Drift mechanisms.
+        model: OdeSystem,
+        /// Initial state at the first observation time.
+        initial: Vec<f64>,
+        /// Declared initial-state law name of each state.
+        initial_laws: Vec<String>,
+        /// Strictly increasing observation times.
+        times: Vec<f64>,
+        /// Worlds named by variable id.
+        worlds: Vec<CyclicWorldWire>,
+        /// Adaptive integration policy.
+        policy: OdePolicy,
+    },
+    /// Sampling-law, observed-information, or posterior uncertainty of a fitted
+    /// continuous-time family. The fit is shared across methods and quantities.
+    DynamicInference {
+        /// Declared fitting procedure.
+        problem: DynamicProblemWire,
+        /// Uncertainty method.
+        method: DynamicMethodWire,
+        /// Interventional or stationary quantities evaluated at every replicate or draw.
+        quantities: Vec<antecedent_estimate::cyclic_dynamic_inference::DynamicQuantity>,
+    },
+    /// The single-system equilibrium request, carried as a family so it shares
+    /// rebinding, evidence, and replay with every other family.
+    System {
+        /// Complete single-system request.
+        request: crate::cyclic_system_artifact::CyclicExecutionRequest,
     },
 }
 
@@ -525,6 +633,19 @@ pub enum CyclicFamilyAnswer {
     /// Preparation did not fit this law. Failed and inadmissible draws remain.
     /// Specified models stay model-conditional; compilation grants no scientific license.
     RecoveredLinear(RecoveredLinearReport),
+    /// Law recovered from clamp experiments, its draw origin, and its keyed worlds.
+    ExperimentalRecovery(ExperimentalRecoveryReport),
+    /// Typed worlds of a specified model, keyed by scientific world id.
+    Worlds(Vec<CyclicWorldAnswer>),
+    /// Point fit of a continuous-time family and its uncertainty.
+    DynamicInference {
+        /// Point fit.
+        fit: DynamicFitAnswer,
+        /// Sampling law, observed information, or posterior.
+        inference: Box<DynamicInferenceAnswer>,
+    },
+    /// Single-system equilibrium answer.
+    System(crate::cyclic_system_artifact::CyclicExecutionReport),
 }
 
 /// Which algorithm certified one recovered draw.
@@ -711,7 +832,23 @@ impl CyclicFamilyRequest {
             Self::OuFit { .. } => "ou_fit",
             Self::Polynomial { .. } => "polynomial",
             Self::RecoveredLinear { .. } => "recovered_linear",
+            Self::ExperimentalRecovery { .. } => "experimental_recovery",
+            Self::LinearWorlds { .. } => "linear_worlds",
+            Self::EquilibriumWorlds { .. } => "equilibrium_worlds",
+            Self::OdeWorlds { .. } => "ode_worlds",
+            Self::DynamicInference { .. } => "dynamic_inference",
+            Self::System { .. } => "system",
         }
+    }
+
+    /// Intervention worlds of `report`, keyed by scientific world id, or `None`
+    /// for a family whose answer has no intervention worlds.
+    #[must_use]
+    pub fn intervention_worlds(
+        &self,
+        report: &CyclicFamilyReport,
+    ) -> Option<Vec<CyclicInterventionWorld>> {
+        worlds::intervention_worlds(self, &report.answer)
     }
     /// Execute on the common resource/cancellation context, preserving family semantics.
     pub fn execute(
@@ -1189,6 +1326,7 @@ impl CyclicFamilyRequest {
                 outcome,
                 source_id,
                 certifying_evidence,
+                uncertainty: _,
             } => compiled::execute_recovered_linear(
                 nodes,
                 draws,
@@ -1197,6 +1335,89 @@ impl CyclicFamilyRequest {
                 source_id,
                 certifying_evidence,
             )?,
+            Self::ExperimentalRecovery {
+                regimes,
+                dropped,
+                samples,
+                options,
+                inference,
+                worlds,
+                outcome,
+                source_id,
+                certifying_evidence,
+            } => worlds::execute_experimental_recovery(
+                regimes,
+                dropped,
+                samples,
+                *options,
+                inference,
+                worlds,
+                *outcome,
+                source_id,
+                certifying_evidence,
+                match frozen {
+                    Some(FrozenFamilyFitValue::Recovered(law)) => Some(law),
+                    _ => None,
+                },
+                ctx,
+            )?,
+            Self::LinearWorlds { variables, model, component, worlds, certificate } => {
+                worlds::execute_linear_worlds(
+                    variables,
+                    model,
+                    component,
+                    worlds,
+                    *certificate,
+                    ctx,
+                )?
+            }
+            Self::EquilibriumWorlds { variables, model, worlds, noise, initial, policy } => {
+                worlds::execute_equilibrium_worlds(
+                    variables, model, worlds, noise, initial, *policy, ctx,
+                )?
+            }
+            Self::OdeWorlds { variables, model, initial, initial_laws, times, worlds, policy } => {
+                worlds::execute_ode_worlds(
+                    variables,
+                    model,
+                    initial,
+                    initial_laws,
+                    times,
+                    worlds,
+                    *policy,
+                    ctx,
+                )?
+            }
+            Self::DynamicInference { problem, method, quantities } => {
+                worlds::execute_dynamic_inference(
+                    problem,
+                    method,
+                    quantities,
+                    match frozen {
+                        Some(FrozenFamilyFitValue::Dynamic(fit)) => Some(fit),
+                        _ => None,
+                    },
+                    ctx,
+                )?
+            }
+            Self::System { request } => {
+                let fit = match (&request.fit, frozen) {
+                    (None, _) => None,
+                    (Some(_), Some(FrozenFamilyFitValue::System(retained))) => {
+                        Some(retained.clone())
+                    }
+                    (Some(recipe), _) => {
+                        Some(antecedent_estimate::cyclic_likelihood::fit_cyclic_likelihood(
+                            &request.model,
+                            &recipe.parameters,
+                            &recipe.rows,
+                            recipe.options,
+                            ctx,
+                        )?)
+                    }
+                };
+                CyclicFamilyAnswer::System(request.execute_bound(fit.as_ref(), ctx)?)
+            }
         };
         let required = crate::retained_allocation::allocation_bytes(&answer)
             .map_err(invalid)?

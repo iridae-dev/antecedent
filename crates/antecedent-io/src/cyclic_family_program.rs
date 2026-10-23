@@ -33,6 +33,9 @@ pub(super) enum FrozenFamilyFitValue {
     Polynomial(antecedent_estimate::constraint_likelihood::PolynomialFit),
     Ode(antecedent_estimate::cyclic_dynamics::OdeFit),
     OuFit(antecedent_estimate::cyclic_dynamics::OuFit),
+    Recovered(super::RecoveredLawProduct),
+    Dynamic(super::DynamicFitAnswer),
+    System(antecedent_estimate::cyclic_likelihood::CyclicFit),
 }
 pub(crate) use antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDensity;
 #[derive(Debug)]
@@ -104,6 +107,14 @@ impl FrozenFit {
             A::PolynomialFit(fit) => retain(fit, ctx, 0, FrozenFamilyFitValue::Polynomial)?,
             A::OdeFit(fit) => retain(fit, ctx, 0, FrozenFamilyFitValue::Ode)?,
             A::OuFit(fit) => retain(fit, ctx, 0, FrozenFamilyFitValue::OuFit)?,
+            A::ExperimentalRecovery(report) => {
+                retain(&report.law, ctx, 0, FrozenFamilyFitValue::Recovered)?
+            }
+            A::DynamicInference { fit, .. } => retain(fit, ctx, 0, FrozenFamilyFitValue::Dynamic)?,
+            A::System(report) => match &report.fit {
+                Some(fit) => retain(fit, ctx, 0, FrozenFamilyFitValue::System)?,
+                None => return Ok(None),
+            },
             _ => return Ok(None),
         };
         Ok(Some(Self { kernel, value, retention }))
@@ -157,27 +168,7 @@ impl CompiledCyclicFamilyProgram {
         let (bytes, retention) = bounded_json(request, ctx)?;
         let identity =
             CanonicalWriter::digest_bytes_hex("antecedent.cyclic_family.request.v1", &bytes);
-        let mut dependencies: serde_json::Value =
-            serde_json::from_slice(&bytes).map_err(invalid)?;
-        let excluded: &[&str] = match request {
-            R::FrequentistBootstrap { .. } | R::ParameterPosterior { .. } => {
-                &["worlds", "noise", "initial", "solve_policy"]
-            }
-            R::RecoveredLinear { .. } | R::OuMechanisms { .. } => &["worlds"],
-            R::JointCounterfactual { .. } | R::PartialCounterfactual { .. } => {
-                &["worlds", "solve_policy"]
-            }
-            R::GaussianFunctional { .. } => &["assignments"],
-            _ => &[],
-        };
-        if let Some(object) = dependencies.as_object_mut() {
-            for field in excluded {
-                object.remove(*field);
-            }
-        }
-        let fit_bytes = serde_json::to_vec(&dependencies).map_err(invalid)?;
-        let fit_identity =
-            CanonicalWriter::digest_bytes_hex("antecedent.cyclic_family.fit.v1", &fit_bytes);
+        let fit_identity = fit_dependency_identity(request)?;
         Ok(Self {
             request: Arc::new(request.clone()),
             identity,
@@ -384,11 +375,65 @@ pub(super) fn output_bytes(request: &R) -> Result<u64, CyclicArtifactError> {
             worlds.len().max(1),
             width(&[(square(nodes.len())?, 32), (nodes.len(), 16)], 256)?,
         ])?,
+        R::ExperimentalRecovery { regimes, dropped, inference, worlds, .. } => {
+            let n = super::worlds::retained_units(regimes, dropped).len();
+            let draws = match inference {
+                super::RecoveryInferenceWire::AsymptoticNormal { draws, .. }
+                | super::RecoveryInferenceWire::Posterior { draws, .. } => *draws,
+                super::RecoveryInferenceWire::Bootstrap { replicates, .. } => *replicates,
+            };
+            product(&[
+                draws.max(1),
+                one_more(worlds.len())?,
+                width(&[(square(n)?, 64), (n, 32)], 512)?,
+            ])?
+        }
+        R::LinearWorlds { variables, worlds, .. } => product(&[
+            worlds.len().max(1),
+            width(&[(square(variables.len())?, 16), (variables.len(), 64)], 1024)?,
+        ])?,
+        R::EquilibriumWorlds { variables, worlds, noise, .. } => product(&[
+            worlds.len().max(1),
+            noise.len().max(1),
+            width(&[(variables.len(), 128)], 512)?,
+        ])?,
+        R::OdeWorlds { variables, times, worlds, .. } => product(&[
+            worlds.len().max(1),
+            times.len().max(1),
+            width(&[(variables.len(), 16)], 256)?,
+        ])?,
+        R::DynamicInference { problem, method, quantities } => {
+            let draws = match method {
+                super::DynamicMethodWire::Bootstrap { replicates, .. } => *replicates,
+                super::DynamicMethodWire::Information { .. } => 1,
+                super::DynamicMethodWire::Posterior { options, .. } => {
+                    options.chains.saturating_mul(options.draws)
+                }
+            };
+            let n = problem.order();
+            product(&[
+                draws.max(1),
+                width(&[(quantities.len(), 16), (square(n)?, 16), (n, 16)], 256)?,
+            ])?
+        }
+        R::System { request } => product(&[
+            request.worlds.len().max(1),
+            request
+                .noise
+                .len()
+                .checked_add(usize::from(request.factual.is_some()))
+                .ok_or_else(overflow)?,
+            width(&[(request.model.order(), 128)], 512)?,
+        ])?,
         _ => 0,
     };
     base.checked_add(extra).and_then(|n| n.checked_add(4096)).ok_or_else(overflow)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per family keeps each family's compiler product next to its admission"
+)]
 fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactError> {
     let plans = match request {
         R::AdamFit { model, .. }
@@ -436,11 +481,213 @@ fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactE
             vec![]
         }
         R::Functional { .. } | R::GaussianFunctional { .. } | R::Graph { .. } => vec![],
-        R::RecoveredLinear { nodes, draws, worlds, outcome, source_id, certifying_evidence } => {
-            recovered_plans(nodes, draws, worlds, *outcome, source_id, certifying_evidence)?
+        R::RecoveredLinear {
+            nodes,
+            draws,
+            worlds,
+            outcome,
+            source_id,
+            certifying_evidence,
+            ..
+        } => recovered_plans(nodes, draws, worlds, *outcome, source_id, certifying_evidence)?,
+        R::ExperimentalRecovery {
+            regimes,
+            dropped,
+            samples,
+            worlds,
+            outcome,
+            source_id,
+            certifying_evidence,
+            ..
+        } => super::worlds::experimental_recovery_plans(
+            regimes,
+            dropped,
+            samples,
+            worlds,
+            *outcome,
+            source_id,
+            certifying_evidence,
+        )?,
+        R::LinearWorlds { variables, model, worlds, .. } => {
+            super::worlds::linear_world_plans(variables, model, worlds)?
+        }
+        R::EquilibriumWorlds { variables, model, worlds, .. } => {
+            super::worlds::equilibrium_world_plans(variables, model, worlds)?
+        }
+        R::OdeWorlds { variables, model, initial_laws, worlds, .. } => {
+            super::worlds::ode_world_plans(variables, model, initial_laws, worlds)?
+        }
+        R::DynamicInference { problem, .. } => match problem {
+            super::DynamicProblemWire::Ode(problem) => vec![compile_ode(&problem.template)?],
+            super::DynamicProblemWire::Ou(problem) => vec![compile_ou(&problem.template)?],
+            super::DynamicProblemWire::OuMechanisms(problem) => {
+                problem.template.validate()?;
+                vec![]
+            }
+        },
+        R::System { request } => {
+            request.model.validate()?;
+            request
+                .worlds
+                .iter()
+                .map(|world| compile_equilibrium(&request.model, world))
+                .collect::<Result<Vec<_>, _>>()?
         }
     };
     Ok(plans)
+}
+
+/// Typed fit dependencies: the request fields a frozen statistical product was
+/// computed from. Worlds, response disturbances, numerical initialization, and
+/// solve policy that only propagate an already fitted response are not listed, so
+/// changing them reuses the product; every other field invalidates it.
+#[derive(serde::Serialize)]
+#[serde(tag = "family", rename_all = "snake_case")]
+enum FitDependencies<'a> {
+    FrequentistBootstrap {
+        design: &'a antecedent_estimate::cyclic_likelihood::CyclicBootstrapDesign,
+        model: &'a antecedent_model::nonlinear_equilibrium::EquilibriumModel,
+        parameters: &'a [antecedent_estimate::cyclic_likelihood::CyclicParameter],
+        rows: &'a [antecedent_model::nonlinear_equilibrium::RegimeRow],
+        policy: &'a antecedent_estimate::cyclic_likelihood::CyclicFitOptions,
+        replicates: usize,
+        seed: u64,
+    },
+    ParameterPosterior {
+        model: &'a antecedent_model::nonlinear_equilibrium::EquilibriumModel,
+        parameters: &'a [antecedent_estimate::cyclic_likelihood::CyclicParameter],
+        rows: &'a [antecedent_model::nonlinear_equilibrium::RegimeRow],
+        prior_sd: f64,
+        sampling: &'a super::CyclicSamplingPolicy,
+    },
+    JointCounterfactual {
+        model: &'a antecedent_model::nonlinear_equilibrium::EquilibriumModel,
+        parameters: &'a [antecedent_estimate::cyclic_likelihood::CyclicParameter],
+        rows: &'a [antecedent_model::nonlinear_equilibrium::RegimeRow],
+        prior_sd: f64,
+        observations: &'a [Option<f64>],
+        measurement_variances: &'a [f64],
+        initial: &'a [f64],
+        sampling: &'a super::CyclicSamplingPolicy,
+    },
+    PartialCounterfactual {
+        model: &'a antecedent_model::nonlinear_equilibrium::EquilibriumModel,
+        observations: &'a [Option<f64>],
+        measurement_variances: &'a [f64],
+        initial: &'a [f64],
+        sampling: &'a super::CyclicSamplingPolicy,
+    },
+    OuMechanisms {
+        model: &'a antecedent_estimate::ou_mechanisms::OuMechanisms,
+        regimes: &'a [antecedent_estimate::ou_mechanisms::OuMechanismRegime],
+        parameters: &'a [antecedent_estimate::ou_mechanisms::OuMechanismParameter],
+        policy: &'a antecedent_estimate::cyclic_gradient::CyclicGradientPolicy,
+    },
+    GaussianFunctional {
+        source: &'a crate::cyclic_graph::CyclicGraphRequest,
+        source_identity: &'a str,
+        program: &'a crate::FunctionalProgramWire,
+        law: &'a crate::cyclic_gaussian_functional::GaussianCyclicLaw,
+    },
+    ExperimentalRecovery {
+        regimes: &'a [super::ExperimentRegimeWire],
+        dropped: &'a [u32],
+        samples: &'a [super::RegimeSampleWire],
+        options: &'a super::ExperimentalFitOptionsWire,
+        inference: &'a super::RecoveryInferenceWire,
+    },
+    DynamicInference {
+        problem: &'a super::DynamicProblemWire,
+    },
+    System {
+        model: &'a antecedent_model::nonlinear_equilibrium::EquilibriumModel,
+        fit: Option<&'a crate::cyclic_system_artifact::CyclicFitRequest>,
+    },
+    /// Every other family: the whole request is a dependency.
+    Whole {
+        request: &'a R,
+    },
+}
+
+impl<'a> FitDependencies<'a> {
+    fn of(request: &'a R) -> Self {
+        match request {
+            R::FrequentistBootstrap {
+                design,
+                model,
+                parameters,
+                rows,
+                policy,
+                replicates,
+                seed,
+                ..
+            } => Self::FrequentistBootstrap {
+                design,
+                model,
+                parameters,
+                rows,
+                policy,
+                replicates: *replicates,
+                seed: *seed,
+            },
+            R::ParameterPosterior { model, parameters, rows, prior_sd, sampling, .. } => {
+                Self::ParameterPosterior { model, parameters, rows, prior_sd: *prior_sd, sampling }
+            }
+            R::JointCounterfactual {
+                model,
+                parameters,
+                rows,
+                prior_sd,
+                observations,
+                measurement_variances,
+                initial,
+                sampling,
+                ..
+            } => Self::JointCounterfactual {
+                model,
+                parameters,
+                rows,
+                prior_sd: *prior_sd,
+                observations,
+                measurement_variances,
+                initial,
+                sampling,
+            },
+            R::PartialCounterfactual {
+                model,
+                observations,
+                measurement_variances,
+                initial,
+                sampling,
+                ..
+            } => Self::PartialCounterfactual {
+                model,
+                observations,
+                measurement_variances,
+                initial,
+                sampling,
+            },
+            R::OuMechanisms { model, regimes, parameters, policy, .. } => {
+                Self::OuMechanisms { model, regimes, parameters, policy }
+            }
+            R::GaussianFunctional { source, source_identity, program, law, .. } => {
+                Self::GaussianFunctional { source, source_identity, program, law }
+            }
+            R::ExperimentalRecovery { regimes, dropped, samples, options, inference, .. } => {
+                Self::ExperimentalRecovery { regimes, dropped, samples, options, inference }
+            }
+            R::DynamicInference { problem, .. } => Self::DynamicInference { problem },
+            R::System { request } => {
+                Self::System { model: &request.model, fit: request.fit.as_ref() }
+            }
+            other => Self::Whole { request: other },
+        }
+    }
+}
+
+fn fit_dependency_identity(request: &R) -> Result<String, CyclicArtifactError> {
+    let bytes = serde_json::to_vec(&FitDependencies::of(request)).map_err(invalid)?;
+    Ok(CanonicalWriter::digest_bytes_hex("antecedent.cyclic_family.fit_dependencies", &bytes))
 }
 
 fn recovered_plans(
@@ -559,13 +806,52 @@ fn retain_recovered(
     retained.map_err(invalid)
 }
 
+/// One unresolved direction of a wire draw. It does not complete `K`.
+pub(super) fn direction_input(
+    wire: &super::RecoveredDirectionWire,
+) -> antecedent_identify::experimental_recovery::UnresolvedDirection {
+    use antecedent_core::VariableId;
+    use antecedent_identify::experimental_recovery::{
+        DirectCoefficient, UnresolvedDirection, UnresolvedReason,
+    };
+    UnresolvedDirection {
+        support: wire
+            .support
+            .iter()
+            .map(|item| DirectCoefficient {
+                into: VariableId::from_raw(item.into),
+                from: VariableId::from_raw(item.from),
+            })
+            .collect(),
+        reason: match &wire.reason {
+            super::RecoveredUnresolvedWire::IncompletePairCoverage { target, missing_clamps } => {
+                UnresolvedReason::IncompletePairCoverage {
+                    target: VariableId::from_raw(*target),
+                    missing_clamps: missing_clamps
+                        .iter()
+                        .copied()
+                        .map(VariableId::from_raw)
+                        .collect(),
+                }
+            }
+            super::RecoveredUnresolvedWire::DeficientConstraintRank {
+                target,
+                column_rank,
+                width,
+            } => UnresolvedReason::DeficientConstraintRank {
+                target: VariableId::from_raw(*target),
+                column_rank: *column_rank,
+                width: *width,
+            },
+        },
+    }
+}
+
 fn draw_input(
     draw: &super::RecoveredDrawWire,
 ) -> antecedent_identify::experimental_recovery::RecoveryDrawInput {
     use antecedent_core::VariableId;
-    use antecedent_identify::experimental_recovery::{
-        DirectCoefficient, RecoveryDrawInput, UnresolvedDirection, UnresolvedReason,
-    };
+    use antecedent_identify::experimental_recovery::{DirectCoefficient, RecoveryDrawInput};
     RecoveryDrawInput {
         coefficients: draw
             .coefficients
@@ -583,42 +869,7 @@ fn draw_input(
         intercept: draw.intercept.clone(),
         noise_mean: draw.noise_mean.clone(),
         noise_covariance: draw.noise_covariance.clone(),
-        unresolved: draw
-            .unresolved
-            .iter()
-            .map(|wire| UnresolvedDirection {
-                support: wire
-                    .support
-                    .iter()
-                    .map(|item| DirectCoefficient {
-                        into: VariableId::from_raw(item.into),
-                        from: VariableId::from_raw(item.from),
-                    })
-                    .collect(),
-                reason: match &wire.reason {
-                    super::RecoveredUnresolvedWire::IncompletePairCoverage {
-                        target,
-                        missing_clamps,
-                    } => UnresolvedReason::IncompletePairCoverage {
-                        target: VariableId::from_raw(*target),
-                        missing_clamps: missing_clamps
-                            .iter()
-                            .copied()
-                            .map(VariableId::from_raw)
-                            .collect(),
-                    },
-                    super::RecoveredUnresolvedWire::DeficientConstraintRank {
-                        target,
-                        column_rank,
-                        width,
-                    } => UnresolvedReason::DeficientConstraintRank {
-                        target: VariableId::from_raw(*target),
-                        column_rank: *column_rank,
-                        width: *width,
-                    },
-                },
-            })
-            .collect(),
+        unresolved: draw.unresolved.iter().map(direction_input).collect(),
         weight: draw.weight,
         marked_inadmissible: draw.marked_inadmissible,
     }
@@ -652,7 +903,7 @@ fn support_map(
     antecedent_model::LinearStructuralMap::try_new(coefficients, vec![0.0; n]).map_err(invalid)
 }
 
-fn plan_from_route(
+pub(super) fn plan_from_route(
     route: &antecedent_model::scc_compile::LinearSupportRoute,
 ) -> CompiledSystemPlan {
     use antecedent_model::scc_compile::LinearSupportRoute;
@@ -692,7 +943,7 @@ fn plan_from_route(
     }
 }
 
-fn world_answer(
+pub(super) fn world_answer(
     evaluation: &antecedent_estimate::recovery::CertifiedInterventionEvaluation,
 ) -> super::RecoveredWorldAnswer {
     use antecedent_estimate::recovery::{EvaluatedOutcome, SolvedBy};

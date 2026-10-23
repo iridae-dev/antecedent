@@ -33,9 +33,10 @@ use antecedent_expr::{
 use antecedent_identify::experimental_recovery::{
     AssembledCoefficientRecovery, DirectCoefficient, DrawAdmissibility,
     InadmissibleCoefficientDraw, JointRecoveryDraw, RecoveredCoefficientUncertainty,
-    RecoveryDrawInput, UncertaintyFault, UnresolvedDirection, UnresolvedReason,
-    joint_draw_from_blocks,
+    RecoveryDrawInput, UncertaintyFault, joint_draw_from_blocks,
 };
+#[cfg(test)]
+use antecedent_identify::experimental_recovery::{UnresolvedDirection, UnresolvedReason};
 use antecedent_identify::recovery::MISSING_LEVEL;
 use antecedent_identify::{
     RECOVERY_MAX_OBSERVED_CELLS, RecoveryDerivation, RecoveryDetail, RecoveryError,
@@ -417,14 +418,19 @@ pub fn evaluate_recovered_effect(
 }
 
 const RECOVERED_EQUILIBRIUM: &str = "recovered-equilibrium";
+#[cfg(test)]
 const ARTIFACT_MAGIC: &[u8; 4] = b"RCVY";
 /// Layout version written after the magic. A reader refuses every other version.
+#[cfg(test)]
 const ARTIFACT_VERSION: u32 = 1;
 /// Bytes of the trailing integrity word.
+#[cfg(test)]
 const ARTIFACT_SEAL_BYTES: usize = 8;
 /// Smallest encoding of one draw: weight, mark, and five empty counts.
+#[cfg(test)]
 const DRAW_MIN_BYTES: usize = 8 + 1 + 4 + 4 + 4 + 4 + 4;
 /// Smallest encoding of one unresolved direction: tag, target, one count, support count.
+#[cfg(test)]
 const DIRECTION_MIN_BYTES: usize = 1 + 4 + 4 + 4;
 /// How far the draw weights may sit from one before the plan is refused.
 const WEIGHT_SUM_TOLERANCE: f64 = 1.0e-9;
@@ -1039,6 +1045,7 @@ pub fn consume_recovery_evidence(
 /// The layout is the magic, a version word, the body, and a trailing 64-bit
 /// FNV-1a word over everything before it. The word detects corruption; it is
 /// not authentication.
+#[cfg(test)]
 pub fn export_retained_recovery_plan(
     plan: &RetainedRecoveryPlan,
 ) -> Result<Vec<u8>, RecoveryInterventionFault> {
@@ -1078,6 +1085,7 @@ pub fn export_retained_recovery_plan(
 /// [`RecoveryInterventionFault`] when `bytes` is not a plan, or the threshold
 /// is not finite.
 #[must_use = "the decision is recomputed from the artifact"]
+#[cfg(test)]
 pub fn consume_recovery_artifact(
     bytes: &[u8],
     evidence_id: &str,
@@ -1494,15 +1502,18 @@ fn is_zero(value: f64) -> bool {
 }
 
 #[allow(clippy::unnecessary_wraps, reason = "callers chain it with fallible length conversions")]
+#[cfg(test)]
 fn write_u32(buf: &mut Vec<u8>, value: u32) -> Result<(), RecoveryInterventionFault> {
     buf.extend_from_slice(&value.to_le_bytes());
     Ok(())
 }
 
+#[cfg(test)]
 fn write_f64(buf: &mut Vec<u8>, value: f64) {
     buf.extend_from_slice(&value.to_bits().to_le_bytes());
 }
 
+#[cfg(test)]
 fn write_str(buf: &mut Vec<u8>, value: &str) -> Result<(), RecoveryInterventionFault> {
     let len = u32::try_from(value.len()).map_err(|_| RecoveryInterventionFault::IndexOverflow)?;
     write_u32(buf, len)?;
@@ -1510,6 +1521,7 @@ fn write_str(buf: &mut Vec<u8>, value: &str) -> Result<(), RecoveryInterventionF
     Ok(())
 }
 
+#[cfg(test)]
 fn write_draw(
     buf: &mut Vec<u8>,
     draw: &JointRecoveryDraw,
@@ -1532,6 +1544,7 @@ fn write_draw(
     Ok(())
 }
 
+#[cfg(test)]
 fn write_slice(buf: &mut Vec<u8>, values: &[f64]) -> Result<(), RecoveryInterventionFault> {
     write_u32(buf, u32::try_from(values.len())?)?;
     for value in values {
@@ -1540,6 +1553,7 @@ fn write_slice(buf: &mut Vec<u8>, values: &[f64]) -> Result<(), RecoveryInterven
     Ok(())
 }
 
+#[cfg(test)]
 fn write_direction(
     buf: &mut Vec<u8>,
     direction: &UnresolvedDirection,
@@ -1569,6 +1583,7 @@ fn write_direction(
 }
 
 /// 64-bit FNV-1a over `bytes`.
+#[cfg(test)]
 fn checksum(bytes: &[u8]) -> u64 {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in bytes {
@@ -1578,6 +1593,7 @@ fn checksum(bytes: &[u8]) -> u64 {
     hash
 }
 
+#[cfg(test)]
 fn read_plan(bytes: &[u8]) -> Result<RetainedRecoveryPlan, RecoveryInterventionFault> {
     let header = ARTIFACT_MAGIC.len() + 4;
     if bytes.len() < header + ARTIFACT_SEAL_BYTES
@@ -1636,10 +1652,12 @@ fn read_plan(bytes: &[u8]) -> Result<RetainedRecoveryPlan, RecoveryInterventionF
     })
 }
 
+#[cfg(test)]
 struct Reader<'a> {
     rest: &'a [u8],
 }
 
+#[cfg(test)]
 impl<'a> Reader<'a> {
     fn take(&mut self, len: usize) -> Result<&'a [u8], RecoveryInterventionFault> {
         if self.rest.len() < len {
