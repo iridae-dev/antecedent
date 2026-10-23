@@ -4,18 +4,31 @@
 //! published point is the completion-weighted mean. Enumeration is not a
 //! posterior probability.
 //!
+//! Uncertainty (see `temporal_point_uncertainty`): the frequentist interval is
+//! the shared circular-block bootstrap of the whole frozen-weight procedure,
+//! every regression of every completion refit on the same resampled series
+//! times, with an Imbens–Manski interval for the identified set over the
+//! completions from the same replicates. The Bayesian side draws every
+//! completion's slope posterior; one completion publishes its posterior, and
+//! several publish an interval for the identified set over the completions
+//! (enumeration weights are not posterior mass, so the completion posteriors are
+//! not mixed).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::temporal_path::{CrossWorldContrast, DerivativeSpec};
+use super::temporal_path::CrossWorldContrast;
+use super::temporal_point_uncertainty::{
+    self as point_uncertainty, FrozenAtom, SlopeAtom, SlopeSource,
+};
 use super::{
-    Arc, CausalError, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EffectEstimate, EstimatorId, ExecuteRun, ExecutionContext, GraphClass, GraphPosterior,
-    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant,
-    Intervention, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    Strategy, StudyResult, TableView, TemporalEffectQuery, TemporalIndexer, TimeSeriesData,
-    VariableId, elapsed_ns, envelope_to_identification_result_for,
+    Arc, CausalError, CausalPosterior, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecuteRun, ExecutionContext, GraphClass,
+    GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
+    InferenceMode, Instant, Intervention, OverlapPolicy, PhysicalExecutionPlan,
+    PosteriorMassSummary, RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView, TemporalEffectQuery,
+    TemporalIndexer, TimeSeriesData, VariableId, elapsed_ns, envelope_to_identification_result_for,
     identification_status_ok_for_case, identify_cached_diagnostic, report_identify_compute,
     resolve_posterior_status, select_estimand,
 };
@@ -26,14 +39,56 @@ const CONDITIONAL_PRIOR_REFUSAL: &str = "temporal conditional effect uses the is
 const DERIVATIVE_PRIOR_REFUSAL: &str = "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
 const CROSS_WORLD_PRIOR_REFUSAL: &str = "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
 
-struct WeightedPoints {
-    point: f64,
+/// The identified completions of one class envelope, each with its recorded
+/// regressions, frozen weight and point.
+struct ClassPoints<'a> {
+    atoms: Vec<SlopeAtom<'a>>,
+    weights: Vec<f64>,
+    points: Vec<f64>,
+    /// Point by envelope case (structural mixture), `None` where not evaluated.
     values: Vec<Option<f64>>,
     estimand: IdentifiedEstimand,
     assumptions: antecedent_core::AssumptionSet,
     /// First identified completion, used to name the cross-world functional.
     primary_identification: IdentificationResult,
     primary_indexer: TemporalIndexer,
+}
+
+impl ClassPoints<'_> {
+    fn point(&self) -> Result<f64, CausalError> {
+        let pairs: Vec<(f64, f64)> =
+            self.weights.iter().copied().zip(self.points.iter().copied()).collect();
+        weighted_mean(&pairs)
+    }
+}
+
+/// How a class point route reports its uncertainty: the inference mode, the
+/// bootstrap budget, the structural lag span and the RNG stream bases.
+#[derive(Clone, Copy)]
+pub(super) struct ClassPointUncertainty<'a> {
+    pub(super) inference: &'a InferenceMode,
+    pub(super) bootstrap_replicates: u32,
+    pub(super) structural_span: usize,
+    pub(super) block_stream: u64,
+    pub(super) posterior_stream: u64,
+}
+
+/// The uncertainty a scalar class point route publishes beside its point.
+pub(super) struct ClassScalarOutcome {
+    pub(super) estimate: EffectEstimate,
+    pub(super) posterior: Option<CausalPosterior>,
+    pub(super) identified_set: Option<antecedent_estimate::IdentifiedSetInterval>,
+    pub(super) diagnostics: Vec<Diagnostic>,
+    pub(super) replicates_ok: Option<u32>,
+    pub(super) cancelled: bool,
+}
+
+/// An assembled class conditional fit.
+pub(super) struct ClassConditionalFit {
+    pub(super) estimand: IdentifiedEstimand,
+    pub(super) diagnostics: Vec<Diagnostic>,
+    pub(super) structural: crate::result::StructuralResponseMixture,
+    pub(super) outcome: ClassScalarOutcome,
 }
 
 fn isotropic_prior_scale(
@@ -91,24 +146,11 @@ fn derivative_response_finite(response: &CausalResponse) -> bool {
     }
 }
 
-fn point_only_estimate(point: f64, assumptions: antecedent_core::AssumptionSet) -> EffectEstimate {
-    EffectEstimate::new(point, f64::NAN, assumptions, OverlapPolicy::ExplicitOverride)
-}
-
-fn clear_interval(mut result: StudyResult) -> StudyResult {
-    result.interval = None;
-    result.posterior = None;
-    result
-}
-
-fn collect_weighted_points(
-    bundle: &antecedent_identify::TemporalClassEnvelope,
-    mut fit: impl FnMut(
-        &antecedent_identify::GraphIdentificationCase<antecedent_identify::TemporalCompletionGraph>,
-        &TemporalIndexer,
-    ) -> Result<f64, CausalError>,
-) -> Result<WeightedPoints, CausalError> {
-    let envelope = &bundle.envelope;
+fn require_identified_mass(
+    envelope: &antecedent_identify::IdentificationEnvelope<
+        antecedent_identify::TemporalCompletionGraph,
+    >,
+) -> Result<(), CausalError> {
     if matches!(envelope.status, IdentificationStatus::NotIdentified)
         || envelope.identified_weight.0 <= 0.0
     {
@@ -118,7 +160,24 @@ fn collect_weighted_points(
             "temporal class query not identified (no identified mass in envelope)",
         ));
     }
-    let mut pairs = Vec::new();
+    Ok(())
+}
+
+/// Every identified completion's recorded regressions and point.
+fn collect_class_points<'a>(
+    bundle: &'a antecedent_identify::TemporalClassEnvelope,
+    mut fit: impl FnMut(
+        &'a antecedent_identify::GraphIdentificationCase<
+            antecedent_identify::TemporalCompletionGraph,
+        >,
+        &'a TemporalIndexer,
+    ) -> Result<(SlopeAtom<'a>, f64), CausalError>,
+) -> Result<ClassPoints<'a>, CausalError> {
+    let envelope = &bundle.envelope;
+    require_identified_mass(envelope)?;
+    let mut atoms = Vec::new();
+    let mut weights = Vec::new();
+    let mut points = Vec::new();
     let mut values = vec![None; envelope.cases.len()];
     let mut primary = None;
     for (index, (case, indexer)) in envelope.cases.iter().zip(bundle.indexers.iter()).enumerate() {
@@ -127,8 +186,10 @@ fn collect_weighted_points(
         {
             continue;
         }
-        let point = fit(case, indexer)?;
-        pairs.push((case.weight.0, point));
+        let (atom, point) = fit(case, indexer)?;
+        atoms.push(atom);
+        weights.push(case.weight.0);
+        points.push(point);
         values[index] = Some(point);
         if primary.is_none() {
             primary = Some((case.result.clone(), indexer.clone()));
@@ -141,8 +202,10 @@ fn collect_weighted_points(
     let estimand = primary_identification.estimands.first().cloned().ok_or_else(|| {
         CausalError::Compile { message: "temporal class completion has no estimand".into() }
     })?;
-    Ok(WeightedPoints {
-        point: weighted_mean(&pairs)?,
+    Ok(ClassPoints {
+        atoms,
+        weights,
+        points,
         values,
         estimand,
         assumptions: primary_identification.required_assumptions.clone(),
@@ -151,24 +214,272 @@ fn collect_weighted_points(
     })
 }
 
+/// The structural lag span of a class envelope's completions.
+fn envelope_span(bundle: &antecedent_identify::TemporalClassEnvelope) -> usize {
+    super::temporal_class_block_span(bundle.indexers.iter())
+}
+
+/// The uncertainty of a scalar frozen-weight point over `atoms`.
+///
+/// Frequentist: the shared circular-block replicates of the whole procedure give
+/// the point's SE and, over several completions, an Imbens–Manski interval for the
+/// identified set. Bayesian: one completion publishes its posterior; several
+/// publish an interval for the identified set over the completion posteriors.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the frozen atoms, their weights and points, the published point and its assumptions, the cap flag, the reporting plan and the context are distinct inputs"
+)]
+pub(super) fn class_scalar_uncertainty(
+    atoms: &[FrozenAtom],
+    weights: &[f64],
+    points: &[f64],
+    point: f64,
+    assumptions: antecedent_core::AssumptionSet,
+    truncated: bool,
+    plan: ClassPointUncertainty<'_>,
+    ctx: &ExecutionContext,
+    evaluate: impl Fn(usize, &dyn SlopeSource) -> Result<Vec<f64>, CausalError>,
+) -> Result<ClassScalarOutcome, CausalError> {
+    let family = antecedent_estimate::CircularBlockFamily::Mixture;
+    if let InferenceMode::Bayesian(cfg) = plan.inference {
+        let draws = point_uncertainty::point_posterior_draws(
+            atoms,
+            point_uncertainty::PointPosteriorPlan {
+                prior_scale: cfg.prior_scale,
+                draws: cfg.n_draws,
+                structural_span: plan.structural_span,
+                stream_base: plan.posterior_stream,
+            },
+            ctx,
+            evaluate,
+        )?;
+        let mut diagnostics =
+            vec![point_uncertainty::posterior_diagnostic(&draws, "temporal class point")];
+        let columns: Vec<Vec<f64>> =
+            draws.atom_draws.iter().map(|atom| atom.iter().map(|draw| draw[0]).collect()).collect();
+        if columns.len() == 1 {
+            let posterior = point_uncertainty::scalar_posterior(
+                &columns[0],
+                "class_point",
+                IdentificationStatus::NonparametricallyIdentified,
+                assumptions.clone(),
+                draws.tempering,
+            )?;
+            let sd = posterior.summaries.sd[0];
+            return Ok(ClassScalarOutcome {
+                estimate: EffectEstimate::new(
+                    point,
+                    sd,
+                    assumptions,
+                    OverlapPolicy::ExplicitOverride,
+                ),
+                posterior: Some(posterior),
+                identified_set: None,
+                diagnostics,
+                replicates_ok: None,
+                cancelled: false,
+            });
+        }
+        let means: Vec<f64> =
+            columns.iter().map(|column| column.iter().sum::<f64>() / column.len() as f64).collect();
+        let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
+        let rows = atoms.iter().map(FrozenAtom::rows).min().unwrap_or(0);
+        let identified_set = antecedent_estimate::imbens_manski_posterior_draws(
+            &means,
+            &refs,
+            rows,
+            super::IDENTIFIED_SET_INTERVAL_LEVEL,
+        )
+        .map(|interval| interval.with_truncated(truncated));
+        diagnostics.push(Diagnostic::new(
+            "estimate.temporal_class.point_posteriors_not_mixed",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "completion enumeration is not posterior mass, so the completion posteriors are not \
+             mixed; the published interval is for the identified set over the completions",
+        ));
+        diagnostics.extend(
+            identified_set
+                .as_ref()
+                .into_iter()
+                .flat_map(super::identified_set_interval_diagnostics),
+        );
+        return Ok(ClassScalarOutcome {
+            estimate: EffectEstimate::new(
+                point,
+                f64::NAN,
+                assumptions,
+                OverlapPolicy::ExplicitOverride,
+            ),
+            posterior: None,
+            identified_set,
+            diagnostics,
+            replicates_ok: None,
+            cancelled: false,
+        });
+    }
+    let replicates = point_uncertainty::point_block_replicates(
+        atoms,
+        point_uncertainty::PointBlockPlan {
+            replicates: plan.bootstrap_replicates,
+            stream_base: plan.block_stream,
+            structural_span: plan.structural_span,
+        },
+        true,
+        ctx,
+        evaluate,
+        |values| point_uncertainty::weighted_outputs(values, weights),
+    )?;
+    let identified_set = replicates
+        .as_ref()
+        .filter(|_| atoms.len() > 1)
+        .and_then(|replicates| {
+            replicates
+                .shared_block()
+                .identified_set_interval(points, super::IDENTIFIED_SET_INTERVAL_LEVEL)
+        })
+        .map(|interval| interval.with_truncated(truncated));
+    let mut diagnostics = point_uncertainty::block_diagnostics(
+        replicates.as_ref(),
+        plan.bootstrap_replicates,
+        family,
+        "every regression of every identified completion is refit on each replicate and the \
+         frozen completion weights are reapplied",
+    );
+    diagnostics.extend(
+        identified_set.as_ref().into_iter().flat_map(super::identified_set_interval_diagnostics),
+    );
+    Ok(ClassScalarOutcome {
+        estimate: point_uncertainty::block_scalar_estimate(
+            point,
+            replicates.as_ref(),
+            assumptions,
+            family,
+        ),
+        posterior: None,
+        identified_set,
+        diagnostics,
+        replicates_ok: replicates.as_ref().map(point_uncertainty::PointBlockReplicates::completed),
+        cancelled: replicates.as_ref().is_some_and(|replicates| replicates.draws.cancelled),
+    })
+}
+
+/// The uncertainty of a frozen-weight class derivative response over `atoms`,
+/// attached to `response` (whose point is `center`).
+fn class_response_uncertainty(
+    atoms: &[FrozenAtom],
+    weights: &[f64],
+    (response, center): (&mut CausalResponse, &[f64]),
+    plan: ClassPointUncertainty<'_>,
+    ctx: &ExecutionContext,
+    evaluate: impl Fn(usize, &dyn SlopeSource) -> Result<Vec<f64>, CausalError>,
+) -> Result<(Vec<Diagnostic>, Option<u32>, bool), CausalError> {
+    if let InferenceMode::Bayesian(cfg) = plan.inference {
+        let draws = point_uncertainty::point_posterior_draws(
+            atoms,
+            point_uncertainty::PointPosteriorPlan {
+                prior_scale: cfg.prior_scale,
+                draws: cfg.n_draws,
+                structural_span: plan.structural_span,
+                stream_base: plan.posterior_stream,
+            },
+            ctx,
+            evaluate,
+        )?;
+        let mut diagnostics =
+            vec![point_uncertainty::posterior_diagnostic(&draws, "temporal class derivative")];
+        if draws.atom_draws.len() == 1 {
+            point_uncertainty::attach_posterior_response_band(
+                response,
+                &draws.atom_draws[0],
+                center,
+            );
+        } else {
+            let level = crate::result::REPORTED_SE_INTERVAL_LEVEL;
+            let width = center.len();
+            let mut lower = vec![f64::INFINITY; width];
+            let mut upper = vec![f64::NEG_INFINITY; width];
+            for atom in &draws.atom_draws {
+                for j in 0..width {
+                    let column: Vec<f64> = atom.iter().map(|draw| draw[j]).collect();
+                    let (_, _, low, high) = point_uncertainty::draw_summary(&column, level);
+                    lower[j] = lower[j].min(low);
+                    upper[j] = upper[j].max(high);
+                }
+            }
+            response.uncertainty = ResponseUncertainty::IdentifiedEnvelopeBand {
+                level,
+                lower_outer: Arc::from(lower),
+                upper_outer: Arc::from(upper),
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
+            };
+            diagnostics.push(Diagnostic::new(
+                "estimate.temporal_class.point_posteriors_not_mixed",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "completion enumeration is not posterior mass, so the completion posteriors are \
+                 not mixed; the band is the union of the completions' equal-tailed credible \
+                 intervals, an envelope for the identified set",
+            ));
+        }
+        return Ok((diagnostics, None, false));
+    }
+    let replicates = point_uncertainty::point_block_replicates(
+        atoms,
+        point_uncertainty::PointBlockPlan {
+            replicates: plan.bootstrap_replicates,
+            stream_base: plan.block_stream,
+            structural_span: plan.structural_span,
+        },
+        false,
+        ctx,
+        evaluate,
+        |values| point_uncertainty::weighted_outputs(values, weights),
+    )?;
+    if let Some(replicates) = &replicates {
+        point_uncertainty::attach_block_response_band(response, replicates, center);
+    }
+    let diagnostics = point_uncertainty::block_diagnostics(
+        replicates.as_ref(),
+        plan.bootstrap_replicates,
+        antecedent_estimate::CircularBlockFamily::Mixture,
+        "every outcome regression of every identified completion is refit on each replicate and \
+         the frozen completion weights are reapplied",
+    );
+    Ok((
+        diagnostics,
+        replicates.as_ref().map(point_uncertainty::PointBlockReplicates::completed),
+        replicates.as_ref().is_some_and(|replicates| replicates.draws.cancelled),
+    ))
+}
+
+/// Every identified completion's one-modifier conditional design and point.
+fn collect_class_conditional<'a>(
+    data: &'a TimeSeriesData,
+    query: &TemporalEffectQuery,
+    bundle: &'a antecedent_identify::TemporalClassEnvelope,
+    policy: antecedent_core::KernelPolicy,
+    prior_scale: Option<f64>,
+) -> Result<ClassPoints<'a>, CausalError> {
+    collect_class_points(bundle, |case, indexer| {
+        let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+        let atom =
+            SlopeAtom::conditional(data, &estimand, query, indexer, policy, prior_scale, false)?;
+        let point = atom.conditional_effect()?;
+        Ok((atom, point))
+    })
+}
+
+/// The conditional point of one class envelope with its uncertainty.
 pub(super) fn assemble_temporal_class_conditional(
     data: &TimeSeriesData,
     query: &TemporalEffectQuery,
     bundle: &antecedent_identify::TemporalClassEnvelope,
     graph_class: GraphClass,
     refute: RefuteSuite,
-    inference: &InferenceMode,
-    policy: antecedent_core::KernelPolicy,
-) -> Result<
-    (
-        EffectEstimate,
-        IdentifiedEstimand,
-        IdentificationResult,
-        Vec<Diagnostic>,
-        crate::result::StructuralResponseMixture,
-    ),
-    CausalError,
-> {
+    (inference, bootstrap_replicates): (&InferenceMode, u32),
+    ctx: &ExecutionContext,
+) -> Result<ClassConditionalFit, CausalError> {
     if query.effect_modifiers.len() != 1
         || query.is_multi_step_sustained()
         || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
@@ -183,18 +494,8 @@ pub(super) fn assemble_temporal_class_conditional(
         });
     }
     let prior_scale = isotropic_prior_scale(inference, CONDITIONAL_PRIOR_REFUSAL)?;
-    let fitted = collect_weighted_points(bundle, |case, indexer| {
-        let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-        antecedent_estimate::temporal_conditional_marginal_effect(
-            data,
-            &estimand,
-            query,
-            indexer,
-            &policy,
-            prior_scale,
-        )
-        .map_err(CausalError::from)
-    })?;
+    let fitted = collect_class_conditional(data, query, bundle, ctx.kernel_policy, prior_scale)?;
+    let point = fitted.point()?;
     let envelope = &bundle.envelope;
     let mut diagnostics =
         vec![super::temporal_path::temporal_class_envelope_diagnostic(envelope, graph_class)];
@@ -202,23 +503,36 @@ pub(super) fn assemble_temporal_class_conditional(
         "estimate.temporal.conditional_marginal",
         DiagnosticKind::Execution,
         DiagnosticSeverity::Info,
-        "published value is the completion-weighted one-modifier marginal effect; no interval is published",
+        "published value is the completion-weighted one-modifier marginal effect; its interval \
+         refits every completion's interaction regression and modifier mean",
     ));
-    let structural = super::temporal_path::temporal_class_structural_mixture(
+    let mut structural = super::temporal_path::temporal_class_structural_mixture(
         envelope,
         crate::result::StructuralWeightBasis::CompletionEnumeration,
         None,
         &fitted.values,
     );
-    let identification =
-        envelope_to_identification_result_for(envelope, CausalQuery::TemporalEffect(query.clone()));
-    Ok((
-        point_only_estimate(fitted.point, fitted.assumptions),
-        fitted.estimand,
-        identification,
-        diagnostics,
-        structural,
-    ))
+    let frozen: Vec<FrozenAtom> = fitted.atoms.into_iter().map(SlopeAtom::freeze).collect();
+    let outcome = class_scalar_uncertainty(
+        &frozen,
+        &fitted.weights,
+        &fitted.points,
+        point,
+        fitted.assumptions,
+        envelope.truncated_completions > 0,
+        ClassPointUncertainty {
+            inference,
+            bootstrap_replicates,
+            structural_span: envelope_span(bundle),
+            block_stream: point_uncertainty::CONDITIONAL_BLOCK_STREAM,
+            posterior_stream: point_uncertainty::CONDITIONAL_POSTERIOR_STREAM,
+        },
+        ctx,
+        |_, source| source.conditional_effect().map(|value| vec![value]),
+    )?;
+    structural.identified_set_interval = outcome.identified_set;
+    diagnostics.extend(outcome.diagnostics.iter().cloned());
+    Ok(ClassConditionalFit { estimand: fitted.estimand, diagnostics, structural, outcome })
 }
 
 /// The refusal message for a cross-world query whose back-door set is not empty.
@@ -240,8 +554,41 @@ fn cross_world_backdoor_refusal(query: &CausalQuery) -> &'static str {
     }
 }
 
+/// Every identified completion's cross-world regressions and point.
+fn collect_class_cross_world<'a>(
+    data: &'a TimeSeriesData,
+    query: &CausalQuery,
+    bundle: &'a antecedent_identify::TemporalClassEnvelope,
+    (contrast, offsets): (CrossWorldContrast, (i32, i32)),
+    policy: antecedent_core::KernelPolicy,
+    prior_scale: Option<f64>,
+) -> Result<ClassPoints<'a>, CausalError> {
+    collect_class_points(bundle, |case, indexer| {
+        let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+        if !estimand.adjustment_set.is_empty() {
+            let message = cross_world_backdoor_refusal(query);
+            return Err(CausalError::Unsupported { message });
+        }
+        let atom = SlopeAtom::new(data, &estimand, indexer, offsets, policy, prior_scale);
+        let point = cross_world_from(query, &atom, contrast)?;
+        Ok((atom, point))
+    })
+}
+
+/// The cross-world point of `query` from the slopes `source` fits.
+fn cross_world_from(
+    query: &CausalQuery,
+    source: &dyn SlopeSource,
+    contrast: CrossWorldContrast,
+) -> Result<f64, CausalError> {
+    let fit = |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
+        source.slopes(outcome, treatments, contemporaneous)
+    };
+    super::temporal_path::cross_world_point(query, &fit, contrast)
+}
+
 /// The diagnostics of a class derivative response: the envelope, cache
-/// provenance, the point-only note and the support warnings.
+/// provenance, the derivative note and the support warnings.
 fn class_derivative_diagnostics(
     envelope: &antecedent_identify::IdentificationEnvelope<
         antecedent_identify::TemporalCompletionGraph,
@@ -255,29 +602,42 @@ fn class_derivative_diagnostics(
     if identify_cached {
         diagnostics.push(identify_cached_diagnostic());
     }
-    diagnostics.push(Diagnostic::new(
-        "estimate.temporal.linear_derivative",
-        DiagnosticKind::Execution,
-        DiagnosticSeverity::Info,
-        "published value is the completion-weighted slope of the linear unfolded temporal fit; no interval is published",
-    ));
+    diagnostics.push(derivative_note());
     diagnostics.extend(response.support.warnings.iter().cloned());
     diagnostics
 }
 
-/// The weighted completion slopes, their finite scalar summaries by completion
-/// and the first completion's estimand.
-type ClassDerivativeResponses = (Vec<(f64, CausalResponse)>, Vec<Option<f64>>, IdentifiedEstimand);
+fn derivative_note() -> Diagnostic {
+    Diagnostic::new(
+        "estimate.temporal.linear_derivative",
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        "published value is the completion-weighted slope of the linear unfolded temporal fit; \
+         its band refits every completion's outcome regressions",
+    )
+}
+
+/// The weighted completion derivative responses with their recorded regressions,
+/// the finite scalar summaries by completion and the first completion's estimand.
+struct ClassDerivatives<'a> {
+    atoms: Vec<SlopeAtom<'a>>,
+    responses: Vec<(f64, CausalResponse)>,
+    values: Vec<Option<f64>>,
+    estimand: IdentifiedEstimand,
+}
 
 /// The linear slope of each identified completion with its weight, the
 /// finite scalar summaries by completion, and the first completion's estimand.
-fn class_derivative_responses(
-    data: &TimeSeriesData,
+fn class_derivative_responses<'a>(
+    data: &'a TimeSeriesData,
     query: &ResponseQuery,
-    bundle: &antecedent_identify::TemporalClassEnvelope,
-    spec: DerivativeSpec<'_>,
-) -> Result<ClassDerivativeResponses, CausalError> {
+    bundle: &'a antecedent_identify::TemporalClassEnvelope,
+    offsets: (i32, i32),
+    (policy, prior_scale): (antecedent_core::KernelPolicy, Option<f64>),
+) -> Result<ClassDerivatives<'a>, CausalError> {
     let envelope = &bundle.envelope;
+    require_identified_mass(envelope)?;
+    let mut atoms = Vec::new();
     let mut responses = Vec::new();
     let mut values = vec![None; envelope.cases.len()];
     let mut primary_estimand = None;
@@ -288,13 +648,12 @@ fn class_derivative_responses(
             continue;
         }
         let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+        let atom = SlopeAtom::new(data, &estimand, indexer, offsets, policy, prior_scale);
         let response = super::temporal_path::temporal_linear_derivative_response(
             data,
             query,
-            &estimand,
-            indexer,
             &case.result,
-            spec,
+            &atom,
         )?;
         let scalar = super::response_path::response_scalar_summary(&response).0;
         if scalar.is_finite() {
@@ -303,12 +662,36 @@ fn class_derivative_responses(
         if primary_estimand.is_none() {
             primary_estimand = Some(estimand);
         }
+        atoms.push(atom);
         responses.push((case.weight.0, response));
     }
     let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
         message: "temporal class envelope had no estimable identified completions".into(),
     })?;
-    Ok((responses, values, estimand))
+    Ok(ClassDerivatives { atoms, responses, values, estimand })
+}
+
+/// The derivative of every replicate or draw of one completion.
+fn derivative_evaluator(
+    functional: &ResponseFunctional,
+) -> impl Fn(usize, &dyn SlopeSource) -> Result<Vec<f64>, CausalError> + '_ {
+    move |_: usize, source: &dyn SlopeSource| {
+        let value = super::temporal_path::temporal_linear_derivative_value(functional, source)?;
+        point_uncertainty::response_values(&value).ok_or_else(|| CausalError::Compile {
+            message: "temporal derivative replicate has no numeric value".into(),
+        })
+    }
+}
+
+/// The flattened point of a mixed derivative response.
+fn response_center(response: &CausalResponse) -> Result<Vec<f64>, CausalError> {
+    match &response.estimate {
+        ResponseIdentification::PointIdentified(value) => point_uncertainty::response_values(value),
+        _ => None,
+    }
+    .ok_or_else(|| CausalError::Compile {
+        message: "temporal class derivative point has no numeric value".into(),
+    })
 }
 
 impl super::Study {
@@ -336,6 +719,25 @@ impl super::Study {
         })
     }
 
+    /// The uncertainty plan of a class point route of this study.
+    fn class_point_plan(
+        &self,
+        structural_span: usize,
+        (block_stream, posterior_stream): (u64, u64),
+    ) -> ClassPointUncertainty<'_> {
+        ClassPointUncertainty {
+            inference: &self.inference,
+            bootstrap_replicates: self.bootstrap_replicates,
+            structural_span,
+            block_stream,
+            posterior_stream,
+        }
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one class derivative execution: the completions, the mixture and its band stay together"
+    )]
     pub(super) fn execute_temporal_class_derivative(
         &self,
         data: &TimeSeriesData,
@@ -369,34 +771,43 @@ impl super::Study {
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
             self.derivative_class_envelope(identifier_id, &probe, physical, ctx)?;
-        let treatment_offset = probe.try_treatment_offset()?;
-        let outcome_offset = probe.outcome_offset();
+        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
         let envelope = &bundle.envelope;
-        if matches!(envelope.status, IdentificationStatus::NotIdentified)
-            || envelope.identified_weight.0 <= 0.0
-        {
-            return Err(CausalError::not_identified(
-                envelope.status,
-                envelope.truncated_completions > 0,
-                "temporal class query not identified (no identified mass in envelope)",
-            ));
-        }
-        let (responses, values, estimand) = class_derivative_responses(
+        let ClassDerivatives { atoms, responses, values, estimand } = class_derivative_responses(
             data,
             query,
             &bundle,
-            DerivativeSpec {
-                treatment_offset,
-                outcome_offset,
-                policy: &ctx.kernel_policy,
-                prior_scale,
-            },
+            offsets,
+            (ctx.kernel_policy, prior_scale),
         )?;
         let mut response = mix_derivative_responses(&responses)?;
-        let diagnostics =
+        let center = response_center(&response)?;
+        let weights: Vec<f64> = responses.iter().map(|(weight, _)| *weight).collect();
+        let frozen: Vec<FrozenAtom> = atoms.into_iter().map(SlopeAtom::freeze).collect();
+        let (uncertainty_diagnostics, replicates_ok, cancelled) = class_response_uncertainty(
+            &frozen,
+            &weights,
+            (&mut response, &center),
+            self.class_point_plan(
+                envelope_span(&bundle),
+                (
+                    point_uncertainty::DERIVATIVE_BLOCK_STREAM,
+                    point_uncertainty::DERIVATIVE_POSTERIOR_STREAM,
+                ),
+            ),
+            ctx,
+            derivative_evaluator(&query.functional),
+        )?;
+        let mut diagnostics =
             class_derivative_diagnostics(envelope, self.graph.class(), identify_cached, &response);
+        diagnostics.extend(uncertainty_diagnostics);
         let scalar = super::response_path::response_scalar_summary(&response).0;
-        let estimate = point_only_estimate(scalar, response.assumptions.clone());
+        let estimate = EffectEstimate::new(
+            scalar,
+            f64::NAN,
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
         let identification =
             envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
         let estimator_id = EstimatorId::temporal_response_for(&self.inference);
@@ -419,6 +830,8 @@ impl super::Study {
             )
             .identify_cached(identify_cached)
             .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(replicates_ok)
+            .cancelled(cancelled)
             .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
                     envelope: Arc::unwrap_or_clone(bundle),
@@ -431,10 +844,15 @@ impl super::Study {
                 ..Default::default()
             }),
         );
-        result = clear_interval(result);
+        result.posterior = None;
+        result.rebind_interval(self.inference.is_bayesian());
         Ok(result)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one class cross-world execution: the completions, the mixture and its interval stay together"
+    )]
     pub(super) fn execute_temporal_class_cross_world(
         &self,
         data: &TimeSeriesData,
@@ -449,79 +867,84 @@ impl super::Study {
         }
         let prior_scale = isotropic_prior_scale(&self.inference, CROSS_WORLD_PRIOR_REFUSAL)?;
         let (treatment, outcome, mediator, active, control) = cross_world_endpoints(&self.query)?;
-        let probe = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
-            .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
-            .with_horizon_steps(1)
-            .with_max_history_lag(Some(1));
+        let contrast = CrossWorldContrast { treatment, outcome, mediator, active, control };
+        let probe = cross_world_probe(treatment, outcome);
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) = {
             report_identify_compute(ctx);
             (self.identify_temporal_class(identifier_id, &probe)?.envelope.clone(), false)
         };
-        let treatment_offset = probe.try_treatment_offset()?;
-        let outcome_offset = probe.outcome_offset();
+        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
         let query = &self.query;
-        let fitted = collect_weighted_points(&bundle, |case, indexer| {
-            let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-            if !estimand.adjustment_set.is_empty() {
-                let message = cross_world_backdoor_refusal(query);
-                return Err(CausalError::Unsupported { message });
-            }
-            cross_world_point(
-                data,
-                query,
-                &estimand,
-                indexer,
-                CrossWorldContrast { treatment, outcome, mediator, active, control },
-                DerivativeSpec {
-                    treatment_offset,
-                    outcome_offset,
-                    policy: &ctx.kernel_policy,
-                    prior_scale,
-                },
-            )
-        })?;
+        let fitted = collect_class_cross_world(
+            data,
+            query,
+            &bundle,
+            (contrast, offsets),
+            ctx.kernel_policy,
+            prior_scale,
+        )?;
+        let point = fitted.point()?;
         let identification = super::temporal_path::template_scoped_cross_world(
-            fitted.primary_identification,
+            fitted.primary_identification.clone(),
             &fitted.primary_indexer,
             self.query.clone(),
-            CrossWorldContrast { treatment, outcome, mediator, active, control },
+            contrast,
         );
         let estimand = identification.estimands[0].clone();
-        let estimate =
-            point_only_estimate(fitted.point, identification.required_assumptions.clone());
         let envelope = &bundle.envelope;
         let mut diagnostics = vec![super::temporal_path::temporal_class_envelope_diagnostic(
             envelope,
             self.graph.class(),
         )];
-        diagnostics.push(Diagnostic::new(
-            "estimate.temporal.cross_world",
-            DiagnosticKind::Execution,
-            DiagnosticSeverity::Info,
-            "published value is the completion-weighted linear unfolded cross-world point; no interval is published",
-        ));
+        diagnostics.push(cross_world_note());
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
-        let structural = super::temporal_path::temporal_class_structural_mixture(
+        let mut structural = super::temporal_path::temporal_class_structural_mixture(
             envelope,
             crate::result::StructuralWeightBasis::CompletionEnumeration,
             None,
             &fitted.values,
         );
+        let frozen: Vec<FrozenAtom> = fitted.atoms.into_iter().map(SlopeAtom::freeze).collect();
+        let outcome_uncertainty = class_scalar_uncertainty(
+            &frozen,
+            &fitted.weights,
+            &fitted.points,
+            point,
+            identification.required_assumptions.clone(),
+            envelope.truncated_completions > 0,
+            self.class_point_plan(
+                envelope_span(&bundle),
+                (
+                    point_uncertainty::CROSS_WORLD_BLOCK_STREAM,
+                    point_uncertainty::CROSS_WORLD_POSTERIOR_STREAM,
+                ),
+            ),
+            ctx,
+            |_, source| cross_world_from(query, source, contrast).map(|value| vec![value]),
+        )?;
+        structural.identified_set_interval = outcome_uncertainty.identified_set;
+        diagnostics.extend(outcome_uncertainty.diagnostics.iter().cloned());
+        let posterior = outcome_uncertainty.posterior;
+        let n_draws = posterior
+            .as_ref()
+            .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
         let result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
                 estimand,
-                estimate,
+                outcome_uncertainty.estimate,
                 Strategy::new(identifier_id, EstimatorId::TemporalLinearAdjustment),
                 treatment,
                 outcome,
             )
             .identify_cached(identify_cached)
             .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(outcome_uncertainty.replicates_ok)
+            .cancelled(outcome_uncertainty.cancelled)
             .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
                     envelope: Arc::unwrap_or_clone(bundle),
@@ -530,10 +953,12 @@ impl super::Study {
                 }),
                 structural_response: Some(structural),
                 diagnostics: Some(diagnostics),
+                n_draws,
+                posterior,
                 ..Default::default()
             }),
         );
-        Ok(clear_interval(result))
+        Ok(result)
     }
 
     /// Graph-posterior conditional, derivative, and cross-world points.
@@ -541,7 +966,9 @@ impl super::Study {
     /// Each atom runs the same producer as the explicit class route. The
     /// published scalar is the posterior-weighted mean of those
     /// completion-weighted points. A single atom publishes that atom's
-    /// completion-weighted mean.
+    /// completion-weighted mean. The uncertainty treats every identified
+    /// completion of every atom as one frozen-weight atom (posterior weight times
+    /// normalized completion weight) of one shared procedure.
     pub(super) fn execute_temporal_class_graph_posterior_family(
         &self,
         data: &TimeSeriesData,
@@ -567,8 +994,23 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let CausalQuery::TemporalEffect(query) = &self.query else { unreachable!() };
+        if query.effect_modifiers.len() != 1
+            || query.is_multi_step_sustained()
+            || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
+        {
+            return Err(CausalError::Unsupported {
+                message: "temporal conditional effect fits one modifier on a single-step pulse or sustained policy",
+            });
+        }
+        if self.refute != RefuteSuite::None {
+            return Err(CausalError::Unsupported {
+                message: "temporal conditional effect is point-only; cheap/full refuters are not licensed",
+            });
+        }
+        let prior_scale = isotropic_prior_scale(&self.inference, CONDITIONAL_PRIOR_REFUSAL)?;
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, query, ctx)?;
         let mut pairs = Vec::new();
+        let mut pooled = PooledAtoms::default();
         let mut chosen = None;
         let key_weights = IdentifiedKeyWeights::new(&cache.graphs);
         for atom in cache.class_atoms.iter() {
@@ -576,41 +1018,74 @@ impl super::Study {
             if weight <= 0.0 {
                 continue;
             }
-            let (estimate, estimand, identification, diagnostics, structural) =
-                assemble_temporal_class_conditional(
-                    data,
-                    query,
-                    &atom.envelope,
-                    self.graph.class(),
-                    self.refute,
-                    &self.inference,
-                    ctx.kernel_policy,
-                )?;
-            if !estimate.ate.is_finite() {
+            let fitted = collect_class_conditional(
+                data,
+                query,
+                &atom.envelope,
+                ctx.kernel_policy,
+                prior_scale,
+            )?;
+            let point = fitted.point()?;
+            if !point.is_finite() {
                 continue;
             }
-            pairs.push((weight, estimate.ate));
+            pairs.push((weight, point));
+            let envelope = &atom.envelope.envelope;
             if chosen.is_none() {
+                let mut diagnostics =
+                    vec![super::temporal_path::temporal_class_envelope_diagnostic(
+                        envelope,
+                        self.graph.class(),
+                    )];
+                diagnostics.push(Diagnostic::new(
+                    "estimate.temporal.conditional_marginal",
+                    DiagnosticKind::Execution,
+                    DiagnosticSeverity::Info,
+                    "published value is the completion-weighted one-modifier marginal effect; its \
+                     interval refits every completion's interaction regression and modifier mean",
+                ));
                 chosen = Some((
-                    estimate.provenance.assumptions.clone(),
-                    estimand,
-                    identification,
+                    fitted.assumptions.clone(),
+                    fitted.estimand.clone(),
+                    envelope_to_identification_result_for(
+                        envelope,
+                        CausalQuery::TemporalEffect(query.clone()),
+                    ),
                     diagnostics,
-                    structural,
-                    atom.envelope.envelope.status,
+                    super::temporal_path::temporal_class_structural_mixture(
+                        envelope,
+                        crate::result::StructuralWeightBasis::CompletionEnumeration,
+                        None,
+                        &fitted.values,
+                    ),
+                    envelope.status,
                 ));
             }
+            pooled.push(fitted, weight, envelope.truncated_completions > 0);
         }
         self.finish_posterior_point(
             ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
-            &pairs,
+            (&pairs, pooled, (None, false)),
             chosen,
             (query.treatment, query.outcome),
-            EstimatorId::TemporalLinearAdjustment,
+            (
+                EstimatorId::TemporalLinearAdjustment,
+                (
+                    point_uncertainty::CONDITIONAL_BLOCK_STREAM,
+                    point_uncertainty::CONDITIONAL_POSTERIOR_STREAM,
+                ),
+            ),
+            &|_: usize, source: &dyn SlopeSource| {
+                source.conditional_effect().map(|value| vec![value])
+            },
         )
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one graph-posterior derivative execution: the atoms, the mixture and its band stay together"
+    )]
     fn execute_posterior_derivative(
         &self,
         data: &TimeSeriesData,
@@ -638,10 +1113,12 @@ impl super::Study {
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, &probe, ctx)?;
         let prior_scale = isotropic_prior_scale(&self.inference, DERIVATIVE_PRIOR_REFUSAL)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let treatment_offset = probe.try_treatment_offset()?;
-        let outcome_offset = probe.outcome_offset();
+        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
         let mut pairs = Vec::new();
         let mut responses = Vec::new();
+        let mut pooled_atoms = Vec::new();
+        let mut pooled_weights = Vec::new();
+        let mut spans = Vec::new();
         let mut chosen = None;
         let key_weights = IdentifiedKeyWeights::new(&cache.graphs);
         for atom in cache.class_atoms.iter() {
@@ -649,48 +1126,81 @@ impl super::Study {
             if weight <= 0.0 {
                 continue;
             }
-            let (response, estimand, identification, diagnostics, structural, status) =
-                derivative_on_envelope(
-                    data,
-                    query,
-                    &atom.envelope,
-                    self.graph.class(),
-                    DerivativeSpec {
-                        treatment_offset,
-                        outcome_offset,
-                        policy: &ctx.kernel_policy,
-                        prior_scale,
-                    },
-                )?;
-            let scalar = super::response_path::response_scalar_summary(&response).0;
-            if !derivative_response_finite(&response) {
+            let derived = derivative_on_envelope(
+                data,
+                query,
+                &atom.envelope,
+                self.graph.class(),
+                (offsets, ctx.kernel_policy, prior_scale),
+            )?;
+            let scalar = super::response_path::response_scalar_summary(&derived.response).0;
+            if !derivative_response_finite(&derived.response) {
                 continue;
             }
             pairs.push((weight, scalar));
-            responses.push((weight, response));
+            responses.push((weight, derived.response.clone()));
+            let total: f64 = derived.weights.iter().sum();
+            for (completion, completion_weight) in
+                derived.atoms.into_iter().zip(derived.weights.iter())
+            {
+                pooled_atoms.push(completion.freeze());
+                pooled_weights.push(weight * completion_weight / total);
+            }
+            spans.push(envelope_span(&atom.envelope));
             if chosen.is_none() {
                 chosen = Some((
-                    identification.required_assumptions.clone(),
-                    estimand,
-                    identification,
-                    diagnostics,
-                    structural,
-                    status,
+                    derived.identification.required_assumptions.clone(),
+                    derived.estimand,
+                    derived.identification,
+                    derived.diagnostics,
+                    derived.structural,
+                    derived.status,
                 ));
             }
         }
         let mut response = mix_derivative_responses(&responses)?;
+        let center = response_center(&response)?;
+        let (uncertainty_diagnostics, replicates_ok, cancelled) = class_response_uncertainty(
+            &pooled_atoms,
+            &pooled_weights,
+            (&mut response, &center),
+            self.class_point_plan(
+                spans.iter().copied().max().unwrap_or(1),
+                (
+                    point_uncertainty::DERIVATIVE_BLOCK_STREAM,
+                    point_uncertainty::DERIVATIVE_POSTERIOR_STREAM,
+                ),
+            ),
+            ctx,
+            derivative_evaluator(&query.functional),
+        )?;
+        let chosen = chosen.map(|mut chosen| {
+            chosen.3.extend(uncertainty_diagnostics);
+            chosen
+        });
         let result = self.finish_posterior_point(
             ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
-            &pairs,
+            (&pairs, PooledAtoms::default(), (replicates_ok, cancelled)),
             chosen,
             (treatment, outcome),
-            EstimatorId::temporal_response_for(&self.inference),
+            (
+                EstimatorId::temporal_response_for(&self.inference),
+                (
+                    point_uncertainty::DERIVATIVE_BLOCK_STREAM,
+                    point_uncertainty::DERIVATIVE_POSTERIOR_STREAM,
+                ),
+            ),
+            &derivative_evaluator(&query.functional),
         )?;
         response.identification_status = result.identification.status;
         let mut result = result;
         result.payload = crate::result::ResultPayload::Response(response);
+        result.posterior = None;
+        if let Some(structural) = result.structural_response.as_mut() {
+            structural.identified_set_interval = None;
+        }
+        result.rebind_interval(self.inference.is_bayesian());
         Ok(result)
     }
 
@@ -708,73 +1218,55 @@ impl super::Study {
             });
         }
         let (treatment, outcome, mediator, active, control) = cross_world_endpoints(&self.query)?;
-        let probe = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
-            .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
-            .with_horizon_steps(1)
-            .with_max_history_lag(Some(1));
+        let contrast = CrossWorldContrast { treatment, outcome, mediator, active, control };
+        let probe = cross_world_probe(treatment, outcome);
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, &probe, ctx)?;
         let prior_scale = isotropic_prior_scale(&self.inference, CROSS_WORLD_PRIOR_REFUSAL)?;
-        let treatment_offset = probe.try_treatment_offset()?;
-        let outcome_offset = probe.outcome_offset();
+        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
         let mut pairs = Vec::new();
+        let mut pooled = PooledAtoms::default();
         let mut chosen = None;
         let key_weights = IdentifiedKeyWeights::new(&cache.graphs);
+        let query = &self.query;
         for atom in cache.class_atoms.iter() {
             let weight = key_weights.get(atom.key);
             if weight <= 0.0 {
                 continue;
             }
-            let fitted = collect_weighted_points(&atom.envelope, |case, indexer| {
-                let estimand =
-                    select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-                if !estimand.adjustment_set.is_empty() {
-                    return Err(CausalError::Unsupported {
-                        message: "temporal cross-world effect is licensed when the back-door set is empty",
-                    });
-                }
-                cross_world_point(
-                    data,
-                    &self.query,
-                    &estimand,
-                    indexer,
-                    CrossWorldContrast { treatment, outcome, mediator, active, control },
-                    DerivativeSpec {
-                        treatment_offset,
-                        outcome_offset,
-                        policy: &ctx.kernel_policy,
-                        prior_scale,
-                    },
-                )
-            })?;
-            let identification = super::temporal_path::template_scoped_cross_world(
-                fitted.primary_identification,
-                &fitted.primary_indexer,
-                self.query.clone(),
-                CrossWorldContrast { treatment, outcome, mediator, active, control },
-            );
-            let estimand = identification.estimands[0].clone();
-            let envelope = &atom.envelope.envelope;
-            let mut diagnostics = vec![super::temporal_path::temporal_class_envelope_diagnostic(
-                envelope,
-                self.graph.class(),
-            )];
-            diagnostics.push(Diagnostic::new(
-                "estimate.temporal.cross_world",
-                DiagnosticKind::Execution,
-                DiagnosticSeverity::Info,
-                "published value is the completion-weighted linear unfolded cross-world point; no interval is published",
-            ));
-            let structural = super::temporal_path::temporal_class_structural_mixture(
-                envelope,
-                crate::result::StructuralWeightBasis::CompletionEnumeration,
-                None,
-                &fitted.values,
-            );
-            if !fitted.point.is_finite() {
+            let fitted = collect_class_cross_world(
+                data,
+                query,
+                &atom.envelope,
+                (contrast, offsets),
+                ctx.kernel_policy,
+                prior_scale,
+            )?;
+            let point = fitted.point()?;
+            if !point.is_finite() {
                 continue;
             }
-            pairs.push((weight, fitted.point));
+            let envelope = &atom.envelope.envelope;
             if chosen.is_none() {
+                let identification = super::temporal_path::template_scoped_cross_world(
+                    fitted.primary_identification.clone(),
+                    &fitted.primary_indexer,
+                    self.query.clone(),
+                    contrast,
+                );
+                let estimand = identification.estimands[0].clone();
+                let diagnostics = vec![
+                    super::temporal_path::temporal_class_envelope_diagnostic(
+                        envelope,
+                        self.graph.class(),
+                    ),
+                    cross_world_note(),
+                ];
+                let structural = super::temporal_path::temporal_class_structural_mixture(
+                    envelope,
+                    crate::result::StructuralWeightBasis::CompletionEnumeration,
+                    None,
+                    &fitted.values,
+                );
                 chosen = Some((
                     identification.required_assumptions.clone(),
                     estimand,
@@ -784,22 +1276,38 @@ impl super::Study {
                     envelope.status,
                 ));
             }
+            pairs.push((weight, point));
+            pooled.push(fitted, weight, envelope.truncated_completions > 0);
         }
         self.finish_posterior_point(
             ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
-            &pairs,
+            (&pairs, pooled, (None, false)),
             chosen,
             (treatment, outcome),
-            EstimatorId::TemporalLinearAdjustment,
+            (
+                EstimatorId::TemporalLinearAdjustment,
+                (
+                    point_uncertainty::CROSS_WORLD_BLOCK_STREAM,
+                    point_uncertainty::CROSS_WORLD_POSTERIOR_STREAM,
+                ),
+            ),
+            &|_: usize, source: &dyn SlopeSource| {
+                cross_world_from(query, source, contrast).map(|value| vec![value])
+            },
         )
     }
 
+    #[allow(
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the run, the cache, the pooled completions, the chosen atom's claim, the pair, the estimator with its streams and the functional are distinct inputs"
+    )]
     fn finish_posterior_point(
         &self,
         run: ExecuteRun<'_>,
         cache: &crate::analysis::prepared::CachedTemporalClassPosteriorIdentification,
-        pairs: &[(f64, f64)],
+        (pairs, pooled, accounting): (&[(f64, f64)], PooledAtoms, (Option<u32>, bool)),
         chosen: Option<(
             antecedent_core::AssumptionSet,
             IdentifiedEstimand,
@@ -809,10 +1317,11 @@ impl super::Study {
             IdentificationStatus,
         )>,
         (treatment, outcome): (VariableId, VariableId),
-        estimator_id: EstimatorId,
+        (estimator_id, streams): (EstimatorId, (u64, u64)),
+        evaluate: &dyn Fn(usize, &dyn SlopeSource) -> Result<Vec<f64>, CausalError>,
     ) -> Result<StudyResult, CausalError> {
-        let ExecuteRun { physical, started, identify_cached, .. } = run;
-        let (assumptions, estimand, mut identification, mut diagnostics, structural, atom_status) =
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
+        let (assumptions, estimand, mut identification, mut diagnostics, mut structural, atom_status) =
             chosen.ok_or_else(|| CausalError::Compile {
                 message: format!(
                     "temporal class graph-posterior point had no estimable atom (atoms={}, unidentified={})",
@@ -838,27 +1347,111 @@ impl super::Study {
                 "published value is the posterior-weighted mean of each atom's completion-weighted point; completion enumeration is not posterior probability",
             ));
         }
+        let PooledAtoms { atoms, weights, points, truncated, spans } = pooled;
+        let (estimate, posterior, replicates_ok, cancelled) = if atoms.is_empty() {
+            (
+                EffectEstimate::new(point, f64::NAN, assumptions, OverlapPolicy::ExplicitOverride),
+                None,
+                accounting.0,
+                accounting.1,
+            )
+        } else {
+            let outcome_uncertainty = class_scalar_uncertainty(
+                &atoms,
+                &weights,
+                &points,
+                point,
+                assumptions,
+                truncated,
+                self.class_point_plan(spans.iter().copied().max().unwrap_or(1), streams),
+                ctx,
+                evaluate,
+            )?;
+            structural.identified_set_interval = outcome_uncertainty.identified_set;
+            diagnostics.extend(outcome_uncertainty.diagnostics.iter().cloned());
+            (
+                outcome_uncertainty.estimate,
+                outcome_uncertainty.posterior,
+                outcome_uncertainty.replicates_ok,
+                outcome_uncertainty.cancelled,
+            )
+        };
+        let n_draws = posterior
+            .as_ref()
+            .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
                 estimand,
-                point_only_estimate(point, assumptions),
+                estimate,
                 Strategy::new(identifier_id, estimator_id),
                 treatment,
                 outcome,
             )
             .identify_cached(identify_cached)
             .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(replicates_ok)
+            .cancelled(cancelled)
             .extras(IdentifiedExecuteExtras {
                 structural_response: Some(structural),
                 diagnostics: Some(diagnostics),
+                n_draws,
+                posterior,
                 ..Default::default()
             }),
         );
-        Ok(clear_interval(result))
+        Ok(result)
     }
+}
+
+/// Every identified completion of every graph-posterior atom, frozen for one
+/// shared uncertainty procedure: weight = atom posterior weight times the
+/// completion's normalized enumeration weight.
+#[derive(Default)]
+struct PooledAtoms {
+    atoms: Vec<FrozenAtom>,
+    weights: Vec<f64>,
+    points: Vec<f64>,
+    truncated: bool,
+    spans: Vec<usize>,
+}
+
+impl PooledAtoms {
+    fn push(&mut self, fitted: ClassPoints<'_>, weight: f64, truncated: bool) {
+        let total: f64 = fitted.weights.iter().sum();
+        if !(total > 0.0) {
+            return;
+        }
+        self.truncated |= truncated;
+        self.spans.push(super::temporal_class_block_span(std::iter::once(&fitted.primary_indexer)));
+        for ((atom, completion_weight), point) in
+            fitted.atoms.into_iter().zip(fitted.weights.iter()).zip(fitted.points.iter())
+        {
+            self.atoms.push(atom.freeze());
+            self.weights.push(weight * completion_weight / total);
+            self.points.push(*point);
+        }
+    }
+}
+
+fn cross_world_note() -> Diagnostic {
+    Diagnostic::new(
+        "estimate.temporal.cross_world",
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        "published value is the completion-weighted linear unfolded cross-world point; its \
+         interval refits every completion's regressions of the contrast",
+    )
+}
+
+/// The lag-1 pulse probe a cross-world contrast identifies on.
+fn cross_world_probe(treatment: VariableId, outcome: VariableId) -> TemporalEffectQuery {
+    TemporalEffectQuery::pulse(treatment, outcome, 1.0)
+        .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1)
+        .with_max_history_lag(Some(1))
 }
 
 fn mix_derivative_responses(
@@ -1047,62 +1640,6 @@ fn cross_world_endpoints(
     }
 }
 
-fn cross_world_point(
-    data: &TimeSeriesData,
-    query: &CausalQuery,
-    estimand: &IdentifiedEstimand,
-    indexer: &TemporalIndexer,
-    contrast: CrossWorldContrast,
-    spec: DerivativeSpec<'_>,
-) -> Result<f64, CausalError> {
-    let CrossWorldContrast { treatment, outcome, mediator, active, control } = contrast;
-    let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
-    let fit = |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
-        antecedent_estimate::temporal_linear_slopes(
-            data,
-            estimand,
-            indexer,
-            &antecedent_estimate::TemporalSlopeSpec {
-                outcome,
-                treatments,
-                treatment_offset,
-                outcome_offset,
-                contemporaneous,
-            },
-            policy,
-            prior_scale,
-        )
-        .map_err(CausalError::from)
-    };
-    let delta = active - control;
-    match query {
-        CausalQuery::NestedCounterfactual(_) => {
-            let mediator =
-                mediator.ok_or_else(super::temporal_path::missing_cross_world_mediator)?;
-            let (_, slopes) = fit(outcome, &[treatment, mediator], &[mediator])?;
-            Ok(slopes[0] * delta)
-        }
-        CausalQuery::PathSpecific(_) => {
-            let mediator =
-                mediator.ok_or_else(super::temporal_path::missing_cross_world_mediator)?;
-            let (_, through) = fit(mediator, &[treatment], &[])?;
-            let (_, onward) = fit(outcome, &[treatment, mediator], &[mediator])?;
-            Ok(through[0] * onward[1] * delta)
-        }
-        CausalQuery::Counterfactual(_) => {
-            let (_, slopes) = fit(outcome, &[treatment], &[])?;
-            Ok(slopes[0] * delta)
-        }
-        CausalQuery::Distribution(_) => {
-            let (intercept, slopes) = fit(outcome, &[treatment], &[])?;
-            Ok(intercept + slopes[0] * active)
-        }
-        _ => Err(CausalError::Unsupported {
-            message: "temporal cross-world route does not estimate this query",
-        }),
-    }
-}
-
 pub(super) fn temporal_class_point_family(query: &CausalQuery) -> bool {
     match query {
         CausalQuery::TemporalEffect(effect) => effect.effect_modifiers.len() == 1,
@@ -1169,74 +1706,35 @@ fn derivative_probe(query: &ResponseQuery) -> Result<TemporalEffectQuery, Causal
     ))
 }
 
-/// Response, estimand, identification, diagnostics, structural mixture and status of one
-/// class envelope's derivative.
-type ClassDerivative = (
-    CausalResponse,
-    IdentifiedEstimand,
-    IdentificationResult,
-    Vec<Diagnostic>,
-    crate::result::StructuralResponseMixture,
-    IdentificationStatus,
-);
+/// One class envelope's mixed derivative with its completions' recorded
+/// regressions and weights, estimand, identification, diagnostics, structural
+/// mixture and status.
+struct ClassDerivative<'a> {
+    response: CausalResponse,
+    atoms: Vec<SlopeAtom<'a>>,
+    weights: Vec<f64>,
+    estimand: IdentifiedEstimand,
+    identification: IdentificationResult,
+    diagnostics: Vec<Diagnostic>,
+    structural: crate::result::StructuralResponseMixture,
+    status: IdentificationStatus,
+}
 
-fn derivative_on_envelope(
-    data: &TimeSeriesData,
+fn derivative_on_envelope<'a>(
+    data: &'a TimeSeriesData,
     query: &ResponseQuery,
-    bundle: &antecedent_identify::TemporalClassEnvelope,
+    bundle: &'a antecedent_identify::TemporalClassEnvelope,
     graph_class: GraphClass,
-    spec: DerivativeSpec<'_>,
-) -> Result<ClassDerivative, CausalError> {
-    let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
+    (offsets, policy, prior_scale): ((i32, i32), antecedent_core::KernelPolicy, Option<f64>),
+) -> Result<ClassDerivative<'a>, CausalError> {
     let envelope = &bundle.envelope;
-    if matches!(envelope.status, IdentificationStatus::NotIdentified)
-        || envelope.identified_weight.0 <= 0.0
-    {
-        return Err(CausalError::not_identified(
-            envelope.status,
-            envelope.truncated_completions > 0,
-            "temporal class query not identified (no identified mass in envelope)",
-        ));
-    }
-    let mut responses = Vec::new();
-    let mut values = vec![None; envelope.cases.len()];
-    let mut primary_estimand = None;
-    for (index, (case, indexer)) in envelope.cases.iter().zip(bundle.indexers.iter()).enumerate() {
-        if !identification_status_ok_for_case(case.result.status)
-            || case.result.estimands.is_empty()
-        {
-            continue;
-        }
-        let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-        let response = super::temporal_path::temporal_linear_derivative_response(
-            data,
-            query,
-            &estimand,
-            indexer,
-            &case.result,
-            DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale },
-        )?;
-        let scalar = super::response_path::response_scalar_summary(&response).0;
-        if scalar.is_finite() {
-            values[index] = Some(scalar);
-        }
-        if primary_estimand.is_none() {
-            primary_estimand = Some(estimand);
-        }
-        responses.push((case.weight.0, response));
-    }
-    let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-        message: "temporal class envelope had no estimable identified completions".into(),
-    })?;
+    let ClassDerivatives { atoms, responses, values, estimand } =
+        class_derivative_responses(data, query, bundle, offsets, (policy, prior_scale))?;
+    let weights: Vec<f64> = responses.iter().map(|(weight, _)| *weight).collect();
     let response = mix_derivative_responses(&responses)?;
     let mut diagnostics =
         vec![super::temporal_path::temporal_class_envelope_diagnostic(envelope, graph_class)];
-    diagnostics.push(Diagnostic::new(
-        "estimate.temporal.linear_derivative",
-        DiagnosticKind::Execution,
-        DiagnosticSeverity::Info,
-        "published value is the completion-weighted slope of the linear unfolded temporal fit; no interval is published",
-    ));
+    diagnostics.push(derivative_note());
     diagnostics.extend(response.support.warnings.iter().cloned());
     let identification =
         envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
@@ -1246,5 +1744,14 @@ fn derivative_on_envelope(
         None,
         &values,
     );
-    Ok((response, estimand, identification, diagnostics, structural, envelope.status))
+    Ok(ClassDerivative {
+        response,
+        atoms,
+        weights,
+        estimand,
+        identification,
+        diagnostics,
+        structural,
+        status: envelope.status,
+    })
 }

@@ -18,6 +18,8 @@ pub(super) struct LagAlignedScm {
     pub(super) dag: Dag,
     /// `(series variable, lag)` in static-node order. Lag `0` is contemporaneous.
     columns: Arc<[(VariableId, u32)]>,
+    /// Longest template lag of the unfolding.
+    history: u32,
 }
 
 impl LagAlignedScm {
@@ -129,7 +131,21 @@ impl LagAlignedScm {
                 Err(error) => return Err(error.into()),
             }
         }
-        Ok(Self { dag, columns: Arc::from(columns) })
+        Ok(Self { dag, columns: Arc::from(columns), history })
+    }
+
+    /// Bayesian block-bootstrap row weights of `n` consecutive lag-aligned rows: one
+    /// `Exp(1)` weight per contiguous block of [`antecedent_data::circular_block_length`]
+    /// rows (at least the unfolding's lag span plus one), shared by every row of the
+    /// block. Rows of one dependent series are not exchangeable, so the Dirichlet
+    /// weights fall on blocks of consecutive times, not on single rows.
+    pub(super) fn block_row_weights(
+        &self,
+        n: usize,
+        rng: &mut antecedent_core::CausalRng,
+    ) -> Vec<f64> {
+        let span = usize::try_from(self.history).unwrap_or(usize::MAX).saturating_add(1);
+        block_dirichlet_row_weights(n, antecedent_data::circular_block_length(span, n), rng)
     }
 
     /// Build the lag-aligned table for `series`. Incomplete lag prefixes copy
@@ -170,9 +186,34 @@ impl LagAlignedScm {
     }
 }
 
+/// One `Exp(1)` weight per contiguous block of `block` rows, repeated on every row of
+/// the block (the last block may be shorter), for `n` rows in time order.
+pub(super) fn block_dirichlet_row_weights(
+    n: usize,
+    block: usize,
+    rng: &mut antecedent_core::CausalRng,
+) -> Vec<f64> {
+    let block = block.clamp(1, n.max(1));
+    let blocks = n.div_ceil(block);
+    let draws = antecedent_kernels::bayesian_bootstrap_weights(rng, blocks, false);
+    (0..n).map(|row| draws[row / block]).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn block_weights_are_shared_within_each_block() {
+        let mut rng = antecedent_core::RngFactory::from_seed(3)
+            .stream_for(antecedent_core::StreamDomain::Test, 1);
+        let weights = block_dirichlet_row_weights(10, 4, &mut rng);
+        assert_eq!(weights.len(), 10);
+        assert!(weights[..4].iter().all(|w| (*w - weights[0]).abs() < 1e-15));
+        assert!(weights[4..8].iter().all(|w| (*w - weights[4]).abs() < 1e-15));
+        assert!(weights[8..].iter().all(|w| (*w - weights[8]).abs() < 1e-15));
+        assert!(weights.iter().all(|w| *w > 0.0));
+    }
     use antecedent_core::Lag;
 
     #[test]

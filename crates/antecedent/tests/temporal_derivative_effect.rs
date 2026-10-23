@@ -1,4 +1,4 @@
-//! Local linear slopes of a temporal response, one horizon, no interval.
+//! Local linear slopes of a temporal response, one horizon, with their whole-procedure band.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -159,8 +159,27 @@ fn temporal_dag_derivatives_publish_the_linear_slope() {
                         .any(|d| { d.code.as_ref() == "estimate.temporal.linear_derivative" })
                 );
                 assert!(result.posterior.is_none());
-                if let Some(binding) = &result.interval {
-                    assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
+                // Bayesian: the credible band of the joint slope-posterior draws.
+                // Frequentist: the shared circular-block band, withheld when this
+                // exact-fit fixture leaves the replicates without spread.
+                let method = result.interval.as_ref().map(|binding| binding.method);
+                if bayesian {
+                    assert_eq!(
+                        method,
+                        Some(antecedent_core::IntervalMethod::PosteriorQuantile),
+                        "{key}"
+                    );
+                } else {
+                    assert!(
+                        matches!(
+                            method,
+                            Some(
+                                antecedent_core::IntervalMethod::CircularBlockSe
+                                    | antecedent_core::IntervalMethod::None
+                            )
+                        ),
+                        "{key} {method:?}"
+                    );
                 }
                 let plan = &result.logical_plan;
                 let estimator =

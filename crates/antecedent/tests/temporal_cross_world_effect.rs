@@ -134,11 +134,21 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                         .iter()
                         .any(|d| { d.code.as_ref() == "estimate.temporal.cross_world" })
                 );
-                assert_eq!(result.posterior.is_some(), posterior_cell, "{key}");
-                if !posterior_cell {
-                    if let Some(binding) = &result.interval {
-                        assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
-                    }
+                // Every Bayesian cell publishes a posterior; a frequentist cell its
+                // shared circular-block interval, withheld where the refit regression
+                // fits the series exactly (the nested outcome regression here).
+                assert_eq!(result.posterior.is_some(), bayesian, "{key}");
+                let method = result.interval.as_ref().map(|binding| binding.method);
+                if bayesian {
+                    assert_eq!(method, Some(antecedent_core::IntervalMethod::PosteriorQuantile));
+                } else if key == "nested" {
+                    assert_eq!(method, Some(antecedent_core::IntervalMethod::None), "{key}");
+                } else {
+                    assert_eq!(
+                        method,
+                        Some(antecedent_core::IntervalMethod::CircularBlockSe),
+                        "{key}"
+                    );
                 }
                 let plan = &result.logical_plan;
                 assert_eq!(

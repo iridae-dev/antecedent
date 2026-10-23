@@ -158,28 +158,32 @@ fn fit_class_conditional(
     inputs: &TemporalClassEffectInputs<'_>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassEffectFit, CausalError> {
-    let (estimate, estimand, _, diagnostics, structural) =
-        super::temporal_class_point::assemble_temporal_class_conditional(
-            inputs.data,
-            inputs.query,
-            &inputs.bundle.envelope,
-            inputs.graph_class,
-            inputs.refute,
-            inputs.inference,
-            ctx.kernel_policy,
-        )?;
+    let fit = super::temporal_class_point::assemble_temporal_class_conditional(
+        inputs.data,
+        inputs.query,
+        &inputs.bundle.envelope,
+        inputs.graph_class,
+        inputs.refute,
+        (inputs.inference, inputs.bootstrap_replicates),
+        ctx,
+    )?;
+    let outcome = fit.outcome;
+    // Point only when no replicates were requested and no posterior was drawn.
+    let point_only = outcome.posterior.is_none()
+        && outcome.replicates_ok.is_none()
+        && outcome.identified_set.is_none();
     Ok(TemporalClassEffectFit {
-        estimand,
-        estimate,
+        estimand: fit.estimand,
+        estimate: outcome.estimate,
         estimator_id: EstimatorId::TemporalLinearAdjustment,
         refutations: Vec::new(),
-        diagnostics,
-        posterior: None,
-        structural,
+        diagnostics: fit.diagnostics,
+        posterior: outcome.posterior,
+        structural: fit.structural,
         predictive_checks: Vec::new(),
-        bootstrap_replicates_ok: None,
-        cancelled: false,
-        point_only: true,
+        bootstrap_replicates_ok: outcome.replicates_ok,
+        cancelled: outcome.cancelled,
+        point_only,
         missing_data: None,
     })
 }

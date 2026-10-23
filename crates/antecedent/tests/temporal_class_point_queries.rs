@@ -300,10 +300,14 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
                                 .iter()
                                 .any(|d| { d.code.as_ref().contains("envelope") })
                         );
-                        assert!(result.posterior.is_none());
-                        if let Some(binding) = &result.interval {
-                            assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
+                        // A frequentist class point carries no posterior; its interval is
+                        // the shared circular block of the whole frozen-weight procedure. A
+                        // Bayesian point carries one completion's posterior, or an interval
+                        // for the identified set over several completions.
+                        if !bayesian {
+                            assert!(result.posterior.is_none());
                         }
+                        assert!(result.interval.is_some());
                         assert_eq!(
                             result.logical_plan.estimator.as_deref(),
                             Some("temporal.linear.adjustment")
@@ -573,7 +577,9 @@ fn temporal_class_cross_world_points_match_the_linear_mechanism() {
                                 .iter()
                                 .any(|d| { d.code.as_ref() == "estimate.temporal.cross_world" })
                         );
-                        assert!(result.posterior.is_none());
+                        if !bayesian {
+                            assert!(result.posterior.is_none());
+                        }
                         assert_eq!(
                             result.logical_plan.estimator.as_deref(),
                             Some("temporal.linear.adjustment")

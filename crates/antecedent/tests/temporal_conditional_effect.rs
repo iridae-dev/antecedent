@@ -98,10 +98,25 @@ fn temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point() {
                     result.estimate.as_effect().unwrap().ate,
                     result.diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
                 );
-                if let Some(binding) = &result.interval {
-                    assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
+                // Bayesian: the tempered slope posterior's credible interval. Frequentist:
+                // the shared circular-block interval, withheld when this exact-fit fixture
+                // leaves the replicates without spread.
+                assert_eq!(result.posterior.is_some(), bayesian);
+                let method = result.interval.as_ref().map(|binding| binding.method);
+                if bayesian {
+                    assert_eq!(method, Some(antecedent_core::IntervalMethod::PosteriorQuantile));
+                } else {
+                    assert!(
+                        matches!(
+                            method,
+                            Some(
+                                antecedent_core::IntervalMethod::CircularBlockSe
+                                    | antecedent_core::IntervalMethod::None
+                            )
+                        ),
+                        "{method:?}"
+                    );
                 }
-                assert!(result.posterior.is_none());
                 assert_eq!(plan.estimator.as_deref(), Some("temporal.linear.adjustment"));
                 assert!(
                     result

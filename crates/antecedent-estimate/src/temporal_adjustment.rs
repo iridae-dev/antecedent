@@ -1125,7 +1125,7 @@ fn outcome_sample_anchor(
     Ok(i32::try_from(steps.saturating_sub(1)).unwrap_or(i32::MAX))
 }
 
-fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
+pub(crate) fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
     if offset > 0 {
         return Err(EstimationError::unsupported(
             "positive offsets (future treatment/outcome) unsupported for temporal adjustment",

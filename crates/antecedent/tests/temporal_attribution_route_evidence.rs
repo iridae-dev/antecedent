@@ -264,17 +264,18 @@ fn bayesian_body() {
     assert_eq!(plan.estimator, EstimatorId::GcmFitBayesian);
     drop(anomaly_builder);
     let anomaly_result = anomaly_prepared.estimate_series(&anomaly, &ctx).unwrap();
-    assert!(anomaly_result.posterior.is_none());
+    // The block Bayesian bootstrap publishes its posterior and credible interval.
+    assert!(anomaly_result.posterior.is_some());
     assert!(anomaly_result.effect().is_finite());
     assert_eq!(
         anomaly_result.interval.as_ref().map(|binding| binding.method),
-        Some(IntervalMethod::None)
+        Some(IntervalMethod::PosteriorQuantile)
     );
     assert!(
         anomaly_result
             .diagnostics
             .iter()
-            .any(|d| d.code.as_ref() == "gcm.attribution.posterior_mean_only")
+            .any(|d| d.code.as_ref() == "gcm.attribution.block_bayesian_bootstrap")
     );
     let scores = anomaly_result.anomaly().unwrap();
     let score = scores.iter().find(|score| score.target == VariableId::from_raw(1)).unwrap();
@@ -318,12 +319,18 @@ fn bayesian_body() {
     let tolerance = truth["change"]["tolerance"].as_f64().unwrap();
     let total = result.change_attribution().unwrap().total_change;
     assert!((total - expected).abs() < tolerance, "known population mean shift: {total}");
-    assert!(result.posterior.is_none());
+    assert!(result.posterior.is_some());
     assert!(result.effect().is_finite());
     assert!((result.effect() - expected).abs() < 2.0, "posterior mean stays near the shift");
-    assert_eq!(result.interval.as_ref().map(|binding| binding.method), Some(IntervalMethod::None));
+    assert_eq!(
+        result.interval.as_ref().map(|binding| binding.method),
+        Some(IntervalMethod::PosteriorQuantile)
+    );
     assert!(
-        result.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.posterior_mean_only")
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "gcm.attribution.block_bayesian_bootstrap")
     );
     let artifact = change_prepared
         .encode_contracted_result(&result, "checked-temporal-bayesian-change", &ctx)

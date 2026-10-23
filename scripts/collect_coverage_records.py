@@ -1033,9 +1033,12 @@ def sync_licensed_cells(
                     )
         # A point-only cell states `no_interval_reported` itself and keeps it: the
         # runtime publishes no interval there, so there is nothing to measure.
-        point_only = (
+        # A cell that states `estimator_grid_not_measured` reports an interval with no
+        # record yet (a temporal or posterior twin of a point-only query); the query
+        # family does not make it point only.
+        point_only = cell.get("calibration_reason") == "no_interval_reported" or (
             cell["query"] in NO_INTERVAL_QUERIES
-            or cell.get("calibration_reason") == "no_interval_reported"
+            and cell.get("calibration_reason") != "estimator_grid_not_measured"
         )
         reason = (
             "no_interval_reported" if not ids and point_only else "estimator_grid_not_measured"

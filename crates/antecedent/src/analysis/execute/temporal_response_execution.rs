@@ -9,8 +9,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, CausalError, CausalQuery, CausalResponse, DerivativeSpec, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, EffectEstimate, ExecutionContext, IdentificationResult, IdentifiedEstimand,
+    Arc, CausalError, CausalQuery, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    EffectEstimate, ExecutionContext, IdentificationResult, IdentifiedEstimand,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, InferenceMode,
     Instant, OverlapPolicy, PhysicalExecutionPlan, Strategy, StudyResult, TableView,
     TimeSeriesData, bayesian_gcomp, elapsed_ns, provenance_ids, push_conflict_diagnostics,
@@ -192,32 +192,28 @@ impl CheckedTemporalResponseExecution {
                 message: "a temporal derivative is the local slope at one horizon",
             });
         }
-        let prior_scale = match self.operation.inference() {
-            InferenceMode::Bayesian(cfg) => {
-                if cfg.prior.is_some()
-                    || cfg.prior_artifact.is_some()
-                    || cfg.external_compose.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
-                    });
-                }
-                Some(cfg.prior_scale)
+        if let InferenceMode::Bayesian(cfg) = self.operation.inference() {
+            if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                });
             }
-            InferenceMode::Frequentist => None,
-        };
-        super::temporal_linear_derivative_response(
+        }
+        super::temporal_dag_derivative_response(
             data,
             self.operation.query(),
-            first.estimand(),
-            first.indexer(),
-            first.identification(),
-            DerivativeSpec {
-                treatment_offset: first.effect_query().try_treatment_offset()?,
-                outcome_offset: first.effect_query().outcome_offset(),
-                policy: &ctx.kernel_policy,
-                prior_scale,
+            super::DagDerivativeFit {
+                estimand: first.estimand(),
+                indexer: first.indexer(),
+                identification: first.identification(),
+                offsets: (
+                    first.effect_query().try_treatment_offset()?,
+                    first.effect_query().outcome_offset(),
+                ),
             },
+            (self.operation.inference(), self.operation.procedure().bootstrap_replicates),
+            ctx,
         )
     }
 
@@ -248,7 +244,7 @@ impl CheckedTemporalResponseExecution {
                 "estimate.temporal.linear_derivative",
                 DiagnosticKind::Execution,
                 DiagnosticSeverity::Info,
-                "published value is the slope of the linear unfolded temporal fit; no interval is published",
+                "published value is the slope of the linear unfolded temporal fit; its band refits every outcome regression (frequentist shared circular blocks, or Bayesian joint slope-posterior draws)",
             ));
         }
         if response.provenance_id.as_ref() == "model.delayed_feedback.finite_horizon" {

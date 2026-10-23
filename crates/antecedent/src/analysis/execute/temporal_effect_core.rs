@@ -402,29 +402,78 @@ fn fit_conditional(
             antecedent_data::TableView::row_count(inputs.data.storage()),
         )?,
     };
-    let estimate = EffectEstimate::new(
-        point,
-        f64::NAN,
-        inputs.identification.required_assumptions.clone(),
-        OverlapPolicy::ExplicitOverride,
-    );
+    let uncertainty =
+        conditional_uncertainty(inputs, point, prior_scale, first_gap.is_some(), ctx)?;
+    let mut diagnostics = vec![Diagnostic::new(
+        "estimate.temporal.conditional_marginal",
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        "published value is the one-modifier marginal effect on the unfolded temporal design; its \
+         interval refits the interaction regression and the modifier mean",
+    )];
+    diagnostics.extend(uncertainty.diagnostics);
+    let point_only = uncertainty.posterior.is_none() && uncertainty.replicates_ok.is_none();
     Ok(TemporalEffectFit {
-        estimate,
+        estimate: uncertainty.estimate,
         estimator_id: EstimatorId::TemporalLinearAdjustment,
         refutations: Vec::new(),
-        diagnostics: vec![Diagnostic::new(
-            "estimate.temporal.conditional_marginal",
-            DiagnosticKind::Execution,
-            DiagnosticSeverity::Info,
-            "published value is the one-modifier marginal effect on the unfolded temporal design; no interval is published",
-        )],
-        posterior: None,
+        diagnostics,
+        posterior: uncertainty.posterior,
         predictive_checks: Vec::new(),
-        bootstrap_replicates_ok: None,
-        cancelled: false,
-        point_only: true,
+        bootstrap_replicates_ok: uncertainty.replicates_ok,
+        cancelled: uncertainty.cancelled,
+        point_only,
         missing_data,
         estimate_provenance: LINEAR_PROVENANCE,
+    })
+}
+
+/// The whole-procedure uncertainty of a `TemporalDag` one-modifier conditional
+/// effect: the interaction regression (and the modifier mean) refit on shared
+/// circular blocks of series times, or drawn from its tempered slope posterior.
+fn conditional_uncertainty(
+    inputs: &TemporalEffectInputs<'_>,
+    point: f64,
+    prior_scale: Option<f64>,
+    gaps: bool,
+    ctx: &ExecutionContext,
+) -> Result<super::temporal_class_point::ClassScalarOutcome, CausalError> {
+    use super::temporal_point_uncertainty as point_uncertainty;
+    let atom = point_uncertainty::SlopeAtom::conditional(
+        inputs.data,
+        inputs.estimand,
+        inputs.query,
+        inputs.indexer,
+        ctx.kernel_policy,
+        prior_scale,
+        gaps,
+    )?;
+    let frozen = [atom.freeze()];
+    let assumptions = inputs.identification.required_assumptions.clone();
+    super::temporal_class_point::class_scalar_uncertainty(
+        &frozen,
+        &[1.0],
+        &[point],
+        point,
+        assumptions,
+        false,
+        super::temporal_class_point::ClassPointUncertainty {
+            inference: inputs.inference,
+            bootstrap_replicates: inputs.bootstrap_replicates,
+            structural_span: super::temporal_class_block_span(std::iter::once(inputs.indexer)),
+            block_stream: point_uncertainty::CONDITIONAL_BLOCK_STREAM,
+            posterior_stream: point_uncertainty::CONDITIONAL_POSTERIOR_STREAM,
+        },
+        ctx,
+        |_, source| source.conditional_effect().map(|value| vec![value]),
+    )
+    .map(|mut outcome| {
+        // One regression on one series: the single-window family, not a mixture.
+        if outcome.posterior.is_none() {
+            outcome.estimate.uncertainty.block.family =
+                Some(antecedent_estimate::CircularBlockFamily::SingleWindow);
+        }
+        outcome
     })
 }
 
