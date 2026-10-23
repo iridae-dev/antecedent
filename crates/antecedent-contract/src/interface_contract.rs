@@ -56,8 +56,9 @@ mod declaration;
 mod refusal;
 
 pub use composition::{
-    ComponentConnection, ComposedInterfaces, MAX_COMPOSITION_COMPONENTS,
-    MAX_COMPOSITION_CONNECTIONS, check_composition, check_composition_with_ledger,
+    ComponentConnection, ComposedInterfaces, CyclicComponentDeclaration,
+    MAX_COMPOSITION_COMPONENTS, MAX_COMPOSITION_CONNECTIONS, check_composition,
+    check_composition_with_cyclic_components, check_composition_with_ledger,
     disjoint_requirements_without_ledger,
 };
 pub use connection::{Connection, check_connection};

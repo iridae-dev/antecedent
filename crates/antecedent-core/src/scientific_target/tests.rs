@@ -1247,3 +1247,217 @@ fn a_resolved_planner_history_cap_is_pinned_by_identity() {
     assert_eq!(resolved.max_lag_steps(), None);
     assert!(resolved.is_planner_default());
 }
+
+mod feedback_vocabulary {
+    use super::super::StructuralAction;
+    use super::*;
+
+    fn cyclic_world(id: u32, action: WorldAction, time: TimeFrame) -> InterventionWorld {
+        InterventionWorld::new(
+            world_id(id),
+            action,
+            false,
+            binding(TargetPopulation::AllObserved, Conditioning::unconditional()),
+            time,
+        )
+        .unwrap()
+    }
+
+    fn cyclic_target(action: WorldAction, time: TimeFrame) -> ScientificTarget {
+        target(TargetForm::World(cyclic_world(0, action, time)), model(GraphFamily::Cyclic))
+    }
+
+    fn one(action: StructuralAction) -> WorldAction {
+        WorldAction::structural([action]).unwrap()
+    }
+
+    #[test]
+    fn clamp_mechanism_shock_and_initial_state_are_distinct_worlds() {
+        let continuous =
+            || TimeFrame::continuous_time(2.0, InitialLaw::named("x0").unwrap()).unwrap();
+        let clamp =
+            cyclic_target(one(StructuralAction::hard_clamp(vid(0), 1.0).unwrap()), continuous());
+        let mechanism = cyclic_target(
+            one(StructuralAction::replace_mechanism(vid(0), "constant", &[1.0]).unwrap()),
+            continuous(),
+        );
+        let shock = cyclic_target(
+            one(StructuralAction::additive_shock(vid(0), 1.0).unwrap()),
+            continuous(),
+        );
+        let initial = cyclic_target(
+            one(StructuralAction::initial_state(vid(0), "x0", 1.0).unwrap()),
+            continuous(),
+        );
+        let targets = [&clamp, &mechanism, &shock, &initial];
+        for (index, left) in targets.iter().enumerate() {
+            for right in &targets[index + 1..] {
+                digest_ne(left, right);
+            }
+        }
+    }
+
+    #[test]
+    fn equilibrium_stationary_continuous_and_static_frames_differ() {
+        let clamp = || one(StructuralAction::hard_clamp(vid(0), 1.0).unwrap());
+        let equilibrium = cyclic_target(clamp(), TimeFrame::equilibrium());
+        let stationary = cyclic_target(clamp(), TimeFrame::stationary());
+        let continuous = cyclic_target(
+            clamp(),
+            TimeFrame::continuous_time(1.0, InitialLaw::contemporaneous_observed()).unwrap(),
+        );
+        let longer = cyclic_target(
+            clamp(),
+            TimeFrame::continuous_time(2.0, InitialLaw::contemporaneous_observed()).unwrap(),
+        );
+        digest_ne(&equilibrium, &stationary);
+        digest_ne(&equilibrium, &continuous);
+        digest_ne(&continuous, &longer);
+        let acyclic = target(
+            TargetForm::World(cyclic_world(
+                0,
+                WorldAction::at_decision([set_level(vid(0), 1.0)]).unwrap(),
+                TimeFrame::static_decision(),
+            )),
+            model(GraphFamily::Cyclic),
+        );
+        digest_ne(&equilibrium, &acyclic);
+        assert!(TimeFrame::equilibrium().is_equilibrium());
+        assert!(TimeFrame::stationary().is_stationary());
+        assert!(!TimeFrame::equilibrium().is_static());
+        assert_eq!(TimeFrame::equilibrium().horizon_steps(), None);
+        assert_eq!(TimeFrame::equilibrium().initial_law(), None);
+        let frame = TimeFrame::continuous_time(1.5, InitialLaw::named("x0").unwrap()).unwrap();
+        assert_eq!(frame.continuous_horizon(), Some(1.5));
+        assert_eq!(frame.continuous_initial_law().and_then(InitialLaw::name), Some("x0"));
+        assert_eq!(frame.initial_law(), None, "a discrete-time accessor does not read it");
+    }
+
+    #[test]
+    fn cyclic_graph_family_has_its_own_identity() {
+        let action = || one(StructuralAction::hard_clamp(vid(0), 1.0).unwrap());
+        let cyclic = cyclic_target(action(), TimeFrame::equilibrium());
+        let unspecified = target(
+            TargetForm::World(cyclic_world(0, action(), TimeFrame::equilibrium())),
+            model(GraphFamily::Unspecified),
+        );
+        digest_ne(&cyclic, &unspecified);
+    }
+
+    #[test]
+    fn continuous_horizon_must_be_finite_and_positive() {
+        for horizon in [0.0, -0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert_eq!(
+                TimeFrame::continuous_time(horizon, InitialLaw::contemporaneous_observed()),
+                Err(ScientificTargetError::NonPositiveContinuousHorizon),
+                "{horizon}"
+            );
+        }
+    }
+
+    #[test]
+    fn structural_actions_pair_only_with_feedback_frames() {
+        let clamp = || one(StructuralAction::hard_clamp(vid(0), 1.0).unwrap());
+        let binding = binding(TargetPopulation::AllObserved, Conditioning::unconditional());
+        for time in [
+            TimeFrame::static_decision(),
+            TimeFrame::temporal(
+                1,
+                HistoryWindow::planner_default(),
+                InitialLaw::contemporaneous_observed(),
+            )
+            .unwrap(),
+        ] {
+            assert_eq!(
+                InterventionWorld::new(world_id(0), clamp(), false, binding.clone(), time),
+                Err(ScientificTargetError::MismatchedActionTime)
+            );
+        }
+        let initial = one(StructuralAction::initial_state(vid(0), "x0", 1.0).unwrap());
+        for time in [TimeFrame::equilibrium(), TimeFrame::stationary()] {
+            assert_eq!(
+                InterventionWorld::new(world_id(0), initial.clone(), false, binding.clone(), time),
+                Err(ScientificTargetError::MismatchedActionTime),
+                "an initial-state change needs a continuous-time frame"
+            );
+        }
+        assert_eq!(
+            InterventionWorld::new(
+                world_id(0),
+                WorldAction::at_decision([set_level(vid(0), 1.0)]).unwrap(),
+                false,
+                binding,
+                TimeFrame::equilibrium(),
+            ),
+            Err(ScientificTargetError::MismatchedActionTime),
+            "an acyclic decision-time intervention is not a structural action"
+        );
+    }
+
+    #[test]
+    fn structural_actions_are_canonical_and_refuse_conflicts() {
+        let shock = StructuralAction::additive_shock(vid(1), 0.5).unwrap();
+        let mechanism =
+            StructuralAction::replace_mechanism(vid(1), "additive_shift", &[2.0]).unwrap();
+        let clamp = StructuralAction::hard_clamp(vid(0), -0.0).unwrap();
+        let forward =
+            WorldAction::structural([shock.clone(), mechanism.clone(), clamp.clone()]).unwrap();
+        let backward =
+            WorldAction::structural([clamp.clone(), mechanism.clone(), shock.clone()]).unwrap();
+        assert_eq!(forward, backward);
+        assert_eq!(clamp.hard_clamp_level().map(f64::to_bits), Some(0.0_f64.to_bits()));
+        assert_eq!(
+            WorldAction::structural([shock.clone(), shock.clone()]),
+            Err(ScientificTargetError::DuplicateInterventionVariable { id: vid(1) })
+        );
+        assert_eq!(
+            WorldAction::structural([
+                StructuralAction::hard_clamp(vid(1), 1.0).unwrap(),
+                shock.clone()
+            ]),
+            Err(ScientificTargetError::DuplicateInterventionVariable { id: vid(1) })
+        );
+        assert!(StructuralAction::hard_clamp(vid(0), f64::NAN).is_err());
+        assert!(StructuralAction::replace_mechanism(vid(0), " ", &[1.0]).is_err());
+        assert!(StructuralAction::replace_mechanism(vid(0), "constant", &[f64::INFINITY]).is_err());
+        assert!(StructuralAction::initial_state(vid(0), "", 1.0).is_err());
+        let specified = WorldAction::structural([]).unwrap();
+        assert_eq!(specified.structural_actions(), Some(&[][..]));
+        assert!(specified.at_decision_interventions().is_none());
+        assert!(specified.schedule_parts().is_none());
+        let as_specified = cyclic_target(specified, TimeFrame::equilibrium());
+        let clamped = cyclic_target(one(clamp), TimeFrame::equilibrium());
+        digest_ne(&as_specified, &clamped);
+    }
+
+    #[test]
+    fn structural_worlds_form_a_difference_on_one_coordinate() {
+        let world = |id: u32, level: f64, reference: bool| {
+            InterventionWorld::new(
+                world_id(id),
+                one(StructuralAction::hard_clamp(vid(0), level).unwrap()),
+                reference,
+                binding(TargetPopulation::AllObserved, Conditioning::unconditional()),
+                TimeFrame::equilibrium(),
+            )
+            .unwrap()
+        };
+        let worlds = WorldCollection::new([world(0, 0.0, true), world(1, 1.0, false)]).unwrap();
+        assert!(
+            InterventionContrast::difference(worlds, world_id(1), world_id(0), world_id(0)).is_ok()
+        );
+        let shock = InterventionWorld::new(
+            world_id(1),
+            one(StructuralAction::additive_shock(vid(0), 1.0).unwrap()),
+            false,
+            binding(TargetPopulation::AllObserved, Conditioning::unconditional()),
+            TimeFrame::equilibrium(),
+        )
+        .unwrap();
+        let mixed = WorldCollection::new([world(0, 0.0, true), shock]).unwrap();
+        assert!(
+            InterventionContrast::difference(mixed, world_id(1), world_id(0), world_id(0)).is_err(),
+            "a clamp and a shock are different coordinates, not two levels of one"
+        );
+    }
+}

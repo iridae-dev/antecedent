@@ -58,6 +58,8 @@ pub struct CyclicExecutionRequest {
 pub struct CyclicExecutionReport {
     #[serde(skip)]
     retention: crate::retained_allocation::RetainedAllocation,
+    #[serde(skip)]
+    lowered: crate::cyclic_family_artifact::LoweredStamp,
     /// Stable request identity; retain independently before artifact consumption.
     pub identity: String,
     /// Optional joint fit and its numerical convergence facts.
@@ -77,6 +79,25 @@ impl CyclicExecutionReport {
     #[must_use]
     pub fn retained_admitted_bytes(&self) -> u64 {
         self.retention.bytes()
+    }
+
+    /// Identity of the lowered program whose execution produced this report.
+    ///
+    /// `None` for a report no prepared handle stamped, such as an independently
+    /// replayed artifact. The stamp is not part of the artifact or of equality.
+    #[must_use]
+    pub const fn lowered_program_identity(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.lowered.identity()
+    }
+
+    /// Stamp the identity of the lowered program that produced this report.
+    #[must_use]
+    pub fn with_lowered_program_identity(
+        mut self,
+        identity: antecedent_core::SemanticDigest,
+    ) -> Self {
+        self.lowered = crate::cyclic_family_artifact::LoweredStamp::of(identity);
+        self
     }
 }
 
@@ -221,6 +242,7 @@ impl CyclicExecutionRequest {
             counterfactuals,
             claim: "specified_or_fitted_model_conditional".into(),
             calibration: "unmeasured".into(),
+            lowered: crate::cyclic_family_artifact::LoweredStamp::default(),
         })
     }
 

@@ -293,6 +293,8 @@ One row per identity domain, including `target_weights`. Rendered from
 | Target-weight identity | target-weights digest | `inspect().target_weights_id` |
 | Learned-trial artifact identity | `manifest.artifact_id` on `LearnedTrialWire` | n/a (artifact_id in the learned-trial artifact manifest) |
 | Transport-certificate artifact identity | `manifest.artifact_id` on `TransportCertificateWire` | n/a (artifact_id in the transport-certificate artifact manifest) |
+| Cyclic-solution identity | `CyclicContractWire.cyclic_solution`, bound as `CyclicSolution::Tag` on the program slot; comparing it does not solve the system | n/a (cyclic_solution in the cyclic family contract section) |
+| Cyclic recovery identity | `CyclicContractWire.recovery` digest; the data-snapshot and identification-product layers of an experimental recovery bind it | n/a (recovery in the cyclic family contract section) |
 <!-- generated:identity-dictionary:end -->
 
 Prefer package / module paths for stage depth; keep day-1 at the crate / package root.

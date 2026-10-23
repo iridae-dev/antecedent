@@ -12,8 +12,8 @@ use antecedent_core::{
     Conditioning, ContrastForm, CrossWorldPremise, DoseTimeSurface, GraphFamily, HistoryWindow,
     InferenceSelection, InitialLaw, InterventionContrast, InterventionWorld, MediationArms,
     MediationComponent, MediationTarget, ModelAssumptions, ObservationUnit, OutcomeQuantity,
-    QuantityUnits, ScientificTarget, ScientificWorldId, TargetForm, TimeFrame, VariableId,
-    WorldAction, WorldBinding, WorldCollection,
+    QuantityUnits, ScientificTarget, ScientificWorldId, StructuralAction, TargetForm, TimeFrame,
+    VariableId, WorldAction, WorldBinding, WorldCollection,
 };
 use serde::{Deserialize, Serialize};
 
@@ -104,12 +104,84 @@ enum TimeWire {
         resolved_cap: Option<u32>,
         initial_law: Option<String>,
     },
+    /// Solution of simultaneous structural equations.
+    Equilibrium,
+    /// Continuous time over `(0, horizon]`; the horizon is carried by its bit pattern.
+    ContinuousTime {
+        horizon_bits: u64,
+        initial_law: Option<String>,
+    },
+    /// Stationary law of a continuous-time process.
+    Stationary,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum ActionWire {
     Simultaneous { interventions: Vec<InterventionWire> },
     Scheduled { intervention: InterventionWire, policy: TemporalPolicyWire },
+    Structural { actions: Vec<StructuralActionWire> },
+}
+/// One structural action; levels travel by bit pattern so `-0.0` folding is the domain's.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum StructuralActionWire {
+    HardClamp { variable: u32, level_bits: u64 },
+    ReplaceMechanism { variable: u32, family: String, parameter_bits: Vec<u64> },
+    AdditiveShock { variable: u32, delta_bits: u64 },
+    InitialStateChange { variable: u32, law: String, level_bits: u64 },
+}
+impl StructuralActionWire {
+    fn from_domain(action: &StructuralAction) -> Result<Self, IoError> {
+        let variable = action.variable().raw();
+        if let Some(level) = action.hard_clamp_level() {
+            return Ok(Self::HardClamp { variable, level_bits: level.to_bits() });
+        }
+        if let Some((family, parameters)) = action.mechanism() {
+            return Ok(Self::ReplaceMechanism {
+                variable,
+                family: family.to_owned(),
+                parameter_bits: parameters.iter().map(|value| value.to_bits()).collect(),
+            });
+        }
+        if let Some(delta) = action.shock_delta() {
+            return Ok(Self::AdditiveShock { variable, delta_bits: delta.to_bits() });
+        }
+        if let Some((law, level)) = action.initial_state_change() {
+            return Ok(Self::InitialStateChange {
+                variable,
+                law: law.to_owned(),
+                level_bits: level.to_bits(),
+            });
+        }
+        Err(unknown("structural action"))
+    }
+    fn to_domain(&self) -> Result<StructuralAction, IoError> {
+        match self {
+            Self::HardClamp { variable, level_bits } => StructuralAction::hard_clamp(
+                VariableId::from_raw(*variable),
+                f64::from_bits(*level_bits),
+            ),
+            Self::ReplaceMechanism { variable, family, parameter_bits } => {
+                StructuralAction::replace_mechanism(
+                    VariableId::from_raw(*variable),
+                    family.as_str(),
+                    &parameter_bits.iter().map(|bits| f64::from_bits(*bits)).collect::<Vec<_>>(),
+                )
+            }
+            Self::AdditiveShock { variable, delta_bits } => StructuralAction::additive_shock(
+                VariableId::from_raw(*variable),
+                f64::from_bits(*delta_bits),
+            ),
+            Self::InitialStateChange { variable, law, level_bits } => {
+                StructuralAction::initial_state(
+                    VariableId::from_raw(*variable),
+                    law.as_str(),
+                    f64::from_bits(*level_bits),
+                )
+            }
+        }
+        .map_err(invalid)
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -146,6 +218,7 @@ impl ScientificTargetWire {
             GraphFamily::TemporalAdmg => "temporal_admg",
             GraphFamily::CoDetermined => "co_determined",
             GraphFamily::Graphless => "graphless",
+            GraphFamily::Cyclic => "cyclic",
             _ => return Err(unknown("graph family")),
         }
         .to_owned();
@@ -191,6 +264,7 @@ impl ScientificTargetWire {
             "temporal_admg" => GraphFamily::TemporalAdmg,
             "co_determined" => GraphFamily::CoDetermined,
             "graphless" => GraphFamily::Graphless,
+            "cyclic" => GraphFamily::Cyclic,
             _ => return Err(unknown("graph family")),
         };
         let inference = match self.inference.as_str() {
@@ -436,6 +510,22 @@ impl TimeWire {
         if time.is_static() {
             return Ok(Self::Static);
         }
+        if time.is_equilibrium() {
+            return Ok(Self::Equilibrium);
+        }
+        if time.is_stationary() {
+            return Ok(Self::Stationary);
+        }
+        if let Some(horizon) = time.continuous_horizon() {
+            return Ok(Self::ContinuousTime {
+                horizon_bits: horizon.to_bits(),
+                initial_law: time
+                    .continuous_initial_law()
+                    .ok_or_else(|| unknown("initial law"))?
+                    .name()
+                    .map(str::to_owned),
+            });
+        }
         let history = time.history().ok_or_else(|| unknown("history"))?;
         Ok(Self::Temporal {
             horizon: time.horizon_steps().ok_or_else(|| unknown("temporal horizon"))?,
@@ -464,6 +554,16 @@ impl TimeWire {
                     .map_err(invalid)?,
             )
             .map_err(invalid),
+            Self::Equilibrium => Ok(TimeFrame::equilibrium()),
+            Self::Stationary => Ok(TimeFrame::stationary()),
+            Self::ContinuousTime { horizon_bits, initial_law } => TimeFrame::continuous_time(
+                f64::from_bits(*horizon_bits),
+                initial_law
+                    .as_deref()
+                    .map_or_else(|| Ok(InitialLaw::contemporaneous_observed()), InitialLaw::named)
+                    .map_err(invalid)?,
+            )
+            .map_err(invalid),
         }
     }
 }
@@ -474,6 +574,13 @@ impl WorldWire {
                 interventions: interventions
                     .iter()
                     .map(InterventionWire::from_domain)
+                    .collect::<Result<Vec<_>, _>>()?,
+            }
+        } else if let Some(actions) = world.action().structural_actions() {
+            ActionWire::Structural {
+                actions: actions
+                    .iter()
+                    .map(StructuralActionWire::from_domain)
                     .collect::<Result<Vec<_>, _>>()?,
             }
         } else {
@@ -502,6 +609,13 @@ impl WorldWire {
                 WorldAction::schedule(intervention.to_domain(), policy.to_domain())
                     .map_err(invalid)?
             }
+            ActionWire::Structural { actions } => WorldAction::structural(
+                actions
+                    .iter()
+                    .map(StructuralActionWire::to_domain)
+                    .collect::<Result<Vec<_>, _>>()?,
+            )
+            .map_err(invalid)?,
         };
         InterventionWorld::new(
             ScientificWorldId::from_raw(self.id),
@@ -765,5 +879,42 @@ mod tests {
                 .unwrap();
         old.version = 1;
         assert!(old.to_domain().is_ok());
+    }
+
+    #[test]
+    fn scientific_target_wire_roundtrips_feedback_worlds_and_frames() {
+        let cyclic = |action: WorldAction, time: TimeFrame, id: u32| {
+            InterventionWorld::new(ScientificWorldId::from_raw(id), action, false, binding(), time)
+                .unwrap()
+        };
+        let clamp = StructuralAction::hard_clamp(VariableId::from_raw(0), -0.0).unwrap();
+        let mechanism = StructuralAction::replace_mechanism(
+            VariableId::from_raw(1),
+            "linear_mechanism",
+            &[0.5, 0.0, 0.25],
+        )
+        .unwrap();
+        let shock = StructuralAction::additive_shock(VariableId::from_raw(1), 1.0).unwrap();
+        let initial = StructuralAction::initial_state(VariableId::from_raw(0), "x0", 2.0).unwrap();
+        let worlds = WorldCollection::new([
+            cyclic(WorldAction::structural([]).unwrap(), TimeFrame::equilibrium(), 0),
+            cyclic(
+                WorldAction::structural([clamp, mechanism.clone()]).unwrap(),
+                TimeFrame::equilibrium(),
+                1,
+            ),
+            cyclic(WorldAction::structural([shock]).unwrap(), TimeFrame::stationary(), 2),
+            cyclic(
+                WorldAction::structural([initial, mechanism]).unwrap(),
+                TimeFrame::continuous_time(3.5, InitialLaw::named("x0").unwrap()).unwrap(),
+                3,
+            ),
+        ])
+        .unwrap();
+        roundtrip(&ScientificTarget::new(
+            TargetForm::Worlds(worlds),
+            ModelAssumptions::new(GraphFamily::Cyclic, AssumptionSet::new()),
+            InferenceSelection::Frequentist,
+        ));
     }
 }

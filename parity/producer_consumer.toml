@@ -2466,3 +2466,50 @@ status = "REFUSED"
 detail = "a repeated-measures derived report has no decision-reliability route"
 evidence_test = "crates/antecedent/tests/adaptive_repeated_measures_consumer.rs"
 evidence_assertion = "a_repeated_measures_report_has_no_decision_reliability_route"
+
+[[rust_producer]]
+key = "cyclic_family_contract"
+object = "a prepared cyclic family (specified, fitted or recovered from clamp experiments) with its lowered program and layered contract (model-conditional, never graphical identification)"
+built_from = "`Study::prepare_cyclic_family` / `prepare_recovered_linear` / `prepare_experimental_recovery` (`contract`, `lowered`, `export` writing the version-two family record with a `cyclic_family.contract` section)"
+
+[[rust_consumer]]
+key = "cyclic_family_contract_consumer"
+entry = "`cyclic_family_artifact::{consume_cyclic_family, consume_cyclic_family_contract}` and `contract_section::verify_cyclic_contract_against_body`"
+note = "independent consumer: verifies the contract from bytes, re-derives every payload from the request and replays the answer"
+
+[[rust_consumer]]
+key = "interface_composition"
+entry = "`analysis::check_interface_composition_with_cyclic` (`CyclicFamilyContract::as_component`)"
+note = "scientific interface composition with certified cyclic products as single components"
+
+[[rust_cell]]
+producer = "cyclic_family_contract"
+consumer = "cyclic_family_contract_consumer"
+status = "DIRECT"
+detail = "the version-two record verifies against its request (layered identities, seal, program binding with the `cyclic.solution.v1` tag, request identity) and replays to the exported report; a version-one record keeps replaying without a contract"
+evidence_test = "crates/antecedent/src/analysis/lowering/cyclic_tests.rs"
+evidence_assertion = "a_version_two_record_is_verified_against_its_body_and_replayed"
+
+[[rust_cell]]
+producer = "cyclic_family_contract"
+consumer = "cyclic_family_contract_consumer"
+status = "REFUSED"
+detail = "a tampered identity, solve tag or request is refused by the byte-level check; a consistently resealed contract over other payloads is refused when the consumer re-derives them (`Mismatch`)"
+evidence_test = "crates/antecedent-io/src/cyclic_family_artifact.rs"
+evidence_assertion = "a_tampered_or_resealed_contract_is_refused"
+
+[[rust_cell]]
+producer = "cyclic_family_contract"
+consumer = "interface_composition"
+status = "DIRECT"
+detail = "a certified cyclic product enters a feed-forward composition as one declared component; the composition identity binds its program identity and solve tag"
+evidence_test = "crates/antecedent/src/analysis/lowering/cyclic_tests.rs"
+evidence_assertion = "a_certified_cyclic_product_enters_as_one_component_and_component_cycles_stay_refused"
+
+[[rust_cell]]
+producer = "cyclic_family_contract"
+consumer = "interface_composition"
+status = "REFUSED"
+detail = "feedback among components is `interface_contract_cyclic_composition` with its path and the cycle gate's next attempt; a declaration naming no component is `interface_contract.unknown_component`"
+evidence_test = "crates/antecedent/src/analysis/lowering/cyclic_tests.rs"
+evidence_assertion = "a_certified_cyclic_product_enters_as_one_component_and_component_cycles_stay_refused"

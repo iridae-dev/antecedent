@@ -237,13 +237,49 @@ impl CompiledCyclicFamilyProgram {
         })
     }
     /// Execute and then encode separately. No artifact is produced during compilation/inspection.
+    ///
+    /// The artifact is a version-two record with a contract section bound to the request.
     pub fn export(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(CyclicFamilyReport, Vec<u8>), CyclicArtifactError> {
         let report = self.execute(ctx)?;
-        let bytes = self.request.encode_report(&report, ctx)?;
+        let bytes = self.request.encode_report(&report, &self.contract()?, ctx)?;
         Ok((report, bytes))
+    }
+
+    /// Digest (lower hex) of the typed fit-dependency set: the request fields a
+    /// frozen statistical product is computed from.
+    #[must_use]
+    pub fn fit_dependency_identity(&self) -> &str {
+        &self.fit_identity
+    }
+
+    /// Bytes admitted for one execution's output before the numerical engine runs:
+    /// the draw, world, noise, trajectory and region axes the family declares.
+    ///
+    /// # Errors
+    ///
+    /// The bound overflows or the request does not encode.
+    pub fn output_bytes_bound(&self) -> Result<u64, CyclicArtifactError> {
+        output_bytes(&self.request)
+    }
+
+    /// Contract of this program: layered identities over payloads derived from
+    /// the request and its compiled schedules, the `cyclic.solution.v1` tag and,
+    /// for an experimental recovery, the recovery layer. Deriving it does not fit,
+    /// sample or solve.
+    ///
+    /// # Errors
+    ///
+    /// A keyed world the scientific vocabulary refuses, or a payload that does not encode.
+    pub fn contract(
+        &self,
+    ) -> Result<antecedent_io_core::contract_section::CyclicContractWire, CyclicArtifactError> {
+        let payloads =
+            super::cyclic_contract_payloads(&self.request, &self.plans, &self.fit_identity)?;
+        antecedent_io_core::contract_section::seal_cyclic_contract(payloads, &self.identity)
+            .map_err(invalid)
     }
 }
 /// Pre-admit output multiplicities before numerical execution. The typed post-execution

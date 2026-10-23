@@ -443,8 +443,17 @@ pub fn validate_contract_section(contract: &AnalysisResultContractWire) -> Resul
 }
 
 mod consume;
+pub mod cyclic;
 mod replay;
 mod verify;
+
+pub use cyclic::{
+    CYCLIC_CONTRACT_FORMAT, CYCLIC_CONTRACT_SECTION, CyclicContractPayloads, CyclicContractWire,
+    CyclicDataSnapshotWire, CyclicIdentificationWire, CyclicInferenceWire, CyclicLayerDigests,
+    CyclicObservationWire, CyclicProgramWire, CyclicRecoveryWire, CyclicSolutionWire,
+    CyclicTargetWire, CyclicUnresolvedWire, cyclic_layer_digests, cyclic_request_identity,
+    seal_cyclic_contract, verify_cyclic_contract_against_body,
+};
 
 pub(crate) use consume::validate_mixture_masses_within;
 pub use consume::{

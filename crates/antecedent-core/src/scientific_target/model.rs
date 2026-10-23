@@ -327,7 +327,22 @@ pub struct TimeFrame {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub(super) enum TimeKind {
     Static,
-    Temporal { horizon_steps: u32, history: HistoryWindow, initial_law: InitialLaw },
+    Temporal {
+        horizon_steps: u32,
+        history: HistoryWindow,
+        initial_law: InitialLaw,
+    },
+    /// Solution of simultaneous structural equations: no horizon, no history and
+    /// no initial-state law.
+    Equilibrium,
+    /// Continuous time over `(0, horizon]` from a declared initial-state law. The
+    /// horizon is stored by its bit pattern, with `-0.0` refused as non-positive.
+    ContinuousTime {
+        horizon_bits: u64,
+        initial_law: InitialLaw,
+    },
+    /// Stationary law of a continuous-time process.
+    Stationary,
 }
 
 impl TimeFrame {
@@ -335,6 +350,79 @@ impl TimeFrame {
     #[must_use]
     pub const fn static_decision() -> Self {
         Self { kind: TimeKind::Static }
+    }
+
+    /// Equilibrium of simultaneous structural equations.
+    ///
+    /// This is not [`Self::static_decision`]: a static frame reads one decision
+    /// time of an acyclic model, an equilibrium frame reads the solution of a
+    /// feedback system. Neither asserts that the solution is physically stable.
+    #[must_use]
+    pub const fn equilibrium() -> Self {
+        Self { kind: TimeKind::Equilibrium }
+    }
+
+    /// Continuous time over `(0, horizon]` from `initial_law`.
+    ///
+    /// The horizon is in the model's own time units. Setting derivatives to zero
+    /// is not this frame; that is [`Self::stationary`] or [`Self::equilibrium`]
+    /// under its own assumptions.
+    ///
+    /// # Errors
+    ///
+    /// [`ScientificTargetError::NonPositiveContinuousHorizon`] when `horizon` is not
+    /// finite or not strictly positive.
+    pub fn continuous_time(
+        horizon: f64,
+        initial_law: InitialLaw,
+    ) -> Result<Self, ScientificTargetError> {
+        if !horizon.is_finite() || horizon <= 0.0 {
+            return Err(ScientificTargetError::NonPositiveContinuousHorizon);
+        }
+        Ok(Self { kind: TimeKind::ContinuousTime { horizon_bits: horizon.to_bits(), initial_law } })
+    }
+
+    /// Stationary law of a continuous-time process. It has no horizon and no
+    /// initial-state law.
+    #[must_use]
+    pub const fn stationary() -> Self {
+        Self { kind: TimeKind::Stationary }
+    }
+
+    /// Whether this is an equilibrium frame.
+    #[must_use]
+    pub const fn is_equilibrium(&self) -> bool {
+        matches!(&self.kind, TimeKind::Equilibrium)
+    }
+
+    /// Whether this is a stationary frame.
+    #[must_use]
+    pub const fn is_stationary(&self) -> bool {
+        matches!(&self.kind, TimeKind::Stationary)
+    }
+
+    /// Continuous-time horizon, or [`None`] for any other frame.
+    #[must_use]
+    pub fn continuous_horizon(&self) -> Option<f64> {
+        match &self.kind {
+            TimeKind::ContinuousTime { horizon_bits, .. } => Some(f64::from_bits(*horizon_bits)),
+            TimeKind::Static
+            | TimeKind::Temporal { .. }
+            | TimeKind::Equilibrium
+            | TimeKind::Stationary => None,
+        }
+    }
+
+    /// Initial-state law of a continuous-time frame, or [`None`] for any other frame.
+    #[must_use]
+    pub const fn continuous_initial_law(&self) -> Option<&InitialLaw> {
+        match &self.kind {
+            TimeKind::ContinuousTime { initial_law, .. } => Some(initial_law),
+            TimeKind::Static
+            | TimeKind::Temporal { .. }
+            | TimeKind::Equilibrium
+            | TimeKind::Stationary => None,
+        }
     }
 
     /// Temporal frame. `horizon_steps` counts steps after the policy origin.
@@ -359,30 +447,41 @@ impl TimeFrame {
         matches!(&self.kind, TimeKind::Static)
     }
 
-    /// Horizon in steps, or [`None`] for a static frame.
+    /// Horizon in steps, or [`None`] for a frame that is not discrete temporal.
     #[must_use]
     pub const fn horizon_steps(&self) -> Option<u32> {
         match &self.kind {
-            TimeKind::Static => None,
             TimeKind::Temporal { horizon_steps, .. } => Some(*horizon_steps),
+            TimeKind::Static
+            | TimeKind::Equilibrium
+            | TimeKind::ContinuousTime { .. }
+            | TimeKind::Stationary => None,
         }
     }
 
-    /// History window, or [`None`] for a static frame.
+    /// History window, or [`None`] for a frame that is not discrete temporal.
     #[must_use]
     pub const fn history(&self) -> Option<HistoryWindow> {
         match &self.kind {
-            TimeKind::Static => None,
             TimeKind::Temporal { history, .. } => Some(*history),
+            TimeKind::Static
+            | TimeKind::Equilibrium
+            | TimeKind::ContinuousTime { .. }
+            | TimeKind::Stationary => None,
         }
     }
 
-    /// Initial-state law, or [`None`] for a static frame.
+    /// Initial-state law of a discrete temporal frame, or [`None`] otherwise.
+    ///
+    /// A continuous-time frame's law is [`Self::continuous_initial_law`].
     #[must_use]
     pub const fn initial_law(&self) -> Option<&InitialLaw> {
         match &self.kind {
-            TimeKind::Static => None,
             TimeKind::Temporal { initial_law, .. } => Some(initial_law),
+            TimeKind::Static
+            | TimeKind::Equilibrium
+            | TimeKind::ContinuousTime { .. }
+            | TimeKind::Stationary => None,
         }
     }
 }
@@ -413,10 +512,15 @@ pub enum GraphFamily {
     CoDetermined,
     /// Design-based target with no causal graph.
     Graphless,
+    /// Directed graph whose mechanisms may be reciprocal, so it may contain directed
+    /// cycles. `A → B` and `B → A` are two mechanisms; latent confounding stays a
+    /// separate bidirected relation. Acyclic guarantees do not transfer to it.
+    Cyclic,
 }
 
 impl GraphFamily {
-    /// Canonical tag. Exhaustive, so a new family must be numbered here.
+    /// Canonical tag. Exhaustive, so a new family must be numbered here. Tags are
+    /// append-only: an existing family keeps its number.
     const fn canonical_tag(self) -> u64 {
         match self {
             Self::Unspecified => 1,
@@ -430,6 +534,7 @@ impl GraphFamily {
             Self::TemporalAdmg => 9,
             Self::CoDetermined => 10,
             Self::Graphless => 11,
+            Self::Cyclic => 12,
         }
     }
 }
@@ -547,7 +652,214 @@ pub struct WorldAction {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub(super) enum ActionKind {
     Interventions(Arc<[Intervention]>),
-    Schedule { intervention: Intervention, policy: TemporalPolicy },
+    Schedule {
+        intervention: Intervention,
+        policy: TemporalPolicy,
+    },
+    /// Structural actions on a feedback or continuous-time model, sorted by
+    /// variable then action kind. Empty is the model as specified.
+    Structural(Arc<[StructuralAction]>),
+}
+
+/// One structural action on a feedback or continuous-time model.
+///
+/// The four kinds are different scientific actions and none is rewritten into
+/// another. A hard clamp deletes the variable's equation and holds its level. A
+/// mechanism replacement swaps the deterministic mechanism and keeps the
+/// disturbance. An additive shock perturbs the structural disturbance. An
+/// initial-state change replaces the declared initial law of one state. Levels are
+/// stored by bit pattern with `-0.0` folded to `0.0`.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct StructuralAction {
+    kind: StructuralKind,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+enum StructuralKind {
+    HardClamp { variable: VariableId, level_bits: u64 },
+    ReplaceMechanism { variable: VariableId, family: Arc<str>, parameter_bits: Arc<[u64]> },
+    AdditiveShock { variable: VariableId, delta_bits: u64 },
+    InitialState { variable: VariableId, law: Arc<str>, level_bits: u64 },
+}
+
+fn finite_bits(value: f64, what: &str) -> Result<u64, ScientificTargetError> {
+    if !value.is_finite() {
+        return Err(ScientificTargetError::InvalidAction {
+            reason: format!("{what} must be a finite level"),
+        });
+    }
+    Ok(if value == 0.0 { 0.0_f64.to_bits() } else { value.to_bits() })
+}
+
+impl StructuralAction {
+    /// Delete the equation of `variable` and hold it at `level`.
+    ///
+    /// # Errors
+    ///
+    /// [`ScientificTargetError::InvalidAction`] when `level` is not finite.
+    pub fn hard_clamp(variable: VariableId, level: f64) -> Result<Self, ScientificTargetError> {
+        let level_bits = finite_bits(level, "a hard-clamp level")?;
+        Ok(Self { kind: StructuralKind::HardClamp { variable, level_bits } })
+    }
+
+    /// Replace the deterministic mechanism of `variable` by the named `family`
+    /// with `parameters`, keeping its disturbance.
+    ///
+    /// # Errors
+    ///
+    /// [`ScientificTargetError::EmptyName`] for a blank family and
+    /// [`ScientificTargetError::InvalidAction`] for a non-finite parameter.
+    pub fn replace_mechanism(
+        variable: VariableId,
+        family: impl Into<Arc<str>>,
+        parameters: &[f64],
+    ) -> Result<Self, ScientificTargetError> {
+        let family = family.into();
+        if is_blank(&family) {
+            return Err(ScientificTargetError::EmptyName { field: "mechanism family" });
+        }
+        let parameter_bits = parameters
+            .iter()
+            .map(|value| finite_bits(*value, "a mechanism parameter"))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            kind: StructuralKind::ReplaceMechanism {
+                variable,
+                family,
+                parameter_bits: Arc::from(parameter_bits),
+            },
+        })
+    }
+
+    /// Add `delta` to the structural disturbance of `variable`.
+    ///
+    /// # Errors
+    ///
+    /// [`ScientificTargetError::InvalidAction`] when `delta` is not finite.
+    pub fn additive_shock(variable: VariableId, delta: f64) -> Result<Self, ScientificTargetError> {
+        let delta_bits = finite_bits(delta, "an additive shock")?;
+        Ok(Self { kind: StructuralKind::AdditiveShock { variable, delta_bits } })
+    }
+
+    /// Replace the declared initial-state law `law` of state `variable` by `level`.
+    ///
+    /// # Errors
+    ///
+    /// [`ScientificTargetError::EmptyName`] for a blank law name and
+    /// [`ScientificTargetError::InvalidAction`] for a non-finite level.
+    pub fn initial_state(
+        variable: VariableId,
+        law: impl Into<Arc<str>>,
+        level: f64,
+    ) -> Result<Self, ScientificTargetError> {
+        let law = law.into();
+        if is_blank(&law) {
+            return Err(ScientificTargetError::EmptyName { field: "initial law" });
+        }
+        let level_bits = finite_bits(level, "an initial-state level")?;
+        Ok(Self { kind: StructuralKind::InitialState { variable, law, level_bits } })
+    }
+
+    /// Variable the action targets.
+    #[must_use]
+    pub const fn variable(&self) -> VariableId {
+        match &self.kind {
+            StructuralKind::HardClamp { variable, .. }
+            | StructuralKind::ReplaceMechanism { variable, .. }
+            | StructuralKind::AdditiveShock { variable, .. }
+            | StructuralKind::InitialState { variable, .. } => *variable,
+        }
+    }
+
+    /// Stable name of the action kind.
+    #[must_use]
+    pub const fn kind_name(&self) -> &'static str {
+        match &self.kind {
+            StructuralKind::HardClamp { .. } => "hard_clamp",
+            StructuralKind::ReplaceMechanism { .. } => "replace_mechanism",
+            StructuralKind::AdditiveShock { .. } => "additive_shock",
+            StructuralKind::InitialState { .. } => "initial_state_change",
+        }
+    }
+
+    /// Clamped level, when this is a hard clamp.
+    #[must_use]
+    pub fn hard_clamp_level(&self) -> Option<f64> {
+        match &self.kind {
+            StructuralKind::HardClamp { level_bits, .. } => Some(f64::from_bits(*level_bits)),
+            _ => None,
+        }
+    }
+
+    /// Replacement family and parameters, when this is a mechanism replacement.
+    #[must_use]
+    pub fn mechanism(&self) -> Option<(&str, Vec<f64>)> {
+        match &self.kind {
+            StructuralKind::ReplaceMechanism { family, parameter_bits, .. } => {
+                let parameters = parameter_bits.iter().map(|bits| f64::from_bits(*bits)).collect();
+                Some((&**family, parameters))
+            }
+            _ => None,
+        }
+    }
+
+    /// Disturbance perturbation, when this is an additive shock.
+    #[must_use]
+    pub fn shock_delta(&self) -> Option<f64> {
+        match &self.kind {
+            StructuralKind::AdditiveShock { delta_bits, .. } => Some(f64::from_bits(*delta_bits)),
+            _ => None,
+        }
+    }
+
+    /// Replaced law and new level, when this is an initial-state change.
+    #[must_use]
+    pub fn initial_state_change(&self) -> Option<(&str, f64)> {
+        match &self.kind {
+            StructuralKind::InitialState { law, level_bits, .. } => {
+                Some((&**law, f64::from_bits(*level_bits)))
+            }
+            _ => None,
+        }
+    }
+
+    /// Canonical tag. Exhaustive and append-only.
+    const fn canonical_tag(&self) -> u64 {
+        match &self.kind {
+            StructuralKind::HardClamp { .. } => 1,
+            StructuralKind::ReplaceMechanism { .. } => 2,
+            StructuralKind::AdditiveShock { .. } => 3,
+            StructuralKind::InitialState { .. } => 4,
+        }
+    }
+
+    const fn is_initial_state(&self) -> bool {
+        matches!(&self.kind, StructuralKind::InitialState { .. })
+    }
+}
+
+/// Sort structural actions by variable, then kind, and refuse conflicts.
+///
+/// One variable carries at most one action of each kind, and a hard clamp
+/// excludes every other action on its variable.
+fn canonical_structural(
+    actions: impl IntoIterator<Item = StructuralAction>,
+) -> Result<Arc<[StructuralAction]>, ScientificTargetError> {
+    let mut actions: Vec<StructuralAction> = actions.into_iter().collect();
+    actions.sort_by_key(|action| (action.variable(), action.canonical_tag()));
+    for pair in actions.windows(2) {
+        let (left, right) = (&pair[0], &pair[1]);
+        if left.variable() != right.variable() {
+            continue;
+        }
+        let clamp = |action: &StructuralAction| action.canonical_tag() == 1;
+        if left.canonical_tag() == right.canonical_tag() || clamp(left) || clamp(right) {
+            return Err(ScientificTargetError::DuplicateInterventionVariable {
+                id: left.variable(),
+            });
+        }
+    }
+    Ok(Arc::from(actions))
 }
 
 impl WorldAction {
@@ -592,12 +904,30 @@ impl WorldAction {
         Ok(Self { kind: ActionKind::Schedule { intervention, policy } })
     }
 
+    /// Simultaneous structural actions on a feedback or continuous-time model.
+    ///
+    /// Pair with [`TimeFrame::equilibrium`], [`TimeFrame::stationary`] or
+    /// [`TimeFrame::continuous_time`]; an initial-state change needs the
+    /// continuous-time frame. An empty list is the model as specified, which is
+    /// a world of its own and not an intervention at level zero. Actions are
+    /// sorted by variable, then kind, so declaration order is not part of the world.
+    ///
+    /// # Errors
+    ///
+    /// [`ScientificTargetError::DuplicateInterventionVariable`] when one variable
+    /// carries two actions of one kind, or a hard clamp and any other action.
+    pub fn structural(
+        actions: impl IntoIterator<Item = StructuralAction>,
+    ) -> Result<Self, ScientificTargetError> {
+        Ok(Self { kind: ActionKind::Structural(canonical_structural(actions)?) })
+    }
+
     /// Interventions when this is a one-decision-time action.
     #[must_use]
     pub fn at_decision_interventions(&self) -> Option<&[Intervention]> {
         match &self.kind {
             ActionKind::Interventions(interventions) => Some(interventions),
-            ActionKind::Schedule { .. } => None,
+            ActionKind::Schedule { .. } | ActionKind::Structural(_) => None,
         }
     }
 
@@ -606,7 +936,16 @@ impl WorldAction {
     pub fn schedule_parts(&self) -> Option<(&Intervention, &TemporalPolicy)> {
         match &self.kind {
             ActionKind::Schedule { intervention, policy } => Some((intervention, policy)),
-            ActionKind::Interventions(_) => None,
+            ActionKind::Interventions(_) | ActionKind::Structural(_) => None,
+        }
+    }
+
+    /// Structural actions, in canonical order, when this is a structural action.
+    #[must_use]
+    pub fn structural_actions(&self) -> Option<&[StructuralAction]> {
+        match &self.kind {
+            ActionKind::Structural(actions) => Some(actions),
+            ActionKind::Interventions(_) | ActionKind::Schedule { .. } => None,
         }
     }
 }
@@ -717,7 +1056,7 @@ fn ensure_action_within_horizon(
     time: &TimeFrame,
 ) -> Result<(), ScientificTargetError> {
     match &action.kind {
-        ActionKind::Interventions(_) => Ok(()),
+        ActionKind::Interventions(_) | ActionKind::Structural(_) => Ok(()),
         ActionKind::Schedule { intervention, policy } => {
             ensure_policy_within_horizon(policy, time)?;
             if let Intervention::Sequence(sequence) = intervention {
@@ -731,11 +1070,17 @@ fn ensure_action_within_horizon(
 }
 
 fn action_matches_time(action: &WorldAction, time: &TimeFrame) -> bool {
-    matches!(
-        (&action.kind, &time.kind),
+    match (&action.kind, &time.kind) {
         (ActionKind::Interventions(_), TimeKind::Static)
-            | (ActionKind::Schedule { .. }, TimeKind::Temporal { .. })
-    )
+        | (ActionKind::Schedule { .. }, TimeKind::Temporal { .. })
+        | (ActionKind::Structural(_), TimeKind::ContinuousTime { .. }) => true,
+        (ActionKind::Structural(actions), TimeKind::Equilibrium | TimeKind::Stationary) => {
+            !actions.iter().any(StructuralAction::is_initial_state)
+        }
+        (ActionKind::Interventions(_), _)
+        | (ActionKind::Schedule { .. }, _)
+        | (ActionKind::Structural(_), TimeKind::Static | TimeKind::Temporal { .. }) => false,
+    }
 }
 
 /// One intervention world.
@@ -1062,6 +1407,40 @@ impl CanonicalEncode for TimeFrame {
                 history.encode(writer);
                 initial_law.encode(writer);
             }
+            TimeKind::Equilibrium => {
+                writer.word(3);
+            }
+            TimeKind::ContinuousTime { horizon_bits, initial_law } => {
+                writer.word(4).word(*horizon_bits);
+                initial_law.encode(writer);
+            }
+            TimeKind::Stationary => {
+                writer.word(5);
+            }
+        }
+    }
+}
+
+impl CanonicalEncode for StructuralAction {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.word(self.canonical_tag());
+        self.variable().encode(writer);
+        match &self.kind {
+            StructuralKind::HardClamp { level_bits, .. } => {
+                writer.word(*level_bits);
+            }
+            StructuralKind::ReplaceMechanism { family, parameter_bits, .. } => {
+                writer.text(family).word(count(parameter_bits.len()));
+                for bits in parameter_bits.iter() {
+                    writer.word(*bits);
+                }
+            }
+            StructuralKind::AdditiveShock { delta_bits, .. } => {
+                writer.word(*delta_bits);
+            }
+            StructuralKind::InitialState { law, level_bits, .. } => {
+                writer.text(law).word(*level_bits);
+            }
         }
     }
 }
@@ -1079,6 +1458,12 @@ impl CanonicalEncode for WorldAction {
                 writer.word(2);
                 intervention.encode(writer);
                 policy.encode(writer);
+            }
+            ActionKind::Structural(actions) => {
+                writer.word(3).word(count(actions.len()));
+                for action in actions.iter() {
+                    action.encode(writer);
+                }
             }
         }
     }

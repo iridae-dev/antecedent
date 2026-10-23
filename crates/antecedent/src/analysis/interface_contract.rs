@@ -43,18 +43,22 @@ use antecedent_contract::ExternalRefusal;
 use antecedent_contract::evidence_ledger::EvidenceLedger;
 pub use antecedent_contract::interface_contract::{
     CalibrationRequirement, CalibrationStatus, ComponentConnection, ComposedInterfaces, Connection,
-    ConsumedPort, ContractOperation, DependenceRequirement, EvidenceBasis, InterfaceContract,
-    MAX_COMPOSITION_COMPONENTS, MAX_COMPOSITION_CONNECTIONS, PortFacts, ProducedPort,
-    SupportDomain, UncertaintyMeaning, UncertaintyParadigm, operations_of_capabilities,
+    ConsumedPort, ContractOperation, CyclicComponentDeclaration, DependenceRequirement,
+    EvidenceBasis, InterfaceContract, MAX_COMPOSITION_COMPONENTS, MAX_COMPOSITION_CONNECTIONS,
+    PortFacts, ProducedPort, SupportDomain, UncertaintyMeaning, UncertaintyParadigm,
+    operations_of_capabilities,
 };
 use antecedent_contract::interface_contract::{
-    check_composition, check_composition_with_ledger, check_connection,
-    disjoint_requirements_without_ledger,
+    check_composition, check_composition_with_cyclic_components, check_composition_with_ledger,
+    check_connection, disjoint_requirements_without_ledger,
 };
 use antecedent_io::IoError;
 pub use antecedent_io::interface_contract_artifact::InterfaceContractMeta;
 use antecedent_io::interface_contract_artifact::{
     InterfaceContractArtifact, InterfaceContractArtifactError,
+};
+use antecedent_model::cyclic_component::{
+    ComponentDependency, CycleGateError, check_component_composition,
 };
 
 /// One refusal as plain data: registered reason code, namespaced
@@ -225,6 +229,69 @@ pub fn check_interface_composition_with_ledger(
     ledger: &EvidenceLedger,
 ) -> Result<ComposedInterfaces, Vec<InterfaceContractRefusal>> {
     check_composition_with_ledger(components, connections, ledger)
+        .map_err(|refusals| InterfaceContractRefusal::all(&refusals))
+}
+
+/// Check a composition in which each certified cyclic evidence product in `cyclic`
+/// is admitted as one declared component.
+///
+/// The component graph first passes the cyclic-model cycle gate
+/// ([`check_component_composition`]): the feedback inside a certified cyclic
+/// model is solved within its own component, but feedback among components is
+/// refused with its path and the gate's next attempt. The declarations are then
+/// checked as in [`check_interface_composition`] (or
+/// [`check_interface_composition_with_ledger`] when `ledger` is given), and the
+/// composition identity binds each cyclic product's program identity and
+/// `cyclic.solution.v1` tag. Admission does not solve, sample or calibrate the
+/// cyclic product, and does not identify it.
+///
+/// # Errors
+/// A cycle among components, a declaration that names no component or repeats
+/// one, or every defect of the group of checks that failed.
+pub fn check_interface_composition_with_cyclic(
+    components: &[InterfaceContract],
+    connections: &[ComponentConnection],
+    cyclic: &[CyclicComponentDeclaration],
+    ledger: Option<&EvidenceLedger>,
+) -> Result<ComposedInterfaces, Vec<InterfaceContractRefusal>> {
+    if ledger.is_none() {
+        let unchecked = disjoint_requirements_without_ledger(components);
+        if !unchecked.is_empty() {
+            return Err(InterfaceContractRefusal::all(&unchecked));
+        }
+    }
+    let dependencies: Vec<ComponentDependency> = components
+        .iter()
+        .map(|contract| ComponentDependency {
+            name: contract.component.clone(),
+            depends_on: connections
+                .iter()
+                .filter(|connection| connection.consumer == contract.component)
+                .map(|connection| connection.producer.clone())
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect(),
+        })
+        .collect();
+    // Malformed names and unknown components are reported by the declaration
+    // check below with their interface details; the gate decides only cycles.
+    if let Err(CycleGateError::ComponentCycle { path, next_attempt }) =
+        check_component_composition(&dependencies)
+    {
+        return Err(vec![InterfaceContractRefusal {
+            code: antecedent_core::reason_code!("interface_contract_cyclic_composition"),
+            detail: "interface_contract.cyclic_composition".to_owned(),
+            offending: Some(path.clone()),
+            expected: None,
+            supplied: None,
+            message: format!(
+                "refused at stage `bind`; offending `{path}`; feedback among components is not a \
+                 certified cyclic component; next attempt: {next_attempt}"
+            ),
+            remedy: Some(next_attempt.to_owned()),
+        }]);
+    }
+    check_composition_with_cyclic_components(components, connections, cyclic, ledger)
         .map_err(|refusals| InterfaceContractRefusal::all(&refusals))
 }
 

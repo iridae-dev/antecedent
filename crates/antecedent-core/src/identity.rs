@@ -314,11 +314,18 @@ pub enum IdentityDomain {
     LearnedTrial,
     /// Whole structural transport certificate outcome (positive proof or refusal).
     TransportCertificate,
+    /// Declared `cyclic.solution.v1` semantics of a feedback program: family,
+    /// solve schedule, certificate demand and selection policy. Comparing it does
+    /// not solve the system.
+    CyclicSolution,
+    /// Recovery of a linear feedback law from clamp experiments: the experiment
+    /// data snapshot, the declared regime contract and the recovery derivation.
+    CyclicRecovery,
 }
 
 impl IdentityDomain {
     /// Closed set of domains. A new variant fails dictionary tests until listed.
-    pub const ALL: [IdentityDomain; 13] = [
+    pub const ALL: [IdentityDomain; 15] = [
         Self::Target,
         Self::Identification,
         Self::IdentificationProduct,
@@ -332,6 +339,8 @@ impl IdentityDomain {
         Self::TargetWeights,
         Self::LearnedTrial,
         Self::TransportCertificate,
+        Self::CyclicSolution,
+        Self::CyclicRecovery,
     ];
 
     /// Stable `snake_case` name.
@@ -351,6 +360,8 @@ impl IdentityDomain {
             Self::TargetWeights => "target_weights",
             Self::LearnedTrial => "learned_trial",
             Self::TransportCertificate => "transport_certificate",
+            Self::CyclicSolution => "cyclic_solution",
+            Self::CyclicRecovery => "cyclic_recovery",
         }
     }
 
@@ -371,6 +382,8 @@ impl IdentityDomain {
             Self::TargetWeights => "antecedent.identity.target_weights.v1",
             Self::LearnedTrial => "antecedent.identity.learned_trial.v1",
             Self::TransportCertificate => "antecedent.identity.transport_certificate.v1",
+            Self::CyclicSolution => "antecedent.identity.cyclic_solution.v1",
+            Self::CyclicRecovery => "antecedent.identity.cyclic_recovery.v1",
         }
     }
 }

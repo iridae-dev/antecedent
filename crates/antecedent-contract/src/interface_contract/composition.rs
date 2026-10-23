@@ -361,6 +361,76 @@ fn check_composition_inner(
     })
 }
 
+const TAG_CYCLIC_COMPOSITION: &str = "antecedent.interface_contract.composition.cyclic_components";
+
+/// A certified cyclic evidence product admitted as one component of a composition.
+///
+/// The product's internal feedback is solved inside the component under its
+/// declared solve contract; it is not a cycle among components. Connections to
+/// and from the component are checked like any other, and a cycle among
+/// components is still refused with its path.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CyclicComponentDeclaration {
+    /// Component the product is declared as. It names exactly one declared contract.
+    pub component: String,
+    /// Program identity of the cyclic product: its contract's program layer.
+    pub program: SemanticDigest,
+    /// `cyclic.solution.v1` tag its answers were solved under.
+    pub cyclic_solution: SemanticDigest,
+}
+
+/// As [`check_composition`] (or [`check_composition_with_ledger`] when `ledger` is
+/// given), admitting each certified cyclic product in `cyclic` as one declared
+/// component.
+///
+/// Each declaration names one declared component, and a component carries at
+/// most one cyclic product. The composition identity also binds every declared
+/// product's program identity and cyclic-solution tag, so the same interfaces
+/// over another cyclic product are a different composition.
+///
+/// # Errors
+/// A declaration that names no declared component or repeats one, then every
+/// defect [`check_composition`] reports. A cycle among components is refused.
+pub fn check_composition_with_cyclic_components(
+    components: &[InterfaceContract],
+    connections: &[ComponentConnection],
+    cyclic: &[CyclicComponentDeclaration],
+    ledger: Option<&EvidenceLedger>,
+) -> Result<ComposedInterfaces, Vec<InterfaceRefusal>> {
+    if cyclic.len() > MAX_COMPOSITION_COMPONENTS {
+        return Err(vec![composition_too_large("cyclic components")]);
+    }
+    let declared: BTreeSet<&str> =
+        components.iter().map(|contract| contract.component.as_str()).collect();
+    let mut refusals = Vec::new();
+    let mut seen = BTreeSet::new();
+    for product in cyclic {
+        if !declared.contains(product.component.as_str()) {
+            refusals.push(unknown_component(&product.component));
+        } else if !seen.insert(product.component.as_str()) {
+            refusals.push(duplicate_component(&product.component));
+        }
+    }
+    if !refusals.is_empty() {
+        return Err(refusals);
+    }
+    let composed = check_composition_inner(components, connections, ledger)?;
+    if cyclic.is_empty() {
+        return Ok(composed);
+    }
+    let mut ordered: Vec<&CyclicComponentDeclaration> = cyclic.iter().collect();
+    ordered.sort_by(|left, right| left.component.cmp(&right.component));
+    let mut writer = CanonicalWriter::new(TAG_CYCLIC_COMPOSITION);
+    writer.text(&composed.identity.to_hex()).word(ordered.len() as u64);
+    for product in ordered {
+        writer
+            .text(&product.component)
+            .text(&product.program.to_hex())
+            .text(&product.cyclic_solution.to_hex());
+    }
+    Ok(ComposedInterfaces { identity: SemanticDigest::from_bytes(writer.finish()), ..composed })
+}
+
 /// The consumed ports that require disjoint evidence among `components`, as
 /// refusals for a caller that has no evidence ledger.
 ///

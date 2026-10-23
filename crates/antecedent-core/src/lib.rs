@@ -212,8 +212,8 @@ pub use scientific_target::{
     HistoryWindow, InferenceSelection, InitialLaw, InterventionContrast, InterventionWorld,
     MediationArms, MediationComponent, MediationTarget, ModelAssumptions, ObservationUnit,
     OutcomeQuantity, QuantityUnits, SCIENTIFIC_TARGET_FORMAT, SCIENTIFIC_TARGET_IDENTITY_TAG,
-    ScientificTarget, ScientificTargetError, ScientificWorldId, TargetForm, TimeFrame, WorldAction,
-    WorldBinding, WorldCollection,
+    ScientificTarget, ScientificTargetError, ScientificWorldId, StructuralAction, TargetForm,
+    TimeFrame, WorldAction, WorldBinding, WorldCollection,
 };
 pub use scratch_admission::{ScratchLease, ScratchRefusal};
 pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};

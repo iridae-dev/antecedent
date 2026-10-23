@@ -21,6 +21,41 @@ pub(crate) use compiled::FrozenGaussianDensity;
 
 #[path = "cyclic_family_worlds.rs"]
 mod worlds;
+
+#[path = "cyclic_family_contract.rs"]
+mod contract;
+pub use contract::{
+    CyclicProblem, CyclicRealization, CyclicUncertainty, cyclic_contract_payloads,
+    cyclic_identification, cyclic_problem, cyclic_realization, design_unresolved,
+};
+
+/// Identity of the lowered program a prepared handle executed, stamped on its report.
+///
+/// Like an admission reservation it is local to the process: it is omitted from
+/// every artifact and ignored by scientific equality, so an independently replayed
+/// report equals the stamped one.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LoweredStamp(Option<antecedent_core::SemanticDigest>);
+
+impl LoweredStamp {
+    /// Stamp of `identity`.
+    #[must_use]
+    pub const fn of(identity: antecedent_core::SemanticDigest) -> Self {
+        Self(Some(identity))
+    }
+
+    /// The stamped identity, when one was stamped.
+    #[must_use]
+    pub const fn identity(self) -> Option<antecedent_core::SemanticDigest> {
+        self.0
+    }
+}
+
+impl PartialEq for LoweredStamp {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
 pub use worlds::{
     CertificateDemandWire, CoefficientCovarianceWire, CoefficientPriorWire,
     ConstraintWeightingWire, CyclicActionAnswer, CyclicComponentWire, CyclicInitialStateWire,
@@ -748,6 +783,8 @@ pub struct CyclicActionWorldReport {
 pub struct CyclicFamilyReport {
     #[serde(skip)]
     pub(crate) retention: crate::retained_allocation::RetainedAllocation,
+    #[serde(skip)]
+    lowered: LoweredStamp,
     /// Independently retained request digest.
     pub identity: String,
     /// Typed family answer.
@@ -758,6 +795,25 @@ impl CyclicFamilyReport {
     #[must_use]
     pub fn retained_admitted_bytes(&self) -> u64 {
         self.retention.bytes()
+    }
+
+    /// Identity of the lowered program whose execution produced this report.
+    ///
+    /// `None` for a report no prepared handle stamped, such as an independently
+    /// replayed artifact.
+    #[must_use]
+    pub const fn lowered_program_identity(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.lowered.identity()
+    }
+
+    /// Stamp the identity of the lowered program that produced this report.
+    #[must_use]
+    pub fn with_lowered_program_identity(
+        mut self,
+        identity: antecedent_core::SemanticDigest,
+    ) -> Self {
+        self.lowered = LoweredStamp::of(identity);
+        self
     }
 }
 #[derive(Serialize, Deserialize)]
@@ -1441,7 +1497,12 @@ impl CyclicFamilyRequest {
             antecedent_core::execution_attempt::PhysicalEvent::RetainedFull,
             1,
         );
-        Ok(CyclicFamilyReport { identity: identity.to_owned(), answer, retention })
+        Ok(CyclicFamilyReport {
+            identity: identity.to_owned(),
+            answer,
+            retention,
+            lowered: LoweredStamp::default(),
+        })
     }
     /// Execute and encode with the existing family-neutral artifact container.
     pub fn export(
@@ -1451,8 +1512,10 @@ impl CyclicFamilyRequest {
         CompiledCyclicFamilyProgram::compile(self, ctx)?.export(ctx)
     }
 
-    fn encode_report(
+    /// Bounded JSON record of `version` holding this request and `report`.
+    fn record_bytes(
         &self,
+        version: u16,
         report: &CyclicFamilyReport,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, CyclicArtifactError> {
@@ -1463,9 +1526,20 @@ impl CyclicFamilyRequest {
             report: &'a CyclicFamilyReport,
         }
         let (bytes, _record_retention) =
-            bounded_json(&View { version: 1, request: self, report }, ctx)?;
-        let scratch = (bytes.len() as u64)
-            .checked_mul(3)
+            bounded_json(&View { version, request: self, report }, ctx)?;
+        Ok(bytes)
+    }
+
+    /// Encode `sections` in the family-neutral container, admitting encoding scratch first.
+    fn encode_sections(
+        sections: &[crate::OutSection<'_>],
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
+        let payload = sections
+            .iter()
+            .try_fold(0_u64, |total, section| total.checked_add(section.bytes.len() as u64));
+        let scratch = payload
+            .and_then(|n| n.checked_mul(3))
             .and_then(|n| n.checked_add(65536))
             .ok_or_else(|| invalid("artifact encoding size overflow"))?;
         let _encoding = ctx.acquire_admission(0, scratch).map_err(invalid)?;
@@ -1477,11 +1551,7 @@ impl CyclicFamilyRequest {
                 artifact_id: "cyclic_family",
                 library_version: env!("CARGO_PKG_VERSION"),
             },
-            &[crate::OutSection {
-                id: "cyclic_family_v1",
-                content_type: crate::CONTENT_BYTES,
-                bytes: &bytes,
-            }],
+            sections,
         )
         .map_err(|e| invalid(e.into_io("cyclic family layout")))?;
         if ctx.cancellation.is_cancelled() {
@@ -1489,43 +1559,194 @@ impl CyclicFamilyRequest {
         }
         Ok(artifact)
     }
+
+    /// Encode a version-two record: the request and report, and the contract
+    /// section bound to that request.
+    fn encode_report(
+        &self,
+        report: &CyclicFamilyReport,
+        contract: &antecedent_io_core::contract_section::CyclicContractWire,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
+        let bytes = self.record_bytes(2, report, ctx)?;
+        let contract = crate::to_cbor(contract).map_err(invalid)?;
+        Self::encode_sections(
+            &[
+                crate::OutSection {
+                    id: FAMILY_V2_SECTION,
+                    content_type: crate::CONTENT_BYTES,
+                    bytes: &bytes,
+                },
+                crate::OutSection {
+                    id: antecedent_io_core::contract_section::CYCLIC_CONTRACT_SECTION,
+                    content_type: crate::CONTENT_CBOR,
+                    bytes: &contract,
+                },
+            ],
+            ctx,
+        )
+    }
+
+    /// Encode the version-one record, which carries no contract section. Kept so
+    /// the previous-version golden is written by the format it pins.
+    #[cfg(test)]
+    fn encode_report_v1(
+        &self,
+        report: &CyclicFamilyReport,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicArtifactError> {
+        let bytes = self.record_bytes(1, report, ctx)?;
+        Self::encode_sections(
+            &[crate::OutSection {
+                id: FAMILY_V1_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: &bytes,
+            }],
+            ctx,
+        )
+    }
+}
+
+/// Section of a version-one record.
+const FAMILY_V1_SECTION: &str = "cyclic_family_v1";
+/// Record section of a version-two artifact; the contract section follows it.
+const FAMILY_V2_SECTION: &str = "cyclic_family_v2";
+
+/// A decoded record and, for version two, its contract section.
+struct Decoded {
+    record: Record,
+    request_bytes: Vec<u8>,
+    contract: Option<antecedent_io_core::contract_section::CyclicContractWire>,
+}
+
+/// Decode either record layout. A version-one record has no contract; a
+/// version-two record must carry one.
+fn decode_record(bytes: &[u8]) -> Result<Decoded, CyclicArtifactError> {
+    let layout = |e: crate::CodecError| invalid(e.into_io("cyclic family layout"));
+    let (record_bytes, contract) = match crate::decode_container(
+        "cyclic_family",
+        MAX_CYCLIC_ARTIFACT_BYTES,
+        &[FAMILY_V1_SECTION],
+        bytes,
+    ) {
+        Ok(mut parts) => (parts.pop().ok_or_else(|| invalid("missing family section"))?, None),
+        Err(crate::CodecError::Layout) => {
+            let mut parts = crate::decode_container(
+                "cyclic_family",
+                MAX_CYCLIC_ARTIFACT_BYTES,
+                &[FAMILY_V2_SECTION, antecedent_io_core::contract_section::CYCLIC_CONTRACT_SECTION],
+                bytes,
+            )
+            .map_err(layout)?;
+            let contract = parts.pop().ok_or_else(|| invalid("missing contract section"))?;
+            let record = parts.pop().ok_or_else(|| invalid("missing family section"))?;
+            (record, Some(crate::from_cbor(&contract).map_err(invalid)?))
+        }
+        Err(other) => return Err(layout(other)),
+    };
+    let record: Record = serde_json::from_slice(&record_bytes).map_err(invalid)?;
+    let expected = if contract.is_some() { 2 } else { 1 };
+    if record.version != expected {
+        return Err(invalid("unsupported cyclic family version"));
+    }
+    let request_bytes = serde_json::to_vec(&record.request).map_err(invalid)?;
+    Ok(Decoded { record, request_bytes, contract })
+}
+
+/// Check a version-two contract against its request, independently of the producer.
+///
+/// The contract is verified from bytes ([`antecedent_io_core::contract_section::verify_cyclic_contract_against_body`]),
+/// then every payload is re-derived from the decoded request and its compiled
+/// solve schedules, so a consistently resealed contract over other payloads is
+/// refused. Compilation does not fit or solve.
+fn verify_contract(
+    request: &CyclicFamilyRequest,
+    request_bytes: &[u8],
+    contract: &antecedent_io_core::contract_section::CyclicContractWire,
+    ctx: &ExecutionContext,
+) -> Result<(), CyclicArtifactError> {
+    let unresolved = antecedent_io_core::contract_section::verify_cyclic_contract_against_body(
+        contract,
+        request_bytes,
+    );
+    if !unresolved.is_empty() {
+        return Err(invalid(format!(
+            "cyclic family contract does not verify: {}",
+            unresolved.iter().map(|reason| &**reason).collect::<Vec<_>>().join(",")
+        )));
+    }
+    let program = CompiledCyclicFamilyProgram::compile(request, ctx)?;
+    if program.contract()? != *contract {
+        return Err(CyclicArtifactError::Mismatch);
+    }
+    Ok(())
 }
 
 /// Check a separately retained request identity and recompute the typed answer.
+///
+/// Reads version-one records, which carry no contract, and version-two records,
+/// whose contract section is verified against the request before the answer is
+/// replayed.
 pub fn consume_cyclic_family(
     bytes: &[u8],
     expected_identity: &str,
     ctx: &ExecutionContext,
 ) -> Result<CyclicFamilyReport, CyclicArtifactError> {
+    consume_decoded(bytes, expected_identity, ctx).map(|(_, report)| report)
+}
+
+fn consume_decoded(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+) -> Result<(Decoded, CyclicFamilyReport), CyclicArtifactError> {
     if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES || expected_identity.len() != 64 {
         return Err(invalid("family byte limit or expected identity"));
     }
     let _retention = crate::cyclic_system_artifact::cyclic_decode_admission(bytes, ctx)?;
-    let parts = crate::decode_container(
-        "cyclic_family",
-        MAX_CYCLIC_ARTIFACT_BYTES,
-        &["cyclic_family_v1"],
-        bytes,
-    )
-    .map_err(|e| invalid(e.into_io("cyclic family layout")))?;
-    let record: Record =
-        serde_json::from_slice(parts.first().ok_or_else(|| invalid("missing family section"))?)
-            .map_err(invalid)?;
-    if record.version != 1 {
-        return Err(invalid("unsupported cyclic family version"));
-    }
-    let request_bytes = serde_json::to_vec(&record.request).map_err(invalid)?;
-    if CanonicalWriter::digest_bytes_hex("antecedent.cyclic_family.request.v1", &request_bytes)
-        != expected_identity
-        || record.report.identity != expected_identity
+    let decoded = decode_record(bytes)?;
+    if CanonicalWriter::digest_bytes_hex(
+        "antecedent.cyclic_family.request.v1",
+        &decoded.request_bytes,
+    ) != expected_identity
+        || decoded.record.report.identity != expected_identity
     {
         return Err(CyclicArtifactError::Mismatch);
     }
-    let report = record.request.execute(ctx)?;
-    if report.identity != expected_identity || report != record.report {
+    if let Some(contract) = &decoded.contract {
+        if contract.request_identity != expected_identity {
+            return Err(CyclicArtifactError::Mismatch);
+        }
+        verify_contract(&decoded.record.request, &decoded.request_bytes, contract, ctx)?;
+    }
+    let report = decoded.record.request.execute(ctx)?;
+    if report.identity != expected_identity || report != decoded.record.report {
         return Err(CyclicArtifactError::Mismatch);
     }
-    Ok(report)
+    Ok((decoded, report))
+}
+
+/// Independently consume a version-two family artifact and return its verified
+/// contract with the replayed answer.
+///
+/// A version-one record has no contract and is refused here; it still replays
+/// through [`consume_cyclic_family`].
+pub fn consume_cyclic_family_contract(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+) -> Result<
+    (antecedent_io_core::contract_section::CyclicContractWire, CyclicFamilyReport),
+    CyclicArtifactError,
+> {
+    let (decoded, report) = consume_decoded(bytes, expected_identity, ctx)?;
+    let contract = decoded.contract.ok_or_else(|| {
+        invalid(
+            "a version-one cyclic family record carries no contract; next attempt: re-export it \
+             from a prepared family to write a contract section",
+        )
+    })?;
+    Ok((contract, report))
 }
 
 #[cfg(test)]
@@ -1551,19 +1772,8 @@ pub fn consume_cyclic_family_with_request(
     expected_identity: &str,
     ctx: &ExecutionContext,
 ) -> Result<(CyclicFamilyRequest, CyclicFamilyReport), CyclicArtifactError> {
-    let report = consume_cyclic_family(bytes, expected_identity, ctx)?;
-    let _retention = crate::cyclic_system_artifact::cyclic_decode_admission(bytes, ctx)?;
-    let parts = crate::decode_container(
-        "cyclic_family",
-        MAX_CYCLIC_ARTIFACT_BYTES,
-        &["cyclic_family_v1"],
-        bytes,
-    )
-    .map_err(|e| invalid(e.into_io("cyclic source layout")))?;
-    let record: Record =
-        serde_json::from_slice(parts.first().ok_or_else(|| invalid("missing family section"))?)
-            .map_err(invalid)?;
-    Ok((record.request, report))
+    let (decoded, report) = consume_decoded(bytes, expected_identity, ctx)?;
+    Ok((decoded.record.request, report))
 }
 
 #[cfg(test)]
@@ -1613,5 +1823,157 @@ mod seed_binding_tests {
                 .unwrap(),
             report
         );
+    }
+}
+
+/// The version-one record keeps replaying; the version-two record carries a
+/// contract an independent consumer verifies against the request it travels with.
+///
+/// The previous-version golden lives at `tests/fixtures/cyclic_family_v1.bin` and
+/// is written by the version-one encoder it pins. Generate it with
+/// `cargo test -p antecedent-io --lib previous_version -- --ignored write_`.
+#[cfg(test)]
+mod previous_version {
+    use super::*;
+    use std::path::PathBuf;
+
+    const GOLDEN: &str = "cyclic_family_v1.bin";
+    const GENERATOR: &str =
+        "cargo test -p antecedent-io --lib previous_version -- --ignored write_";
+
+    fn fixture_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+    }
+
+    fn ctx() -> ExecutionContext {
+        ExecutionContext::for_tests(1)
+    }
+
+    /// `A = 0.4 B + U_A`, `B = 0.5 A + U_B` under the model as specified, a clamp and a shock.
+    fn request() -> CyclicFamilyRequest {
+        CyclicFamilyRequest::LinearWorlds {
+            variables: vec![10, 11],
+            model: LinearCyclicWire {
+                coefficients: vec![0.0, 0.4, 0.5, 0.0],
+                intercept: vec![0.0; 2],
+                noise_mean: vec![0.0; 2],
+                noise_covariance: vec![1.0, 0.0, 0.0, 1.0],
+            },
+            component: CyclicComponentWire {
+                component_id: "feedback".into(),
+                source_id: "specification".into(),
+                certifying_evidence: vec!["independent-bench-test".into()],
+            },
+            worlds: vec![
+                CyclicWorldWire { world: 7, interventions: vec![], initial_states: vec![] },
+                CyclicWorldWire {
+                    world: 8,
+                    interventions: vec![CyclicInterventionWire::Set { variable: 10, value: 2.0 }],
+                    initial_states: vec![],
+                },
+                CyclicWorldWire {
+                    world: 9,
+                    interventions: vec![CyclicInterventionWire::Shift { variable: 10, delta: 1.0 }],
+                    initial_states: vec![],
+                },
+            ],
+            certificate: CertificateDemandWire::Required,
+        }
+    }
+
+    #[test]
+    #[ignore = "writes tests/fixtures; run with `-- --ignored write_`"]
+    fn write_cyclic_family_v1_golden() {
+        let program = CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap();
+        let report = program.execute(&ctx()).unwrap();
+        let bytes = request().encode_report_v1(&report, &ctx()).unwrap();
+        let dir = fixture_dir();
+        std::fs::create_dir_all(&dir).expect("create the fixture directory");
+        std::fs::write(dir.join(GOLDEN), bytes).expect("write the golden");
+    }
+
+    #[test]
+    fn the_previous_version_golden_still_replays() {
+        let bytes = antecedent_test_support::read_fixture_bytes(
+            &fixture_dir(),
+            GOLDEN,
+            &format!("generate it with `{GENERATOR}`"),
+        );
+        let identity =
+            CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap().identity().to_owned();
+        let replayed = consume_cyclic_family(&bytes, &identity, &ctx()).unwrap();
+        assert_eq!(replayed, request().execute(&ctx()).unwrap());
+        let (decoded, _) = consume_cyclic_family_with_request(&bytes, &identity, &ctx()).unwrap();
+        assert_eq!(decoded, request());
+        assert!(
+            consume_cyclic_family_contract(&bytes, &identity, &ctx()).is_err(),
+            "a version-one record carries no contract to verify"
+        );
+        assert!(consume_cyclic_family(&bytes, &"0".repeat(64), &ctx()).is_err());
+    }
+
+    #[test]
+    fn a_freshly_encoded_version_one_record_replays_beside_version_two() {
+        let program = CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap();
+        let report = program.execute(&ctx()).unwrap();
+        let v1 = request().encode_report_v1(&report, &ctx()).unwrap();
+        assert_eq!(consume_cyclic_family(&v1, program.identity(), &ctx()).unwrap(), report);
+        let (exported, v2) = program.export(&ctx()).unwrap();
+        assert_ne!(v1, v2);
+        let (contract, replayed) =
+            consume_cyclic_family_contract(&v2, program.identity(), &ctx()).unwrap();
+        assert_eq!(replayed, exported);
+        assert_eq!(contract, program.contract().unwrap());
+        assert!(
+            antecedent_io_core::contract_section::verify_cyclic_contract_against_body(
+                &contract,
+                &serde_json::to_vec(&request()).unwrap(),
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_tampered_or_resealed_contract_is_refused() {
+        let program = CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap();
+        let report = program.execute(&ctx()).unwrap();
+        let contract = program.contract().unwrap();
+
+        let mut tampered = contract.clone();
+        tampered.observation.variables.push(12);
+        let bytes = request().encode_report(&report, &tampered, &ctx()).unwrap();
+        assert!(consume_cyclic_family(&bytes, program.identity(), &ctx()).is_err());
+
+        // A self-consistent contract over another request's payloads, bound to this
+        // request's identity, passes the byte-level check and fails re-derivation.
+        let mut other = request();
+        if let CyclicFamilyRequest::LinearWorlds { certificate, .. } = &mut other {
+            *certificate = CertificateDemandWire::ReportUncertified;
+        }
+        let other_program = CompiledCyclicFamilyProgram::compile(&other, &ctx()).unwrap();
+        let payloads = cyclic_contract_payloads(
+            &other,
+            other_program.execution_plans(),
+            other_program.fit_dependency_identity(),
+        )
+        .unwrap();
+        let resealed = antecedent_io_core::contract_section::seal_cyclic_contract(
+            payloads,
+            program.identity(),
+        )
+        .unwrap();
+        assert!(
+            antecedent_io_core::contract_section::verify_cyclic_contract_against_body(
+                &resealed,
+                &serde_json::to_vec(&request()).unwrap(),
+            )
+            .is_empty()
+        );
+        assert_ne!(resealed, contract);
+        let bytes = request().encode_report(&report, &resealed, &ctx()).unwrap();
+        assert!(matches!(
+            consume_cyclic_family(&bytes, program.identity(), &ctx()),
+            Err(CyclicArtifactError::Mismatch)
+        ));
     }
 }

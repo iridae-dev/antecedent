@@ -3,8 +3,14 @@
 //! Model/data/inference remain frozen; only intervention worlds can retarget
 //! while retaining the fitted mechanisms. New data requires a new preparation.
 
+use std::sync::Arc;
+
+use crate::analysis::lowering::cyclic::{lower_cyclic_family, lower_cyclic_system};
 use crate::analysis::{PreparedStudy, Study};
-use antecedent_core::ExecutionContext;
+use crate::planner::lowered::LoweredProgram;
+use antecedent_core::{ContractIdentities, ExecutionContext, SemanticDigest};
+use antecedent_io::contract_section::cyclic::CyclicContractWire;
+use antecedent_io::cyclic_family_artifact::{CompiledCyclicFamilyProgram, CyclicFamilyRequest};
 use antecedent_io::cyclic_system_artifact::{
     CyclicArtifactError, CyclicExecutionReport, CyclicExecutionRequest, PreparedCyclicExecution,
 };
@@ -14,6 +20,7 @@ use antecedent_model::nonlinear_equilibrium::Clamp;
 #[derive(Clone, Debug)]
 pub struct CyclicPreparedState {
     product: PreparedCyclicExecution,
+    lowered: Arc<LoweredProgram>,
 }
 
 /// Inspection of a retained cyclic physical program.
@@ -21,12 +28,72 @@ pub struct CyclicPreparedState {
 pub struct CyclicPreparedInspection {
     /// Complete target/source/inference request identity.
     pub identity: String,
+    /// Identity of the lowered program the handle executes; results carry it.
+    pub lowered_program_identity: SemanticDigest,
     /// Fits actually performed by execution on this handle (zero before execution).
     pub fits_performed: usize,
     /// Per-world SCC solve schedules, sources before sinks.
     pub solve_blocks: Vec<Vec<Vec<usize>>>,
     /// Typed mechanism and simultaneous-equation execution plans.
     pub execution_plans: Vec<antecedent_model::compile::CompiledSystemPlan>,
+}
+
+/// Contract of a prepared cyclic handle: the layered identities, the cyclic
+/// layers, and the contract section its family export writes.
+///
+/// The identities are derived from the request and its compiled schedules
+/// without fitting or solving. A specified or fitted model stays
+/// model-conditional; the contract grants no scientific license.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CyclicFamilyContract {
+    /// Target, identification, identification product, program, inference
+    /// binding, observation and data snapshot.
+    pub identities: ContractIdentities,
+    /// `cyclic.solution.v1` tag of the solve semantics.
+    pub cyclic_solution: SemanticDigest,
+    /// Recovery identity (experiment data snapshot, regime contract, recovery
+    /// derivation), for an experimental recovery.
+    pub recovery: Option<SemanticDigest>,
+    /// Identity of the lowered program the handle's results carry.
+    pub lowered_program_identity: SemanticDigest,
+    /// The contract section a family export writes.
+    pub section: CyclicContractWire,
+}
+
+impl CyclicFamilyContract {
+    /// Declare this certified cyclic product as the composition component `component`.
+    ///
+    /// The declaration carries the product's program identity and
+    /// `cyclic.solution.v1` tag; the product's feedback stays inside that one
+    /// component. A cycle among components is still refused by
+    /// [`crate::analysis::check_interface_composition_with_cyclic`].
+    #[must_use]
+    pub fn as_component(
+        &self,
+        component: impl Into<String>,
+    ) -> crate::analysis::CyclicComponentDeclaration {
+        crate::analysis::CyclicComponentDeclaration {
+            component: component.into(),
+            program: SemanticDigest::from_bytes(self.section.identities.program),
+            cyclic_solution: self.cyclic_solution,
+        }
+    }
+
+    fn of(section: CyclicContractWire, lowered: &LoweredProgram) -> Self {
+        Self {
+            identities: section.contract_identities(),
+            cyclic_solution: SemanticDigest::from_bytes(section.cyclic_solution),
+            recovery: section.recovery.map(SemanticDigest::from_bytes),
+            lowered_program_identity: lowered.identity(),
+            section,
+        }
+    }
+}
+
+/// Context for compiling solve schedules outside a caller's context. Lowering
+/// reads no seed and runs no numerical engine.
+fn lowering_context() -> ExecutionContext {
+    ExecutionContext::production(0, 1)
 }
 
 impl Study {
@@ -40,8 +107,9 @@ impl Study {
         request: CyclicExecutionRequest,
         ctx: &ExecutionContext,
     ) -> Result<PreparedStudy<CyclicPreparedState>, CyclicArtifactError> {
+        let lowered = Arc::new(lower_cyclic_system(&request, ctx)?);
         let product = PreparedCyclicExecution::prepare(request, ctx)?;
-        Ok(PreparedStudy { state: CyclicPreparedState { product } })
+        Ok(PreparedStudy { state: CyclicPreparedState { product, lowered } })
     }
 }
 
@@ -59,6 +127,7 @@ impl PreparedStudy<CyclicPreparedState> {
     pub fn inspect(&self) -> Result<CyclicPreparedInspection, CyclicArtifactError> {
         Ok(CyclicPreparedInspection {
             identity: self.state.product.identity()?,
+            lowered_program_identity: self.state.lowered.identity(),
             fits_performed: self.state.product.fits_performed(),
             solve_blocks: self.state.product.blocks()?,
             execution_plans: self.state.product.execution_plans()?,
@@ -72,7 +141,29 @@ impl PreparedStudy<CyclicPreparedState> {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicExecutionReport, CyclicArtifactError> {
-        self.state.product.estimate(ctx)
+        let identity = self.state.lowered.identity();
+        self.state
+            .product
+            .estimate(ctx)
+            .map(|report| report.with_lowered_program_identity(identity))
+    }
+
+    /// The lowered program this handle executes.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.state.lowered
+    }
+
+    /// Contract of this handle, derived through the `system` family the request is
+    /// carried as. Deriving it compiles schedules and does not fit.
+    ///
+    /// # Errors
+    ///
+    /// The request does not compile as a family, or a payload does not encode.
+    pub fn contract(&self) -> Result<CyclicFamilyContract, CyclicArtifactError> {
+        let family = CyclicFamilyRequest::System { request: self.request().clone() };
+        let program = CompiledCyclicFamilyProgram::compile(&family, &lowering_context())?;
+        Ok(CyclicFamilyContract::of(program.contract()?, &self.state.lowered))
     }
     /// Execute with native facts on success, refusal or cancellation.
     #[must_use]
@@ -83,9 +174,7 @@ impl PreparedStudy<CyclicPreparedState> {
         CyclicExecutionReport,
         CyclicArtifactError,
     > {
-        antecedent_core::execution_attempt::observe_with_context(ctx, || {
-            self.state.product.estimate(ctx)
-        })
+        antecedent_core::execution_attempt::observe_with_context(ctx, || self.estimate(ctx))
     }
     /// Retarget prespecified worlds while preserving the trained mechanisms.
     ///
@@ -97,11 +186,9 @@ impl PreparedStudy<CyclicPreparedState> {
         noise: Vec<Vec<f64>>,
         initial: Vec<f64>,
     ) -> Result<Self, CyclicArtifactError> {
-        Ok(Self {
-            state: CyclicPreparedState {
-                product: self.state.product.retarget(worlds, noise, initial)?,
-            },
-        })
+        let product = self.state.product.retarget(worlds, noise, initial)?;
+        let lowered = Arc::new(lower_cyclic_system(product.request(), &lowering_context())?);
+        Ok(Self { state: CyclicPreparedState { product, lowered } })
     }
     /// Export a result without refitting; the consumer independently refits/replays.
     ///
@@ -112,7 +199,9 @@ impl PreparedStudy<CyclicPreparedState> {
         artifact_id: &str,
         ctx: &ExecutionContext,
     ) -> Result<(CyclicExecutionReport, Vec<u8>), CyclicArtifactError> {
-        self.state.product.export(artifact_id, ctx)
+        let identity = self.state.lowered.identity();
+        let (report, bytes) = self.state.product.export(artifact_id, ctx)?;
+        Ok((report.with_lowered_program_identity(identity), bytes))
     }
 
     /// The same frozen request as a family program, which shares rebinding,
@@ -278,6 +367,15 @@ mod tests {
 pub struct CyclicFamilyPreparedState {
     pub(super) program:
         std::sync::Arc<antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram>,
+    /// The lowered program the retained program was lowered to.
+    pub(super) lowered: Arc<LoweredProgram>,
+}
+
+impl CyclicFamilyPreparedState {
+    fn lower(program: CompiledCyclicFamilyProgram) -> Result<Self, CyclicArtifactError> {
+        let lowered = Arc::new(lower_cyclic_family(&program)?);
+        Ok(Self { program: Arc::new(program), lowered })
+    }
 }
 /// Cheap inspection of a typed cyclic family preparation.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -292,6 +390,11 @@ pub struct CyclicFamilyPreparedInspection {
     pub retained_bytes: u64,
     /// Existing SCC, dynamic and equation compiler products, retaining their semantics.
     pub execution_plans: Vec<antecedent_model::compile::CompiledSystemPlan>,
+    /// Identity of the lowered program the handle executes; results carry it.
+    pub lowered_program_identity: SemanticDigest,
+    /// Identification the lowered program carries: `specified_model_conditional`,
+    /// `experimental_recovery` or `cyclic_ioscm`. Never a graphical product.
+    pub identification: &'static str,
 }
 impl Study {
     /// Compile any typed cyclic family without fitting, sampling, solving or artifact encoding.
@@ -302,12 +405,8 @@ impl Study {
         request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest,
         ctx: &ExecutionContext,
     ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
-        let program = antecedent_io::cyclic_family_artifact::CompiledCyclicFamilyProgram::compile(
-            request, ctx,
-        )?;
-        Ok(PreparedStudy {
-            state: CyclicFamilyPreparedState { program: std::sync::Arc::new(program) },
-        })
+        let program = CompiledCyclicFamilyProgram::compile(request, ctx)?;
+        Ok(PreparedStudy { state: CyclicFamilyPreparedState::lower(program)? })
     }
 
     /// Compile a recovered linear family. Any other family is refused.
@@ -395,7 +494,31 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
             preparation_evaluations: 0,
             retained_bytes: self.state.program.retained_bytes(),
             execution_plans: self.state.program.execution_plans().to_vec(),
+            lowered_program_identity: self.state.lowered.identity(),
+            identification: self
+                .state
+                .lowered
+                .non_graphical_identification()
+                .map_or("specified_model_conditional", |identification| identification.as_str()),
         }
+    }
+
+    /// The lowered program this handle executes.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.state.lowered
+    }
+
+    /// Contract of this handle: layered identities over payloads derived from the
+    /// request and its compiled schedules, the `cyclic.solution.v1` tag, the
+    /// recovery layer of an experimental recovery, and the contract section the
+    /// export writes. Deriving it does not fit, sample or solve.
+    ///
+    /// # Errors
+    ///
+    /// A payload that does not encode.
+    pub fn contract(&self) -> Result<CyclicFamilyContract, CyclicArtifactError> {
+        Ok(CyclicFamilyContract::of(self.state.program.contract()?, &self.state.lowered))
     }
     /// Execute the retained typed program; compatible downstream worlds reuse frozen fits.
     ///
@@ -406,7 +529,8 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<antecedent_io::cyclic_family_artifact::CyclicFamilyReport, CyclicArtifactError>
     {
-        self.state.program.execute(ctx)
+        let identity = self.state.lowered.identity();
+        self.state.program.execute(ctx).map(|report| report.with_lowered_program_identity(identity))
     }
     /// Preserve native facts even on refusal and cancellation.
     #[must_use]
@@ -429,9 +553,7 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<Self, CyclicArtifactError> {
         Ok(Self {
-            state: CyclicFamilyPreparedState {
-                program: std::sync::Arc::new(self.state.program.rebind(request, ctx)?),
-            },
+            state: CyclicFamilyPreparedState::lower(self.state.program.rebind(request, ctx)?)?,
         })
     }
     /// Execute and encode as separate steps through the same retained owner.
@@ -445,7 +567,9 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         (antecedent_io::cyclic_family_artifact::CyclicFamilyReport, Vec<u8>),
         CyclicArtifactError,
     > {
-        self.state.program.export(ctx)
+        let identity = self.state.lowered.identity();
+        let (report, bytes) = self.state.program.export(ctx)?;
+        Ok((report.with_lowered_program_identity(identity), bytes))
     }
 }
 

@@ -30,8 +30,8 @@ pub use self::mediation::{CrossWorldPremise, MediationArms, MediationComponent, 
 pub use self::model::{
     Conditioning, GraphFamily, HistoryIndexedExperiment, HistoryIndexedTargetLaw, HistoryWindow,
     InferenceSelection, InitialLaw, InterventionWorld, ModelAssumptions, ObservationUnit,
-    OutcomeQuantity, QuantityUnits, ScientificWorldId, TimeFrame, WorldAction, WorldBinding,
-    WorldCollection,
+    OutcomeQuantity, QuantityUnits, ScientificWorldId, StructuralAction, TimeFrame, WorldAction,
+    WorldBinding, WorldCollection,
 };
 
 use crate::ids::VariableId;
@@ -221,4 +221,7 @@ pub enum ScientificTargetError {
         /// Repeated coordinate.
         id: VariableId,
     },
+    /// A continuous-time frame needs a finite, strictly positive horizon.
+    #[error("a continuous-time horizon must be finite and > 0")]
+    NonPositiveContinuousHorizon,
 }

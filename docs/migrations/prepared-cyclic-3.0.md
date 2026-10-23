@@ -92,3 +92,36 @@ Fit reuse is keyed by the typed fit dependencies of each family, not by the
 encoded request with fields removed. The standalone recovery-plan byte format in
 `antecedent-estimate` (`export_retained_recovery_plan`, `consume_recovery_artifact`)
 is retired; recovered laws are exchanged through the family artifact.
+
+## Lowered programs, contracts and the version-two record
+
+Every cyclic preparation (`prepare_cyclic`, `prepare_cyclic_family`,
+`prepare_recovered_linear`, `prepare_experimental_recovery`) now obtains its plan
+from a cyclic lowering with the same six layers as a compiled route. Keyed worlds
+become scientific targets in a feedback vocabulary: a `Cyclic` graph family;
+equilibrium, continuous-time and stationary frames; and structural world actions
+(hard clamp, mechanism replacement, additive shock, initial-state change) that are
+never rewritten into one another. Identification is not a graphical product: a
+specified or fitted model stays conditional on that model, a clamp-experiment
+recovery carries its design digest and the directions the design leaves
+unresolved, and a theorem-scoped cyclic input/output SCM identification keeps its
+source. `inspect()` and every report carry the lowered program identity. The stamp
+is local: it is not written to an artifact and is ignored by report equality.
+
+Prepared cyclic handles expose `contract()` with layered identities (target,
+identification, identification product, program, inference binding, observation,
+data snapshot), the `cyclic.solution.v1` tag and, for an experimental recovery, a
+recovery identity over the experiment data snapshot, the regime contract and the
+recovery derivation. Existing acyclic targets keep their canonical bytes and
+identities; the new vocabulary is append-only.
+
+Family export now writes a version-two record: the request and report section
+`cyclic_family_v2` and a `cyclic_family.contract` section. A consumer verifies the
+contract from bytes (`verify_cyclic_contract_against_body`), re-derives every
+payload from the request and replays the answer; a tampered or consistently
+resealed contract is refused. Version-one records keep replaying and carry no
+contract (`consume_cyclic_family_contract` refuses them with a next attempt).
+
+A certified cyclic product enters an interface-contract composition as one
+declared component (`check_interface_composition_with_cyclic`,
+`CyclicFamilyContract::as_component`). Feedback among components stays refused.

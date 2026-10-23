@@ -279,12 +279,15 @@ fn require_same_time(worlds: &WorldCollection) -> Result<(), ScientificTargetErr
 enum Coordinate {
     Variable(VariableId),
     Schedule,
+    /// One structural action kind on one variable.
+    Structural(VariableId, &'static str),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Assigned<'a> {
     Intervention(Intervention),
     Schedule(&'a TemporalPolicy),
+    Structural(&'a super::StructuralAction),
 }
 
 fn coordinates(world: &InterventionWorld) -> BTreeMap<Coordinate, Assigned<'_>> {
@@ -314,6 +317,14 @@ fn coordinates(world: &InterventionWorld) -> BTreeMap<Coordinate, Assigned<'_>> 
                 );
             }
             map.insert(Coordinate::Schedule, Assigned::Schedule(policy));
+        }
+        ActionKind::Structural(actions) => {
+            for action in actions.iter() {
+                map.insert(
+                    Coordinate::Structural(action.variable(), action.kind_name()),
+                    Assigned::Structural(action),
+                );
+            }
         }
     }
     map
