@@ -154,3 +154,37 @@ def test_a_prepared_study_refutes_its_own_target():
     assert placebo.passed
     assert all(report.target == outcome.target.identity for report in outcome.reports)
     assert outcome.calibration == "unmeasured"
+
+
+def test_constructed_refuters_pass_on_a_sound_design_and_flag_a_planted_confounder():
+    def sample(seed: int, planted: bool) -> dict[str, np.ndarray]:
+        rng = np.random.default_rng(seed)
+        n = 1200
+        z = rng.normal(size=n)
+        u = rng.normal(size=n) if planted else np.zeros(n)
+        t = (z + 1.5 * u + rng.normal(size=n) > 0).astype(float)
+        x = (z + 1.5 * u + rng.normal(size=n) > 0).astype(float)
+        w = z + rng.normal(size=n)
+        y = 1.0 + 2.0 * t + z + 1.5 * u + rng.normal(size=n)
+        return {"t": t, "y": y, "z": z, "x": x, "w": w}
+
+    graph = [("z", "t"), ("z", "y"), ("t", "y"), ("z", "x"), ("z", "w")]
+    clean = sample(1, False)
+    study = ant.prepare(
+        clean, graph=graph, query=ant.AverageEffect("t", "y"), bootstrap=0, refute="none"
+    )
+    outcome = study.refute_target(clean, suite="full", replicates=12, common_cause_strength=0.5)
+    passed = {r.refuter: r.passed for r in outcome.reports}
+    for refuter in (
+        "target.random_common_cause",
+        "target.negative_control_exposure",
+        "target.negative_control_outcome",
+    ):
+        assert passed[refuter], refuter
+    planted = sample(2, True)
+    study = ant.prepare(
+        planted, graph=graph, query=ant.AverageEffect("t", "y"), bootstrap=0, refute="none"
+    )
+    outcome = study.refute_target(planted, suite="full", replicates=12)
+    flagged = {r.refuter: r.passed for r in outcome.reports}
+    assert flagged["target.negative_control_exposure"] is False

@@ -66,33 +66,58 @@ outcome.reports            # one TargetCheck per refuter that ran
 outcome.refused            # refuters this study cannot construct, with the next attempt
 ```
 
-Every refit perturbs the data and re-executes the prepared compiled program in
-full, then reads the whole target vector back. Prepare with `refute="none"`:
-a scalar suite configured on the study would run on every refit. Refuters the
-generic perturbation cannot construct are refused with the next attempt, not
-skipped:
+Every refit re-executes a compiled program in full. Most refuters perturb the
+data and run the study's own prepared program; where a refuter changes the
+scientific problem, the study is compiled again with that one change and run.
+Prepare with `refute="none"`: a scalar suite configured on the study would run
+on every refit.
 
-- **Random common cause.** A prepared program has a fixed schema and graph;
-  declare the simulated cause in the graph and prepare that study.
-- **Negative controls.** Declare them (`negative_control_exposure=`,
-  `negative_control_outcome=`); on a single series a negative control has no
-  resampling law for its null spread.
-- **Series bootstrap.** Rebuilding lags on a block-resampled raw series pairs
-  values across block joins; use the route's block bootstrap of its lagged
-  design, or subset stability.
-- **Pre-trend and anticipation on one series.** A single series has no
-  treatment onset, and under outcome-to-treatment feedback a lead is not a
-  placebo; panel event-study leads carry these checks.
-- **Derivative diagnostics.** A prepared response reports the derivative, not
-  the fitted response; call `validation.derivative_consistency` and
-  `validation.local_linearity` on the fitted response.
-- **Bayesian prior and predictive checks.** Prepare under each alternative
-  prior, or simulate replicated data from the posterior, and pass the draws of
-  the target to `validation.prior_sensitivity_target` and
-  `validation.posterior_predictive_target`.
+- **Random common cause.** A simulated cause is appended to the data and
+  declared in the graph as a parent of the treatment and the outcome (on a
+  temporal graph, at every lag the treatment appears at); the augmented study is
+  compiled, prepared and run, so the program adjusts for it. With
+  `common_cause_strength > 0` the cause also enters the outcome (and a
+  non-binary treatment), and the refuter checks that adjusting for a declared
+  confounder recovers the target. DAGs and temporal DAGs only: a graph posterior
+  or a class with unresolved marks has no single structure to declare it in.
+- **Negative controls.** Declared ones are used as given. Otherwise the graph
+  supplies them: an exposure outside the adjustment set that is not a descendant
+  of the treatment and is d-separated from the outcome given the adjustment set
+  (on a temporal graph: none of its nodes reaches the outcome), and an outcome
+  the treatment cannot reach and is d-separated from. On series and panels the
+  default negative-control outcome is the lagged placebo, the outcome moved back
+  past the graph's longest lag. A refusal is recorded only when the graph
+  supplies no candidate. Spread comes from the design's own resample: rows,
+  circular blocks of a series, or whole units of a panel.
+- **Series bootstrap.** A circular-block bootstrap with the dependence-aware
+  block length, carried as row multiplicities: each design row keeps its own
+  lag window, so no lag is read across a block join. A route without a weighted
+  construction (anything but the frequentist single-window temporal linear
+  adjustment today) records the refuter as refused with the route's reason.
+- **Placebo timing and pre-period outcome on one series.** `target.pre_trend`
+  puts the treatment `pre_trend_lead` periods later in the treatment's role;
+  its lags in the design are the actual treatment path, so the coefficient is
+  the effect of a future treatment on the present outcome given the past.
+  `target.anticipation` puts the outcome from before every treatment period the
+  target reads in the outcome's role. Both assume the treatment does not respond
+  to the outcome within the shift; rows without a shifted value get weight zero.
+- **Derivative diagnostics.** The study's mean-curve query on the same data and
+  graph is compiled and run at the five points the checks read (the derivative's
+  own estimator when it serves a curve, otherwise the compiler's choice), and
+  the reported point derivative is checked against it. First derivatives on the
+  identity scale; an average derivative, a directional derivative or a Jacobian
+  is refused with the next attempt.
+- **Bayesian prior sensitivity.** The study is compiled under each alternative
+  isotropic prior scale (`prior_scale_factors` times its own) and the posterior
+  of the whole target is read back. An explicit coefficient prior set has no
+  single scale and is refused with the next attempt.
+- **Posterior-predictive check.** Under the reference linear-Gaussian outcome
+  model of the treatment and adjustment set, each posterior draw's noiseless
+  outcome gives the target of the draw and its noisy replicate gives a
+  replicated target, both through the study's program. Independent rows only.
 
-From Python, `refute_target` perturbs independent rows; a series is refuted
-from Rust through `PreparedTargetData::Series`.
+From Python, `refute_target` perturbs independent rows; series and panels are
+refuted from Rust through `PreparedTargetData::Series` and `::Panel`.
 
 ## Sensitivity ranges
 

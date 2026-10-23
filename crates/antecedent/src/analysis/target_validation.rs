@@ -29,25 +29,35 @@ use std::sync::Arc;
 
 use antecedent_contract::DataClassification;
 use antecedent_core::{
-    CausalRng, ExecutionContext, ResponseFunctional, ResponseIdentification, ResponseValue,
+    CausalQuery, CausalRng, ContinuousDomain, DerivativeScale, ExecutionContext, GridSpec, Lag,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
     VariableId,
 };
-use antecedent_data::{OwnedColumn, TableView, TabularData, TimeSeriesData, ValidityBitmap};
-use antecedent_kernels::{shuffle, unbiased_index};
+use antecedent_data::{
+    OwnedColumn, PanelData, PanelUnit, TableView, TabularData, TimeSeriesData, ValidityBitmap,
+};
+use antecedent_graph::{DSeparationWorkspace, Dag, DenseNodeId, TemporalDag, ensure_lagged};
+use antecedent_kernels::{sample_gamma, shuffle, unbiased_index};
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 use antecedent_validate::RefutationReport;
+use antecedent_validate::target_native::{
+    DerivativeCheckPoint, PosteriorPredictiveTarget, PriorSensitivityTarget,
+    certify_target_refutations, finite_difference_consistency, local_linearity,
+    posterior_predictive_target_check, prior_sensitivity_target_check,
+    refuse_scalar_reports_for_target, run_target_plan, target_refuter_stream,
+};
 pub use antecedent_validate::target_native::{
     JointStatistic, JointStatisticKind, RefutationTarget, TargetCertificate,
     TargetCertificationError, TargetFamily, TargetPerturbation, TargetQuadrant, TargetRefit,
     TargetRefitError, TargetRefutationConfig, TargetRefutationPlan, TargetRefutationReport,
     TargetRefutationRun, TargetRefuterKind, TargetRefuterRefusal, TargetSuite,
 };
-use antecedent_validate::target_native::{
-    certify_target_refutations, refuse_scalar_reports_for_target, run_target_plan,
-};
 use antecedent_validate::{ValidationError, mediation_sensitivity_fit};
 
+use super::builder::DataInput;
 use super::prepared::PreparedStudy;
 use crate::error::CausalError;
+use crate::inference::InferenceMode;
 use crate::planner::lowered::{LoweredProgram, UncertaintyReading};
 use crate::result::StudyResult;
 
@@ -327,14 +337,36 @@ pub fn certify_result_refutations(
 /// Declared controls and settings of a prepared target refutation.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TargetRefitOptions {
-    /// A variable known not to cause the outcome; swapped in for the treatment.
+    /// A variable known not to cause the outcome, swapped in for the treatment. When `None`,
+    /// the graph supplies one: a float variable outside the adjustment set that is not a
+    /// descendant of the treatment and is d-separated from the outcome given the adjustment
+    /// set (static graphs), or none of whose nodes reaches the outcome (temporal graphs).
     pub negative_control_exposure: Option<VariableId>,
-    /// A variable the treatment is known not to cause; swapped in for the outcome.
+    /// A variable the treatment is known not to cause, swapped in for the outcome. When
+    /// `None`, the graph supplies one on a static graph (not a descendant of the treatment,
+    /// d-separated from it given the adjustment set); on series and panels the default is the
+    /// lagged placebo: the outcome moved back past the longest lag of the graph, which no
+    /// later treatment can affect.
     pub negative_control_outcome: Option<VariableId>,
     /// The single mediator of a mediation target, for the sequential-ignorability range.
     pub mediator: Option<VariableId>,
     /// Smallest absolute break-even mediator-outcome error correlation that passes.
     pub mediation_rho_bar: f64,
+    /// Strength with which the simulated common cause enters the outcome (and a non-binary
+    /// treatment). Zero simulates an independent cause; either way the cause is declared in
+    /// the graph as a parent of treatment and outcome and the program adjusts for it.
+    pub common_cause_strength: f64,
+    /// Alternative isotropic prior scales, as multiples of the study's prior scale.
+    pub prior_scale_factors: Vec<f64>,
+    /// Largest acceptable shift of the target posterior, in posterior standard deviations.
+    pub prior_shift_tolerance: f64,
+    /// Step of the derivative diagnostics; `None` takes a quarter of the treatment's sample
+    /// standard deviation.
+    pub derivative_step: Option<f64>,
+    /// Relative tolerance of the finite-difference consistency check.
+    pub derivative_tolerance: f64,
+    /// Largest acceptable relative nonlinearity over the step.
+    pub linearity_tolerance: f64,
 }
 
 impl Default for TargetRefitOptions {
@@ -344,6 +376,12 @@ impl Default for TargetRefitOptions {
             negative_control_outcome: None,
             mediator: None,
             mediation_rho_bar: 0.1,
+            common_cause_strength: 0.0,
+            prior_scale_factors: vec![0.25, 4.0],
+            prior_shift_tolerance: 0.5,
+            derivative_step: None,
+            derivative_tolerance: 0.1,
+            linearity_tolerance: 0.25,
         }
     }
 }
@@ -355,6 +393,8 @@ pub enum PreparedTargetData<'a> {
     Tabular(&'a TabularData),
     /// One regularly sampled series.
     Series(&'a TimeSeriesData),
+    /// A panel of unit series.
+    Panel(&'a PanelData),
 }
 
 /// Plan, reports, refusals and certificate of one prepared target refutation.
@@ -370,11 +410,13 @@ pub struct TargetRefutationOutcome {
 
 /// Run the target-native suite of `result` through `prepared`.
 ///
-/// `data` must be the data `result` was computed on (the retained data of the handle). Each
-/// refit perturbs it and calls the handle's own estimate entry, which re-executes the
-/// compiled program in full, so a prepared handle whose study requests a scalar refutation
-/// suite pays for that suite on every refit: prepare with no scalar suite for target
-/// refutation.
+/// `data` must be the data `result` was computed on (the retained data of the handle). Every
+/// refit re-executes a compiled program in full: the handle's own program on perturbed data,
+/// or, where the refuter changes the scientific problem (a simulated common cause declared in
+/// the graph, an alternative prior, the fitted response curve of a derivative), a study
+/// compiled and prepared from the handle's study with that one change. A prepared handle whose
+/// study requests a scalar refutation suite pays for it on every refit of its own program:
+/// prepare with no scalar suite for target refutation.
 ///
 /// # Errors
 ///
@@ -413,11 +455,21 @@ pub fn refute_prepared_target(
         treatment,
         outcome: result.outcome,
         options: options.clone(),
+        replicates: config.replicates,
+        alpha: config.alpha,
+        curve: std::cell::OnceCell::new(),
     };
     let run = run_target_plan(&plan, &refit, config, ctx)?;
     let certificate = certify_target_refutations(&target, &run.reports)
         .map_err(|error| CausalError::Compile { message: error.to_string() })?;
     Ok(TargetRefutationOutcome { plan, run, certificate })
+}
+
+/// Data of one refit, owned.
+enum Modal {
+    Tabular(TabularData),
+    Series(TimeSeriesData),
+    Panel(PanelData),
 }
 
 struct PreparedRefit<'a> {
@@ -429,17 +481,22 @@ struct PreparedRefit<'a> {
     treatment: VariableId,
     outcome: VariableId,
     options: TargetRefitOptions,
+    replicates: u32,
+    alpha: f64,
+    /// Fitted response curve of a point derivative, `(point, value)`, computed once.
+    curve: std::cell::OnceCell<Vec<(f64, f64)>>,
 }
 
-fn unsupported(reason: &str, next_attempt: &str) -> TargetRefitError {
-    TargetRefitError::Unsupported {
-        reason: Arc::from(reason),
-        next_attempt: Arc::from(next_attempt),
-    }
+fn unsupported(reason: impl Into<Arc<str>>, next_attempt: &str) -> TargetRefitError {
+    TargetRefitError::Unsupported { reason: reason.into(), next_attempt: Arc::from(next_attempt) }
 }
 
 fn failed(error: &CausalError) -> TargetRefitError {
     TargetRefitError::Failed(ValidationError::estimation_msg(error.to_string()))
+}
+
+fn data_failed(error: antecedent_data::DataError) -> TargetRefitError {
+    TargetRefitError::Failed(ValidationError::from(error))
 }
 
 fn float_column(storage: &antecedent_data::OwnedColumnarStorage, id: VariableId) -> Option<&[f64]> {
@@ -456,26 +513,153 @@ fn mask_from(keep: &[bool]) -> Result<ValidityBitmap, TargetRefitError> {
             bytes[i / 8] |= 1 << (i % 8);
         }
     }
-    ValidityBitmap::from_bytes(bytes, keep.len())
-        .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))
+    ValidityBitmap::from_bytes(bytes, keep.len()).map_err(data_failed)
+}
+
+/// `values` moved by `shift` periods (`out[t] = values[t + shift]`) and the rows that exist.
+fn shifted(values: &[f64], shift: isize) -> (Arc<[f64]>, Vec<bool>) {
+    let n = values.len();
+    let mut out = vec![0.0; n];
+    let mut keep = vec![false; n];
+    for t in 0..n {
+        let Some(source) = t.checked_add_signed(shift).filter(|s| *s < n) else { continue };
+        out[t] = values[source];
+        keep[t] = true;
+    }
+    (out.into(), keep)
+}
+
+/// Row weights that drop the design rows ending outside `[from, to)`: a shifted column has
+/// no value there, and a zero weight removes the window without opening a gap in the series.
+fn window_weights(n: usize, from: usize, to: usize) -> Arc<[f64]> {
+    (0..n).map(|t| if t >= from && t < to { 1.0 } else { 0.0 }).collect()
+}
+
+fn times(a: &Arc<[f64]>, b: Option<Arc<[f64]>>) -> Arc<[f64]> {
+    match b {
+        Some(b) => a.iter().zip(b.iter()).map(|(x, y)| x * y).collect(),
+        None => Arc::clone(a),
+    }
+}
+
+/// Circular-block bootstrap of a series as row multiplicities: the design row ending at each
+/// period keeps its own lag window, so no lag is read across a block join.
+fn block_weights(
+    n: usize,
+    span: usize,
+    rng: &mut CausalRng,
+) -> Result<Arc<[f64]>, TargetRefitError> {
+    let length = antecedent_data::circular_block_length(span, n);
+    let mut index = vec![0_usize; n];
+    antecedent_data::fill_circular_block_indexes(n, length, rng, &mut index)
+        .map_err(data_failed)?;
+    let mut weights = vec![0.0; n];
+    for i in index {
+        weights[i] += 1.0;
+    }
+    Ok(weights.into())
+}
+
+fn series_with(
+    series: &TimeSeriesData,
+    replacements: &[(VariableId, Arc<[f64]>)],
+    keep: Option<&[bool]>,
+    weights: Option<Arc<[f64]>>,
+) -> Result<TimeSeriesData, TargetRefitError> {
+    let mut out = series.clone();
+    if !replacements.is_empty() {
+        let table = TabularData::new(series.storage().clone())
+            .with_replaced_floats(replacements)
+            .map_err(data_failed)?;
+        out = TimeSeriesData::try_new(table.storage().clone(), series.time_index().clone())
+            .map_err(data_failed)?;
+    }
+    if let Some(keep) = keep {
+        out = out.with_analysis_mask(mask_from(keep)?).map_err(data_failed)?;
+    }
+    if let Some(weights) = weights {
+        let combined: Arc<[f64]> = match out.storage().weights() {
+            Some(existing) => existing.iter().zip(weights.iter()).map(|(a, b)| a * b).collect(),
+            None => weights,
+        };
+        out = out.with_weights(combined).map_err(data_failed)?;
+    }
+    Ok(out)
+}
+
+/// Longest lag of a temporal graph (zero for a static one).
+fn max_graph_lag(study: &crate::analysis::execute::Study) -> usize {
+    study.graph.as_temporal_dag().map_or(0, |graph| {
+        graph
+            .nodes()
+            .iter()
+            .filter_map(|node| match node {
+                antecedent_core::NodeRef::Lagged { lag, .. } => Some(lag.raw() as usize),
+                _ => None,
+            })
+            .max()
+            .unwrap_or(0)
+    })
+}
+
+/// Dense node of a static variable in a DAG.
+fn static_node(dag: &Dag, variable: VariableId) -> Option<DenseNodeId> {
+    dag.nodes()
+        .iter()
+        .position(|node| *node == antecedent_core::NodeRef::Static(variable))
+        .and_then(|index| u32::try_from(index).ok().map(DenseNodeId::from_raw))
+}
+
+/// Nodes of a variable in a temporal DAG.
+fn lagged_nodes(graph: &TemporalDag, variable: VariableId) -> Vec<(DenseNodeId, usize)> {
+    graph
+        .nodes()
+        .iter()
+        .enumerate()
+        .filter_map(|(index, node)| match node {
+            antecedent_core::NodeRef::Lagged { variable: v, lag } if *v == variable => {
+                u32::try_from(index)
+                    .ok()
+                    .map(|raw| (DenseNodeId::from_raw(raw), lag.raw() as usize))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 impl PreparedRefit<'_> {
-    fn reestimate_tabular(
-        &self,
-        data: &TabularData,
-        ctx: &ExecutionContext,
-    ) -> Result<Vec<f64>, TargetRefitError> {
-        let refitted = self.prepared.estimate(data, ctx).map_err(|error| failed(&error))?;
-        self.read_back(&refitted)
+    fn study(&self) -> &crate::analysis::execute::Study {
+        self.prepared.study()
     }
 
-    fn reestimate_series(
+    fn adjustment(&self) -> Vec<VariableId> {
+        self.result.estimand.adjustment_set.iter().copied().collect()
+    }
+
+    fn storage(&self) -> &antecedent_data::OwnedColumnarStorage {
+        match self.data {
+            PreparedTargetData::Tabular(data) => data.storage(),
+            PreparedTargetData::Series(data) => data.storage(),
+            PreparedTargetData::Panel(data) => data.units()[0].series.storage(),
+        }
+    }
+
+    fn is_float(&self, id: VariableId) -> bool {
+        float_column(self.storage(), id).is_some()
+    }
+
+    /// Re-execute this handle's program on `data`.
+    fn reestimate(
         &self,
-        data: &TimeSeriesData,
+        data: &Modal,
         ctx: &ExecutionContext,
     ) -> Result<Vec<f64>, TargetRefitError> {
-        let refitted = self.prepared.estimate_series(data, ctx).map_err(|error| failed(&error))?;
+        let refitted = match data {
+            Modal::Tabular(data) => self.prepared.estimate(data, ctx),
+            Modal::Series(data) => self.prepared.estimate_series(data, ctx),
+            Modal::Panel(data) => self.prepared.estimate_panel(data, ctx),
+        }
+        .map_err(|error| failed(&error))?;
         self.read_back(&refitted)
     }
 
@@ -491,19 +675,304 @@ impl PreparedRefit<'_> {
         Ok(values)
     }
 
+    /// Prepare `study` (a one-change copy of this handle's study) on `data` and execute it.
+    fn compile_and_run(
+        &self,
+        mut study: crate::analysis::execute::Study,
+        data: Modal,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        study.refute = crate::analysis::builder::RefuteSuite::None;
+        study.data = match &data {
+            Modal::Tabular(d) => DataInput::Tabular(d.clone()),
+            Modal::Series(d) => match &study.data {
+                DataInput::Event(_) => DataInput::Event(d.clone()),
+                _ => DataInput::Temporal(d.clone()),
+            },
+            Modal::Panel(d) => DataInput::Panel(d.clone()),
+        };
+        let prepared = study.prepare(ctx)?;
+        match &data {
+            Modal::Tabular(d) => prepared.estimate(d, ctx),
+            Modal::Series(d) => prepared.estimate_series(d, ctx),
+            Modal::Panel(d) => prepared.estimate_panel(d, ctx),
+        }
+    }
+
     fn permuted(values: &[f64], rng: &mut CausalRng, circular: bool) -> Arc<[f64]> {
         let n = values.len();
         if circular && n > 3 {
             // A circular shift by between a quarter and three quarters of the series keeps the
             // series' own dependence and breaks its alignment with the other columns.
-            let span = n / 2;
-            let offset = n / 4 + unbiased_index(rng, span.max(1));
+            let offset = n / 4 + unbiased_index(rng, (n / 2).max(1));
             (0..n).map(|i| values[(i + offset) % n]).collect()
         } else {
             let mut out = values.to_vec();
             shuffle(rng, &mut out);
             out.into()
         }
+    }
+
+    fn column_of<'s>(
+        storage: &'s antecedent_data::OwnedColumnarStorage,
+        id: VariableId,
+    ) -> Result<&'s [f64], TargetRefitError> {
+        float_column(storage, id).ok_or_else(|| {
+            unsupported(
+                "the perturbed column is not a float64 column",
+                "encode the treatment, outcome and controls as float64 columns",
+            )
+        })
+    }
+
+    /// Negative-control exposure: declared, or the graph's first candidate.
+    fn control_exposure(&self) -> Result<VariableId, TargetRefitError> {
+        if let Some(id) = self.options.negative_control_exposure {
+            return Ok(id);
+        }
+        let adjustment = self.adjustment();
+        let n = self.storage().columns().len();
+        let candidates = (0..n)
+            .filter_map(|i| u32::try_from(i).ok().map(VariableId::from_raw))
+            .filter(|v| *v != self.treatment && *v != self.outcome && !adjustment.contains(v))
+            .filter(|v| self.is_float(*v));
+        let graph = &self.study().graph;
+        for v in candidates {
+            let ok = if let Some(dag) = graph.as_dag() {
+                let (Some(t), Some(y), Some(x)) = (
+                    static_node(dag, self.treatment),
+                    static_node(dag, self.outcome),
+                    static_node(dag, v),
+                ) else {
+                    continue;
+                };
+                let z: Vec<DenseNodeId> =
+                    adjustment.iter().filter_map(|a| static_node(dag, *a)).collect();
+                let mut ws = DSeparationWorkspace::default();
+                !dag.reaches(t, x)
+                    && !dag.reaches(x, y)
+                    && dag.is_d_separated(x, y, &z, &mut ws).unwrap_or(false)
+            } else if let Some(tdag) = graph.as_temporal_dag() {
+                let ys = lagged_nodes(tdag, self.outcome);
+                let ts = lagged_nodes(tdag, self.treatment);
+                let xs = lagged_nodes(tdag, v);
+                !xs.is_empty()
+                    && xs.iter().all(|(x, _)| ys.iter().all(|(y, _)| !tdag.reaches(*x, *y)))
+                    && ts.iter().all(|(t, _)| xs.iter().all(|(x, _)| !tdag.reaches(*t, *x)))
+            } else {
+                false
+            };
+            if ok {
+                return Ok(v);
+            }
+        }
+        Err(unsupported(
+            "the graph supplies no negative-control exposure: no float variable outside the \
+             adjustment set is separated from the outcome and unaffected by the treatment",
+            "declare a negative-control exposure in TargetRefitOptions",
+        ))
+    }
+
+    /// Negative-control outcome on a static graph: declared, or the graph's first candidate.
+    fn control_outcome(&self) -> Result<VariableId, TargetRefitError> {
+        if let Some(id) = self.options.negative_control_outcome {
+            return Ok(id);
+        }
+        let adjustment = self.adjustment();
+        let Some(dag) = self.study().graph.as_dag() else {
+            return Err(unsupported(
+                "the graph is not a DAG, so no negative-control outcome can be read from it",
+                "declare a negative-control outcome in TargetRefitOptions",
+            ));
+        };
+        let n = self.storage().columns().len();
+        let (Some(t), Some(_)) = (static_node(dag, self.treatment), static_node(dag, self.outcome))
+        else {
+            return Err(unsupported(
+                "the treatment or outcome is not a node of the graph",
+                "declare a negative-control outcome in TargetRefitOptions",
+            ));
+        };
+        let z: Vec<DenseNodeId> = adjustment.iter().filter_map(|a| static_node(dag, *a)).collect();
+        for i in 0..n {
+            let Ok(raw) = u32::try_from(i) else { continue };
+            let v = VariableId::from_raw(raw);
+            if v == self.treatment
+                || v == self.outcome
+                || adjustment.contains(&v)
+                || !self.is_float(v)
+            {
+                continue;
+            }
+            let Some(w) = static_node(dag, v) else { continue };
+            let mut ws = DSeparationWorkspace::default();
+            if !dag.reaches(t, w) && dag.is_d_separated(t, w, &z, &mut ws).unwrap_or(false) {
+                return Ok(v);
+            }
+        }
+        Err(unsupported(
+            "the graph supplies no negative-control outcome: no float variable outside the \
+             adjustment set is unaffected by and separated from the treatment",
+            "declare a negative-control outcome in TargetRefitOptions",
+        ))
+    }
+
+    /// The graph with a simulated common cause `u` of treatment and outcome declared.
+    fn graph_with_common_cause(
+        &self,
+        u: VariableId,
+    ) -> Result<crate::accepted::AcceptedGraph, TargetRefitError> {
+        let graph = &self.study().graph;
+        let declare = |error: antecedent_graph::GraphError| {
+            TargetRefitError::Failed(ValidationError::estimation_msg(format!(
+                "declaring the simulated common cause: {error}"
+            )))
+        };
+        if self.study().graph_posterior.is_some() {
+            return Err(unsupported(
+                "a graph posterior is a mixture of structures; declaring one common cause \
+                 in every atom changes the posterior",
+                "refute one accepted structure of the posterior",
+            ));
+        }
+        if let Some(dag) = graph.as_dag() {
+            let mut dag = dag.clone();
+            let node = dag.add_node(antecedent_core::NodeRef::Static(u)).map_err(declare)?;
+            let (Some(t), Some(y)) =
+                (static_node(&dag, self.treatment), static_node(&dag, self.outcome))
+            else {
+                return Err(unsupported(
+                    "the treatment or outcome is not a node of the graph",
+                    "a graph that names both",
+                ));
+            };
+            dag.insert_directed(node, t).map_err(declare)?;
+            dag.insert_directed(node, y).map_err(declare)?;
+            return Ok(crate::accepted::AcceptedGraph::from(dag));
+        }
+        if let Some(tdag) = graph.as_temporal_dag() {
+            let mut tdag = tdag.clone();
+            let y0 =
+                ensure_lagged(&mut tdag, self.outcome, Lag::CONTEMPORANEOUS).map_err(declare)?;
+            let treatment_nodes = lagged_nodes(&tdag, self.treatment);
+            if treatment_nodes.is_empty() {
+                return Err(unsupported(
+                    "the treatment is not a node of the temporal graph",
+                    "a graph that names it",
+                ));
+            }
+            for (t, lag) in treatment_nodes {
+                let raw = u32::try_from(lag).unwrap_or(u32::MAX);
+                let u_at = ensure_lagged(&mut tdag, u, Lag::from_raw(raw)).map_err(declare)?;
+                tdag.insert_directed(u_at, t).map_err(declare)?;
+                if u_at != y0 && !tdag.children(u_at).contains(&y0) {
+                    tdag.insert_directed(u_at, y0).map_err(declare)?;
+                }
+            }
+            return Ok(crate::accepted::AcceptedGraph::temporal_dag(tdag));
+        }
+        Err(unsupported(
+            "a simulated common cause is declared on a DAG or a temporal DAG; this graph class \
+             carries marks a declared parent does not resolve",
+            "accept a DAG or temporal DAG of the structure",
+        ))
+    }
+
+    /// Random common cause through the compiler: append a simulated cause, declare it as a
+    /// parent of treatment and outcome, prepare the study on the augmented data and run it.
+    fn random_common_cause(
+        &self,
+        rng: &mut CausalRng,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<f64>, TargetRefitError> {
+        let strength = self.options.common_cause_strength;
+        let draw = |n: usize, rng: &mut CausalRng| -> Arc<[f64]> {
+            (0..n).map(|_| antecedent_kernels::standard_normal(rng)).collect()
+        };
+        let plant = |storage: &antecedent_data::OwnedColumnarStorage,
+                     u: &[f64]|
+         -> Result<Vec<(VariableId, Arc<[f64]>)>, TargetRefitError> {
+            if strength == 0.0 {
+                return Ok(Vec::new());
+            }
+            let mut out = Vec::new();
+            let y = Self::column_of(storage, self.outcome)?;
+            out.push((self.outcome, y.iter().zip(u).map(|(y, u)| y + strength * u).collect()));
+            let t = Self::column_of(storage, self.treatment)?;
+            if !t.iter().all(|v| *v == 0.0 || *v == 1.0) {
+                out.push((
+                    self.treatment,
+                    t.iter().zip(u).map(|(t, u)| t + strength * u).collect(),
+                ));
+            }
+            Ok(out)
+        };
+        let name = |storage: &antecedent_data::OwnedColumnarStorage| {
+            let names: Vec<&str> =
+                storage.schema().variables().iter().map(|v| v.name.as_ref()).collect();
+            (0..)
+                .map(|i| format!("simulated_common_cause_{i}"))
+                .find(|candidate| !names.contains(&candidate.as_str()))
+                .unwrap_or_default()
+        };
+        let append = |table: TabularData, u: Arc<[f64]>, label: &str| {
+            table.with_appended_float(label, u).map_err(data_failed)
+        };
+        let (data, u_id) = match self.data {
+            PreparedTargetData::Tabular(data) => {
+                let u = draw(data.row_count(), rng);
+                let planted = plant(data.storage(), &u)?;
+                let base = if planted.is_empty() {
+                    data.clone()
+                } else {
+                    data.with_replaced_floats(&planted).map_err(data_failed)?
+                };
+                let (table, id) = append(base, u, &name(data.storage()))?;
+                (Modal::Tabular(table), id)
+            }
+            PreparedTargetData::Series(series) => {
+                let u = draw(series.row_count(), rng);
+                let planted = plant(series.storage(), &u)?;
+                let base = series_with(series, &planted, None, None)?;
+                let (table, id) =
+                    append(TabularData::new(base.storage().clone()), u, &name(series.storage()))?;
+                let out =
+                    TimeSeriesData::try_new(table.storage().clone(), base.time_index().clone())
+                        .map_err(data_failed)?;
+                (Modal::Series(out), id)
+            }
+            PreparedTargetData::Panel(panel) => {
+                let label = name(panel.units()[0].series.storage());
+                let mut units = Vec::with_capacity(panel.unit_count());
+                let mut id = None;
+                for unit in panel.units() {
+                    let u = draw(unit.series.row_count(), rng);
+                    let planted = plant(unit.series.storage(), &u)?;
+                    let base = series_with(&unit.series, &planted, None, None)?;
+                    let (table, uid) = append(TabularData::new(base.storage().clone()), u, &label)?;
+                    id = Some(uid);
+                    units.push(PanelUnit {
+                        unit_id: unit.unit_id,
+                        series: TimeSeriesData::try_new(
+                            table.storage().clone(),
+                            base.time_index().clone(),
+                        )
+                        .map_err(data_failed)?,
+                    });
+                }
+                let panel = PanelData::try_new(units).map_err(data_failed)?;
+                (Modal::Panel(panel), id.ok_or_else(|| unsupported("an empty panel", "data"))?)
+            }
+        };
+        let mut study = self.study().clone();
+        study.graph = Arc::new(self.graph_with_common_cause(u_id)?);
+        let refitted = self.compile_and_run(study, data, ctx).map_err(|error| {
+            unsupported(
+                format!("the study with the simulated common cause declared did not run: {error}"),
+                "a route that admits an extra declared covariate",
+            )
+        })?;
+        self.read_back(&refitted)
     }
 
     fn tabular_refit(
@@ -515,33 +984,18 @@ impl PreparedRefit<'_> {
     ) -> Result<Vec<f64>, TargetRefitError> {
         let storage = data.storage();
         let replace = |id: VariableId, values: Arc<[f64]>| {
-            data.with_replaced_float(id, values)
-                .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))
-        };
-        let column = |id: VariableId| {
-            float_column(storage, id).ok_or_else(|| {
-                unsupported(
-                    "the perturbed column is not a float64 column",
-                    "encode the treatment, outcome and controls as float64 columns",
-                )
-            })
+            data.with_replaced_float(id, values).map_err(data_failed)
         };
         match perturbation {
             TargetPerturbation::PlaceboTreatment { .. } => {
-                let values = Self::permuted(column(self.treatment)?, rng, false);
-                self.reestimate_tabular(&replace(self.treatment, values)?, ctx)
+                let values = Self::permuted(Self::column_of(storage, self.treatment)?, rng, false);
+                self.reestimate(&Modal::Tabular(replace(self.treatment, values)?), ctx)
             }
             TargetPerturbation::PlaceboOutcome { .. } => {
-                let values = Self::permuted(column(self.outcome)?, rng, false);
-                self.reestimate_tabular(&replace(self.outcome, values)?, ctx)
+                let values = Self::permuted(Self::column_of(storage, self.outcome)?, rng, false);
+                self.reestimate(&Modal::Tabular(replace(self.outcome, values)?), ctx)
             }
-            TargetPerturbation::RandomCommonCause { .. } => Err(unsupported(
-                "a prepared handle executes a fixed schema and graph, so a simulated common \
-                 cause cannot be added to its adjustment",
-                "declare the simulated cause as a parent of treatment and outcome and prepare \
-                 that study, or run the scalar RandomCommonCause refuter on a linear \
-                 average-effect route",
-            )),
+            TargetPerturbation::RandomCommonCause { .. } => self.random_common_cause(rng, ctx),
             TargetPerturbation::Subset { fraction, .. } => {
                 let n = data.row_count();
                 if n < 2 {
@@ -554,41 +1008,28 @@ impl PreparedRefit<'_> {
                 for &row in &rows[..kept] {
                     keep[row] = true;
                 }
-                let masked = data
-                    .with_analysis_mask(mask_from(&keep)?)
-                    .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
-                self.reestimate_tabular(&masked, ctx)
+                let masked = data.with_analysis_mask(mask_from(&keep)?).map_err(data_failed)?;
+                self.reestimate(&Modal::Tabular(masked), ctx)
             }
             TargetPerturbation::Bootstrap { .. } => {
-                self.reestimate_tabular(&Self::bootstrap(data, rng)?, ctx)
+                self.reestimate(&Modal::Tabular(Self::bootstrap(data, rng)?), ctx)
             }
             TargetPerturbation::NegativeControlExposure { replicate } => {
-                let Some(control) = self.options.negative_control_exposure else {
-                    return Err(unsupported(
-                        "no negative-control exposure is declared",
-                        "declare a negative-control exposure (a variable known not to cause the \
-                         outcome) in TargetRefitOptions",
-                    ));
-                };
-                let swapped = replace(self.treatment, Arc::from(column(control)?))?;
+                let control = self.control_exposure()?;
+                let swapped =
+                    replace(self.treatment, Arc::from(Self::column_of(storage, control)?))?;
                 let data = if replicate == 0 { swapped } else { Self::bootstrap(&swapped, rng)? };
-                self.reestimate_tabular(&data, ctx)
+                self.reestimate(&Modal::Tabular(data), ctx)
             }
             TargetPerturbation::NegativeControlOutcome { replicate } => {
-                let Some(control) = self.options.negative_control_outcome else {
-                    return Err(unsupported(
-                        "no negative-control outcome is declared",
-                        "declare a negative-control outcome (a variable the treatment is known \
-                         not to cause) in TargetRefitOptions",
-                    ));
-                };
-                let swapped = replace(self.outcome, Arc::from(column(control)?))?;
+                let control = self.control_outcome()?;
+                let swapped = replace(self.outcome, Arc::from(Self::column_of(storage, control)?))?;
                 let data = if replicate == 0 { swapped } else { Self::bootstrap(&swapped, rng)? };
-                self.reestimate_tabular(&data, ctx)
+                self.reestimate(&Modal::Tabular(data), ctx)
             }
             TargetPerturbation::PreTrend { .. } | TargetPerturbation::Anticipation { .. } => {
                 Err(unsupported(
-                    "pre-trend and anticipation checks need time-ordered data",
+                    "independent rows have no time order, so a lead or a pre-period does not exist",
                     "prepare the study on series or panel data",
                 ))
             }
@@ -624,77 +1065,696 @@ impl PreparedRefit<'_> {
             let gathered: Arc<[f64]> = rows.iter().map(|&i| column.values[i]).collect();
             replacements.push((column.id, gathered));
         }
-        data.with_replaced_floats(&replacements)
-            .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))
+        data.with_replaced_floats(&replacements).map_err(data_failed)
+    }
+
+    /// One series perturbed for `perturbation`; `None` when the perturbation is not a column
+    /// or weight change of the series (common cause, handled by the compiler).
+    fn perturb_series(
+        &self,
+        series: &TimeSeriesData,
+        perturbation: TargetPerturbation,
+        rng: &mut CausalRng,
+        exposure: Option<VariableId>,
+        outcome_control: Option<VariableId>,
+    ) -> Result<TimeSeriesData, TargetRefitError> {
+        let storage = series.storage();
+        let n = series.row_count();
+        let span = max_graph_lag(self.study()) + 1;
+        // A design-respecting resample: replicate 0 is the series itself.
+        let resample =
+            |replicate: u32, rng: &mut CausalRng| -> Result<Option<Arc<[f64]>>, TargetRefitError> {
+                if replicate == 0 { Ok(None) } else { block_weights(n, span, rng).map(Some) }
+            };
+        match perturbation {
+            TargetPerturbation::PlaceboTreatment { .. } => {
+                let values = Self::permuted(Self::column_of(storage, self.treatment)?, rng, true);
+                series_with(series, &[(self.treatment, values)], None, None)
+            }
+            TargetPerturbation::PlaceboOutcome { .. } => {
+                let values = Self::permuted(Self::column_of(storage, self.outcome)?, rng, true);
+                series_with(series, &[(self.outcome, values)], None, None)
+            }
+            TargetPerturbation::Subset { fraction, .. } => {
+                if n < 2 {
+                    return Err(unsupported("a window needs at least two periods", "more data"));
+                }
+                // A contiguous window keeps every lag the procedure reads inside the window.
+                let width = ((fraction * n as f64).round() as usize).clamp(1, n);
+                let start = unbiased_index(rng, n - width + 1);
+                let keep: Vec<bool> = (0..n).map(|i| i >= start && i < start + width).collect();
+                series_with(series, &[], Some(&keep), None)
+            }
+            TargetPerturbation::Bootstrap { .. } => {
+                series_with(series, &[], None, Some(block_weights(n, span, rng)?))
+            }
+            TargetPerturbation::NegativeControlExposure { replicate } => {
+                let control = exposure.ok_or_else(|| unsupported("no exposure", "declare one"))?;
+                let values: Arc<[f64]> = Arc::from(Self::column_of(storage, control)?);
+                let weights = resample(replicate, rng)?;
+                series_with(series, &[(self.treatment, values)], None, weights)
+            }
+            TargetPerturbation::NegativeControlOutcome { replicate } => {
+                let weights = resample(replicate, rng)?;
+                match outcome_control {
+                    Some(control) => {
+                        let values: Arc<[f64]> = Arc::from(Self::column_of(storage, control)?);
+                        series_with(series, &[(self.outcome, values)], None, weights)
+                    }
+                    None => {
+                        // Lagged placebo: the outcome moved back past the longest lag, which no
+                        // treatment the target reads can have caused.
+                        let back = isize::try_from(span).unwrap_or(isize::MAX);
+                        let (values, _) = shifted(Self::column_of(storage, self.outcome)?, -back);
+                        let rows = window_weights(n, 2 * span, n);
+                        series_with(
+                            series,
+                            &[(self.outcome, values)],
+                            None,
+                            Some(times(&rows, weights)),
+                        )
+                    }
+                }
+            }
+            TargetPerturbation::PreTrend { replicate, lead } => {
+                // Placebo timing: the treatment `lead` periods later in the role of the
+                // treatment. Its lags in the design are the actual treatment path, so the
+                // lead's coefficient is the effect of a future treatment on the present
+                // outcome given the past: zero without anticipation or a pre-trend.
+                let lead_rows = lead as usize;
+                let lead = isize::try_from(lead).unwrap_or(isize::MAX);
+                let (values, _) = shifted(Self::column_of(storage, self.treatment)?, lead);
+                let weights = resample(replicate, rng)?;
+                let rows = window_weights(n, 0, n.saturating_sub(lead_rows));
+                series_with(series, &[(self.treatment, values)], None, Some(times(&rows, weights)))
+            }
+            TargetPerturbation::Anticipation { replicate } => {
+                // Pre-period event study: the outcome from before every treatment period the
+                // target reads in the role of the outcome.
+                let back = isize::try_from(span).unwrap_or(isize::MAX);
+                let (values, _) = shifted(Self::column_of(storage, self.outcome)?, -back);
+                let weights = resample(replicate, rng)?;
+                let rows = window_weights(n, 2 * span, n);
+                series_with(series, &[(self.outcome, values)], None, Some(times(&rows, weights)))
+            }
+            TargetPerturbation::RandomCommonCause { .. } => Err(unsupported(
+                "the common cause is constructed by the compiler",
+                "random_common_cause",
+            )),
+        }
     }
 
     fn series_refit(
         &self,
-        data: &TimeSeriesData,
+        series: &TimeSeriesData,
         perturbation: TargetPerturbation,
         rng: &mut CausalRng,
         ctx: &ExecutionContext,
     ) -> Result<Vec<f64>, TargetRefitError> {
-        let storage = data.storage();
-        let column = |id: VariableId| {
-            float_column(storage, id).ok_or_else(|| {
-                unsupported(
-                    "the perturbed column is not a float64 column",
-                    "encode the treatment and outcome as float64 columns",
-                )
-            })
+        if matches!(perturbation, TargetPerturbation::RandomCommonCause { .. }) {
+            return self.random_common_cause(rng, ctx);
+        }
+        let exposure = match perturbation {
+            TargetPerturbation::NegativeControlExposure { .. } => Some(self.control_exposure()?),
+            _ => None,
         };
-        let replace = |id: VariableId, values: Arc<[f64]>| {
-            data.with_replaced_float(id, values)
-                .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))
-        };
-        match perturbation {
-            TargetPerturbation::PlaceboTreatment { .. } => {
-                let values = Self::permuted(column(self.treatment)?, rng, true);
-                self.reestimate_series(&replace(self.treatment, values)?, ctx)
+        let weighted = match perturbation {
+            TargetPerturbation::Bootstrap { .. }
+            | TargetPerturbation::PreTrend { .. }
+            | TargetPerturbation::Anticipation { .. } => true,
+            TargetPerturbation::NegativeControlOutcome { .. } => {
+                self.options.negative_control_outcome.is_none()
+                    || !matches!(
+                        perturbation,
+                        TargetPerturbation::NegativeControlOutcome { replicate: 0 }
+                    )
             }
-            TargetPerturbation::PlaceboOutcome { .. } => {
-                let values = Self::permuted(column(self.outcome)?, rng, true);
-                self.reestimate_series(&replace(self.outcome, values)?, ctx)
+            TargetPerturbation::NegativeControlExposure { replicate } => replicate > 0,
+            _ => false,
+        };
+        let perturbed = self.perturb_series(
+            series,
+            perturbation,
+            rng,
+            exposure,
+            self.options.negative_control_outcome,
+        )?;
+        let refit = self.reestimate(&Modal::Series(perturbed), ctx);
+        match refit {
+            // The circular-block resample is carried as row multiplicities; a route without a
+            // weighted construction refuses them, and the refuter is recorded with its reason.
+            Err(TargetRefitError::Failed(error)) if weighted => Err(unsupported(
+                format!("the route has no weighted construction for the block resample: {error}"),
+                "the frequentist single-window temporal linear adjustment, which reads row \
+                 weights, or subset stability",
+            )),
+            other => other,
+        }
+    }
+
+    fn panel_refit(
+        &self,
+        panel: &PanelData,
+        perturbation: TargetPerturbation,
+        rng: &mut CausalRng,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<f64>, TargetRefitError> {
+        let units = panel.units();
+        let rebuild = |units: Vec<PanelUnit>| PanelData::try_new(units).map_err(data_failed);
+        let resample_units = |rng: &mut CausalRng, units: &[PanelUnit]| -> Vec<PanelUnit> {
+            (0..units.len())
+                .map(|slot| {
+                    let source = &units[unbiased_index(rng, units.len())];
+                    PanelUnit {
+                        unit_id: u32::try_from(slot).unwrap_or(u32::MAX),
+                        series: source.series.clone(),
+                    }
+                })
+                .collect()
+        };
+        let swap_all =
+            |id: VariableId, from: VariableId| -> Result<Vec<PanelUnit>, TargetRefitError> {
+                units
+                    .iter()
+                    .map(|unit| {
+                        let values: Arc<[f64]> =
+                            Arc::from(Self::column_of(unit.series.storage(), from)?);
+                        Ok(PanelUnit {
+                            unit_id: unit.unit_id,
+                            series: series_with(&unit.series, &[(id, values)], None, None)?,
+                        })
+                    })
+                    .collect()
+            };
+        let panel = match perturbation {
+            TargetPerturbation::RandomCommonCause { .. } => {
+                return self.random_common_cause(rng, ctx);
+            }
+            TargetPerturbation::PlaceboTreatment { .. }
+            | TargetPerturbation::PlaceboOutcome { .. } => {
+                let id = if matches!(perturbation, TargetPerturbation::PlaceboTreatment { .. }) {
+                    self.treatment
+                } else {
+                    self.outcome
+                };
+                let equal =
+                    units.iter().all(|u| u.series.row_count() == units[0].series.row_count());
+                let mut out = Vec::with_capacity(units.len());
+                if equal && units.len() > 1 {
+                    // Whole paths permuted across units keep each path's own dependence.
+                    let mut order: Vec<usize> = (0..units.len()).collect();
+                    shuffle(rng, &mut order);
+                    for (unit, &source) in units.iter().zip(&order) {
+                        let values: Arc<[f64]> =
+                            Arc::from(Self::column_of(units[source].series.storage(), id)?);
+                        out.push(PanelUnit {
+                            unit_id: unit.unit_id,
+                            series: series_with(&unit.series, &[(id, values)], None, None)?,
+                        });
+                    }
+                } else {
+                    for unit in units {
+                        let values =
+                            Self::permuted(Self::column_of(unit.series.storage(), id)?, rng, true);
+                        out.push(PanelUnit {
+                            unit_id: unit.unit_id,
+                            series: series_with(&unit.series, &[(id, values)], None, None)?,
+                        });
+                    }
+                }
+                rebuild(out)?
             }
             TargetPerturbation::Subset { fraction, .. } => {
-                // A contiguous window keeps every lag the procedure reads inside the window.
-                let n = data.row_count();
-                if n < 2 {
-                    return Err(unsupported("a window needs at least two periods", "more data"));
+                let mut order: Vec<usize> = (0..units.len()).collect();
+                shuffle(rng, &mut order);
+                let kept = ((fraction * units.len() as f64).round() as usize).clamp(1, units.len());
+                let mut chosen: Vec<usize> = order[..kept].to_vec();
+                chosen.sort_unstable();
+                rebuild(chosen.into_iter().map(|i| units[i].clone()).collect())?
+            }
+            TargetPerturbation::Bootstrap { .. } => rebuild(resample_units(rng, units))?,
+            TargetPerturbation::NegativeControlExposure { replicate } => {
+                let swapped = swap_all(self.treatment, self.control_exposure()?)?;
+                if replicate == 0 {
+                    rebuild(swapped)?
+                } else {
+                    rebuild(resample_units(rng, &swapped))?
                 }
-                let width = ((fraction * n as f64).round() as usize).clamp(1, n);
-                let start = unbiased_index(rng, n - width + 1);
-                let keep: Vec<bool> = (0..n).map(|i| i >= start && i < start + width).collect();
-                let masked = data
-                    .with_analysis_mask(mask_from(&keep)?)
-                    .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
-                self.reestimate_series(&masked, ctx)
             }
-            TargetPerturbation::Bootstrap { .. } => Err(unsupported(
-                "rebuilding lags on a block-resampled raw series pairs values across block \
-                 joins, which is not the series' own law",
-                "the route's block bootstrap of its lagged design (the temporal path of the \
-                 scalar bootstrap refuter), or subset stability",
-            )),
-            TargetPerturbation::RandomCommonCause { .. } => Err(unsupported(
-                "a prepared handle executes a fixed schema and graph, so a simulated common \
-                 cause cannot be added to its adjustment",
-                "declare the simulated cause in the temporal graph and prepare that study",
-            )),
-            TargetPerturbation::NegativeControlExposure { .. }
-            | TargetPerturbation::NegativeControlOutcome { .. } => Err(unsupported(
-                "a negative control on one series has no resampling law for its null spread",
-                "prepare the negative control on panel data, or test it on independent rows",
-            )),
-            TargetPerturbation::PreTrend { .. } | TargetPerturbation::Anticipation { .. } => {
-                Err(unsupported(
-                    "a single series has no treatment onset to place leads against, and under \
-                     outcome-to-treatment feedback a lead is not a placebo",
-                    "the event-study leads of a panel design (the quasi-experimental routes), \
-                     which carry their own pre-trend and anticipation assumptions",
-                ))
+            TargetPerturbation::NegativeControlOutcome { replicate } => {
+                let swapped = match self.options.negative_control_outcome {
+                    Some(control) => swap_all(self.outcome, control)?,
+                    None => {
+                        let span =
+                            isize::try_from(max_graph_lag(self.study()) + 1).unwrap_or(isize::MAX);
+                        units
+                            .iter()
+                            .map(|unit| {
+                                let (values, keep) = shifted(
+                                    Self::column_of(unit.series.storage(), self.outcome)?,
+                                    -span,
+                                );
+                                Ok(PanelUnit {
+                                    unit_id: unit.unit_id,
+                                    series: series_with(
+                                        &unit.series,
+                                        &[(self.outcome, values)],
+                                        Some(&keep),
+                                        None,
+                                    )?,
+                                })
+                            })
+                            .collect::<Result<Vec<_>, TargetRefitError>>()?
+                    }
+                };
+                if replicate == 0 {
+                    rebuild(swapped)?
+                } else {
+                    rebuild(resample_units(rng, &swapped))?
+                }
             }
+            TargetPerturbation::PreTrend { replicate, lead } => {
+                let lead = isize::try_from(lead).unwrap_or(isize::MAX);
+                let shifted_units = units
+                    .iter()
+                    .map(|unit| {
+                        let (values, keep) =
+                            shifted(Self::column_of(unit.series.storage(), self.treatment)?, lead);
+                        Ok(PanelUnit {
+                            unit_id: unit.unit_id,
+                            series: series_with(
+                                &unit.series,
+                                &[(self.treatment, values)],
+                                Some(&keep),
+                                None,
+                            )?,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, TargetRefitError>>()?;
+                if replicate == 0 {
+                    rebuild(shifted_units)?
+                } else {
+                    rebuild(resample_units(rng, &shifted_units))?
+                }
+            }
+            TargetPerturbation::Anticipation { replicate } => {
+                let back = isize::try_from(max_graph_lag(self.study()) + 1).unwrap_or(isize::MAX);
+                let shifted_units = units
+                    .iter()
+                    .map(|unit| {
+                        let (values, keep) =
+                            shifted(Self::column_of(unit.series.storage(), self.outcome)?, -back);
+                        Ok(PanelUnit {
+                            unit_id: unit.unit_id,
+                            series: series_with(
+                                &unit.series,
+                                &[(self.outcome, values)],
+                                Some(&keep),
+                                None,
+                            )?,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, TargetRefitError>>()?;
+                if replicate == 0 {
+                    rebuild(shifted_units)?
+                } else {
+                    rebuild(resample_units(rng, &shifted_units))?
+                }
+            }
+        };
+        self.reestimate(&Modal::Panel(panel), ctx)
+    }
+
+    fn modal_data(&self) -> Modal {
+        match self.data {
+            PreparedTargetData::Tabular(d) => Modal::Tabular(d.clone()),
+            PreparedTargetData::Series(d) => Modal::Series(d.clone()),
+            PreparedTargetData::Panel(d) => Modal::Panel(d.clone()),
+        }
+    }
+
+    /// Posterior draws of the whole target (`draws × coordinates`, row-major).
+    fn target_draws(&self, result: &StudyResult) -> Option<Vec<f64>> {
+        let k = self.target.dimension();
+        if let Some(response) = result.response() {
+            let draws = match &response.uncertainty {
+                ResponseUncertainty::Scalar { draws: Some(draws), .. }
+                | ResponseUncertainty::PointwiseBand { draws: Some(draws), .. } => Some(draws),
+                _ => None,
+            };
+            if let Some(draws) = draws.filter(|d| d.n_coordinates() == k && d.n_draws > 0) {
+                let mut rows = Vec::with_capacity(draws.n_draws * k);
+                for s in 0..draws.n_draws {
+                    for j in 0..k {
+                        rows.push(draws.column(j)?[s]);
+                    }
+                }
+                return Some(rows);
+            }
+        }
+        if k == 1 {
+            let posterior = result.posterior.as_ref()?;
+            let n = posterior.draws.n_draws;
+            return posterior.draws.values.get(..n).map(<[f64]>::to_vec);
+        }
+        None
+    }
+
+    /// Prior sensitivity through the compiler: the study prepared under each alternative
+    /// isotropic prior scale, the posterior of the whole target read back from each.
+    fn prior_sensitivity(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<TargetRefutationReport, TargetRefitError> {
+        let InferenceMode::Bayesian(config) = &self.study().inference else {
+            return Err(unsupported(
+                "prior sensitivity reads a posterior; the study is frequentist",
+                "prepare the study with Bayesian inference",
+            ));
+        };
+        if config.prior.is_some() || config.prior_artifact.is_some() {
+            return Err(unsupported(
+                "the study declares an explicit coefficient prior, which has no single scale \
+                 to vary",
+                "prepare the study under each alternative prior set and pass the posterior draws \
+                 of the target to prior_sensitivity_target_check",
+            ));
+        }
+        let baseline = self.target_draws(self.result).ok_or_else(|| {
+            unsupported(
+                "the result retains no posterior draws of its whole target",
+                "a Bayesian route that retains target draws",
+            )
+        })?;
+        let mut alternatives: Vec<(Arc<str>, Vec<f64>)> = Vec::new();
+        for &factor in &self.options.prior_scale_factors {
+            if !(factor.is_finite() && factor > 0.0) {
+                continue;
+            }
+            let mut study = self.study().clone();
+            let mut alternative = config.clone();
+            alternative.prior_scale *= factor;
+            study.inference = InferenceMode::Bayesian(alternative);
+            let refitted =
+                self.compile_and_run(study, self.modal_data(), ctx).map_err(|error| {
+                    unsupported(
+                        format!("the study under prior scale x{factor} did not run: {error}"),
+                        "a Bayesian route whose prior scale can be varied",
+                    )
+                })?;
+            let draws = self.target_draws(&refitted).ok_or_else(|| {
+                unsupported(
+                    "the refit under the alternative prior retains no target draws",
+                    "a Bayesian route that retains target draws",
+                )
+            })?;
+            alternatives.push((Arc::from(format!("prior_scale x{factor}")), draws));
+        }
+        if alternatives.is_empty() {
+            return Err(unsupported("no alternative prior scale was declared", "declare one"));
+        }
+        prior_sensitivity_target_check(&PriorSensitivityTarget {
+            target: &self.target,
+            baseline: &baseline,
+            alternatives: &alternatives,
+            tolerance: self.options.prior_shift_tolerance,
+        })
+        .map_err(TargetRefitError::Failed)
+    }
+
+    /// Posterior-predictive check of the target through the compiler, under the reference
+    /// linear-Gaussian outcome model of the treatment and adjustment set: for each draw
+    /// `(β_s, σ_s)` of its reference posterior the program is run on the noiseless outcome
+    /// `μ_s = Xβ_s` (the target of the draw) and on a replicated outcome `μ_s + σ_s ε`; the
+    /// observed target is compared with the replicated ones.
+    fn posterior_predictive(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<TargetRefutationReport, TargetRefitError> {
+        let PreparedTargetData::Tabular(data) = self.data else {
+            return Err(unsupported(
+                "the reference outcome model replicates independent rows",
+                "on series, the route's own posterior-predictive check of the outcome",
+            ));
+        };
+        let storage = data.storage();
+        if storage.analysis_mask().is_some() || storage.weights().is_some() {
+            return Err(unsupported(
+                "the reference outcome model replicates an unmasked, unweighted table",
+                "refute the unmasked table",
+            ));
+        }
+        let mut ids = vec![self.treatment];
+        ids.extend(self.adjustment());
+        let mut columns = Vec::with_capacity(ids.len());
+        for id in &ids {
+            columns.push(Self::column_of(storage, *id)?);
+        }
+        let y = Self::column_of(storage, self.outcome)?;
+        let n = y.len();
+        let p = ids.len() + 1;
+        if n <= p + 2 || y.iter().chain(columns.iter().copied().flatten()).any(|v| !v.is_finite()) {
+            return Err(unsupported(
+                "the reference outcome model needs complete float columns and more rows than \
+                 parameters",
+                "resolve missing values first",
+            ));
+        }
+        let mut design = vec![1.0; n];
+        for column in &columns {
+            design.extend_from_slice(column);
+        }
+        let fit = FaerBackend
+            .least_squares(&design, n, p, y, &mut LeastSquaresWorkspace::default())
+            .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
+        // Cholesky factor of X'X.
+        let mut xtx = vec![0.0; p * p];
+        for i in 0..p {
+            for j in 0..=i {
+                let s: f64 = (0..n).map(|r| design[i * n + r] * design[j * n + r]).sum();
+                xtx[i * p + j] = s;
+                xtx[j * p + i] = s;
+            }
+        }
+        let mut l = xtx;
+        for i in 0..p {
+            for j in 0..=i {
+                let mut s = l[i * p + j];
+                for q in 0..j {
+                    s -= l[i * p + q] * l[j * p + q];
+                }
+                if i == j {
+                    if !(s > 0.0) {
+                        return Err(unsupported(
+                            "the treatment and adjustment design is rank deficient",
+                            "a full-rank adjustment",
+                        ));
+                    }
+                    l[i * p + i] = s.sqrt();
+                } else {
+                    l[i * p + j] = s / l[j * p + j];
+                }
+            }
+        }
+        let k = self.target.dimension();
+        let draws_wanted = (self.replicates as usize).max(k + 2);
+        let _lease = admit_target_cells(ctx, draws_wanted.saturating_mul(2), n)?;
+        let mut thetas = Vec::with_capacity(draws_wanted * k);
+        let mut replicated = Vec::with_capacity(draws_wanted * k);
+        let dof = (n - p) as f64;
+        for s in 0..draws_wanted {
+            if ctx.cancellation.is_cancelled() {
+                return Err(TargetRefitError::Failed(ValidationError::Cancelled));
+            }
+            let mut rng = target_refuter_stream(
+                TargetRefuterKind::PosteriorPredictive,
+                u32::try_from(s).unwrap_or(u32::MAX),
+                ctx,
+            );
+            let chi2 = sample_gamma(dof / 2.0, 0.5, &mut rng);
+            let sigma = (fit.rss / chi2.max(f64::MIN_POSITIVE)).sqrt();
+            // β = β̂ + σ L⁻ᵀ z.
+            let z: Vec<f64> =
+                (0..p).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+            let mut w = z;
+            for i in (0..p).rev() {
+                let mut acc = w[i];
+                for q in (i + 1)..p {
+                    acc -= l[q * p + i] * w[q];
+                }
+                w[i] = acc / l[i * p + i];
+            }
+            let beta: Vec<f64> =
+                fit.coefficients.iter().zip(&w).map(|(b, w)| b + sigma * w).collect();
+            let mean: Vec<f64> =
+                (0..n).map(|r| (0..p).map(|c| design[c * n + r] * beta[c]).sum()).collect();
+            let noisy: Arc<[f64]> = mean
+                .iter()
+                .map(|m| m + sigma * antecedent_kernels::standard_normal(&mut rng))
+                .collect();
+            let run = |outcome: Arc<[f64]>| -> Result<Vec<f64>, TargetRefitError> {
+                let table = data.with_replaced_float(self.outcome, outcome).map_err(data_failed)?;
+                self.reestimate(&Modal::Tabular(table), ctx).map_err(|error| match error {
+                    TargetRefitError::Failed(error) => unsupported(
+                        format!("the program did not run on a reference-model replicate: {error}"),
+                        "a route that admits replicated outcomes",
+                    ),
+                    other => other,
+                })
+            };
+            thetas.extend(run(mean.into())?);
+            replicated.extend(run(noisy)?);
+        }
+        posterior_predictive_target_check(&PosteriorPredictiveTarget {
+            target: &self.target,
+            observed: &self.original,
+            draws: &thetas,
+            replicated: &replicated,
+            alpha: self.alpha,
+        })
+        .map_err(TargetRefitError::Failed)
+    }
+
+    /// The fitted response curve of a point derivative at the five points the derivative
+    /// diagnostics read, through the compiler: the study's mean-curve query on the same data.
+    fn response_curve(&self, ctx: &ExecutionContext) -> Result<(f64, f64, f64), TargetRefitError> {
+        let Some(response) = self.result.response() else {
+            return Err(unsupported(
+                "the derivative diagnostics read a response result",
+                "a derivative response query",
+            ));
+        };
+        let (outcome, treatment, at) = match &response.estimand {
+            ResponseFunctional::PointDerivative {
+                outcome,
+                treatment,
+                at,
+                order: 1,
+                scale: DerivativeScale::Identity,
+            } => (*outcome, *treatment, *at),
+            ResponseFunctional::PointDerivative { .. } => {
+                return Err(unsupported(
+                    "the consistency check compares a first derivative on the identity scale",
+                    "query the first derivative on the identity scale",
+                ));
+            }
+            ResponseFunctional::AverageDerivative { .. } => {
+                return Err(unsupported(
+                    "an average derivative weights the whole curve; its finite difference is an \
+                     average of point differences under the weighting law",
+                    "check point derivatives at the weighting law's support points",
+                ));
+            }
+            _ => {
+                return Err(unsupported(
+                    "a directional derivative or Jacobian has several treatments; its finite \
+                     difference needs the joint response surface",
+                    "check each treatment's point derivative",
+                ));
+            }
+        };
+        let reported = *self.original.first().ok_or_else(|| unsupported("no value", "a target"))?;
+        let step = match self.options.derivative_step {
+            Some(step) => step,
+            None => {
+                let column: Vec<f64> = match self.data {
+                    PreparedTargetData::Panel(panel) => panel
+                        .units()
+                        .iter()
+                        .filter_map(|u| float_column(u.series.storage(), treatment))
+                        .flatten()
+                        .copied()
+                        .collect(),
+                    _ => float_column(self.storage(), treatment)
+                        .map(<[f64]>::to_vec)
+                        .unwrap_or_default(),
+                };
+                0.25 * sample_sd(&column)
+            }
+        };
+        if !(step.is_finite() && step > 0.0) {
+            return Err(unsupported(
+                "the treatment has no spread to take a derivative step from",
+                "declare derivative_step",
+            ));
+        }
+        if self.curve.get().is_none() {
+            let half = 0.5 * step;
+            let points = [at - step, at - half, at, at + half, at + step];
+            let query = CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome,
+                treatment: ContinuousDomain::new(treatment, GridSpec::Values(Arc::from(points))),
+            }));
+            let mut study = self.study().clone();
+            study.query = query;
+            let refitted = match self.compile_and_run(study.clone(), self.modal_data(), ctx) {
+                Ok(result) => result,
+                Err(_) => {
+                    // The derivative's own estimator may not serve a mean curve; let the
+                    // compiler choose the curve estimator of the same data and graph.
+                    study.estimator = None;
+                    study.estimator_spec = None;
+                    self.compile_and_run(study, self.modal_data(), ctx).map_err(|error| {
+                        unsupported(
+                            format!("the study's mean curve did not run: {error}"),
+                            "a graph and data that identify the dose-response curve",
+                        )
+                    })?
+                }
+            };
+            let curve = refitted
+                .response()
+                .and_then(|r| match &r.estimate {
+                    ResponseIdentification::PointIdentified(ResponseValue::Surface {
+                        mean,
+                        ..
+                    }) if mean.len() == points.len() => {
+                        Some(points.iter().copied().zip(mean.iter().copied()).collect::<Vec<_>>())
+                    }
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    unsupported(
+                        "the mean curve is not point identified on the check grid",
+                        "a point-identified dose-response curve",
+                    )
+                })?;
+            let _ = self.curve.set(curve);
+        }
+        Ok((at, reported, step))
+    }
+
+    fn curve_value(&self, x: f64) -> Result<f64, ValidationError> {
+        self.curve
+            .get()
+            .and_then(|curve| curve.iter().find(|(p, _)| p.to_bits() == x.to_bits()))
+            .map(|(_, v)| *v)
+            .ok_or_else(|| ValidationError::estimation_msg("response curve read off its grid"))
+    }
+
+    fn derivative_check(
+        &self,
+        kind: TargetRefuterKind,
+        ctx: &ExecutionContext,
+    ) -> Result<TargetRefutationReport, TargetRefitError> {
+        let (at, reported, step) = self.response_curve(ctx)?;
+        if kind == TargetRefuterKind::FiniteDifferenceConsistency {
+            let check = finite_difference_consistency(
+                |x| self.curve_value(x),
+                &[DerivativeCheckPoint { x: at, reported }],
+                step,
+                self.options.derivative_tolerance,
+            )?;
+            Ok(check.to_report(&self.target)?)
+        } else {
+            let check = local_linearity(
+                |x| self.curve_value(x),
+                &[at],
+                step,
+                self.options.linearity_tolerance,
+                1e-9,
+            )?;
+            Ok(check.to_report(&self.target)?)
         }
     }
 
@@ -713,17 +1773,10 @@ impl PreparedRefit<'_> {
             ));
         };
         let storage = data.storage();
-        let read = |id: VariableId| {
-            float_column(storage, id).ok_or_else(|| {
-                unsupported(
-                    "mediation sensitivity reads float64 columns",
-                    "encode treatment, mediator, outcome and adjustment as float64 columns",
-                )
-            })
-        };
         let mut ids = vec![self.treatment, mediator, self.outcome];
-        ids.extend(self.result.estimand.adjustment_set.iter().copied());
-        let columns: Vec<&[f64]> = ids.iter().map(|&id| read(id)).collect::<Result<_, _>>()?;
+        ids.extend(self.adjustment());
+        let columns: Vec<&[f64]> =
+            ids.iter().map(|&id| Self::column_of(storage, id)).collect::<Result<_, _>>()?;
         let n = data.row_count();
         let mask = storage.analysis_mask();
         let complete: Vec<usize> = (0..n)
@@ -770,6 +1823,29 @@ impl PreparedRefit<'_> {
     }
 }
 
+/// Lease `count × width` cells for a native check's buffers.
+fn admit_target_cells(
+    ctx: &ExecutionContext,
+    count: usize,
+    width: usize,
+) -> Result<antecedent_core::execution::AdmissionLease, TargetRefitError> {
+    let bytes = count
+        .checked_mul(width)
+        .and_then(|cells| cells.checked_mul(std::mem::size_of::<f64>()))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| {
+            TargetRefitError::Failed(ValidationError::estimation_msg("check buffer size overflow"))
+        })?;
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            TargetRefitError::Failed(ValidationError::Cancelled)
+        }
+        other => TargetRefitError::Failed(ValidationError::estimation_msg(format!(
+            "admission pool cannot fund the check buffers: {other}"
+        ))),
+    })
+}
+
 impl TargetRefit for PreparedRefit<'_> {
     fn target(&self) -> &RefutationTarget {
         &self.target
@@ -788,37 +1864,34 @@ impl TargetRefit for PreparedRefit<'_> {
         match self.data {
             PreparedTargetData::Tabular(data) => self.tabular_refit(data, perturbation, rng, ctx),
             PreparedTargetData::Series(data) => self.series_refit(data, perturbation, rng, ctx),
+            PreparedTargetData::Panel(data) => self.panel_refit(data, perturbation, rng, ctx),
         }
     }
 
     fn native_check(
         &self,
         kind: TargetRefuterKind,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<TargetRefutationReport, TargetRefitError> {
         match kind {
             TargetRefuterKind::SequentialIgnorability => self.mediation_check(),
             TargetRefuterKind::FiniteDifferenceConsistency | TargetRefuterKind::LocalLinearity => {
-                Err(unsupported(
-                    "a prepared response reports its derivative, not the fitted response the \
-                     finite difference reads",
-                    "finite_difference_consistency and local_linearity on the fitted response \
-                     (antecedent.validation.derivative_consistency in Python)",
-                ))
+                self.derivative_check(kind, ctx)
             }
-            TargetRefuterKind::PriorSensitivity => Err(unsupported(
-                "a prepared handle executes one prior",
-                "prepare the study under each alternative prior and pass the posterior draws of \
-                 the target to prior_sensitivity_target_check \
-                 (antecedent.validation.prior_sensitivity_target in Python)",
-            )),
-            TargetRefuterKind::PosteriorPredictive => Err(unsupported(
-                "a prepared handle does not simulate replicated data from its posterior",
-                "pass posterior draws of the target and targets refitted on posterior-replicated \
-                 data to posterior_predictive_target_check \
-                 (antecedent.validation.posterior_predictive_target in Python)",
-            )),
+            TargetRefuterKind::PriorSensitivity => self.prior_sensitivity(ctx),
+            TargetRefuterKind::PosteriorPredictive => self.posterior_predictive(ctx),
             _ => Err(unsupported("no native check for this refuter", "a replicate refuter")),
         }
     }
+}
+
+/// Sample standard deviation of the finite values (zero for fewer than two).
+fn sample_sd(values: &[f64]) -> f64 {
+    let finite: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
+    if finite.len() < 2 {
+        return 0.0;
+    }
+    let n = finite.len() as f64;
+    let mean = finite.iter().sum::<f64>() / n;
+    (finite.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt()
 }

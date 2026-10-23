@@ -570,7 +570,7 @@ fn column_id(names: &[String], name: Option<&str>, what: &str) -> PyResult<Optio
 impl PyPreparedAnalysis {
     /// Estimate on the columns, then refute the result's own target by refits of this
     /// prepared program; the outcome as JSON.
-    #[pyo3(signature = (names, columns, *, suite="full", replicates=30, alpha=0.05, subset_fraction=0.8, negative_control_exposure=None, negative_control_outcome=None, mediator=None, mediation_rho_bar=0.1, seed=1, threads=None))]
+    #[pyo3(signature = (names, columns, *, suite="full", replicates=30, alpha=0.05, subset_fraction=0.8, negative_control_exposure=None, negative_control_outcome=None, mediator=None, mediation_rho_bar=0.1, common_cause_strength=0.0, prior_scale_factors=None, derivative_step=None, seed=1, threads=None))]
     #[allow(clippy::too_many_arguments)]
     fn refute_target(
         &self,
@@ -585,6 +585,9 @@ impl PyPreparedAnalysis {
         negative_control_outcome: Option<String>,
         mediator: Option<String>,
         mediation_rho_bar: f64,
+        common_cause_strength: f64,
+        prior_scale_factors: Option<Vec<f64>>,
+        derivative_step: Option<f64>,
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<String> {
@@ -602,6 +605,10 @@ impl PyPreparedAnalysis {
             )?,
             mediator: column_id(&names, mediator.as_deref(), "mediator")?,
             mediation_rho_bar,
+            common_cause_strength,
+            prior_scale_factors: prior_scale_factors.unwrap_or_else(|| vec![0.25, 4.0]),
+            derivative_step,
+            ..TargetRefitOptions::default()
         };
         let config = TargetRefutationConfig {
             replicates,

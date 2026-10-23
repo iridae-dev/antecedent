@@ -60,6 +60,7 @@ from ._native import (
 )
 from ._study_lifecycle import guard_design, replay_declaration, retain, retain_preparation
 from ._table_file import coerce_table_source
+from ._temporal_design import TemporalDesignQuery
 from ._treatment_labels import TreatmentLabels
 from .discovery import (
     DbnPosterior,
@@ -599,6 +600,7 @@ _PreparedQuery = (
     | SequentialContrast
     | PeriodHistoryMatch
     | PolicyProgramValue
+    | TemporalDesignQuery
 )
 
 
@@ -1654,7 +1656,12 @@ class PreparedAnalysis(Generic[ResultT]):
 
         design_columns = None
         table_names: tuple[str, ...] | None = None
-        if isinstance(query, (StaggeredRollout, CovariateAdjustedDiD)):
+        from ._temporal_design import TEMPORAL_DESIGN_QUERIES, temporal_design_payload
+
+        if isinstance(query, TEMPORAL_DESIGN_QUERIES):
+            names, columns, design_columns = temporal_design_payload(data, query)
+            frame = None
+        elif isinstance(query, (StaggeredRollout, CovariateAdjustedDiD)):
             from ._quasi_rollout import covariate_adjusted_payload, staggered_rollout_payload
 
             names, columns, design_columns = (
@@ -2179,6 +2186,17 @@ class PreparedAnalysis(Generic[ResultT]):
                     reason_code="invalid_argument",
                 )
             return names, columns, None
+        from ._temporal_design import TEMPORAL_DESIGN_QUERIES, temporal_design_payload
+
+        if isinstance(query, TEMPORAL_DESIGN_QUERIES):
+            names, columns, design = temporal_design_payload(data, query)
+            if design != self._design_columns:
+                raise CausalUnsupportedError(
+                    "a temporal-design refresh requires the prepared units, periods and "
+                    "recorded assignment law",
+                    reason_code="invalid_argument",
+                )
+            return names, columns, None
         if isinstance(query, (StaggeredRollout, CovariateAdjustedDiD)):
             from ._quasi_rollout import covariate_adjusted_payload, staggered_rollout_payload
 
@@ -2620,6 +2638,9 @@ class PreparedAnalysis(Generic[ResultT]):
         negative_control_outcome: str | None = None,
         mediator: str | None = None,
         mediation_rho_bar: float = 0.1,
+        common_cause_strength: float = 0.0,
+        prior_scale_factors: Sequence[float] | None = None,
+        derivative_step: float | None = None,
         seed: int = 1,
         threads: int | None = None,
     ) -> Any:
@@ -2628,8 +2649,12 @@ class PreparedAnalysis(Generic[ResultT]):
         Estimates on ``data`` (independent rows), then runs the target-native suite of the
         result's own target (conditional, derivative, mediation, world-valued or joint, not a
         scalar average effect standing in for it): every refit perturbs the data and re-runs
-        this compiled program in full. Refuters the study cannot construct are returned as
-        refusals with the next attempt. A ``TargetRefutation``
+        this compiled program in full; the random common cause (declared in the graph with
+        ``common_cause_strength``), the alternative priors (``prior_scale_factors`` times the
+        study's prior scale) and the fitted response curve of a derivative (``derivative_step``)
+        are compiled from this study with that one change. Negative controls default to the
+        graph's candidates. Refuters the study cannot construct are returned as refusals with
+        the next attempt. A ``TargetRefutation``
         (:mod:`antecedent.validation`); calibration is unmeasured.
         """
         from .validation import TargetRefutation
@@ -2657,6 +2682,11 @@ class PreparedAnalysis(Generic[ResultT]):
             negative_control_outcome=negative_control_outcome,
             mediator=mediator,
             mediation_rho_bar=mediation_rho_bar,
+            common_cause_strength=common_cause_strength,
+            prior_scale_factors=None
+            if prior_scale_factors is None
+            else [float(f) for f in prior_scale_factors],
+            derivative_step=derivative_step,
             seed=seed,
             threads=threads,
         )

@@ -74,7 +74,20 @@ evidence = [
   "crates/antecedent-validate/tests/target_native.rs::reports_are_deterministic_and_independent_of_the_thread_count",
 ]
 
+[[acceptance]]
+id = "constructed_refuters_with_known_truth"
+claim = "Random common cause (declared in the graph and compiled), graph-supplied negative controls, the series circular-block bootstrap, placebo timing and the pre-period outcome on one series, compiled prior-scale sensitivity and the derivative diagnostics on the study's fitted curve pass on sound designs and flag the violation planted for them."
+evidence = [
+  "crates/antecedent/tests/target_constructed_refuters.rs::a_declared_common_cause_and_graph_negative_controls_pass_on_a_sound_design",
+  "crates/antecedent/tests/target_constructed_refuters.rs::the_graph_negative_control_exposure_flags_a_planted_unobserved_confounder",
+  "crates/antecedent/tests/target_constructed_refuters.rs::a_single_series_gets_block_bootstrap_placebo_timing_and_a_lagged_placebo",
+  "crates/antecedent/tests/target_constructed_refuters.rs::placebo_timing_flags_an_outcome_that_anticipates_the_treatment",
+  "crates/antecedent/tests/target_constructed_refuters.rs::prior_sensitivity_runs_under_a_compiled_prior_grid",
+  "crates/antecedent/tests/target_constructed_refuters.rs::derivative_diagnostics_read_the_studys_fitted_response",
+  "python/tests/test_target_validation.py::test_constructed_refuters_pass_on_a_sound_design_and_flag_a_planted_confounder",
+]
+
 [[boundary]]
-id = "generic_perturbation_refusals"
-claim = "Refuters the generic data perturbation of a prepared handle cannot construct are typed refusals with the next attempt: random common cause (fixed schema and graph), negative controls without a declared control or on one series, series row bootstrap (lags across block joins), single-series pre-trend and anticipation (no onset; feedback), derivative diagnostics without the fitted response, and Bayesian prior and posterior-predictive checks without alternative-prior or replicated draws."
+id = "construction_boundaries"
+claim = "Typed refusals with the next attempt remain only where the construction does not exist: a common cause in a graph posterior or an unresolved class, a series bootstrap on a route with no weighted construction, a negative control the graph cannot supply, leads on independent rows, derivative checks for average, directional and Jacobian targets, prior grids over an explicit prior set, and series posterior-predictive replicates."
 evidence = ["crates/antecedent/src/analysis/target_validation.rs"]

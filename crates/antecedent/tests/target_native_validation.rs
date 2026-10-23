@@ -107,10 +107,18 @@ fn a_derivative_target_is_refuted_by_refits_of_its_own_program() {
         .expect("placebo report");
     assert!(placebo.passed, "{:?}", placebo.failure);
     assert!(placebo.refuted[0].abs() < 0.5, "placebo derivative {:?}", placebo.refuted);
-    // The derivative diagnostics need the fitted response, which the prepared result does not
-    // carry: refused with the next attempt, not silently skipped.
+    // The derivative diagnostics read the study's own fitted response curve.
     let refused: Vec<_> = outcome.run.refused.iter().map(|r| r.kind).collect();
-    assert!(refused.contains(&TargetRefuterKind::FiniteDifferenceConsistency));
+    assert!(
+        outcome
+            .run
+            .reports
+            .iter()
+            .any(|r| r.kind == TargetRefuterKind::FiniteDifferenceConsistency),
+        "{:?}",
+        outcome.run.refused
+    );
+    assert!(outcome.run.refused.iter().all(|r| !r.next_attempt.is_empty()));
     // Subset stability either ran on the whole vector or was refused with its reason.
     assert!(
         outcome.run.reports.iter().any(|r| r.kind == TargetRefuterKind::SubsetStability)

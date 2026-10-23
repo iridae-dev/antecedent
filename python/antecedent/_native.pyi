@@ -1216,6 +1216,9 @@ class PreparedAnalysis:
         negative_control_outcome: str | None = None,
         mediator: str | None = None,
         mediation_rho_bar: float = 0.1,
+        common_cause_strength: float = 0.0,
+        prior_scale_factors: list[float] | None = None,
+        derivative_step: float | None = None,
         seed: int = 1,
         threads: int | None = None,
     ) -> str: ...
