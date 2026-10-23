@@ -172,10 +172,13 @@ fn bayesian_cross_world_posteriors_are_joint_draws_of_every_regression() {
             Some(IntervalMethod::PosteriorQuantile),
             "{key}"
         );
-        let (mean, sd) = (posterior.summaries.mean[0], posterior.summaries.sd[0]);
+        // The effect column, not column 0: a g-computation posterior also carries its
+        // coefficient columns (column 0 of the unit counterfactual is the intercept).
+        let column = posterior.effect_column().expect("an effect column");
+        let (mean, sd) = (posterior.summaries.mean[column], posterior.summaries.sd[column]);
         assert!(sd.is_finite() && sd > 0.0 && sd < 0.5, "{key} sd={sd}");
         assert!((mean - truth).abs() < 4.0 * sd, "{key}: {mean} vs {truth} (sd {sd})");
-        let (low, high) = (posterior.summaries.q025[0], posterior.summaries.q975[0]);
+        let (low, high) = (posterior.summaries.q025[column], posterior.summaries.q975[column]);
         assert!(low < mean && mean < high, "{key}");
     }
 }
@@ -191,8 +194,10 @@ fn point_only_without_replicates_and_the_same_interval_for_any_thread_budget() {
     let a = run_series(&data, &graph, query.clone(), None, 99, &serial).unwrap();
     let b = run_series(&data, &graph, query.clone(), None, 99, &parallel).unwrap();
     assert_eq!(block_se(&a).to_bits(), block_se(&b).to_bits());
+    // No replicates requested: the point is published alone and carries no interval
+    // binding, like every point-only route.
     let point = run_series(&data, &graph, query.clone(), None, 0, &serial).unwrap();
-    assert_eq!(point.interval.as_ref().map(|binding| binding.method), Some(IntervalMethod::None));
+    assert!(point.interval.is_none());
     assert!(
         point
             .diagnostics
@@ -209,10 +214,14 @@ fn a_tiny_admission_pool_refuses_the_block_bootstrap_and_returns_its_lease() {
     let data = mediated_series(29);
     let graph = mediated_graph();
     let (_, query, _) = cross_world_queries().remove(2);
+    // The pool holds the planned design (about 29 kB for 400 rows and three columns, the
+    // planner's peak estimate) but not the replicate store of 20,000 replicates (the row
+    // map plus about 24 bytes of draw header per replicate), so the plan is admitted and
+    // the shared block bootstrap is the stage the pool refuses.
     let tiny = ExecutionContext::for_tests(1)
-        .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 64));
+        .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 40_000));
     let before = tiny.admission.available();
-    let error = run_series(&data, &graph, query, None, 199, &tiny).unwrap_err();
+    let error = run_series(&data, &graph, query, None, 20_000, &tiny).unwrap_err();
     assert!(error.to_string().contains("admission"), "{error}");
     assert_eq!(tiny.admission.available(), before);
 }
@@ -354,6 +363,8 @@ fn conditional_marginal_effect_interval_refits_the_interaction_and_the_modifier_
     );
     assert!(se > 0.0 && (point - truth).abs() < 4.0 * se, "{point} vs {truth} (se {se})");
     let posterior = run_series(&data, &graph, query, Some(bayesian(400)), 0, &ctx).unwrap();
-    let summaries = &posterior.posterior.as_ref().expect("a posterior").summaries;
-    assert!((summaries.mean[0] - truth).abs() < 4.0 * summaries.sd[0]);
+    let draws = posterior.posterior.as_ref().expect("a posterior");
+    let column = draws.effect_column().expect("an effect column");
+    let summaries = &draws.summaries;
+    assert!((summaries.mean[column] - truth).abs() < 4.0 * summaries.sd[column]);
 }

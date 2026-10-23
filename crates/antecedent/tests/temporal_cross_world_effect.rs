@@ -134,15 +134,17 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                         .iter()
                         .any(|d| { d.code.as_ref() == "estimate.temporal.cross_world" })
                 );
-                // Every Bayesian cell publishes a posterior; a frequentist cell its
-                // shared circular-block interval, withheld where the refit regression
-                // fits the series exactly (the nested outcome regression here).
+                // Every Bayesian cell publishes a posterior. A frequentist nested or unit
+                // counterfactual resamples only when replicates are requested, so with the
+                // omitted default it is point only and carries no interval binding; the
+                // path-specific effect and the interventional mean publish their shared
+                // circular-block interval.
                 assert_eq!(result.posterior.is_some(), bayesian, "{key}");
                 let method = result.interval.as_ref().map(|binding| binding.method);
                 if bayesian {
                     assert_eq!(method, Some(antecedent_core::IntervalMethod::PosteriorQuantile));
-                } else if key == "nested" {
-                    assert_eq!(method, Some(antecedent_core::IntervalMethod::None), "{key}");
+                } else if matches!(key, "nested" | "counterfactual") {
+                    assert_eq!(method, None, "{key}");
                 } else {
                     assert_eq!(
                         method,

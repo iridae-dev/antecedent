@@ -530,8 +530,8 @@ fn horizon_one_response_curve_reproduces_the_least_squares_mean_and_the_static_c
 /// payload (one effect per row, their mean) and, under Bayesian inference, a
 /// posterior. The temporal cross-world effect is a population average read off the
 /// unfolded linear mechanism: no unit payload; under Frequentist inference a
-/// circular-block interval of the refit slope; the Bayesian twin publishes the
-/// posterior of the slope times the contrast.
+/// circular-block interval of the refit slope when replicates are requested (none by
+/// default); the Bayesian twin publishes the posterior of the slope times the contrast.
 /// The mean values agree (both equal the fitted slope) but the objects do not.
 #[test]
 fn temporal_counterfactual_is_a_population_average_without_unit_effects_or_posterior() {
@@ -598,12 +598,13 @@ fn temporal_counterfactual_is_a_population_average_without_unit_effects_or_poste
         assert!(has_diagnostic(&result, "estimate.temporal.cross_world"));
         assert!(result.counterfactual().is_none(), "bayes={bayes}: no unit-level payload");
         assert_eq!(result.posterior.is_some(), bayes, "bayes={bayes}: posterior iff Bayesian");
-        // The frequentist contrast carries the shared circular-block interval of the
-        // refit slope (default replicates); the Bayesian twin its credible interval.
-        let binding = result.interval.as_ref().expect("an interval binding");
+        // A frequentist counterfactual resamples only when replicates are requested, so
+        // with the omitted default it is point only and carries no interval binding; the
+        // Bayesian twin carries its credible interval.
+        let method = result.interval.as_ref().map(|binding| binding.method);
         assert_eq!(
-            binding.method,
-            if bayes { IntervalMethod::PosteriorQuantile } else { IntervalMethod::CircularBlockSe },
+            method,
+            if bayes { Some(IntervalMethod::PosteriorQuantile) } else { None },
             "bayes={bayes}"
         );
     }
