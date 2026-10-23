@@ -325,3 +325,49 @@ fn whole_procedure_intervals_cover_the_simulated_truth_in_most_samples() {
     // Nominal 95%; a sanity floor, not a coverage record.
     assert!(covered >= 33, "covered {covered} of {replicates}");
 }
+
+#[test]
+fn the_bayesian_bootstrap_posterior_recovers_the_effect_with_joint_draws() {
+    let sim = staggered(16, 80, 0.1);
+    let mut declared =
+        spec(RolloutDidEstimator::CallawaySantAnna, DidComparisonGroup::NotYetTreated);
+    declared.aggregation = DidAggregation::Dynamic;
+    let serial =
+        super::posterior_rollout_did(&sim.panel(), &declared, 400, &ExecutionContext::for_tests(2))
+            .unwrap();
+    let parallel = super::posterior_rollout_did(
+        &sim.panel(),
+        &declared,
+        400,
+        &ExecutionContext::production(2, 4),
+    )
+    .unwrap();
+    assert_eq!(serial, parallel);
+    let overall = &serial.fit.overall;
+    assert!((overall.estimate - 4.5).abs() < 0.5, "{}", overall.estimate);
+    let interval = overall.interval.unwrap();
+    assert!(interval[0] < overall.estimate && overall.estimate < interval[1]);
+    assert!(overall.standard_error.is_none());
+    for effect in &serial.fit.aggregated {
+        let (interval, band) = (effect.interval.unwrap(), effect.band.unwrap());
+        assert!(band[0] <= interval[0] && band[1] >= interval[1]);
+    }
+    // Joint draws: the overall column is the mean of the post event-time columns draw by draw.
+    let post: Vec<&Vec<f64>> = serial
+        .columns
+        .iter()
+        .filter(|(label, _)| {
+            label
+                .strip_prefix("dynamic_")
+                .and_then(|e| e.parse::<i64>().ok())
+                .is_some_and(|e| e >= 0)
+        })
+        .map(|(_, column)| column)
+        .collect();
+    let draws = serial.columns[0].1.len();
+    assert!(draws >= 380);
+    for d in 0..draws {
+        let mean = post.iter().map(|column| column[d]).sum::<f64>() / post.len() as f64;
+        assert!((mean - serial.columns[0].1[d]).abs() < 1e-9);
+    }
+}

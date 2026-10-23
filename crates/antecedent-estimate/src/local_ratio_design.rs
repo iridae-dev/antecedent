@@ -484,3 +484,117 @@ fn temporal_block_bootstrap(
         ratio,
     })
 }
+
+/// Semantic operation tag of the within-side block Bayesian bootstrap.
+const BLOCK_POSTERIOR_OPERATION: u64 = 0x4c52_5442_0002;
+
+/// Posterior of a local ratio whose running variable is calendar time.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TemporalRatioPosterior {
+    /// Posterior draws of the ratio.
+    pub draws: Vec<f64>,
+    /// Posterior summary.
+    pub summary: crate::rollout_resampling::PosteriorQuantity,
+    /// Rows per block.
+    pub block_length: usize,
+    /// Requested draws.
+    pub requested: u32,
+    /// Draws whose weighted refit produced a finite ratio.
+    pub draws_ok: u32,
+}
+
+/// Within-side block Bayesian bootstrap of the local ratio in calendar time.
+///
+/// The window rows on each side of the cutoff are cut, in time order, into consecutive
+/// non-overlapping blocks of the rounded cube root of the side's rows; each draw gives every
+/// block a flat-Dirichlet weight shared by its rows and refits the whole robust bias-corrected
+/// ratio with those row weights. Weighting whole blocks keeps the serial dependence within a
+/// block intact, so the posterior is not the independent-row Gaussian one; dependence across
+/// block boundaries is ignored. The design's continuity assumptions stay declared.
+///
+/// # Errors
+///
+/// The unweighted fit fails, the resample is refused (cancellation, admission), or fewer than
+/// 20 draws produce a finite ratio.
+pub fn posterior_temporal_local_ratio(
+    columns: &LocalRatioColumns<'_>,
+    cutoff: f64,
+    bandwidth: f64,
+    kink: bool,
+    draws: u32,
+    ctx: &ExecutionContext,
+) -> Result<TemporalRatioPosterior, EstimationError> {
+    fit_local_polynomial_ratio(
+        columns.running,
+        columns.outcome,
+        columns.treatment,
+        cutoff,
+        bandwidth,
+        kink,
+    )
+    .map_err(|message| refused(format!("{message}; next attempt: a wider bandwidth")))?;
+    let n = columns.running.len();
+    let side_rows = |right: bool| -> Vec<usize> {
+        let mut rows: Vec<usize> = (0..n)
+            .filter(|i| {
+                let r = columns.running[*i];
+                (r - cutoff).abs() < bandwidth && (r >= cutoff) == right
+            })
+            .collect();
+        rows.sort_by(|a, b| columns.running[*a].total_cmp(&columns.running[*b]).then(a.cmp(b)));
+        rows
+    };
+    let (left, right) = (side_rows(false), side_rows(true));
+    let block_length = cube_root_block_length(left.len().min(right.len()));
+    let mut block_of = vec![usize::MAX; n];
+    let mut blocks = 0usize;
+    for side in [&left, &right] {
+        for chunk in side.chunks(block_length) {
+            for row in chunk {
+                block_of[*row] = blocks;
+            }
+            blocks += 1;
+        }
+    }
+    let raw = resample_draws(ctx, BLOCK_POSTERIOR_OPERATION, draws, 1, |rng| {
+        let block_weights = crate::rollout_resampling::unit_weights(
+            crate::rollout_resampling::UnitWeighting::Multiplier,
+            blocks,
+            rng,
+        );
+        let row_weights: Vec<f64> = block_of
+            .iter()
+            .map(|block| if *block == usize::MAX { 0.0 } else { block_weights[*block] })
+            .collect();
+        crate::local_polynomial_ratio::fit_weighted_local_polynomial_ratio(
+            columns.running,
+            columns.outcome,
+            columns.treatment,
+            &row_weights,
+            cutoff,
+            bandwidth,
+            kink,
+        )
+        .ok()
+        .map(|fit| vec![fit.estimate])
+    })?;
+    let summary = crate::rollout_resampling::summarize_posterior(&raw, 1, draws);
+    let Some(quantity) = summary.quantities[0] else {
+        return Err(refused(
+            "fewer than 20 block Bayesian-bootstrap draws produced a finite ratio; next \
+             attempt: more draws or a wider bandwidth",
+        ));
+    };
+    Ok(TemporalRatioPosterior {
+        draws: raw
+            .iter()
+            .flatten()
+            .filter(|draw| draw[0].is_finite())
+            .map(|draw| draw[0])
+            .collect(),
+        summary: crate::rollout_resampling::PosteriorQuantity { band: None, ..quantity },
+        block_length,
+        requested: draws,
+        draws_ok: summary.draws_ok,
+    })
+}

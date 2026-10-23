@@ -12,7 +12,9 @@ use super::super::bayesian_quasi_common::{
     DesignFinish, DesignPosterior, SamplerRecord, effect_quantity, finish_design_posterior,
     scalar_quantity,
 };
-use super::super::rollout_finish::{RolloutReport, finish_rollout, named};
+use super::super::rollout_finish::{
+    RolloutPayloadParts, RolloutReport, finish_rollout, named, rollout_payload,
+};
 use super::{
     CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, StudyResult,
     TabularData,
@@ -192,6 +194,9 @@ impl super::CheckedSyntheticControlOperation {
                     .into(),
             });
         };
+        if rollout.interval == SyntheticInterval::Conformal {
+            return self.execute_bayesian_predictive(data, y, config, ctx);
+        }
         let started = Instant::now();
         let adopting: std::collections::BTreeSet<&str> =
             rollout.adoptions.iter().map(|(unit, _)| unit.as_ref()).collect();
@@ -310,5 +315,139 @@ impl super::CheckedSyntheticControlOperation {
             },
             design,
         )
+    }
+}
+
+impl super::CheckedSyntheticControlOperation {
+    /// The Bayesian counterpart of the conformal interval: the posterior predictive
+    /// distribution of the effect at each post period and of their average, from the simplex
+    /// donor-weight posterior with its error process continued into the post period.
+    ///
+    /// It is a different object from the conformal set: a model-based predictive interval for
+    /// the counterfactual path under the declared Gaussian error model and Dirichlet prior,
+    /// not a finite-sample permutation guarantee.
+    fn execute_bayesian_predictive(
+        &self,
+        data: &TabularData,
+        y: &[f64],
+        config: &super::BayesianConfig,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let units: Vec<String> = self.query.units.iter().map(ToString::to_string).collect();
+        let spec = BayesianSyntheticControlSpec::new(
+            &self.query.treated_unit,
+            self.query.intervention_period,
+        );
+        let fit = fit_bayesian_synthetic_control(
+            y,
+            &units,
+            &self.query.periods,
+            &spec,
+            DrawSpec::new(config.n_draws, ctx.rng.master_seed()),
+        )?;
+        let summarize =
+            |draws: &[f64]| -> Option<antecedent_estimate::rollout_resampling::PosteriorQuantity> {
+                let wrapped: Vec<Option<Vec<f64>>> =
+                    draws.iter().map(|draw| Some(vec![*draw])).collect();
+                let count = u32::try_from(draws.len()).unwrap_or(u32::MAX);
+                antecedent_estimate::rollout_resampling::summarize_posterior(&wrapped, 1, count)
+                    .quantities[0]
+            };
+        let effect = |kind, draws: &[f64]| {
+            let mut effect = antecedent_estimate::rollout_resampling::DesignEffect::point(
+                kind,
+                draws.iter().sum::<f64>() / draws.len().max(1) as f64,
+            );
+            if let Some(quantity) = summarize(draws) {
+                effect.estimate = quantity.mean;
+                effect.interval = Some(quantity.interval);
+            }
+            effect.unit = Some(self.query.treated_unit.to_string());
+            effect.treated = 1;
+            effect.comparison = fit.donor_weight_means.len();
+            effect
+        };
+        use antecedent_estimate::rollout_resampling::DesignEffectKind;
+        let mut effects = vec![effect(DesignEffectKind::Overall, &fit.effect_draws)];
+        let mut columns: Vec<(antecedent_prob::PosteriorQuantityKind, Vec<f64>)> =
+            vec![(effect_quantity("att"), fit.effect_draws.clone())];
+        for (period, draws) in fit.post_periods.iter().zip(&fit.period_effect_draws) {
+            let mut period_effect = effect(DesignEffectKind::Period, draws);
+            period_effect.period = Some(*period);
+            effects.push(period_effect);
+            columns.push((scalar_quantity(format!("effect_period_{period}")), draws.clone()));
+        }
+        let point = effects[0].estimate;
+        let design = DesignPosterior {
+            columns,
+            point,
+            point_sd: fit.sd,
+            n_obs: (fit.n_pre_periods + fit.n_post_periods) as u64,
+            interval_withheld: false,
+            backend: "bayesian_synthetic_control.posterior_predictive_path",
+            model: format!(
+                "{}; per-period effects are posterior predictive draws of the counterfactual \
+                 path (donor-weighted outcome plus the error process continued from the last \
+                 pre-period residual); this is the Bayesian counterpart of the conformal set, \
+                 not a permutation guarantee",
+                fit.model
+            ),
+            assumptions: vec![(
+                "bayesian_simplex_dirichlet_gaussian_model",
+                "pre-period treated outcomes are a simplex-weighted donor combination plus \
+                 Gaussian errors under a Dirichlet weight prior and an inverse-gamma variance \
+                 prior; the post-period errors continue the same process"
+                    .to_string(),
+            )],
+            diagnostics: vec![Diagnostic::new(
+                "estimate.quasi.bayesian_synthetic_control.predictive_path",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "posterior predictive intervals for {} post periods; split R-hat {:.4}; \
+                     bulk ESS {:.1}; unlicensed and uncalibrated",
+                    fit.n_post_periods, fit.max_split_rhat, fit.min_bulk_ess
+                ),
+            )],
+            notes: vec![format!("pre_fit_rmse={:.6}", fit.pre_fit_rmse)],
+            sampler: Some(SamplerRecord {
+                chains: 4,
+                max_split_rhat: fit.max_split_rhat,
+                min_bulk_ess: fit.min_bulk_ess,
+                acceptance_rate: fit.acceptance_rate,
+            }),
+        };
+        let draws = u32::try_from(fit.effect_draws.len()).unwrap_or(u32::MAX);
+        let parts = RolloutPayloadParts {
+            design: "posterior_predictive_synthetic_control",
+            method: "simplex_dirichlet_posterior.predictive_counterfactual_path".to_string(),
+            effects,
+            uncertainty: "bayesian_posterior_predictive_intervals",
+            replicates: [draws, draws, 0],
+            critical_value: None,
+            diagnostics: named(&[
+                ("pre_fit_rmse", fit.pre_fit_rmse),
+                ("post_periods", fit.n_post_periods as f64),
+                ("max_split_rhat", fit.max_split_rhat),
+            ]),
+        };
+        let mut result = finish_design_posterior(
+            DesignFinish {
+                context: &self.result_context,
+                data,
+                physical: &self.physical,
+                identification: &self.identification,
+                estimand: &self.estimand,
+                outcome: self.query.outcome,
+                config,
+                started,
+            },
+            design,
+        )?;
+        result.payload = rollout_payload(parts);
+        result.treatment = None;
+        result.support_status = None;
+        Ok(result)
     }
 }

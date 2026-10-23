@@ -13,7 +13,12 @@
 //! interval is unlicensed with calibration `unmeasured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::super::rollout_finish::{RolloutReport, finish_rollout, named};
+use super::super::bayesian_quasi_common::{
+    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior, scalar_quantity,
+};
+use super::super::rollout_finish::{
+    RolloutReport, finish_rollout, named, rollout_payload, split_report,
+};
 use super::{
     Arc, CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
     StudyResult, TableView, TabularData,
@@ -27,6 +32,7 @@ use antecedent_data::{MissingPolicy, PanelLayout, PreparationMode};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::heterogeneity_robust_did::{
     RolloutDidFit, RolloutDidSpec, RolloutPanel, RolloutResampling, estimate_rollout_did,
+    posterior_rollout_did,
 };
 use antecedent_estimate::rollout_resampling::UnitWeighting;
 
@@ -120,9 +126,89 @@ impl super::CheckedPanelDidOperation {
             weighting: weighting(resampling.scheme),
             replicates: resampling.replicates,
         });
+        if let Some(config) = self.extra.bayesian.as_ref() {
+            let mut result = self.rollout_posterior(data, &panel, &spec, config, n, ctx)?;
+            result.missing_data = Some(self.missing_report(data, &complete, &kept)?);
+            return Ok(result);
+        }
         let fit = estimate_rollout_did(&panel, &spec, resampling, ctx).map_err(estimation)?;
         let mut result = finish_rollout(self, data, self.query.outcome, self.report(&fit, n));
         result.missing_data = Some(self.missing_report(data, &complete, &kept)?);
+        Ok(result)
+    }
+
+    /// The Bayesian-bootstrap posterior of the rollout, with its credible intervals and bands
+    /// on the rollout payload.
+    fn rollout_posterior(
+        &self,
+        data: &TabularData,
+        panel: &RolloutPanel<'_>,
+        spec: &RolloutDidSpec,
+        config: &super::BayesianConfig,
+        rows: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = super::Instant::now();
+        let draws = u32::try_from(config.n_draws).unwrap_or(u32::MAX);
+        let posterior = posterior_rollout_did(panel, spec, draws, ctx).map_err(estimation)?;
+        let fit = &posterior.fit;
+        let mut report = self.report(fit, rows);
+        report.uncertainty = "bayesian_bootstrap_whole_unit_dirichlet_credible_intervals_and_bands";
+        let (parts, notes) = split_report(report);
+        let overall_draws =
+            posterior.columns.first().map(|(_, column)| column.clone()).unwrap_or_default();
+        let point = fit.overall.estimate;
+        let point_sd = {
+            let count = overall_draws.len().max(2) as f64;
+            (overall_draws.iter().map(|draw| (draw - point).powi(2)).sum::<f64>() / (count - 1.0))
+                .sqrt()
+        };
+        let columns = posterior
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(index, (label, column))| {
+                let kind = if index == 0 { effect_quantity("att") } else { scalar_quantity(label) };
+                (kind, column.clone())
+            })
+            .collect();
+        let design = DesignPosterior {
+            columns,
+            point,
+            point_sd,
+            n_obs: fit.units as u64,
+            interval_withheld: false,
+            backend: "bayesian_bootstrap.whole_unit_dirichlet",
+            model: "Bayesian bootstrap: flat-Dirichlet weights on whole independent units refit                     every group-time cell, nuisance model and aggregation per draw; the posterior                     is joint across cells and aggregations"
+                .to_string(),
+            assumptions: vec![(
+                "bayesian_bootstrap_unit_distribution",
+                "the independent units are exchangeable draws from a population whose distribution                  carries a Dirichlet-process posterior with vanishing concentration; no parametric                  outcome model is assumed"
+                    .to_string(),
+            )],
+            diagnostics: notes,
+            notes: vec![format!(
+                "draws_requested={} draws_complete={}",
+                posterior.requested, posterior.draws_ok
+            )],
+            sampler: None,
+        };
+        let mut result = finish_design_posterior(
+            DesignFinish {
+                context: &self.result_context,
+                data,
+                physical: &self.physical,
+                identification: &self.identification,
+                estimand: &self.estimand,
+                outcome: self.query.outcome,
+                config,
+                started,
+            },
+            design,
+        )?;
+        result.payload = rollout_payload(parts);
+        result.treatment = None;
+        result.support_status = None;
         Ok(result)
     }
 

@@ -109,6 +109,12 @@ pub struct BayesianSyntheticControlEstimate {
     pub n_post_periods: usize,
     /// Explicit model scope.
     pub model: &'static str,
+    /// Post-intervention periods, in order.
+    pub post_periods: Vec<i64>,
+    /// Posterior predictive draws of the effect at each post period (`[period][draw]`): the
+    /// treated outcome minus a draw of its counterfactual path, the donor-weighted outcome plus
+    /// the error process continued from the last pre-period residual.
+    pub period_effect_draws: Vec<Vec<f64>>,
 }
 
 struct ScPanel {
@@ -118,6 +124,9 @@ struct ScPanel {
     target_post_mean: f64,
     donor_post_mean: Vec<f64>,
     n_post: usize,
+    post_periods: Vec<i64>,
+    target_post: Vec<f64>,
+    donor_post: Vec<Vec<f64>>,
 }
 
 fn parse_panel(
@@ -179,6 +188,9 @@ fn parse_panel(
         target_post_mean: mean_post(treated),
         donor_post_mean: donors.iter().map(|(_, v)| mean_post(v)).collect(),
         n_post: post.len(),
+        target_post: post.iter().map(|p| treated[p]).collect(),
+        donor_post: donors.iter().map(|(_, v)| post.iter().map(|p| v[p]).collect()).collect(),
+        post_periods: post,
     })
 }
 
@@ -276,6 +288,7 @@ fn effect_draw(
 
 struct ChainDraws {
     weights: Vec<Vec<f64>>,
+    lasts: Vec<f64>,
     gaps: Vec<f64>,
     sigma2: Vec<f64>,
     effects: Vec<f64>,
@@ -303,6 +316,7 @@ fn run_chain(
     let mut state = ChainState { weights: start, residual, ss, sigma2 };
     let mut out = ChainDraws {
         weights: Vec::with_capacity(kept),
+        lasts: Vec::with_capacity(kept),
         gaps: Vec::with_capacity(kept),
         sigma2: Vec::with_capacity(kept),
         effects: Vec::with_capacity(kept),
@@ -323,6 +337,7 @@ fn run_chain(
             out.gaps.push(gap);
             out.sigma2.push(state.sigma2);
             out.weights.push(state.weights.clone());
+            out.lasts.push(last);
         }
     }
     out
@@ -393,7 +408,10 @@ pub fn fit_bayesian_synthetic_control(
             ),
         ));
     }
-    Ok(assemble(&panel, spec, &chains, diagnostics.max_rhat, diagnostics.min_bulk_ess))
+    let mut estimate =
+        assemble(&panel, spec, &chains, diagnostics.max_rhat, diagnostics.min_bulk_ess);
+    estimate.period_effect_draws = period_paths(&panel, spec, &chains, sampling.seed);
+    Ok(estimate)
 }
 
 fn assemble(
@@ -447,12 +465,43 @@ fn assemble(
         min_bulk_ess,
         n_pre_periods: panel.target_pre.len(),
         n_post_periods: panel.n_post,
+        post_periods: panel.post_periods.clone(),
+        period_effect_draws: Vec::new(),
         model: if spec.ar1_rho.abs() <= 0.0 {
             "simplex synthetic control; Dirichlet donor-weight prior; independent Gaussian pre-fit errors; pairwise-transfer Metropolis with Gibbs variance"
         } else {
             "simplex synthetic control; Dirichlet donor-weight prior; declared-coefficient AR(1) Gaussian pre-fit errors continued into the post period; pairwise-transfer Metropolis with Gibbs variance"
         },
     }
+}
+
+/// Stream offset of the posterior predictive path draws, apart from the chains' streams.
+const PATH_SEED_STRIDE: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// Posterior predictive effect paths: for every kept draw, the AR(1) error path is continued
+/// from the last pre-period residual with the draw's innovation variance, and each post
+/// period's effect is the treated outcome minus the donor-weighted outcome minus that error.
+/// A separate stream keeps the chains' draws, and so the average-effect posterior, unchanged.
+fn period_paths(
+    panel: &ScPanel,
+    spec: &BayesianSyntheticControlSpec<'_>,
+    chains: &[ChainDraws],
+    seed: u64,
+) -> Vec<Vec<f64>> {
+    let mut rng = CausalRng::from_seed(seed ^ PATH_SEED_STRIDE);
+    let mut paths: Vec<Vec<f64>> = vec![Vec::new(); panel.n_post];
+    for chain in chains {
+        for ((weights, sigma2), last) in chain.weights.iter().zip(&chain.sigma2).zip(&chain.lasts) {
+            let mut error = *last;
+            for (k, path) in paths.iter_mut().enumerate() {
+                error = spec.ar1_rho * error + sigma2.sqrt() * standard_normal(&mut rng);
+                let synthetic: f64 =
+                    panel.donor_post.iter().zip(weights).map(|(x, w)| w * x[k]).sum();
+                path.push(panel.target_post[k] - synthetic - error);
+            }
+        }
+    }
+    paths
 }
 
 #[cfg(test)]

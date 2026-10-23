@@ -43,6 +43,64 @@ pub(super) struct RolloutReport {
     pub(super) notes: Vec<Diagnostic>,
 }
 
+/// The payload fields of a rollout report, without its notes.
+pub(super) struct RolloutPayloadParts {
+    pub(super) design: &'static str,
+    pub(super) method: String,
+    pub(super) effects: Vec<DesignEffect>,
+    pub(super) uncertainty: &'static str,
+    pub(super) replicates: [u32; 3],
+    pub(super) critical_value: Option<f64>,
+    pub(super) diagnostics: Vec<(String, f64)>,
+}
+
+/// The unlicensed rollout payload of `parts`; calibration is always `unmeasured`.
+pub(super) fn rollout_payload(parts: RolloutPayloadParts) -> crate::result::ResultPayload {
+    crate::result::ResultPayload::QuasiRollout(Box::new(crate::QuasiRolloutEstimate {
+        design: Arc::from(parts.design),
+        method: Arc::from(parts.method),
+        effects: Arc::from(parts.effects),
+        uncertainty: Arc::from(parts.uncertainty),
+        calibration: Arc::from(UNMEASURED),
+        replicates_requested: parts.replicates[0],
+        replicates_ok: parts.replicates[1],
+        replicates_failed: parts.replicates[2],
+        critical_value: parts.critical_value,
+        diagnostics: parts
+            .diagnostics
+            .into_iter()
+            .map(|(name, value)| (Arc::<str>::from(name.as_str()), value))
+            .collect(),
+        licensed: false,
+    }))
+}
+
+/// Split a report into its payload parts and its notes.
+pub(super) fn split_report(report: RolloutReport) -> (RolloutPayloadParts, Vec<Diagnostic>) {
+    let RolloutReport {
+        design,
+        method,
+        effects,
+        uncertainty,
+        replicates,
+        critical_value,
+        diagnostics,
+        notes,
+    } = report;
+    (
+        RolloutPayloadParts {
+            design,
+            method,
+            effects,
+            uncertainty,
+            replicates,
+            critical_value,
+            diagnostics,
+        },
+        notes,
+    )
+}
+
 /// The unlicensed result of a rollout execution under `operation`.
 pub(super) fn finish_rollout<Q: Clone + RandomizedTrialQuery, E>(
     operation: &RandomizedTrialOperation<Q, E>,
@@ -57,7 +115,26 @@ pub(super) fn finish_rollout<Q: Clone + RandomizedTrialQuery, E>(
         operation.identification.required_assumptions.clone(),
         antecedent_estimate::OverlapPolicy::ExplicitOverride,
     );
-    let mut notes = report.notes;
+    let RolloutReport {
+        design,
+        method,
+        effects,
+        uncertainty,
+        replicates,
+        critical_value,
+        diagnostics,
+        notes,
+    } = report;
+    let mut notes = notes;
+    let report_fields = RolloutPayloadParts {
+        design,
+        method,
+        effects,
+        uncertainty,
+        replicates,
+        critical_value,
+        diagnostics,
+    };
     notes.push(Diagnostic::new(
         "estimate.quasi.rollout.unlicensed",
         DiagnosticKind::Scientific,
@@ -66,7 +143,7 @@ pub(super) fn finish_rollout<Q: Clone + RandomizedTrialQuery, E>(
             "unlicensed route: the {} intervals come from the design's whole-procedure path \
              ({}); their repeated-sampling coverage is unmeasured and no scalar interval is \
              published on the effect",
-            report.design, report.uncertainty
+            design, uncertainty
         ),
     ));
     let mut result = finish_identified_execute_with_context(
@@ -83,24 +160,7 @@ pub(super) fn finish_rollout<Q: Clone + RandomizedTrialQuery, E>(
         )
         .extra_diagnostics(notes),
     );
-    result.payload =
-        crate::result::ResultPayload::QuasiRollout(Box::new(crate::QuasiRolloutEstimate {
-            design: Arc::from(report.design),
-            method: Arc::from(report.method),
-            effects: Arc::from(report.effects),
-            uncertainty: Arc::from(report.uncertainty),
-            calibration: Arc::from(UNMEASURED),
-            replicates_requested: report.replicates[0],
-            replicates_ok: report.replicates[1],
-            replicates_failed: report.replicates[2],
-            critical_value: report.critical_value,
-            diagnostics: report
-                .diagnostics
-                .into_iter()
-                .map(|(name, value)| (Arc::<str>::from(name.as_str()), value))
-                .collect(),
-            licensed: false,
-        }));
+    result.payload = rollout_payload(report_fields);
     result.treatment = None;
     result.support_status = None;
     result

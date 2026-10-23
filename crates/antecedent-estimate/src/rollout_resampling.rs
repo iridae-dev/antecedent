@@ -451,3 +451,110 @@ mod tests {
         assert_eq!(pool.available(), before);
     }
 }
+
+/// Posterior summary of one quantity of a Bayesian-bootstrap posterior.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PosteriorQuantity {
+    /// Posterior mean.
+    pub mean: f64,
+    /// Posterior standard deviation.
+    pub sd: f64,
+    /// Equal-tailed 95% credible interval.
+    pub interval: [f64; 2],
+    /// Simultaneous 95% credible band over the block, containing the interval.
+    pub band: Option<[f64; 2]>,
+}
+
+/// Posterior summary of a block of quantities.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PosteriorSummary {
+    /// One summary per quantity; `None` when the quantity has too few finite draws.
+    pub quantities: Vec<Option<PosteriorQuantity>>,
+    /// Critical value of the simultaneous band (at least the pointwise normal quantile).
+    pub critical_value: Option<f64>,
+    /// Draws with every quantity finite.
+    pub draws_ok: u32,
+    /// Draws without.
+    pub draws_failed: u32,
+}
+
+/// Summarize posterior draws (one vector per draw) of `width` quantities: mean, standard
+/// deviation, equal-tailed 95% credible intervals and a simultaneous credible band
+/// `mean ± c·sd`, `c` the 95% quantile over complete draws of `max |θ − mean| / sd` and never
+/// below the pointwise normal quantile, widened where needed to contain each interval.
+#[must_use]
+pub fn summarize_posterior(
+    draws: &[Option<Vec<f64>>],
+    width: usize,
+    requested: u32,
+) -> PosteriorSummary {
+    let complete: Vec<&Vec<f64>> = draws
+        .iter()
+        .flatten()
+        .filter(|draw| draw.len() == width && draw.iter().all(|value| value.is_finite()))
+        .collect();
+    let draws_ok = u32::try_from(complete.len()).unwrap_or(u32::MAX);
+    let moments: Vec<Option<(f64, f64, [f64; 2])>> = (0..width)
+        .map(|k| {
+            if complete.len() < MIN_FINITE_REPLICATES {
+                return None;
+            }
+            let mut column: Vec<f64> = complete.iter().map(|draw| draw[k]).collect();
+            let mean = column.iter().sum::<f64>() / column.len() as f64;
+            let sd = (column.iter().map(|value| (value - mean).powi(2)).sum::<f64>()
+                / (column.len() - 1) as f64)
+                .sqrt();
+            column.sort_by(f64::total_cmp);
+            let interval = [quantile_sorted(&column, 0.025), quantile_sorted(&column, 0.975)];
+            Some((mean, sd, interval))
+        })
+        .collect();
+    let mut maxima: Vec<f64> = complete
+        .iter()
+        .filter_map(|draw| {
+            (0..width)
+                .filter_map(|k| {
+                    moments[k]
+                        .filter(|(_, sd, _)| *sd > 0.0)
+                        .map(|(mean, sd, _)| (draw[k] - mean).abs() / sd)
+                })
+                .reduce(f64::max)
+        })
+        .collect();
+    maxima.sort_by(f64::total_cmp);
+    let critical_value = (maxima.len() >= MIN_FINITE_REPLICATES)
+        .then(|| crate::util::monte_carlo_critical(&maxima, ROLLOUT_LEVEL))
+        .filter(|value| value.is_finite())
+        .map(|value| value.max(antecedent_stats::NORMAL_Q975));
+    let quantities = moments
+        .iter()
+        .map(|moment| {
+            moment.map(|(mean, sd, interval)| PosteriorQuantity {
+                mean,
+                sd,
+                interval,
+                band: critical_value
+                    .map(|c| [(mean - c * sd).min(interval[0]), (mean + c * sd).max(interval[1])]),
+            })
+        })
+        .collect();
+    PosteriorSummary {
+        quantities,
+        critical_value,
+        draws_ok,
+        draws_failed: requested.saturating_sub(draws_ok),
+    }
+}
+
+impl DesignEffect {
+    /// Replace the point with a posterior mean and attach its credible interval and band; the
+    /// standard error stays empty because the interval is not a normal interval.
+    pub fn attach_posterior(&mut self, quantity: Option<&PosteriorQuantity>) {
+        if let Some(quantity) = quantity {
+            self.estimate = quantity.mean;
+            self.standard_error = None;
+            self.interval = Some(quantity.interval);
+            self.band = quantity.band;
+        }
+    }
+}

@@ -134,11 +134,11 @@ impl super::CheckedPanelDidOperation {
             }
             DidSamplingDesign::StaggeredHeterogeneityRobust
             | DidSamplingDesign::CovariateAdjustedTwoPeriod => {
-                return Err(super::super::bayesian_quasi_common::unread_option(
-                    "the Bayesian panel DiD",
-                    "a heterogeneity-robust rollout or covariate-adjusted comparison",
-                    "the frequentist heterogeneity-robust or covariate-adjusted DiD",
-                ));
+                // The rollout executor runs these designs' Bayesian-bootstrap posterior before
+                // this dispatch is reached.
+                return Err(CausalError::Compile {
+                    message: "a rollout design's posterior is run by the rollout executor".into(),
+                });
             }
         };
         if self.extra.restricted {

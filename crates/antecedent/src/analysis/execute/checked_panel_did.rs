@@ -199,14 +199,13 @@ impl CheckedPanelDidOperation {
                 Some(config.clone())
             }
         };
-        if bayesian.is_some() && (query.robust.is_some() || query.resampling.is_some()) {
+        if bayesian.is_some() && query.resampling.is_some() {
             return Err(super::bayesian_quasi_common::unread_option(
                 "the Bayesian panel DiD",
-                "a heterogeneity-robust rollout, covariate-adjusted comparison or whole-procedure \
-                 resample, which have no posterior here",
-                "the frequentist heterogeneity-robust or covariate-adjusted DiD with its \
-                 whole-cluster resample, or the Bayesian never-treated event study or two-period \
-                 posterior",
+                "a whole-procedure frequentist resample; the Bayesian rollout draws its own \
+                 Bayesian-bootstrap posterior with n_draws",
+                "the Bayesian study without the resample declaration (n_draws sets the posterior \
+                 draws), or the frequentist route with the resample",
             ));
         }
         data.schema().get(query.outcome).map_err(CausalError::rejected)?;

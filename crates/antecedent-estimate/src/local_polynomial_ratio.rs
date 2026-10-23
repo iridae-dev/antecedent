@@ -32,10 +32,16 @@ fn in_side_window(distance: f64, right_side: bool) -> bool {
     distance.abs() < 1.0 && if right_side { distance >= 0.0 } else { distance < 0.0 }
 }
 
+/// The analysis weight of row `index`: one when no row weights are given.
+fn row_weight_at(row_weights: &[f64], index: usize) -> f64 {
+    if row_weights.is_empty() { 1.0 } else { row_weights[index] }
+}
+
 fn local_quadratic_side(
     running: &[f64],
     outcome: &[f64],
     treatment: &[f64],
+    row_weights: &[f64],
     cutoff: f64,
     bandwidth: f64,
     right_side: bool,
@@ -46,11 +52,12 @@ fn local_quadratic_side(
     let mut count = 0usize;
     for index in 0..running.len() {
         let distance = (running[index] - cutoff) / bandwidth;
-        if !in_side_window(distance, right_side) {
+        let row_weight = row_weight_at(row_weights, index);
+        if !in_side_window(distance, right_side) || row_weight <= 0.0 {
             continue;
         }
         let basis = [1.0, distance, distance * distance];
-        let weight = 1.0 - distance.abs();
+        let weight = (1.0 - distance.abs()) * row_weight;
         count += 1;
         for row in 0..3 {
             rhs_y[row] += weight * basis[row] * outcome[index];
@@ -115,6 +122,7 @@ fn local_quartic_slope_side(
     running: &[f64],
     outcome: &[f64],
     treatment: &[f64],
+    row_weights: &[f64],
     cutoff: f64,
     bandwidth: f64,
     right_side: bool,
@@ -125,11 +133,12 @@ fn local_quartic_slope_side(
     let mut rows = Vec::new();
     for index in 0..running.len() {
         let distance = (running[index] - cutoff) / bandwidth;
-        if !in_side_window(distance, right_side) {
+        let row_weight = row_weight_at(row_weights, index);
+        if !in_side_window(distance, right_side) || row_weight <= 0.0 {
             continue;
         }
         let basis = [1.0, distance, distance.powi(2), distance.powi(3), distance.powi(4)];
-        let weight = 1.0 - distance.abs();
+        let weight = (1.0 - distance.abs()) * row_weight;
         rows.push((basis, weight, outcome[index], treatment[index]));
         for row in 0..5 {
             rhs_y[row] += weight * basis[row] * outcome[index];
@@ -177,6 +186,7 @@ fn local_cubic_side(
     running: &[f64],
     outcome: &[f64],
     treatment: &[f64],
+    row_weights: &[f64],
     cutoff: f64,
     bandwidth: f64,
     right_side: bool,
@@ -187,11 +197,12 @@ fn local_cubic_side(
     let mut rows = Vec::new();
     for index in 0..running.len() {
         let distance = (running[index] - cutoff) / bandwidth;
-        if !in_side_window(distance, right_side) {
+        let row_weight = row_weight_at(row_weights, index);
+        if !in_side_window(distance, right_side) || row_weight <= 0.0 {
             continue;
         }
         let basis = [1.0, distance, distance.powi(2), distance.powi(3)];
-        let weight = 1.0 - distance.abs();
+        let weight = (1.0 - distance.abs()) * row_weight;
         rows.push((basis, weight, outcome[index], treatment[index]));
         for row in 0..4 {
             rhs_y[row] += weight * basis[row] * outcome[index];
@@ -237,19 +248,21 @@ fn local_cubic_side(
 
 fn cubic_bias_projection(
     running: &[f64],
+    row_weights: &[f64],
     cutoff: f64,
     bandwidth: f64,
     right_side: bool,
 ) -> Option<[f64; 3]> {
     let mut gram = [[0.0; 3]; 3];
     let mut cross = [0.0; 3];
-    for value in running {
+    for (index, value) in running.iter().enumerate() {
         let distance = (*value - cutoff) / bandwidth;
-        if !in_side_window(distance, right_side) {
+        let row_weight = row_weight_at(row_weights, index);
+        if !in_side_window(distance, right_side) || row_weight <= 0.0 {
             continue;
         }
         let basis = [1.0, distance, distance * distance];
-        let weight = 1.0 - distance.abs();
+        let weight = (1.0 - distance.abs()) * row_weight;
         for row in 0..3 {
             cross[row] += weight * basis[row] * distance.powi(3);
             for column in 0..3 {
@@ -282,7 +295,33 @@ pub fn fit_local_polynomial_ratio(
     bandwidth: f64,
     kink: bool,
 ) -> Result<LocalPolynomialRatioFit, String> {
+    fit_weighted_local_polynomial_ratio(running, outcome, treatment, &[], cutoff, bandwidth, kink)
+}
+
+/// [`fit_local_polynomial_ratio`] with each row's kernel weight multiplied by `row_weights`
+/// (empty for unit weights; a row with weight zero is left out). The point is the weighted
+/// fit; the reported HC0 uncertainty treats the weights as fixed. A Bayesian bootstrap draws
+/// the weights and keeps the point.
+// length reflects the estimator's fixed statistical contract; refactor would change behavior
+#[allow(
+    clippy::too_many_lines,
+    reason = "fit both sides at order p and q, then bias-correct the reduced form, first stage and their covariance from the same side fits"
+)]
+pub fn fit_weighted_local_polynomial_ratio(
+    running: &[f64],
+    outcome: &[f64],
+    treatment: &[f64],
+    row_weights: &[f64],
+    cutoff: f64,
+    bandwidth: f64,
+    kink: bool,
+) -> Result<LocalPolynomialRatioFit, String> {
     let n = running.len();
+    if !row_weights.is_empty()
+        && (row_weights.len() != n || row_weights.iter().any(|w| !w.is_finite() || *w < 0.0))
+    {
+        return Err(String::from("row weights must be finite, non-negative and row-aligned"));
+    }
     if n == 0 || outcome.len() != n || treatment.len() != n {
         return Err(String::from(
             "running, outcome, and treatment vectors must have equal non-zero length",
@@ -298,30 +337,32 @@ pub fn fit_local_polynomial_ratio(
     let outcome: Vec<f64> = outcome.to_vec();
     let treatment: Vec<f64> = treatment.to_vec();
     let (left_y_p, left_t_p, n_left) =
-        local_quadratic_side(&running, &outcome, &treatment, cutoff, bandwidth, false)
+        local_quadratic_side(&running, &outcome, &treatment, row_weights, cutoff, bandwidth, false)
             .filter(|(_, _, count)| *count >= 4)
             .ok_or_else(|| {
                 String::from("local polynomial lacks full-rank support on the left side")
             })?;
     let (right_y_p, right_t_p, n_right) =
-        local_quadratic_side(&running, &outcome, &treatment, cutoff, bandwidth, true)
+        local_quadratic_side(&running, &outcome, &treatment, row_weights, cutoff, bandwidth, true)
             .filter(|(_, _, count)| *count >= 4)
             .ok_or_else(|| {
                 String::from("local polynomial lacks full-rank support on the right side")
             })?;
-    let left_q = local_cubic_side(&running, &outcome, &treatment, cutoff, bandwidth, false)
-        .filter(|fit| fit.count >= 5)
-        .ok_or_else(|| {
-            String::from("robust bias correction lacks cubic support on the left side")
-        })?;
-    let right_q = local_cubic_side(&running, &outcome, &treatment, cutoff, bandwidth, true)
-        .filter(|fit| fit.count >= 5)
-        .ok_or_else(|| {
-            String::from("robust bias correction lacks cubic support on the right side")
-        })?;
-    let left_projection = cubic_bias_projection(&running, cutoff, bandwidth, false)
+    let left_q =
+        local_cubic_side(&running, &outcome, &treatment, row_weights, cutoff, bandwidth, false)
+            .filter(|fit| fit.count >= 5)
+            .ok_or_else(|| {
+                String::from("robust bias correction lacks cubic support on the left side")
+            })?;
+    let right_q =
+        local_cubic_side(&running, &outcome, &treatment, row_weights, cutoff, bandwidth, true)
+            .filter(|fit| fit.count >= 5)
+            .ok_or_else(|| {
+                String::from("robust bias correction lacks cubic support on the right side")
+            })?;
+    let left_projection = cubic_bias_projection(&running, row_weights, cutoff, bandwidth, false)
         .ok_or_else(|| String::from("bias correction lacks left-side support"))?;
-    let right_projection = cubic_bias_projection(&running, cutoff, bandwidth, true)
+    let right_projection = cubic_bias_projection(&running, row_weights, cutoff, bandwidth, true)
         .ok_or_else(|| String::from("bias correction lacks right-side support"))?;
     let coefficient = usize::from(kink);
     let scale = if kink { 1.0 / bandwidth } else { 1.0 };
@@ -353,18 +394,32 @@ pub fn fit_local_polynomial_ratio(
         // A fixed, wide bandwidth can leave a common quartic outcome trend
         // in the q=3 local slopes. A q=4 pilot removes that term from the
         // slope contrast and supplies the matching HC0 joint covariance.
-        let left =
-            local_quartic_slope_side(&running, &outcome, &treatment, cutoff, bandwidth, false)
-                .filter(|fit| fit.count >= 6)
-                .ok_or_else(|| {
-                    String::from("kink bias correction lacks quartic support on the left side")
-                })?;
-        let right =
-            local_quartic_slope_side(&running, &outcome, &treatment, cutoff, bandwidth, true)
-                .filter(|fit| fit.count >= 6)
-                .ok_or_else(|| {
-                    String::from("kink bias correction lacks quartic support on the right side")
-                })?;
+        let left = local_quartic_slope_side(
+            &running,
+            &outcome,
+            &treatment,
+            row_weights,
+            cutoff,
+            bandwidth,
+            false,
+        )
+        .filter(|fit| fit.count >= 6)
+        .ok_or_else(|| {
+            String::from("kink bias correction lacks quartic support on the left side")
+        })?;
+        let right = local_quartic_slope_side(
+            &running,
+            &outcome,
+            &treatment,
+            row_weights,
+            cutoff,
+            bandwidth,
+            true,
+        )
+        .filter(|fit| fit.count >= 6)
+        .ok_or_else(|| {
+            String::from("kink bias correction lacks quartic support on the right side")
+        })?;
         reduced_form = (right.slope_y - left.slope_y) / bandwidth;
         first_stage = (right.slope_t - left.slope_t) / bandwidth;
         variance_y = (left.var_y + right.var_y) / bandwidth.powi(2);

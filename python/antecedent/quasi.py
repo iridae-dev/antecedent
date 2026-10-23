@@ -330,7 +330,10 @@ class StaggeredRollout:
     ``resampling`` (``cluster_bootstrap`` or ``cluster_multiplier``) refits the whole procedure
     on ``replicates`` reweightings of whole clusters and reports pointwise intervals and
     simultaneous bands. The result is ``result.quasi_rollout``: unlicensed, calibration
-    unmeasured.
+    unmeasured. Under ``Bayesian`` inference the whole procedure is refit on flat-Dirichlet
+    whole-unit weights (a Bayesian bootstrap): the section reports posterior means with
+    credible intervals and bands beside the posterior; ``resampling=`` is frequentist and
+    is refused there.
     """
 
     outcome: str
@@ -389,6 +392,8 @@ class CovariateAdjustedDiD:
     first row. ``nuisance`` is ``outcome_regression``, ``inverse_probability_weighting`` or
     ``doubly_robust``. ``resampling`` refits the whole procedure on whole-cluster
     reweightings. The result is ``result.quasi_rollout``: unlicensed, calibration unmeasured.
+    ``Bayesian`` inference refits it on flat-Dirichlet whole-unit weights (a Bayesian
+    bootstrap) and reports credible intervals beside the posterior.
     """
 
     outcome: str
@@ -497,7 +502,8 @@ class SyntheticControl:
     uniform_unit_randomization: bool = False
     sharp_null_effect: float | None = None
     augmentation_ridge: float | None = None
-    #: Conformal intervals for the single treated unit (unlicensed, calibration unmeasured).
+    #: Conformal intervals for the single treated unit (unlicensed, calibration unmeasured);
+    #: under ``Bayesian`` inference, posterior predictive per-period intervals instead.
     conformal: bool = False
     #: Staggered adoptions ``(unit, adoption period)`` fitted against never-treated donors,
     #: including ``(treated_unit, intervention_period)``; placebo-variance intervals.
@@ -731,6 +737,9 @@ class FuzzyRegressionDiscontinuity:
     reports a block-bootstrap interval; ``density_test`` runs the manipulation test of the
     running variable at the cutoff; ``balance_covariates`` report their jumps at the cutoff.
     Any of these returns ``result.quasi_rollout`` (unlicensed, calibration unmeasured).
+    Under ``Bayesian`` inference ``mse_optimal`` selects the window and
+    ``temporal_replicates`` gives a within-side block-bootstrap credible interval beside the
+    posterior.
     """
 
     outcome: str

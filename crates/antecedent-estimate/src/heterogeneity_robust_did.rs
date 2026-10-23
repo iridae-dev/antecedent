@@ -60,7 +60,7 @@ use antecedent_core::{
 use crate::EstimationError;
 use crate::rollout_resampling::{
     DesignEffect, DesignEffectKind, ReplicateSummary, UnitWeighting, block_draws, resample_draws,
-    summarize_replicates, unit_weights,
+    summarize_posterior, summarize_replicates, unit_weights,
 };
 
 /// Semantic operation tag of the rollout difference-in-differences resample.
@@ -459,6 +459,118 @@ pub fn estimate_rollout_did(
         attach(&mut fit, &layout, &layout.vector(&point), &draws, resampling);
     }
     Ok(fit)
+}
+
+/// Semantic operation tag of the Bayesian-bootstrap posterior.
+const POSTERIOR_OPERATION: u64 = 0x5244_4944_0002;
+
+/// A Bayesian-bootstrap posterior of a rollout.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RolloutDidPosterior {
+    /// Every reported effect at its posterior mean, with equal-tailed credible intervals and
+    /// simultaneous credible bands within each block (aggregates, group-time cells, leads).
+    pub fit: RolloutDidFit,
+    /// Named joint posterior columns, the overall summary first, in the order of the fit's
+    /// overall, aggregated, group-time and lead effects.
+    pub columns: Vec<(String, Vec<f64>)>,
+    /// Requested draws.
+    pub requested: u32,
+    /// Draws whose refit produced every quantity.
+    pub draws_ok: u32,
+}
+
+/// Bayesian-bootstrap posterior of a rollout: every draw puts flat-Dirichlet weights on the
+/// independent sampling units (whole clusters, or whole subjects under independent subject
+/// trajectories), refits every group-time cell, nuisance model and aggregation with those
+/// weights, and keeps the whole vector, so aggregation uncertainty and the covariance across
+/// cells come from the same joint draws. The posterior is the nonparametric posterior of the
+/// estimand under a Dirichlet-process model of the unit distribution with a vanishing
+/// concentration (Rubin 1981); the design's identifying assumptions stay declared.
+///
+/// # Errors
+///
+/// As [`estimate_rollout_did`], and fewer than 20 complete draws.
+pub fn posterior_rollout_did(
+    panel: &RolloutPanel<'_>,
+    spec: &RolloutDidSpec,
+    draws: u32,
+    ctx: &ExecutionContext,
+) -> Result<RolloutDidPosterior, EstimationError> {
+    let mut fit = estimate_rollout_did(panel, spec, None, ctx)?;
+    let prepared = prepare(panel, spec)?;
+    let comparison = prepared.comparison(spec)?;
+    let ones = vec![1.0; prepared.clusters];
+    let point = evaluate(&prepared, spec, comparison, &ones)
+        .map_err(|reason| refused(format!("the rollout cannot be estimated: {reason}")))?;
+    let layout = Layout::of(&point, spec.anticipation);
+    let width = layout.width();
+    let raw = resample_draws(ctx, POSTERIOR_OPERATION, draws, width, |rng| {
+        // Normalized exponential weights are flat-Dirichlet; every estimator here is
+        // invariant to the weights' scale, so the normalization is implicit.
+        let weights = unit_weights(UnitWeighting::Multiplier, prepared.clusters, rng);
+        evaluate(&prepared, spec, comparison, &weights)
+            .ok()
+            .map(|replicate| layout.vector(&replicate))
+    })?;
+    let a = 1 + layout.aggregate.len();
+    let c = a + layout.cells.len();
+    let aggregate = summarize_posterior(&block_draws(&raw, 0..a), a, draws);
+    if aggregate.draws_ok < 20 {
+        return Err(refused(
+            "fewer than 20 Bayesian-bootstrap draws produced every aggregate; next attempt: more \
+             draws, or a comparison group populated in every cell",
+        ));
+    }
+    fit.overall.attach_posterior(aggregate.quantities[0].as_ref());
+    fit.overall.band = None;
+    for (effect, quantity) in fit.aggregated.iter_mut().zip(&aggregate.quantities[1..]) {
+        effect.attach_posterior(quantity.as_ref());
+    }
+    let cells = summarize_posterior(&block_draws(&raw, a..c), c - a, draws);
+    for (effect, quantity) in fit.group_time.iter_mut().zip(&cells.quantities) {
+        effect.attach_posterior(quantity.as_ref());
+    }
+    if c < width {
+        let leads = summarize_posterior(&block_draws(&raw, c..width), width - c, draws);
+        for (effect, quantity) in fit.leads.iter_mut().zip(&leads.quantities) {
+            effect.attach_posterior(quantity.as_ref());
+        }
+        fit.pretrend_max_abs_t = leads
+            .quantities
+            .iter()
+            .flatten()
+            .filter(|quantity| quantity.sd > 0.0)
+            .map(|quantity| (quantity.mean / quantity.sd).abs())
+            .reduce(f64::max);
+        fit.pretrend_band_covers_zero = leads.critical_value.map(|_| {
+            fit.leads
+                .iter()
+                .all(|lead| lead.band.is_none_or(|band| band[0] <= 0.0 && band[1] >= 0.0))
+        });
+    }
+    let complete: Vec<&Vec<f64>> =
+        raw.iter().flatten().filter(|draw| draw.iter().all(|value| value.is_finite())).collect();
+    let mut labels = vec!["att".to_string()];
+    labels
+        .extend(layout.aggregate.iter().map(|key| format!("{}_{key}", spec.aggregation.as_str())));
+    labels.extend(layout.cells.iter().map(|(group, period)| format!("att_g{group}_t{period}")));
+    labels.extend(layout.leads.iter().map(|event| format!("lead_e{event}")));
+    let columns = labels
+        .into_iter()
+        .enumerate()
+        .map(|(k, label)| {
+            let column = complete.iter().map(|draw| draw[k]).collect();
+            (label, column)
+        })
+        .collect();
+    fit.resampling = Some(RolloutResampleRecord {
+        weighting: UnitWeighting::Multiplier,
+        requested: draws,
+        replicates_ok: aggregate.draws_ok,
+        replicates_failed: aggregate.draws_failed,
+        critical_value: aggregate.critical_value,
+    });
+    Ok(RolloutDidPosterior { fit, columns, requested: draws, draws_ok: aggregate.draws_ok })
 }
 
 /// The fixed order of every quantity of the point evaluation in a replicate vector.

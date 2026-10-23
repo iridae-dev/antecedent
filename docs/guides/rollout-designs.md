@@ -56,7 +56,13 @@ The augmented panel with supplied nuisance predictions accepts the same resample
 interval holds the supplied predictions fixed, so their own estimation error is not
 propagated.
 
-The Bayesian panel DiD refuses the rollout designs and names the frequentist route.
+**Bayesian counterpart.** Under Bayesian inference the rollout designs return a Bayesian
+bootstrap posterior. Each draw puts flat-Dirichlet weights on the independent units (whole
+clusters, or whole subjects under `independent_subject_trajectories`; never rows) and refits
+every group-time cell, nuisance model and aggregation. The draws are therefore joint across
+cells and aggregations. The payload reports posterior means with equal-tailed credible
+intervals and simultaneous credible bands; the posterior carries the draws. `n_draws` sets the
+number of draws, and a frequentist resample declared beside it is refused.
 
 ## Synthetic control with intervals
 
@@ -71,7 +77,10 @@ The Bayesian panel DiD refuses the rollout designs and names the frequentist rou
   post-period-weighted average across units. Its interval comes from the placebo variance:
   the adoptions are reassigned to never-treated units and the procedure is refit.
 - **Bayesian:** with staggered adoptions, `bayesian.synthetic_control` averages the per-unit
-  simplex posteriors. It refuses the conformal declaration.
+  simplex posteriors. With the conformal declaration it reports the posterior predictive
+  interval of the effect at each post period and of their average. This is a different object
+  from the conformal set: a model-based predictive interval for the counterfactual path, not a
+  permutation guarantee.
 
 ## Local ratio design layer and RD in time
 
@@ -86,5 +95,6 @@ The Bayesian panel DiD refuses the rollout designs and names the frequentist rou
   variable is time. The interval then comes from a within-side moving-block bootstrap that
   refits the whole ratio.
 
-The Bayesian local ratio reads a selected bandwidth and refuses a calendar-time running
-variable.
+The Bayesian local ratio reads a selected bandwidth. With a calendar-time running variable it
+runs a within-side block Bayesian bootstrap: flat-Dirichlet weights on consecutive time blocks,
+with the whole ratio refit per draw.

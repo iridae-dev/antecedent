@@ -162,13 +162,96 @@ def test_mse_optimal_fuzzy_rd_with_a_density_test_recovers_the_effect():
     assert bandwidth is not None and 0.0 < bandwidth <= 1.0
 
 
-def test_a_bayesian_rollout_request_is_refused_naming_the_next_attempt():
+def _bayes(n_draws: int = 400) -> object:
+    return antecedent.Bayesian(backend="conjugate", n_draws=n_draws)
+
+
+def test_bayesian_rollout_is_a_whole_unit_bayesian_bootstrap_beside_the_posterior():
+    query = StaggeredRollout("y", "unit", "period", "cohort", aggregation="dynamic")
+    result = antecedent.analyze(_staggered_panel(), query=query, inference=_bayes())
+    assert result.posterior is not None
+    rollout = result.quasi_rollout
+    assert isinstance(rollout, QuasiRolloutEstimate)
+    assert rollout.uncertainty.startswith("bayesian_")
+    assert rollout.licensed is False and rollout.calibration == "unmeasured"
+    overall = rollout.overall
+    assert overall is not None and overall.interval is not None
+    # Dynamic summary: the mean of the post event-time effects 0, 3, 6, 9.
+    assert overall.estimate == pytest.approx(4.5, abs=0.5)
+    assert overall.interval[0] < overall.estimate < overall.interval[1]
+    banded = [effect for effect in rollout.effects if effect.band is not None]
+    assert banded
+    for effect in banded:
+        assert effect.interval is not None
+        assert effect.band[0] <= effect.interval[0] <= effect.interval[1] <= effect.band[1]
+    assert result.answer.kind == "structured"
+    loaded = antecedent.load(result.export())
+    assert loaded.quasi_rollout == rollout
+    assert loaded.answer == result.answer
+
+
+def test_bayesian_rollout_refuses_a_frequentist_resample_naming_the_next_attempt():
+    query = StaggeredRollout(
+        "y", "unit", "period", "cohort", resampling="cluster_bootstrap", replicates=99
+    )
     with pytest.raises(CausalError, match="Next attempt"):
-        antecedent.analyze(
-            _staggered_panel(),
-            query=StaggeredRollout("y", "unit", "period", "cohort"),
-            inference=antecedent.Bayesian(backend="conjugate", n_draws=2000),
-        )
+        antecedent.analyze(_staggered_panel(), query=query, inference=_bayes())
+
+
+def test_bayesian_conformal_synthetic_control_reports_posterior_predictive_periods():
+    rng = np.random.default_rng(7)
+    rows: dict[str, list[object]] = {"y": [], "unit": [], "period": []}
+    for period in range(1, 46):
+        donors = [float(j) + rng.normal() for j in range(10)]
+        for j, value in enumerate(donors):
+            rows["y"].append(value)
+            rows["unit"].append(f"donor{j:02d}")
+            rows["period"].append(period)
+        treated = 0.5 * donors[3] + 0.3 * donors[4] + 0.2 * donors[5] + 0.5 * rng.normal()
+        rows["y"].append(treated + (3.0 if period >= 41 else 0.0))
+        rows["unit"].append("treated")
+        rows["period"].append(period)
+    query = SyntheticControl("y", "unit", "period", "treated", 41, conformal=True)
+    result = antecedent.analyze(rows, query=query, inference=_bayes())
+    assert result.posterior is not None
+    rollout = result.quasi_rollout
+    assert isinstance(rollout, QuasiRolloutEstimate)
+    assert rollout.design == "posterior_predictive_synthetic_control"
+    periods = rollout.effects_of("period")
+    assert len(periods) == 5
+    assert all(effect.interval is not None for effect in periods)
+
+
+def _ar1_running_time_rd(seed: int = 21, n: int = 600) -> dict[str, np.ndarray]:
+    """Calendar time is the running variable; errors are AR(1) with coefficient 0.8."""
+    rng = np.random.default_rng(seed)
+    running = np.arange(n) / (n / 2) - 1.0
+    uptake = (rng.uniform(size=n) < 0.2 + 0.6 * (running >= 0.0)).astype(float)
+    noise = np.empty(n)
+    noise[0] = rng.normal() / np.sqrt(1.0 - 0.8**2)
+    for t in range(1, n):
+        noise[t] = 0.8 * noise[t - 1] + rng.normal()
+    outcome = 1.0 + 0.5 * running + 2.0 * uptake + noise
+    return {"y": outcome, "t": uptake, "x": running}
+
+
+def test_bayesian_temporal_fuzzy_rd_widens_beyond_the_independent_row_error():
+    data = _ar1_running_time_rd()
+    query = FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0, temporal_replicates=199)
+    frequentist = antecedent.analyze(data, query=query).quasi_rollout
+    bayesian = antecedent.analyze(data, query=query, inference=_bayes())
+    assert bayesian.posterior is not None
+    rollout = bayesian.quasi_rollout
+    assert isinstance(rollout, QuasiRolloutEstimate) and isinstance(
+        frequentist, QuasiRolloutEstimate
+    )
+    assert rollout.design == "temporal_fuzzy_rd"
+    assert rollout.uncertainty.startswith("bayesian_")
+    assert rollout.diagnostic("block_length") is not None
+    posterior_sd = rollout.diagnostic("posterior_sd")
+    independent = frequentist.diagnostic("hc0_ratio_standard_error")
+    assert posterior_sd is not None and independent is not None
+    assert posterior_sd > 1.3 * independent
 
 
 def test_rollout_queries_validate_their_options():

@@ -242,19 +242,48 @@ fn covariate_adjusted_two_period_did_recovers_the_effect_under_conditional_trend
 }
 
 #[test]
-fn a_bayesian_rollout_is_refused_with_the_next_attempt() {
-    let (data, units, periods, cohorts) = staggered(5, 30, 0.0);
+fn the_bayesian_rollout_is_a_joint_bayesian_bootstrap_posterior_with_credible_bands() {
+    let (data, units, periods, cohorts) = staggered(5, 80, 0.1);
     let query = rollout_query(
         &units,
         &periods,
         &cohorts,
-        robust(RolloutDidEstimator::CallawaySantAnna, DidAggregation::Simple),
+        robust(RolloutDidEstimator::CallawaySantAnna, DidAggregation::Dynamic),
     );
-    let error = Study::tabular(data.clone())
-        .query(query)
-        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200)))
+    let ctx = ExecutionContext::for_tests(1);
+    let prepared = Study::tabular(data.clone())
+        .query(query.clone())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400)))
         .build()
-        .and_then(|study| study.run(&ExecutionContext::for_tests(1)))
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.logical_plan.plan_id.as_ref(), "bayesian.panel_did");
+    assert_eq!(result.support_status, None);
+    let posterior = result.posterior.as_ref().unwrap();
+    assert!(posterior.draws.n_draws >= 380);
+    let rollout = result.quasi_rollout().unwrap();
+    assert!(rollout.uncertainty.starts_with("bayesian_"));
+    assert_eq!(rollout.calibration.as_ref(), "unmeasured");
+    let overall = rollout.overall().unwrap();
+    assert!((overall.estimate - 4.5).abs() < 0.5, "{}", overall.estimate);
+    for effect in rollout.effects.iter().filter(|effect| effect.kind == DesignEffectKind::EventTime)
+    {
+        let (interval, band) = (effect.interval.unwrap(), effect.band.unwrap());
+        assert!(band[0] <= interval[0] && band[1] >= interval[1]);
+        assert!(effect.standard_error.is_none());
+    }
+    // The Bayesian section round-trips beside its posterior.
+    let bytes = prepared.encode_contracted_result(&result, "bayesian-rollout", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert!(body.quasi_rollout.is_some() && body.posterior_artifact.is_some());
+    // A frequentist resample declared under Bayes is refused naming the next attempt.
+    let error = Study::tabular(data)
+        .query(query.with_resampling(DidResamplingScheme::ClusterBootstrap, 99))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400)))
+        .build()
+        .and_then(|study| study.run(&ctx))
         .unwrap_err()
         .to_string();
     assert!(error.contains("Next attempt"), "{error}");
@@ -368,14 +397,24 @@ fn conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_r
         &result,
         "post_period_residuals_exchangeable_with_pre_period_residuals"
     ));
-    let error = Study::tabular(data)
+    // The Bayesian counterpart is the posterior predictive interval of the counterfactual path.
+    let bayesian = Study::tabular(data)
         .query(query)
-        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200)))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(2000)))
         .build()
         .and_then(|study| study.run(&ctx))
-        .unwrap_err()
-        .to_string();
-    assert!(error.contains("Next attempt"), "{error}");
+        .unwrap();
+    let predictive = bayesian.quasi_rollout().unwrap();
+    assert_eq!(predictive.design.as_ref(), "posterior_predictive_synthetic_control");
+    assert!(bayesian.posterior.is_some());
+    let periods: Vec<_> = predictive
+        .effects
+        .iter()
+        .filter(|effect| effect.kind == DesignEffectKind::Period)
+        .collect();
+    assert_eq!(periods.len(), 5);
+    assert!(periods.iter().all(|effect| effect.interval.is_some()));
+    assert!((predictive.overall().unwrap().estimate - 3.0).abs() < 1.0);
 }
 
 #[test]
@@ -530,6 +569,19 @@ fn a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_desi
     assert!(block_se > 1.3 * rollout.diagnostic("hc0_ratio_standard_error").unwrap());
     assert!((overall.estimate - 1.0).abs() < 4.0 * block_se);
     assert!(has_assumption(&result, "no_concurrent_discontinuity_at_the_cutoff_date"));
+    let bayesian = Study::tabular(data.clone())
+        .query(query.clone())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400)))
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(3))
+        .unwrap();
+    let posterior_rollout = bayesian.quasi_rollout().unwrap();
+    assert_eq!(posterior_rollout.design.as_ref(), "temporal_fuzzy_rd");
+    assert!(posterior_rollout.uncertainty.starts_with("bayesian_"));
+    let posterior_sd = posterior_rollout.diagnostic("posterior_sd").unwrap();
+    assert!(posterior_sd > 1.3 * rollout.diagnostic("hc0_ratio_standard_error").unwrap());
+    assert!((posterior_rollout.overall().unwrap().estimate - 1.0).abs() < 4.0 * posterior_sd);
     let refused = Study::tabular(data)
         .query(query)
         .sampling_design(antecedent_core::DeclaredSamplingDesign::ClusteredPanel)

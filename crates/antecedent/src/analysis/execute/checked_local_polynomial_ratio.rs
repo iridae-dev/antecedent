@@ -74,14 +74,6 @@ impl CheckedLocalPolynomialRatioOperation {
             }
         };
         if let Some(options) = &query.options {
-            if bayesian.is_some() && options.temporal_replicates.is_some() {
-                return Err(super::bayesian_quasi_common::unread_option(
-                    "the Bayesian local ratio",
-                    "a calendar-time running variable, whose serially dependent rows the local \
-                     Gaussian likelihood does not model",
-                    "the frequentist temporal local ratio with its within-side block bootstrap",
-                ));
-            }
             match (options.temporal_replicates.is_some(), study.sampling_design) {
                 (
                     true,
@@ -164,6 +156,15 @@ impl CheckedLocalPolynomialRatioOperation {
                 }),
             }
         };
+        if let (Some(config), true) = (
+            &self.extra,
+            self.query
+                .options
+                .as_ref()
+                .is_some_and(|options| options.temporal_replicates.is_some()),
+        ) {
+            return self.execute_bayesian_temporal(data, config, ctx);
+        }
         if let Some(config) = &self.extra {
             let sample = antecedent_estimate::bayesian_local_ratio::LocalRatioSample {
                 running: column(self.query.running)?,

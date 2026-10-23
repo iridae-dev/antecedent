@@ -6,7 +6,12 @@
 //! licence row covers only the declared-bandwidth independent-row route.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::super::rollout_finish::{RolloutReport, finish_rollout, named};
+use super::super::bayesian_quasi_common::{
+    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior,
+};
+use super::super::rollout_finish::{
+    RolloutPayloadParts, RolloutReport, finish_rollout, named, rollout_payload,
+};
 use super::{
     CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, StudyResult,
     TableView, TabularData,
@@ -103,6 +108,123 @@ impl super::CheckedLocalPolynomialRatioOperation {
         )
         .map_err(CausalError::Estimate)?;
         Ok(finish_rollout(self, data, self.query.outcome, self.design_report(&fit)))
+    }
+
+    /// The within-side block Bayesian-bootstrap posterior of a local ratio in calendar time.
+    pub(super) fn execute_bayesian_temporal(
+        &self,
+        data: &TabularData,
+        config: &super::BayesianConfig,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = std::time::Instant::now();
+        let column = |id| -> Result<&[f64], CausalError> {
+            match data.column(id).map_err(CausalError::from)? {
+                antecedent_data::ColumnView::Float64(column) => Ok(column.values.as_slice()),
+                _ => Err(CausalError::Unsupported {
+                    message: "local ratio requires continuous columns",
+                }),
+            }
+        };
+        let columns = LocalRatioColumns {
+            running: column(self.query.running)?,
+            outcome: column(self.query.outcome)?,
+            treatment: column(self.query.treatment)?,
+        };
+        let bandwidth = if self
+            .query
+            .options
+            .as_ref()
+            .is_some_and(|options| options.bandwidth_rule == LocalBandwidthRule::MseOptimal)
+        {
+            selected_bandwidth(&self.query, &columns, ctx)?
+        } else {
+            self.query.bandwidth
+        };
+        let draws = u32::try_from(config.n_draws).unwrap_or(u32::MAX);
+        let posterior = antecedent_estimate::local_ratio_design::posterior_temporal_local_ratio(
+            &columns,
+            self.query.cutoff,
+            bandwidth,
+            self.query.kink,
+            draws,
+            ctx,
+        )
+        .map_err(CausalError::Estimate)?;
+        let label = if self.query.kink { "regression_kink" } else { "fuzzy_rd" };
+        let summary = posterior.summary;
+        let overall = DesignEffect {
+            interval: Some(summary.interval),
+            ..DesignEffect::point(DesignEffectKind::Overall, summary.mean)
+        };
+        let design = DesignPosterior {
+            columns: vec![(effect_quantity("local_ratio"), posterior.draws.clone())],
+            point: summary.mean,
+            point_sd: summary.sd,
+            n_obs: columns.running.len() as u64,
+            interval_withheld: false,
+            backend: "bayesian_bootstrap.within_side_block_dirichlet",
+            model: format!(
+                "within-side block Bayesian bootstrap: flat-Dirichlet weights on consecutive \
+                 blocks of {} time-ordered rows refit the robust bias-corrected local ratio per \
+                 draw; serial dependence within a block is kept, across block boundaries it is \
+                 ignored",
+                posterior.block_length
+            ),
+            assumptions: vec![(
+                "bayesian_block_bootstrap_serial_dependence",
+                "serial dependence near the cutoff is shorter than a block, and blocks are \
+                 exchangeable draws within each side"
+                    .to_string(),
+            )],
+            diagnostics: vec![Diagnostic::new(
+                "estimate.quasi.bayesian_local_ratio.temporal_blocks",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "{label} in calendar time at bandwidth {bandwidth}; {} of {} block \
+                     Bayesian-bootstrap draws produced a finite ratio; unlicensed and \
+                     uncalibrated",
+                    posterior.draws_ok, posterior.requested
+                ),
+            )],
+            notes: vec![format!("block_length={}", posterior.block_length)],
+            sampler: None,
+        };
+        let mut result = finish_design_posterior(
+            DesignFinish {
+                context: &self.result_context,
+                data,
+                physical: &self.physical,
+                identification: &self.identification,
+                estimand: &self.estimand,
+                outcome: self.query.outcome,
+                config,
+                started,
+            },
+            design,
+        )?;
+        result.payload = rollout_payload(RolloutPayloadParts {
+            design: if self.query.kink { "temporal_regression_kink" } else { "temporal_fuzzy_rd" },
+            method: format!(
+                "local_{}_rbc.within_side_block_bayesian_bootstrap",
+                if self.query.kink { "quartic_slope" } else { "quadratic_cubic" }
+            ),
+            effects: vec![overall],
+            uncertainty: "bayesian_within_side_block_bootstrap_credible_interval",
+            replicates: [
+                posterior.requested,
+                posterior.draws_ok,
+                posterior.requested.saturating_sub(posterior.draws_ok),
+            ],
+            critical_value: None,
+            diagnostics: named(&[
+                ("bandwidth", bandwidth),
+                ("block_length", posterior.block_length as f64),
+                ("posterior_sd", summary.sd),
+            ]),
+        });
+        Ok(result)
     }
 
     fn design_report(&self, fit: &LocalRatioDesignFit) -> RolloutReport {

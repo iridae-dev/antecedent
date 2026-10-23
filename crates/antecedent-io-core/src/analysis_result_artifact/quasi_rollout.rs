@@ -148,6 +148,7 @@ fn design_matches(design: &str, query: &CausalQueryWire) -> bool {
                 && matches!(
                     design,
                     "conformal_synthetic_control"
+                        | "posterior_predictive_synthetic_control"
                         | "multi_unit_synthetic_control"
                         | "multi_unit_synthetic_did"
                 )
@@ -174,13 +175,22 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
     if !design_matches(&rollout.design, &result.query) {
         return fail("the design does not belong to the query");
     }
+    // A Bayesian rollout section rides beside its posterior; a frequentist one has none and
+    // publishes no scalar standard error.
+    let bayesian = rollout.uncertainty.starts_with("bayesian_");
+    if bayesian != result.posterior_artifact.is_some() {
+        return fail("a Bayesian rollout section needs its posterior, a frequentist one none");
+    }
     if rollout.licensed
         || rollout.calibration != "unmeasured"
-        || result.standard_error.is_some()
+        || (!bayesian && result.standard_error.is_some())
         || result.interval_lower.is_some()
         || result.interval_upper.is_some()
     {
         return fail("a rollout result claims no licence, calibration or scalar interval");
+    }
+    if bayesian && rollout.effects.iter().any(|effect| effect.standard_error.is_some()) {
+        return fail("a credible interval carries no normal-interval standard error");
     }
     let Some(overall) = rollout.effects.first() else {
         return fail("the scalar summary is missing");

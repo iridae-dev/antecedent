@@ -61,18 +61,6 @@ pub(super) fn refuse_unread_options(
              without augmentation",
         ));
     }
-    if query
-        .rollout
-        .as_ref()
-        .is_some_and(|rollout| rollout.interval == antecedent_core::SyntheticInterval::Conformal)
-    {
-        return Err(unread_option(
-            route,
-            "a conformal interval, which inverts a frequentist permutation test",
-            "the frequentist conformal synthetic control, or the Bayesian simplex posterior \
-             without the conformal declaration",
-        ));
-    }
     Ok(())
 }
 

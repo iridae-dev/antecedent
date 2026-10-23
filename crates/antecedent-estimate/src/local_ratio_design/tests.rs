@@ -183,3 +183,72 @@ fn a_discontinuity_in_time_gets_a_dependence_preserving_interval() {
     assert!((serial.fit.estimate - 1.0).abs() < 4.0 * block_se, "{}", serial.fit.estimate);
     assert!(temporal.replicates_ok >= 190);
 }
+
+#[test]
+fn the_block_bayesian_bootstrap_posterior_widens_for_serial_dependence() {
+    let sample = in_time(45);
+    let serial = super::posterior_temporal_local_ratio(
+        &sample.columns(),
+        1000.0,
+        300.0,
+        false,
+        400,
+        &ExecutionContext::for_tests(2),
+    )
+    .unwrap();
+    let parallel = super::posterior_temporal_local_ratio(
+        &sample.columns(),
+        1000.0,
+        300.0,
+        false,
+        400,
+        &ExecutionContext::production(2, 4),
+    )
+    .unwrap();
+    assert_eq!(serial, parallel);
+    let independent = crate::local_polynomial_ratio::fit_local_polynomial_ratio(
+        &sample.running,
+        &sample.outcome,
+        &sample.treatment,
+        1000.0,
+        300.0,
+        false,
+    )
+    .unwrap();
+    assert!(
+        serial.summary.sd > 1.3 * independent.standard_error,
+        "{} vs {}",
+        serial.summary.sd,
+        independent.standard_error
+    );
+    assert!((serial.summary.mean - 1.0).abs() < 4.0 * serial.summary.sd);
+    let interval = serial.summary.interval;
+    assert!(interval[0] < serial.summary.mean && serial.summary.mean < interval[1]);
+    assert!(serial.draws_ok >= 380);
+}
+
+#[test]
+fn unit_row_weights_reproduce_the_unweighted_fit_exactly() {
+    let sample = fuzzy(46, 2000);
+    let ones = vec![1.0; sample.running.len()];
+    let weighted = crate::local_polynomial_ratio::fit_weighted_local_polynomial_ratio(
+        &sample.running,
+        &sample.outcome,
+        &sample.treatment,
+        &ones,
+        0.0,
+        0.8,
+        false,
+    )
+    .unwrap();
+    let plain = crate::local_polynomial_ratio::fit_local_polynomial_ratio(
+        &sample.running,
+        &sample.outcome,
+        &sample.treatment,
+        0.0,
+        0.8,
+        false,
+    )
+    .unwrap();
+    assert_eq!(weighted, plain);
+}
