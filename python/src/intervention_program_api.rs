@@ -12,15 +12,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use antecedent::SimulationOutcome;
 use antecedent::gcm::{
     PolicySupport, PolicyValue, PreparedPolicy, RouteDecision, TemporalPlan,
     counterfactual_policy as facade_counterfactual_policy,
     counterfactual_temporal_policy as facade_counterfactual_temporal_policy,
-    policy_support as facade_policy_support, policy_value as facade_policy_value,
-    sample_do as facade_sample_do, sample_temporal_policy as facade_sample_temporal_policy,
+    policy_support as facade_policy_support,
+    sample_temporal_policy as facade_sample_temporal_policy,
 };
 use antecedent_core::{
-    CausalRng, Intervention, InterventionSequence, SequencedIntervention, TemporalPolicy,
+    CausalRng, Intervention, InterventionSequence, SequencedIntervention, SimulationTarget,
+    TemporalPolicy,
 };
 use antecedent_data::TableView;
 use antecedent_io::IoError;
@@ -30,6 +32,7 @@ use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyDictMethods};
 
+use crate::compiled_route_api::outcome_mismatch;
 use crate::gcm_api::{PyFittedGcm, value_batch_to_sample_result};
 use crate::{
     GcmSampleResult, detach_catch, py_err, py_execution_context, py_msg, refusal,
@@ -65,13 +68,23 @@ fn run_sample(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<GcmSampleResult> {
-    let inner = Arc::clone(&fitted.inner);
-    let batch = detach_catch(py, move || {
+    let source = fitted.source();
+    let (batch, route) = detach_catch(py, move || {
         let ctx = py_execution_context(seed, resolve_user_threads(threads));
-        let mut rng = CausalRng::from_seed(seed);
-        facade_sample_do(&inner.model, &interventions, n, &mut rng, &ctx).map_err(py_err)
+        let target = SimulationTarget::InterventionalSample {
+            interventions: Arc::from(interventions),
+            draws: n,
+            seed,
+        };
+        let (outcome, route) = source.simulate(target, &ctx)?;
+        let SimulationOutcome::Sample(batch) = outcome else {
+            return Err(outcome_mismatch());
+        };
+        Ok((batch, route))
     })?;
-    value_batch_to_sample_result(py, batch)
+    let mut result = value_batch_to_sample_result(py, batch)?;
+    result.route = Some(route);
+    Ok(result)
 }
 
 fn run_counterfactual<'py>(
@@ -163,11 +176,21 @@ fn run_value<'py>(
     threads: Option<u32>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let id = fitted.data.schema().id_of(outcome).map_err(py_err)?;
-    let inner = Arc::clone(&fitted.inner);
-    let value = detach_catch(py, move || {
+    let source = fitted.source();
+    let (value, route) = detach_catch(py, move || {
         let ctx = py_execution_context(seed, resolve_user_threads(threads));
-        facade_policy_value(&inner.model, &interventions, id, n, &ctx).map_err(py_err)
+        let target = SimulationTarget::PolicyValue {
+            interventions: Arc::from(interventions),
+            outcome: id,
+            draws: n,
+        };
+        let (outcome, route) = source.simulate(target, &ctx)?;
+        let SimulationOutcome::PolicyValue(value) = outcome else {
+            return Err(outcome_mismatch());
+        };
+        Ok((value, route))
     })?;
+    fitted.record(route);
     value_dict(py, outcome, &value)
 }
 

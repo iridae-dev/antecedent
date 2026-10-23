@@ -6,10 +6,73 @@
     clippy::empty_line_after_doc_comments
 )]
 
+use crate::compiled_route_api::{ModelSource, RouteRecord, outcome_mismatch};
 use crate::*;
+use antecedent::{AttributionOutcome, MechanismProgram, SimulationOutcome};
+use antecedent_core::{AnomalyAttributionQuery, AttributeTarget, ChangeEstimator, ChangeMeasure};
+use antecedent_core::{MechanismChangeTest, SimulationTarget};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
+
+/// The standard mechanism program fitted on `edges` over `data`, as a compiled route runs it.
+fn model_source(
+    data: antecedent_data::TabularData,
+    edges: &[(String, String)],
+) -> PyResult<ModelSource> {
+    Ok(ModelSource {
+        dag: dag_from_named_edges(data.schema(), edges)?,
+        data: Arc::new(data),
+        accepted: None,
+        program: MechanismProgram::standard(),
+    })
+}
+
+/// The change attribution of a compiled route, with the route attached.
+fn change_of(
+    outcome: AttributionOutcome,
+    route: RouteRecord,
+    names: &[String],
+) -> PyResult<gcm_api::ChangeAttributionResult> {
+    match outcome {
+        AttributionOutcome::Change(result) => {
+            Ok(gcm_api::change_result_from_rust(result, names).with_route(route))
+        }
+        _ => Err(outcome_mismatch()),
+    }
+}
+
+/// Column means of a draw batch, its shape and its flat values.
+fn sample_parts(samples: &antecedent_model::ValueBatch) -> (Vec<f64>, usize, usize, Vec<f64>) {
+    let mut means = Vec::with_capacity(samples.n_nodes);
+    for i in 0..samples.n_nodes {
+        let start = i * samples.n_rows;
+        let col = &samples.values[start..start + samples.n_rows];
+        let m = col.iter().sum::<f64>() / col.len().max(1) as f64;
+        means.push(m);
+    }
+    (means, samples.n_rows, samples.n_nodes, samples.values.as_ref().to_vec())
+}
+
+/// Interventional draws of `iv` through the compiled simulation route on `source`.
+fn sample_route(
+    source: &ModelSource,
+    iv: Intervention,
+    n_draws: usize,
+    seed: u64,
+    ctx: &ExecutionContext,
+) -> PyResult<((Vec<f64>, usize, usize, Vec<f64>), RouteRecord)> {
+    let target = SimulationTarget::InterventionalSample {
+        interventions: Arc::from([iv]),
+        draws: n_draws,
+        seed,
+    };
+    let (outcome, route) = source.simulate(target, ctx)?;
+    let SimulationOutcome::Sample(samples) = outcome else {
+        return Err(outcome_mismatch());
+    };
+    Ok((sample_parts(&samples), route))
+}
 
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, treatment, outcome, active, control, *, seed=0, threads=None))]
@@ -27,25 +90,29 @@ fn counterfactual_ite(
 ) -> PyResult<GcmIteResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    let (mean_ite, n_units, noise_inference, n_assignments, unit_vec) =
+    let (mean_ite, n_units, noise_inference, n_assignments, unit_vec, route) =
         detach_catch(py, move || {
             let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
             let data = loaded.data;
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let g = dag_from_named_edges(data.schema(), &edges)?;
-            let fitted = fit_gcm(g, &data).map_err(py_err)?;
-            let n_assignments = fitted.assignments.len();
+            let source = model_source(data, &edges)?;
             let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-            let ite =
-                facade_counterfactual_ite(fitted.model, &data, t_id, y_id, active, control, &ctx)
-                    .map_err(py_err)?;
+            let target =
+                SimulationTarget::UnitEffects { treatment: t_id, outcome: y_id, active, control };
+            let (outcome, route) = source.simulate(target, &ctx)?;
+            let SimulationOutcome::UnitEffects(ite) = outcome else {
+                return Err(outcome_mismatch());
+            };
+            let n_assignments =
+                route.execution.result().simulation().map_or(0, |payload| payload.mechanisms.len());
             Ok::<_, PyErr>((
                 ite.mean_ite,
                 ite.unit_effects.len(),
                 format!("{:?}", ite.noise_inference),
                 n_assignments,
                 ite.unit_effects.as_ref().to_vec(),
+                route,
             ))
         })?;
     Ok(GcmIteResult {
@@ -54,6 +121,7 @@ fn counterfactual_ite(
         noise_inference,
         n_assignments,
         unit_effects: PyArray1::from_vec(py, unit_vec).unbind(),
+        route: Some(route),
     })
 }
 
@@ -81,39 +149,35 @@ fn sample_do_py(
     drop(columns);
     let wrappers = mechanism_wrappers.map(Bound::unbind);
     let threads = if wrappers.is_some() { Some(1) } else { threads };
-    let (means, n_rows, n_nodes, flat) = detach_catch(py, move || {
+    let ((means, n_rows, n_nodes, flat), route) = detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let g = dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        let model = if let Some(w) = wrappers {
-            Python::attach(|py| {
-                let dict = w.bind(py);
-                callbacks::apply_mechanism_wrappers(&fitted.model, &names, dict)
-            })?
-        } else {
-            fitted.model
-        };
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let mut rng = CausalRng::from_seed(seed);
         let iv = if shift {
             Intervention::shift(t_id, Value::f64(do_value))
         } else {
             Intervention::set(t_id, Value::f64(do_value))
         };
+        let Some(w) = wrappers else {
+            let source = model_source(data, &edges)?;
+            let (parts, route) = sample_route(&source, iv, n_draws, seed, &ctx)?;
+            return Ok::<_, PyErr>((parts, Some(route)));
+        };
+        // Python mechanism wrappers replace fitted mechanisms with caller code, which no
+        // compiled mechanism program states; this slow path samples the wrapped model directly.
+        let g = dag_from_named_edges(data.schema(), &edges)?;
+        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let model = Python::attach(|py| {
+            let dict = w.bind(py);
+            callbacks::apply_mechanism_wrappers(&fitted.model, &names, dict)
+        })?;
+        let mut rng = CausalRng::from_seed(seed);
         let samples = facade_sample_do(&model, &[iv], n_draws, &mut rng, &ctx).map_err(py_err)?;
-        let mut means = Vec::with_capacity(samples.n_nodes);
-        for i in 0..samples.n_nodes {
-            let start = i * samples.n_rows;
-            let col = &samples.values[start..start + samples.n_rows];
-            let m = col.iter().sum::<f64>() / col.len().max(1) as f64;
-            means.push(m);
-        }
-        Ok::<_, PyErr>((means, samples.n_rows, samples.n_nodes, samples.values.as_ref().to_vec()))
+        Ok((sample_parts(&samples), None))
     })?;
     let draws = PyArray1::from_vec(py, flat).reshape([n_nodes, n_rows])?.unbind();
-    Ok(GcmSampleResult { column_means: means, n_draws: n_rows, n_nodes, draws })
+    Ok(GcmSampleResult { column_means: means, n_draws: n_rows, n_nodes, draws, route })
 }
 
 /// Sample an interventional distribution via [`InterventionalDistributionQuery`].
@@ -138,7 +202,7 @@ fn sample_interventional_distribution(
 ) -> PyResult<GcmSampleResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
-    let (means, n_rows, n_nodes, flat) = detach_catch(py, move || {
+    let ((means, n_rows, n_nodes, flat), route) = detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -147,35 +211,21 @@ fn sample_interventional_distribution(
             None => names.last().map_or("y", String::as_str),
         };
         let y_id = data.schema().id_of(y_name).map_err(py_err)?;
-        let g = dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let iv = if shift {
             Intervention::shift(t_id, Value::f64(do_value))
         } else {
             Intervention::set(t_id, Value::f64(do_value))
         };
-        let query = InterventionalDistributionQuery::new(y_id, [iv]);
+        // The interventional distribution of `y_id` is read off the interventional sample of
+        // its interventions; the outcome only has to name a column.
+        let _ = y_id;
+        let source = model_source(data, &edges)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let mut rng = CausalRng::from_seed(seed);
-        let samples = facade_sample_interventional_distribution(
-            &fitted.model,
-            &query,
-            n_draws,
-            &mut rng,
-            &ctx,
-        )
-        .map_err(py_err)?;
-        let mut means = Vec::with_capacity(samples.n_nodes);
-        for i in 0..samples.n_nodes {
-            let start = i * samples.n_rows;
-            let col = &samples.values[start..start + samples.n_rows];
-            let m = col.iter().sum::<f64>() / col.len().max(1) as f64;
-            means.push(m);
-        }
-        Ok::<_, PyErr>((means, samples.n_rows, samples.n_nodes, samples.values.as_ref().to_vec()))
+        sample_route(&source, iv, n_draws, seed, &ctx)
     })?;
     let draws = PyArray1::from_vec(py, flat).reshape([n_nodes, n_rows])?.unbind();
-    Ok(GcmSampleResult { column_means: means, n_draws: n_rows, n_nodes, draws })
+    let route = Some(route);
+    Ok(GcmSampleResult { column_means: means, n_draws: n_rows, n_nodes, draws, route })
 }
 
 /// Path-specific contribution via [`PathSpecificEffectQuery`] / `path_decompose`.
@@ -207,17 +257,17 @@ fn attribute_path_specific(
                 intermediates.push(data.schema().id_of(n).map_err(py_err)?);
             }
         }
-        let g = dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
-            .with_max_paths(max_paths)
-            .with_max_len(max_len);
-        if !intermediates.is_empty() {
-            query = query.with_path_nodes(intermediates);
-        }
+        let source = model_source(data, &edges)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let result = facade_attribute_path_specific(&fitted.model, &query, &ctx).map_err(py_err)?;
-        Ok(gcm_api::change_result_from_rust(result, &names))
+        let target = AttributeTarget::Paths {
+            sources: Arc::from([t_id]),
+            outcome: y_id,
+            max_paths,
+            max_len,
+            through: Arc::from(intermediates),
+        };
+        let (outcome, route) = source.attribute(target, &ctx)?;
+        change_of(outcome, route, &names)
     })
 }
 
@@ -256,8 +306,7 @@ fn attribute_distribution_change(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let g = dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let source = model_source(data, &edges)?;
         let query = ChangeAttributionQuery::new(
             y_id,
             PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
@@ -268,15 +317,16 @@ fn attribute_distribution_change(
             approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
         });
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let opts = DistributionChangeOptions {
-            measure: DifferenceMeasure::MeanDiff,
-            n_samples: n_samples.max(100),
-            seed,
+        let target = AttributeTarget::DistributionChange {
+            change: query,
+            estimator: ChangeEstimator::Sampled {
+                measure: ChangeMeasure::MeanDifference,
+                n_samples: n_samples.max(100),
+                seed,
+            },
         };
-        let result =
-            facade_attribute_distribution_change(&fitted.model, &data, &query, &opts, &ctx)
-                .map_err(py_err)?;
-        Ok(gcm_api::change_result_from_rust(result, &names))
+        let (outcome, route) = source.attribute(target, &ctx)?;
+        change_of(outcome, route, &names)
     })
 }
 
@@ -304,10 +354,13 @@ fn attribute_structure_change(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let g0 = dag_from_named_edges(data.schema(), &baseline_edges)?;
         let g1 = dag_from_named_edges(data.schema(), &comparison_edges)?;
-        let baseline = CompiledCausalModel::compile(g0).map_err(py_err)?;
-        let comparison = CompiledCausalModel::compile(g1).map_err(py_err)?;
+        let comparison: Arc<[(VariableId, VariableId)]> = g1
+            .directed_edge_pairs_sorted()
+            .into_iter()
+            .map(|(from, to)| (VariableId::from_raw(from), VariableId::from_raw(to)))
+            .collect();
+        let source = model_source(data, &baseline_edges)?;
         let query = ChangeAttributionQuery::new(
             y_id,
             PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
@@ -318,15 +371,15 @@ fn attribute_structure_change(
             approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
         });
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let opts = StructureChangeOptions {
-            measure: DifferenceMeasure::MeanDiff,
+        let target = AttributeTarget::StructureChange {
+            change: query,
+            comparison,
+            measure: ChangeMeasure::MeanDifference,
             n_samples: n_samples.max(100),
             seed,
         };
-        let result =
-            facade_attribute_structure_change(&baseline, &comparison, &data, &query, &opts, &ctx)
-                .map_err(py_err)?;
-        Ok(gcm_api::change_result_from_rust(result, &names))
+        let (outcome, route) = source.attribute(target, &ctx)?;
+        change_of(outcome, route, &names)
     })
 }
 
@@ -467,15 +520,18 @@ fn anomaly_attribution(
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
-        let g = dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let outcome_ids: Vec<VariableId> = outcomes
             .iter()
             .map(|n| data.schema().id_of(n).map_err(py_err))
             .collect::<PyResult<_>>()?;
         let max_u = if max_units == 0 { data.row_count() } else { max_units };
-        let scores =
-            facade_anomaly_attribution(&fitted.model, &data, outcome_ids, max_u).map_err(py_err)?;
+        let source = model_source(data, &edges)?;
+        let ctx = py_execution_context(0, crate::resolve_user_threads(None));
+        let target = AttributeTarget::Anomaly(AnomalyAttributionQuery::new(outcome_ids, max_u));
+        let (outcome, _route) = source.attribute(target, &ctx)?;
+        let AttributionOutcome::Anomaly(scores) = outcome else {
+            return Err(outcome_mismatch());
+        };
         Ok(gcm_api::anomaly_scores_from_rust(scores, &names))
     })
 }
@@ -499,13 +555,14 @@ fn attribute_unit_change(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let g = dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let max_u = if max_units == 0 { data.row_count() } else { max_units };
-        let query = UnitChangeQuery::new(y_id, max_u);
-        let result =
-            facade_attribute_unit_change(&fitted.model, &data, &query, &ctx).map_err(py_err)?;
+        let source = model_source(data, &edges)?;
+        let target = AttributeTarget::UnitChange(UnitChangeQuery::new(y_id, max_u));
+        let (outcome, route) = source.attribute(target, &ctx)?;
+        let AttributionOutcome::UnitChange(result) = outcome else {
+            return Err(outcome_mismatch());
+        };
         let pairs: Vec<(antecedent_core::ComponentId, f64)> = result
             .components
             .iter()
@@ -513,7 +570,7 @@ fn attribute_unit_change(
             .map(|(c, v)| (*c, *v))
             .collect();
         let total = result.mean_contributions.iter().map(|x| x.abs()).sum();
-        Ok(gcm_api::synthetic_change_result(y_id, total, pairs, &names))
+        Ok(gcm_api::synthetic_change_result(y_id, total, pairs, &names).with_route(route))
     })
 }
 
@@ -537,8 +594,6 @@ fn attribute_feature_relevance(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let g = dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let mut features = Vec::new();
         for i in 0..data.schema().len() {
@@ -547,17 +602,19 @@ fn attribute_feature_relevance(
                 features.push(id);
             }
         }
-        let scores = facade_attribute_feature_relevance(
-            &fitted.model,
-            &data,
-            y_id,
-            &features,
+        let source = model_source(data, &edges)?;
+        let max_features = features.len();
+        let target = AttributeTarget::FeatureRelevance {
+            outcome: y_id,
+            features: Arc::from(features),
             delta,
             n_samples,
-            features.len(),
-            &ctx,
-        )
-        .map_err(py_err)?;
+            max_features,
+        };
+        let (outcome, _route) = source.attribute(target, &ctx)?;
+        let AttributionOutcome::FeatureRelevance(scores) = outcome else {
+            return Err(outcome_mismatch());
+        };
         Ok(scores
             .into_iter()
             .map(|s| {
@@ -594,8 +651,7 @@ fn attribute_distribution_change_robust(
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let g = dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let source = model_source(data, &edges)?;
         let query = ChangeAttributionQuery {
             outcome: y_id,
             baseline: PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
@@ -614,10 +670,16 @@ fn attribute_distribution_change_robust(
         // above (Shapley `ShapleyConfig`) is the only place these two params can flow.
         let opts = antecedent::gcm::RobustChangeOptions::default();
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let result =
-            facade_attribute_distribution_change_robust(&fitted.model, &data, &query, &opts, &ctx)
-                .map_err(py_err)?;
-        Ok(gcm_api::change_result_from_rust(result, &names))
+        let target = AttributeTarget::DistributionChange {
+            change: query,
+            estimator: ChangeEstimator::Robust {
+                max_rows: opts.max_rows,
+                n_samples: opts.n_samples,
+                seed: opts.seed,
+            },
+        };
+        let (outcome, route) = source.attribute(target, &ctx)?;
+        change_of(outcome, route, &names)
     })
 }
 
@@ -641,8 +703,6 @@ fn mechanism_change_detection(
     detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
-        let g = dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let mut targets = Vec::with_capacity(data.schema().len());
         for i in 0..data.schema().len() {
@@ -655,14 +715,13 @@ fn mechanism_change_detection(
             0.05,
             data.schema().len(),
         );
-        let detected = facade_mechanism_change_detection(
-            &fitted.model,
-            &data,
-            &query,
-            antecedent::gcm::MechanismChangeMethod::MeanDiff,
-            &ctx,
-        )
-        .map_err(py_err)?;
+        let source = model_source(data, &edges)?;
+        let target =
+            AttributeTarget::MechanismChange { query, test: MechanismChangeTest::MeanDifference };
+        let (outcome, _route) = source.attribute(target, &ctx)?;
+        let AttributionOutcome::MechanismChange(detected) = outcome else {
+            return Err(outcome_mismatch());
+        };
         Ok(detected
             .into_iter()
             .map(|d| {

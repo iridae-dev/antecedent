@@ -278,6 +278,55 @@ pub fn distribution_change_with_row_weights(
     distribution_change_with_mechanisms(graph_model, baseline, comparison, query, options, ctx)
 }
 
+/// Evaluate a mechanism attribution after refitting both populations under
+/// frequency weights (multinomial bootstrap counts). A count of zero drops that row
+/// from the refit. Mechanism families are selected once on the unweighted
+/// populations and held fixed, as on the Bayesian-bootstrap path.
+///
+/// # Errors
+/// Counts of the wrong length, negative or all zero, incompatible selected
+/// mechanisms, cancellation, or attribution failures.
+pub fn distribution_change_with_frequency_weights(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &DistributionChangeOptions,
+    baseline_counts: &[f64],
+    comparison_counts: &[f64],
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    validate_distribution_change_query(query)?;
+    let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
+    if baseline_counts.len() != baseline_data.row_count()
+        || comparison_counts.len() != comparison_data.row_count()
+    {
+        return Err(AttributionError::invalid_input(
+            "bootstrap attribution counts must match resolved population sizes",
+        ));
+    }
+    let registry = MechanismRegistry::standard();
+    let (_, baseline_assignments) =
+        registry.assign_and_fit(graph_model, &baseline_data, SelectionPolicy::BestScore)?;
+    let (_, comparison_assignments) =
+        registry.assign_and_fit(graph_model, &comparison_data, SelectionPolicy::BestScore)?;
+    let cancelled = || ctx.cancellation.is_cancelled();
+    let baseline = registry.refit_frequency_weighted_polled(
+        graph_model,
+        &baseline_data,
+        &baseline_assignments,
+        baseline_counts,
+        &cancelled,
+    )?;
+    let comparison = registry.refit_frequency_weighted_polled(
+        graph_model,
+        &comparison_data,
+        &comparison_assignments,
+        comparison_counts,
+        &cancelled,
+    )?;
+    distribution_change_with_mechanisms(graph_model, baseline, comparison, query, options, ctx)
+}
+
 fn distribution_change_with_mechanisms(
     graph_model: &CompiledCausalModel,
     baseline_mechs: CompiledMechanismStore,

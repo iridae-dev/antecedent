@@ -3,13 +3,22 @@
 //! Thin facade over `antecedent-model` / `antecedent-counterfactual` / `antecedent-attribution`
 //! so planners and Python bind once at the library boundary.
 //!
+//! Attribution and simulation on a fitted model are compiled routes: a study with a
+//! [`antecedent_core::CausalQuery::Attribute`] or
+//! [`antecedent_core::CausalQuery::Simulate`] query on a supplied or accepted DAG
+//! fits its mechanisms through a [`crate::MechanismProgram`] (held-out
+//! family selection, with the selection record on the result) and returns the
+//! engine's answer with a [`crate::CausalContract`] and a claim. The `sample_do`,
+//! `policy_value`, `counterfactual_ite`, `anomaly_attribution*`, `attribute_*` and
+//! `rank_root_causes` functions are the engines those routes run; they are hidden
+//! from the public surface.
+//!
 //! # Example
 //!
 //! ```rust,ignore
-//! use antecedent::gcm::{fit_gcm, sample_do};
+//! use antecedent::gcm::fit_gcm;
 //!
 //! let fitted = fit_gcm(dag, &data)?;
-//! let draws = sample_do(&fitted.model, treatment, do_value, n, &mut rng, &ctx)?;
 //! ```
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -689,6 +698,7 @@ pub(crate) fn map_mechanism_fit(e: ModelError) -> CausalError {
 /// # Errors
 ///
 /// Sampling failures.
+#[doc(hidden)]
 pub fn sample_do(
     model: &CompiledCausalModel,
     interventions: &[Intervention],
@@ -860,6 +870,7 @@ pub struct PolicyValue {
 ///
 /// A refused policy, an outcome absent from the model, fewer than two draws, a table over the
 /// context's memory limit, or cancellation.
+#[doc(hidden)]
 pub fn policy_value(
     model: &CompiledCausalModel,
     interventions: &[Intervention],
@@ -1052,6 +1063,7 @@ pub fn sample_temporal_policy(
 /// # Errors
 ///
 /// Abduction / prediction failures.
+#[doc(hidden)]
 pub fn counterfactual_ite(
     model: CompiledCausalModel,
     data: &TabularData,
@@ -1177,6 +1189,7 @@ pub struct UnitEffectIntervals {
 /// # Errors
 ///
 /// Attribution failures.
+#[doc(hidden)]
 pub fn anomaly_attribution(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -1194,6 +1207,7 @@ pub fn anomaly_attribution(
 /// # Errors
 ///
 /// Attribution failures.
+#[doc(hidden)]
 pub fn anomaly_attribution_with(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -1212,6 +1226,7 @@ pub fn anomaly_attribution_with(
 /// # Errors
 ///
 /// Attribution failures.
+#[doc(hidden)]
 pub fn anomaly_attribution_query_with(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -1233,6 +1248,7 @@ pub fn anomaly_attribution_query_with(
 ///
 /// Coded refusals for undeclared or correlated noise, unsupported mechanisms, oversized plans
 /// and invalid settings; model or replay failures; cancellation.
+#[doc(hidden)]
 pub fn attribute_intrinsic_influence(
     model: &CompiledCausalModel,
     noise: NoiseIndependence<'_>,
@@ -1248,6 +1264,7 @@ pub fn attribute_intrinsic_influence(
 /// # Errors
 ///
 /// Attribution failures.
+#[doc(hidden)]
 pub fn attribute_distribution_change(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -1263,6 +1280,7 @@ pub fn attribute_distribution_change(
 /// # Errors
 ///
 /// Attribution failures.
+#[doc(hidden)]
 pub fn attribute_distribution_change_robust(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -1278,6 +1296,7 @@ pub fn attribute_distribution_change_robust(
 /// # Errors
 ///
 /// Attribution failures.
+#[doc(hidden)]
 pub fn attribute_structure_change(
     baseline_model: &CompiledCausalModel,
     comparison_model: &CompiledCausalModel,
@@ -1295,6 +1314,7 @@ pub fn attribute_structure_change(
 /// # Errors
 ///
 /// Detection failures.
+#[doc(hidden)]
 pub fn mechanism_change_detection(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -1310,6 +1330,7 @@ pub fn mechanism_change_detection(
 /// # Errors
 ///
 /// Attribution failures.
+#[doc(hidden)]
 pub fn attribute_unit_change(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -1326,6 +1347,7 @@ pub fn attribute_unit_change(
 /// # Errors
 ///
 /// Query validation, unsupported target population, or sampling failures.
+#[doc(hidden)]
 pub fn sample_interventional_distribution(
     model: &CompiledCausalModel,
     query: &InterventionalDistributionQuery,
@@ -1351,6 +1373,7 @@ pub fn sample_interventional_distribution(
 /// # Errors
 ///
 /// Query validation, unsupported target population, or path decomposition failures.
+#[doc(hidden)]
 pub fn attribute_path_specific(
     model: &CompiledCausalModel,
     query: &PathSpecificEffectQuery,
@@ -1389,6 +1412,7 @@ pub fn attribute_path_specific(
 /// # Errors
 ///
 /// Path / model failures.
+#[doc(hidden)]
 pub fn attribute_paths(
     model: &CompiledCausalModel,
     sources: &[VariableId],
@@ -1405,6 +1429,7 @@ pub fn attribute_paths(
 /// # Errors
 ///
 /// Sampling failures.
+#[doc(hidden)]
 pub fn attribute_feature_relevance_with(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -1428,6 +1453,7 @@ pub fn attribute_feature_relevance_with(
     clippy::too_many_arguments,
     reason = "positional form of attribute_feature_relevance_with, which the Python binding calls with its keyword arguments"
 )]
+#[doc(hidden)]
 pub fn attribute_feature_relevance(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -1448,6 +1474,7 @@ pub fn attribute_feature_relevance(
 /// # Errors
 ///
 /// Ranking failures.
+#[doc(hidden)]
 pub fn rank_root_causes(
     attribution: &ChangeAttributionResult,
     ctx: &ExecutionContext,

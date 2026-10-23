@@ -1,0 +1,64 @@
+# Discovery, attribution and simulation through the compiler: acceptance evidence.
+# Registration only: every route here executes explicitly unlicensed, with no coverage
+# record, no support-matrix cell and no parity/licensed_routes.toml row.
+schema = 1
+id = "compiler.structure_routes"
+capability_ids = ["discovery.static", "discovery.temporal", "gcm.attribute", "gcm.simulate", "attribution.mechanism_change_detection", "attribution.unit_change"]
+status = "implemented"
+calibration = "not_licensed"
+reference = "docs/guides/compiled-structure-routes.md"
+limits = "parity/capabilities/route_manifest.toml"
+rust_source = "crates/antecedent/src/analysis/structure_route.rs"
+rust_route = "crates/antecedent/src/analysis/execute/structural_route.rs"
+rust_lowering = "crates/antecedent/src/analysis/lowering/discovery.rs"
+python_native = "python/src/compiled_route_api.rs"
+
+[[acceptance]]
+id = "complete_lowering_and_stable_identity"
+claim = "Each discovery, attribution and simulation study compiles to a complete lowered program whose identity is the same on recompilation; preparation retains it and the estimate stamps it."
+evidence = [
+  "crates/antecedent/tests/structure_compiler_routes.rs::static_searches_compile_and_equal_their_engines",
+  "crates/antecedent/tests/structure_compiler_routes.rs::temporal_searches_compile_and_equal_their_engines",
+  "crates/antecedent/tests/structure_compiler_routes.rs::attribution_and_simulation_equal_their_engines",
+]
+
+[[acceptance]]
+id = "engine_equality"
+claim = "The compiled answer equals the search, attribution or simulation engine's own result on the same data and context, bit for bit."
+evidence = [
+  "crates/antecedent/tests/structure_compiler_routes.rs::static_searches_compile_and_equal_their_engines",
+  "crates/antecedent/tests/structure_compiler_routes.rs::a_structure_posterior_declares_bayesian_inference_and_equals_its_engine",
+  "crates/antecedent/tests/structure_compiler_routes.rs::temporal_searches_compile_and_equal_their_engines",
+  "crates/antecedent/tests/structure_compiler_routes.rs::attribution_and_simulation_equal_their_engines",
+  "crates/antecedent/tests/structure_compiler_routes.rs::mechanism_and_unit_change_run_on_the_retained_path",
+]
+
+[[acceptance]]
+id = "declared_inference"
+claim = "A structure posterior declares Bayesian inference in its contract and a constraint or score search declares frequentist inference."
+evidence = [
+  "crates/antecedent/tests/structure_compiler_routes.rs::a_structure_posterior_declares_bayesian_inference_and_equals_its_engine",
+  "python/tests/test_compiled_structure_routes.py::test_exact_posterior_states_a_bayesian_contract",
+]
+
+[[acceptance]]
+id = "discovered_provenance"
+claim = "A structure accepted through the review gate carries its provenance into the contract and program identity of a study prepared on it, never into its identification digest."
+evidence = [
+  "crates/antecedent/tests/structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program",
+  "python/tests/test_compiled_structure_routes.py::test_discovered_fit_carries_structure_provenance",
+]
+
+[[acceptance]]
+id = "bounded_admission_and_cancellation"
+claim = "A cancelled context or an admission pool too small for the quote refuses before the search or fit allocates."
+evidence = [
+  "crates/antecedent/tests/structure_compiler_routes.rs::a_cancelled_or_unleased_route_refuses_before_allocating",
+]
+
+[[acceptance]]
+id = "no_public_bypass"
+claim = "The free search, attribution and simulation engines are hidden; the bindings run the compiled routes."
+evidence = [
+  "crates/antecedent/tests/structure_compiler_routes.rs::the_demoted_engines_are_not_on_the_public_surface",
+]

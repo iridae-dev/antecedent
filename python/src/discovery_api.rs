@@ -6,9 +6,10 @@
     clippy::empty_line_after_doc_comments
 )]
 
+use crate::compiled_route_api::{DiscoverInput, RouteRecord};
 use crate::*;
-use antecedent::GraphRef;
 use antecedent::discovery::BackgroundKnowledge;
+use antecedent::{DiscoveredStructure, DiscoverySpec, GraphRef};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
@@ -247,6 +248,8 @@ pub(crate) struct PcmciDiscoveryResult {
     /// Row accounting of a run that reads table rows (NOTEARS), as JSON: rows used and
     /// dropped, the missing count per variable and the dropped-row digest.
     pub(crate) row_accounting_json: Option<String>,
+    /// The compiled discovery route this result came from.
+    pub(crate) route: Option<RouteRecord>,
 }
 
 /// Discovery review artifact retained so acceptance runs the Rust review gate.
@@ -273,6 +276,11 @@ impl PcmciDiscoveryResult {
 
     fn with_knowledge(mut self, identity: Option<String>) -> Self {
         self.background_knowledge = identity;
+        self
+    }
+
+    fn with_route(mut self, route: RouteRecord) -> Self {
+        self.route = Some(route);
         self
     }
 }
@@ -314,6 +322,30 @@ impl PcmciDiscoveryResult {
             .as_deref()
             .map(|json| Ok(py.import("json")?.call_method1("loads", (json,))?.unbind()))
             .transpose()
+    }
+
+    /// The compiled discovery route this result came from.
+    #[getter]
+    fn route(&self, py: Python<'_>) -> PyResult<crate::compiled_route_api::RouteHandle> {
+        crate::compiled_route_api::route_object(py, self.route.as_ref())
+    }
+
+    /// The contract the discovery executed under: `query_kind="Discover"`,
+    /// `structure_source="discovered"` and the inference mode the method declares.
+    #[getter]
+    fn contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.contract()
+    }
+
+    /// The claim sealed over the discovery execution.
+    #[getter]
+    fn claim(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.claim()
+    }
+
+    /// Cheap inspection record of the compiled discovery study.
+    fn inspect(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.inspect()
     }
 
     fn __repr__(&self) -> String {
@@ -429,6 +461,32 @@ fn discovery_err(error: antecedent::CausalError) -> PyErr {
             fault,
         )) => crate::refusal(fault.reason_code(), fault.message()),
         other => py_err(other),
+    }
+}
+
+/// Run `spec` over `input` through the compiled discovery route and take the engine
+/// result `pick` reads from the structure it returned.
+pub(crate) fn compiled_search<T>(
+    spec: DiscoverySpec,
+    input: DiscoverInput,
+    variables: &[VariableId],
+    ctx: &antecedent_core::ExecutionContext,
+    pick: impl FnOnce(DiscoveredStructure) -> Option<T>,
+) -> PyResult<(T, RouteRecord)> {
+    let (structure, route) = crate::compiled_route_api::run_discovery(spec, input, variables, ctx)
+        .map_err(discovery_err)?;
+    let result = pick(structure).ok_or_else(|| {
+        crate::value_err("the compiled search returned a structure class its method does not state")
+    })?;
+    Ok((result, route))
+}
+
+/// The series input of a temporal search: one series, or the units of a panel.
+fn series_input(units: &[TimeSeriesData], panel: bool) -> DiscoverInput {
+    if panel {
+        DiscoverInput::Panel(units.to_vec())
+    } else {
+        DiscoverInput::Series(units[0].clone())
     }
 }
 
@@ -574,6 +632,7 @@ fn discovery_result_fields(
         background_knowledge: None,
         review: None,
         row_accounting_json: None,
+        route: None,
     }
 }
 
@@ -655,12 +714,16 @@ fn discover_pcmci(
                 max_cond_size,
                 knowledge,
             };
-            let result = if panel {
-                facade_discover_pcmci_panel(units, variables, &params, ctx)
-            } else {
-                facade_discover_pcmci(&units[0], variables, &params, ctx)
-            }
-            .map_err(discovery_err)?;
+            let (result, route) = compiled_search(
+                DiscoverySpec::pcmci(params, ci_name.clone()),
+                series_input(units, panel),
+                variables,
+                ctx,
+                |structure| match structure {
+                    DiscoveredStructure::TemporalDag(result) => Some(result),
+                    _ => None,
+                },
+            )?;
             let slot = ReviewSlot::TemporalGraph(result.review.clone());
             Ok(discovery_result_fields(
                 names,
@@ -677,7 +740,8 @@ fn discover_pcmci(
                 Vec::new(),
             )
             .with_knowledge(identity)
-            .with_review(slot, names))
+            .with_review(slot, names)
+            .with_route(route))
         },
     )
 }
@@ -718,7 +782,16 @@ fn discover_pc(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result = facade_discover_pc(&data, &variables, &params, &ctx).map_err(discovery_err)?;
+        let (result, route) = compiled_search(
+            DiscoverySpec::pc(params, ci_name.clone()),
+            DiscoverInput::Tabular(data),
+            &variables,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::StaticCpdag(result) => Some(result),
+                _ => None,
+            },
+        )?;
         let slot = ReviewSlot::Cpdag(result.review.clone());
         Ok(pcmci_result_from_static_cpdag(
             &names,
@@ -733,7 +806,8 @@ fn discover_pc(
             ci_name,
         )
         .with_knowledge(identity)
-        .with_review(slot, &names))
+        .with_review(slot, &names)
+        .with_route(route))
     })
 }
 
@@ -775,8 +849,16 @@ fn discover_ges(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result =
-            facade_discover_ges(&data, &variables, &params, &ctx).map_err(discovery_err)?;
+        let (result, route) = compiled_search(
+            DiscoverySpec::ges(params, ci_name.clone()),
+            DiscoverInput::Tabular(data),
+            &variables,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::StaticCpdag(result) => Some(result),
+                _ => None,
+            },
+        )?;
         let slot = ReviewSlot::Cpdag(result.review.clone());
         Ok(pcmci_result_from_static_cpdag(
             &names,
@@ -791,7 +873,8 @@ fn discover_ges(
             ci_name,
         )
         .with_knowledge(identity)
-        .with_review(slot, &names))
+        .with_review(slot, &names)
+        .with_route(route))
     })
 }
 
@@ -824,8 +907,16 @@ fn discover_lingam(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result = facade_discover_lingam(&data, &variables, &params, prune_threshold, &ctx)
-            .map_err(py_err)?;
+        let (result, route) = compiled_search(
+            DiscoverySpec::lingam(params, prune_threshold, "parcorr"),
+            DiscoverInput::Tabular(data),
+            &variables,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::StaticDag(result) => Some(result),
+                _ => None,
+            },
+        )?;
 
         let dag = &result.evidence.graph;
         let directed = dag.edges().count() as u64;
@@ -847,7 +938,8 @@ fn discover_lingam(
             0,
             graph_edges,
         )
-        .with_review(slot, &names))
+        .with_review(slot, &names)
+        .with_route(route))
     })
 }
 
@@ -884,17 +976,16 @@ fn discover_notears(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result = facade_discover_notears(
-            &data,
+        let (result, route) = compiled_search(
+            DiscoverySpec::notears(params, l1, threshold, standardize, missing, "parcorr"),
+            DiscoverInput::Tabular(data),
             &variables,
-            &params,
-            l1,
-            threshold,
-            standardize,
-            missing,
             &ctx,
-        )
-        .map_err(py_err)?;
+            |structure| match structure {
+                DiscoveredStructure::Notears(result) => Some(result),
+                _ => None,
+            },
+        )?;
 
         let dag = &result.discovery.evidence.graph;
         let directed = dag.edges().count() as u64;
@@ -916,7 +1007,8 @@ fn discover_notears(
             graph_edges,
         )
         .with_review(ReviewSlot::Dag(result.discovery.review.clone()), &names)
-        .with_row_accounting(&result.row_accounting))
+        .with_row_accounting(&result.row_accounting)
+        .with_route(route))
     })
 }
 
@@ -956,8 +1048,16 @@ fn discover_fci(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result =
-            facade_discover_fci(&data, &variables, &params, &ctx).map_err(discovery_err)?;
+        let (result, route) = compiled_search(
+            DiscoverySpec::fci(params, ci_name.clone()),
+            DiscoverInput::Tabular(data),
+            &variables,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::StaticPag(result) => Some(result),
+                _ => None,
+            },
+        )?;
 
         let pag = &result.evidence.graph;
         let pending = result.review.pending_circles.len() as u64;
@@ -980,7 +1080,8 @@ fn discover_fci(
             graph_edges,
         )
         .with_knowledge(identity)
-        .with_review(slot, &names))
+        .with_review(slot, &names)
+        .with_route(route))
     })
 }
 
@@ -1020,8 +1121,16 @@ fn discover_rfci(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result =
-            facade_discover_rfci(&data, &variables, &params, &ctx).map_err(discovery_err)?;
+        let (result, route) = compiled_search(
+            DiscoverySpec::rfci(params, ci_name.clone()),
+            DiscoverInput::Tabular(data),
+            &variables,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::StaticPag(result) => Some(result),
+                _ => None,
+            },
+        )?;
 
         let pag = &result.evidence.graph;
         let pending = result.review.pending_circles.len() as u64;
@@ -1044,7 +1153,8 @@ fn discover_rfci(
             graph_edges,
         )
         .with_knowledge(identity)
-        .with_review(slot, &names))
+        .with_review(slot, &names)
+        .with_route(route))
     })
 }
 
@@ -1089,12 +1199,16 @@ fn discover_pcmci_plus(
                 max_cond_size,
                 knowledge,
             };
-            let result = if panel {
-                facade_discover_pcmci_plus_panel(units, variables, &params, ctx)
-            } else {
-                facade_discover_pcmci_plus(&units[0], variables, &params, ctx)
-            }
-            .map_err(discovery_err)?;
+            let (result, route) = compiled_search(
+                DiscoverySpec::pcmci_plus(params, ci_name.clone()),
+                series_input(units, panel),
+                variables,
+                ctx,
+                |structure| match structure {
+                    DiscoveredStructure::TemporalCpdag(result) => Some(result),
+                    _ => None,
+                },
+            )?;
             let cpdag = &result.evidence.graph;
             let directed = cpdag.directed_edge_count() as u64;
             let undirected = cpdag.undirected_edge_count() as u64;
@@ -1116,7 +1230,8 @@ fn discover_pcmci_plus(
                 graph_edges,
             )
             .with_knowledge(identity)
-            .with_review(ReviewSlot::TemporalCpdag(result.review.clone()), names))
+            .with_review(ReviewSlot::TemporalCpdag(result.review.clone()), names)
+            .with_route(route))
         },
     )
 }
@@ -1159,12 +1274,16 @@ fn discover_lpcmci(
                 max_cond_size,
                 knowledge: BackgroundKnowledge::default(),
             };
-            let result = if panel {
-                facade_discover_lpcmci_panel(units, variables, &params, ctx)
-            } else {
-                facade_discover_lpcmci(&units[0], variables, &params, ctx)
-            }
-            .map_err(py_err)?;
+            let (result, route) = compiled_search(
+                DiscoverySpec::lpcmci(params, ci_name.clone()),
+                series_input(units, panel),
+                variables,
+                ctx,
+                |structure| match structure {
+                    DiscoveredStructure::TemporalPag(result) => Some(result),
+                    _ => None,
+                },
+            )?;
             let pag = &result.evidence.graph;
             let pending = result.review.pending_circles.len() as u64;
             let directed = pag_definite_directed_edge_count(pag);
@@ -1185,7 +1304,8 @@ fn discover_lpcmci(
                 pending, // undirected field reused as circle-pending count
                 graph_edges,
             )
-            .with_review(slot, names))
+            .with_review(slot, names)
+            .with_route(route))
         },
     )
 }
@@ -1298,7 +1418,16 @@ fn discover_jpcmci_plus(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result = facade_discover_jpcmci_plus(&multi, &system, &params, &ctx).map_err(py_err)?;
+        let (result, route) = compiled_search(
+            DiscoverySpec::jpcmci_plus(params, ci_name.clone()),
+            DiscoverInput::MultiEnv(multi),
+            &system,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::TemporalCpdag(result) => Some(result),
+                _ => None,
+            },
+        )?;
         let cpdag = &result.evidence.graph;
         let graph_edges = cpdag_graph_edges(&names, cpdag);
         let slot = ReviewSlot::TemporalCpdag(result.review.clone());
@@ -1316,7 +1445,8 @@ fn discover_jpcmci_plus(
             cpdag.undirected_edge_count() as u64,
             graph_edges,
         )
-        .with_review(slot, &names))
+        .with_review(slot, &names)
+        .with_route(route))
     })
 }
 
@@ -1345,7 +1475,7 @@ fn discover_rpcmci(
     max_cond_size: usize,
 ) -> PyResult<RpcmciDiscoverySummary> {
     let batch = columns_to_batch(&names, &columns)?;
-    let (ci_impl, _ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
     detach_catch(py, move || {
@@ -1372,8 +1502,16 @@ fn discover_rpcmci(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result = facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx)
-            .map_err(py_err)?;
+        let (result, _route) = compiled_search(
+            DiscoverySpec::rpcmci(params, assign, None, ci_name),
+            DiscoverInput::Series(series),
+            &variables,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::Regimes(result) => Some(result),
+                _ => None,
+            },
+        )?;
         let mut regime_ids = Vec::new();
         let mut directed = Vec::new();
         let mut undirected = Vec::new();
@@ -1417,7 +1555,7 @@ fn accept_rpcmci(
     accept_discovered: bool,
 ) -> PyResult<Py<PyAny>> {
     let batch = columns_to_batch(&names, &columns)?;
-    let (ci_impl, _ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
+    let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
     let out_names = names.clone();
@@ -1445,8 +1583,16 @@ fn accept_rpcmci(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result = facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx)
-            .map_err(py_err)?;
+        let (result, _route) = compiled_search(
+            DiscoverySpec::rpcmci(params, assign, None, ci_name),
+            DiscoverInput::Series(series),
+            &variables,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::Regimes(result) => Some(result),
+                _ => None,
+            },
+        )?;
         crate::accept_rpcmci_review(&result, accept_discovered).map_err(py_err)
     })?;
     match accepted.graph_ref() {

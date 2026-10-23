@@ -10,6 +10,11 @@ NodeFamilyConstraint, ValidationSplits, SelectionProvenance}` and
 `antecedent.model.fit_gcm(..., candidates=, constraints=, splits=, purge=)` and
 `FittedGcm.mechanism_selection()`.
 
+On an attribution or simulation study, `StudyBuilder::mechanisms(MechanismProgram)`
+declares the same choice; the program's label is part of the lowered program and
+every result publishes the selection record (see
+[compiled structure routes](compiled-structure-routes.md)).
+
 ## Families
 
 | id | outcome | conditional law | noise | abduction |

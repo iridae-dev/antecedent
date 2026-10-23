@@ -13,8 +13,10 @@ For a linear model with independent noise `v(S)` is the sum over `S` of the squa
 total path coefficient times the noise variance, so each source's share is that term.
 
 Rust surface: `antecedent_attribution::{intrinsic_influence, IntrinsicInfluenceQuery,
-IntrinsicAllocation, NoiseIndependence, IntrinsicInfluenceResult}` and
-`antecedent::gcm::attribute_intrinsic_influence`. Python: `antecedent.gcm.intrinsic_influence`. On a model already fitted, `antecedent.gcm.fitted_intrinsic_influence(fitted, target, ...)`
+IntrinsicAllocation, NoiseIndependence, IntrinsicInfluenceResult}` and the compiled
+attribution route: `CausalQuery::Attribute` with `AttributeTarget::IntrinsicInfluence`
+on a supplied or accepted `Dag` (see [compiled structure routes](compiled-structure-routes.md));
+`antecedent::gcm::attribute_intrinsic_influence` is the hidden engine it runs. Python: `antecedent.gcm.intrinsic_influence`. On a model already fitted, `antecedent.gcm.fitted_intrinsic_influence(fitted, target, ...)`
 uses its structure, mechanisms and rows without refitting and gives the result `intrinsic_influence`
 gives on the data and edges it was fitted from; the result names its provenance record
 (`gcm.attribution.intrinsic_influence`).

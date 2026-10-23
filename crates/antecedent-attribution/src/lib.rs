@@ -54,7 +54,7 @@ pub use anomaly::{
 pub use builder::ChangeAttribution;
 pub use distribution_change::{
     DifferenceMeasure, DistributionChangeOptions, distribution_change,
-    distribution_change_with_row_weights,
+    distribution_change_with_frequency_weights, distribution_change_with_row_weights,
 };
 pub use error::AttributionError;
 pub use feature_relevance::{FeatureRelevanceOptions, feature_relevance};

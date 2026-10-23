@@ -5,15 +5,9 @@
 use antecedent::discovery::{
     BayesianDiscoverParams, CiSoftWeight, GraphMcmcSchedule, GraphPosterior as RustGraphPosterior,
     SamplingSummary, StaticDiscoverParams,
-    discover_ci_screened_posterior as facade_discover_ci_screened,
-    discover_dbn_posterior as facade_discover_dbn,
-    discover_dbn_posterior_panel as facade_discover_dbn_panel,
-    discover_exact_dag_marginals as facade_discover_exact_marginals,
-    discover_exact_dag_posterior as facade_discover_exact,
-    discover_order_mcmc as facade_discover_order_mcmc,
-    discover_structure_mcmc as facade_discover_structure_mcmc,
 };
 use antecedent::discovery_defaults::resolve_ci;
+use antecedent::{DiscoveredStructure, DiscoverySpec};
 use antecedent_discovery::adjacency_mask::{
     adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag, has_edge,
     mask_is_dag,
@@ -28,10 +22,20 @@ use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyModule};
 
+use crate::compiled_route_api::{DiscoverInput, RouteRecord};
+use crate::discovery_api::compiled_search;
 use crate::{
     columns_to_batch, detach_catch, py_err, py_execution_context, py_msg, series_from_batch,
     tabular_from_batch,
 };
+
+/// The posterior a compiled structure-posterior search returned.
+fn posterior_of(structure: DiscoveredStructure) -> Option<RustGraphPosterior> {
+    match structure {
+        DiscoveredStructure::Posterior(posterior) => Some(posterior),
+        _ => None,
+    }
+}
 
 /// Columnar graph posterior returned by Bayesian discovery engines.
 #[pyclass(name = "GraphPosterior")]
@@ -81,6 +85,8 @@ pub struct PyGraphPosterior {
     edge_ess: Option<Vec<f64>>,
     /// Backend identifier carried from the producing diagnostics.
     backend_id: String,
+    /// The compiled discovery route this posterior came from (`None` for supplied atoms).
+    route: Option<RouteRecord>,
 }
 
 /// Width of the packed lag masks.
@@ -151,7 +157,13 @@ impl PyGraphPosterior {
             edge_rhat: post.edge_rhat.as_ref().map(|v| v.as_ref().to_vec()),
             edge_ess: post.edge_ess.as_ref().map(|v| v.as_ref().to_vec()),
             backend_id: post.diagnostics.backend_id.to_string(),
+            route: None,
         }
+    }
+
+    fn with_route(mut self, route: RouteRecord) -> Self {
+        self.route = Some(route);
+        self
     }
 
     /// Rebuild the engine posterior for a study that consumes this handle.
@@ -209,6 +221,30 @@ impl PyGraphPosterior {
 
 #[pymethods]
 impl PyGraphPosterior {
+    /// The compiled discovery route this posterior came from; `None` for supplied atoms.
+    #[getter]
+    fn route(&self, py: Python<'_>) -> PyResult<crate::compiled_route_api::RouteHandle> {
+        crate::compiled_route_api::route_object(py, self.route.as_ref())
+    }
+
+    /// The contract the posterior search executed under (`query_kind="Discover"`,
+    /// `inference="bayesian"`).
+    #[getter]
+    fn contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.contract()
+    }
+
+    /// The claim sealed over the posterior search.
+    #[getter]
+    fn claim(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.claim()
+    }
+
+    /// Cheap inspection record of the compiled posterior study.
+    fn inspect(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.inspect()
+    }
+
     /// Packed adjacency of every atom: bit `from * (n_vars - 1) + (to if to < from else to - 1)`
     /// of the Python `int` is the edge `from -> to`.
     #[getter]
@@ -573,9 +609,14 @@ fn discover_exact_dag_posterior(
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let post =
-            facade_discover_exact(&data, &variables, &bayesian_params(), &ctx).map_err(py_err)?;
-        Ok(PyGraphPosterior::from_rust(names, post))
+        let (post, route) = compiled_search(
+            DiscoverySpec::exact_dag_posterior(bayesian_params()),
+            DiscoverInput::Tabular(data),
+            &variables,
+            &ctx,
+            posterior_of,
+        )?;
+        Ok(PyGraphPosterior::from_rust(names, post).with_route(route))
     })
 }
 
@@ -598,13 +639,16 @@ fn discover_exact_dag_marginals(
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let marginals = facade_discover_exact_marginals(
-            &data,
+        let (marginals, _route) = compiled_search(
+            DiscoverySpec::exact_dag_marginals(bayesian_params_capped(max_parents)),
+            DiscoverInput::Tabular(data),
             &variables,
-            &bayesian_params_capped(max_parents),
             &ctx,
-        )
-        .map_err(py_err)?;
+            |structure| match structure {
+                DiscoveredStructure::EdgeMarginals(marginals) => Some(marginals),
+                _ => None,
+            },
+        )?;
         Ok((marginals.edge_marginals.to_vec(), marginals.log_evidence))
     })
 }
@@ -645,16 +689,18 @@ fn discover_order_mcmc(
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
-        let post = facade_discover_order_mcmc(
-            &data,
+        let (post, route) = compiled_search(
+            DiscoverySpec::order_mcmc(
+                bayesian_params_capped(max_parents),
+                schedule,
+                require_diagnostics_gate,
+            ),
+            DiscoverInput::Tabular(data),
             &variables,
-            &bayesian_params_capped(max_parents),
-            &schedule,
-            require_diagnostics_gate,
             &ctx,
-        )
-        .map_err(py_err)?;
-        Ok(PyGraphPosterior::from_rust(names, post))
+            posterior_of,
+        )?;
+        Ok(PyGraphPosterior::from_rust(names, post).with_route(route))
     })
 }
 
@@ -692,15 +738,14 @@ fn discover_structure_mcmc(
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
-        let post = facade_discover_structure_mcmc(
-            &data,
+        let (post, route) = compiled_search(
+            DiscoverySpec::structure_mcmc(bayesian_params_capped(max_parents), schedule),
+            DiscoverInput::Tabular(data),
             &variables,
-            &bayesian_params_capped(max_parents),
-            &schedule,
             &ctx,
-        )
-        .map_err(py_err)?;
-        Ok(PyGraphPosterior::from_rust(names, post))
+            posterior_of,
+        )?;
+        Ok(PyGraphPosterior::from_rust(names, post).with_route(route))
     })
 }
 
@@ -740,6 +785,7 @@ fn discover_ci_screened_posterior(
 ) -> PyResult<PyGraphPosterior> {
     let soft = parse_soft_weight(soft_weight)?;
     let ci_name = ci.unwrap_or_else(|| "parcorr".to_string());
+    let ci_label = ci_name.to_ascii_lowercase();
     let ci_impl = if ci_name.eq_ignore_ascii_case("parcorr") {
         std::sync::Arc::new(PartialCorrelation)
             as std::sync::Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>
@@ -761,17 +807,20 @@ fn discover_ci_screened_posterior(
             knowledge: antecedent::discovery::BackgroundKnowledge::default(),
         };
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
-        let post = facade_discover_ci_screened(
-            &data,
+        let (post, route) = compiled_search(
+            DiscoverySpec::ci_screened_posterior(
+                bayesian_params(),
+                screen,
+                schedule,
+                soft,
+                ci_label,
+            ),
+            DiscoverInput::Tabular(data),
             &variables,
-            &bayesian_params(),
-            &screen,
-            &schedule,
-            soft,
             &ctx,
-        )
-        .map_err(py_err)?;
-        Ok(PyGraphPosterior::from_rust(names, post))
+            posterior_of,
+        )?;
+        Ok(PyGraphPosterior::from_rust(names, post).with_route(route))
     })
 }
 
@@ -811,34 +860,24 @@ fn discover_dbn_posterior(
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, 1);
-        let post = if let Some(lengths) = unit_lengths {
+        let (input, variables) = if let Some(lengths) = unit_lengths {
             // `unit_lengths` marks the columns as a panel's row-concatenated units: each unit's
             // lag windows are built inside that unit.
             let (units, variables) =
                 crate::discovery_api::panel_units_from_batch(&batch, &lengths)?;
-            facade_discover_dbn_panel(
-                &units,
-                &variables,
-                &bayesian_params(),
-                max_lag,
-                force_mcmc,
-                &schedule,
-                &ctx,
-            )
+            (DiscoverInput::Panel(units), variables)
         } else {
             let (series, variables) = series_from_batch(&batch)?;
-            facade_discover_dbn(
-                &series,
-                &variables,
-                &bayesian_params(),
-                max_lag,
-                force_mcmc,
-                &schedule,
-                &ctx,
-            )
-        }
-        .map_err(py_err)?;
-        Ok(PyGraphPosterior::from_rust(names, post))
+            (DiscoverInput::Series(series), variables)
+        };
+        let (post, route) = compiled_search(
+            DiscoverySpec::dbn_posterior(bayesian_params(), max_lag, force_mcmc, schedule),
+            input,
+            &variables,
+            &ctx,
+            posterior_of,
+        )?;
+        Ok(PyGraphPosterior::from_rust(names, post).with_route(route))
     })
 }
 

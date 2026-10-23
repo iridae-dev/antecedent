@@ -6,16 +6,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent::gcm::{
-    ComponentStatus, IntrinsicAllocation, IntrinsicInfluenceQuery, IntrinsicInfluenceResult,
-    NoiseIndependence, ShapleyMethod, UncertaintyComponent, attribute_intrinsic_influence, fit_gcm,
+    ComponentStatus, IntrinsicInfluenceResult, ShapleyMethod, UncertaintyComponent,
 };
-use antecedent_core::{ComponentId, VariableId};
-use antecedent_data::{TableView, TabularData};
-use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_model::CompiledCausalModel;
+use antecedent::{AttributionOutcome, MechanismProgram};
+use antecedent_core::{
+    AttributeTarget, ComponentId, InfluenceAllocation, IntrinsicInfluenceTarget, NoiseDeclaration,
+    VariableId,
+};
+use antecedent_data::TableView;
 use pyo3::prelude::*;
 
+use crate::compiled_route_api::{ModelSource, RouteRecord, outcome_mismatch};
 use crate::{detach_catch, py_err, py_execution_context};
 
 fn source_name(names: &[String], id: ComponentId) -> String {
@@ -114,7 +118,7 @@ fn result_json(result: &IntrinsicInfluenceResult, names: &[String]) -> String {
 pub(crate) struct IntrinsicOptions {
     pub(crate) independent_noise: bool,
     pub(crate) bidirected_edges: Option<Vec<(String, String)>>,
-    pub(crate) allocation: IntrinsicAllocation,
+    pub(crate) allocation: InfluenceAllocation,
     pub(crate) outer_draws: usize,
     pub(crate) inner_draws: usize,
     pub(crate) replicates: usize,
@@ -129,63 +133,60 @@ pub(crate) struct IntrinsicOptions {
 pub(crate) fn allocation_of(
     allocation: &str,
     n_permutations: usize,
-) -> PyResult<IntrinsicAllocation> {
+) -> PyResult<InfluenceAllocation> {
     match allocation {
-        "auto" => Ok(IntrinsicAllocation::Auto),
-        "exact" => Ok(IntrinsicAllocation::Exact),
-        "permutation" => Ok(IntrinsicAllocation::Permutation { n_permutations }),
+        "auto" => Ok(InfluenceAllocation::Auto),
+        "exact" => Ok(InfluenceAllocation::Exact),
+        "permutation" => Ok(InfluenceAllocation::Permutation { n_permutations }),
         other => Err(crate::value_err(format!(
             "allocation must be 'auto', 'exact' or 'permutation', got {other:?}"
         ))),
     }
 }
 
-/// Attribute the variance of `target` under an already fitted `model`; `edges` are the model's
-/// directed edges by name (needed only to place declared bidirected edges), and `data` the rows
-/// the mechanism-fit bootstrap resamples.
+/// Attribute the variance of `target` through the compiled attribution route on `source`
+/// (its fit is reused; the rows are what the mechanism-fit bootstrap resamples). Declared
+/// bidirected edges are placed on the model's structure. Returns the result as JSON and the
+/// route it ran on.
 pub(crate) fn attribute(
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    source: &ModelSource,
     names: &[String],
-    edges: &[(String, String)],
     target: &str,
     options: IntrinsicOptions,
-) -> PyResult<String> {
-    let target_id: VariableId = data.schema().id_of(target).map_err(py_err)?;
-    let structure = options
-        .bidirected_edges
-        .as_ref()
-        .map(|pairs| -> PyResult<Admg> {
-            let directed: Vec<(&str, &str)> =
-                edges.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
-            let mut admg = Admg::from_named_edges(data.schema(), &directed).map_err(py_err)?;
-            for (a, b) in pairs {
-                let dense = |name: &String| -> PyResult<DenseNodeId> {
-                    let id = data.schema().id_of(name).map_err(py_err)?;
-                    Ok(DenseNodeId::from_raw(id.raw()))
-                };
-                admg.insert_bidirected(dense(a)?, dense(b)?).map_err(py_err)?;
-            }
-            Ok(admg)
-        })
-        .transpose()?;
-    let noise = match (&structure, options.independent_noise) {
-        (Some(admg), _) => NoiseIndependence::Structure(admg),
-        (None, true) => NoiseIndependence::Declared,
-        (None, false) => NoiseIndependence::Undeclared,
+) -> PyResult<(String, RouteRecord)> {
+    let schema = source.data.schema();
+    let target_id: VariableId = schema.id_of(target).map_err(py_err)?;
+    let noise = match (&options.bidirected_edges, options.independent_noise) {
+        (Some(pairs), _) => NoiseDeclaration::Structure {
+            bidirected: pairs
+                .iter()
+                .map(|(a, b)| {
+                    Ok((schema.id_of(a).map_err(py_err)?, schema.id_of(b).map_err(py_err)?))
+                })
+                .collect::<PyResult<Arc<[_]>>>()?,
+        },
+        (None, true) => NoiseDeclaration::Independent,
+        (None, false) => NoiseDeclaration::Undeclared,
     };
-    let query = IntrinsicInfluenceQuery::new(target_id)
-        .with_allocation(options.allocation)
-        .with_simulation(options.outer_draws, options.inner_draws, options.replicates)
-        .with_fit_bootstrap(options.fit_bootstrap)
-        .with_level(options.level)
-        .with_max_sources(options.max_sources)
-        .with_seed(options.seed);
+    let query = IntrinsicInfluenceTarget {
+        target: target_id,
+        allocation: options.allocation,
+        outer_draws: options.outer_draws,
+        inner_draws: options.inner_draws,
+        replicates: options.replicates,
+        fit_bootstrap_replicates: options.fit_bootstrap,
+        level: options.level,
+        max_sources: options.max_sources,
+        seed: options.seed,
+        noise,
+    };
     let mut ctx = py_execution_context(options.seed, crate::resolve_user_threads(options.threads));
     crate::apply_cancel(&mut ctx, options.cancel);
-    let result =
-        attribute_intrinsic_influence(model, noise, Some(data), &query, &ctx).map_err(py_err)?;
-    Ok(result_json(&result, names))
+    let (outcome, route) = source.attribute(AttributeTarget::IntrinsicInfluence(query), &ctx)?;
+    let AttributionOutcome::IntrinsicInfluence(result) = outcome else {
+        return Err(outcome_mismatch());
+    };
+    Ok((result_json(&result, names), route))
 }
 
 /// Intrinsic causal influence of the noise terms upstream of `target` on its variance.
@@ -220,8 +221,12 @@ fn attribute_intrinsic_influence_py(
     let allocation = allocation_of(allocation, n_permutations)?;
     let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
-        let graph = crate::dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(graph, &data).map_err(py_err)?;
+        let source = ModelSource {
+            dag: crate::dag_from_named_edges(data.schema(), &edges)?,
+            data: Arc::new(data),
+            accepted: None,
+            program: MechanismProgram::standard(),
+        };
         let options = IntrinsicOptions {
             independent_noise,
             bidirected_edges,
@@ -236,7 +241,7 @@ fn attribute_intrinsic_influence_py(
             threads,
             cancel,
         };
-        attribute(&fitted.model, &data, &names, &edges, &target, options)
+        attribute(&source, &names, &target, options).map(|(json, _route)| json)
     })
 }
 

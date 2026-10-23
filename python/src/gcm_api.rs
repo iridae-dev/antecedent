@@ -3,43 +3,35 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use antecedent::gcm::{
-    ChangeAttributionResult as RustChangeAttributionResult, DifferenceMeasure,
-    DistributionChangeOptions, FittedGcm, RobustChangeOptions, StructureChangeOptions,
-    anomaly_attribution as facade_anomaly_attribution,
-    attribute_distribution_change as facade_attribute_distribution_change,
-    attribute_distribution_change_robust as facade_attribute_distribution_change_robust,
-    attribute_feature_relevance as facade_attribute_feature_relevance,
-    attribute_path_specific as facade_attribute_path_specific,
-    attribute_paths as facade_attribute_paths,
-    attribute_structure_change as facade_attribute_structure_change,
-    attribute_unit_change as facade_attribute_unit_change,
-    counterfactual_ite as facade_counterfactual_ite, fit_gcm, fit_gcm_with,
-    mechanism_change_detection as facade_mechanism_change_detection,
-    noise_table_from_columns as facade_noise_table_from_columns,
+    ChangeAttributionResult as RustChangeAttributionResult, FittedGcm, RobustChangeOptions,
+    fit_gcm, fit_gcm_with, noise_table_from_columns as facade_noise_table_from_columns,
     rank_root_causes as facade_rank_root_causes, replay_noise as facade_replay_noise,
-    sample_do as facade_sample_do, sample_with_noise as facade_sample_with_noise,
+    sample_with_noise as facade_sample_with_noise,
 };
+use antecedent::{AcceptedGraph, AttributionOutcome, MechanismProgram, SimulationOutcome};
 use antecedent_attribution::{
     AnomalyScores as RustAnomalyScores, CacheStats, ComponentContribution, ComputeBudget,
 };
 use antecedent_core::{
-    AllocationMethod, AttributionComponents, CausalRng, ChangeAttributionQuery, ComponentId,
-    ExecutionContext, Intervention, MechanismChangeQuery, PathSpecificEffectQuery,
-    PopulationSelector, ShapleyConfig, UnitChangeQuery, Value, ValueExpr, VariableId,
+    AllocationMethod, AnomalyAttributionQuery, AttributeTarget, AttributionComponents,
+    ChangeAttributionQuery, ChangeEstimator, ChangeMeasure, ComponentId, ExecutionContext,
+    Intervention, MechanismChangeQuery, MechanismChangeTest, PopulationSelector, ShapleyConfig,
+    SimulationTarget, UnitChangeQuery, Value, ValueExpr, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::Dag;
 use antecedent_model::{
-    CompiledCausalModel, MechanismAssignment, MechanismFamily, MechanismRegistry,
-    NodeFamilyConstraint, SelectionOptions, ValidationSplits, ValueBatch,
+    MechanismAssignment, MechanismFamily, MechanismRegistry, NodeFamilyConstraint,
+    SelectionOptions, ValidationSplits, ValueBatch,
 };
 use numpy::{PyArray1, PyArrayMethods, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
+use crate::compiled_route_api::{ModelSource, RouteRecord, outcome_mismatch};
 use crate::intervention_callback_api::{PyBatchCallbackHandle, program_intervention};
 use crate::{
     GcmIteResult, GcmSampleResult, dag_from_named_edges, detach_catch, py_err,
@@ -165,6 +157,7 @@ pub(crate) fn change_result_from_rust(
         contributions: contribution_pairs(names, &result),
         path_breakdown: path_breakdown_names(names, &result),
         rust: result,
+        route: None,
     }
 }
 
@@ -217,7 +210,7 @@ pub(crate) fn value_batch_to_sample_result(
     }
     let flat = samples.values.as_ref().to_vec();
     let draws = PyArray1::from_vec(py, flat).reshape([n_nodes, n_rows])?.unbind();
-    Ok(GcmSampleResult { column_means: means, n_draws: n_rows, n_nodes, draws })
+    Ok(GcmSampleResult { column_means: means, n_draws: n_rows, n_nodes, draws, route: None })
 }
 
 /// Named contribution (node or path label).
@@ -248,10 +241,43 @@ pub struct ChangeAttributionResult {
     #[pyo3(get)]
     pub path_breakdown: Vec<(Vec<String>, f64)>,
     pub(crate) rust: RustChangeAttributionResult,
+    /// The compiled attribution route this result came from.
+    pub(crate) route: Option<RouteRecord>,
+}
+
+impl ChangeAttributionResult {
+    pub(crate) fn with_route(mut self, route: RouteRecord) -> Self {
+        self.route = Some(route);
+        self
+    }
 }
 
 #[pymethods]
 impl ChangeAttributionResult {
+    /// The compiled attribution route this result came from.
+    #[getter]
+    fn route(&self, py: Python<'_>) -> PyResult<crate::compiled_route_api::RouteHandle> {
+        crate::compiled_route_api::route_object(py, self.route.as_ref())
+    }
+
+    /// The contract the attribution executed under (`query_kind="Attribute"`, and the
+    /// structure provenance when the model was fitted on an accepted discovery).
+    #[getter]
+    fn contract(&self) -> PyResult<HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.contract()
+    }
+
+    /// The claim sealed over the attribution.
+    #[getter]
+    fn claim(&self) -> PyResult<HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.claim()
+    }
+
+    /// Cheap inspection record of the compiled attribution study.
+    fn inspect(&self) -> PyResult<HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.inspect()
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "ChangeAttributionResult(total_change={}, n_contributions={}, n_paths={})",
@@ -469,17 +495,90 @@ impl DecisionEvaluation {
 ///
 /// Model, data, and names are [`Arc`]-shared so GIL-detached methods clone handles
 /// instead of deep-copying the fitted session on every click.
+///
+/// Every attribution and simulation runs through the compiled fitted-model route on the
+/// program the model was fitted under, reusing this fit; the result keeps that route, and a
+/// method that returns a plain list or string records it as `last_route`.
 #[pyclass(name = "FittedGcm")]
 pub struct PyFittedGcm {
     pub(crate) inner: Arc<FittedGcm>,
     pub(crate) names: Arc<[String]>,
     pub(crate) data: Arc<TabularData>,
+    /// The program the mechanisms were fitted under, carrying this fit.
+    pub(crate) program: Arc<MechanismProgram>,
+    /// The structure accepted from a compiled discovery, when the model was fitted on one.
+    pub(crate) accepted: Option<Arc<AcceptedGraph>>,
+    /// The route of the last method whose return value has no route of its own.
+    pub(crate) last_route: Arc<Mutex<Option<RouteRecord>>>,
 }
 
 impl PyFittedGcm {
     fn ctx(seed: u64, threads: Option<u32>) -> ExecutionContext {
         py_execution_context(seed, crate::resolve_user_threads(threads))
     }
+
+    pub(crate) fn new(
+        fitted: FittedGcm,
+        names: Vec<String>,
+        data: TabularData,
+        program: MechanismProgram,
+        accepted: Option<AcceptedGraph>,
+    ) -> Self {
+        let inner = Arc::new(fitted);
+        let program = program.with_prefit(Arc::clone(&inner), &data);
+        Self {
+            inner,
+            names: Arc::from(names),
+            data: Arc::new(data),
+            program: Arc::new(program),
+            accepted: accepted.map(Arc::new),
+            last_route: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// What a compiled route on this fit runs on.
+    pub(crate) fn source(&self) -> ModelSource {
+        ModelSource {
+            data: Arc::clone(&self.data),
+            dag: (*self.inner.model.graph).clone(),
+            accepted: self.accepted.as_deref().cloned(),
+            program: (*self.program).clone(),
+        }
+    }
+
+    /// Keep `route` as the route of the last call whose return value has none.
+    pub(crate) fn record(&self, route: RouteRecord) {
+        if let Ok(mut slot) = self.last_route.lock() {
+            *slot = Some(route);
+        }
+    }
+}
+
+/// The change attribution of a compiled route, with the route attached.
+fn change_of(
+    outcome: AttributionOutcome,
+    route: RouteRecord,
+    names: &[String],
+) -> PyResult<ChangeAttributionResult> {
+    match outcome {
+        AttributionOutcome::Change(result) => {
+            Ok(change_result_from_rust(result, names).with_route(route))
+        }
+        _ => Err(outcome_mismatch()),
+    }
+}
+
+/// The change population of a time-range comparison.
+fn time_ranges(
+    outcome: VariableId,
+    baseline: (usize, usize),
+    comparison: (usize, usize),
+) -> ChangeAttributionQuery {
+    ChangeAttributionQuery::new(
+        outcome,
+        PopulationSelector::TimeRange { start: baseline.0, end: baseline.1 },
+        PopulationSelector::TimeRange { start: comparison.0, end: comparison.1 },
+    )
 }
 
 #[pymethods]
@@ -492,6 +591,28 @@ impl PyFittedGcm {
     #[getter]
     fn n_assignments(&self) -> usize {
         self.inner.assignments.len()
+    }
+
+    /// The compiled route of the last method whose return value carries no route of its
+    /// own (feature relevance, anomaly scores, mechanism-change detections, intrinsic
+    /// influence); `None` before any such call.
+    #[getter]
+    fn last_route(&self, py: Python<'_>) -> PyResult<crate::compiled_route_api::RouteHandle> {
+        let route = self.last_route.lock().ok().and_then(|slot| slot.clone());
+        crate::compiled_route_api::route_object(py, route.as_ref())
+    }
+
+    /// The provenance of the accepted discovery this model was fitted on, or `None`.
+    fn structure_provenance(&self) -> Option<HashMap<String, String>> {
+        self.accepted.as_deref().and_then(AcceptedGraph::provenance).map(|provenance| {
+            let mut out = HashMap::new();
+            out.insert("method".to_owned(), provenance.method.to_string());
+            out.insert("inference".to_owned(), provenance.inference.to_string());
+            out.insert("discovered_class".to_owned(), provenance.discovered_class.to_string());
+            out.insert("review".to_owned(), provenance.review.to_string());
+            out.insert("resolved_marks".to_owned(), provenance.resolved_marks.to_string());
+            out
+        })
     }
 
     /// Selected mechanism family id per variable name.
@@ -543,19 +664,32 @@ impl PyFittedGcm {
         threads: Option<u32>,
         programs: Option<Vec<CallbackProgramArgs>>,
     ) -> PyResult<GcmSampleResult> {
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
-        let (flat, n_rows, n_nodes) = detach_catch(py, move || {
+        let (flat, n_rows, n_nodes, route) = detach_catch(py, move || {
             let ints =
                 interventions_of(&data, &interventions, shifts.as_ref(), programs.as_deref())?;
             let ctx = Self::ctx(seed, threads);
-            let mut rng = CausalRng::from_seed(seed);
-            let samples =
-                facade_sample_do(&inner.model, &ints, n, &mut rng, &ctx).map_err(py_err)?;
-            Ok::<_, PyErr>((samples.values.as_ref().to_vec(), samples.n_rows, samples.n_nodes))
+            let target = SimulationTarget::InterventionalSample {
+                interventions: Arc::from(ints),
+                draws: n,
+                seed,
+            };
+            let (outcome, route) = source.simulate(target, &ctx)?;
+            let SimulationOutcome::Sample(samples) = outcome else {
+                return Err(outcome_mismatch());
+            };
+            Ok::<_, PyErr>((
+                samples.values.as_ref().to_vec(),
+                samples.n_rows,
+                samples.n_nodes,
+                route,
+            ))
         })?;
         let batch = ValueBatch { values: Arc::from(flat), n_rows, n_nodes };
-        value_batch_to_sample_result(py, batch)
+        let mut result = value_batch_to_sample_result(py, batch)?;
+        result.route = Some(route);
+        Ok(result)
     }
 
     /// Interventional draws together with the exogenous noise that produced them.
@@ -660,20 +794,9 @@ impl PyFittedGcm {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
         let allocation = crate::intrinsic_influence_api::allocation_of(allocation, n_permutations)?;
-        let inner = Arc::clone(&self.inner);
-        let data = Arc::clone(&self.data);
+        let source = self.source();
         let names = Arc::clone(&self.names);
-        detach_catch(py, move || {
-            let graph = &inner.model.graph;
-            let mut edges = Vec::new();
-            for child in 0..graph.node_count() {
-                let child_id = u32::try_from(child)
-                    .map(antecedent_graph::DenseNodeId::from_raw)
-                    .map_err(|_| py_msg("model has more nodes than a node id holds"))?;
-                for parent in graph.parents(child_id) {
-                    edges.push((names[parent.as_usize()].clone(), names[child].clone()));
-                }
-            }
+        let (json, route) = detach_catch(py, move || {
             let options = crate::intrinsic_influence_api::IntrinsicOptions {
                 independent_noise,
                 bidirected_edges,
@@ -688,15 +811,10 @@ impl PyFittedGcm {
                 threads,
                 cancel,
             };
-            crate::intrinsic_influence_api::attribute(
-                &inner.model,
-                &data,
-                &names,
-                &edges,
-                &target,
-                options,
-            )
-        })
+            crate::intrinsic_influence_api::attribute(&source, &names, &target, options)
+        })?;
+        self.record(route);
+        Ok(json)
     }
 
     /// Unit-level ITE under hard interventions on `treatment`.
@@ -711,28 +829,25 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<GcmIteResult> {
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
         let n_assignments = self.inner.assignments.len();
-        let (mean_ite, n_units, noise_inference, unit_vec) = detach_catch(py, move || {
+        let (mean_ite, n_units, noise_inference, unit_vec, route) = detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let ctx = Self::ctx(seed, threads);
-            let ite = facade_counterfactual_ite(
-                inner.model.clone(),
-                &data,
-                t_id,
-                y_id,
-                active,
-                control,
-                &ctx,
-            )
-            .map_err(py_err)?;
+            let target =
+                SimulationTarget::UnitEffects { treatment: t_id, outcome: y_id, active, control };
+            let (outcome, route) = source.simulate(target, &ctx)?;
+            let SimulationOutcome::UnitEffects(ite) = outcome else {
+                return Err(outcome_mismatch());
+            };
             Ok::<_, PyErr>((
                 ite.mean_ite,
                 ite.unit_effects.len(),
                 format!("{:?}", ite.noise_inference),
                 ite.unit_effects.as_ref().to_vec(),
+                route,
             ))
         })?;
         Ok(GcmIteResult {
@@ -741,6 +856,7 @@ impl PyFittedGcm {
             noise_inference,
             n_assignments,
             unit_effects: PyArray1::from_vec(py, unit_vec).unbind(),
+            route: Some(route),
         })
     }
 
@@ -756,7 +872,7 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
         detach_catch(py, move || {
@@ -768,16 +884,16 @@ impl PyFittedGcm {
                     intermediates.push(data.schema().id_of(n).map_err(py_err)?);
                 }
             }
-            let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
-                .with_max_paths(max_paths)
-                .with_max_len(max_len);
-            if !intermediates.is_empty() {
-                query = query.with_path_nodes(intermediates);
-            }
             let ctx = Self::ctx(seed, threads);
-            let result =
-                facade_attribute_path_specific(&inner.model, &query, &ctx).map_err(py_err)?;
-            Ok(change_result_from_rust(result, &names))
+            let target = AttributeTarget::Paths {
+                sources: Arc::from([t_id]),
+                outcome: y_id,
+                max_paths,
+                max_len,
+                through: Arc::from(intermediates),
+            };
+            let (outcome, route) = source.attribute(target, &ctx)?;
+            change_of(outcome, route, &names)
         })
     }
 
@@ -792,20 +908,11 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
-        let inner = Arc::clone(&self.inner);
-        let data = Arc::clone(&self.data);
+        let source = self.source();
         let names = Arc::clone(&self.names);
         detach_catch(py, move || {
-            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let src_ids: Vec<VariableId> = sources
-                .iter()
-                .map(|n| data.schema().id_of(n).map_err(py_err))
-                .collect::<PyResult<_>>()?;
             let ctx = Self::ctx(seed, threads);
-            let result =
-                facade_attribute_paths(&inner.model, &src_ids, y_id, max_paths, max_len, &ctx)
-                    .map_err(py_err)?;
-            Ok(change_result_from_rust(result, &names))
+            paths_on(&source, &names, &sources, &outcome, max_paths, max_len, &ctx)
         })
     }
 
@@ -822,30 +929,31 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let query = ChangeAttributionQuery::new(
+            let query = time_ranges(
                 y_id,
-                PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
-                PopulationSelector::TimeRange { start: comparison_start, end: comparison_end },
+                (baseline_start, baseline_end),
+                (comparison_start, comparison_end),
             )
             .with_components(AttributionComponents::Mechanisms)
             .with_allocation(AllocationMethod::Shapley {
                 approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
             });
             let ctx = Self::ctx(seed, threads);
-            let opts = DistributionChangeOptions {
-                measure: DifferenceMeasure::MeanDiff,
-                n_samples: n_samples.max(100),
-                seed,
+            let target = AttributeTarget::DistributionChange {
+                change: query,
+                estimator: ChangeEstimator::Sampled {
+                    measure: ChangeMeasure::MeanDifference,
+                    n_samples: n_samples.max(100),
+                    seed,
+                },
             };
-            let result =
-                facade_attribute_distribution_change(&inner.model, &data, &query, &opts, &ctx)
-                    .map_err(py_err)?;
-            Ok(change_result_from_rust(result, &names))
+            let (outcome, route) = source.attribute(target, &ctx)?;
+            change_of(outcome, route, &names)
         })
     }
 
@@ -863,7 +971,7 @@ impl PyFittedGcm {
         threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
         let _ = n_samples;
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
         detach_catch(py, move || {
@@ -886,15 +994,16 @@ impl PyFittedGcm {
             };
             let opts = RobustChangeOptions::default();
             let ctx = Self::ctx(seed, threads);
-            let result = facade_attribute_distribution_change_robust(
-                &inner.model,
-                &data,
-                &query,
-                &opts,
-                &ctx,
-            )
-            .map_err(py_err)?;
-            Ok(change_result_from_rust(result, &names))
+            let target = AttributeTarget::DistributionChange {
+                change: query,
+                estimator: ChangeEstimator::Robust {
+                    max_rows: opts.max_rows,
+                    n_samples: opts.n_samples,
+                    seed: opts.seed,
+                },
+            };
+            let (outcome, route) = source.attribute(target, &ctx)?;
+            change_of(outcome, route, &names)
         })
     }
 
@@ -912,39 +1021,31 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
         detach_catch(py, move || {
-            let baseline = &inner.model;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let g1 = dag_from_edges(&data, &comparison_edges)?;
-            let comparison = CompiledCausalModel::compile(g1).map_err(py_err)?;
-            let query = ChangeAttributionQuery::new(
+            let comparison = comparison_pairs(&dag_from_edges(&data, &comparison_edges)?);
+            let query = time_ranges(
                 y_id,
-                PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
-                PopulationSelector::TimeRange { start: comparison_start, end: comparison_end },
+                (baseline_start, baseline_end),
+                (comparison_start, comparison_end),
             )
             .with_components(AttributionComponents::Structure)
             .with_allocation(AllocationMethod::Shapley {
                 approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
             });
             let ctx = Self::ctx(seed, threads);
-            let opts = StructureChangeOptions {
-                measure: DifferenceMeasure::MeanDiff,
+            let target = AttributeTarget::StructureChange {
+                change: query,
+                comparison,
+                measure: ChangeMeasure::MeanDifference,
                 n_samples: n_samples.max(100),
                 seed,
             };
-            let result = facade_attribute_structure_change(
-                baseline,
-                &comparison,
-                &data,
-                &query,
-                &opts,
-                &ctx,
-            )
-            .map_err(py_err)?;
-            Ok(change_result_from_rust(result, &names))
+            let (outcome, route) = source.attribute(target, &ctx)?;
+            change_of(outcome, route, &names)
         })
     }
 
@@ -957,16 +1058,18 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let ctx = Self::ctx(seed, threads);
             let max_u = if max_units == 0 { data.row_count() } else { max_units };
-            let query = UnitChangeQuery::new(y_id, max_u);
-            let result =
-                facade_attribute_unit_change(&inner.model, &data, &query, &ctx).map_err(py_err)?;
+            let target = AttributeTarget::UnitChange(UnitChangeQuery::new(y_id, max_u));
+            let (outcome, route) = source.attribute(target, &ctx)?;
+            let AttributionOutcome::UnitChange(result) = outcome else {
+                return Err(outcome_mismatch());
+            };
             let pairs: Vec<(ComponentId, f64)> = result
                 .components
                 .iter()
@@ -974,7 +1077,7 @@ impl PyFittedGcm {
                 .map(|(c, v)| (*c, *v))
                 .collect();
             let total = result.mean_contributions.iter().map(|x| x.abs()).sum();
-            Ok(synthetic_change_result(y_id, total, pairs, &names))
+            Ok(synthetic_change_result(y_id, total, pairs, &names).with_route(route))
         })
     }
 
@@ -988,10 +1091,10 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<Vec<FeatureRelevance>> {
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
-        detach_catch(py, move || {
+        let (scores, route) = detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let ctx = Self::ctx(seed, threads);
             let mut features = Vec::new();
@@ -1001,22 +1104,26 @@ impl PyFittedGcm {
                     features.push(id);
                 }
             }
-            let scores = facade_attribute_feature_relevance(
-                &inner.model,
-                &data,
-                y_id,
-                &features,
+            let max_features = features.len();
+            let target = AttributeTarget::FeatureRelevance {
+                outcome: y_id,
+                features: Arc::from(features),
                 delta,
                 n_samples,
-                features.len(),
-                &ctx,
-            )
-            .map_err(py_err)?;
-            Ok(scores
+                max_features,
+            };
+            let (outcome, route) = source.attribute(target, &ctx)?;
+            let AttributionOutcome::FeatureRelevance(scores) = outcome else {
+                return Err(outcome_mismatch());
+            };
+            let scores: Vec<FeatureRelevance> = scores
                 .into_iter()
                 .map(|s| FeatureRelevance { feature: var_name(&names, s.feature), score: s.score })
-                .collect())
-        })
+                .collect();
+            Ok((scores, route))
+        })?;
+        self.record(route);
+        Ok(scores)
     }
 
     #[pyo3(signature = (outcomes, *, max_units=0))]
@@ -1026,19 +1133,25 @@ impl PyFittedGcm {
         outcomes: Vec<String>,
         max_units: usize,
     ) -> PyResult<Vec<AnomalyScores>> {
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
-        detach_catch(py, move || {
+        let (scores, route) = detach_catch(py, move || {
             let outcome_ids: Vec<VariableId> = outcomes
                 .iter()
                 .map(|n| data.schema().id_of(n).map_err(py_err))
                 .collect::<PyResult<_>>()?;
             let max_u = if max_units == 0 { data.row_count() } else { max_units };
-            let scores = facade_anomaly_attribution(&inner.model, &data, outcome_ids, max_u)
-                .map_err(py_err)?;
-            Ok(anomaly_scores_from_rust(scores, &names))
-        })
+            let ctx = Self::ctx(0, None);
+            let target = AttributeTarget::Anomaly(AnomalyAttributionQuery::new(outcome_ids, max_u));
+            let (outcome, route) = source.attribute(target, &ctx)?;
+            let AttributionOutcome::Anomaly(scores) = outcome else {
+                return Err(outcome_mismatch());
+            };
+            Ok((anomaly_scores_from_rust(scores, &names), route))
+        })?;
+        self.record(route);
+        Ok(scores)
     }
 
     #[pyo3(signature = (baseline_start, baseline_end, comparison_start, comparison_end, *, seed=0, threads=None))]
@@ -1052,10 +1165,10 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<Vec<MechanismChangeDetection>> {
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
-        detach_catch(py, move || {
+        let (detections, route) = detach_catch(py, move || {
             let ctx = Self::ctx(seed, threads);
             let mut targets = Vec::with_capacity(data.schema().len());
             for i in 0..data.schema().len() {
@@ -1068,15 +1181,15 @@ impl PyFittedGcm {
                 0.05,
                 data.schema().len(),
             );
-            let detected = facade_mechanism_change_detection(
-                &inner.model,
-                &data,
-                &query,
-                antecedent::gcm::MechanismChangeMethod::MeanDiff,
-                &ctx,
-            )
-            .map_err(py_err)?;
-            Ok(detected
+            let target = AttributeTarget::MechanismChange {
+                query,
+                test: MechanismChangeTest::MeanDifference,
+            };
+            let (outcome, route) = source.attribute(target, &ctx)?;
+            let AttributionOutcome::MechanismChange(detected) = outcome else {
+                return Err(outcome_mismatch());
+            };
+            let detections: Vec<MechanismChangeDetection> = detected
                 .into_iter()
                 .map(|d| MechanismChangeDetection {
                     node: var_name(&names, d.variable),
@@ -1087,8 +1200,11 @@ impl PyFittedGcm {
                     n_permutations: d.n_permutations,
                     p_value_floor: d.p_value_floor,
                 })
-                .collect())
-        })
+                .collect();
+            Ok((detections, route))
+        })?;
+        self.record(route);
+        Ok(detections)
     }
 
     #[pyo3(signature = (attribution, *, seed=0, threads=None))]
@@ -1110,6 +1226,41 @@ impl PyFittedGcm {
             self.inner.assignments.len()
         )
     }
+}
+
+/// Path decomposition of `sources` on `outcome` through the compiled route on `source`.
+fn paths_on(
+    source: &ModelSource,
+    names: &[String],
+    sources: &[String],
+    outcome: &str,
+    max_paths: usize,
+    max_len: usize,
+    ctx: &ExecutionContext,
+) -> PyResult<ChangeAttributionResult> {
+    let y_id = source.data.schema().id_of(outcome).map_err(py_err)?;
+    let src_ids: Vec<VariableId> = sources
+        .iter()
+        .map(|n| source.data.schema().id_of(n).map_err(py_err))
+        .collect::<PyResult<_>>()?;
+    let target = AttributeTarget::Paths {
+        sources: Arc::from(src_ids),
+        outcome: y_id,
+        max_paths,
+        max_len,
+        through: Arc::from([]),
+    };
+    let (outcome, route) = source.attribute(target, ctx)?;
+    change_of(outcome, route, names)
+}
+
+/// The directed edges of a comparison structure, as variable pairs.
+fn comparison_pairs(graph: &Dag) -> Arc<[(VariableId, VariableId)]> {
+    graph
+        .directed_edge_pairs_sorted()
+        .into_iter()
+        .map(|(from, to)| (VariableId::from_raw(from), VariableId::from_raw(to)))
+        .collect()
 }
 
 fn family_ids(families: &[MechanismFamily]) -> Vec<&'static str> {
@@ -1290,26 +1441,134 @@ fn fit_gcm_py(
 ) -> PyResult<PyFittedGcm> {
     let _ = threads;
     let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
-    let registry = match &candidates {
-        None => MechanismRegistry::standard(),
-        Some(tokens) => {
-            let tokens: Vec<&str> = tokens.iter().map(String::as_str).collect();
-            antecedent::gcm::registry_from_candidates(&tokens).map_err(py_err)?
-        }
-    };
-    let options = SelectionOptions {
-        constraints: parse_constraints(constraints.as_ref(), &data)?,
-        splits: parse_splits(splits, purge)?,
-    };
+    let selection = Selection::parse(candidates, constraints.as_ref(), &data, splits, purge)?;
     detach_catch(py, move || {
         let g = dag_from_edges(&data, &edges)?;
-        let fit = if candidates.is_none() && options == SelectionOptions::default() {
-            fit_gcm(g, &data)
+        selection.fit(g, data, names, None)
+    })
+}
+
+/// The candidate set and selection rule of one fit, and the mechanism program that states them.
+struct Selection {
+    candidates: Option<Vec<String>>,
+    registry: MechanismRegistry,
+    options: SelectionOptions,
+}
+
+impl Selection {
+    fn parse(
+        candidates: Option<Vec<String>>,
+        constraints: Option<&Bound<'_, PyDict>>,
+        data: &TabularData,
+        splits: &str,
+        purge: usize,
+    ) -> PyResult<Self> {
+        let registry = match &candidates {
+            None => MechanismRegistry::standard(),
+            Some(tokens) => {
+                let tokens: Vec<&str> = tokens.iter().map(String::as_str).collect();
+                antecedent::gcm::registry_from_candidates(&tokens).map_err(py_err)?
+            }
+        };
+        let options = SelectionOptions {
+            constraints: parse_constraints(constraints, data)?,
+            splits: parse_splits(splits, purge)?,
+        };
+        Ok(Self { candidates, registry, options })
+    }
+
+    fn is_standard(&self) -> bool {
+        self.candidates.is_none() && self.options == SelectionOptions::default()
+    }
+
+    fn program(&self) -> PyResult<MechanismProgram> {
+        match &self.candidates {
+            None if self.is_standard() => Ok(MechanismProgram::standard()),
+            None => Ok(MechanismProgram::standard().with_options(self.options.clone())),
+            Some(tokens) => {
+                let tokens: Vec<&str> = tokens.iter().map(String::as_str).collect();
+                MechanismProgram::from_candidates(&tokens, self.options.clone()).map_err(py_err)
+            }
+        }
+    }
+
+    /// Fit on `graph` and keep the program, so every later route reuses this fit.
+    fn fit(
+        &self,
+        graph: Dag,
+        data: TabularData,
+        names: Vec<String>,
+        accepted: Option<AcceptedGraph>,
+    ) -> PyResult<PyFittedGcm> {
+        let fit = if self.is_standard() {
+            fit_gcm(graph, &data)
         } else {
-            fit_gcm_with(g, &data, &registry, &options)
+            fit_gcm_with(graph, &data, &self.registry, &self.options)
         };
         let fitted = fit.map_err(py_err)?;
-        Ok(PyFittedGcm { inner: Arc::new(fitted), names: Arc::from(names), data: Arc::new(data) })
+        Ok(PyFittedGcm::new(fitted, names, data, self.program()?, accepted))
+    }
+}
+
+/// Fit a graphical causal model on the structure a compiled discovery returned.
+///
+/// `discovery` is a result of a `discover_*` entry point (PC, GES, LiNGAM, NOTEARS, ...).
+/// Its route accepts the structure through the review gate as a fully oriented DAG (pending
+/// directed edges are accepted; undirected or circle marks refuse), and the model is fitted
+/// on that accepted DAG. Every attribution and simulation on the returned model states the
+/// discovery's provenance (method, inference, query, data snapshot, program and claim) in
+/// its contract. Returns `(fitted, edges)`, `edges` the accepted directed edges by name.
+#[pyfunction]
+#[pyo3(
+    name = "fit_gcm_accepted",
+    signature = (names, columns, discovery, *, threads=None, candidates=None, constraints=None, splits="shuffled", purge=0)
+)]
+#[allow(clippy::too_many_arguments, reason = "keyword-only selection options of one Python call")]
+fn fit_gcm_accepted_py(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    discovery: PyRef<'_, crate::discovery_api::PcmciDiscoveryResult>,
+    threads: Option<u32>,
+    candidates: Option<Vec<String>>,
+    constraints: Option<Bound<'_, PyDict>>,
+    splits: &str,
+    purge: usize,
+) -> PyResult<(PyFittedGcm, Vec<(String, String)>)> {
+    let _ = threads;
+    let route = discovery
+        .route
+        .clone()
+        .ok_or_else(|| crate::value_err("this discovery result has no compiled route to accept"))?;
+    drop(discovery);
+    let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
+    let selection = Selection::parse(candidates, constraints.as_ref(), &data, splits, purge)?;
+    detach_catch(py, move || {
+        let accepted = route.execution.accept_dag(&route.ctx).map_err(py_err)?;
+        let dag = accepted
+            .as_dag()
+            .cloned()
+            .ok_or_else(|| crate::value_err("the accepted structure is not a DAG"))?;
+        if dag.node_count() != data.schema().len() {
+            return Err(crate::value_err(format!(
+                "the discovery ran on {} variables but {} columns were supplied; pass the \
+                 columns the discovery read, in the same order",
+                dag.node_count(),
+                data.schema().len()
+            )));
+        }
+        let edges: Vec<(String, String)> = dag
+            .directed_edge_pairs_sorted()
+            .into_iter()
+            .map(|(from, to)| {
+                (
+                    var_name(&names, VariableId::from_raw(from)),
+                    var_name(&names, VariableId::from_raw(to)),
+                )
+            })
+            .collect();
+        let fitted = selection.fit(dag, data, names, Some(accepted))?;
+        Ok((fitted, edges))
     })
 }
 
@@ -1330,22 +1589,21 @@ fn attribute_paths(
 ) -> PyResult<ChangeAttributionResult> {
     let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
-        let g = dag_from_edges(&data, &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let src_ids: Vec<VariableId> = sources
-            .iter()
-            .map(|n| data.schema().id_of(n).map_err(py_err))
-            .collect::<PyResult<_>>()?;
+        let source = ModelSource {
+            dag: dag_from_edges(&data, &edges)?,
+            data: Arc::new(data),
+            accepted: None,
+            program: MechanismProgram::standard(),
+        };
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let result =
-            facade_attribute_paths(&fitted.model, &src_ids, y_id, max_paths, max_len, &ctx)
-                .map_err(py_err)?;
-        Ok(change_result_from_rust(result, &names))
+        paths_on(&source, &names, &sources, &outcome, max_paths, max_len, &ctx)
     })
 }
 
 /// Rank root causes from a [`ChangeAttributionResult`].
+///
+/// The ranking reads only the attribution it is given (no model, no data), so it runs the
+/// ranking engine directly; the attribution's own route already states its contract.
 #[pyfunction]
 #[pyo3(signature = (attribution, *, seed=0, threads=None))]
 fn rank_root_causes(
@@ -1390,6 +1648,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DecisionEvaluation>()?;
     m.add_class::<PyFittedGcm>()?;
     m.add_function(wrap_pyfunction!(fit_gcm_py, m)?)?;
+    m.add_function(wrap_pyfunction!(fit_gcm_accepted_py, m)?)?;
     m.add_function(wrap_pyfunction!(attribute_paths, m)?)?;
     m.add_function(wrap_pyfunction!(rank_root_causes, m)?)?;
     Ok(())

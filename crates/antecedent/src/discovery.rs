@@ -1,7 +1,16 @@
-//! Coarse discovery stage APIs for the facade.
+//! Discovery parameters, result types and the search engines the compiled
+//! structure-discovery route runs.
 //!
-//! Bindings and analysis call these instead of constructing PCMCI-family
-//! algorithms directly when the facade covers the stage.
+//! A structure search is a compiled route: build a [`crate::DiscoverySpec`]
+//! from the parameters here, start the study with
+//! [`crate::StudyBuilder::discovery`], prepare it and estimate. The prepared
+//! handle returns the search engine's own result together with a
+//! [`crate::CausalContract`] and a claim; [`crate::accept_discovered`]
+//! accepts the structure through its review gate and records its provenance.
+//!
+//! The `discover_*` functions are the engines that route runs. They are hidden
+//! from the public surface: called directly they return a structure with no
+//! contract, plan, claim or provenance.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -162,6 +171,7 @@ fn constrained(
 /// # Errors
 ///
 /// Discovery failures, or background knowledge the search cannot honour.
+#[doc(hidden)]
 pub fn discover_pcmci(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -191,6 +201,7 @@ fn pcmci_for(params: &DiscoverParams) -> Pcmci {
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_pcmci_panel(
     units: &[TimeSeriesData],
     variables: &[VariableId],
@@ -206,6 +217,7 @@ pub fn discover_pcmci_panel(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_pcmci_plus(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -231,6 +243,7 @@ fn pcmci_plus_for(params: &DiscoverParams) -> PcmciPlus {
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_pcmci_plus_panel(
     units: &[TimeSeriesData],
     variables: &[VariableId],
@@ -246,6 +259,7 @@ pub fn discover_pcmci_plus_panel(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_lpcmci(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -272,6 +286,7 @@ fn lpcmci_for(params: &DiscoverParams) -> Lpcmci {
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_lpcmci_panel(
     units: &[TimeSeriesData],
     variables: &[VariableId],
@@ -287,6 +302,7 @@ pub fn discover_lpcmci_panel(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_jpcmci_plus(
     data: &MultiEnvironmentData,
     variables: &[VariableId],
@@ -311,6 +327,7 @@ pub fn discover_jpcmci_plus(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_rpcmci(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -349,6 +366,7 @@ fn static_fdr(params: &StaticDiscoverParams) -> Option<FdrAdjustment> {
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_pc(
     data: &TabularData,
     variables: &[VariableId],
@@ -369,6 +387,7 @@ pub fn discover_pc(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_fci(
     data: &TabularData,
     variables: &[VariableId],
@@ -389,6 +408,7 @@ pub fn discover_fci(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_rfci(
     data: &TabularData,
     variables: &[VariableId],
@@ -409,6 +429,7 @@ pub fn discover_rfci(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_ges(
     data: &TabularData,
     variables: &[VariableId],
@@ -431,6 +452,7 @@ pub fn discover_ges(
 /// # Errors
 ///
 /// Discovery failures.
+#[doc(hidden)]
 pub fn discover_lingam(
     data: &TabularData,
     variables: &[VariableId],
@@ -459,6 +481,7 @@ pub fn discover_lingam(
     clippy::too_many_arguments,
     reason = "public entry point whose parameters mirror the binding-level keyword list"
 )]
+#[doc(hidden)]
 pub fn discover_notears_with(
     data: &TabularData,
     variables: &[VariableId],
@@ -486,6 +509,7 @@ pub fn discover_notears_with(
 /// # Errors
 ///
 /// Discovery / solver failures, and `missing_policy_required` for a missing value.
+#[doc(hidden)]
 pub fn discover_notears(
     data: &TabularData,
     variables: &[VariableId],
@@ -503,6 +527,7 @@ pub fn discover_notears(
 /// # Errors
 ///
 /// Discovery failures (oversized graph, empty support, score/data errors).
+#[doc(hidden)]
 pub fn discover_exact_dag_posterior(
     data: &TabularData,
     variables: &[VariableId],
@@ -526,6 +551,7 @@ pub fn discover_exact_dag_posterior(
 /// # Errors
 ///
 /// More than [`EXACT_MARGINAL_MAX_NODES`] variables, invalid constraints, score/data errors.
+#[doc(hidden)]
 pub fn discover_exact_dag_marginals(
     data: &TabularData,
     variables: &[VariableId],
@@ -546,6 +572,7 @@ pub fn discover_exact_dag_marginals(
 /// # Errors
 ///
 /// Discovery / diagnostics-gate failures.
+#[doc(hidden)]
 pub fn discover_order_mcmc(
     data: &TabularData,
     variables: &[VariableId],
@@ -568,6 +595,7 @@ pub fn discover_order_mcmc(
 /// # Errors
 ///
 /// Discovery / diagnostics-gate failures.
+#[doc(hidden)]
 pub fn discover_structure_mcmc(
     data: &TabularData,
     variables: &[VariableId],
@@ -592,6 +620,7 @@ pub fn discover_structure_mcmc(
 /// # Errors
 ///
 /// Screening, empty skeleton, or MCMC failures.
+#[doc(hidden)]
 pub fn discover_ci_screened_posterior(
     data: &TabularData,
     variables: &[VariableId],
@@ -627,6 +656,7 @@ pub fn discover_ci_screened_posterior(
 /// # Errors
 ///
 /// Short series, unsupported size, score, or empty support.
+#[doc(hidden)]
 pub fn discover_dbn_posterior(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -654,6 +684,7 @@ fn dbn_posterior_for(max_lag: u32, force_mcmc: bool, schedule: &GraphMcmcSchedul
 /// # Errors
 ///
 /// No usable rows, unsupported size, score, or empty support.
+#[doc(hidden)]
 pub fn discover_dbn_posterior_panel(
     units: &[TimeSeriesData],
     variables: &[VariableId],

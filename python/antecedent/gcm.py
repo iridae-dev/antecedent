@@ -1,7 +1,9 @@
 """Discover-then-fit GCM composition helpers.
 
 Attribution never discovers structure internally (ADR 0012/0015). These helpers
-compose ``discover_*`` → ``discovery_to_dag`` → ``fit_gcm`` / ``attribute_*``.
+compose a compiled ``discover_*`` route → its review gate → ``fit_gcm_accepted`` /
+``attribute_*``: the structure is accepted from the discovery's own route, so every
+attribution on the fitted model states the discovery's provenance in its ``contract``.
 """
 
 from __future__ import annotations
@@ -10,7 +12,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from ._data import as_columns
-from ._native import fit_gcm
+from ._native import fit_gcm_accepted
 from .discovery import (
     FCI,
     GES,
@@ -48,17 +50,19 @@ def fit_gcm_discovered(
     seed: int = 1,
     threads: int | None = None,
 ):
-    """Discover structure, coerce to a DAG, then ``fit_gcm``.
+    """Discover structure, accept it as a DAG through the review gate, then fit.
 
     Returns ``(fitted_gcm, graph_edges)``. Incomplete CPDAG/PAG marks raise
-    ``ValueError`` (orientations are never invented). Structure provenance is
-    the caller-supplied ``discovery`` algorithm — attribution does not discover.
+    ``ValueError`` (orientations are never invented). The model is fitted on the
+    structure the discovery's compiled route accepted, so the contract of every
+    attribution on it carries ``structure_provenance.*`` (method, inference, query,
+    data snapshot, program and claim) — attribution does not discover.
     """
     result, _algo = _run_static_discovery(data, discovery, seed=seed, threads=threads)
     dag = discovery_to_dag(result)
     names, columns = as_columns(data)
     edges = list(dag.edges())
-    fitted = fit_gcm(names, columns, edges, threads=threads)
+    fitted, _accepted_edges = fit_gcm_accepted(names, columns, result, threads=threads)
     return fitted, edges
 
 
