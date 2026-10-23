@@ -154,19 +154,67 @@ pub(in crate::contract_section) fn verify_nested_counterfactual_result(
     Ok(())
 }
 
-/// A temporal nested point is the natural direct effect of the published
+/// A temporal nested result is the natural direct effect of the published
 /// outcome-regression moments, not an arbitrary finite scalar.
+///
+/// The estimate is always that plug-in (under Bayesian inference the moments carry
+/// the slope prior, so it is the posterior-mean natural direct effect). Beside it the
+/// result may carry the uncertainty its inference mode publishes:
+///
+/// * Frequentist: the shared circular-block standard error and its interval. Both
+///   endpoints are present together, ordered, contain the estimate, and the
+///   standard error is finite and positive. A posterior artifact is refused.
+/// * Bayesian: the slope-posterior summary (standard deviation and equal-tailed
+///   interval, both endpoints together and ordered) and optionally its posterior
+///   artifact. The interval is a quantile summary of draws, so it is not required to
+///   contain the plug-in.
+///
+/// With no inference binding only the bare point is accepted.
 pub(in crate::contract_section) fn verify_temporal_nested_point(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
 ) -> Result<(), ContractReason> {
-    let shape = body.estimate.is_some_and(f64::is_finite)
-        && body.interval_lower.is_none()
-        && body.interval_upper.is_none()
-        && body.posterior_artifact.is_none()
-        && !body.standard_error.is_some_and(f64::is_finite);
-    if !shape {
+    let estimate = body.estimate.filter(|value| value.is_finite());
+    let Some(estimate) = estimate else {
         return Err(ContractReason::BodyTemporalNestedPoint);
+    };
+    let inference = contract.inference_binding.as_ref().map(|binding| binding.inference.as_str());
+    let interval = match (body.interval_lower, body.interval_upper) {
+        (None, None) => None,
+        (Some(lower), Some(upper)) if lower.is_finite() && upper.is_finite() && lower <= upper => {
+            Some((lower, upper))
+        }
+        _ => return Err(ContractReason::BodyTemporalNestedPoint),
+    };
+    let standard_error = match body.standard_error {
+        Some(se) if se.is_finite() => {
+            if se <= 0.0 {
+                return Err(ContractReason::BodyTemporalNestedPoint);
+            }
+            Some(se)
+        }
+        _ => None,
+    };
+    let carries_uncertainty =
+        interval.is_some() || standard_error.is_some() || body.posterior_artifact.is_some();
+    match inference {
+        _ if !carries_uncertainty => {}
+        Some("frequentist") => {
+            let (Some((lower, upper)), Some(_)) = (interval, standard_error) else {
+                return Err(ContractReason::BodyTemporalNestedPoint);
+            };
+            if body.posterior_artifact.is_some() || estimate < lower || estimate > upper {
+                return Err(ContractReason::BodyTemporalNestedPoint);
+            }
+        }
+        Some("bayesian") => {
+            // The posterior summary is either the body's ordered interval or the posterior
+            // artifact that carries its draws and quantiles; a bare standard error is neither.
+            if interval.is_none() && body.posterior_artifact.is_none() {
+                return Err(ContractReason::BodyTemporalNestedPoint);
+            }
+        }
+        _ => return Err(ContractReason::BodyTemporalNestedPoint),
     }
     let crate::CausalQueryWire::NestedCounterfactual { control_bits, active_bits, .. } =
         contract.target.query
@@ -188,8 +236,7 @@ pub(in crate::contract_section) fn verify_temporal_nested_point(
             }
             other => other,
         })?;
-    let actual = body.estimate.ok_or(ContractReason::BodyTemporalNestedPoint)?;
-    if (actual - expected).abs() > 1e-8 * expected.abs().max(1.0) {
+    if (estimate - expected).abs() > 1e-8 * expected.abs().max(1.0) {
         return Err(ContractReason::BodyTemporalNestedPoint);
     }
     Ok(())

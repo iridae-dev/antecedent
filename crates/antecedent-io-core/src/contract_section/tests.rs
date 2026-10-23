@@ -1465,6 +1465,85 @@ fn temporal_nested_point_must_match_the_solved_natural_direct_effect() {
 }
 
 #[test]
+fn temporal_nested_result_carries_the_uncertainty_of_its_inference_mode() {
+    let (mut body, target, names) = fixture_body();
+    let query = nested_query_wire();
+    body.query = query.clone();
+    // The plug-in natural direct effect of `orthogonal_direct_fit` is 2.0.
+    body.estimate = Some(2.0);
+    body.posterior_artifact = None;
+    let mut contract = contract_for(target, &body);
+    contract.graph_class = "TemporalDag".into();
+    contract.target.query = query;
+    contract.data_snapshot.as_mut().unwrap().nested_counterfactual_fit =
+        Some(orthogonal_direct_fit());
+    let header = AnalysisResultHeader { variable_names: names };
+    let flagged = |body: &AnalysisResultWire, contract: &AnalysisResultContractWire| {
+        verify_contract_against_body(&header, body, contract)
+            .iter()
+            .any(|reason| reason.as_ref() == "body.temporal_nested_point")
+    };
+    let set_inference = |contract: &mut AnalysisResultContractWire, inference: &str| {
+        contract.inference_binding.as_mut().unwrap().inference = inference.into();
+    };
+
+    // Frequentist: the shared-block SE and its interval around the plug-in.
+    set_inference(&mut contract, "frequentist");
+    body.standard_error = Some(0.1);
+    body.interval_lower = Some(1.8);
+    body.interval_upper = Some(2.2);
+    assert!(!flagged(&body, &contract), "accepted frequentist interval");
+    // Forged: the estimate moved off the solved moments.
+    body.estimate = Some(2.5);
+    body.interval_upper = Some(2.7);
+    assert!(flagged(&body, &contract), "estimate off the moments");
+    body.estimate = Some(2.0);
+    body.interval_upper = Some(2.2);
+    // Forged: an inverted interval.
+    body.interval_lower = Some(2.2);
+    body.interval_upper = Some(1.8);
+    assert!(flagged(&body, &contract), "inverted interval");
+    // Forged: one endpoint only, or an interval that leaves out the estimate.
+    body.interval_lower = Some(1.8);
+    body.interval_upper = None;
+    assert!(flagged(&body, &contract), "one endpoint");
+    body.interval_lower = Some(2.1);
+    body.interval_upper = Some(2.3);
+    assert!(flagged(&body, &contract), "interval excludes the estimate");
+    // Forged: a posterior artifact under frequentist inference.
+    body.interval_lower = Some(1.8);
+    body.interval_upper = Some(2.2);
+    body.posterior_artifact = Some(vec![1u8]);
+    assert!(flagged(&body, &contract), "posterior under frequentist inference");
+
+    // Bayesian: the slope-posterior summary and its artifact beside the plug-in.
+    set_inference(&mut contract, "bayesian");
+    body.standard_error = Some(0.1);
+    body.interval_lower = Some(1.85);
+    body.interval_upper = Some(2.25);
+    assert!(!flagged(&body, &contract), "accepted Bayesian posterior summary");
+    body.interval_lower = Some(2.25);
+    body.interval_upper = Some(1.85);
+    assert!(flagged(&body, &contract), "inverted credible interval");
+    body.interval_lower = Some(1.85);
+    body.interval_upper = Some(2.25);
+    body.estimate = Some(3.0);
+    assert!(flagged(&body, &contract), "Bayesian estimate off the moments");
+    body.estimate = Some(2.0);
+    body.standard_error = Some(-0.1);
+    assert!(flagged(&body, &contract), "negative posterior standard deviation");
+
+    // The bare point stays accepted under either mode.
+    body.standard_error = None;
+    body.interval_lower = None;
+    body.interval_upper = None;
+    body.posterior_artifact = None;
+    assert!(!flagged(&body, &contract));
+    set_inference(&mut contract, "frequentist");
+    assert!(!flagged(&body, &contract));
+}
+
+#[test]
 fn mixture_masses_must_sum_to_one() {
     validate_mixture_masses(0.5, 0.3, 0.2, 0.0).unwrap();
     assert!(validate_mixture_masses(0.5, 0.3, 0.1, 0.0).is_err());
