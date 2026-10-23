@@ -53,6 +53,10 @@ harness = false
 name = "ci_search"
 harness = false
 
+[[bench]]
+name = "fci_search"
+harness = false
+
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"

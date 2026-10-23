@@ -22,7 +22,7 @@ REQUIRED = (
     "status",
     "source",
 )
-OPTIONAL = frozenset({"nearest"})
+OPTIONAL = frozenset({"nearest", "candidate_command"})
 STATUSES = frozenset({"defined", "missing_entry_point"})
 TOP = frozenset({"schema", "predecessor_tag", "measured", "control"})
 TIME_VALUE = re.compile(
@@ -107,14 +107,21 @@ def main() -> None:
         nearest = row.get("nearest", "")
         if nearest.__class__ is not str:
             fail(f"{where}.nearest must be a string")
+        candidate = row.get("candidate_command", "")
+        if candidate.__class__ is not str:
+            fail(f"{where}.candidate_command must be a string")
         if status == "defined":
             if not row["command"]:
                 fail(f"{where}.command is empty")
+            if "candidate_command" in row and not candidate:
+                fail(f"{where}.candidate_command is empty")
             if nearest:
                 fail(f"{where} is defined and also names nearest")
         else:
             if row["command"]:
                 fail(f"{where}.command must be empty when the entry point is missing")
+            if candidate:
+                fail(f"{where}.candidate_command must be empty when the entry point is missing")
             if not nearest:
                 fail(f"{where}.nearest is required")
 

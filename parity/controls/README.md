@@ -12,6 +12,8 @@ From the repository root, copy one `command` from `workloads.toml` and run it. A
 python examples/python/propensity_weighting.py
 ```
 
+A row may also carry `candidate_command`: the command for the current build when it differs from the frozen `command` only in the build role (see `parity/performance_lanes/entry_points/`).
+
 `missing_entry_point` rows have no such command. `nearest` is the closest existing file. Do not treat that file as the control.
 
 Check the table without running the workloads:

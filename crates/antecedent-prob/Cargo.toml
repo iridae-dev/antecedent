@@ -37,3 +37,7 @@ harness = false
 [[bench]]
 name = "mcmc_stats"
 harness = false
+
+[[bench]]
+name = "hmc_logistic"
+harness = false

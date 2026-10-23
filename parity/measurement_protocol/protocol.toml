@@ -25,6 +25,14 @@ width = "encoded width stays at the control on row_capacity and exact_capacity"
 result = "the lane's result and retention contract"
 uncertainty_budget = "bootstrap replicates, posterior draws, and diagnostic passes stay at the control; the row tier does not shrink them"
 
+[entry_points]
+table = "entry_point rows in parity/performance_lanes/lanes.toml"
+pair = "Every lane control has a frozen v2.4.1 command and a candidate command. A pair runs the same data, seeds, requested uncertainty and diagnostics inside the timed section; only the installed build differs."
+python = "Scripts under parity/performance_lanes/entry_points take --role control (published v2.4.1 build) or --role candidate (current build), plus --threads, --rows and --repeats. The script refuses to run under the wrong build."
+rust = "Benches run the same file in a v2.4.1 worktree and in the current tree. The worktree needs the bench file and its Cargo.toml bench entry added."
+repeats = "A script prints every repeat. None is selected or dropped."
+check = "python3 parity/performance_lanes/check_lanes.py fails on any lane control without both commands."
+
 [sample]
 row_tiers = ["1e4", "1e5", "1e6", "1e7"]
 role = "plan"

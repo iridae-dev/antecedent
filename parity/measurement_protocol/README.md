@@ -10,6 +10,10 @@ Reference classes are Apple Silicon (`apple_silicon`) and x86-64 Linux (`x86_64_
 
 Held fixed inside a cell: the frozen v2.4.1 control on that same host, the hardware class, the thread count, the build, the control id and its seed, the timed section (uncertainty and diagnostics included), encoded width on the fixed-width lanes, the result and retention contract, and the control's uncertainty budget. The row tier does not shrink replicates, draws, or diagnostic passes.
 
+## Entry points
+
+Every lane control has a pair of commands in the `entry_point` rows of `lanes.toml`: a frozen v2.4.1 command and a candidate command, with the same data, seeds, requested uncertainty and diagnostics inside the timed section. The scripts in `parity/performance_lanes/entry_points/` take `--role control` for the published v2.4.1 build and `--role candidate` for the current build, and refuse to run under the wrong one. They also take `--threads`, `--rows` for the row tier, and `--repeats`; every repeat is printed. `python3 parity/performance_lanes/check_lanes.py` fails on any lane control without both commands.
+
 ## Sample size
 
 The sample-size and row tiers are `1e4`, `1e5`, `1e6`, and `1e7`. Those names are the plan, not results. A finished smaller tier does not stand in for a larger tier that missed its lane goal.

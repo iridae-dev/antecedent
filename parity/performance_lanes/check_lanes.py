@@ -29,7 +29,7 @@ MEASUREMENT_FIELDS = (
     "threads",
     "stage_times_ns",
 )
-TOP = frozenset({"schema", "predecessor_tag", "measured", "lane"})
+TOP = frozenset({"schema", "predecessor_tag", "measured", "lane", "entry_point"})
 COMMON = frozenset(
     {
         "id",
@@ -52,6 +52,21 @@ EXTRA = {
     "exact_capacity": frozenset({"reduction", "diagnostics", "applicability"}),
 }
 ENVELOPE = ("ram", "time", "disk")
+ENTRY_KEYS = (
+    "control",
+    "surface",
+    "frozen_command",
+    "candidate_command",
+    "frozen_build",
+    "candidate_build",
+    "files",
+    "uncertainty",
+    "diagnostics",
+)
+SURFACES = ("python", "rust")
+BENCH = re.compile(r"-p\s+(?P<crate>[\w-]+)\s+--bench\s+(?P<bench>[\w-]+)")
+EXAMPLE = re.compile(r"-p\s+(?P<crate>[\w-]+)\s+--example\s+(?P<example>[\w-]+)")
+ROLE = re.compile(r"--role\s+(?P<role>\w+)")
 TIME_VALUE = re.compile(
     r"\d+(?:\.\d+)?\s*(?:µs|μs|us|ms|ns|seconds?)\b",
     re.IGNORECASE,
@@ -98,7 +113,7 @@ def string_list(row: dict, key: str, where: str, allow_empty: bool) -> list[str]
     return names
 
 
-def workload_status(path: Path) -> dict[str, str]:
+def workload_rows(path: Path) -> dict[str, dict]:
     try:
         document = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
@@ -106,17 +121,21 @@ def workload_status(path: Path) -> dict[str, str]:
     controls = document.get("control") if isinstance(document, dict) else None
     if not isinstance(controls, list):
         fail("workloads.toml has no control list")
-    status: dict[str, str] = {}
+    rows: dict[str, dict] = {}
     for row in controls:
         if not isinstance(row, dict):
             continue
         ident = row.get("id")
         state = row.get("status")
         if isinstance(ident, str) and isinstance(state, str):
-            status[ident] = state
-    if not status:
+            rows[ident] = row
+    if not rows:
         fail("workloads.toml has no control ids")
-    return status
+    return rows
+
+
+def workload_status(path: Path) -> dict[str, str]:
+    return {ident: row["status"] for ident, row in workload_rows(path).items()}
 
 
 def require_text(row: dict, key: str, where: str) -> str:
@@ -126,8 +145,90 @@ def require_text(row: dict, key: str, where: str) -> str:
     return value
 
 
-def main() -> None:
-    root = Path(__file__).resolve().parent
+def check_entry_points(
+    document: dict, lane_controls: list[str], rows: dict[str, dict], repo: Path
+) -> int:
+    """Every lane control needs a runnable frozen control and a candidate entry point."""
+    entries = document.get("entry_point")
+    if not isinstance(entries, list) or not entries:
+        fail("entry_point list is empty")
+    registered: dict[str, list[dict]] = {}
+    seen: set[tuple[str, str]] = set()
+    for index, entry in enumerate(entries):
+        where = f"entry_point[{index}]"
+        if not isinstance(entry, dict):
+            fail(f"{where} is not a table")
+        if tuple(entry) != ENTRY_KEYS:
+            fail(f"{where} keys must be {list(ENTRY_KEYS)}")
+        for key in ENTRY_KEYS:
+            if key != "files":
+                require_text(entry, key, where)
+        control = entry["control"]
+        if control not in rows:
+            fail(f"{where}.control {control!r} is not in workloads.toml")
+        if entry["surface"] not in SURFACES:
+            fail(f"{where}.surface must be one of {list(SURFACES)}")
+        if (control, entry["surface"]) in seen:
+            fail(f"{where} repeats {control!r} on the {entry['surface']} surface")
+        seen.add((control, entry["surface"]))
+        files = string_list(entry, "files", where, allow_empty=False)
+        for name in files:
+            if not (repo / name).is_file():
+                fail(f"{where}.files names {name!r}, which does not exist")
+        frozen, candidate = entry["frozen_command"], entry["candidate_command"]
+        if entry["surface"] == "python" and not (
+            frozen.startswith("python ") and candidate.startswith("python ")
+        ):
+            fail(f"{where} python commands must start with 'python '")
+        if entry["surface"] == "rust":
+            for label, command in (("frozen_command", frozen), ("candidate_command", candidate)):
+                if EXAMPLE.search(command):
+                    continue
+                match = BENCH.search(command)
+                if match is None:
+                    fail(f"{where}.{label} must name '-p <crate> --bench <name>' or --example")
+                manifest = repo / "crates" / match["crate"] / "Cargo.toml"
+                if not manifest.is_file() or f'name = "{match["bench"]}"' not in manifest.read_text(
+                    encoding="utf-8"
+                ):
+                    fail(f"{where}.{label} bench {match['bench']!r} is not registered in {manifest}")
+        frozen_role, candidate_role = ROLE.search(frozen), ROLE.search(candidate)
+        if frozen_role or candidate_role:
+            if (
+                frozen_role is None
+                or candidate_role is None
+                or frozen_role["role"] != "control"
+                or candidate_role["role"] != "candidate"
+            ):
+                fail(f"{where} must pair '--role control' with '--role candidate'")
+            if frozen.replace("--role control", "") != candidate.replace("--role candidate", ""):
+                fail(f"{where} frozen and candidate commands must differ only in the role")
+        elif frozen != candidate:
+            fail(f"{where} commands differ without a --role switch")
+        registered.setdefault(control, []).append(entry)
+
+    for control in lane_controls:
+        row = rows[control]
+        if row["status"] != "defined" or not row.get("command"):
+            fail(f"control {control!r} has no runnable frozen control in workloads.toml")
+        candidates = registered.get(control)
+        if not candidates:
+            fail(f"control {control!r} has no registered entry point pair")
+        primary = [e for e in candidates if e["frozen_command"] == row["command"]]
+        if not primary:
+            fail(f"control {control!r} has no entry point whose frozen command is its workloads command")
+        wanted = row.get("candidate_command", row["command"])
+        if not any(e["candidate_command"] == wanted for e in primary):
+            fail(f"control {control!r} candidate command does not match workloads.toml")
+    orphans = sorted(set(registered) - set(lane_controls))
+    if orphans:
+        fail(f"entry_point rows name controls outside every lane: {orphans}")
+    return len(entries)
+
+
+def main(root: Path | None = None) -> None:
+    root = root or Path(__file__).resolve().parent
+    repo = root.parent.parent
     path = root / "lanes.toml"
     try:
         document = tomllib.loads(path.read_text(encoding="utf-8"))
@@ -149,7 +250,8 @@ def main() -> None:
     lanes = document.get("lane")
     if not isinstance(lanes, list) or len(lanes) != len(LANE_IDS):
         fail(f"expected {len(LANE_IDS)} lanes")
-    known = workload_status(root.parent / "controls" / "workloads.toml")
+    rows = workload_rows(root.parent / "controls" / "workloads.toml")
+    known = {ident: row["status"] for ident, row in rows.items()}
 
     seen: list[str] = []
     for index, row in enumerate(lanes):
@@ -235,7 +337,9 @@ def main() -> None:
 
     if tuple(seen) != LANE_IDS:
         fail(f"lane ids must be {list(LANE_IDS)}")
-    print(f"ok: {len(seen)} lanes, status {STATUS}")
+    lane_controls = sorted({name for row in lanes for name in row["controls"]})
+    entries = check_entry_points(document, lane_controls, rows, repo)
+    print(f"ok: {len(seen)} lanes, status {STATUS}, {entries} entry points")
 
 
 if __name__ == "__main__":

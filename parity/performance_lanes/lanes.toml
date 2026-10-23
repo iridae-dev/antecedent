@@ -31,12 +31,7 @@ controls = [
     "counterfactual",
     "decision",
 ]
-missing_entry_point = [
-    "nonlinear_bayes",
-    "fci",
-    "survival",
-    "policy",
-]
+missing_entry_point = []
 measurement_fields = [
     "peak_rss",
     "copy_bytes",
@@ -76,9 +71,7 @@ solo_controls = [
 prepared_controls = [
     "prepared_query_families",
 ]
-missing_entry_point = [
-    "prepared_query_families",
-]
+missing_entry_point = []
 measurement_fields = [
     "peak_rss",
     "copy_bytes",
@@ -116,10 +109,7 @@ controls = [
     "survival",
     "policy",
 ]
-missing_entry_point = [
-    "survival",
-    "policy",
-]
+missing_entry_point = []
 measurement_fields = [
     "peak_rss",
     "copy_bytes",
@@ -170,3 +160,217 @@ notes = "One streaming reduction. Sufficient statistics are the starting point. 
 ram = "fixed RAM ceiling for the reduction and the declared diagnostic state"
 time = "declared time envelope covering the reduction and the diagnostic passes"
 disk = "declared disk for the source scan, spill, and outputs whose retention matches the v2.4.1 control"
+
+# One row per control and surface. A lane control with no row, a row without both a frozen
+# and a candidate command, or a command whose file is missing fails check_lanes.py.
+# The frozen command runs against a published v2.4.1 build on the same host; the candidate
+# command runs the identical data, requested uncertainty and diagnostics against the current
+# build. Neither command is a measurement.
+[[entry_point]]
+control = "adjustment"
+surface = "python"
+frozen_command = "python examples/python/propensity_weighting.py"
+candidate_command = "python examples/python/propensity_weighting.py"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["examples/python/propensity_weighting.py"]
+uncertainty = "30 bootstrap replicates for the propensity-weighted effect"
+diagnostics = "overlap ESS and minimum propensity"
+
+[[entry_point]]
+control = "glm"
+surface = "rust"
+frozen_command = "cargo bench -p antecedent-prob --bench laplace_glm"
+candidate_command = "cargo bench -p antecedent-prob --bench laplace_glm"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["crates/antecedent-prob/benches/laplace_glm.rs"]
+uncertainty = "256 Laplace posterior draws"
+diagnostics = "MAP convergence and workspace-reuse assertion"
+
+[[entry_point]]
+control = "aipw"
+surface = "python"
+frozen_command = "python examples/python/ihdp_propensity_e2e.py"
+candidate_command = "python examples/python/ihdp_propensity_e2e.py"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["examples/python/ihdp_propensity_e2e.py"]
+uncertainty = "40 bootstrap replicates and the Wald interval"
+diagnostics = "IPW cheap refutation suite and overlap diagnostics"
+
+[[entry_point]]
+control = "prepared_query_families"
+surface = "python"
+frozen_command = "python parity/performance_lanes/entry_points/prepared_query_families.py --role control"
+candidate_command = "python parity/performance_lanes/entry_points/prepared_query_families.py --role candidate"
+frozen_build = "published v2.4.1 build, same host"
+candidate_build = "current build on the same host"
+files = ["parity/performance_lanes/entry_points/prepared_query_families.py"]
+uncertainty = "analytic standard errors, contrast standard error and the 20000-draw max-t simultaneous interval of eight retargeted families"
+diagnostics = "snapshot check, family completeness and per-claim status"
+
+[[entry_point]]
+control = "bootstrap"
+surface = "rust"
+frozen_command = "cargo bench -p antecedent-estimate --bench propensity_bootstrap"
+candidate_command = "cargo bench -p antecedent-estimate --bench propensity_bootstrap"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["crates/antecedent-estimate/benches/propensity_bootstrap.rs"]
+uncertainty = "50 bootstrap replicates"
+diagnostics = "propensity-workspace reuse assertion"
+
+[[entry_point]]
+control = "gaussian_bayes"
+surface = "rust"
+frozen_command = "USER_PATH_N=10000 cargo bench -p antecedent --bench user_path -- user_path_dag_ate_bayesian_laplace"
+candidate_command = "USER_PATH_N=10000 cargo bench -p antecedent --bench user_path -- user_path_dag_ate_bayesian_laplace"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["crates/antecedent/benches/user_path.rs"]
+uncertainty = "400 certified Laplace posterior draws"
+diagnostics = "identify-cache and copy counts from the untimed run"
+
+[[entry_point]]
+control = "nonlinear_bayes"
+surface = "python"
+frozen_command = "python parity/performance_lanes/entry_points/nonlinear_bayes.py --role control"
+candidate_command = "python parity/performance_lanes/entry_points/nonlinear_bayes.py --role candidate"
+frozen_build = "published v2.4.1 build, same host"
+candidate_build = "current build on the same host"
+files = ["parity/performance_lanes/entry_points/nonlinear_bayes.py"]
+uncertainty = "4000 HMC posterior draws and the posterior interval"
+diagnostics = "effective-sample-size, split-R-hat, divergence and chain-movement publication gates, and the measured draw control"
+
+[[entry_point]]
+control = "pc"
+surface = "rust"
+frozen_command = "cargo bench -p antecedent-discovery --bench ci_search"
+candidate_command = "cargo bench -p antecedent-discovery --bench ci_search"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["crates/antecedent-discovery/benches/ci_search.rs"]
+uncertainty = "conditional-independence tests with stored test count"
+diagnostics = "link digests"
+
+[[entry_point]]
+control = "fci"
+surface = "python"
+frozen_command = "python parity/performance_lanes/entry_points/fci.py --role control"
+candidate_command = "python parity/performance_lanes/entry_points/fci.py --role candidate"
+frozen_build = "published v2.4.1 build, same host"
+candidate_build = "current build on the same host"
+files = ["parity/performance_lanes/entry_points/fci.py"]
+uncertainty = "conditional-independence tests with stored test count and scored links"
+diagnostics = "Possible-D-Sep phase, orientation to a fixed point and the oriented graph"
+
+[[entry_point]]
+control = "pcmci"
+surface = "rust"
+frozen_command = "cargo +1.85 bench -p antecedent-discovery --bench pcmci"
+candidate_command = "cargo +1.85 bench -p antecedent-discovery --bench pcmci"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["crates/antecedent-discovery/benches/pcmci.rs"]
+uncertainty = "momentary conditional independence at alpha 0.05"
+diagnostics = "parent search and test count"
+
+[[entry_point]]
+control = "panel"
+surface = "python"
+frozen_command = "python examples/python/quasi_difference_in_differences.py"
+candidate_command = "python examples/python/quasi_difference_in_differences.py"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["examples/python/quasi_difference_in_differences.py"]
+uncertainty = "subject-clustered standard error"
+diagnostics = "cluster count and repeated-cross-section uncertainty field"
+
+[[entry_point]]
+control = "survival"
+surface = "python"
+frozen_command = "python parity/performance_lanes/entry_points/survival.py --role control"
+candidate_command = "python parity/performance_lanes/entry_points/survival.py --role candidate"
+frozen_build = "published v2.4.1 build, same host"
+candidate_build = "current build on the same host"
+files = ["parity/performance_lanes/entry_points/survival.py"]
+uncertainty = "399 subject-stratified bootstrap replicates, pointwise RMST and survival intervals"
+diagnostics = "replicate accounting and the simultaneous-band decision"
+
+[[entry_point]]
+control = "policy"
+surface = "python"
+frozen_command = "python parity/performance_lanes/entry_points/policy.py --role control"
+candidate_command = "python parity/performance_lanes/entry_points/policy.py --role candidate"
+frozen_build = "published v2.4.1 build, same host"
+candidate_build = "current build on the same host"
+files = ["parity/performance_lanes/entry_points/policy.py"]
+uncertainty = "row-score standard errors and 95 percent intervals for the policy and incremental values"
+diagnostics = "training and evaluation ownership check, propensity range"
+
+[[entry_point]]
+control = "transport"
+surface = "rust"
+frozen_command = "cargo run -p antecedent --example transport_statistical"
+candidate_command = "cargo run -p antecedent --example transport_statistical"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["examples/rust/transport_statistical.rs"]
+uncertainty = "40 bootstrap replicates, percentile uncertainty slot"
+diagnostics = "identification, support and assumptions report"
+
+[[entry_point]]
+control = "counterfactual"
+surface = "python"
+frozen_command = "python examples/python/staged_static_kinds.py"
+candidate_command = "python examples/python/staged_static_kinds.py"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["examples/python/staged_static_kinds.py"]
+uncertainty = "64 posterior draws and the individual-effect posterior"
+diagnostics = "calibration status"
+
+[[entry_point]]
+control = "decision"
+surface = "python"
+frozen_command = "python examples/python/rank_designs_evsi.py"
+candidate_command = "python examples/python/rank_designs_evsi.py"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["examples/python/rank_designs_evsi.py"]
+uncertainty = "expected value of sample information per study"
+diagnostics = "EVPI agreement check and exported-artifact replay"
+
+[[entry_point]]
+control = "refresh"
+surface = "python"
+frozen_command = "python examples/python/analysis_workflow.py"
+candidate_command = "python examples/python/analysis_workflow.py"
+frozen_build = "v2.4.1 tag or published wheel on the same host"
+candidate_build = "current build on the same host"
+files = ["examples/python/analysis_workflow.py"]
+uncertainty = "25 bootstrap replicates re-executed by refresh"
+diagnostics = "identification report and calibration status"
+
+[[entry_point]]
+control = "nonlinear_bayes"
+surface = "rust"
+frozen_command = "cargo bench -p antecedent-prob --bench hmc_logistic"
+candidate_command = "cargo bench -p antecedent-prob --bench hmc_logistic"
+frozen_build = "v2.4.1 worktree with this bench file and its Cargo.toml bench entry added, same host"
+candidate_build = "current build on the same host"
+files = ["crates/antecedent-prob/benches/hmc_logistic.rs"]
+uncertainty = "4000 HMC posterior draws"
+diagnostics = "effective-sample-size, split-R-hat, divergence and chain-movement publication gates of fit_hmc_glm"
+
+[[entry_point]]
+control = "fci"
+surface = "rust"
+frozen_command = "cargo bench -p antecedent-discovery --bench fci_search"
+candidate_command = "cargo bench -p antecedent-discovery --bench fci_search"
+frozen_build = "v2.4.1 worktree with this bench file and its Cargo.toml bench entry added, same host"
+candidate_build = "current build on the same host"
+files = ["crates/antecedent-discovery/benches/fci_search.rs"]
+uncertainty = "conditional-independence tests with stored test count and scored links"
+diagnostics = "Possible-D-Sep phase, orientation to a fixed point and the oriented graph"
