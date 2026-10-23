@@ -201,7 +201,7 @@ fn primary_outcome(functional: &ResponseFunctional) -> VariableId {
     }
 }
 
-fn support_report(response: &CausalResponse, value: f64) -> RefutationReport {
+pub(super) fn support_report(response: &CausalResponse, value: f64) -> RefutationReport {
     let supported = matches!(response.support.status, antecedent_core::SupportStatus::Supported);
     RefutationReport::new(
         "derivative.support",
@@ -221,7 +221,7 @@ fn support_report(response: &CausalResponse, value: f64) -> RefutationReport {
     )
 }
 
-fn finite_difference_report(value: f64, se: f64, fd: f64) -> RefutationReport {
+pub(super) fn finite_difference_report(value: f64, se: f64, fd: f64) -> RefutationReport {
     let se = if se.is_finite() { se } else { 0.0 };
     let gap = (fd - value).abs();
     let tolerance = FD_RELATIVE_TOLERANCE * value.abs().max(fd.abs()) + 2.0 * se;

@@ -19,7 +19,8 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_graph::{
-    Cpdag, Dag, DenseNodeId, TemporalDag, TieredBackground, WithinTier, ensure_lagged,
+    Cpdag, Dag, DenseNodeId, TemporalCpdag, TemporalDag, TieredBackground, WithinTier,
+    ensure_lagged,
 };
 
 /// Deterministic uniform stream (xorshift64*).
@@ -308,4 +309,103 @@ fn codetermined_bayesian_joint_level_executes_unlicensed() {
     let truth = 4.0 + 1.5 * mean_z;
     assert!((level - truth).abs() < 0.2, "joint level {level} vs {truth}");
     assert!(has_diagnostic(&result, "estimate.codetermined.bayesian_joint"));
+}
+
+/// Series `x, y, z`: `x = 0.4 z + N(0, 0.5²)`, `y = 0.8 x@-1 + N(0, 0.35²)`.
+fn lagged_series(n: usize, seed: u64) -> TimeSeriesData {
+    let mut stream = Stream(seed.max(1));
+    let z: Vec<f64> = (0..n).map(|_| stream.normal()).collect();
+    let x: Vec<f64> = z.iter().map(|z| 0.4 * z + 0.5 * stream.normal()).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| 0.8 * i.checked_sub(1).map_or(0.0, |j| x[j]) + 0.35 * stream.normal())
+        .collect();
+    TimeSeriesData::from_f64_columns(
+        [("x", x.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+        1,
+    )
+    .unwrap()
+}
+
+/// `x@-1 -> y`, `z@-1 -> y`, `z@-1 - x@-1` undirected.
+fn lagged_cpdag() -> TemporalCpdag {
+    let mut graph = TemporalCpdag::empty();
+    let x1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = graph.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    graph.insert_undirected(z1, x1).unwrap();
+    graph
+}
+
+#[test]
+fn temporal_class_intervention_level_runs_per_completion_witness_state() {
+    let series = lagged_series(500, 23);
+    let query = level_query(1, 0).with_temporal(
+        TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None).unwrap(),
+    );
+    for inference in [
+        InferenceMode::Frequentist,
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(128)),
+    ] {
+        let label = format!("{inference:?}");
+        let result = Study::series(series.clone())
+            .graph(lagged_cpdag())
+            .query(CausalQuery::Response(query.clone()))
+            .inference(inference)
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap_or_else(|error| panic!("{label}: {error}"))
+            .run(&ExecutionContext::for_tests(23))
+            .unwrap_or_else(|error| panic!("{label}: {error}"));
+        assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+        assert!(!result.refutations.is_empty(), "{label}");
+        assert!(
+            has_diagnostic(&result, "refute.temporal_response.class_envelope_disagreement"),
+            "{label}"
+        );
+        assert!(has_diagnostic(&result, "refute.temporal_response.pulse_witness_state"), "{label}");
+    }
+}
+
+#[test]
+fn temporal_derivative_runs_its_refuter_state_on_dag_and_class() {
+    let series = lagged_series(500, 29);
+    let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+        outcome: VariableId::from_raw(1),
+        treatment: VariableId::from_raw(0),
+        at: 0.0,
+        order: 1,
+        scale: antecedent_core::DerivativeScale::Identity,
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None).unwrap());
+    let mut dag = TemporalDag::empty();
+    let x1 = ensure_lagged(&mut dag, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut dag, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    dag.insert_directed(x1, y0).unwrap();
+    for (class, suite) in
+        [(false, RefuteSuite::Cheap), (false, RefuteSuite::Full), (true, RefuteSuite::Cheap)]
+    {
+        let label = format!("class={class} {suite:?}");
+        let builder = Study::series(series.clone());
+        let builder =
+            if class { builder.graph(lagged_cpdag()) } else { builder.graph(dag.clone()) };
+        let result = builder
+            .query(CausalQuery::Response(query.clone()))
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap_or_else(|error| panic!("{label}: {error}"))
+            .run(&ExecutionContext::for_tests(29))
+            .unwrap_or_else(|error| panic!("{label}: {error}"));
+        assert_eq!(result.support_status, Some(CellStatus::Refused), "{label}");
+        let fd = result
+            .refutations
+            .iter()
+            .find(|report| report.refuter.as_ref() == "derivative.finite_difference")
+            .unwrap_or_else(|| panic!("{label}: finite-difference check"));
+        assert!((fd.refuted_ate - 0.8).abs() < 0.15, "{label}: {}", fd.refuted_ate);
+        assert!(has_diagnostic(&result, "refute.temporal_response.pulse_witness_state"), "{label}");
+    }
 }

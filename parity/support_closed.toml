@@ -8,6 +8,19 @@
 # evidence row or coverage record is implied. The first matching rule decides.
 
 [[closed]]
+queries = ["AverageEffect"]
+graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
+structures = ["explicit", "accepted"]
+executes_unlicensed = true
+reason = "An AverageEffect on one series (or event series) under a temporal graph denotes the lag-0 contrast E[Y_t | do(X_t = active)] - E[Y_t | do(X_t = control)]. The build compiles it as the pulse at offset 0 read at horizon 1: on a TemporalCpdag every completion adjusts for the parents of X_t (temporal backdoor), on a TemporalPag every MAG completion uses visibility-aware adjustment, and the Bayesian reading is the per-completion conjugate posterior with draw-wise identified-set bounds. The result keeps support status refused and discloses estimate.temporal_class.lag_zero_average_effect; no evidence row or coverage record names the cell. Effect modifiers, a non-mean functional and a population other than AllObserved are refused (next attempt: TemporalConditionalPulse or a temporal ResponseCurve)."
+
+[[closed]]
+queries = ["AverageEffect"]
+graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+reason = "A lag-0 AverageEffect on a temporal graph reads one supplied graph. Next attempt: a PulseEffect over the graph posterior, which is licensed."
+
+[[closed]]
 queries = ["InterventionResponse"]
 graph_classes = ["Dag"]
 structures = ["explicit", "accepted", "graph_posterior"]
@@ -29,7 +42,8 @@ queries = ["PointDerivative", "Elasticity", "SemiElasticity", "AverageDerivative
 graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
-reason = "Temporal derivative cheap and full are refused, not impossible: the temporal derivative is the slope of the linear unfolded fit at one horizon, a scalar a refuter state can check. Next attempt: the static derivative refuter state on that horizon's lag-aligned design (support at the evaluation point, finite-difference consistency of the horizon's identified levels, and circular-block stability under the dependent-series design), executing unlicensed."
+executes_unlicensed = true
+reason = "Temporal derivative, elasticity and Jacobian cheap and full run the temporal derivative refuter state and stay unlicensed: no evidence row or coverage record names it. The derivative is the slope of the linear unfolded fit at one horizon; the state checks support at the evaluation point, compares an identity-scale first derivative with the unit-step difference of the identified levels (the completion-weighted Pulse witness effect), and runs the TemporalDag Pulse-native suite on each identified completion's Pulse witness at that horizon (overlap, temporal placebo and pre-period checks; full adds circular-block stability). Bayesian studies add each witness's predictive checks and, under full, prior sensitivity. Completions are not mixed."
 
 [[closed]]
 queries = ["InterventionResponse"]
@@ -44,7 +58,8 @@ queries = ["InterventionResponse"]
 graph_classes = ["TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
-reason = "TemporalCpdag and TemporalPag InterventionResponse cheap and full are refused, not impossible: the graph-posterior cells of these classes already run the Pulse-native suite on every completion atom. Next attempt: the same per-completion, per-horizon Pulse-witness state on the explicit and accepted completion-enumeration envelope, with a failed completion reported rather than mixed."
+executes_unlicensed = true
+reason = "TemporalCpdag and TemporalPag InterventionResponse cheap and full run the class temporal refuter state and stay unlicensed: no evidence row or coverage record names it. Every identified completion at every requested horizon is checked on its own Pulse witness (the unit contrast with the level's intervention as the active arm, under that completion's proof and lag indexer) with the TemporalDag Pulse-native suite (overlap, temporal placebo and pre-period checks; full adds circular-block stability); Bayesian studies add each witness's predictive checks and prior sensitivity. Completions and horizons are not mixed; a per-horizon disagreement diagnostic reports how far the completions' witness effects spread."
 
 [[closed]]
 queries = ["InterventionResponse"]

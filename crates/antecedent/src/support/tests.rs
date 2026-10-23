@@ -157,9 +157,21 @@ fn licensed_neighbors_keep_graph_class_and_never_relabel() {
 }
 
 #[test]
-fn average_effect_on_temporal_dag_is_not_applicable() {
-    let status = classify(cell("AverageEffect", "TemporalDag", "explicit", "Frequentist", "none"));
-    assert!(matches!(status, CellStatus::NotApplicable { .. }));
+fn average_effect_on_a_temporal_graph_is_the_executing_lag_zero_cell() {
+    for graph in ["TemporalDag", "TemporalCpdag", "TemporalPag"] {
+        for inference in ["Frequentist", "Bayesian"] {
+            for validation in ["none", "cheap", "full"] {
+                let c = cell("AverageEffect", graph, "explicit", inference, validation);
+                assert!(matches!(classify(c), CellStatus::Refused), "{c:?}");
+                assert!(super::executes_unlicensed(c), "{c:?}");
+            }
+        }
+        let posterior = cell("AverageEffect", graph, "graph_posterior", "Frequentist", "none");
+        assert!(matches!(classify(posterior), CellStatus::Refused));
+        assert!(!super::executes_unlicensed(posterior));
+        let conditional = cell("ConditionalEffect", graph, "explicit", "Frequentist", "none");
+        assert!(matches!(classify(conditional), CellStatus::NotApplicable { .. }));
+    }
 }
 
 #[test]
@@ -304,15 +316,15 @@ fn refusals_formerly_recorded_as_not_applicable_execute_or_name_their_next_attem
     }
     let c = cell("InterventionResponse", "CoDetermined", "explicit", "Bayesian", "none");
     assert!(super::executes_unlicensed(c), "{c:?}");
-    // Not built yet: refused with a named next attempt.
+    // The temporal sides execute too.
     for c in [
         cell("InterventionResponse", "TemporalCpdag", "explicit", "Frequentist", "full"),
         cell("InterventionResponse", "TemporalPag", "accepted", "Bayesian", "cheap"),
         cell("PointDerivative", "TemporalDag", "explicit", "Frequentist", "cheap"),
+        cell("ResponseJacobian", "TemporalPag", "accepted", "Bayesian", "full"),
     ] {
-        let err = refuse_if_not_applicable(c).unwrap_err().to_string();
-        assert!(err.starts_with("refused:") && err.contains("Next attempt"), "{c:?}: {err}");
-        assert!(!super::executes_unlicensed(c), "{c:?}");
+        assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+        assert!(super::executes_unlicensed(c), "{c:?}");
     }
     // Genuine impossibilities stay n/a.
     for c in [

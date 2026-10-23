@@ -19,12 +19,11 @@ reason = "Temporal contrast queries require a temporal graph class: a pulse, sus
 
 [[n_a]]
 queries = [
-  "AverageEffect",
   "ConditionalEffect",
   "MediationEffect",
 ]
 graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
-reason = "Static queries do not denote on TemporalDag, TemporalCpdag, or TemporalPag. TemporalPag stays the equivalence class only for the temporal queries licensed on it. Latent confounding over time denotes on TemporalAdmg."
+reason = "Static queries do not denote on TemporalDag, TemporalCpdag, or TemporalPag. TemporalPag stays the equivalence class only for the temporal queries licensed on it. Latent confounding over time denotes on TemporalAdmg. An AverageEffect on a temporal graph denotes the lag-0 contrast and is a refused, executing cell (parity/support_closed.toml)."
 
 [[n_a]]
 queries = ["TransportQuery", "InterferenceQuery"]

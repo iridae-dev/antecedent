@@ -1072,6 +1072,33 @@ impl super::Study {
              slope-posterior draws)",
         )];
         diagnostics.extend(response.support.warnings.iter().cloned());
+        // A derivative's cheap/full suite is its refuter state on the horizon's Pulse
+        // witness (unlicensed).
+        let (refutations, predictive_checks) = if matches!(self.refute, RefuteSuite::None) {
+            (Vec::new(), Vec::new())
+        } else {
+            let site = super::temporal_response_refutation::PulseWitnessSite {
+                key: u64::from(temporal.horizons[0]),
+                horizon: temporal.horizons[0],
+                weight: 1.0,
+                witness: probe.clone(),
+                estimand: estimand.clone(),
+                indexer: indexer.clone(),
+                status: identification.status,
+                assumptions: identification.required_assumptions.clone(),
+            };
+            let (reports, checks, notes) =
+                super::temporal_response_refutation::refute_temporal_derivative(
+                    self,
+                    data,
+                    query,
+                    &response,
+                    &[site],
+                    ctx,
+                )?;
+            diagnostics.extend(notes);
+            (reports, checks)
+        };
         let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -1083,10 +1110,12 @@ impl super::Study {
                 outcome,
             )
             .identify_cached(identify_cached)
+            .refutations(refutations)
             .wall_time_ns(elapsed_ns(started)),
         );
         result.payload = crate::result::ResultPayload::Response(response);
         result.posterior = None;
+        result.predictive_checks = predictive_checks;
         result.rebind_interval(self.inference.is_bayesian());
         result.diagnostics.extend(diagnostics);
         Ok(result)
@@ -1620,6 +1649,7 @@ impl super::Study {
             assumptions: antecedent_core::AssumptionSet::new(),
             diagnostics: Vec::new(),
             observation_atoms: Vec::new(),
+            witness_sites: Vec::new(),
         };
         let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
@@ -1737,6 +1767,20 @@ impl super::Study {
             horizon,
             response,
         )?;
+        if !matches!(self.refute, RefuteSuite::None)
+            && matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
+        {
+            run.witness_sites.push(super::temporal_response_refutation::PulseWitnessSite {
+                key: class_completion_key(horizon_index, case_index),
+                horizon,
+                weight,
+                witness: super::temporal_response_refutation::level_witness(query, horizon)?,
+                estimand: estimand.clone(),
+                indexer: indexer.clone(),
+                status: case.result.status,
+                assumptions: case.result.required_assumptions.clone(),
+            });
+        }
         if series_owned.is_some() && self.inference.is_frequentist() {
             run.observation_atoms.push(ClassObservationAtom {
                 atom_index,
@@ -1848,7 +1892,26 @@ impl super::Study {
             mut assumptions,
             mut diagnostics,
             observation_atoms,
+            witness_sites,
         } = run;
+        // A class intervention level's cheap/full suite is the per-completion,
+        // per-horizon Pulse-witness refuter state (unlicensed).
+        let (refutations, predictive_checks) = if witness_sites.is_empty() {
+            (Vec::new(), Vec::new())
+        } else {
+            let (reports, checks, notes) =
+                super::temporal_response_refutation::refute_temporal_class_intervention(
+                    self,
+                    data,
+                    &witness_sites,
+                    ctx,
+                )?;
+            diagnostics.retain(|diagnostic| {
+                diagnostic.code.as_ref() != "refute.temporal_response.skipped"
+            });
+            diagnostics.extend(notes);
+            (reports, checks)
+        };
         let cells_per_horizon = assembly.cells_per_horizon();
         if query.observation != ObservationSpec::Complete {
             append_temporal_observation_assumptions(query, &mut assumptions);
@@ -1903,7 +1966,7 @@ impl super::Study {
             &parts,
             (temporal.horizons.len(), assembly.full_mass_scope, assembly.truncated_atoms),
         );
-        Ok(self.finish_class_response_tail(ClassResponseTail {
+        let mut result = self.finish_class_response_tail(ClassResponseTail {
             physical,
             identification,
             estimand,
@@ -1922,10 +1985,12 @@ impl super::Study {
                 .then_some(self.bootstrap_replicates),
             started,
             ctx,
-            refutations: Vec::new(),
+            refutations,
             identify_provenance: None,
             estimate_provenance: None,
-        }))
+        });
+        result.predictive_checks = predictive_checks;
+        Ok(result)
     }
 
     /// The observation circular-block band over the class atoms of an observed
@@ -6759,6 +6824,9 @@ struct ClassResponseRun {
     assumptions: antecedent_core::AssumptionSet,
     diagnostics: Vec<Diagnostic>,
     observation_atoms: Vec<ClassObservationAtom>,
+    /// Pulse witnesses of the evaluated completions, kept when an intervention level
+    /// runs its cheap/full refuter state.
+    witness_sites: Vec<super::temporal_response_refutation::PulseWitnessSite>,
 }
 
 /// Completions given the same estimand, indexer, status and assumptions run

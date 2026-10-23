@@ -755,11 +755,6 @@ impl super::Study {
                 message: "a temporal derivative is the local slope at one horizon",
             });
         }
-        if self.refute != RefuteSuite::None {
-            return Err(CausalError::Unsupported {
-                message: "temporal derivative is point-only; cheap/full refuters are not licensed",
-            });
-        }
         let prior_scale = isotropic_prior_scale(&self.inference, DERIVATIVE_PRIOR_REFUSAL)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let probe = super::temporal_path::unit_contrast_query(
@@ -801,6 +796,40 @@ impl super::Study {
         let mut diagnostics =
             class_derivative_diagnostics(envelope, self.graph.class(), identify_cached, &response);
         diagnostics.extend(uncertainty_diagnostics);
+        // A derivative's cheap/full suite is its refuter state on every identified
+        // completion's Pulse witness at the one horizon (unlicensed).
+        let (refutations, predictive_checks) = if self.refute == RefuteSuite::None {
+            (Vec::new(), Vec::new())
+        } else {
+            let mut sites = Vec::new();
+            for (case_index, (case, indexer)) in
+                envelope.cases.iter().zip(bundle.indexers.iter()).enumerate()
+            {
+                if !super::identification_status_ok_for_case(case.result.status)
+                    || case.result.estimands.is_empty()
+                {
+                    continue;
+                }
+                let estimand =
+                    super::select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+                sites.push(super::temporal_response_refutation::PulseWitnessSite {
+                    key: super::temporal_path::class_completion_key(0, case_index),
+                    horizon: temporal.horizons[0],
+                    weight: case.weight.0,
+                    witness: probe.clone(),
+                    estimand,
+                    indexer: indexer.clone(),
+                    status: case.result.status,
+                    assumptions: case.result.required_assumptions.clone(),
+                });
+            }
+            let (reports, checks, notes) =
+                super::temporal_response_refutation::refute_temporal_derivative(
+                    self, data, query, &response, &sites, ctx,
+                )?;
+            diagnostics.extend(notes);
+            (reports, checks)
+        };
         let scalar = super::response_path::response_scalar_summary(&response).0;
         let estimate = EffectEstimate::new(
             scalar,
@@ -829,6 +858,7 @@ impl super::Study {
                 outcome,
             )
             .identify_cached(identify_cached)
+            .refutations(refutations)
             .wall_time_ns(elapsed_ns(started))
             .bootstrap_replicates_ok(replicates_ok)
             .cancelled(cancelled)
@@ -841,6 +871,7 @@ impl super::Study {
                 structural_response: Some(structural),
                 diagnostics: Some(diagnostics),
                 response: Some(response),
+                predictive_checks,
                 ..Default::default()
             }),
         );
