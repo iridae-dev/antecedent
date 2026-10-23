@@ -22,7 +22,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::dose_grid_functional::{
-    ClaimSet, DoseDesign, DoseFunctional, IntervalCalibration,
+    BiasAwareDoseGrid, ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, IntervalCalibration,
+    estimate_dose_grid_bias_aware,
 };
 pub use antecedent_io::dose_grid_functional_artifact::{
     DOSE_GRID_ARTIFACT_FEATURE, DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_CLOSED,

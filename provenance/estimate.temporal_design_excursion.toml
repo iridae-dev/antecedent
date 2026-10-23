@@ -1,0 +1,29 @@
+feature_id = "estimate.temporal_design_excursion"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Assessing Time-Varying Causal Effect Moderation in Mobile Health", doi = "10.1080/01621459.2017.1305274", sections = ["Causal excursion effect of a sequentially randomized decision on a proximal outcome; known randomization probabilities"] },
+  { title = "Toward Causal Inference With Interference", doi = "10.1198/016214508000000292", sections = ["Direct, indirect and total effects under a declared exposure mapping"] },
+  { title = "Efficient Semiparametric Estimation of Quantile Treatment Effects", doi = "10.1111/j.1468-0262.2007.00738.x", sections = ["Inverse-probability weighted distribution functions and their quantiles"] },
+  { title = "Simple and Honest Confidence Intervals in Nonparametric Regression", doi = "10.3982/QE1199", sections = ["Worst-case bias of a linear smoother over a derivative-bounded class; folded-normal critical value"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "Every coordinate is a ratio of Horvitz-Thompson pair scores summed within independent units (or declared interference clusters); the uncertainty is the cluster-robust linearized-ratio covariance, with a Gaussian multiplier sup-t band over several contrasts or a dose grid. The excursion target keeps carryover inside the target rather than assuming it away.",
+  "The local-quadratic dose grid weights pairs by kernel over the recorded dose density; its pointwise interval is bias-aware under a declared third-derivative bound, and the band adds that bound to the sup-t half-width. The kernel-smoothed curve and contrast take the bandwidth as part of the estimand.",
+  "The quantile excursion inverts Hajek-weighted distribution functions and reports a whole-procedure cluster-bootstrap percentile interval. No interval is calibrated and the route is not licensed.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/temporal_design/mod.rs",
+  "crates/antecedent-estimate/src/temporal_design/contrasts.rs",
+  "crates/antecedent-estimate/src/temporal_design/dose.rs",
+  "crates/antecedent-estimate/src/temporal_design/quantile.rs",
+  "crates/antecedent/tests/temporal_design_routes.rs",
+]

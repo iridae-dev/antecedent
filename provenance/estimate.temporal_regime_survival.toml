@@ -1,0 +1,22 @@
+feature_id = "estimate.temporal_regime_survival"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Marginal Structural Models and Causal Inference in Epidemiology", doi = "10.1097/00001648-200009000-00011", sections = ["Inverse probability of treatment and censoring weights for time-varying treatment"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "Pooled logistic treatment and censoring models give cumulative weights of regime-consistent uncensored person-periods; the weighted period hazards multiply to survival under the always-treat and never-treat regimes.",
+  "The interval is a whole-procedure subject bootstrap that refits both models in every replicate, so the nuisance fits are inside the interval; replicates that lose positivity or regime support are counted and more than five percent refuse the interval. Coverage is not measured and the route is not licensed.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/temporal_design/survival.rs",
+  "crates/antecedent/tests/temporal_design_routes.rs",
+]

@@ -45,6 +45,12 @@
 //!   fields, enabled separately through [`ClaimSet`]. A simultaneous band is a
 //!   different claim: requesting it is refused (`dose_grid.simultaneous_band_closed`)
 //!   and [`DoseGridRow::simultaneous_band`] is always `None`.
+//! * **Bias-aware intervals and band.** [`estimate_dose_grid_bias_aware`] builds both
+//!   claims the row leaves out on the same fit: under a declared bound on the absolute third
+//!   derivative of the dose response, each interval is the bias-aware (folded-normal)
+//!   interval at the exact worst-case smoothing bias of the linear smoother, and the
+//!   simultaneous band over the grid adds that bias to a Gaussian multiplier sup-t half-width.
+//!   Calibration stays unmeasured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -834,6 +840,289 @@ pub fn estimate_dose_grid_quadratic_mean_with_context(
         contrast.interval.smoothing_bias_included = true;
     }
     Ok(row)
+}
+
+/// A dose-grid row whose intervals account for the smoothing bias, with a simultaneous band.
+///
+/// The row's own intervals exclude the smoothing bias `m_h - m`. Under a declared bound `M` on
+/// the absolute third derivative of the dose response, the worst-case bias of the linear
+/// smoother `sum_i l_i Y_i` at dose `d` is `M / 6 * sum_i |l_i| |D_i - d|^3` exactly (the local
+/// quadratic reproduces quadratics, so only the third-order Taylor remainder is left). Each
+/// coordinate's interval is the bias-aware interval of Armstrong and Kolesar (the folded-normal
+/// critical value at the standardized worst-case bias), and the simultaneous band adds the
+/// worst-case bias to the Gaussian multiplier sup-t half-width over the grid. A bound of zero
+/// is the exact-quadratic premise. No coverage is claimed: calibration stays unmeasured.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BiasAwareDoseGrid {
+    /// The unrestricted row the bias-aware claims are built on.
+    pub row: DoseGridRow,
+    /// Declared bound on the absolute third derivative of the dose response.
+    pub curvature_bound: f64,
+    /// Worst-case smoothing bias of each reported coordinate under the bound.
+    pub smoothing_bias_bound: Vec<f64>,
+    /// Bias-aware pointwise interval of each coordinate (grid doses, or the one contrast).
+    pub intervals: Vec<PointwiseInterval>,
+    /// Simultaneous band over the grid; `None` for a contrast or a one-dose grid.
+    pub band: Option<SimultaneousBand>,
+    /// Critical value of the centered sup-t statistic of the band.
+    pub band_critical_value: Option<f64>,
+    /// Gaussian multiplier replicates behind the band.
+    pub band_replicates: usize,
+}
+
+/// Linear smoother weights and local residuals of the Gaussian local quadratic at `at`.
+fn smoother_at(
+    dose: &[f64],
+    outcome: &[f64],
+    at: f64,
+    bandwidth: f64,
+    derivative: bool,
+) -> Option<(Vec<f64>, Vec<f64>)> {
+    let mut information = [0.0; 9];
+    let mut moment = [0.0; 3];
+    let mut kernel = Vec::with_capacity(dose.len());
+    for (&d, &y) in dose.iter().zip(outcome) {
+        let u = d - at;
+        let z = u / bandwidth;
+        let w = (-0.5 * z * z).exp();
+        let x = [1.0, u, u * u];
+        for a in 0..3 {
+            moment[a] += w * x[a] * y;
+            for b in 0..3 {
+                information[a * 3 + b] += w * x[a] * x[b];
+            }
+        }
+        kernel.push(w);
+    }
+    let factor = crate::temporal_design::cholesky_factor(&information, 3)?;
+    let beta = crate::temporal_design::cholesky_apply(&factor, 3, &moment);
+    let coordinate = usize::from(derivative);
+    let mut weights = Vec::with_capacity(dose.len());
+    let mut residuals = Vec::with_capacity(dose.len());
+    for ((&d, &y), w) in dose.iter().zip(outcome).zip(&kernel) {
+        let u = d - at;
+        let row = crate::temporal_design::cholesky_apply(&factor, 3, &[1.0, u, u * u]);
+        weights.push(row[coordinate] * w);
+        residuals.push(y - (beta[0] + beta[1] * u + beta[2] * u * u));
+    }
+    Some((weights, residuals))
+}
+
+/// The reported coordinates of a bias-aware row: estimates, standard errors, influence columns
+/// and worst-case biases.
+type BiasAwareColumns = (Vec<f64>, Vec<f64>, Vec<Vec<f64>>, Vec<f64>);
+
+/// Evaluate the row with bias-aware intervals and, for a grid, a simultaneous band.
+///
+/// # Errors
+/// The ordinary refusals of the row; a curvature bound that is negative or not finite; fewer
+/// than two band replicates for a grid; a singular local fit; admission or cancellation.
+pub fn estimate_dose_grid_bias_aware(
+    request: &DoseGridRequest<'_>,
+    curvature_bound: f64,
+    band_replicates: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<BiasAwareDoseGrid, EstimationError> {
+    if !(curvature_bound.is_finite() && curvature_bound >= 0.0) {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "dose_grid.invalid_request",
+            "the curvature bound must be finite and non-negative",
+        ));
+    }
+    let mut base = *request;
+    base.claims.simultaneous_band = false;
+    let row = estimate_dose_grid_functional_with_context(&base, ctx)?;
+    let derivative = request.functional == DoseFunctional::Derivative;
+    let (points, contrast) = match request.functional {
+        DoseFunctional::Contrast { from, to } => (vec![to, from], true),
+        DoseFunctional::Level | DoseFunctional::Derivative => (request.grid.to_vec(), false),
+    };
+    let n = request.dose.len();
+    let _lease = crate::util::admit_array::<f64>(ctx, n, points.len() + 2)?;
+    let mut columns: Vec<(Vec<f64>, f64)> = Vec::with_capacity(points.len());
+    for &at in &points {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_stats::StatsError::Cancelled.into());
+        }
+        let (weights, residuals) =
+            smoother_at(request.dose, request.outcome, at, request.bandwidth, derivative)
+                .ok_or_else(|| {
+                    refuse(
+                        antecedent_core::reason_code!("cell_not_licensed"),
+                        "dose_grid.insufficient_local_weight",
+                        &format!("the local quadratic is singular at dose {at}"),
+                    )
+                })?;
+        let influence: Vec<f64> = weights.iter().zip(&residuals).map(|(l, e)| l * e).collect();
+        let worst: f64 =
+            weights.iter().zip(request.dose).map(|(l, d)| l.abs() * (d - at).abs().powi(3)).sum();
+        columns.push((influence, curvature_bound / 6.0 * worst));
+    }
+    // Coordinates: every grid dose, or the one contrast `to - from`.
+    let (estimates, standard_errors, influences, bias): BiasAwareColumns = if contrast {
+        let point = row
+            .contrast
+            .as_ref()
+            .ok_or_else(|| EstimationError::stats_msg("the contrast row reported no contrast"))?;
+        let influence: Vec<f64> =
+            columns[0].0.iter().zip(&columns[1].0).map(|(to, from)| to - from).collect();
+        (
+            vec![point.estimate],
+            vec![point.standard_error],
+            vec![influence],
+            vec![columns[0].1 + columns[1].1],
+        )
+    } else if derivative {
+        (
+            row.derivatives.iter().map(|point| point.derivative).collect(),
+            row.derivatives.iter().map(|point| point.standard_error).collect(),
+            columns.iter().map(|(influence, _)| influence.clone()).collect(),
+            columns.iter().map(|(_, bias)| *bias).collect(),
+        )
+    } else {
+        (
+            row.levels.iter().map(|point| point.level).collect(),
+            row.levels.iter().map(|point| point.standard_error).collect(),
+            columns.iter().map(|(influence, _)| influence.clone()).collect(),
+            columns.iter().map(|(_, bias)| *bias).collect(),
+        )
+    };
+    let k = estimates.len();
+    let intervals: Vec<PointwiseInterval> = (0..k)
+        .map(|j| {
+            let se = standard_errors[j];
+            let half = if se > 0.0 {
+                crate::temporal_design::folded_normal_critical(bias[j] / se, 0.95) * se
+            } else {
+                bias[j]
+            };
+            PointwiseInterval {
+                lower: estimates[j] - half,
+                upper: estimates[j] + half,
+                nominal_level: 0.95,
+                calibration: IntervalCalibration::Unmeasured,
+                smoothing_bias_included: true,
+            }
+        })
+        .collect();
+    let (band, band_critical_value) = if !contrast && k > 1 {
+        if band_replicates < 2 {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "dose_grid.invalid_request",
+                "a simultaneous band needs at least two multiplier replicates",
+            ));
+        }
+        let mut residuals = vec![0.0; n * k];
+        for (j, influence) in influences.iter().enumerate() {
+            for (i, value) in influence.iter().enumerate() {
+                residuals[i * k + j] = *value;
+            }
+        }
+        let own_se: Vec<f64> = influences
+            .iter()
+            .map(|influence| influence.iter().map(|value| value * value).sum::<f64>().sqrt())
+            .collect();
+        let coordinates: Vec<usize> = (0..k).collect();
+        let critical = crate::temporal_design::sup_t_critical(
+            &residuals,
+            k,
+            1.0,
+            &own_se,
+            &coordinates,
+            band_replicates,
+            ctx,
+        )?;
+        let lower =
+            (0..k).map(|j| estimates[j] - critical * standard_errors[j] - bias[j]).collect();
+        let upper =
+            (0..k).map(|j| estimates[j] + critical * standard_errors[j] + bias[j]).collect();
+        (Some(SimultaneousBand { lower, upper }), Some(critical))
+    } else {
+        (None, None)
+    };
+    Ok(BiasAwareDoseGrid {
+        row,
+        curvature_bound,
+        smoothing_bias_bound: bias,
+        intervals,
+        band,
+        band_critical_value,
+        band_replicates: if band_critical_value.is_some() { band_replicates } else { 0 },
+    })
+}
+
+#[cfg(test)]
+mod bias_aware_tests {
+    use super::*;
+    use antecedent_core::ExecutionContext;
+
+    fn request<'a>(
+        dose: &'a [f64],
+        outcome: &'a [f64],
+        grid: &'a [f64],
+        functional: DoseFunctional,
+    ) -> DoseGridRequest<'a> {
+        DoseGridRequest {
+            dose,
+            outcome,
+            grid,
+            bandwidth: 0.4,
+            bandwidth_range: (0.1, 1.0),
+            minimum_local_ess: 10.0,
+            functional,
+            claims: ClaimSet { pointwise_level: true, derivative: true, simultaneous_band: false },
+            design: DoseDesign::RandomizedDose,
+        }
+    }
+
+    #[test]
+    fn the_band_covers_a_cubic_curve_only_with_its_bias_inside() {
+        // m(d) = d^3 has m''' = 6: the local quadratic is biased, and the bound accounts for it.
+        let dose: Vec<f64> = (0..3001).map(|i| 3.0 * f64::from(i) / 3000.0).collect();
+        let outcome: Vec<f64> = dose
+            .iter()
+            .enumerate()
+            .map(|(i, d)| d * d * d + if i % 2 == 0 { 0.05 } else { -0.05 })
+            .collect();
+        let grid = [0.6, 1.2, 1.8, 2.4];
+        let ctx = ExecutionContext::for_tests(3);
+        let fit = estimate_dose_grid_bias_aware(
+            &request(&dose, &outcome, &grid, DoseFunctional::Level),
+            6.0,
+            500,
+            &ctx,
+        )
+        .unwrap();
+        let band = fit.band.as_ref().unwrap();
+        for (j, d) in grid.iter().enumerate() {
+            let truth = d * d * d;
+            assert!(fit.intervals[j].smoothing_bias_included);
+            assert!(fit.intervals[j].lower <= truth && truth <= fit.intervals[j].upper, "{j}");
+            assert!(band.lower[j] <= truth && truth <= band.upper[j], "{j}");
+            assert!(fit.smoothing_bias_bound[j] > 0.0);
+        }
+        assert!(fit.band_critical_value.unwrap() > antecedent_stats::NORMAL_Q975);
+        let exact = estimate_dose_grid_bias_aware(
+            &request(&dose, &outcome, &grid, DoseFunctional::Contrast { from: 0.6, to: 2.4 }),
+            0.0,
+            0,
+            &ctx,
+        )
+        .unwrap();
+        assert!(exact.band.is_none());
+        assert!(exact.smoothing_bias_bound[0].abs() < 1e-12);
+        assert!(
+            estimate_dose_grid_bias_aware(
+                &request(&dose, &outcome, &grid, DoseFunctional::Level),
+                -1.0,
+                500,
+                &ctx
+            )
+            .is_err()
+        );
+    }
 }
 
 #[cfg(test)]

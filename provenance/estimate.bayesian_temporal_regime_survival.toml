@@ -1,0 +1,23 @@
+feature_id = "estimate.bayesian_temporal_regime_survival"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Intervening on risk factors for coronary heart disease: an application of the parametric g-formula", doi = "10.1093/ije/dyp192", sections = ["Parametric g-formula: simulate time-varying confounders under a regime and multiply the period hazards"] },
+  { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet weights over subjects for the baseline confounder law"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "The joint likelihood factorizes into a conjugate Gaussian confounder transition law and pooled logistic treatment, censoring and hazard laws with an isotropic Gaussian coefficient prior (Laplace approximation at the mode). Each draw carries every subject's baseline forward under the regime with common random numbers across regimes.",
+  "The treatment and censoring posteriors do not enter the g-formula under sequential exchangeability; they report the posterior share of draws whose regime probabilities fall below the positivity floor. The posterior is uncalibrated and the route is not licensed.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/temporal_design/survival.rs",
+  "crates/antecedent/tests/temporal_design_routes.rs",
+]

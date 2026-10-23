@@ -1,0 +1,23 @@
+feature_id = "estimate.bayesian_temporal_design_excursion"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet posterior weights on observed units as the vanishing-concentration Dirichlet-process posterior"] },
+  { title = "Assessing Time-Varying Causal Effect Moderation in Mobile Health", doi = "10.1080/01621459.2017.1305274", sections = ["Causal excursion effect under known sequential randomization"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "Each draw takes Dirichlet weights over independent units (or interference clusters) and re-evaluates the same functional the frequentist row estimates: the Horvitz-Thompson ratio, the weighted quantile, or the weighted local quadratic. The recorded assignment law is held fixed, so the prior supplies no identifying premise.",
+  "The local-quadratic posterior is the posterior of the bandwidth projection; its worst-case smoothing bias is reported beside it and never folded into the credible interval. The posterior is uncalibrated and the route is not licensed.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/temporal_design/mod.rs",
+  "crates/antecedent/tests/temporal_design_routes.rs",
+]

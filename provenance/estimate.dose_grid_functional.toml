@@ -14,6 +14,7 @@ copied_tests = false
 papers = [
   { title = "Local Polynomial Modelling and Its Applications (Fan and Gijbels, Chapman and Hall, 1996)", sections = ["local polynomial fitting by kernel-weighted least squares, with the fitted coefficients giving the regression function and its derivatives (construction only; chapter and section numbers not re-verified for this record)"] },
   { title = "A Heteroskedasticity-Consistent Covariance Matrix Estimator and a Direct Test for Heteroskedasticity (White, Econometrica 48(4), 1980)", sections = ["the heteroskedasticity-robust sandwich variance, applied here to the linearized influences of the local fit (construction only; no theorem inherited)"] },
+  { title = "Simple and Honest Confidence Intervals in Nonparametric Regression", doi = "10.3982/QE1199", sections = ["worst-case bias of a linear smoother over a class with a bounded derivative; the folded-normal critical value of the bias-aware interval (used by estimate_dose_grid_bias_aware)"] },
   { title = "Survey Sampling (Kish, Wiley, 1965)", sections = ["effective sample size of unequal weights, 1/sum(w_i^2) for normalized weights, used as the per-dose support criterion (construction only; section number not re-verified for this record)"] },
 ]
 
@@ -23,6 +24,7 @@ implementation_deviations = [
   "Randomization of the dose is a caller attestation; no graph is re-derived and an observational dose is refused. Rows are treated as independent; clustered, serial or linked rows are outside the row.",
   "Support is judged per requested dose: outside the observed dose range, or Kish effective sample size below a caller-declared minimum (at least 3), is labelled and refused, never extrapolated.",
   "Exactly one named functional is evaluated per call, each with its own claim flag; the measured numerical residual of the local solves is reported and is not a bound on estimation error.",
+  "estimate_dose_grid_bias_aware is a separate entry on the same row: under a caller-declared bound on the absolute third derivative of m it adds the exact worst-case smoothing bias of the linear smoother (M/6 times the sum of |l_i| |D_i - d|^3) to each interval through the folded-normal critical value, and builds a simultaneous band whose half-width is a Gaussian multiplier sup-t critical value times the standard error plus that bias. The sealed artifact keeps the band closed; calibration stays unmeasured.",
 ]
 
 upstream_implementations_observed = []
@@ -31,4 +33,5 @@ test_sources = [
   "crates/antecedent-estimate/tests/dose_grid_functional.rs",
   "crates/antecedent-io/tests/dose_grid_artifact.rs",
   "python/tests/test_dose_grid.py",
+  "crates/antecedent-estimate/src/dose_grid_functional.rs",
 ]

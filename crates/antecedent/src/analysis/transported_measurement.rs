@@ -66,6 +66,13 @@ pub use antecedent_estimate::measurement_transport::{
     TransportedMeasurementModel, transport_measurement_model,
 };
 
+// Differential error pooled across validated populations and carried to the target with the
+// between-population heterogeneity propagated (the invariance premise's uncertainty).
+pub use antecedent_estimate::measurement_transport_pooled::{
+    PooledDifferentialCorrection, PooledDifferentialRequest, PooledRate, PopulationValidation,
+    transport_pooled_differential_prevalence,
+};
+
 use super::StudyBuilder;
 use super::composition_verification::{
     ClaimStanding, CompositionNode, NodeKind, TrustStanding, library_transported_node,

@@ -70,6 +70,24 @@ of the premise itself is not propagated. When several models are held, the one
 established for the requested population, regime and arm is used; a model for
 the population alone is a fallback only when none matches the regime and arm.
 
+## Pooled differential error
+
+When the error rates differ by population and several populations hold their own
+validation samples, `transport_pooled_differential_prevalence`
+(`antecedent_estimate::measurement_transport_pooled`, re-exported by
+`antecedent::analysis::transported_measurement`) pools them instead of refusing. The
+logits of sensitivity and of specificity are modelled as draws from a population
+distribution whose between-population variance `tau^2` is estimated (DerSimonian and
+Laird); invariance is the special case `tau^2 = 0`, so the uncertainty of the invariance
+premise is propagated rather than assumed away. The target's rates are the predictive law
+of that distribution, updated by the target's own validation sample when one exists. The
+Rogan-Gladen correction of the target's recorded prevalence is propagated by simulation over
+the target's rates and the recorded prevalence's Beta posterior. A draw with a non-positive
+Youden index is discarded and counted; more than five percent refuse
+(`differential_error_not_pooled`, next attempt: validate in the target). The interval is an
+uncalibrated simulation interval. Binary sensitivity and specificity only; no Python entry
+point yet.
+
 ## What is refused, and the remedy
 
 | Refused request | Reason code | Remedy |
@@ -81,5 +99,6 @@ the population alone is a fallback only when none matches the regime and arm.
 | Interval, standard error or law of the cohort effect | `cell_not_licensed` / `decision_contract_unsatisfied` | Use the point value; an interval needs a measured record at that coordinate |
 | Measurement parameters not declared invariant, or only some of them | `transport_missing_evidence` / `transport_not_certified` | Name every parameter the route uses, or establish the model in the target |
 | Differential error with no target model | `differential_error_not_pooled` | Validate the measurement model in the target population |
+| Pooling differential error with fewer than two validated source populations | `differential_error_not_pooled` | Validate the measurement in a second source population, or in the target |
 | Replicated measurements or an external latent posterior | `route_not_supported` | Replicates re-estimate in the target; a posterior is bound to its source snapshot |
 | Data from another population or regime than the model's | `measurement_binding_mismatch` | Re-bind through the transport route, or use a target model |
