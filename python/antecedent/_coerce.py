@@ -156,6 +156,7 @@ def coerce_query(value: Any) -> Any:
     Every query dataclass in :mod:`antecedent.query` carries a ``kind``
     discriminator; anything without one is not a supported query type.
     """
+    from ._temporal_design import TEMPORAL_DESIGN_QUERIES
     from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
     from .interference import InterferenceQuery
     from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
@@ -245,6 +246,7 @@ def coerce_query(value: Any) -> Any:
         PeriodHistoryMatch,
         SurvivalOutcome,
         CompetingRisksOutcome,
+        *TEMPORAL_DESIGN_QUERIES,
     )
     if isinstance(value, valid):
         return value

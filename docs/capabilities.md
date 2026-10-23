@@ -1050,7 +1050,8 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   categorical levels, a two-factor factorial, within-cluster interference and a
   continuous dose, plus the quantile excursion and static-regime survival on
   subject trajectories) run through `CausalQuery::TemporalDesign` and
-  `antecedent.temporal_designs.estimate_temporal_design`. Their target is the
+  `antecedent.temporal_designs.estimate_temporal_design`, or as typed queries of
+  `analyze`/`prepare` (`result.temporal_design`). Their target is the
   excursion of a decision on the outcome a declared lag later, with carryover
   inside the target; they execute unlicensed with calibration unmeasured (see
   [the guide](guides/temporal-designs.md)). A static switchback has no target:

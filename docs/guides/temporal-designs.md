@@ -7,6 +7,30 @@ exchangeability. Every route here executes and is **unlicensed**: no coverage re
 every interval and posterior carries `calibration = "unmeasured"`, and no support-matrix cell
 is implied.
 
+## Typed queries
+
+`antecedent.analyze(table, query=...)` and `antecedent.prepare(table, query=...)` take the same
+designs as typed queries that name columns of the table:
+
+```python
+from antecedent.temporal_designs import TwoArmExcursion
+
+result = antecedent.analyze(
+    table, query=TwoArmExcursion("y", "unit", "period", assignment="a", probability="p", lag=1)
+)
+result.temporal_design  # TemporalDesignEstimate
+```
+
+`TwoArmExcursion`, `MultiArmExcursion` (one probability column per arm), `FactorialExcursion`,
+`InterferenceExcursion`, `DoseExcursion` (target `SmoothedDoseCurve`, `SmoothedDoseContrast` or
+`LocalQuadraticDoseGrid`) and `RegimeSurvivalContrast` take `quantile_level=` and
+`misclassification=OutcomeMisclassification(...)` where the design reads them. The answer is
+structured (`unlicensed_temporal_design_<uncertainty>`), and `load(result.export())`
+reads back an equal `temporal_design`. `TemporalDesignEstimate.bootstrap_standard_error` is the
+whole-procedure bootstrap standard deviation (frequentist regime survival and the quantile
+functional); `posterior_standard_deviation` is set for a Bayesian result. A refreshed table must
+repeat the units, periods and recorded assignment law.
+
 ## The excursion target
 
 At each decision period `t` a unit's treatment is drawn from a law the experimenter records:

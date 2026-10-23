@@ -22,6 +22,15 @@ A dose target is ``smoothed_curve`` (``grid``), ``smoothed_contrast`` (``active`
 Regime survival reads observational subject trajectories (outcome = event indicator) and
 contrasts always-treat with never-treat survival at ``horizon``.
 
+The same designs are typed queries for :func:`antecedent.analyze` and
+:func:`antecedent.prepare`: :class:`TwoArmExcursion`, :class:`MultiArmExcursion`,
+:class:`FactorialExcursion`, :class:`InterferenceExcursion`, :class:`DoseExcursion` (with a
+:class:`SmoothedDoseCurve`, :class:`SmoothedDoseContrast` or :class:`LocalQuadraticDoseGrid`
+target) and :class:`RegimeSurvivalContrast`, each naming columns of the table, with
+``quantile_level=`` and ``misclassification=OutcomeMisclassification(...)`` options. The
+result is ``result.temporal_design`` (:class:`TemporalDesignEstimate`), which a loaded
+artifact reads back equal.
+
 Every result is unlicensed and its calibration is unmeasured. Frequentist intervals are
 cluster-robust (a whole-procedure bootstrap for the quantile functional and regime survival,
 which need ``bootstrap=``); Bayesian results are a Bayesian bootstrap over independent units
@@ -38,9 +47,36 @@ from typing import Any, Literal
 
 from antecedent import _native
 from antecedent._data import ingest_columns, read_columns
+from antecedent._temporal_design import (
+    DoseExcursion,
+    FactorialExcursion,
+    InterferenceExcursion,
+    LocalQuadraticDoseGrid,
+    MultiArmExcursion,
+    OutcomeMisclassification,
+    RegimeSurvivalContrast,
+    SmoothedDoseContrast,
+    SmoothedDoseCurve,
+    TemporalDesignEstimate,
+    TwoArmExcursion,
+)
 from antecedent.errors import CausalValueError
 
-__all__ = ["TemporalDesignResult", "estimate_temporal_design"]
+__all__ = [
+    "DoseExcursion",
+    "FactorialExcursion",
+    "InterferenceExcursion",
+    "LocalQuadraticDoseGrid",
+    "MultiArmExcursion",
+    "OutcomeMisclassification",
+    "RegimeSurvivalContrast",
+    "SmoothedDoseContrast",
+    "SmoothedDoseCurve",
+    "TemporalDesignEstimate",
+    "TemporalDesignResult",
+    "TwoArmExcursion",
+    "estimate_temporal_design",
+]
 
 
 @dataclass(frozen=True)

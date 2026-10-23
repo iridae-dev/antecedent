@@ -929,6 +929,10 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
     #: or optioned local ratio (:class:`antecedent.quasi.QuasiRolloutEstimate`); unlicensed.
     quasi_rollout: Any | None = None
+    #: Sequentially randomized unit-period design or regime survival
+    #: (:class:`antecedent.temporal_designs.TemporalDesignEstimate`); unlicensed, calibration
+    #: unmeasured.
+    temporal_design: Any | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
     #: row indices, and the top-scoring row).
     anomaly: Sequence[AnomalyScores] | None = None

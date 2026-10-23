@@ -213,6 +213,15 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     claim = claim if isinstance(claim, Mapping) else {}
     claim_kind = claim.get("kind")
     kind = CLAIM_KIND_ANSWERS.get(str(claim_kind)) if claim_kind is not None else None
+    # A rollout section answers for itself, beside a point claim or a posterior alike, as
+    # the live result does; only an incomplete or refused claim withholds it.
+    rollout = payload.get("quasi_rollout")
+    if kind != "unavailable" and isinstance(rollout, Mapping):
+        return Answer(
+            "structured",
+            detail="unlicensed_quasi_rollout_" + str(rollout.get("uncertainty")),
+            structured=canonical_from_wire("quasi_rollout", rollout),
+        )
     if kind is None:
         return Answer("unavailable", detail=f"unrecognized_claim_kind:{claim_kind}")
     limitation = ReasoningSlots.from_result_section(contract, payload).rendering_limitation()
@@ -261,12 +270,12 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
             detail="unlicensed_sequential_contrast_" + str(contrast.get("uncertainty")),
             structured=canonical_from_wire("sequential_contrast", contrast),
         )
-    rollout = payload.get("quasi_rollout")
-    if kind != "unavailable" and isinstance(rollout, Mapping):
+    design = payload.get("temporal_design")
+    if kind != "unavailable" and isinstance(design, Mapping):
         return Answer(
             "structured",
-            detail="unlicensed_quasi_rollout_" + str(rollout.get("uncertainty")),
-            structured=canonical_from_wire("quasi_rollout", rollout),
+            detail="unlicensed_temporal_design_" + str(design.get("uncertainty")),
+            structured=canonical_from_wire("temporal_design", design),
         )
     matched = payload.get("history_match")
     if kind == "point" and isinstance(matched, Mapping):
@@ -521,6 +530,13 @@ class ResultAPI:
                 detail="unlicensed_sequential_contrast_" + contrast.uncertainty,
                 structured=canonical_from_live("sequential_contrast", contrast),
             )
+        design = getattr(self, "temporal_design", None)
+        if design is not None:
+            return Answer(
+                "structured",
+                detail="unlicensed_temporal_design_" + str(design.uncertainty),
+                structured=canonical_from_live("temporal_design", design),
+            )
         rollout = getattr(self, "quasi_rollout", None)
         if rollout is not None:
             return Answer(
@@ -660,11 +676,21 @@ class ResultAPI:
                 f"{contrast.active_regime} against {contrast.control_regime}: {spread}. "
                 "Unlicensed; repeated-sampling calibration is unmeasured."
             )
+        design = getattr(self, "temporal_design", None)
+        if design is not None:
+            from .._temporal_design import describe_temporal_design
+
+            return describe_temporal_design(design)
         rollout = getattr(self, "quasi_rollout", None)
         if rollout is not None and rollout.effects:
             overall = rollout.effects[0]
+            label = (
+                "95% credible interval"
+                if str(rollout.uncertainty).startswith("bayesian_")
+                else "pointwise 95% interval"
+            )
             spread = (
-                f"pointwise 95% interval [{overall.interval[0]:g}, {overall.interval[1]:g}]"
+                f"{label} [{overall.interval[0]:g}, {overall.interval[1]:g}]"
                 if overall.interval is not None
                 else "no interval"
             )

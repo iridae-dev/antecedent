@@ -249,6 +249,21 @@ class LoadedResult(ResultAPI):
             return None
         return quasi_rollout_from_wire(payload.get("quasi_rollout"))
 
+    @property
+    def temporal_design(self) -> Any:
+        """The recorded temporal-design result
+        (:class:`antecedent.temporal_designs.TemporalDesignEstimate`, unlicensed, calibration
+        unmeasured), equal to the live ``result.temporal_design``; ``None`` when absent or the
+        load is unavailable."""
+        from ._temporal_design import temporal_design_from_wire
+
+        if not self.acceptance.answer_available:
+            return None
+        payload = self.decoded_artifact.payload
+        if not isinstance(payload, Mapping):
+            return None
+        return temporal_design_from_wire(payload.get("temporal_design"))
+
     def inspect(self) -> InspectionReport:
         if not self.acceptance.answer_available and not (
             self.acceptance.recognized and isinstance(self.decoded_artifact.contract, Mapping)

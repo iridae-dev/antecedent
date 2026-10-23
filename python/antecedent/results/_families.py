@@ -304,6 +304,9 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
     # The live dataclass and the wire body spell every field alike (effects are nested
     # records); calibration ``unmeasured`` and ``licensed`` false travel on both sides.
     "quasi_rollout": _FamilySpec(),
+    # The live dataclass spells every field as the wire body; a probability floor that was
+    # not reported is ``None`` on both sides.
+    "temporal_design": _FamilySpec(),
     "continuous_dose_response": _FamilySpec(
         live_renames={"support_status": "graphless_support_status"},
         # Live-only descriptive labels; the method and whether a policy value was

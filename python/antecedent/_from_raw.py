@@ -43,6 +43,7 @@ from .quasi import (
     SyntheticDifferenceInDifferencesEstimate,
 )
 from ._quasi_rollout import quasi_rollout_from_raw as _quasi_rollout_from_raw
+from ._temporal_design import temporal_design_from_raw as _temporal_design_from_raw
 from .regimes import LongitudinalRegimeEstimate, SequentialContrastEstimate
 from .results import (
     AnalysisResult,
@@ -1497,6 +1498,7 @@ def _wrap_ate(
         sequential_contrast=_sequential_contrast_from_raw(raw),
         history_match=_history_match_from_raw(raw),
         quasi_rollout=_quasi_rollout_from_raw(raw),
+        temporal_design=_temporal_design_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),
         change_attribution=getattr(raw, "change_attribution", None),
         _raw=raw,

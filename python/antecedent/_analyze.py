@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Literal, Protocol
 
 from ._api import describe_refusal
+from ._temporal_design import TemporalDesignQuery
 from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
 from .extensibility import ProviderQuery
 from .extensibility import providers as _providers
@@ -118,6 +119,7 @@ def analyze(
         | PeriodHistoryMatch
         | AnomalyAttribution
         | ChangeAttribution
+        | TemporalDesignQuery
     ),
     graph: (
         Dag
@@ -211,6 +213,10 @@ def analyze(
           ``AugmentedPanelDiD`` / ``FuzzyRegressionDiscontinuity`` /
           ``SharpRegressionDiscontinuity`` / ``RegressionKink``,
         - ``survival.SurvivalOutcome`` / ``CompetingRisksOutcome``,
+        - ``temporal_designs.TwoArmExcursion`` / ``MultiArmExcursion`` /
+          ``FactorialExcursion`` / ``InterferenceExcursion`` / ``DoseExcursion`` /
+          ``RegimeSurvivalContrast`` (sequentially randomized unit-period designs and
+          regime survival; ``result.temporal_design``),
         - ``regimes.LongitudinalRegime``.
         - ``regimes.SequentialContrast`` and ``quasi.PeriodHistoryMatch``.
 
