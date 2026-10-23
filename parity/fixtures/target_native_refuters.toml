@@ -1,0 +1,80 @@
+# Target-native refutation: acceptance evidence. Registration only: no calibration
+# measurement. Every refuter is a diagnostic with a conventional threshold; its error rate is
+# unmeasured, and no coverage record or license is written here.
+schema = 1
+id = "validation.target_native_refuters"
+capability_ids = []
+status = "implemented"
+calibration = "unmeasured"
+reference = "docs/guides/target-native-validation.md"
+limits = "docs/user-facing-limits.md"
+rust_source = "crates/antecedent-validate/src/target_native/mod.rs"
+rust_compiler_route = "crates/antecedent/src/analysis/target_validation.rs"
+python_entry = "python/antecedent/validation.py"
+python_native = "python/src/target_validation_api.rs"
+
+[[acceptance]]
+id = "catalogue_per_family_and_quadrant"
+claim = "Conditional, derivative, temporal, mediation, world-valued and joint-contrast targets each have a refuter catalogue in all four static/temporal by frequentist/Bayesian quadrants; temporal quadrants add pre-trend and anticipation, Bayesian quadrants prior sensitivity and posterior-predictive checks, mediation the sequential-ignorability range, derivatives finite-difference consistency and local linearity."
+evidence = [
+  "crates/antecedent-validate/tests/target_native.rs::every_quadrant_has_a_catalogue_for_every_family",
+  "python/tests/test_target_validation.py::test_the_catalogue_covers_every_quadrant",
+]
+
+[[acceptance]]
+id = "joint_statistic_on_the_whole_vector"
+claim = "Replicate refuters test the whole target vector with one joint Mahalanobis statistic under the replicate covariance (world values through their contrasts), not marginal scalars."
+evidence = [
+  "crates/antecedent-validate/src/target_native/joint.rs::correlated_coordinates_are_not_two_marginal_tests",
+  "crates/antecedent-validate/tests/target_native.rs::a_sound_procedure_passes_the_full_world_valued_suite_and_records_missing_controls",
+  "crates/antecedent-validate/tests/target_native.rs::a_procedure_that_invents_a_dose_trend_fails_the_placebo_on_the_whole_vector",
+]
+
+[[acceptance]]
+id = "through_the_compiler"
+claim = "The refuter plan is attached to the lowered program, its target is defined by the lowered-program identity, and every refit re-executes the prepared compiled program in full."
+evidence = [
+  "crates/antecedent/tests/target_native_validation.rs::a_derivative_target_is_refuted_by_refits_of_its_own_program",
+  "python/tests/test_target_validation.py::test_a_prepared_study_refutes_its_own_target",
+]
+
+[[acceptance]]
+id = "scalar_refuter_does_not_certify_another_target"
+claim = "A claim on any target other than the scalar average effect refuses a scalar average-effect refutation, typed and naming the target-native suite as the next attempt; a report on another target is refused by the certificate."
+evidence = [
+  "crates/antecedent/tests/target_native_validation.rs::the_claim_refuses_a_scalar_average_effect_refutation_of_a_derivative",
+  "crates/antecedent/tests/target_native_validation.rs::a_report_on_another_program_does_not_certify_the_result",
+  "crates/antecedent-validate/tests/target_native.rs::a_scalar_average_effect_refuter_cannot_certify_another_target",
+  "crates/antecedent-validate/tests/target_native.rs::a_report_on_another_target_is_refused_by_the_claim",
+]
+
+[[acceptance]]
+id = "derivative_native_validation"
+claim = "Reported derivatives are checked against Richardson-extrapolated central differences of the fitted response, and local linearity against the second difference."
+evidence = [
+  "crates/antecedent-validate/src/target_native/derivative.rs::a_correct_analytic_derivative_is_consistent",
+  "crates/antecedent-validate/src/target_native/derivative.rs::an_inconsistent_derivative_fails",
+  "python/tests/test_target_validation.py::test_derivative_diagnostics",
+]
+
+[[acceptance]]
+id = "bayesian_target_checks"
+claim = "Prior sensitivity moves the posterior of the whole target vector in posterior standard deviations; the posterior-predictive check reads the target quantity itself."
+evidence = [
+  "crates/antecedent-validate/src/target_native/bayesian.rs::a_small_prior_shift_passes_and_a_large_one_fails",
+  "crates/antecedent-validate/src/target_native/bayesian.rs::an_observed_target_far_outside_the_replicates_fails",
+  "python/tests/test_target_validation.py::test_bayesian_target_checks",
+]
+
+[[acceptance]]
+id = "bounded_and_deterministic"
+claim = "Replicate buffers lease from the admission pool before allocation and a refusal leaves the pool unchanged; streams are keyed by refuter and replicate, so reports do not depend on the thread count."
+evidence = [
+  "crates/antecedent-validate/tests/target_native.rs::a_tiny_admission_pool_refuses_and_is_restored",
+  "crates/antecedent-validate/tests/target_native.rs::reports_are_deterministic_and_independent_of_the_thread_count",
+]
+
+[[boundary]]
+id = "generic_perturbation_refusals"
+claim = "Refuters the generic data perturbation of a prepared handle cannot construct are typed refusals with the next attempt: random common cause (fixed schema and graph), negative controls without a declared control or on one series, series row bootstrap (lags across block joins), single-series pre-trend and anticipation (no onset; feedback), derivative diagnostics without the fitted response, and Bayesian prior and posterior-predictive checks without alternative-prior or replicated draws."
+evidence = ["crates/antecedent/src/analysis/target_validation.rs"]

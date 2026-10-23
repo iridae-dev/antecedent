@@ -1,0 +1,68 @@
+# Sensitivity beyond the marginal sensitivity model: acceptance evidence. Registration only:
+# no calibration measurement. Each analysis is an assumption range tied to its target.
+schema = 1
+id = "validation.sensitivity_ranges"
+capability_ids = []
+status = "implemented"
+calibration = "unmeasured"
+reference = "docs/guides/target-native-validation.md"
+limits = "docs/user-facing-limits.md"
+rust_source = [
+  "crates/antecedent-validate/src/assumption_range.rs",
+  "crates/antecedent-validate/src/evalue_scales.rs",
+  "crates/antecedent-validate/src/omitted_variable_bias.rs",
+  "crates/antecedent-validate/src/rosenbaum.rs",
+  "crates/antecedent-validate/src/mediation_sensitivity.rs",
+]
+python_entry = "python/antecedent/validation.py"
+python_native = "python/src/target_validation_api.rs"
+
+[[acceptance]]
+id = "evalue_published_examples"
+claim = "E-values on risk-ratio, odds-ratio, hazard-ratio and standardized-mean-difference scales, with the confidence-limit E-value, reproduce VanderWeele and Ding (2017): RR 3.9 (1.8, 8.7) gives 7.26 and 3.0; RR 10.73 gives 20.95; HR 1.59 (1.17, 2.17) gives 2.56 and 1.62."
+evidence = [
+  "crates/antecedent-validate/src/evalue_scales.rs::breastfeeding_example_of_vanderweele_and_ding",
+  "crates/antecedent-validate/src/evalue_scales.rs::smoking_and_lung_cancer_example",
+  "crates/antecedent-validate/src/evalue_scales.rs::antidepressant_hazard_ratio_example",
+  "crates/antecedent-validate/src/evalue_scales.rs::common_outcome_conversions_follow_the_published_transformations",
+  "python/tests/test_target_validation.py::test_evalue_reproduces_vanderweele_and_ding",
+]
+
+[[acceptance]]
+id = "cinelli_hazlett_darfur"
+claim = "Partial R2, RV_q and RV_{q,alpha} reproduce the Darfur example of Cinelli and Hazlett (2020) from its summary statistics (2.19%, 13.88%, 7.63%), and the published 1x female bound gives the adjusted estimate 0.0752 and standard error 0.0219."
+evidence = [
+  "crates/antecedent-validate/src/omitted_variable_bias.rs::darfur_partial_r2_and_robustness_values",
+  "crates/antecedent-validate/src/omitted_variable_bias.rs::darfur_bound_of_a_confounder_like_female",
+  "crates/antecedent-validate/src/omitted_variable_bias.rs::robustness_value_reduces_the_estimate_by_q",
+  "crates/antecedent-validate/src/omitted_variable_bias.rs::extreme_confounder_needs_the_treatment_partial_r2",
+  "python/tests/test_target_validation.py::test_omitted_variable_bias_reproduces_the_darfur_example",
+]
+
+[[acceptance]]
+id = "rosenbaum_exact_enumeration"
+claim = "The exact upper-bound law of the Wilcoxon signed-rank statistic under hidden bias Gamma equals enumeration over all sign vectors (ties and zeros included); the break-even Gamma is where the bound crosses alpha; amplification reproduces Rosenbaum and Silber (2009); the matched-set worst case equals enumeration over hidden-bias vectors."
+evidence = [
+  "crates/antecedent-validate/src/rosenbaum.rs::exact_law_matches_enumeration_with_ties_and_zeros",
+  "crates/antecedent-validate/src/rosenbaum.rs::all_positive_pairs_have_the_closed_form_bound",
+  "crates/antecedent-validate/src/rosenbaum.rs::break_even_gamma_is_where_the_bound_crosses_alpha",
+  "crates/antecedent-validate/src/rosenbaum.rs::amplification_reproduces_rosenbaum_and_silber",
+  "crates/antecedent-validate/src/rosenbaum.rs::worst_case_set_mean_is_the_maximum_over_hidden_bias_vectors",
+]
+
+[[acceptance]]
+id = "mediation_correlation_curve"
+claim = "The Imai-Keele-Yamamoto curve equals the product of coefficients at rho = 0 and vanishes at the break-even rho equal to the residual correlation."
+evidence = [
+  "crates/antecedent-validate/src/mediation_sensitivity.rs::at_zero_correlation_the_curve_is_the_product_of_coefficients",
+  "crates/antecedent-validate/tests/sensitivity_bounds.rs::mediation_range_breaks_even_at_the_residual_correlation",
+]
+
+[[acceptance]]
+id = "assumption_range_bound_to_target"
+claim = "Every range states the assumption, the range tested and the break-even value, binds the target identity into its own identity, and refuses citation by a claim on another target."
+evidence = [
+  "crates/antecedent-validate/tests/sensitivity_bounds.rs::a_range_cannot_be_cited_by_a_claim_on_another_target",
+  "crates/antecedent-validate/tests/sensitivity_bounds.rs::evalue_range_states_the_assumption_the_range_and_the_break_even_values",
+  "crates/antecedent-validate/tests/sensitivity_bounds.rs::the_exact_signed_rank_table_leases_before_allocating",
+]
