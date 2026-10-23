@@ -132,6 +132,14 @@ impl super::CheckedPanelDidOperation {
             DidSamplingDesign::StaggeredEventStudy | DidSamplingDesign::StaggeredGroupTime => {
                 self.staggered_posterior(y, prior, sampling)?
             }
+            DidSamplingDesign::StaggeredHeterogeneityRobust
+            | DidSamplingDesign::CovariateAdjustedTwoPeriod => {
+                return Err(super::super::bayesian_quasi_common::unread_option(
+                    "the Bayesian panel DiD",
+                    "a heterogeneity-robust rollout or covariate-adjusted comparison",
+                    "the frequentist heterogeneity-robust or covariate-adjusted DiD",
+                ));
+            }
         };
         if self.extra.restricted {
             fit.notes.push(

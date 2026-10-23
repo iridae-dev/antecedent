@@ -22,6 +22,7 @@ use antecedent_estimate::synthetic_control::{
 };
 
 mod bayesian;
+mod rollout;
 
 use super::BayesianConfig;
 pub(super) use bayesian::bayesian_synthetic_panel_plan_ids;
@@ -35,6 +36,35 @@ impl RandomizedTrialQuery for antecedent_core::SyntheticControlQuery {
     const OPERATION: &'static str = "CheckedSyntheticControlOperation";
     const REFRESH_MISMATCH: &'static str =
         "synthetic-control refresh requires the prepared schema and row order";
+}
+
+/// Plan id, identifier and estimator a compiled synthetic panel query records: the rollout
+/// estimators of a query with intervals, otherwise those of its panel method.
+pub(super) fn synthetic_query_plan_ids(
+    query: &antecedent_core::SyntheticControlQuery,
+) -> (&'static str, &'static str, &'static str) {
+    use antecedent_core::SyntheticInterval;
+    match (query.rollout.as_ref().map(|rollout| rollout.interval), query.method) {
+        (Some(SyntheticInterval::Conformal), _) => (
+            "quasi.synthetic_control",
+            "quasi.convex_donor_counterfactual",
+            "quasi.synthetic_control_conformal",
+        ),
+        (Some(SyntheticInterval::PlaceboVariance), SyntheticPanelMethod::Control) => (
+            "quasi.synthetic_control",
+            "quasi.convex_donor_counterfactual",
+            "quasi.multi_unit_synthetic_control_placebo",
+        ),
+        (
+            Some(SyntheticInterval::PlaceboVariance),
+            SyntheticPanelMethod::DifferenceInDifferences,
+        ) => (
+            "quasi.synthetic_did",
+            "quasi.convex_unit_time_trends",
+            "quasi.multi_unit_synthetic_did_placebo",
+        ),
+        (None, method) => synthetic_panel_plan_ids(method),
+    }
 }
 
 /// Plan id, identifier and estimator a compiled synthetic panel plan records.
@@ -89,11 +119,12 @@ impl CheckedSyntheticControlOperation {
                 Some(config.clone())
             }
         };
+        rollout::refuse_sampling_design(query, study.sampling_design)?;
         data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         let (plan_id, identifier, estimator) = if bayesian.is_some() {
             bayesian_synthetic_panel_plan_ids()
         } else {
-            synthetic_panel_plan_ids(query.method)
+            synthetic_query_plan_ids(query)
         };
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id
@@ -123,8 +154,14 @@ impl CheckedSyntheticControlOperation {
             }
         };
         let units: Vec<String> = self.query.units.iter().map(ToString::to_string).collect();
+        if self.extra.is_some() && self.query.rollout.is_some() {
+            return self.execute_bayesian_rollout(data, y, ctx);
+        }
         if self.extra.is_some() {
             return self.execute_bayesian(data, y, &units, ctx);
+        }
+        if self.query.rollout.is_some() {
+            return self.execute_rollout(data, y, ctx);
         }
         if self.query.method == SyntheticPanelMethod::DifferenceInDifferences {
             return self.execute_did(data, ctx, y, &units);
@@ -464,6 +501,9 @@ fn declared_panel_assumptions(
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    if let Some(rollout) = &query.rollout {
+        push_rollout_assumptions(&mut assumptions, rollout);
+    }
     if query.augmentation_ridge.is_some() {
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption: antecedent_core::Assumption::Custom {
@@ -476,6 +516,51 @@ fn declared_panel_assumptions(
         });
     }
     assumptions
+}
+
+/// Assumptions a synthetic panel with intervals adds for its adoption design, target
+/// population and interval construction.
+fn push_rollout_assumptions(
+    assumptions: &mut antecedent_core::AssumptionSet,
+    rollout: &antecedent_core::SyntheticRollout,
+) {
+    let declared: Vec<(&str, &str)> = match rollout.interval {
+        antecedent_core::SyntheticInterval::Conformal => vec![
+            (
+                "post_period_residuals_exchangeable_with_pre_period_residuals",
+                "under the hypothesized effect, the treated unit's synthetic-control residuals are exchangeable over time (exact) or weakly dependent and stationary (approximate)",
+            ),
+            (
+                "target_population_treated_unit_post_periods",
+                "the target is the treated unit's effect at each post period, and their average under a constant effect",
+            ),
+        ],
+        antecedent_core::SyntheticInterval::PlaceboVariance => vec![
+            (
+                "staggered_adoption_with_never_treated_donors",
+                "each adopting unit stays treated from its adoption period on, and the never-treated units are unaffected donors",
+            ),
+            (
+                "treated_untreated_errors_exchangeable_with_donors",
+                "the adopting units' untreated errors are exchangeable with the never-treated units', so placebo reassignments estimate the sampling variance",
+            ),
+            (
+                "target_population_adopting_units_post_periods",
+                "the target is the post-period-weighted average effect over the adopting units' post-adoption periods",
+            ),
+        ],
+    };
+    for (id, description) in declared {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from(id),
+                description: Arc::from(description),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
 }
 
 pub(crate) fn synthetic_control_identification(

@@ -27,6 +27,58 @@ impl CanonicalEncode for SyntheticPanelMethod {
     }
 }
 
+/// Interval construction of a synthetic rollout.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum SyntheticInterval {
+    /// Conformal inference by inverting a permutation test over time (one treated unit).
+    #[default]
+    Conformal,
+    /// Placebo variance from reassigning the adoptions to never-treated units.
+    PlaceboVariance,
+}
+
+impl SyntheticInterval {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Conformal => "conformal",
+            Self::PlaceboVariance => "placebo_variance",
+        }
+    }
+}
+
+/// The adopting units and interval construction of a synthetic panel with intervals.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SyntheticRollout {
+    /// Every adopting unit with its first treated period; it lists the query's treated unit at
+    /// its intervention period.
+    pub adoptions: Arc<[(Arc<str>, i64)]>,
+    /// Interval construction.
+    pub interval: SyntheticInterval,
+    /// Placebo replicates; zero for a conformal interval.
+    pub replicates: u32,
+}
+
+/// Every field is written; adoptions keep their declared order.
+impl CanonicalEncode for SyntheticRollout {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.word(self.adoptions.len() as u64);
+        for (unit, period) in self.adoptions.iter() {
+            writer.text(unit).word(i64_bits(*period));
+        }
+        let interval = match self.interval {
+            SyntheticInterval::Conformal => 1,
+            SyntheticInterval::PlaceboVariance => 2,
+        };
+        writer.word(interval).word(u64::from(self.replicates));
+    }
+}
+
+/// Marker word ahead of the rollout field, written only when it is present so a query without
+/// it keeps its canonical bytes.
+const ROLLOUT_FIELD: u64 = 0x5359_4e52_4f4c_4c00;
+
 /// A balanced unit-by-period panel with one treated unit and donor units.
 ///
 /// The causal interpretation requires a valid donor counterfactual or
@@ -54,6 +106,8 @@ pub struct SyntheticControlQuery {
     pub sharp_null_effect: Option<f64>,
     /// Optional donor-trained ridge outcome-model correction to the simplex fit.
     pub augmentation_ridge: Option<f64>,
+    /// Adopting units and interval construction of a synthetic panel with intervals.
+    pub rollout: Option<SyntheticRollout>,
 }
 
 /// Every field is written; `units` and `periods` are row-aligned and keep
@@ -69,6 +123,10 @@ impl CanonicalEncode for SyntheticControlQuery {
             .word(flag(self.uniform_unit_randomization))
             .opt_real(self.sharp_null_effect)
             .opt_real(self.augmentation_ridge);
+        if let Some(rollout) = &self.rollout {
+            writer.word(ROLLOUT_FIELD);
+            rollout.encode(writer);
+        }
     }
 }
 
@@ -92,6 +150,7 @@ impl SyntheticControlQuery {
             uniform_unit_randomization: false,
             sharp_null_effect: None,
             augmentation_ridge: None,
+            rollout: None,
         }
     }
 
@@ -121,6 +180,34 @@ impl SyntheticControlQuery {
     #[must_use]
     pub fn with_augmentation(mut self, ridge_penalty: f64) -> Self {
         self.augmentation_ridge = Some(ridge_penalty);
+        self
+    }
+
+    /// Report conformal intervals for the single treated unit.
+    #[must_use]
+    pub fn with_conformal_intervals(mut self) -> Self {
+        self.rollout = Some(SyntheticRollout {
+            adoptions: Arc::from([(Arc::clone(&self.treated_unit), self.intervention_period)]),
+            interval: SyntheticInterval::Conformal,
+            replicates: 0,
+        });
+        self
+    }
+
+    /// Fit every adopting unit of a staggered rollout against the never-treated donors and
+    /// report placebo-variance intervals from `replicates` placebo reassignments.
+    /// `adoptions` must list the query's treated unit at its intervention period.
+    #[must_use]
+    pub fn with_staggered_adoptions(
+        mut self,
+        adoptions: impl Into<Arc<[(Arc<str>, i64)]>>,
+        replicates: u32,
+    ) -> Self {
+        self.rollout = Some(SyntheticRollout {
+            adoptions: adoptions.into(),
+            interval: SyntheticInterval::PlaceboVariance,
+            replicates,
+        });
         self
     }
 
@@ -162,6 +249,48 @@ impl SyntheticControlQuery {
                 return Err(QueryError::InvalidRandomizedEffect(
                     "a finite sharp-null effect requires declared uniform single-unit randomization".into(),
                 ));
+            }
+        }
+        if let Some(rollout) = &self.rollout {
+            let units = rollout
+                .adoptions
+                .iter()
+                .map(|(unit, _)| unit)
+                .collect::<std::collections::BTreeSet<_>>();
+            if rollout.adoptions.is_empty()
+                || units.len() != rollout.adoptions.len()
+                || rollout
+                    .adoptions
+                    .iter()
+                    .any(|(unit, period)| unit.trim().is_empty() || *period <= 0)
+                || !rollout.adoptions.iter().any(|(unit, period)| {
+                    *unit == self.treated_unit && *period == self.intervention_period
+                })
+            {
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "synthetic adoptions must be distinct named units with positive periods and list the treated unit at its intervention period".into(),
+                ));
+            }
+            if self.uniform_unit_randomization || self.augmentation_ridge.is_some() {
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "synthetic intervals cannot be combined with a unit-randomization test or a ridge augmentation".into(),
+                ));
+            }
+            match rollout.interval {
+                SyntheticInterval::Conformal
+                    if rollout.adoptions.len() != 1
+                        || self.method != SyntheticPanelMethod::Control =>
+                {
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        "conformal synthetic intervals take one treated unit and the simplex synthetic control; use placebo variance for several units or synthetic DiD".into(),
+                    ));
+                }
+                SyntheticInterval::PlaceboVariance if rollout.replicates < 2 => {
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        "placebo-variance synthetic intervals need at least two replicates".into(),
+                    ));
+                }
+                _ => {}
             }
         }
         Ok(())

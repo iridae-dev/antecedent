@@ -217,6 +217,88 @@ impl From<&antecedent::LocalPolynomialRatioEstimate> for LocalPolynomialRatioSec
     }
 }
 
+/// One reported effect of a rollout, synthetic-panel or local-ratio design.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct DesignEffectSection {
+    /// `overall`, `group_time`, `event_time`, `group`, `calendar`, `pre_trend`, `period`
+    /// or `unit`.
+    pub kind: String,
+    pub group: Option<i64>,
+    pub period: Option<i64>,
+    pub event_time: Option<i64>,
+    pub unit: Option<String>,
+    pub estimate: f64,
+    pub standard_error: Option<f64>,
+    /// Pointwise 95% interval.
+    pub interval: Option<(f64, f64)>,
+    /// Simultaneous 95% band over the effects of the same kind.
+    pub band: Option<(f64, f64)>,
+    pub treated: usize,
+    pub comparison: usize,
+}
+
+impl From<&antecedent_estimate::rollout_resampling::DesignEffect> for DesignEffectSection {
+    fn from(value: &antecedent_estimate::rollout_resampling::DesignEffect) -> Self {
+        Self {
+            kind: value.kind.as_str().to_string(),
+            group: value.group,
+            period: value.period,
+            event_time: value.event_time,
+            unit: value.unit.clone(),
+            estimate: value.estimate,
+            standard_error: value.standard_error,
+            interval: value.interval.map(|bounds| (bounds[0], bounds[1])),
+            band: value.band.map(|bounds| (bounds[0], bounds[1])),
+            treated: value.treated,
+            comparison: value.comparison,
+        }
+    }
+}
+
+/// Unlicensed rollout, conformal or multi-unit synthetic-panel, or optioned local-ratio result.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct QuasiRolloutSection {
+    pub design: String,
+    pub method: String,
+    /// Reported effects; the first is the scalar summary.
+    pub effects: Vec<DesignEffectSection>,
+    pub uncertainty: String,
+    /// Always `unmeasured`.
+    pub calibration: String,
+    pub replicates_requested: u32,
+    pub replicates_ok: u32,
+    pub replicates_failed: u32,
+    /// Sup-t critical value of the simultaneous band, when one was formed.
+    pub critical_value: Option<f64>,
+    pub diagnostics: Vec<(String, f64)>,
+    /// Always `false`.
+    pub licensed: bool,
+}
+
+impl From<&antecedent::QuasiRolloutEstimate> for QuasiRolloutSection {
+    fn from(value: &antecedent::QuasiRolloutEstimate) -> Self {
+        Self {
+            design: value.design.to_string(),
+            method: value.method.to_string(),
+            effects: value.effects.iter().map(DesignEffectSection::from).collect(),
+            uncertainty: value.uncertainty.to_string(),
+            calibration: value.calibration.to_string(),
+            replicates_requested: value.replicates_requested,
+            replicates_ok: value.replicates_ok,
+            replicates_failed: value.replicates_failed,
+            critical_value: value.critical_value,
+            diagnostics: value
+                .diagnostics
+                .iter()
+                .map(|(name, statistic)| (name.to_string(), *statistic))
+                .collect(),
+            licensed: value.licensed,
+        }
+    }
+}
+
 /// Repeated-cross-section 2x2 difference in differences, without interval claims.
 #[pyfunction]
 fn difference_in_differences(
@@ -288,6 +370,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<SyntheticControlSection>()?;
     module.add_class::<LocalPolynomialRatioSection>()?;
     module.add_class::<SyntheticDidSection>()?;
+    module.add_class::<DesignEffectSection>()?;
+    module.add_class::<QuasiRolloutSection>()?;
     module.add_function(wrap_pyfunction!(difference_in_differences, module)?)?;
     module.add_function(wrap_pyfunction!(group_time_att, module)?)?;
     Ok(())

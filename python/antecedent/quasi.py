@@ -315,6 +315,177 @@ class StaggeredEventStudyEstimate:
 
 
 @dataclass(frozen=True, slots=True)
+class StaggeredRollout:
+    """Heterogeneity-robust staggered rollout that never uses already-treated controls.
+
+    ``cohort`` holds each row's first treated period (0 for never treated); the panel may
+    be unbalanced for ``callaway_santanna`` and ``imputation``. ``estimator`` is
+    ``callaway_santanna`` (group-time 2x2 comparisons), ``sun_abraham`` (interaction-weighted
+    cohort-by-event-time contrasts) or ``imputation`` (untreated outcomes imputed from unit and
+    period effects fitted on untreated rows). ``comparison`` is ``never_treated`` or
+    ``not_yet_treated``; ``nuisance`` says how the baseline ``covariates`` (read at each unit's
+    first observed row) adjust a comparison; ``base_period`` is ``varying`` or ``universal``;
+    ``aggregation`` (``simple``, ``dynamic``, ``group`` or ``calendar``) defines the scalar
+    summary; ``anticipation`` is the number of periods units may respond before adoption.
+    ``resampling`` (``cluster_bootstrap`` or ``cluster_multiplier``) refits the whole procedure
+    on ``replicates`` reweightings of whole clusters and reports pointwise intervals and
+    simultaneous bands. The result is ``result.quasi_rollout``: unlicensed, calibration
+    unmeasured.
+    """
+
+    outcome: str
+    subject: str
+    period: str
+    cohort: str
+    cluster: str | None = None
+    estimator: Literal["callaway_santanna", "sun_abraham", "imputation"] = "callaway_santanna"
+    comparison: Literal["never_treated", "not_yet_treated"] = "never_treated"
+    nuisance: Literal["outcome_regression", "inverse_probability_weighting", "doubly_robust"] = (
+        "doubly_robust"
+    )
+    base_period: Literal["varying", "universal"] = "varying"
+    aggregation: Literal["simple", "dynamic", "group", "calendar"] = "simple"
+    anticipation: int = 0
+    covariates: Sequence[str] = ()
+    resampling: Literal["cluster_bootstrap", "cluster_multiplier"] | None = None
+    replicates: int = 999
+
+    def __post_init__(self) -> None:
+        fields = (self.outcome, self.subject, self.period, self.cohort)
+        if any(not isinstance(value, str) or not value.strip() for value in fields):
+            raise CausalValueError(
+                "outcome, subject, period, and cohort must be non-empty column names"
+            )
+        if len(set(fields)) != len(fields):
+            raise CausalValueError(
+                "outcome, subject, period, and cohort must name distinct columns"
+            )
+        if self.cluster is not None and (
+            not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in fields
+        ):
+            raise CausalValueError("cluster must be a distinct non-empty column name")
+        _check_choice(self.estimator, "estimator", _ROLLOUT_ESTIMATORS)
+        _check_choice(self.comparison, "comparison", _DID_COMPARISONS)
+        _check_choice(self.nuisance, "nuisance", _DID_NUISANCE)
+        _check_choice(self.base_period, "base_period", _DID_BASE_PERIODS)
+        _check_choice(self.aggregation, "aggregation", _DID_AGGREGATIONS)
+        if (
+            isinstance(self.anticipation, (bool, np.bool_))
+            or not isinstance(self.anticipation, (int, np.integer))
+            or self.anticipation < 0
+        ):
+            raise CausalValueError("anticipation must be a non-negative integer")
+        taken = (*fields, *((self.cluster,) if self.cluster is not None else ()))
+        object.__setattr__(self, "covariates", _column_tuple(self.covariates, "covariates", taken))
+        _check_resampling(self.resampling, self.replicates)
+
+
+@dataclass(frozen=True, slots=True)
+class CovariateAdjustedDiD:
+    """Two-period panel DiD with parallel untreated trends conditional on baseline covariates.
+
+    Columns follow :class:`PanelDifferenceInDifferences` (a balanced two-period panel of
+    ``subject`` rows); ``covariates`` name the baseline covariates, read at each subject's
+    first row. ``nuisance`` is ``outcome_regression``, ``inverse_probability_weighting`` or
+    ``doubly_robust``. ``resampling`` refits the whole procedure on whole-cluster
+    reweightings. The result is ``result.quasi_rollout``: unlicensed, calibration unmeasured.
+    """
+
+    outcome: str
+    subject: str
+    treated: str
+    post: str
+    covariates: Sequence[str]
+    cluster: str | None = None
+    nuisance: Literal["outcome_regression", "inverse_probability_weighting", "doubly_robust"] = (
+        "doubly_robust"
+    )
+    resampling: Literal["cluster_bootstrap", "cluster_multiplier"] | None = None
+    replicates: int = 999
+
+    def __post_init__(self) -> None:
+        fields = (self.outcome, self.subject, self.treated, self.post)
+        if any(not isinstance(value, str) or not value.strip() for value in fields):
+            raise CausalValueError(
+                "outcome, subject, treated, and post must be non-empty column names"
+            )
+        if len(set(fields)) != len(fields):
+            raise CausalValueError("outcome, subject, treated, and post must name distinct columns")
+        if self.cluster is not None and (
+            not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in fields
+        ):
+            raise CausalValueError("cluster must be a distinct non-empty column name")
+        _check_choice(self.nuisance, "nuisance", _DID_NUISANCE)
+        taken = (*fields, *((self.cluster,) if self.cluster is not None else ()))
+        covariates = _column_tuple(self.covariates, "covariates", taken)
+        if not covariates:
+            raise CausalValueError(
+                "CovariateAdjustedDiD needs at least one covariate; use "
+                "PanelDifferenceInDifferences for an unadjusted two-period panel"
+            )
+        object.__setattr__(self, "covariates", covariates)
+        _check_resampling(self.resampling, self.replicates)
+
+
+@dataclass(frozen=True, slots=True)
+class DesignEffect:
+    """One reported effect of a rollout, synthetic-panel or local-ratio design.
+
+    ``kind`` is ``overall`` (the scalar summary), ``group_time``, ``event_time``, ``group``,
+    ``calendar``, ``pre_trend`` (a falsification contrast), ``period`` or ``unit``.
+    ``interval`` is pointwise 95%; ``band`` is the simultaneous 95% band over the effects of
+    the same kind. Neither is calibrated.
+    """
+
+    kind: str
+    estimate: float
+    standard_error: float | None = None
+    interval: tuple[float, float] | None = None
+    band: tuple[float, float] | None = None
+    group: int | None = None
+    period: int | None = None
+    event_time: int | None = None
+    unit: str | None = None
+    treated: int = 0
+    comparison: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class QuasiRolloutEstimate:
+    """Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
+    or optioned local ratio. The first effect is the scalar summary. Never licensed; the
+    calibration of every interval is unmeasured."""
+
+    design: str
+    method: str
+    effects: tuple[DesignEffect, ...]
+    uncertainty: str
+    replicates_requested: int = 0
+    replicates_ok: int = 0
+    replicates_failed: int = 0
+    critical_value: float | None = None
+    diagnostics: tuple[tuple[str, float], ...] = ()
+    calibration: str = "unmeasured"
+    licensed: bool = False
+
+    @property
+    def overall(self) -> DesignEffect | None:
+        """The scalar summary."""
+        return self.effects[0] if self.effects else None
+
+    def effects_of(self, kind: str) -> tuple[DesignEffect, ...]:
+        """The reported effects of one ``kind``."""
+        return tuple(effect for effect in self.effects if effect.kind == kind)
+
+    def diagnostic(self, name: str) -> float | None:
+        """The named numeric diagnostic, when present."""
+        for key, value in self.diagnostics:
+            if key == name:
+                return value
+        return None
+
+
+@dataclass(frozen=True, slots=True)
 class SyntheticControl:
     """Balanced-panel synthetic control with one treated unit and donor pool."""
 
@@ -326,8 +497,22 @@ class SyntheticControl:
     uniform_unit_randomization: bool = False
     sharp_null_effect: float | None = None
     augmentation_ridge: float | None = None
+    #: Conformal intervals for the single treated unit (unlicensed, calibration unmeasured).
+    conformal: bool = False
+    #: Staggered adoptions ``(unit, adoption period)`` fitted against never-treated donors,
+    #: including ``(treated_unit, intervention_period)``; placebo-variance intervals.
+    adoptions: Sequence[tuple[str, int]] | None = None
+    placebo_replicates: int = 0
 
     def __post_init__(self) -> None:
+        if not isinstance(self.conformal, bool):
+            raise CausalValueError("conformal must be boolean")
+        if self.conformal and self.adoptions is not None:
+            raise CausalValueError(
+                "conformal intervals cover one treated unit; staggered adoptions use "
+                "placebo-variance intervals, so declare one or the other"
+            )
+        _bind_adoptions(self)
         if not isinstance(self.uniform_unit_randomization, bool):
             raise CausalValueError("uniform_unit_randomization must be boolean")
         if self.sharp_null_effect is not None and (
@@ -402,8 +587,13 @@ class SyntheticDifferenceInDifferences:
     intervention_period: int
     uniform_unit_randomization: bool = False
     sharp_null_effect: float | None = None
+    #: Staggered adoptions ``(unit, adoption period)``, including
+    #: ``(treated_unit, intervention_period)``; placebo-variance intervals.
+    adoptions: Sequence[tuple[str, int]] | None = None
+    placebo_replicates: int = 0
 
     def __post_init__(self) -> None:
+        _bind_adoptions(self)
         if not isinstance(self.uniform_unit_randomization, bool):
             raise CausalValueError("uniform_unit_randomization must be boolean")
         if self.sharp_null_effect is not None and (
@@ -472,8 +662,13 @@ class AugmentedPanelDiD:
     untreated_change_prediction: str
     predictions_cross_fitted: bool = False
     cluster: str | None = None
+    #: Whole-cluster resample of the procedure (``cluster_bootstrap`` or
+    #: ``cluster_multiplier``); the supplied nuisance columns are held fixed.
+    resampling: Literal["cluster_bootstrap", "cluster_multiplier"] | None = None
+    replicates: int = 999
 
     def __post_init__(self) -> None:
+        _check_resampling(self.resampling, self.replicates)
         names = (
             self.outcome_pre,
             self.outcome_post,
@@ -520,18 +715,35 @@ class AugmentedPanelDiDEstimate:
         "cross_fitting_is_caller_declared_not_verified",
         "no_interval_or_calibrated_inference",
     )
+    #: Whole-cluster resample interval when ``resampling`` was declared (calibration
+    #: unmeasured, nuisance predictions held fixed).
+    interval_95: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class FuzzyRegressionDiscontinuity:
+    """Fuzzy RD at a declared cutoff.
+
+    ``bandwidth_rule="mse_optimal"`` selects the MSE-optimal plug-in window, capped at
+    ``bandwidth``; ``temporal_replicates`` treats the running variable as calendar time and
+    reports a block-bootstrap interval; ``density_test`` runs the manipulation test of the
+    running variable at the cutoff; ``balance_covariates`` report their jumps at the cutoff.
+    Any of these returns ``result.quasi_rollout`` (unlicensed, calibration unmeasured).
+    """
+
     outcome: str
     treatment: str
     running: str
     cutoff: float
     bandwidth: float
+    bandwidth_rule: Literal["declared", "mse_optimal"] = "declared"
+    temporal_replicates: int | None = None
+    density_test: bool = False
+    balance_covariates: Sequence[str] = ()
 
     def __post_init__(self) -> None:
         _validate_rd_spec(self.outcome, self.treatment, self.running, self.cutoff, self.bandwidth)
+        _bind_local_ratio_options(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -575,14 +787,22 @@ class SharpRegressionDiscontinuity:
 
 @dataclass(frozen=True, slots=True)
 class RegressionKink:
+    """Regression kink at a declared cutoff; the options are those of
+    :class:`FuzzyRegressionDiscontinuity`."""
+
     outcome: str
     treatment: str
     running: str
     cutoff: float
     bandwidth: float
+    bandwidth_rule: Literal["declared", "mse_optimal"] = "declared"
+    temporal_replicates: int | None = None
+    density_test: bool = False
+    balance_covariates: Sequence[str] = ()
 
     def __post_init__(self) -> None:
         _validate_rd_spec(self.outcome, self.treatment, self.running, self.cutoff, self.bandwidth)
+        _bind_local_ratio_options(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -807,6 +1027,99 @@ def _validate_rd_spec(
         raise CausalValueError("bandwidth must be finite and positive")
 
 
+_ROLLOUT_ESTIMATORS = ("callaway_santanna", "sun_abraham", "imputation")
+_DID_COMPARISONS = ("never_treated", "not_yet_treated")
+_DID_NUISANCE = ("outcome_regression", "inverse_probability_weighting", "doubly_robust")
+_DID_BASE_PERIODS = ("varying", "universal")
+_DID_AGGREGATIONS = ("simple", "dynamic", "group", "calendar")
+_DID_RESAMPLING = ("cluster_bootstrap", "cluster_multiplier")
+_LOCAL_BANDWIDTH_RULES = ("declared", "mse_optimal")
+
+
+def _check_choice(value: Any, name: str, allowed: tuple[str, ...]) -> None:
+    if value not in allowed:
+        raise CausalValueError(f"{name} must be one of {', '.join(allowed)}; got {value!r}")
+
+
+def _positive_int(value: Any) -> bool:
+    return (
+        not isinstance(value, (bool, np.bool_))
+        and isinstance(value, (int, np.integer))
+        and value > 0
+    )
+
+
+def _check_resampling(resampling: Any, replicates: Any) -> None:
+    if resampling is not None:
+        _check_choice(resampling, "resampling", _DID_RESAMPLING)
+    if not _positive_int(replicates) or replicates > 2**32 - 1:
+        raise CausalValueError("replicates must be a positive integer")
+
+
+def _column_tuple(values: Any, name: str, taken: tuple[str, ...]) -> tuple[str, ...]:
+    if isinstance(values, str):
+        raise CausalValueError(f"{name} must be a sequence of column names, not one string")
+    columns = tuple(values)
+    if any(not isinstance(value, str) or not value.strip() for value in columns):
+        raise CausalValueError(f"{name} must be non-empty column names")
+    if len(set(columns)) != len(columns) or set(columns) & set(taken):
+        raise CausalValueError(f"{name} must be distinct from each other and the design columns")
+    return columns
+
+
+def _bind_adoptions(query: Any) -> None:
+    """Validate and freeze the staggered adoptions of a synthetic panel."""
+    replicates = query.placebo_replicates
+    if (
+        isinstance(replicates, (bool, np.bool_))
+        or not isinstance(replicates, (int, np.integer))
+        or not 0 <= replicates <= 2**32 - 1
+    ):
+        raise CausalValueError("placebo_replicates must be a non-negative integer")
+    if query.adoptions is None:
+        if replicates:
+            raise CausalValueError("placebo_replicates requires staggered adoptions")
+        return
+    if isinstance(query.adoptions, (str, Mapping)):
+        raise CausalValueError("adoptions must be a sequence of (unit, adoption period) pairs")
+    adoptions: list[tuple[str, int]] = []
+    for pair in query.adoptions:
+        if not isinstance(pair, Sequence) or isinstance(pair, str) or len(pair) != 2:
+            raise CausalValueError("adoptions must be (unit, adoption period) pairs")
+        unit, period = pair
+        if not isinstance(unit, str) or not unit:
+            raise CausalValueError("adoption units must be non-empty strings")
+        if (
+            isinstance(period, (bool, np.bool_))
+            or not isinstance(period, (int, np.integer))
+            or period <= 0
+        ):
+            raise CausalValueError("adoption periods must be positive integers")
+        adoptions.append((unit, int(period)))
+    if len({unit for unit, _ in adoptions}) != len(adoptions):
+        raise CausalValueError("each adopting unit is listed once")
+    if (query.treated_unit, int(query.intervention_period)) not in adoptions:
+        raise CausalValueError("adoptions must include (treated_unit, intervention_period)")
+    object.__setattr__(query, "adoptions", tuple(adoptions))
+
+
+def _bind_local_ratio_options(query: Any) -> None:
+    """Validate and freeze the design options of a fuzzy RD or regression kink."""
+    _check_choice(query.bandwidth_rule, "bandwidth_rule", _LOCAL_BANDWIDTH_RULES)
+    if query.temporal_replicates is not None and (
+        not _positive_int(query.temporal_replicates) or query.temporal_replicates > 2**32 - 1
+    ):
+        raise CausalValueError("temporal_replicates must be a positive integer")
+    if not isinstance(query.density_test, bool):
+        raise CausalValueError("density_test must be boolean")
+    taken = (query.outcome, query.treatment, query.running)
+    object.__setattr__(
+        query,
+        "balance_covariates",
+        _column_tuple(query.balance_covariates, "balance_covariates", taken),
+    )
+
+
 __all__ = [
     "PeriodHistoryMatch",
     "PeriodHistoryMatchEstimate",
@@ -825,6 +1138,10 @@ __all__ = [
     "SyntheticDifferenceInDifferencesEstimate",
     "AugmentedPanelDiD",
     "AugmentedPanelDiDEstimate",
+    "StaggeredRollout",
+    "CovariateAdjustedDiD",
+    "DesignEffect",
+    "QuasiRolloutEstimate",
     "FuzzyRegressionDiscontinuity",
     "RegressionKink",
     "SharpRegressionDiscontinuity",

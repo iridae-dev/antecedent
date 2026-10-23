@@ -51,6 +51,7 @@ fn fixture(kink: bool) -> (TabularData, LocalPolynomialRatioQuery) {
         cutoff: 0.0,
         bandwidth: 1.0,
         kink,
+        options: None,
     };
     (data, query)
 }

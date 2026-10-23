@@ -131,6 +131,7 @@ fn local_polynomial_ratio_refuses_a_forged_plan() {
         cutoff: 0.0,
         bandwidth: 1.0,
         kink: true,
+        options: None,
     };
     let study = Study::tabular(data.clone()).query(query).build().unwrap();
     let physical = Arc::new(study.plan(&ctx).unwrap());

@@ -176,6 +176,7 @@ fn ratio_query() -> antecedent_core::LocalPolynomialRatioQuery {
         cutoff: 0.0,
         bandwidth: 0.8,
         kink: false,
+        options: None,
     }
 }
 

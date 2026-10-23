@@ -12,9 +12,11 @@ use super::{
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 
 mod bayesian;
+mod design;
 
 use super::BayesianConfig;
 pub(super) use bayesian::bayesian_local_polynomial_ratio_plan_ids;
+pub(super) use design::local_ratio_query_plan_ids;
 
 /// The extra setting is the study's Bayesian configuration: with one, the retained operation
 /// reports a posterior instead of the frequentist ratio.
@@ -71,6 +73,54 @@ impl CheckedLocalPolynomialRatioOperation {
                 Some(config.clone())
             }
         };
+        if let Some(options) = &query.options {
+            if bayesian.is_some() && options.temporal_replicates.is_some() {
+                return Err(super::bayesian_quasi_common::unread_option(
+                    "the Bayesian local ratio",
+                    "a calendar-time running variable, whose serially dependent rows the local \
+                     Gaussian likelihood does not model",
+                    "the frequentist temporal local ratio with its within-side block bootstrap",
+                ));
+            }
+            match (options.temporal_replicates.is_some(), study.sampling_design) {
+                (
+                    true,
+                    Some(
+                        antecedent_core::DeclaredSamplingDesign::ClusteredPanel
+                        | antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories,
+                    ),
+                ) => {
+                    return Err(crate::compile_reason!(
+                        "option_not_applicable",
+                        "a calendar-time running variable is one dependent series resampled in \
+                         contiguous blocks; the declared design resamples independent units. \
+                         Next attempt: declare dependent_time_series (or no design), or drop the \
+                         calendar-time option for independent rows"
+                    ));
+                }
+                (false, Some(antecedent_core::DeclaredSamplingDesign::DependentTimeSeries)) => {
+                    return Err(crate::compile_reason!(
+                        "option_not_applicable",
+                        "the declared dependent_time_series design makes the rows one dependent \
+                         series, which the independent-row HC0 interval does not cover. Next \
+                         attempt: declare the running variable as calendar time to use the \
+                         within-side block bootstrap"
+                    ));
+                }
+                _ => {}
+            }
+            for variable in options.balance_covariates.iter() {
+                data.schema().get(*variable).map_err(CausalError::rejected)?;
+                if !matches!(
+                    data.column(*variable).map_err(CausalError::from)?,
+                    antecedent_data::ColumnView::Float64(_)
+                ) {
+                    return Err(CausalError::Unsupported {
+                        message: "local ratio balance covariates must be continuous columns",
+                    });
+                }
+            }
+        }
         for variable in [query.outcome, query.treatment, query.running] {
             data.schema().get(variable).map_err(CausalError::rejected)?;
             if !matches!(
@@ -85,7 +135,7 @@ impl CheckedLocalPolynomialRatioOperation {
         let (plan_id, identifier, estimator) = if bayesian.is_some() {
             bayesian_local_polynomial_ratio_plan_ids(query.kink)
         } else {
-            local_polynomial_ratio_plan_ids(query.kink)
+            local_ratio_query_plan_ids(query)
         };
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id.as_str()
@@ -120,7 +170,40 @@ impl CheckedLocalPolynomialRatioOperation {
                 treatment: column(self.query.treatment)?,
                 outcome: column(self.query.outcome)?,
             };
+            if self.query.options.as_ref().is_some_and(|options| {
+                options.bandwidth_rule == antecedent_core::LocalBandwidthRule::MseOptimal
+            }) {
+                let columns = antecedent_estimate::local_ratio_design::LocalRatioColumns {
+                    running: sample.running,
+                    outcome: sample.outcome,
+                    treatment: sample.treatment,
+                };
+                let bandwidth = design::selected_bandwidth(&self.query, &columns, ctx)?;
+                let selected = Self {
+                    query: antecedent_core::LocalPolynomialRatioQuery {
+                        bandwidth,
+                        ..self.query.clone()
+                    },
+                    ..self.clone()
+                };
+                let mut result = selected.execute_bayesian(data, &sample, config, ctx)?;
+                result.diagnostics.push(Diagnostic::new(
+                    "estimate.quasi.bayesian_local_ratio.selected_bandwidth",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    format!(
+                        "posterior at the plug-in MSE-optimal bandwidth {bandwidth} (capped at the \
+                         declared {}); the bandwidth is selected on the same data, which the \
+                         posterior does not account for",
+                        self.query.bandwidth
+                    ),
+                ));
+                return Ok(result);
+            }
             return self.execute_bayesian(data, &sample, config, ctx);
+        }
+        if self.query.options.is_some() {
+            return self.execute_design(data, ctx);
         }
         let fit = fit_local_polynomial_ratio(
             column(self.query.running)?,
@@ -258,6 +341,36 @@ pub(crate) fn local_polynomial_ratio_identification(
             scope: antecedent_core::AssumptionScope::Identification,
             status: antecedent_core::AssumptionStatus::Declared,
         });
+    }
+    if query.options.as_ref().is_some_and(|options| options.temporal_replicates.is_some()) {
+        for (id, description) in [
+            (
+                "no_concurrent_discontinuity_at_the_cutoff_date",
+                "nothing else changes discontinuously at the cutoff date, so the jump is the treatment's",
+            ),
+            (
+                "smooth_time_trend_through_the_cutoff",
+                "the untreated outcome's time path is smooth through the cutoff date within the window",
+            ),
+            (
+                "weakly_dependent_stationary_errors_near_the_cutoff",
+                "serial dependence near the cutoff is short relative to the window, so contiguous blocks reproduce it",
+            ),
+            (
+                "target_population_periods_at_the_cutoff_date",
+                "the target is the effect at the cutoff date, not over the window or later periods",
+            ),
+        ] {
+            assumptions.push(antecedent_core::AssumptionRecord {
+                assumption: antecedent_core::Assumption::Custom {
+                    id: Arc::from(id),
+                    description: Arc::from(description),
+                },
+                source: antecedent_core::AssumptionSource::UserDeclared,
+                scope: antecedent_core::AssumptionScope::Identification,
+                status: antecedent_core::AssumptionStatus::Declared,
+            });
+        }
     }
     let rule =
         if query.kink { "regression_kink.local_slope_ratio" } else { "fuzzy_rd.local_jump_ratio" };
