@@ -577,8 +577,13 @@ fn contemp_mci_phase_inner(
 
     // Legacy protocol: emit surviving adjacencies (conservative p = max over tests).
     // Fixed (non-search) links are omitted unless they have scores from a prior test.
+    // Targets in declared variable order: the order of the scored links fixes the order edges
+    // enter the graph, so iterating the map would make the returned graph depend on hashing.
     let mut scored = Vec::new();
-    for (&target, parents) in &adj {
+    for target in variables.iter().copied() {
+        let Some(parents) = adj.get(&target) else {
+            continue;
+        };
         for &(src, slag) in parents {
             let link = LaggedLink {
                 source: src,

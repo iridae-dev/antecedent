@@ -13,6 +13,7 @@ use crate::analysis::execute::{
     CheckedPanelDidOperation, CheckedPolicyValueOperation, CheckedRandomizedOperation,
     CheckedSequentialContrastOperation, CheckedStaticDagResponseOperation,
     CheckedStaticMediationOperation, CheckedSurvivalOperation, CheckedSyntheticControlOperation,
+    CheckedTemporalDesignOperation,
 };
 use crate::analysis::prepared::estimate::{ClickNotes, Rebound};
 use crate::analysis::prepared::{
@@ -61,6 +62,7 @@ executes_as_prepared!(
     CheckedLongitudinalRegimeOperation,
     CheckedSequentialContrastOperation,
     CheckedHistoryMatchOperation,
+    CheckedTemporalDesignOperation,
 );
 
 impl SealedOperation for CheckedAttributionOperation {

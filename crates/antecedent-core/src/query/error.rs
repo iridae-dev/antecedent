@@ -38,6 +38,18 @@ pub enum QueryError {
     /// Invalid fixed-cutoff local-polynomial ratio design.
     #[error("invalid local-polynomial ratio query: {0}")]
     InvalidLocalPolynomialRatio(String),
+    /// Invalid structure-discovery query.
+    #[error("invalid discover query: {0}")]
+    InvalidDiscover(String),
+    /// Invalid attribution query on a fitted structural model.
+    #[error("invalid attribute query: {0}")]
+    InvalidAttribute(String),
+    /// Invalid simulation query on a fitted structural model.
+    #[error("invalid simulate query: {0}")]
+    InvalidSimulate(String),
+    /// Invalid sequentially randomized unit-period design.
+    #[error("invalid temporal-design query: {0}")]
+    InvalidTemporalDesign(String),
     /// Treatment and outcome are the same variable.
     #[error("treatment and outcome are the same variable {id}")]
     TreatmentEqualsOutcome {

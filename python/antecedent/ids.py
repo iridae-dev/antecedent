@@ -112,6 +112,10 @@ class Estimator(StrEnum):
     SEQUENTIAL_CROSSFIT_CONTRAST_WALD = "sequential.crossfit_contrast.wald"
     BAYESIAN_SEQUENTIAL_CROSSFIT_CONTRAST = "bayesian.sequential_crossfit_contrast"
     PERIOD_HISTORY_MATCHING = "matching.period_history_contrast"
+    TEMPORAL_DESIGN_EXCURSION = "temporal_design.excursion"
+    BAYESIAN_TEMPORAL_DESIGN_EXCURSION = "bayesian.temporal_design.excursion"
+    TEMPORAL_REGIME_SURVIVAL = "temporal_design.regime_survival"
+    BAYESIAN_TEMPORAL_REGIME_SURVIVAL = "bayesian.temporal_design.regime_survival"
 
 
 class Latency(StrEnum):

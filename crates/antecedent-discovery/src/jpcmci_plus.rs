@@ -514,8 +514,11 @@ fn exogenous_parents_from_scored(
 fn directed_exogenous_links(
     parents: &HashMap<VariableId, Vec<(VariableId, Lag)>>,
 ) -> Vec<LaggedLink> {
+    // Targets in ascending id order, so the required-link order does not depend on hashing.
+    let mut targets: Vec<_> = parents.iter().collect();
+    targets.sort_unstable_by_key(|(target, _)| target.raw());
     let mut out = Vec::new();
-    for (&target, list) in parents {
+    for (&target, list) in targets {
         for &(source, source_lag) in list {
             out.push(LaggedLink { source, source_lag, target, target_lag: Lag::CONTEMPORANEOUS });
         }

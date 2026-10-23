@@ -24,6 +24,8 @@ pub enum EvidenceRole {
     PriorArtifact,
     /// A source population that a transport reads.
     TransportSource,
+    /// The compiled search and review a discovered structure came from.
+    DiscoveredStructure,
 }
 
 impl EvidenceRole {
@@ -35,6 +37,7 @@ impl EvidenceRole {
             Self::Trial => "trial",
             Self::PriorArtifact => "prior_artifact",
             Self::TransportSource => "transport_source",
+            Self::DiscoveredStructure => "discovered_structure",
         }
     }
 }

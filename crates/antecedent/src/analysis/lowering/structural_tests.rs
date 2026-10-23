@@ -281,6 +281,28 @@ fn every_structural_cell_lowers_completely() {
             FunctionalKind::MechanismChange,
         ),
         (CausalQuery::UnitChange(UnitChangeQuery::new(v(1), 20)), FunctionalKind::UnitChange),
+        (
+            CausalQuery::Attribute(antecedent_core::AttributeQuery::new(
+                antecedent_core::AttributeTarget::Paths {
+                    sources: std::sync::Arc::from([v(0)]),
+                    outcome: v(1),
+                    max_paths: 8,
+                    max_len: 4,
+                    through: std::sync::Arc::from([]),
+                },
+            )),
+            FunctionalKind::Attribution,
+        ),
+        (
+            CausalQuery::Simulate(antecedent_core::SimulateQuery::new(
+                antecedent_core::SimulationTarget::PolicyValue {
+                    interventions: std::sync::Arc::from([Intervention::set(v(0), Value::f64(1.0))]),
+                    outcome: v(1),
+                    draws: 64,
+                },
+            )),
+            FunctionalKind::Simulation,
+        ),
     ];
     let mut covered = BTreeSet::new();
     for (query, expected) in kinds {

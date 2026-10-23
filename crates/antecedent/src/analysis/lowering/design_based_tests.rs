@@ -244,3 +244,73 @@ fn history_match_lowers_its_matched_functional_and_retains_its_premises() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.lowered_program_identity(), Some(program.identity()));
 }
+
+fn temporal_design_study(bayesian: bool) -> (Study, TabularData) {
+    let mut state = 17_u64;
+    let (mut units, mut periods, mut assignment, mut outcome) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for unit in 0..SUBJECTS {
+        for period in 0..4_i64 {
+            let treated = uniform(&mut state) < 0.5;
+            units.push(Arc::<str>::from(format!("u{unit}")));
+            periods.push(period);
+            assignment.push(treated);
+            outcome.push(f64::from(u8::from(treated)) + uniform(&mut state));
+        }
+    }
+    let rows = units.len();
+    let data = TabularData::from_f64_columns([("y", outcome.as_slice())]).unwrap();
+    let query = antecedent_core::TemporalDesignQuery {
+        outcome: VariableId::from_raw(0),
+        units: units.into(),
+        periods: periods.into(),
+        lag: 0,
+        assignment: antecedent_core::TemporalAssignment::TwoArm {
+            assignment: assignment.into(),
+            probability: vec![0.5; rows].into(),
+        },
+        functional: antecedent_core::TemporalDesignFunctional::Mean,
+        min_probability: 0.05,
+        outcome_misclassification: None,
+    };
+    let mut builder = Study::tabular(data.clone()).query(CausalQuery::TemporalDesign(query));
+    if bayesian {
+        builder =
+            builder.inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(DRAWS)));
+    }
+    (builder.build().unwrap(), data)
+}
+
+#[test]
+fn temporal_design_lowers_its_assignment_contrast_and_retains_its_premises() {
+    for bayesian in [false, true] {
+        let (study, data) = temporal_design_study(bayesian);
+        let program = compiled(&study);
+        assert_eq!(program.route(), "TemporalDesign");
+        assert_eq!(program.depth(), LoweringDepth::Complete);
+        assert!(matches!(
+            program.scientific().target(),
+            ProblemTarget::QueryFunctional {
+                kind: FunctionalKind::AssignmentContrast,
+                outcome: Some(outcome),
+                ..
+            }
+                if *outcome == VariableId::from_raw(0)
+        ));
+        assert!(program.identification_retained());
+        let premises = retained_assumptions(&program).expect("the design product is retained");
+        assert!(!premises.is_empty(), "the recorded sequential randomization is a premise");
+        let expected = if bayesian {
+            EstimatorId::BayesianTemporalDesignExcursion
+        } else {
+            EstimatorId::TemporalDesignExcursion
+        };
+        assert_eq!(recorded_estimator(&study), Some(expected));
+        let ctx = ExecutionContext::for_tests(46);
+        let prepared = study.prepare(&ctx).unwrap();
+        assert_eq!(prepared.plan().lowered_program_identity(), Some(program.identity()));
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        assert_eq!(result.lowered_program_identity(), Some(program.identity()));
+        assert!(result.temporal_design().is_some());
+    }
+}

@@ -161,7 +161,10 @@ pub(crate) fn symmetrize_contemporaneous_links(links: Vec<ScoredLink>) -> Vec<Sc
         }
     }
     let mut out = lagged;
-    for ((lo, hi), (fwd, rev)) in contemp {
+    // Pairs in ascending id order: the output order fixes the order edges enter the graph.
+    let mut pairs: Vec<_> = contemp.into_iter().collect();
+    pairs.sort_unstable_by_key(|(key, _)| *key);
+    for ((lo, hi), (fwd, rev)) in pairs {
         let (Some(mut a), Some(b)) = (fwd, rev) else {
             continue;
         };

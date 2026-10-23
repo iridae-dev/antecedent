@@ -662,6 +662,10 @@ name = "unlicensed_design_routes"
 path = "tests/unlicensed_design_routes.rs"
 
 [[test]]
+name = "temporal_design_routes"
+path = "tests/temporal_design_routes.rs"
+
+[[test]]
 name = "panel_link_contrast_route"
 path = "tests/panel_link_contrast_route.rs"
 
@@ -710,9 +714,33 @@ name = "staleness_facade"
 path = "tests/staleness_facade.rs"
 
 [[test]]
+name = "temporal_point_uncertainty"
+path = "tests/temporal_point_uncertainty.rs"
+
+[[test]]
+name = "target_native_validation"
+path = "tests/target_native_validation.rs"
+
+[[test]]
+name = "bayesian_intervention_level_refutation"
+path = "tests/bayesian_intervention_level_refutation.rs"
+
+[[test]]
+name = "unlicensed_refuter_states_and_mechanism_bootstrap"
+path = "tests/unlicensed_refuter_states_and_mechanism_bootstrap.rs"
+
+[[test]]
 name = "file_table_capacity"
 path = "tests/file_table_capacity.rs"
 required-features = ["file-source"]
+
+[[test]]
+name = "structure_compiler_routes"
+path = "tests/structure_compiler_routes.rs"
+
+[[test]]
+name = "quasi_rollout_routes"
+path = "tests/quasi_rollout_routes.rs"
 
 [[example]]
 name = "joint_panel_workflow"

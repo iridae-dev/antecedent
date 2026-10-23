@@ -67,6 +67,12 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         Some(RouteInput::GcmDag { graph, .. }) => {
             lower_structural(cx, static_mechanisms(graph, registry(&cx.study.query)))
         }
+        Some(
+            RouteInput::GcmAttributeDag { graph, .. } | RouteInput::GcmSimulateDag { graph, .. },
+        ) => {
+            let family = super::discovery::mechanism_label(cx.study);
+            lower_structural(cx, static_mechanisms(graph, &family))
+        }
         Some(RouteInput::GcmTemporal { .. }) => {
             // The route classifies as this cell only on a supplied temporal DAG.
             let graph = cx
@@ -159,6 +165,8 @@ fn lower_structural(
         CausalQuery::ChangeAttribution(_) => FunctionalKind::ChangeAttribution,
         CausalQuery::MechanismChange(_) => FunctionalKind::MechanismChange,
         CausalQuery::UnitChange(_) => FunctionalKind::UnitChange,
+        CausalQuery::Attribute(_) => FunctionalKind::Attribution,
+        CausalQuery::Simulate(_) => FunctionalKind::Simulation,
         _ => return Err(super::not_lowered_by("structural", cx)),
     };
     let (_, outcome) = crate::analysis::execute::gcm_query_vars(&study.query)?;
@@ -202,7 +210,7 @@ fn lower_structural(
             models,
             folds: None,
             resampling: Resampling::Off,
-            intervenes: kind == FunctionalKind::Counterfactual,
+            intervenes: matches!(kind, FunctionalKind::Counterfactual | FunctionalKind::Simulation),
             width: MECHANISM_WIDTH,
             claim: ClaimDemand { uncertainty, kind: Some(ClaimKind::Point) },
         },

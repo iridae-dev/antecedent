@@ -29,6 +29,7 @@ mod prepare_effect;
 mod prepare_posterior;
 mod prepare_query;
 mod prepare_response;
+mod prepare_temporal_design;
 mod prepare_unlicensed_design;
 mod routing;
 mod treatment_score;
@@ -41,10 +42,11 @@ pub(crate) use contract::{
 };
 use controls::{ClickControls, map_ate, unstaged};
 use frame::{FrameData, FrameInput};
+pub(crate) use posterior::contract_to_map;
 use posterior::{
-    SeriesGraphQuery, contract_to_map, dbn_posterior, exact_dag_posterior,
-    finish_series_graph_posterior, finish_static_graph_posterior, insert_reuse_identities,
-    require_prepared_names, take_supplied_posterior,
+    SeriesGraphQuery, dbn_posterior, exact_dag_posterior, finish_series_graph_posterior,
+    finish_static_graph_posterior, insert_reuse_identities, require_prepared_names,
+    take_supplied_posterior,
 };
 use prepare_request::{PrepareRequest, one_series};
 use routing::{

@@ -289,6 +289,8 @@ class AteAnalysisResult:
     longitudinal_regime: LongitudinalRegimeSection | None
     sequential_contrast: SequentialContrastSection | None
     history_match: HistoryMatchSection | None
+    temporal_design: TemporalDesignSection | None
+    quasi_rollout: QuasiRolloutSection | None
     policy_value: PolicyValueSection | None
     continuous_dose_response: ContinuousDoseResponseSection | None
     anomaly: list[AnomalyScores] | None
@@ -528,6 +530,32 @@ class LocalPolynomialRatioSection:
     uncertainty: str
     graphless_support_status: str | None
 
+class DesignEffectSection:
+    kind: str
+    group: int | None
+    period: int | None
+    event_time: int | None
+    unit: str | None
+    estimate: float
+    standard_error: float | None
+    interval: tuple[float, float] | None
+    band: tuple[float, float] | None
+    treated: int
+    comparison: int
+
+class QuasiRolloutSection:
+    design: str
+    method: str
+    effects: list[DesignEffectSection]
+    uncertainty: str
+    calibration: str
+    replicates_requested: int
+    replicates_ok: int
+    replicates_failed: int
+    critical_value: float | None
+    diagnostics: list[tuple[str, float]]
+    licensed: bool
+
 class SurvivalSection:
     times: list[float]
     control: list[float]
@@ -620,6 +648,31 @@ class HistoryMatchSection:
     periods_matched: int
     caliper: float | None
     uncertainty: str
+
+class TemporalDesignSection:
+    design: str
+    functional: str
+    coordinates: list[str]
+    estimate: list[float]
+    standard_error: list[float]
+    lower: list[float]
+    upper: list[float]
+    covariance: list[float] | None
+    band_coordinates: list[int]
+    band_critical_value: float | None
+    band_lower: list[float] | None
+    band_upper: list[float] | None
+    holm_adjusted_p: list[float] | None
+    smoothing_bias_bound: list[float] | None
+    pairs: int
+    clusters: int
+    unpaired: int
+    minimum_probability: float
+    replicates: tuple[int, int] | None
+    draws: int | None
+    uncertainty: str
+    calibration: str
+    licensed: bool
 
 class PolicyValueSection:
     policy_value: float
@@ -963,9 +1016,31 @@ class PcmciDiscoveryResult:
     variable_names: list[str]
     background_knowledge: str | None
     row_accounting: dict[str, Any] | None
+    @property
+    def route(self) -> CompiledRoute | None: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
 
     def accepted_graph(self, *, accept_discovered: bool = True) -> Any:
         """The reviewed accepted graph; refuses while edges are pending."""
+
+class CompiledRoute:
+    """An executed compiled route: its contract, claim and inspection record."""
+
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
+    @property
+    def program_identity(self) -> str | None: ...
+    def structure_provenance(self) -> dict[str, str] | None: ...
+    def accepted_graph(
+        self, *, accept_discovered: bool = True
+    ) -> tuple[Any, dict[str, str] | None]: ...
 
 class RpcmciDiscoverySummary:
     algorithm: str
@@ -994,6 +1069,13 @@ class GraphPosterior:
     edge_mcse: list[float] | None
     edge_rhat: list[float] | None
     edge_ess: list[float] | None
+    @property
+    def route(self) -> CompiledRoute | None: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
     def to_weighted_samples(self) -> dict[str, object]: ...
     def edge_marginal_matrix(self) -> list[list[float]]: ...
     @classmethod
@@ -1118,6 +1200,22 @@ class PreparedAnalysis:
         self, *, policy_json: str | None = None, seed: int = 1, threads: int | None = None
     ) -> bytes: ...
     def staleness_plan_json(self) -> str: ...
+    def refute_target(
+        self,
+        names: list[str],
+        columns: list[Any],
+        *,
+        suite: str = "full",
+        replicates: int = 30,
+        alpha: float = 0.05,
+        subset_fraction: float = 0.8,
+        negative_control_exposure: str | None = None,
+        negative_control_outcome: str | None = None,
+        mediator: str | None = None,
+        mediation_rho_bar: float = 0.1,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
     def refute_bound(
         self, suite: Any, *, seed: int = 1, threads: int | None = None, cancel: Any = None
     ) -> AteAnalysisResult: ...
@@ -1547,6 +1645,8 @@ class PreparedAnalysis:
         clusters: list[str],
         predictions_cross_fitted: bool,
         *,
+        resampling: str | None = None,
+        replicates: int = 999,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1598,6 +1698,52 @@ class PreparedAnalysis:
         uniform_unit_randomization: bool = False,
         sharp_null_effect: float | None = None,
         augmentation_ridge: float | None = None,
+        conformal: bool = False,
+        adoptions: list[tuple[str, int]] | None = None,
+        placebo_replicates: int = 0,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_rollout_did(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        subjects: list[str],
+        clusters: list[str],
+        periods: list[int],
+        cohorts: list[int],
+        *,
+        estimator: str = "callaway_santanna",
+        comparison: str = "never_treated",
+        nuisance: str = "doubly_robust",
+        base_period: str = "varying",
+        aggregation: str = "simple",
+        anticipation: int = 0,
+        covariates: list[str] = [],
+        resampling: str | None = None,
+        replicates: int = 999,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_covariate_adjusted_did(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treated: list[bool],
+        post: list[bool],
+        subjects: list[str],
+        clusters: list[str],
+        covariates: list[str],
+        *,
+        nuisance: str = "doubly_robust",
+        resampling: str | None = None,
+        replicates: int = 999,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1634,6 +1780,10 @@ class PreparedAnalysis:
         bandwidth: float,
         *,
         kink: bool = False,
+        bandwidth_rule: str = "declared",
+        temporal_replicates: int | None = None,
+        density_test: bool = False,
+        balance_covariates: list[str] = [],
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1723,6 +1873,23 @@ class PreparedAnalysis:
         caliper: float | None = None,
         *,
         accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_temporal_design(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        units: list[str],
+        periods: list[int],
+        design: str,
+        *,
+        lag: int = 0,
+        quantile_level: float | None = None,
+        min_probability: float = 0.05,
+        misclassification: tuple[int, int, int, int] | None = None,
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
@@ -2162,12 +2329,26 @@ class GcmIteResult:
     noise_inference: str
     n_assignments: int
     unit_effects: NDArray[np.float64]
+    @property
+    def route(self) -> CompiledRoute | None: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
 
 class GcmSampleResult:
     column_means: list[float]
     n_draws: int
     n_nodes: int
     draws: NDArray[np.float64]
+    @property
+    def route(self) -> CompiledRoute | None: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
 
 class Contribution:
     name: str
@@ -2177,6 +2358,13 @@ class ChangeAttributionResult:
     total_change: float
     contributions: list[tuple[str, float]]
     path_breakdown: list[tuple[list[str], float]]
+    @property
+    def route(self) -> CompiledRoute | None: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
 
 class AnomalyScores:
     outcome: str
@@ -2231,6 +2419,9 @@ class DecisionEvaluation:
 class FittedGcm:
     names: list[str]
     n_assignments: int
+    @property
+    def last_route(self) -> CompiledRoute | None: ...
+    def structure_provenance(self) -> dict[str, str] | None: ...
     def mechanism_kinds(self) -> list[tuple[str, str]]: ...
     def mechanism_selection(self) -> list[dict[str, Any]]: ...
     def sample_do(
@@ -2402,6 +2593,17 @@ def fit_gcm(
     splits: str = "shuffled",
     purge: int = 0,
 ) -> FittedGcm: ...
+def fit_gcm_accepted(
+    names: list[str],
+    columns: Sequence[Any],
+    discovery: PcmciDiscoveryResult,
+    *,
+    threads: int | None = None,
+    candidates: list[str] | None = None,
+    constraints: dict[str, dict[str, Any]] | None = None,
+    splits: str = "shuffled",
+    purge: int = 0,
+) -> tuple[FittedGcm, list[tuple[str, str]]]: ...
 
 class BatchCallbackHandle:
     def __init__(
@@ -4477,6 +4679,107 @@ def staleness_from_artifact(
     threads: int | None = None,
 ) -> str: ...
 def staleness_policy(policy_json: str | None = None) -> str: ...
+def sensitivity_evalue(
+    estimate: float,
+    *,
+    lower: float | None = None,
+    upper: float | None = None,
+    standard_error: float | None = None,
+    scale: str = "risk_ratio",
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_omitted_variable_bias(
+    estimate: float,
+    standard_error: float,
+    dof: float,
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    benchmarks: list[tuple[str, float, float]] | None = None,
+    kd: float = 1.0,
+    ky: float | None = None,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_omitted_variable_bias_fit(
+    outcome: list[float],
+    treatment: list[float],
+    covariates: list[list[float]],
+    covariate_names: list[str],
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    kd: float = 1.0,
+    ky: float | None = None,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_rosenbaum(
+    differences: list[float],
+    *,
+    gammas: list[float] | None = None,
+    alpha: float = 0.05,
+    target_source: str | None = None,
+) -> str: ...
+def sensitivity_matched_sets(
+    sets: list[tuple[list[float], int]],
+    *,
+    score: str = "aligned_ranks",
+    gammas: list[float] | None = None,
+    alpha: float = 0.05,
+) -> str: ...
+def sensitivity_amplify(gamma: float, lam: float) -> float | None: ...
+def sensitivity_mediation(
+    treatment: list[float],
+    mediator: list[float],
+    outcome: list[float],
+    covariates: list[list[float]],
+    *,
+    target_source: str | None = None,
+) -> str: ...
+def target_refutation_plan(
+    family: str,
+    *,
+    temporal: bool = False,
+    bayesian: bool = False,
+    suite: str = "full",
+    labels: list[str] | None = None,
+) -> str: ...
+def target_derivative_consistency(
+    response: Any,
+    points: list[float],
+    reported: list[float],
+    *,
+    step: float = 1e-2,
+    tolerance: float = 1e-4,
+) -> str: ...
+def target_local_linearity(
+    response: Any,
+    points: list[float],
+    *,
+    step: float = 1e-1,
+    tolerance: float = 0.1,
+    slope_floor: float = 1e-12,
+) -> str: ...
+def target_prior_sensitivity(
+    labels: list[str],
+    baseline: list[list[float]],
+    alternatives: list[tuple[str, list[list[float]]]],
+    *,
+    tolerance: float = 0.5,
+    family: str = "world_valued",
+    temporal: bool = False,
+) -> str: ...
+def target_posterior_predictive(
+    labels: list[str],
+    observed: list[float],
+    draws: list[list[float]],
+    replicated: list[list[float]],
+    *,
+    alpha: float = 0.05,
+    family: str = "world_valued",
+    temporal: bool = False,
+) -> str: ...
 def temporal_dependent_interval_closed(
     snapshot_id: str,
     units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,

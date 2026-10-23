@@ -244,6 +244,11 @@ pub struct CausalContract {
     pub accepted_version: u32,
     /// Discovery algorithm for audit; distinct from the selected identifier.
     pub discovery_algorithm: Option<Arc<str>>,
+    /// The compiled search and review the accepted structure came from, when it
+    /// was accepted from a compiled discovery (see
+    /// [`crate::accept_discovered`]). Identification excludes it, as it
+    /// excludes the discovery algorithm; the program identity binds its digest.
+    pub structure_provenance: Option<Arc<crate::accepted::StructureProvenance>>,
     /// Original optional portable binding on the accepted structure.
     pub accepted_variable_names: Option<Arc<[Arc<str>]>>,
     /// Support-matrix status, when the query is on-axis.
@@ -1245,6 +1250,11 @@ impl StudyResult {
                 detail: "result was not executed under this contract",
             });
         }
+        // A scalar average-effect refutation does not certify another target: a claim on a
+        // conditional, derivative, temporal-vector, mediation, world-valued or joint target
+        // refuses one, naming the target-native suite as the next attempt.
+        super::target_validation::refuse_scalar_refutations_for_result(self)
+            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
         let mut body = body_for(&contract.body, self)?;
         if let Some(quantities) = quantities {
             let response = body.response.as_mut().ok_or_else(|| CausalError::Compile {
@@ -1297,6 +1307,7 @@ impl StudyResult {
             || self.longitudinal_regime().is_some()
             || self.sequential_contrast().is_some()
             || self.history_match().is_some()
+            || self.quasi_rollout().is_some()
         {
             // These non-effect result families report no calibrated scalar
             // effect interval. Their uncertainty semantics live in their
@@ -1895,6 +1906,10 @@ fn program_payloads(
         checked_linear_adjustment_lowering: lowerings.linear_adjustment,
         checked_functional_response_grid: lowerings.functional_response_grid,
         checked_nested_counterfactual: lowerings.nested_counterfactual,
+        structure_provenance: study
+            .graph
+            .provenance()
+            .map(crate::accepted::StructureProvenance::digest),
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
     let inference_binding = inference_binding_wire(study, commitments.inference.clone());
@@ -2075,6 +2090,7 @@ fn compile_with_payloads(
             structure_source: study.structure_source,
             accepted_version: study.graph.version(),
             discovery_algorithm: study.graph.algorithm_id().map(Arc::from),
+            structure_provenance: study.graph.provenance_shared(),
             accepted_variable_names: study.graph.variable_names().map(Arc::from),
             support_status: study.support_status,
             identifier: study.identifier.map(|id| Arc::from(id.as_str())),
@@ -2082,12 +2098,10 @@ fn compile_with_payloads(
             resolved_estimator,
             row_count: data_row_count(&study.data),
             modality: Arc::from(snapshot_modality(&study.data)),
-            inference: Arc::from(match study.inference {
-                InferenceMode::Frequentist => "frequentist",
-                InferenceMode::Bayesian(_) => "bayesian",
-            }),
+            inference: Arc::from(declared_inference(study)),
             query_kind: Arc::from(
                 crate::support::query_axis_name(&study.query, study.graph.class())
+                    .or_else(|| compiled_off_axis_kind(&study.query))
                     .unwrap_or("Unknown"),
             ),
             score_reuse: None,
@@ -2511,6 +2525,9 @@ fn inferential_commitments(
         estimator: advertised_estimator(study, resolved_estimator).map(str::to_string),
         resolved_estimator: resolved_estimator.map(str::to_string),
         identifier: study.identifier.map(|id| id.as_str().to_string()),
+        // The commitments bind the estimator's own inference configuration, which
+        // the inference binding replays; a structure posterior's prior and score are
+        // in its query and lowered program, not in a Bayesian estimator configuration.
         inference: match study.inference {
             InferenceMode::Frequentist => "frequentist".into(),
             InferenceMode::Bayesian(_) => "bayesian".into(),
@@ -2519,6 +2536,30 @@ fn inferential_commitments(
         interval_method: interval_method.as_str().into(),
         se_kind,
         prior_required: matches!(study.inference, InferenceMode::Bayesian(_)),
+    }
+}
+
+/// The inference family a study's program declares, as the contract labels
+/// it. A structure search declares its method's: a structure posterior is
+/// Bayesian by its method, whatever the study's estimator configuration.
+fn declared_inference(study: &Study) -> &'static str {
+    if let CausalQuery::Discover(query) = &study.query {
+        return query.inference().as_str();
+    }
+    match study.inference {
+        InferenceMode::Frequentist => "frequentist",
+        InferenceMode::Bayesian(_) => "bayesian",
+    }
+}
+
+/// Query name of a compiled route kind that sits off the support-matrix axes.
+const fn compiled_off_axis_kind(query: &CausalQuery) -> Option<&'static str> {
+    match query {
+        CausalQuery::Discover(_) => Some("Discover"),
+        CausalQuery::Attribute(_) => Some("Attribute"),
+        CausalQuery::Simulate(_) => Some("Simulate"),
+        CausalQuery::TemporalDesign(_) => Some("TemporalDesign"),
+        _ => None,
     }
 }
 
@@ -2816,6 +2857,12 @@ fn functional_label(query: &CausalQuery) -> String {
         }
         CausalQuery::Distribution(q) => population(&q.target_population).into(),
         CausalQuery::PathSpecific(q) => population(&q.target_population).into(),
+        CausalQuery::Discover(q) => {
+            format!("discover.{}.{}.{}", q.method.id(), q.output().as_str(), q.inference().as_str())
+        }
+        CausalQuery::Attribute(q) => format!("attribute.{}", q.target.as_str()),
+        CausalQuery::Simulate(q) => format!("simulate.{}", q.target.as_str()),
+        CausalQuery::TemporalDesign(q) => format!("temporal_design.{}", q.design_name()),
         _ => String::new(),
     }
 }

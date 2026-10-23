@@ -332,6 +332,34 @@ pub(crate) struct GcmIteResult {
     /// Per-unit treatment effects (float64 NumPy array).
     #[pyo3(get)]
     pub(crate) unit_effects: Py<PyArray1<f64>>,
+    /// The compiled simulation route the effects came from.
+    pub(crate) route: Option<crate::compiled_route_api::RouteRecord>,
+}
+
+#[pymethods]
+impl GcmIteResult {
+    /// The compiled unit-effect simulation route this result came from.
+    #[getter]
+    fn route(&self, py: Python<'_>) -> PyResult<crate::compiled_route_api::RouteHandle> {
+        crate::compiled_route_api::route_object(py, self.route.as_ref())
+    }
+
+    /// The contract the unit-effect simulation executed under (`query_kind="Simulate"`).
+    #[getter]
+    fn contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.contract()
+    }
+
+    /// The claim sealed over the unit-effect simulation.
+    #[getter]
+    fn claim(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.claim()
+    }
+
+    /// Cheap inspection record of the compiled unit-effect simulation study.
+    fn inspect(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.inspect()
+    }
 }
 
 /// Interventional samples under hard `do` (means + full draws).
@@ -346,6 +374,34 @@ pub(crate) struct GcmSampleResult {
     /// Column-major draws shaped `(n_nodes, n_draws)`.
     #[pyo3(get)]
     pub(crate) draws: Py<PyArray2<f64>>,
+    /// The compiled simulation route the draws came from.
+    pub(crate) route: Option<crate::compiled_route_api::RouteRecord>,
+}
+
+#[pymethods]
+impl GcmSampleResult {
+    /// The compiled interventional sample route this result came from.
+    #[getter]
+    fn route(&self, py: Python<'_>) -> PyResult<crate::compiled_route_api::RouteHandle> {
+        crate::compiled_route_api::route_object(py, self.route.as_ref())
+    }
+
+    /// The contract the interventional sample executed under (`query_kind="Simulate"`).
+    #[getter]
+    fn contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.contract()
+    }
+
+    /// The claim sealed over the interventional sample.
+    #[getter]
+    fn claim(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.claim()
+    }
+
+    /// Cheap inspection record of the compiled interventional sample study.
+    fn inspect(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        crate::compiled_route_api::require_route(self.route.as_ref())?.inspect()
+    }
 }
 
 /// Fit a linear-Gaussian GCM and return mean ITE under hard interventions.

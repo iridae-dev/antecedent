@@ -48,6 +48,7 @@ mod categorical_treatment_api;
 mod closed_pilot_api;
 mod cohort_decision_api;
 mod compact_export_api;
+mod compiled_route_api;
 mod composition_api;
 mod composition_bundle_api;
 mod composition_verification_api;
@@ -148,6 +149,7 @@ mod recovery_chain_api;
 mod regimes_api;
 mod registry;
 mod sequential_evaluation_api;
+mod temporal_design_api;
 mod unlicensed_design_api;
 pub(crate) use registry::transport_defaults;
 mod interface_contract_api;
@@ -174,6 +176,7 @@ mod staleness_api;
 mod state_api;
 mod study_planning_api;
 mod survival_api;
+mod target_validation_api;
 mod temporal_api;
 mod temporal_counterfactual_api;
 mod temporal_extension_api;
@@ -246,32 +249,12 @@ use std::sync::Arc;
 use antecedent::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
 use antecedent::discovery::{
     DiscoverParams, DiscoveryPerformanceRecord, LaggedParent, MultiDatasetConstraints, PcSepsets,
-    RegimeAssignment, ScoredLink, StaticDiscoverParams, discover_fci as facade_discover_fci,
-    discover_ges as facade_discover_ges, discover_jpcmci_plus as facade_discover_jpcmci_plus,
-    discover_lingam as facade_discover_lingam, discover_lpcmci as facade_discover_lpcmci,
-    discover_lpcmci_panel as facade_discover_lpcmci_panel,
-    discover_notears_with as facade_discover_notears, discover_pc as facade_discover_pc,
-    discover_pcmci as facade_discover_pcmci, discover_pcmci_panel as facade_discover_pcmci_panel,
-    discover_pcmci_plus as facade_discover_pcmci_plus,
-    discover_pcmci_plus_panel as facade_discover_pcmci_plus_panel,
-    discover_rfci as facade_discover_rfci, discover_rpcmci as facade_discover_rpcmci,
-    pag_definite_directed_edge_count, two_regime_half_split,
+    RegimeAssignment, ScoredLink, StaticDiscoverParams, pag_definite_directed_edge_count,
+    two_regime_half_split,
 };
 use antecedent::error::PendingEdge as FacadePendingEdge;
 use antecedent::estimate::{TemporalLinearPredictor, TemporalMediationEstimator};
-use antecedent::gcm::{
-    CompiledCausalModel, DifferenceMeasure, DistributionChangeOptions, StructureChangeOptions,
-    anomaly_attribution as facade_anomaly_attribution,
-    attribute_distribution_change as facade_attribute_distribution_change,
-    attribute_distribution_change_robust as facade_attribute_distribution_change_robust,
-    attribute_feature_relevance as facade_attribute_feature_relevance,
-    attribute_path_specific as facade_attribute_path_specific,
-    attribute_structure_change as facade_attribute_structure_change,
-    attribute_unit_change as facade_attribute_unit_change,
-    counterfactual_ite as facade_counterfactual_ite, fit_gcm,
-    mechanism_change_detection as facade_mechanism_change_detection, sample_do as facade_sample_do,
-    sample_interventional_distribution as facade_sample_interventional_distribution,
-};
+use antecedent::gcm::{fit_gcm, sample_do as facade_sample_do};
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::review::{PendingCpdagReview, PendingGraphReview};
 use antecedent::{
@@ -280,11 +263,10 @@ use antecedent::{
 };
 use antecedent_core::{
     AllocationMethod, AttributionComponents, CachePolicy, CausalRng, ChangeAttributionQuery,
-    DistributionRef, ExecutionContext, Intervention, InterventionalDistributionQuery, KernelPolicy,
-    Lag, MechanismChangeQuery, MediationContrast, MediationQuery, PathSpecificEffectQuery,
-    PopulationRegistry, PopulationSelector, PredicateExpr, RegimeId, SchemaError, ShapleyConfig,
-    TargetPopulation, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value,
-    VariableId,
+    DistributionRef, ExecutionContext, Intervention, KernelPolicy, Lag, MechanismChangeQuery,
+    MediationContrast, MediationQuery, PopulationRegistry, PopulationSelector, PredicateExpr,
+    RegimeId, SchemaError, ShapleyConfig, TargetPopulation, TemporalEffectQuery, TemporalPolicy,
+    UnitChangeQuery, VERSION, Value, VariableId,
 };
 use antecedent_data::{
     DataError, MultiEnvironmentData, TableView, TimeSeriesData, tabular_from_arrow_c_columns,
@@ -1437,6 +1419,13 @@ pub(crate) struct AteAnalysisResult {
     /// Within-period history-matched contrast (unlicensed).
     #[pyo3(get)]
     history_match: Option<unlicensed_design_api::HistoryMatchSection>,
+    /// Sequentially randomized unit-period design or regime survival (unlicensed).
+    #[pyo3(get)]
+    temporal_design: Option<temporal_design_api::TemporalDesignSection>,
+    /// Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic
+    /// panel, or optioned local ratio (unlicensed, calibration unmeasured).
+    #[pyo3(get)]
+    quasi_rollout: Option<quasi_api::QuasiRolloutSection>,
     /// Per-target GCM anomaly scores (AnomalyAttribution).
     #[pyo3(get)]
     anomaly: Option<Vec<gcm_api::AnomalyScores>>,

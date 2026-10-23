@@ -42,6 +42,7 @@ from .quasi import (
     SyntheticControlEstimate,
     SyntheticDifferenceInDifferencesEstimate,
 )
+from ._quasi_rollout import quasi_rollout_from_raw as _quasi_rollout_from_raw
 from .regimes import LongitudinalRegimeEstimate, SequentialContrastEstimate
 from .results import (
     AnalysisResult,
@@ -467,6 +468,7 @@ def _panel_did_from_raw(
             nuisance_predictions_cross_fitted=declared,
             clusters=section.clusters,
             uncertainty=section.uncertainty,
+            interval_95=section.interval_95,
         )
     if isinstance(query, StaggeredAdoption) and query.event_study:
         intervals = section.event_time_intervals_95
@@ -1493,6 +1495,7 @@ def _wrap_ate(
         longitudinal_regime=_longitudinal_regime_from_raw(raw),
         sequential_contrast=_sequential_contrast_from_raw(raw),
         history_match=_history_match_from_raw(raw),
+        quasi_rollout=_quasi_rollout_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),
         change_attribution=getattr(raw, "change_attribution", None),
         _raw=raw,

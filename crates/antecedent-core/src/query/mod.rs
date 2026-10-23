@@ -4,6 +4,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod attribute;
 mod attribution;
 mod average;
 mod continuous_dose;
@@ -11,6 +12,7 @@ mod counterfactual;
 mod counterfactual_event;
 mod cross_world;
 mod did;
+mod discover;
 mod distribution;
 mod error;
 mod functional;
@@ -25,11 +27,13 @@ mod population;
 mod randomized;
 mod response;
 mod sequential_contrast;
+mod simulate;
 mod smoothed_dose;
 mod survival;
 mod synthetic_control;
 mod target;
 mod temporal;
+mod temporal_design;
 mod transport;
 mod transport_catalog;
 mod transport_contract;
@@ -41,6 +45,10 @@ use crate::identity::CanonicalWriter;
 
 pub use crate::intervention::TemporalPolicy;
 
+pub use attribute::{
+    AttributeQuery, AttributeTarget, ChangeEstimator, ChangeMeasure, InfluenceAllocation,
+    IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration,
+};
 pub use attribution::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AttributionComponents,
     ChangeAttributionQuery, MechanismChangeQuery, OrderedFloatBits, PopulationSelector,
@@ -54,7 +62,15 @@ pub use cross_world::{
     CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
     WorldSpec,
 };
-pub use did::{DidSamplingDesign, PanelDidQuery};
+pub use did::{
+    DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod, DidResampling,
+    DidResamplingScheme, DidSamplingDesign, HeterogeneityRobustDid, PanelDidQuery,
+    RolloutDidEstimator,
+};
+pub use discover::{
+    DiscoverQuery, DiscoveredClass, DiscoveryInference, DiscoveryMethod, ScreenWeight,
+    SearchBounds, SearchSchedule,
+};
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
 pub use functional::OutcomeFunctional;
@@ -63,7 +79,9 @@ pub use interference::{
     AssignmentDesign, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
     ExposurePropensityProvenance, InterferenceFunctional, InterferenceQuery,
 };
-pub use local_polynomial_ratio::LocalPolynomialRatioQuery;
+pub use local_polynomial_ratio::{
+    LocalBandwidthRule, LocalPolynomialRatioQuery, LocalRatioOptions,
+};
 pub use longitudinal_regime::{LongitudinalRegimeMethod, LongitudinalRegimeQuery};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use nested_counterfactual::NestedCounterfactualQuery;
@@ -82,11 +100,18 @@ pub use response::{
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
 };
 pub use sequential_contrast::SequentialContrastQuery;
+pub use simulate::{SimulateQuery, SimulationTarget};
 pub use smoothed_dose::{SmoothedDoseTransportQuery, SmoothingKernel};
 pub use survival::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};
-pub use synthetic_control::{SyntheticControlQuery, SyntheticPanelMethod};
+pub use synthetic_control::{
+    SyntheticControlQuery, SyntheticInterval, SyntheticPanelMethod, SyntheticRollout,
+};
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
+pub use temporal_design::{
+    OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
+    TemporalDoseTarget,
+};
 pub use transport::TransportQuery;
 pub use transport_catalog::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
@@ -157,6 +182,15 @@ pub enum CausalQuery {
     SequentialContrast(SequentialContrastQuery),
     /// Nearest-neighbor contrast on histories, matched within calendar periods.
     HistoryMatch(HistoryMatchQuery),
+    /// Structure discovery: a graph, graph class or structure posterior.
+    Discover(DiscoverQuery),
+    /// Attribution on a fitted structural causal model.
+    Attribute(AttributeQuery),
+    /// Simulation on a fitted structural causal model.
+    Simulate(SimulateQuery),
+    /// Excursion effects of a sequentially randomized unit-period design, or regime survival
+    /// on subject trajectories.
+    TemporalDesign(TemporalDesignQuery),
 }
 
 /// The variant tag, then the payload's own canonical encoding.
@@ -263,6 +297,22 @@ impl CanonicalEncode for CausalQuery {
                 writer.word(25);
                 query.encode(writer);
             }
+            Self::Discover(query) => {
+                writer.word(26);
+                query.encode(writer);
+            }
+            Self::Attribute(query) => {
+                writer.word(27);
+                query.encode(writer);
+            }
+            Self::Simulate(query) => {
+                writer.word(28);
+                query.encode(writer);
+            }
+            Self::TemporalDesign(query) => {
+                writer.word(29);
+                query.encode(writer);
+            }
         }
     }
 }
@@ -326,6 +376,14 @@ pub enum CausalQueryKind {
     SequentialContrast,
     /// [`CausalQuery::HistoryMatch`].
     HistoryMatch,
+    /// [`CausalQuery::Discover`].
+    Discover,
+    /// [`CausalQuery::Attribute`].
+    Attribute,
+    /// [`CausalQuery::Simulate`].
+    Simulate,
+    /// [`CausalQuery::TemporalDesign`].
+    TemporalDesign,
 }
 
 impl CausalQuery {
@@ -358,6 +416,10 @@ impl CausalQuery {
             Self::LongitudinalRegime(_) => CausalQueryKind::LongitudinalRegime,
             Self::SequentialContrast(_) => CausalQueryKind::SequentialContrast,
             Self::HistoryMatch(_) => CausalQueryKind::HistoryMatch,
+            Self::Discover(_) => CausalQueryKind::Discover,
+            Self::Attribute(_) => CausalQueryKind::Attribute,
+            Self::Simulate(_) => CausalQueryKind::Simulate,
+            Self::TemporalDesign(_) => CausalQueryKind::TemporalDesign,
         }
     }
 }
@@ -506,6 +568,30 @@ impl CausalQuery {
     pub fn sequential_contrast(query: SequentialContrastQuery) -> Self {
         Self::SequentialContrast(query)
     }
+
+    /// Construct a structure-discovery query.
+    #[must_use]
+    pub fn discover(query: DiscoverQuery) -> Self {
+        Self::Discover(query)
+    }
+
+    /// Construct an attribution query on a fitted structural model.
+    #[must_use]
+    pub fn attribute(query: AttributeQuery) -> Self {
+        Self::Attribute(query)
+    }
+
+    /// Construct a simulation query on a fitted structural model.
+    #[must_use]
+    pub fn simulate(query: SimulateQuery) -> Self {
+        Self::Simulate(query)
+    }
+
+    /// Construct a sequentially randomized unit-period design query.
+    #[must_use]
+    pub fn temporal_design(query: TemporalDesignQuery) -> Self {
+        Self::TemporalDesign(query)
+    }
 }
 
 impl From<AverageEffectQuery> for CausalQuery {
@@ -646,6 +732,30 @@ impl From<SequentialContrastQuery> for CausalQuery {
     }
 }
 
+impl From<DiscoverQuery> for CausalQuery {
+    fn from(query: DiscoverQuery) -> Self {
+        Self::Discover(query)
+    }
+}
+
+impl From<AttributeQuery> for CausalQuery {
+    fn from(query: AttributeQuery) -> Self {
+        Self::Attribute(query)
+    }
+}
+
+impl From<SimulateQuery> for CausalQuery {
+    fn from(query: SimulateQuery) -> Self {
+        Self::Simulate(query)
+    }
+}
+
+impl From<TemporalDesignQuery> for CausalQuery {
+    fn from(query: TemporalDesignQuery) -> Self {
+        Self::TemporalDesign(query)
+    }
+}
+
 impl CausalQuery {
     /// Target population of a population-scoped query.
     ///
@@ -679,7 +789,11 @@ impl CausalQuery {
             | Self::Survival(_)
             | Self::LongitudinalRegime(_)
             | Self::SequentialContrast(_)
-            | Self::HistoryMatch(_) => None,
+            | Self::HistoryMatch(_)
+            | Self::Discover(_)
+            | Self::Attribute(_)
+            | Self::Simulate(_)
+            | Self::TemporalDesign(_) => None,
         }
     }
 
@@ -710,7 +824,11 @@ impl CausalQuery {
             | Self::Survival(_)
             | Self::LongitudinalRegime(_)
             | Self::SequentialContrast(_)
-            | Self::HistoryMatch(_) => None,
+            | Self::HistoryMatch(_)
+            | Self::Discover(_)
+            | Self::Attribute(_)
+            | Self::Simulate(_)
+            | Self::TemporalDesign(_) => None,
         }
     }
 
@@ -746,6 +864,10 @@ impl CausalQuery {
             Self::LongitudinalRegime(q) => q.validate(),
             Self::SequentialContrast(q) => q.validate(),
             Self::HistoryMatch(q) => q.validate(),
+            Self::Discover(q) => q.validate(),
+            Self::Attribute(q) => q.validate(),
+            Self::Simulate(q) => q.validate(),
+            Self::TemporalDesign(q) => q.validate(),
         }
     }
 }

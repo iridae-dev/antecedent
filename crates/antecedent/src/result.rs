@@ -259,6 +259,118 @@ pub struct LocalPolynomialRatioEstimate {
     pub uncertainty: Arc<str>,
 }
 
+/// Excursion contrasts of a sequentially randomized unit-period design, or static-regime
+/// survival on subject trajectories (unlicensed, uncalibrated).
+///
+/// One entry per named coordinate. Frequentist results carry standard errors and pointwise
+/// intervals (and, for several contrasts or a dose grid, a simultaneous band); Bayesian results
+/// carry equal-tailed credible intervals of the retained draws, which ride on the result's
+/// posterior. No coverage of any interval has been measured, and the route is not licensed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TemporalDesignEstimate {
+    /// Design: `two_arm`, `multi_arm`, `categorical`, `factorial`, `interference`, `dose` or
+    /// `regime_survival`.
+    pub design: Arc<str>,
+    /// Outcome functional: `mean`, `quantile:<level>`, the dose target, or `survival`.
+    pub functional: Arc<str>,
+    /// Coordinate names.
+    pub coordinates: Arc<[Arc<str>]>,
+    /// Point estimate (frequentist) or posterior mean (Bayesian) per coordinate.
+    pub estimate: Arc<[f64]>,
+    /// Standard error (frequentist) or posterior standard deviation (Bayesian).
+    pub standard_error: Arc<[f64]>,
+    /// Lower endpoint of each pointwise 95% interval.
+    pub lower: Arc<[f64]>,
+    /// Upper endpoint of each pointwise 95% interval.
+    pub upper: Arc<[f64]>,
+    /// Row-major covariance across coordinates, when the procedure produced one.
+    pub covariance: Option<Arc<[f64]>>,
+    /// Coordinates a simultaneous band covers (empty when there is none).
+    pub band_coordinates: Arc<[usize]>,
+    /// Sup-t critical value of the band.
+    pub band_critical_value: Option<f64>,
+    /// Lower band envelope, one per band coordinate.
+    pub band_lower: Option<Arc<[f64]>>,
+    /// Upper band envelope, one per band coordinate.
+    pub band_upper: Option<Arc<[f64]>>,
+    /// Holm-adjusted two-sided p-values of the contrast family, when the design has one.
+    pub holm_adjusted_p: Option<Arc<[f64]>>,
+    /// Worst-case smoothing bias per coordinate under the declared curvature bound.
+    pub smoothing_bias_bound: Option<Arc<[f64]>>,
+    /// Decision-outcome pairs (person-periods for regime survival).
+    pub pairs: u64,
+    /// Independent units or clusters.
+    pub clusters: u64,
+    /// Decisions whose outcome period was not observed.
+    pub unpaired: u64,
+    /// Smallest realized assignment (or regime-consistent) probability.
+    pub minimum_probability: f64,
+    /// Successful and failed whole-procedure bootstrap replicates, when the interval is a
+    /// bootstrap interval.
+    pub replicates: Option<(u64, u64)>,
+    /// Posterior draws, for a Bayesian result.
+    pub draws: Option<u64>,
+    /// How the uncertainty was computed.
+    pub uncertainty: Arc<str>,
+    /// Calibration status of every interval: always `unmeasured`.
+    pub calibration: Arc<str>,
+    /// Always `false`: the route is not licensed.
+    pub licensed: bool,
+}
+
+/// Effects of a rollout design with the uncertainty of its whole-procedure path
+/// (unlicensed; calibration unmeasured).
+///
+/// Carries a heterogeneity-robust or covariate-adjusted difference in differences (group-time,
+/// aggregated and pre-trend effects), a conformal or multi-unit synthetic control (per-period
+/// or per-unit effects), or a local ratio with a selected bandwidth or a calendar-time running
+/// variable. The first effect is the scalar summary. Pointwise intervals and simultaneous bands
+/// come from the design's own procedure (whole-unit resample, conformal test inversion,
+/// placebo variance or block bootstrap), each refitting the whole estimator; none has a
+/// coverage record and the route is not licensed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct QuasiRolloutEstimate {
+    /// Design: `staggered_did`, `covariate_adjusted_did`, `conformal_synthetic_control`,
+    /// `multi_unit_synthetic_control`, `multi_unit_synthetic_did`, `fuzzy_rd`,
+    /// `regression_kink`, `temporal_fuzzy_rd` or `temporal_regression_kink`.
+    pub design: Arc<str>,
+    /// Estimator, comparison, adjustment and aggregation, as `snake_case` words.
+    pub method: Arc<str>,
+    /// Reported effects; the first is the scalar summary.
+    pub effects: Arc<[antecedent_estimate::rollout_resampling::DesignEffect]>,
+    /// How the uncertainty was computed.
+    pub uncertainty: Arc<str>,
+    /// Calibration status of every interval: always `unmeasured`.
+    pub calibration: Arc<str>,
+    /// Requested replicates (zero for a conformal inversion).
+    pub replicates_requested: u32,
+    /// Replicates whose refit produced every summarized quantity.
+    pub replicates_ok: u32,
+    /// Replicates whose refit did not.
+    pub replicates_failed: u32,
+    /// Sup-t critical value of the simultaneous band, when one was formed.
+    pub critical_value: Option<f64>,
+    /// Named numeric diagnostics (pre-trend statistic, two-way fixed-effects comparison,
+    /// density test, covariate balance, selected bandwidth).
+    pub diagnostics: Arc<[(Arc<str>, f64)]>,
+    /// Always `false`: the route is not licensed.
+    pub licensed: bool,
+}
+
+impl QuasiRolloutEstimate {
+    /// The scalar summary.
+    #[must_use]
+    pub fn overall(&self) -> Option<&antecedent_estimate::rollout_resampling::DesignEffect> {
+        self.effects.first()
+    }
+
+    /// The named numeric diagnostic, when present.
+    #[must_use]
+    pub fn diagnostic(&self, name: &str) -> Option<f64> {
+        self.diagnostics.iter().find(|(key, _)| key.as_ref() == name).map(|(_, value)| *value)
+    }
+}
+
 /// Within-period history-matched contrast (unlicensed, uncalibrated, no interval).
 ///
 /// The matched pairs are retained so a loader recomputes every summary.
@@ -878,9 +990,73 @@ pub enum ResultPayload {
     SequentialContrast(SequentialContrastEstimate),
     /// Within-period history-matched contrast.
     HistoryMatch(HistoryMatchEstimate),
+    /// Excursion contrasts of a sequentially randomized design, or regime survival.
+    TemporalDesign(Box<TemporalDesignEstimate>),
+    /// Rollout design effects with whole-procedure uncertainty.
+    QuasiRollout(Box<QuasiRolloutEstimate>),
+    /// Structure, structure class or structure posterior a compiled search returned.
+    Discovery(Box<crate::analysis::structure_route::DiscoveryPayload>),
+    /// Attribution on fitted mechanisms, with their selection record.
+    Attribution(Box<crate::analysis::structure_route::AttributionPayload>),
+    /// Simulation of fitted mechanisms, with their selection record.
+    Simulation(Box<crate::analysis::structure_route::SimulationPayload>),
 }
 
 impl ResultPayload {
+    /// The structure a compiled search returned.
+    #[must_use]
+    pub fn discovery(&self) -> Option<&crate::analysis::structure_route::DiscoveryPayload> {
+        match self {
+            Self::Discovery(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The structure a compiled search returned, consuming the payload.
+    #[must_use]
+    pub fn into_discovery(self) -> Option<crate::analysis::structure_route::DiscoveryPayload> {
+        match self {
+            Self::Discovery(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    /// The attribution a compiled fitted-model route returned.
+    #[must_use]
+    pub fn attribution(&self) -> Option<&crate::analysis::structure_route::AttributionPayload> {
+        match self {
+            Self::Attribution(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The attribution a compiled fitted-model route returned, consuming the payload.
+    #[must_use]
+    pub fn into_attribution(self) -> Option<crate::analysis::structure_route::AttributionPayload> {
+        match self {
+            Self::Attribution(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    /// The simulation a compiled fitted-model route returned.
+    #[must_use]
+    pub fn simulation(&self) -> Option<&crate::analysis::structure_route::SimulationPayload> {
+        match self {
+            Self::Simulation(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The simulation a compiled fitted-model route returned, consuming the payload.
+    #[must_use]
+    pub fn into_simulation(self) -> Option<crate::analysis::structure_route::SimulationPayload> {
+        match self {
+            Self::Simulation(value) => Some(*value),
+            _ => None,
+        }
+    }
+
     /// A mediation payload, or [`Self::Scalar`] when neither part is present.
     #[must_use]
     pub fn from_mediation(
@@ -1077,6 +1253,24 @@ impl ResultPayload {
     pub fn into_history_match(self) -> Option<HistoryMatchEstimate> {
         match self {
             Self::HistoryMatch(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The `temporal_design` payload by value.
+    #[must_use]
+    pub fn into_temporal_design(self) -> Option<TemporalDesignEstimate> {
+        match self {
+            Self::TemporalDesign(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    /// The `quasi_rollout` payload by value.
+    #[must_use]
+    pub fn into_quasi_rollout(self) -> Option<QuasiRolloutEstimate> {
+        match self {
+            Self::QuasiRollout(value) => Some(*value),
             _ => None,
         }
     }
@@ -1322,6 +1516,24 @@ impl ResultPayload {
         }
     }
 
+    /// Excursion contrasts of a sequentially randomized design, or regime survival.
+    #[must_use]
+    pub fn temporal_design(&self) -> Option<&TemporalDesignEstimate> {
+        match self {
+            Self::TemporalDesign(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Rollout design effects with whole-procedure uncertainty.
+    #[must_use]
+    pub fn quasi_rollout(&self) -> Option<&QuasiRolloutEstimate> {
+        match self {
+            Self::QuasiRollout(value) => Some(value.as_ref()),
+            _ => None,
+        }
+    }
+
     /// Observational two-decision regime contrast.
     #[must_use]
     pub const fn sequential_contrast(&self) -> Option<&SequentialContrastEstimate> {
@@ -1348,6 +1560,8 @@ impl ResultPayload {
                 | Self::LongitudinalRegime(_)
                 | Self::SequentialContrast(_)
                 | Self::HistoryMatch(_)
+                | Self::TemporalDesign(_)
+                | Self::QuasiRollout(_)
         )
     }
 }
@@ -1484,6 +1698,8 @@ payload_accessors! {
     longitudinal_regime, into_longitudinal_regime: LongitudinalRegimeEstimate,
     sequential_contrast, into_sequential_contrast: SequentialContrastEstimate,
     history_match, into_history_match: HistoryMatchEstimate,
+    temporal_design, into_temporal_design: TemporalDesignEstimate,
+    quasi_rollout, into_quasi_rollout: QuasiRolloutEstimate,
 }
 
 impl StudyResult {
@@ -1491,6 +1707,24 @@ impl StudyResult {
     #[must_use]
     pub fn anomaly(&self) -> Option<&[AnomalyScores]> {
         self.payload.anomaly()
+    }
+
+    /// The structure a compiled search returned, when the query was a discovery.
+    #[must_use]
+    pub fn discovery(&self) -> Option<&crate::analysis::structure_route::DiscoveryPayload> {
+        self.payload.discovery()
+    }
+
+    /// The attribution a compiled fitted-model route returned.
+    #[must_use]
+    pub fn attribution(&self) -> Option<&crate::analysis::structure_route::AttributionPayload> {
+        self.payload.attribution()
+    }
+
+    /// The simulation a compiled fitted-model route returned.
+    #[must_use]
+    pub fn simulation(&self) -> Option<&crate::analysis::structure_route::SimulationPayload> {
+        self.payload.simulation()
     }
 
     /// Mechanism-change detections.

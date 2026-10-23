@@ -18,12 +18,14 @@ from .missing import MissingPolicy
 from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
 from .quasi import (
     AugmentedPanelDiD,
+    CovariateAdjustedDiD,
     FuzzyRegressionDiscontinuity,
     PanelDifferenceInDifferences,
     PeriodHistoryMatch,
     RegressionKink,
     SharpRegressionDiscontinuity,
     StaggeredAdoption,
+    StaggeredRollout,
     SyntheticControl,
     SyntheticDifferenceInDifferences,
 )
@@ -84,6 +86,8 @@ def analyze(
         | StaggeredAdoption
         | SyntheticControl
         | SyntheticDifferenceInDifferences
+        | StaggeredRollout
+        | CovariateAdjustedDiD
         | FuzzyRegressionDiscontinuity
         | RegressionKink
         | SharpRegressionDiscontinuity

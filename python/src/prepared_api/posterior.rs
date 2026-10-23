@@ -2,18 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::discovery::{
-    BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior, discover_exact_dag_posterior,
-};
-use antecedent::{CausalContract, Study};
+use antecedent::discovery::{BayesianDiscoverParams, GraphMcmcSchedule};
+use antecedent::{CausalContract, DiscoveredStructure, DiscoverySpec, Study};
 use antecedent_core::{CausalQuery, CausalSchema, MediationQuery, ResponseQuery};
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use pyo3::prelude::*;
 
 use super::{PrepareRequest, PyPreparedAnalysis, apply_estimator, with_response_options};
-use crate::py_err;
 
-pub(super) fn contract_to_map(
+pub(crate) fn contract_to_map(
     contract: &CausalContract,
     schema: &CausalSchema,
     query: &CausalQuery,
@@ -158,8 +155,29 @@ pub(super) fn exact_dag_posterior(
         return Ok(gp);
     }
     let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
-    discover_exact_dag_posterior(data, &vars, &BayesianDiscoverParams::default(), ctx)
-        .map_err(py_err)
+    compiled_posterior(
+        DiscoverySpec::exact_dag_posterior(BayesianDiscoverParams::default()),
+        crate::compiled_route_api::DiscoverInput::Tabular(data.clone()),
+        &vars,
+        ctx,
+    )
+}
+
+/// The posterior a compiled structure-posterior search returns.
+fn compiled_posterior(
+    spec: DiscoverySpec,
+    input: crate::compiled_route_api::DiscoverInput,
+    variables: &[antecedent_core::VariableId],
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<antecedent::discovery::GraphPosterior> {
+    let (posterior, _route) =
+        crate::discovery_api::compiled_search(spec, input, variables, ctx, |structure| {
+            match structure {
+                DiscoveredStructure::Posterior(posterior) => Some(posterior),
+                _ => None,
+            }
+        })?;
+    Ok(posterior)
 }
 
 pub(super) fn dbn_posterior(
@@ -177,16 +195,17 @@ pub(super) fn dbn_posterior(
     }
     let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
     let schedule = GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
-    discover_dbn_posterior(
-        series,
+    compiled_posterior(
+        DiscoverySpec::dbn_posterior(
+            BayesianDiscoverParams::default(),
+            max_lag,
+            force_mcmc,
+            schedule,
+        ),
+        crate::compiled_route_api::DiscoverInput::Series(series.clone()),
         &vars,
-        &BayesianDiscoverParams::default(),
-        max_lag,
-        force_mcmc,
-        &schedule,
         ctx,
     )
-    .map_err(py_err)
 }
 
 pub(super) fn finish_static_graph_posterior(

@@ -16,6 +16,7 @@
 pub(crate) mod cyclic;
 mod decision;
 mod design_based;
+mod discovery;
 mod graph_posterior;
 mod query_digest;
 mod registry;

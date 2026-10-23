@@ -94,11 +94,14 @@ pub mod query_wire;
 pub mod reader;
 pub mod recalc_receipt_artifact;
 pub mod response_wire;
+pub mod rollout_query_wire;
 pub mod scientific_target_wire;
 pub mod score_wire;
 pub mod selective_discovery_artifact;
 pub mod sensitivity_artifact;
 pub mod staleness_artifact;
+pub mod structure_query_wire;
+pub mod temporal_design_query_wire;
 pub mod temporal_recalc_artifact;
 pub mod trace;
 pub mod transport_catalog_wire;
@@ -287,6 +290,13 @@ pub use response_wire::{
     SupportReportWire, SupportStatusWire, TemporalResponseSpecWire, causal_response_from_wire,
     causal_response_to_wire, response_query_from_wire, response_query_to_wire,
     response_value_from_wire, response_value_to_wire,
+};
+pub use structure_query_wire::{
+    AttributeQueryWire, AttributeTargetWire, ChangeEstimatorWire, DiscoverQueryWire,
+    DiscoveryMethodWire, SimulateQueryWire, SimulationTargetWire,
+};
+pub use temporal_design_query_wire::{
+    TemporalAssignmentWire, TemporalDesignQueryWire, TemporalDoseTargetWire,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,

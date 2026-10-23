@@ -81,6 +81,7 @@ pub mod polynomial_scm;
 pub mod population_aipw;
 pub mod population_atc;
 pub use antecedent_stats::identified_set;
+pub mod heterogeneity_robust_did;
 pub mod interference;
 pub mod interference_observational;
 pub mod interference_saturation;
@@ -92,6 +93,7 @@ pub mod lagged_instrument;
 pub mod latent_class_effects;
 mod learn_nuisance;
 pub mod local_polynomial_ratio;
+pub mod local_ratio_design;
 pub mod matching_posterior_boundary;
 pub mod mechanism_discrepancy;
 pub mod missing_policy;
@@ -142,10 +144,12 @@ pub mod survival_posterior;
 pub mod switchback;
 pub mod switchback_posterior;
 pub mod synthetic_control;
+pub mod synthetic_rollout;
 pub mod temporal_adjustment;
 pub mod temporal_block;
 pub mod temporal_curve_posterior_meaning;
 pub mod temporal_dependent_interval;
+pub mod temporal_design;
 pub mod temporal_history_fit;
 pub mod temporal_initial_state;
 pub mod temporal_link;
@@ -157,6 +161,7 @@ pub mod temporal_response;
 pub mod temporal_response_dispersion;
 pub mod temporal_sequential;
 pub mod temporal_sequential_tuples;
+pub mod temporal_slope_design;
 pub mod temporal_transport;
 pub mod tiled_prediction;
 pub mod trajectory_survival;
@@ -434,6 +439,9 @@ pub use temporal_sequential::{
 pub use temporal_sequential_tuples::{
     PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,
 };
+pub use temporal_slope_design::{
+    SlopeFit, SlopePosterior, SlopePosteriorSpec, SlopeRefitScratch, TemporalSlopeDesign,
+};
 pub use transport::{
     ResponseGridInputs, TransportEffectEstimate, TransportOverlapDiagnostic,
     TransportOverlapReport, TransportResponseGridEstimate, evaluate_exact_mz_transport,
@@ -452,7 +460,10 @@ pub use static_mediation::{
     linear_no_interaction_restriction,
 };
 pub mod augmented_panel_did;
+/// Whole-procedure resampling shared by the rollout designs.
+pub mod rollout_resampling;
 
 /// Retained adjusted-regression execution and measured model fits.
 pub mod adjustment_resume;
 pub mod measurement_transport;
+pub mod measurement_transport_pooled;

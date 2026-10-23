@@ -434,6 +434,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "sequential_evaluation",
         "temporal",
         "temporal_counterfactual",
+        "temporal_designs",
         "tier_diagnostics",
         "transported_counterfactual",
         "transported_constructors",
@@ -484,6 +485,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "synthetic_control",
         "synthetic_did",
         "local_polynomial_ratio",
+        "quasi_rollout",
         "plan",
         "policy_value",
         "continuous_dose_response",
@@ -563,6 +565,8 @@ SNAPSHOT: dict[str, set[str]] = {
         # Staleness and drift diagnostics against the retained data
         "staleness",
         "staleness_baseline",
+        # Target-native refutation of the study's own target
+        "refute_target",
         # Plan coordinates
         "allowlist_parent",
         "allowlist_reason",

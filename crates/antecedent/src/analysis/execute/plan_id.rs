@@ -90,6 +90,22 @@ pub(crate) enum PlanId {
     StaticAdmgResponse,
     /// Static ADMG conditional effect.
     StaticAdmgConditional,
+    /// Static structure search.
+    StructureDiscovery,
+    /// Temporal structure search (series, panel or multi-environment).
+    TemporalStructureDiscovery,
+    /// Attribution on a fitted structural model.
+    GcmAttribute,
+    /// Simulation on a fitted structural model.
+    GcmSimulate,
+    /// Excursion contrasts of a sequentially randomized unit-period design.
+    TemporalDesignExcursion,
+    /// Posterior of the excursion contrasts of a sequentially randomized design.
+    BayesianTemporalDesignExcursion,
+    /// Inverse-probability weighted regime survival on subject trajectories.
+    TemporalRegimeSurvival,
+    /// Joint-likelihood posterior of regime survival on subject trajectories.
+    BayesianTemporalRegimeSurvival,
 }
 
 impl PlanId {
@@ -138,6 +154,14 @@ impl PlanId {
             Self::PanelClassResponse => "panel_class_response",
             Self::StaticAdmgResponse => "static_admg_response",
             Self::StaticAdmgConditional => "static_admg_conditional",
+            Self::StructureDiscovery => "structure_discovery",
+            Self::TemporalStructureDiscovery => "temporal_structure_discovery",
+            Self::GcmAttribute => "gcm_attribute",
+            Self::GcmSimulate => "gcm_simulate",
+            Self::TemporalDesignExcursion => "temporal_design.excursion",
+            Self::BayesianTemporalDesignExcursion => "bayesian.temporal_design.excursion",
+            Self::TemporalRegimeSurvival => "temporal_design.regime_survival",
+            Self::BayesianTemporalRegimeSurvival => "bayesian.temporal_design.regime_survival",
         }
     }
 }

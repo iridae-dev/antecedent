@@ -97,12 +97,14 @@ from .policy import (
 from .population import coerce_target_population
 from .quasi import (
     AugmentedPanelDiD,
+    CovariateAdjustedDiD,
     FuzzyRegressionDiscontinuity,
     PanelDifferenceInDifferences,
     PeriodHistoryMatch,
     RegressionKink,
     SharpRegressionDiscontinuity,
     StaggeredAdoption,
+    StaggeredRollout,
     SyntheticControl,
     SyntheticDifferenceInDifferences,
 )
@@ -566,6 +568,8 @@ _PreparedQuery = (
     | StaggeredAdoption
     | SyntheticControl
     | SyntheticDifferenceInDifferences
+    | StaggeredRollout
+    | CovariateAdjustedDiD
     | FuzzyRegressionDiscontinuity
     | RegressionKink
     | SharpRegressionDiscontinuity
@@ -952,9 +956,13 @@ class PreparedAnalysis(Generic[ResultT]):
     **Refute click:** AverageEffect and scalar Dag ``InterventionResponse``.
     :meth:`refute` raises ``CausalUnsupportedError``, prefixed with the
     matrix's own wire id for the cell: ``not_applicable:`` for ResponseCurve
-    and for temporal / class-aware InterventionResponse (those remain
-    function-valued or envelope-mixed surfaces). ConditionalEffect and Dag
-    InterventionResponse cheap/full run the scalar ATE-shaped suite.
+    (function-valued), ``refused:`` for temporal / class-aware
+    InterventionResponse (not built; the refusal names the next attempt).
+    ConditionalEffect and Frequentist Dag InterventionResponse cheap/full run
+    the scalar ATE-shaped suite; Bayesian Dag InterventionResponse cheap/full
+    run the Bayesian refuter state (plugin-level suite on the posterior-mean
+    level plus predictive checks and, under full, prior sensitivity), which is
+    unlicensed.
 
     **Re-prepare required:** any frozen field change, including schema mismatch.
 
@@ -1626,7 +1634,16 @@ class PreparedAnalysis(Generic[ResultT]):
 
         design_columns = None
         table_names: tuple[str, ...] | None = None
-        if isinstance(
+        if isinstance(query, (StaggeredRollout, CovariateAdjustedDiD)):
+            from ._quasi_rollout import covariate_adjusted_payload, staggered_rollout_payload
+
+            names, columns, design_columns = (
+                staggered_rollout_payload(data, query)
+                if isinstance(query, StaggeredRollout)
+                else covariate_adjusted_payload(data, query)
+            )
+            frame = None
+        elif isinstance(
             query,
             (
                 PanelDifferenceInDifferences,
@@ -2159,6 +2176,20 @@ class PreparedAnalysis(Generic[ResultT]):
                     reason_code="invalid_argument",
                 )
             return names, columns, None
+        if isinstance(query, (StaggeredRollout, CovariateAdjustedDiD)):
+            from ._quasi_rollout import covariate_adjusted_payload, staggered_rollout_payload
+
+            names, columns, design = (
+                staggered_rollout_payload(data, query)
+                if isinstance(query, StaggeredRollout)
+                else covariate_adjusted_payload(data, query)
+            )
+            if design != self._design_columns:
+                raise CausalUnsupportedError(
+                    "design refresh requires the prepared unit and period row order",
+                    reason_code="invalid_argument",
+                )
+            return names, columns, None
         if isinstance(
             query,
             (
@@ -2572,6 +2603,61 @@ class PreparedAnalysis(Generic[ResultT]):
             policy_json=_policy_json(policy), threads=threads
         )
         return StalenessBaseline(bytes(raw))
+
+    @describe_refusal
+    def refute_target(
+        self,
+        data: Mapping[str, Any] | Any,
+        *,
+        suite: Literal["cheap", "placebo", "full"] = "full",
+        replicates: int = 30,
+        alpha: float = 0.05,
+        subset_fraction: float = 0.8,
+        negative_control_exposure: str | None = None,
+        negative_control_outcome: str | None = None,
+        mediator: str | None = None,
+        mediation_rho_bar: float = 0.1,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> Any:
+        """Refute the target this study reports, on the whole target vector.
+
+        Estimates on ``data`` (independent rows), then runs the target-native suite of the
+        result's own target (conditional, derivative, mediation, world-valued or joint, not a
+        scalar average effect standing in for it): every refit perturbs the data and re-runs
+        this compiled program in full. Refuters the study cannot construct are returned as
+        refusals with the next attempt. A ``TargetRefutation``
+        (:mod:`antecedent.validation`); calibration is unmeasured.
+        """
+        from .validation import TargetRefutation
+
+        if data is None:
+            raise CausalUnsupportedError(
+                "refute_target needs the data the study is refuted on",
+                reason_code="invalid_argument",
+            )
+        names, columns, frame = self._click_payload(coerce_table_source(data))
+        if frame is not None:
+            raise CausalUnsupportedError(
+                "refute_target perturbs independent rows; panel, event and multi-environment "
+                "frames are refused (next attempt: the route's own design checks)",
+                reason_code="option_not_applicable",
+            )
+        raw = self._native.refute_target(
+            names,
+            columns,
+            suite=suite,
+            replicates=replicates,
+            alpha=alpha,
+            subset_fraction=subset_fraction,
+            negative_control_exposure=negative_control_exposure,
+            negative_control_outcome=negative_control_outcome,
+            mediator=mediator,
+            mediation_rho_bar=mediation_rho_bar,
+            seed=seed,
+            threads=threads,
+        )
+        return TargetRefutation._from_json(raw)
 
     @describe_refusal
     def refute(

@@ -150,6 +150,8 @@ const REFUSED_UNDER_BAYESIAN: &[&str] = &[
     "randomized.survival_product_limit",
     "temporal.glm_link_contrast",
     "temporal.lagged_instrument",
+    "temporal_design.excursion",
+    "temporal_design.regime_survival",
 ];
 const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.gcomp",
@@ -178,6 +180,8 @@ const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.sequential_crossfit_contrast",
     "bayesian.temporal.glm_link_contrast",
     "bayesian.temporal.lagged_instrument",
+    "bayesian.temporal_design.excursion",
+    "bayesian.temporal_design.regime_survival",
 ];
 
 #[test]

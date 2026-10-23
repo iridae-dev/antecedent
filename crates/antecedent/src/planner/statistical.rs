@@ -261,6 +261,10 @@ pub enum PosteriorAlgorithm {
     Hmc,
     /// Mixture of per-atom posteriors over a graph posterior.
     AtomMixture,
+    /// Exact enumeration of a discrete posterior (structures or their edge marginals).
+    Enumeration,
+    /// Markov chain Monte Carlo over a discrete space (orders or structures).
+    DiscreteMcmc,
 }
 
 impl PosteriorAlgorithm {
@@ -272,6 +276,8 @@ impl PosteriorAlgorithm {
             Self::Laplace => "laplace",
             Self::Hmc => "hmc",
             Self::AtomMixture => "atom_mixture",
+            Self::Enumeration => "enumeration",
+            Self::DiscreteMcmc => "discrete_mcmc",
         }
     }
 }

@@ -9,8 +9,8 @@
 use antecedent_core::CausalQuery;
 
 use super::{
-    LoweringContext, design_based, graph_posterior, static_effect, static_response, structural,
-    temporal,
+    LoweringContext, design_based, discovery, graph_posterior, static_effect, static_response,
+    structural, temporal,
 };
 use crate::Study;
 use crate::analysis::builder::DataInput;
@@ -175,4 +175,9 @@ route_lowerings! {
     LongitudinalRegime => design_based,
     SequentialContrast => design_based,
     HistoryMatch => design_based,
+    TemporalDesign => design_based,
+    DiscoverStatic => discovery,
+    DiscoverTemporal => discovery,
+    GcmAttributeDag => structural,
+    GcmSimulateDag => structural,
 }

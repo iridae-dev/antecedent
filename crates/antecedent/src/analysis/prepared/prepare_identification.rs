@@ -319,9 +319,22 @@ impl Study {
             let estimand = identification.estimands[0].clone();
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
+        if let CausalQuery::Discover(search) = &self.query {
+            let (identification, estimand) =
+                crate::analysis::execute::structure_search_identification(
+                    self.query.clone(),
+                    search,
+                );
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
         if matches!(
             self.query,
-            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_)
+            CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_)
+                | CausalQuery::MechanismChange(_)
+                | CausalQuery::UnitChange(_)
+                | CausalQuery::Attribute(_)
+                | CausalQuery::Simulate(_)
         ) {
             let (treatment, outcome) = crate::analysis::execute::gcm_query_vars(&self.query)?;
             let (identification, estimand) =

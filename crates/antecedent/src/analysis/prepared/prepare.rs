@@ -336,6 +336,11 @@ impl Study {
     ) -> Result<(), CausalError> {
         let mut push = |cache: Option<IdentificationCache>| caches.extend(cache);
         match (&self.data, &self.query) {
+            (_, CausalQuery::Discover(_)) => {
+                // A structure search identifies no contrast; its product states the
+                // observational law it reads and the premises it is correct under.
+                push(static_cache(self.prepare_static_identification(plan)?));
+            }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
                 push(temporal(self.prepare_temporal_mediation_identification()?));
                 push(temporal_class(self.prepare_temporal_class_identification()?));

@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use super::array_fit_api;
 use super::sequential_evaluation_api;
 use super::staleness_api;
+use super::temporal_design_api;
 use super::unlicensed_design_api;
 use super::{
     AnalysisResult, ArrowLoadInfo, AteAnalysisResult, BayesianConfig, CandidateSelectionSection,
@@ -62,6 +63,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_native_errors(m)?;
     register_native_functions(m)?;
     register_native_classes(m)?;
+    super::compiled_route_api::register(m)?;
     gcm_api::register(m)?;
     graph_falsification_api::register(m)?;
     super::intrinsic_influence_api::register(m)?;
@@ -140,6 +142,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     recalc_external_api::register(m)?;
     recalc_composite_api::register(m)?;
     staleness_api::register(m)?;
+    super::target_validation_api::register(m)?;
     execution_attempt_api::register(m)?;
     source_evidence_api::register(m)?;
     source_projection_api::register(m)?;
@@ -332,6 +335,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     super::planning_api::register(m)?;
     regimes_api::register(m)?;
     unlicensed_design_api::register(m)?;
+    temporal_design_api::register(m)?;
     quasi_api::register(m)?;
     survival_api::register(m)?;
     posterior_row_api::register(m)?;

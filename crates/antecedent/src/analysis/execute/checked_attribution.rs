@@ -18,12 +18,21 @@ use crate::analysis::proof_support::proof_supplies_method_and_functional;
 enum AttributionTarget {
     Anomaly(antecedent_core::AnomalyAttributionQuery),
     Change(antecedent_core::ChangeAttributionQuery),
+    /// A fitted-model route (attribution, simulation, mechanism change or unit
+    /// change) that runs on the mechanisms its program fits.
+    Model(CausalQuery),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum AttributionProcedure {
     Point,
-    SharedDirichletRowWeights { draws: usize },
+    SharedDirichletRowWeights {
+        draws: usize,
+    },
+    /// Frequentist whole-procedure multinomial row bootstrap (static DAG only).
+    RowBootstrap {
+        replicates: u32,
+    },
 }
 
 /// A frozen GCM attribution target and its prepare-time identification contract.
@@ -39,6 +48,8 @@ pub(crate) struct CheckedAttributionOperation {
     result_context: IdentifiedResultContext,
     /// Present when the source graph was a `TemporalDag`. The static `graph` is its unfolding.
     lag_aligned: Option<super::temporal_attribution::LagAlignedScm>,
+    /// Mechanism fit of a fitted-model route.
+    mechanisms: Arc<crate::analysis::structure_route::MechanismProgram>,
 }
 
 impl std::fmt::Debug for CheckedAttributionOperation {
@@ -71,12 +82,22 @@ impl CheckedAttributionOperation {
                 query.validate()?;
                 AttributionTarget::Change(query.clone())
             }
+            query @ (CausalQuery::MechanismChange(_)
+            | CausalQuery::UnitChange(_)
+            | CausalQuery::Attribute(_)
+            | CausalQuery::Simulate(_)) => {
+                query.validate()?;
+                AttributionTarget::Model(query.clone())
+            }
             _ => {
                 return Err(CausalError::Compile {
-                    message: "checked attribution supports only anomaly or change targets".into(),
+                    message: "checked attribution supports only anomaly, change and fitted-model \
+                              targets"
+                        .into(),
                 });
             }
         };
+        let fitted_model = matches!(target, AttributionTarget::Model(_));
         let target_query = target.query();
         if !study.custom_validators.is_empty() {
             return Err(CausalError::Unsupported {
@@ -84,7 +105,11 @@ impl CheckedAttributionOperation {
             });
         }
         let (estimator, procedure) = attribution_procedure(&target, study)?;
-        if study.structure_source != crate::support::StructureSource::Explicit
+        let structure_ok = study.structure_source == crate::support::StructureSource::Explicit
+            || (fitted_model
+                && study.structure_source == crate::support::StructureSource::Accepted);
+        if !structure_ok
+            || (fitted_model && lag_aligned.is_some())
             || cache.identification.query != target_query
             || physical.logical.query != target_query
             || !physical.binding().names(IdentifierId::GcmParametric, estimator)
@@ -109,6 +134,9 @@ impl CheckedAttributionOperation {
             physical: physical.clone(),
             result_context: IdentifiedResultContext::from_study(study),
             lag_aligned,
+            mechanisms: study.mechanisms.clone().unwrap_or_else(|| {
+                Arc::new(crate::analysis::structure_route::MechanismProgram::standard())
+            }),
         })
     }
 
@@ -161,20 +189,65 @@ impl CheckedAttributionOperation {
         match &self.target {
             AttributionTarget::Anomaly(query) => self.execute_anomaly(query, data, ctx),
             AttributionTarget::Change(query) => self.execute_change(query, data, ctx),
+            AttributionTarget::Model(query) => self.execute_model(query, data, ctx),
         }
     }
 
-    /// Draw count published on the result: absent for lag-aligned unfoldings and point procedures.
+    /// Fit the program's mechanisms and run the fitted-model target on them.
+    fn execute_model(
+        &self,
+        query: &CausalQuery,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let answer = super::structural_route::run_model_query(
+            &self.mechanisms,
+            &self.graph,
+            data,
+            query,
+            ctx,
+        )?;
+        let (treatment, outcome) = super::gcm_query_vars(query)?;
+        Ok(finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish::new(
+                &self.physical,
+                self.cache.identification.clone(),
+                self.cache.estimand.clone(),
+                answer.estimate,
+                Strategy::new(IdentifierId::GcmParametric, self.estimator),
+                treatment,
+                outcome,
+            )
+            .identify_cached(true)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                diagnostics: Some(answer.diagnostics),
+                gcm: Some(answer.slot),
+                empty_provenance: true,
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Draw count published on the result: absent for point procedures.
     fn published_draws(&self) -> Option<u32> {
-        if self.lag_aligned.is_some() {
-            None
-        } else {
-            match self.procedure {
-                AttributionProcedure::SharedDirichletRowWeights { draws } => {
-                    Some(u32::try_from(draws).unwrap_or(u32::MAX))
-                }
-                AttributionProcedure::Point => None,
+        match self.procedure {
+            AttributionProcedure::SharedDirichletRowWeights { draws } => {
+                Some(u32::try_from(draws).unwrap_or(u32::MAX))
             }
+            AttributionProcedure::Point | AttributionProcedure::RowBootstrap { .. } => None,
+        }
+    }
+
+    /// One draw's row weights over `n` rows: Dirichlet row weights on a static table,
+    /// block weights on the consecutive times of a lag-aligned unfolding.
+    fn draw_row_weights(&self, n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
+        match &self.lag_aligned {
+            Some(aligned) => aligned.block_row_weights(n, rng),
+            None => super::attribution_path::dirichlet_row_weights(n, rng),
         }
     }
 
@@ -196,8 +269,11 @@ impl CheckedAttributionOperation {
             message: "checked anomaly target has no outcome variable".into(),
         })?;
         let posterior = self.anomaly_posterior(query, data, &fitted, &scores, outcome, ctx)?;
+        let (estimate, bootstrap_diagnostic) =
+            self.anomaly_bootstrap(query, data, &fitted, &scores, ctx)?;
         let (estimate, posterior, mut extra_diagnostics) =
-            publish_lag_aligned(self.lag_aligned.is_some(), nan_effect(), posterior);
+            publish_lag_aligned(self.lag_aligned.is_some(), estimate, posterior);
+        extra_diagnostics.extend(bootstrap_diagnostic);
         if posterior.is_some() {
             let disclosure = match query.reference {
                 antecedent_core::AnomalyReference::Empirical => {
@@ -257,16 +333,21 @@ impl CheckedAttributionOperation {
             OverlapPolicy::ExplicitOverride,
         );
         let posterior = self.change_posterior(query, data, &fitted.model, ctx)?;
-        if self.lag_aligned.is_none() {
-            if let Some(posterior) = &posterior {
-                if let Some(index) = posterior.effect_column() {
-                    estimate.ate = posterior.summaries.mean[index];
-                    estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
-                }
+        let bootstrap_diagnostic = self.change_bootstrap(query, data, &fitted.model, ctx)?.map(
+            |(accounting, diagnostic)| {
+                estimate.uncertainty.bootstrap = accounting;
+                diagnostic
+            },
+        );
+        if let Some(posterior) = &posterior {
+            if let Some(index) = posterior.effect_column() {
+                estimate.ate = posterior.summaries.mean[index];
+                estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
             }
         }
         let (estimate, posterior, mut extra_diagnostics) =
             publish_lag_aligned(self.lag_aligned.is_some(), estimate, posterior);
+        extra_diagnostics.extend(bootstrap_diagnostic);
         if posterior.is_some() {
             extra_diagnostics.push(bayesian_attribution_diagnostic("Each population has one Dirichlet(1,…,1) row-weight vector per draw shared across mechanisms; total and Shapley components use the same weighted attribution."));
         }
@@ -293,6 +374,166 @@ impl CheckedAttributionOperation {
                 ..Default::default()
             }),
         ))
+    }
+
+    /// Frequentist mechanism-refit bootstrap of the first target's mean anomaly score:
+    /// the point is that mean and the interval its bootstrap standard error.
+    fn anomaly_bootstrap(
+        &self,
+        query: &antecedent_core::AnomalyAttributionQuery,
+        data: &TabularData,
+        fitted: &crate::gcm::FittedGcm,
+        observed_scores: &[antecedent_attribution::AnomalyScores],
+        ctx: &ExecutionContext,
+    ) -> Result<(EffectEstimate, Option<Diagnostic>), CausalError> {
+        let AttributionProcedure::RowBootstrap { replicates } = self.procedure else {
+            return Ok((nan_effect(), None));
+        };
+        let Some(primary) = observed_scores.first() else {
+            return Ok((nan_effect(), None));
+        };
+        let n = data.row_count();
+        let n_rows = n.checked_mul(2).ok_or_else(|| CausalError::Resource {
+            message: "anomaly bootstrap row count overflow".to_owned(),
+        })?;
+        let _admitted = super::gcm_bootstrap::admit_replicates(ctx, replicates, 1, n_rows)?;
+        let unit = vec![1.0_f64; n];
+        let point =
+            super::attribution_path::dirichlet_weighted_mean(&primary.scores, &primary.rows, &unit);
+        let registry = crate::gcm::MechanismRegistry::standard();
+        let scorer_query =
+            antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
+                .with_reference(query.reference);
+        let cancelled = || ctx.cancellation.is_cancelled();
+        let mut values = Vec::with_capacity(usize::try_from(replicates).unwrap_or(0));
+        let mut failed = 0_u32;
+        for replicate in 0..replicates {
+            if cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: super::super::stage::STAGE_UNCERTAINTY,
+                });
+            }
+            let mut rng = super::gcm_bootstrap::replicate_stream(ctx, 0xA110_B007, replicate);
+            let counts = super::gcm_bootstrap::bootstrap_counts(&mut rng, n);
+            let store = match registry.refit_frequency_weighted_polled(
+                &fitted.model,
+                data,
+                &fitted.assignments,
+                &counts,
+                &cancelled,
+            ) {
+                Ok(store) => store,
+                Err(_) if cancelled() => {
+                    return Err(CausalError::Cancelled {
+                        stage: super::super::stage::STAGE_UNCERTAINTY,
+                    });
+                }
+                Err(_) => {
+                    failed += 1;
+                    continue;
+                }
+            };
+            match anomaly_attribution_query_with(
+                &fitted.model.clone().with_mechanisms(store),
+                data,
+                &scorer_query,
+                ctx,
+            ) {
+                Ok(draw_scores) => {
+                    // The resampled population's mean score: the replicate's row counts
+                    // weight the per-row scores, as the Dirichlet weights do on the
+                    // Bayesian cell.
+                    let value = draw_scores
+                        .iter()
+                        .find(|score| score.target == primary.target)
+                        .map_or(f64::NAN, |score| {
+                            super::attribution_path::dirichlet_weighted_mean(
+                                &score.scores,
+                                &score.rows,
+                                &counts,
+                            )
+                        });
+                    values.push(value);
+                }
+                Err(_) if cancelled() => {
+                    return Err(CausalError::Cancelled {
+                        stage: super::super::stage::STAGE_UNCERTAINTY,
+                    });
+                }
+                Err(_) => failed += 1,
+            }
+        }
+        let accounting = super::gcm_bootstrap::accounting(&values, failed, replicates);
+        let mut estimate = EffectEstimate::new(
+            point,
+            f64::NAN,
+            antecedent_core::AssumptionSet::default(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        estimate.uncertainty.bootstrap = accounting;
+        let diagnostic = super::gcm_bootstrap::bootstrap_diagnostic(
+            &format!("mean anomaly score of target v{}", primary.target.raw()),
+            &accounting,
+        );
+        Ok((estimate, Some(diagnostic)))
+    }
+
+    /// Frequentist mechanism-refit bootstrap of the total distribution change: each
+    /// replicate draws row counts within each population and refits both.
+    fn change_bootstrap(
+        &self,
+        query: &antecedent_core::ChangeAttributionQuery,
+        data: &TabularData,
+        model: &crate::gcm::CompiledCausalModel,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<(antecedent_estimate::BootstrapAccounting, Diagnostic)>, CausalError> {
+        let AttributionProcedure::RowBootstrap { replicates } = self.procedure else {
+            return Ok(None);
+        };
+        let baseline_n = antecedent_attribution::resolve_rows(data, &query.baseline)
+            .map_err(CausalError::rejected)?
+            .len();
+        let comparison_n = antecedent_attribution::resolve_rows(data, &query.comparison)
+            .map_err(CausalError::rejected)?
+            .len();
+        let rows = baseline_n.checked_add(comparison_n).ok_or_else(|| CausalError::Resource {
+            message: "change bootstrap row count overflow".to_owned(),
+        })?;
+        let _admitted = super::gcm_bootstrap::admit_replicates(ctx, replicates, 1, rows)?;
+        let options = antecedent_attribution::DistributionChangeOptions::default();
+        let mut totals = Vec::with_capacity(usize::try_from(replicates).unwrap_or(0));
+        let mut failed = 0_u32;
+        for replicate in 0..replicates {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: super::super::stage::STAGE_UNCERTAINTY,
+                });
+            }
+            let mut rng = super::gcm_bootstrap::replicate_stream(ctx, 0xC4A6_B007, replicate);
+            let baseline_counts = super::gcm_bootstrap::bootstrap_counts(&mut rng, baseline_n);
+            let comparison_counts = super::gcm_bootstrap::bootstrap_counts(&mut rng, comparison_n);
+            match antecedent_attribution::distribution_change_with_frequency_weights(
+                model,
+                data,
+                query,
+                &options,
+                &baseline_counts,
+                &comparison_counts,
+                ctx,
+            ) {
+                Ok(draw) => totals.push(draw.total_change),
+                Err(_) if ctx.cancellation.is_cancelled() => {
+                    return Err(CausalError::Cancelled {
+                        stage: super::super::stage::STAGE_UNCERTAINTY,
+                    });
+                }
+                Err(_) => failed += 1,
+            }
+        }
+        let accounting = super::gcm_bootstrap::accounting(&totals, failed, replicates);
+        let diagnostic =
+            super::gcm_bootstrap::bootstrap_diagnostic("total distribution change", &accounting);
+        Ok(Some((accounting, diagnostic)))
     }
 
     fn anomaly_posterior(
@@ -325,8 +566,7 @@ impl CheckedAttributionOperation {
                     stage: super::super::stage::STAGE_ESTIMATE_POINT,
                 });
             }
-            let weights =
-                super::attribution_path::dirichlet_row_weights(data.row_count(), &mut rng);
+            let weights = self.draw_row_weights(data.row_count(), &mut rng);
             let store = registry
                 .refit_weighted(&fitted.model, data, &fitted.assignments, &weights)
                 .map_err(CausalError::rejected)?;
@@ -395,10 +635,8 @@ impl CheckedAttributionOperation {
                     stage: super::super::stage::STAGE_ESTIMATE_POINT,
                 });
             }
-            let baseline_weights =
-                super::attribution_path::dirichlet_row_weights(baseline_n, &mut rng);
-            let comparison_weights =
-                super::attribution_path::dirichlet_row_weights(comparison_n, &mut rng);
+            let baseline_weights = self.draw_row_weights(baseline_n, &mut rng);
+            let comparison_weights = self.draw_row_weights(comparison_n, &mut rng);
             let draw = antecedent_attribution::distribution_change_with_row_weights(
                 model,
                 data,
@@ -487,23 +725,24 @@ fn publish_lag_aligned(
         DiagnosticSeverity::Info,
         "attribution ran on the lag-aligned static unfolding of the TemporalDag",
     )];
-    let Some(posterior) = posterior else {
-        return (estimate, None, diagnostics);
-    };
-    let mean = posterior.summaries.mean.first().copied().unwrap_or(f64::NAN);
-    if mean.is_finite() {
-        estimate.ate = mean;
+    if let Some(posterior) = &posterior {
+        let mean = posterior.summaries.mean.first().copied().unwrap_or(f64::NAN);
+        if mean.is_finite() {
+            estimate.ate = mean;
+            estimate.uncertainty.analytic.se =
+                posterior.summaries.sd.first().copied().unwrap_or(f64::NAN);
+        }
+        diagnostics.push(Diagnostic::new(
+            "gcm.attribution.block_bayesian_bootstrap",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "the lag-aligned rows are consecutive times of one dependent series, so each draw's \
+             Dirichlet weights fall on contiguous blocks of times (one Exp(1) weight per block \
+             of at least the lag span plus one rows, shared by every row of the block); every \
+             mechanism is refit under those weights; no coverage record measures this interval",
+        ));
     }
-    estimate.uncertainty.analytic.se = f64::NAN;
-    estimate.uncertainty.bootstrap.se = None;
-    estimate.uncertainty.bootstrap.replicates_ok = None;
-    diagnostics.push(Diagnostic::new(
-        "gcm.attribution.posterior_mean_only",
-        DiagnosticKind::Execution,
-        DiagnosticSeverity::Info,
-        "published value is the posterior mean of the lag-aligned attribution; posterior draws and the interval are withheld",
-    ));
-    (estimate, None, diagnostics)
+    (estimate, posterior, diagnostics)
 }
 
 fn bayesian_attribution_diagnostic(detail: &str) -> Diagnostic {
@@ -522,6 +761,7 @@ impl AttributionTarget {
         match self {
             Self::Anomaly(query) => CausalQuery::AnomalyAttribution(query.clone()),
             Self::Change(query) => CausalQuery::ChangeAttribution(query.clone()),
+            Self::Model(query) => query.clone(),
         }
     }
 }
@@ -584,7 +824,21 @@ fn attribution_procedure(
     study: &Study,
 ) -> Result<(EstimatorId, AttributionProcedure), CausalError> {
     Ok(match (target, &study.inference) {
-        (_, InferenceMode::Frequentist) => (EstimatorId::GcmFit, AttributionProcedure::Point),
+        // A fitted-model target reports the fitted model's answer under either mode.
+        (AttributionTarget::Model(_), _) => (EstimatorId::GcmFit, AttributionProcedure::Point),
+        (_, InferenceMode::Frequentist) => {
+            // A requested replicate count on a static DAG is the mechanism-refit row
+            // bootstrap; a lag-aligned unfolding keeps its point value here.
+            if study.bootstrap_replicates > 0 && study.graph.as_dag().is_some() {
+                super::gcm_bootstrap::require_subject_resampling(study.sampling_design)?;
+                (
+                    EstimatorId::GcmFit,
+                    AttributionProcedure::RowBootstrap { replicates: study.bootstrap_replicates },
+                )
+            } else {
+                (EstimatorId::GcmFit, AttributionProcedure::Point)
+            }
+        }
         (AttributionTarget::Anomaly(_), InferenceMode::Bayesian(config)) => {
             if config.prior.is_some()
                 || config.prior_artifact.is_some()

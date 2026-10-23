@@ -1408,6 +1408,14 @@ pub enum CausalQueryWire {
     SequentialContrast(SequentialContrastQueryWire),
     /// Nearest-neighbor contrast on histories, matched within calendar periods.
     HistoryMatch(HistoryMatchQueryWire),
+    /// Structure discovery.
+    Discover(crate::structure_query_wire::DiscoverQueryWire),
+    /// Attribution on a fitted structural model.
+    Attribute(crate::structure_query_wire::AttributeQueryWire),
+    /// Simulation on a fitted structural model.
+    Simulate(crate::structure_query_wire::SimulateQueryWire),
+    /// Sequentially randomized unit-period design or regime survival.
+    TemporalDesign(crate::temporal_design_query_wire::TemporalDesignQueryWire),
 }
 
 /// Declared columns and caliper of a within-period history match.
@@ -1585,6 +1593,12 @@ pub struct PanelDidQueryWire {
     pub subjects: Vec<String>,
     /// Cluster identity by row.
     pub clusters: Vec<String>,
+    /// Heterogeneity-robust rollout specification; absent for the other designs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rollout: Option<crate::rollout_query_wire::RolloutDidWire>,
+    /// Whole-procedure resample of a rollout or augmented panel; absent when none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resampling: Option<crate::rollout_query_wire::DidResamplingWire>,
 }
 
 /// Row-aligned synthetic-control design frozen in query identity.
@@ -1613,6 +1627,9 @@ pub struct SyntheticControlQueryWire {
     /// Positive donor outcome-model ridge penalty for augmented synthetic control.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub augmentation_ridge: Option<f64>,
+    /// Adopting units and interval construction; absent for a point-only panel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rollout: Option<crate::rollout_query_wire::SyntheticRolloutWire>,
 }
 
 /// Fixed-cutoff local ratio design, including whether the contrast is a kink.
@@ -1631,6 +1648,9 @@ pub struct LocalPolynomialRatioQueryWire {
     pub bandwidth: f64,
     /// Whether to use the slope-kink contrast.
     pub kink: bool,
+    /// Bandwidth selection, calendar-time running variable and diagnostics; absent when none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub options: Option<crate::rollout_query_wire::LocalRatioOptionsWire>,
 }
 
 /// Frozen policy value inputs retained as part of query identity.
@@ -1954,7 +1974,11 @@ impl CausalQueryWire {
             | Self::Survival(_)
             | Self::LongitudinalRegime(_)
             | Self::SequentialContrast(_)
-            | Self::HistoryMatch(_) => None,
+            | Self::HistoryMatch(_)
+            | Self::Discover(_)
+            | Self::Attribute(_)
+            | Self::Simulate(_)
+            | Self::TemporalDesign(_) => None,
         }
     }
 
@@ -1991,7 +2015,11 @@ impl CausalQueryWire {
             | Self::Survival(_)
             | Self::LongitudinalRegime(_)
             | Self::SequentialContrast(_)
-            | Self::HistoryMatch(_) => None,
+            | Self::HistoryMatch(_)
+            | Self::Discover(_)
+            | Self::Attribute(_)
+            | Self::Simulate(_)
+            | Self::TemporalDesign(_) => None,
         }
     }
 }
@@ -2675,6 +2703,11 @@ pub fn causal_query_to_wire_with_registry(
             post: q.post.to_vec(),
             subjects: q.subjects.iter().map(ToString::to_string).collect(),
             clusters: q.clusters.iter().map(ToString::to_string).collect(),
+            rollout: q
+                .robust
+                .as_ref()
+                .map(|robust| crate::rollout_query_wire::rollout_to_wire(q.design, robust)),
+            resampling: q.resampling.as_ref().map(crate::rollout_query_wire::resampling_to_wire),
         }),
         CausalQuery::SyntheticControl(q) => {
             CausalQueryWire::SyntheticControl(SyntheticControlQueryWire {
@@ -2688,6 +2721,10 @@ pub fn causal_query_to_wire_with_registry(
                 uniform_unit_randomization: q.uniform_unit_randomization,
                 sharp_null_effect: q.sharp_null_effect,
                 augmentation_ridge: q.augmentation_ridge,
+                rollout: q
+                    .rollout
+                    .as_ref()
+                    .map(crate::rollout_query_wire::synthetic_rollout_to_wire),
             })
         }
         CausalQuery::LocalPolynomialRatio(q) => {
@@ -2698,6 +2735,10 @@ pub fn causal_query_to_wire_with_registry(
                 cutoff: q.cutoff,
                 bandwidth: q.bandwidth,
                 kink: q.kink,
+                options: q
+                    .options
+                    .as_ref()
+                    .map(crate::rollout_query_wire::local_ratio_options_to_wire),
             })
         }
         CausalQuery::Survival(q) => CausalQueryWire::Survival(SurvivalQueryWire {
@@ -2805,6 +2846,18 @@ pub fn causal_query_to_wire_with_registry(
             weight: q.weight.map(antecedent_core::VariableId::raw),
             caliper: q.caliper,
         }),
+        CausalQuery::Discover(q) => CausalQueryWire::Discover(
+            crate::structure_query_wire::DiscoverQueryWire::from_domain(q),
+        ),
+        CausalQuery::Attribute(q) => CausalQueryWire::Attribute(
+            crate::structure_query_wire::AttributeQueryWire::from_domain(q)?,
+        ),
+        CausalQuery::Simulate(q) => CausalQueryWire::Simulate(
+            crate::structure_query_wire::SimulateQueryWire::from_domain(q)?,
+        ),
+        CausalQuery::TemporalDesign(q) => CausalQueryWire::TemporalDesign(
+            crate::temporal_design_query_wire::TemporalDesignQueryWire::from_domain(q)?,
+        ),
         _ => return Err(IoError::Convert("unsupported CausalQuery variant".into())),
     })
 }
@@ -3189,6 +3242,58 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             q.validate().map_err(|error| IoError::Convert(error.to_string()))?;
             CausalQuery::ContinuousDoseResponse(q)
         }
+        CausalQueryWire::PanelDid(w) if w.rollout.is_some() => {
+            let rollout = w.rollout.as_ref().ok_or_else(|| IoError::Convert("rollout".into()))?;
+            if w.augmented.is_some()
+                || w.staggered_event_study
+                || w.staggered_target.is_some()
+                || w.repeated_cross_section
+            {
+                return Err(IoError::Convert(
+                    "a heterogeneity-robust rollout cannot also select another sampling design"
+                        .into(),
+                ));
+            }
+            let (design, robust) = crate::rollout_query_wire::rollout_from_wire(rollout)?;
+            let subjects =
+                w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>();
+            let clusters =
+                w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>();
+            let mut q = if design == antecedent_core::DidSamplingDesign::CovariateAdjustedTwoPeriod
+            {
+                PanelDidQuery::covariate_adjusted_two_period(
+                    VariableId::from_raw(w.outcome),
+                    w.treated.clone(),
+                    w.post.clone(),
+                    subjects,
+                    clusters,
+                    Arc::clone(&robust.covariates),
+                    robust.nuisance,
+                )
+            } else {
+                PanelDidQuery::heterogeneity_robust(
+                    VariableId::from_raw(w.outcome),
+                    subjects,
+                    clusters,
+                    w.periods.clone(),
+                    w.cohorts.clone(),
+                    robust.clone(),
+                )
+            };
+            q.robust = Some(robust);
+            q.resampling = w
+                .resampling
+                .as_ref()
+                .map(crate::rollout_query_wire::resampling_from_wire)
+                .transpose()?;
+            if q.treated.as_ref() != w.treated.as_slice() || q.post.as_ref() != w.post.as_slice() {
+                return Err(IoError::Convert(
+                    "rollout treatment and post indicators disagree with cohort and period metadata".into(),
+                ));
+            }
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::PanelDid(q)
+        }
         CausalQueryWire::PanelDid(w) => {
             let q = if let Some((pre, propensity, prediction, cross_fitted)) = w.augmented {
                 if w.staggered_event_study
@@ -3259,6 +3364,12 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     "staggered DiD treatment and post indicators disagree with cohort and period metadata".into(),
                 ));
             }
+            let mut q = q;
+            q.resampling = w
+                .resampling
+                .as_ref()
+                .map(crate::rollout_query_wire::resampling_from_wire)
+                .transpose()?;
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::PanelDid(q)
         }
@@ -3278,8 +3389,13 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             } else {
                 q
             };
-            let q =
+            let mut q =
                 if let Some(ridge) = w.augmentation_ridge { q.with_augmentation(ridge) } else { q };
+            q.rollout = w
+                .rollout
+                .as_ref()
+                .map(crate::rollout_query_wire::synthetic_rollout_from_wire)
+                .transpose()?;
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::SyntheticControl(q)
         }
@@ -3291,6 +3407,11 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 cutoff: w.cutoff,
                 bandwidth: w.bandwidth,
                 kink: w.kink,
+                options: w
+                    .options
+                    .as_ref()
+                    .map(crate::rollout_query_wire::local_ratio_options_from_wire)
+                    .transpose()?,
             };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::LocalPolynomialRatio(q)
@@ -3440,6 +3561,10 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::HistoryMatch(q)
         }
+        CausalQueryWire::Discover(w) => CausalQuery::Discover(w.to_domain()?),
+        CausalQueryWire::Attribute(w) => CausalQuery::Attribute(w.to_domain()?),
+        CausalQueryWire::Simulate(w) => CausalQuery::Simulate(w.to_domain()?),
+        CausalQueryWire::TemporalDesign(w) => CausalQuery::TemporalDesign(w.to_domain()?),
     })
 }
 

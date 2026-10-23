@@ -96,6 +96,14 @@ pub enum FunctionalKind {
     /// Contrast of an outcome functional between intervention worlds the world algebra
     /// cannot state (a callback action, or a schedule outside the horizon).
     InterventionContrast,
+    /// A causal structure, structure class or structure posterior searched from the
+    /// observational law.
+    StructureSearch,
+    /// An attribution computed under fitted mechanisms (intrinsic influence, root
+    /// causes, distribution change, paths, feature relevance).
+    Attribution,
+    /// A simulation of fitted mechanisms (interventional draws, policy value, unit effects).
+    Simulation,
 }
 
 impl FunctionalKind {
@@ -120,6 +128,9 @@ impl FunctionalKind {
             Self::RegimeValue => "regime_value",
             Self::ResponseDerivative => "response_derivative",
             Self::InterventionContrast => "intervention_contrast",
+            Self::StructureSearch => "structure_search",
+            Self::Attribution => "attribution",
+            Self::Simulation => "simulation",
         }
     }
 }

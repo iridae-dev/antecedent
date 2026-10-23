@@ -1046,6 +1046,15 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   point-only and unlicensed. The retained `SwitchbackEffect` route uses the
   randomized study path and preserves period identity in result artifacts;
   its supported interval has a separate exact graphless license.
+  Sequentially randomized unit-period designs (two arms, several arms or
+  categorical levels, a two-factor factorial, within-cluster interference and a
+  continuous dose, plus the quantile excursion and static-regime survival on
+  subject trajectories) run through `CausalQuery::TemporalDesign` and
+  `antecedent.temporal_designs.estimate_temporal_design`. Their target is the
+  excursion of a decision on the outcome a declared lag later, with carryover
+  inside the target; they execute unlicensed with calibration unmeasured (see
+  [the guide](guides/temporal-designs.md)). A static switchback has no target:
+  switchback assignment is a sequence of periods.
 
 ```python
 design = ant.experiment.ExperimentDesign(
@@ -1776,7 +1785,20 @@ Sensitivity methods:
 * partial-linear sensitivity;
 * nonparametric sensitivity (at most 20000 complete cases);
 * nonparametric sensitivity with a nearest-neighbour-truncated kernel (`NeighborhoodSensitivity`, validator `neighborhood_sensitivity`; any sample size, a separate construction that equals the exact smoother only when its neighbours cover every row);
-* Riesz sensitivity.
+* Riesz sensitivity;
+* E-values on the risk-ratio, odds-ratio, hazard-ratio and standardized-mean-difference
+  scales with the confidence-limit E-value; partial-R² robustness values (`RV_q`,
+  `RV_{q,α}`), covariate benchmarks and the extreme-scenario curve for linear adjustment;
+  Rosenbaum signed-rank bounds (exact up to 300 pairs), matched-set bounds and
+  amplification; the mediator-outcome correlation range for linear mediation. Each is an
+  assumption range bound to its target ([guide](guides/target-native-validation.md)).
+
+Target-native refutation: placebo treatment and outcome, random common cause, subset and
+bootstrap stability, negative controls, temporal pre-trend and anticipation, mediation
+sequential ignorability, derivative finite-difference consistency and local linearity, and
+Bayesian prior sensitivity and posterior-predictive checks, run on the whole target vector
+with one joint statistic and through the prepared compiled program. A scalar average-effect
+refutation does not certify another target; a claim refuses it.
 
 Bayesian validation:
 

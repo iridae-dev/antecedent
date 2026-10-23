@@ -75,11 +75,19 @@ pub(super) fn evidence_program(
         require_carrier(cx.cell, statistical.realization(), program)
             .map_err(CausalError::rejected)?;
     }
+    let mut sources =
+        vec![EvidenceSourceRef { role: EvidenceRole::Observations, digest: source_digest }];
+    // A structure accepted from a compiled discovery is evidence the program reads:
+    // its provenance (search, bounds, snapshot, program, claim, review) enters the
+    // lowered identity. A supplied structure adds nothing, so its identity is unchanged.
+    if let Some(provenance) = cx.study.graph.provenance() {
+        sources.push(EvidenceSourceRef {
+            role: EvidenceRole::DiscoveredStructure,
+            digest: Some(provenance.digest()),
+        });
+    }
     Ok(EvidenceDecisionProgram {
-        sources: Arc::from(vec![EvidenceSourceRef {
-            role: EvidenceRole::Observations,
-            digest: source_digest,
-        }]),
+        sources: Arc::from(sources),
         composition,
         decision,
         planning: cx.goal.planning().cloned(),

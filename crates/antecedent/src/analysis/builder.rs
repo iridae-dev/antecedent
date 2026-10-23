@@ -421,6 +421,40 @@ pub(super) fn stub_accepted_graph_for(
     }
 }
 
+/// The empty structure of the class a discovery study answers with.
+///
+/// A discovery study supplies no graph: this edgeless graph of the returned
+/// class (CPDAG and PAG stay classes) states the accepted graph class its
+/// contract reports. It is never consulted for identification; the discovered
+/// structure reaches a downstream study only through its review gate.
+///
+/// # Errors
+///
+/// A schema wider than a node id holds.
+pub(super) fn discovery_stub_graph(
+    data: &DataInput,
+    class: antecedent_core::DiscoveredClass,
+) -> Result<AcceptedGraph, CausalError> {
+    use antecedent_core::DiscoveredClass as C;
+    let width = u32::try_from(data_schema(data).len()).map_err(|_| CausalError::Compile {
+        message: "too many variables for a discovery stub graph".into(),
+    })?;
+    match class {
+        C::Dag | C::DagPosterior | C::DagEdgeMarginals => {
+            Ok(AcceptedGraph::dag(Dag::with_variables(width)))
+        }
+        C::Cpdag => AcceptedGraph::cpdag(Cpdag::with_variables(width)),
+        C::Pag => Ok(AcceptedGraph::pag(Pag::with_variables(width))),
+        C::TemporalDag | C::TemporalDagPosterior => {
+            Ok(AcceptedGraph::temporal_dag(TemporalDag::empty()))
+        }
+        C::TemporalCpdag | C::RegimeTemporalCpdags => {
+            AcceptedGraph::temporal_cpdag(TemporalCpdag::empty())
+        }
+        C::TemporalPag => Ok(AcceptedGraph::temporal_pag(TemporalPag::empty())),
+    }
+}
+
 /// Marker: the study structure came from [`StudyBuilder::graph`].
 #[derive(Clone, Copy, Debug)]
 struct CallerGraph;
@@ -611,6 +645,10 @@ pub struct StudyBuilder {
     transport_trial: Option<TransportTrialSpec>,
     /// Network + assignment for an interference query.
     interference: Option<InterferenceSpec>,
+    /// Executable search of a structure-discovery query.
+    discovery: Option<Arc<super::structure_route::DiscoverySpec>>,
+    /// Mechanism fit of an attribution or simulation query.
+    mechanisms: Option<Arc<super::structure_route::MechanismProgram>>,
 }
 
 // The refusal removes a wrong label, not a capability: the estimator stays
@@ -707,6 +745,12 @@ fn refuse_bayesian_estimator_under_frequentist(estimator: EstimatorId) -> Result
         EstimatorId::BayesianSequentialCrossfitContrast => {
             bayesian!("bayesian.sequential_crossfit_contrast")
         }
+        EstimatorId::BayesianTemporalDesignExcursion => {
+            bayesian!("bayesian.temporal_design.excursion")
+        }
+        EstimatorId::BayesianTemporalRegimeSurvival => {
+            bayesian!("bayesian.temporal_design.regime_survival")
+        }
         EstimatorId::TransportTrialBayesianBootstrap => {
             bayesian!("transport.trial_bayesian_bootstrap")
         }
@@ -777,6 +821,8 @@ fn refuse_frequentist_estimator_under_bayesian(
         }
         EstimatorId::CellAipw => frequentist!("cell.aipw"),
         EstimatorId::TemporalGlmLinkContrast => frequentist!("temporal.glm_link_contrast"),
+        EstimatorId::TemporalDesignExcursion => frequentist!("temporal_design.excursion"),
+        EstimatorId::TemporalRegimeSurvival => frequentist!("temporal_design.regime_survival"),
         EstimatorId::TemporalLaggedInstrument => frequentist!("temporal.lagged_instrument"),
         EstimatorId::RandomizedSurvivalProductLimit => {
             frequentist!("randomized.survival_product_limit")
@@ -811,7 +857,12 @@ pub(super) fn omitted_bootstrap_resamples(query: &CausalQuery, inference: &Infer
         CausalQuery::Response(q) => {
             q.is_temporal() && matches!(inference, InferenceMode::Frequentist)
         }
-        CausalQuery::Counterfactual(_) | CausalQuery::NestedCounterfactual(_) => false,
+        // A Frequentist counterfactual or attribution interval is a whole-procedure
+        // mechanism-refit bootstrap that runs only when a replicate count is requested.
+        CausalQuery::Counterfactual(_)
+        | CausalQuery::NestedCounterfactual(_)
+        | CausalQuery::AnomalyAttribution(_)
+        | CausalQuery::ChangeAttribution(_) => false,
         _ => true,
     }
 }
@@ -1183,7 +1234,37 @@ impl StudyBuilder {
             selection_targets: None,
             transport_trial: None,
             interference: None,
+            discovery: None,
+            mechanisms: None,
         }
+    }
+
+    /// Search for causal structure over `variables` with `spec`.
+    ///
+    /// Sets the study's query to the [`CausalQuery::Discover`] query `spec`
+    /// states and retains the executable search. A discovery study takes no
+    /// graph: the discovered structure (a DAG, a CPDAG or PAG that stays a
+    /// class, a temporal class, one class per regime, or a structure
+    /// posterior) is the answer. It reaches a downstream study only through
+    /// [`crate::accept_discovered`].
+    #[must_use]
+    pub fn discovery(
+        mut self,
+        spec: super::structure_route::DiscoverySpec,
+        variables: impl Into<Arc<[VariableId]>>,
+    ) -> Self {
+        self.query = Some(CausalQuery::Discover(spec.query(variables)));
+        self.discovery = Some(Arc::new(spec));
+        self
+    }
+
+    /// Fit the mechanisms of a [`CausalQuery::Attribute`] or
+    /// [`CausalQuery::Simulate`] query with `program`. Without one the route
+    /// fits the standard registry by best held-out score.
+    #[must_use]
+    pub fn mechanisms(mut self, program: super::structure_route::MechanismProgram) -> Self {
+        self.mechanisms = Some(Arc::new(program));
+        self
     }
 
     /// Capability report without granting a license.
@@ -1699,8 +1780,10 @@ impl StudyBuilder {
         self.finish(false)
     }
 
-    fn finish(self, inspect_only: bool) -> Result<Study, CausalError> {
-        finish::assemble(finish::FinishInput {
+    fn finish(mut self, inspect_only: bool) -> Result<Study, CausalError> {
+        let discovery = self.discovery.take();
+        let mechanisms = self.mechanisms.take();
+        let mut study = finish::assemble(finish::FinishInput {
             inspect_only,
             data: self.data,
             graph: self.graph,
@@ -1739,7 +1822,14 @@ impl StudyBuilder {
             selection_targets: self.selection_targets,
             transport_trial: self.transport_trial,
             interference: self.interference,
-        })
+        })?;
+        super::structure_route::attach_specifications(
+            &mut study,
+            discovery,
+            mechanisms,
+            inspect_only,
+        )?;
+        Ok(study)
     }
 }
 

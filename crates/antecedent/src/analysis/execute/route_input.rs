@@ -12,12 +12,12 @@ use super::{
 };
 use crate::graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_core::{
-    AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, HistoryMatchQuery,
-    InterferenceQuery, InterventionalDistributionQuery, LocalPolynomialRatioQuery,
-    LongitudinalRegimeQuery, MediationQuery, NestedCounterfactualQuery, PanelDidQuery,
-    PathSpecificEffectQuery, PolicyValueQuery, RandomizedEffectQuery, ResponseQuery,
-    SequentialContrastQuery, SurvivalQuery, SyntheticControlQuery, TemporalEffectQuery,
-    TransportQuery,
+    AttributeQuery, AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery,
+    DiscoverQuery, HistoryMatchQuery, InterferenceQuery, InterventionalDistributionQuery,
+    LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MediationQuery, NestedCounterfactualQuery,
+    PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery, RandomizedEffectQuery, ResponseQuery,
+    SequentialContrastQuery, SimulateQuery, SurvivalQuery, SyntheticControlQuery,
+    TemporalDesignQuery, TemporalEffectQuery, TransportQuery,
 };
 use antecedent_data::{MultiEnvironmentData, PanelData, TabularData, TimeSeriesData};
 
@@ -213,6 +213,11 @@ pub(crate) enum RouteInput<'a> {
         data: &'a TabularData,
         query: &'a HistoryMatchQuery,
     },
+    /// A sequentially randomized unit-period design or regime survival on a graphless table.
+    TemporalDesign {
+        data: &'a TabularData,
+        query: &'a TemporalDesignQuery,
+    },
     GcmDag {
         data: &'a TabularData,
         route: AnalysisRoute,
@@ -228,6 +233,28 @@ pub(crate) enum RouteInput<'a> {
     TemporalCrossWorldDag {
         data: &'a TimeSeriesData,
         graph: &'a TemporalDag,
+    },
+    /// A static structure search over tabular data.
+    DiscoverStatic {
+        data: &'a TabularData,
+        query: &'a DiscoverQuery,
+    },
+    /// A temporal structure search over series, event, panel or multi-environment data.
+    DiscoverTemporal {
+        query: &'a DiscoverQuery,
+        classification: DataClassification,
+    },
+    /// Attribution on mechanisms fitted on a supplied or accepted DAG.
+    GcmAttributeDag {
+        data: &'a TabularData,
+        query: &'a AttributeQuery,
+        graph: &'a Dag,
+    },
+    /// Simulation on mechanisms fitted on a supplied or accepted DAG.
+    GcmSimulateDag {
+        data: &'a TabularData,
+        query: &'a SimulateQuery,
+        graph: &'a Dag,
     },
 }
 
@@ -263,7 +290,45 @@ impl Study {
             .or_else(|| temporal_route_input(self, route, graph))
             .or_else(|| design_route_input(self, route, graph))
             .or_else(|| gcm_route_input(self, route, graph))
+            .or_else(|| structure_route_input(self, route, graph))
     }
+}
+
+/// Structure-discovery cells and the fitted-model attribution and simulation cells.
+fn structure_route_input<'a>(
+    study: &'a Study,
+    route: AnalysisRoute,
+    graph: GraphRef<'a>,
+) -> Option<RouteInput<'a>> {
+    Some(match (route, graph, &study.query, &study.data) {
+        (AnalysisRoute::Discover, _, CausalQuery::Discover(query), DataInput::Tabular(data)) => {
+            RouteInput::DiscoverStatic { data, query }
+        }
+        (AnalysisRoute::Discover, _, CausalQuery::Discover(query), data) => {
+            RouteInput::DiscoverTemporal {
+                query,
+                classification: match data {
+                    DataInput::Event(_) => DataClassification::Event,
+                    DataInput::Panel(_) => DataClassification::Panel,
+                    DataInput::MultiEnv(_) => DataClassification::MultiEnvironment,
+                    DataInput::Tabular(_) | DataInput::Temporal(_) => DataClassification::Temporal,
+                },
+            }
+        }
+        (
+            AnalysisRoute::Attribute,
+            GraphRef::Dag(graph),
+            CausalQuery::Attribute(query),
+            DataInput::Tabular(data),
+        ) => RouteInput::GcmAttributeDag { data, query, graph },
+        (
+            AnalysisRoute::Simulate,
+            GraphRef::Dag(graph),
+            CausalQuery::Simulate(query),
+            DataInput::Tabular(data),
+        ) => RouteInput::GcmSimulateDag { data, query, graph },
+        _ => return None,
+    })
 }
 
 /// Tabular static-graph cells: response, average effect, distribution, path-specific, conditional.
@@ -497,6 +562,9 @@ fn design_route_input<'a>(
                 query: sequential_contrast(study),
             }
         }
+        (AnalysisRoute::TemporalDesign, GraphRef::RandomizedTrial) => {
+            RouteInput::TemporalDesign { data: tabular(study), query: temporal_design(study) }
+        }
         _ => return None,
     })
 }
@@ -640,6 +708,11 @@ fn history_match(study: &Study) -> &HistoryMatchQuery {
 
 fn sequential_contrast(study: &Study) -> &SequentialContrastQuery {
     let CausalQuery::SequentialContrast(query) = &study.query else { unreachable!() };
+    query
+}
+
+fn temporal_design(study: &Study) -> &TemporalDesignQuery {
+    let CausalQuery::TemporalDesign(query) = &study.query else { unreachable!() };
     query
 }
 

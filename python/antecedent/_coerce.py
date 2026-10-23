@@ -161,12 +161,14 @@ def coerce_query(value: Any) -> Any:
     from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
     from .quasi import (
         AugmentedPanelDiD,
+        CovariateAdjustedDiD,
         FuzzyRegressionDiscontinuity,
         PanelDifferenceInDifferences,
         PeriodHistoryMatch,
         RegressionKink,
         SharpRegressionDiscontinuity,
         StaggeredAdoption,
+        StaggeredRollout,
         SyntheticControl,
         SyntheticDifferenceInDifferences,
     )
@@ -233,6 +235,8 @@ def coerce_query(value: Any) -> Any:
         StaggeredAdoption,
         SyntheticControl,
         SyntheticDifferenceInDifferences,
+        StaggeredRollout,
+        CovariateAdjustedDiD,
         FuzzyRegressionDiscontinuity,
         RegressionKink,
         SharpRegressionDiscontinuity,

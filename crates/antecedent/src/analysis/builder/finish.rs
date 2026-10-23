@@ -243,7 +243,23 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         }
     }
     let design_based = query.as_ref().is_some_and(is_graphless_design);
-    let (graph, graph_posterior) = bind_graph(graph, graph_posterior, &data, design_based)?;
+    let discovered = match &query {
+        Some(CausalQuery::Discover(search)) => Some(search.output()),
+        _ => None,
+    };
+    let (graph, graph_posterior) = match discovered {
+        Some(class) => {
+            if graph.is_some() || graph_posterior.is_some() {
+                return Err(CausalError::Conflict {
+                    what: "graph",
+                    detail: "a structure-discovery study takes no graph or graph posterior; the \
+                             discovered structure is its answer",
+                });
+            }
+            (super::discovery_stub_graph(&data, class)?, None)
+        }
+        None => bind_graph(graph, graph_posterior, &data, design_based)?,
+    };
     Ok(BoundSchema(Spine {
         carry: Carry {
             inspect_only,
@@ -425,12 +441,27 @@ fn budget_inference(bound: BoundSchema) -> Result<BudgetedInference, CausalError
 fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalError> {
     let BudgetedInference(Spine { mut carry, graph, graph_posterior, query }) = budget;
     let query = query.ok_or(CausalError::Missing { field: "query" })?;
+    if matches!(
+        query,
+        CausalQuery::Discover(_) | CausalQuery::Attribute(_) | CausalQuery::Simulate(_)
+    ) {
+        refuse_structure_route_options(&query, &carry)?;
+        // These routes run no refutation suite and do not resample: the search
+        // or the fitted model is the procedure, and its uncertainty is what the
+        // engine reports.
+        carry.refute = RefuteSuite::None;
+        carry.bootstrap_replicates = 0;
+    }
     if is_graphless_design(&query) {
         apply_design_contract(&query, &graph, &carry)?;
         // Design-based queries have no refutation suite. Bootstrap stays only for an
-        // explicit survival count; every other design-based query reports zero replicates.
+        // explicit survival or temporal-design count (the temporal design refuses it where
+        // its interval does not resample); every other design-based query reports zero
+        // replicates.
         carry.refute = RefuteSuite::None;
-        if !matches!(query, CausalQuery::Survival(_)) || !carry.bootstrap_explicit {
+        if !matches!(query, CausalQuery::Survival(_) | CausalQuery::TemporalDesign(_))
+            || !carry.bootstrap_explicit
+        {
             carry.bootstrap_replicates = 0;
         }
         if carry.split.is_some()
@@ -449,6 +480,62 @@ fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalEr
     Ok(ContractedQuery(Spine { carry, graph, graph_posterior, query }))
 }
 
+/// Refuses the options a structure-discovery, attribution or simulation study
+/// does not read, so none is accepted and then ignored.
+fn refuse_structure_route_options(query: &CausalQuery, carry: &Carry) -> Result<(), CausalError> {
+    if (carry.refute_explicit && carry.refute != RefuteSuite::None)
+        || !carry.custom_validators.is_empty()
+    {
+        return Err(crate::unsupported_reason!(
+            "validators_not_applicable",
+            "structure discovery, attribution and simulation run no refutation suite or custom \
+             validator; omit refute and validators"
+        ));
+    }
+    if carry.bootstrap_explicit && carry.bootstrap_replicates != 0 {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "structure discovery, attribution and simulation do not resample; omit \
+             bootstrap_replicates"
+        ));
+    }
+    if carry.split.is_some()
+        || carry.tiered.is_some()
+        || carry.selection_targets.is_some()
+        || carry.transport_trial.is_some()
+        || carry.interference.is_some()
+        || carry.rd.is_some()
+        || carry.population_registry.is_some()
+        || carry.identifier.is_some()
+        || carry.estimator.is_some()
+        || carry.estimator_spec.is_some()
+    {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "structure discovery, attribution and simulation fix their own procedure; they take \
+             no identifier, estimator, split, tier background, transport, interference, RD or \
+             population option"
+        ));
+    }
+    if matches!(carry.inference, InferenceMode::Bayesian(_)) {
+        return Err(match query {
+            CausalQuery::Discover(_) => crate::unsupported_reason!(
+                "option_not_applicable",
+                "a discovery method declares its own inference mode: a structure posterior \
+                 (exact, order, structure, CI-screened or DBN) is Bayesian by its method; leave \
+                 the study's inference at its default"
+            ),
+            _ => crate::unsupported_reason!(
+                "option_not_applicable",
+                "attribution and simulation on a fitted model report the fitted model's answer; \
+                 for the Dirichlet mechanism-refit posterior use AnomalyAttribution, \
+                 ChangeAttribution or Counterfactual under Bayesian inference"
+            ),
+        });
+    }
+    Ok(())
+}
+
 /// Refuses an explicitly selected estimator that does not match the design-based query's frozen inputs.
 fn refuse_estimator_design_mismatch(
     query: &CausalQuery,
@@ -459,7 +546,44 @@ fn refuse_estimator_design_mismatch(
     refuse_bayesian_design_mismatch(query, estimator)?;
     refuse_survival_dose_mismatch(query, estimator)?;
     refuse_history_contrast_mismatch(query, estimator)?;
+    refuse_temporal_design_mismatch(query, estimator)?;
     refuse_longitudinal_regime_mismatch(query, estimator)
+}
+
+/// Refuses a temporal-design estimator selected for another query, and another estimator, or
+/// the survival estimators on an arm design (or the reverse), for a temporal-design query.
+fn refuse_temporal_design_mismatch(
+    query: &CausalQuery,
+    estimator: Option<EstimatorId>,
+) -> Result<(), CausalError> {
+    let excursion = matches!(
+        estimator,
+        Some(EstimatorId::TemporalDesignExcursion | EstimatorId::BayesianTemporalDesignExcursion)
+    );
+    let survival = matches!(
+        estimator,
+        Some(EstimatorId::TemporalRegimeSurvival | EstimatorId::BayesianTemporalRegimeSurvival)
+    );
+    if estimator.is_none() {
+        return Ok(());
+    }
+    let CausalQuery::TemporalDesign(design) = query else {
+        if excursion || survival {
+            return Err(CausalError::Unsupported {
+                message: "the temporal-design estimators answer a TemporalDesign query only",
+            });
+        }
+        return Ok(());
+    };
+    let survival_design =
+        matches!(design.assignment, antecedent_core::TemporalAssignment::RegimeSurvival { .. });
+    if !(excursion || survival) || survival != survival_design {
+        return Err(CausalError::Unsupported {
+            message: "a temporal-design query takes the excursion estimators for an arm or dose \
+                      design and the regime-survival estimators for a survival design",
+        });
+    }
+    Ok(())
 }
 
 /// Refuses a randomized-effect estimator that does not match the assignment design.
@@ -733,6 +857,7 @@ fn apply_design_contract(
             | CausalQuery::RandomizedEffect(_)
             | CausalQuery::Survival(_)
             | CausalQuery::ContinuousDoseResponse(_)
+            | CausalQuery::TemporalDesign(_)
     );
     if !matches!(carry.inference, InferenceMode::Frequentist) && !bayesian_design {
         return Err(CausalError::Unsupported {
@@ -741,8 +866,12 @@ fn apply_design_contract(
     }
     // Survival and the dose policy read the declared design model and refuse an unusable
     // backend themselves, naming their own next attempt.
-    let reads_own_model =
-        matches!(query, CausalQuery::Survival(_) | CausalQuery::ContinuousDoseResponse(_));
+    let reads_own_model = matches!(
+        query,
+        CausalQuery::Survival(_)
+            | CausalQuery::ContinuousDoseResponse(_)
+            | CausalQuery::TemporalDesign(_)
+    );
     if let (InferenceMode::Bayesian(config), false) = (&carry.inference, reads_own_model) {
         if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
             || config.has_transfer()
@@ -782,6 +911,10 @@ fn apply_design_contract(
                     | EstimatorId::BayesianRandomizedFinitePopulation
                     | EstimatorId::BayesianRandomizedSuperpopulation
                     | EstimatorId::BayesianSwitchback
+                    | EstimatorId::TemporalDesignExcursion
+                    | EstimatorId::BayesianTemporalDesignExcursion
+                    | EstimatorId::TemporalRegimeSurvival
+                    | EstimatorId::BayesianTemporalRegimeSurvival
             )
         })
         || carry
@@ -802,7 +935,7 @@ fn apply_design_contract(
     }
     if carry.bootstrap_explicit
         && carry.bootstrap_replicates != 0
-        && !matches!(query, CausalQuery::Survival(_))
+        && !matches!(query, CausalQuery::Survival(_) | CausalQuery::TemporalDesign(_))
     {
         return Err(CausalError::Unsupported {
             message: "this design-based query does not support bootstrap intervals",
@@ -930,6 +1063,8 @@ fn classify_graph(route: ExecutableRoute) -> Result<ClassifiedGraph, CausalError
     let ExecutableRoute(Spine { mut carry, graph, graph_posterior, query }) = route;
     let structure = if graph_posterior.is_some() {
         StructureSource::GraphPosterior
+    } else if matches!(query, CausalQuery::Discover(_)) {
+        StructureSource::Discovered
     } else if graph.class() == GraphClass::RandomizedTrial {
         StructureSource::RandomizedTrial
     } else {
@@ -1102,9 +1237,14 @@ fn cache_cell_aipw(
                         } if interventions.len() >= 2
                     )
         );
+    // A Bayesian joint level on the closure runs response.bayesian over the same
+    // generalized adjustment set, so it caches the same tier identification.
+    let bayesian_joint = codetermined_joint
+        && matches!(carry.inference, InferenceMode::Bayesian(_))
+        && classified.selected.is_none_or(|id| id == EstimatorId::ResponseBayesian);
     let cell_aipw = classified.selected == Some(EstimatorId::CellAipw)
         || (classified.selected.is_none() && codetermined_joint);
-    if !cell_aipw {
+    if !cell_aipw && !bayesian_joint {
         return Ok(None);
     }
     if let Some(background) = &carry.tiered {
@@ -1114,11 +1254,14 @@ fn cache_cell_aipw(
             });
         };
         if matches!(carry.inference, InferenceMode::Bayesian(_)) {
-            return Err(CausalError::Unsupported {
-                message: "CoDetermined joint cells are Frequentist cell.aipw",
-            });
-        }
-        if classified.selected.is_some_and(|id| id != EstimatorId::CellAipw) {
+            if !bayesian_joint {
+                return Err(CausalError::Unsupported {
+                    message: "a Bayesian joint InterventionResponse on a CoDetermined tier \
+                              closure runs response.bayesian over the closure's generalized \
+                              adjustment set; select no estimator or response.bayesian",
+                });
+            }
+        } else if classified.selected.is_some_and(|id| id != EstimatorId::CellAipw) {
             return Err(CausalError::Unsupported {
                 message: "CoDetermined joint cells require estimator cell.aipw",
             });
@@ -1317,7 +1460,7 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
                 matches!(
                     crate::support::classify(cell),
                     CellStatus::Licensed | CellStatus::Allowlisted { .. }
-                )
+                ) || crate::support::executes_unlicensed(cell)
             }) {
                 carry.refute_default_downgrade = Some(carry.refute);
                 carry.refute = RefuteSuite::None;
@@ -1397,6 +1540,10 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                 | CellStatus::Allowlisted { .. } => {
                     if carry.inspect_only {
                         Some(crate::support::classify(cell))
+                    } else if crate::support::executes_unlicensed(cell) {
+                        // A refused cell its closed rule marks as executing: it runs and
+                        // the result reports `refused`, so no license is implied.
+                        Some(CellStatus::Refused)
                     } else {
                         Some(crate::support::refuse_if_not_applicable(cell)?)
                     }
@@ -1441,6 +1588,22 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         // construction from the licensed tempered posterior of the same cell: it is unlicensed
         // and its calibration is unmeasured, so the cell's license does not carry to it.
         if matches!(&carry.inference, InferenceMode::Bayesian(cfg) if cfg.white_innovation.is_some())
+            && support_status == Some(CellStatus::Licensed)
+        {
+            support_status = Some(CellStatus::Refused);
+        }
+        // The Frequentist counterfactual and attribution cells are licensed as point
+        // values. A requested mechanism-refit bootstrap interval is a construction no
+        // coverage record measures: it executes, and the result is unlicensed.
+        if matches!(carry.inference, InferenceMode::Frequentist)
+            && carry.bootstrap_replicates > 0
+            && matrix_class == "Dag"
+            && matches!(
+                query,
+                CausalQuery::Counterfactual(_)
+                    | CausalQuery::AnomalyAttribution(_)
+                    | CausalQuery::ChangeAttribution(_)
+            )
             && support_status == Some(CellStatus::Licensed)
         {
             support_status = Some(CellStatus::Refused);
@@ -1564,6 +1727,8 @@ fn into_study(exposure: BoundExposure) -> Study {
             selection_diagram,
             transport_trial,
             transport_identification_cache: None,
+            discovery: None,
+            mechanisms: None,
         }),
         data: carry.data,
         graph: Arc::new(graph),

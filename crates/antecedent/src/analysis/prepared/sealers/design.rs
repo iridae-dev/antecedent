@@ -178,6 +178,24 @@ pub(super) fn history_match(cx: &SealContext<'_>) -> SealOutcome {
     Ok(sealed.map(PreparedExecution::HistoryMatch))
 }
 
+pub(super) fn temporal_design(cx: &SealContext<'_>) -> SealOutcome {
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match cx.route {
+        Some(RouteInput::TemporalDesign { data, .. })
+            if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none() =>
+        {
+            Some(Box::new(crate::analysis::execute::CheckedTemporalDesignOperation::checked(
+                analysis, data, plan,
+            )?))
+        }
+        _ => None,
+    };
+    Ok(sealed.map(PreparedExecution::TemporalDesign))
+}
+
 pub(super) fn sequential_contrast(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match cx.route {

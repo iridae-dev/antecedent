@@ -481,6 +481,27 @@ path = "crates/antecedent/tests/staleness_facade.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "bayesian-intervention-level-refuter-state"
+crate = "antecedent"
+cargo_target = "bayesian_intervention_level_refutation"
+path = "crates/antecedent/tests/bayesian_intervention_level_refutation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-intervention-level-refuter-state-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_bayesian_intervention_level_refutation.py"
+gates = ["inventory"]
+
+[[test]]
+id = "unlicensed-refuter-states-and-mechanism-bootstrap"
+crate = "antecedent"
+cargo_target = "unlicensed_refuter_states_and_mechanism_bootstrap"
+path = "crates/antecedent/tests/unlicensed_refuter_states_and_mechanism_bootstrap.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "file-source-reader"
 crate = "antecedent-data"
 cargo_target = "file_source"
@@ -548,4 +569,207 @@ id = "multiple-imputation-python"
 crate = "python"
 cargo_target = "script"
 path = "python/tests/test_missing_imputation.py"
+gates = ["inventory"]
+
+[[test]]
+id = "structure-compiler-routes"
+crate = "antecedent"
+cargo_target = "structure_compiler_routes"
+path = "crates/antecedent/tests/structure_compiler_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-structure-routes-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_structure_routes.py"
+gates = ["inventory"]
+
+[[test]]
+id = "quasi-rollout-routes"
+crate = "antecedent"
+cargo_target = "quasi_rollout_routes"
+path = "crates/antecedent/tests/quasi_rollout_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "quasi-rollout-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_quasi_rollout.py"
+gates = ["inventory"]
+
+[[test]]
+id = "target-native-refuters"
+crate = "antecedent-validate"
+cargo_target = "target_native"
+path = "crates/antecedent-validate/tests/target_native.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "target-native-joint-statistic"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/target_native/joint.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "target-native-derivative-checks"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/target_native/derivative.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "target-native-bayesian-checks"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/target_native/bayesian.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "sensitivity-ranges"
+crate = "antecedent-validate"
+cargo_target = "sensitivity_bounds"
+path = "crates/antecedent-validate/tests/sensitivity_bounds.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "sensitivity-evalue-scales"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/evalue_scales.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "sensitivity-omitted-variable-bias"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/omitted_variable_bias.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "sensitivity-rosenbaum-bounds"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/rosenbaum.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "sensitivity-mediation-correlation"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/mediation_sensitivity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "target-native-validation-facade"
+crate = "antecedent"
+cargo_target = "target_native_validation"
+path = "crates/antecedent/tests/target_native_validation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "target-validation-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_target_validation.py"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-design-excursion-scores"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_design/contrasts.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-cluster-inference"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_design/mod.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-dose"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_design/dose.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-quantile"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_design/quantile.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-regime-survival"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_design/survival.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-small-solves"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_design/linalg.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-query-wire"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/temporal_design_query_wire.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-routes"
+crate = "antecedent"
+cargo_target = "temporal_design_routes"
+path = "crates/antecedent/tests/temporal_design_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-outcome-misclassification"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_design/misclassification.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "measurement-pooled-differential-transport"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/measurement_transport_pooled.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "dose-grid-bias-aware-band"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/dose_grid_functional.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-point-route-uncertainty"
+crate = "antecedent"
+cargo_target = "temporal_point_uncertainty"
+path = "crates/antecedent/tests/temporal_point_uncertainty.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-slope-design"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_slope_design.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_temporal_designs.py"
 gates = ["inventory"]

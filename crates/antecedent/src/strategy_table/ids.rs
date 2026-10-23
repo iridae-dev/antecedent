@@ -431,6 +431,18 @@ pub enum EstimatorId {
     BayesianSequentialCrossfitContrast,
     /// Frequentist within-period history-matched contrast (unlicensed, uncalibrated).
     PeriodHistoryMatching,
+    /// Cluster-robust Horvitz-Thompson excursion contrasts of a sequentially randomized
+    /// unit-period design (unlicensed, uncalibrated).
+    TemporalDesignExcursion,
+    /// Cluster Bayesian-bootstrap posterior of the same excursion contrasts (unlicensed,
+    /// uncalibrated).
+    BayesianTemporalDesignExcursion,
+    /// Inverse-probability weighted regime survival with a whole-procedure subject bootstrap
+    /// (unlicensed, uncalibrated).
+    TemporalRegimeSurvival,
+    /// Joint-likelihood parametric g-formula posterior of regime survival (unlicensed,
+    /// uncalibrated).
+    BayesianTemporalRegimeSurvival,
 }
 all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
@@ -1149,6 +1161,34 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "matching.period_history_contrast",
             provenance: same_step("estimate.period_history_matching"),
         },
+        EstimatorId::TemporalDesignExcursion => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "temporal_design.excursion",
+            parallel_task_dimension: "analysis",
+            kernel_label: "temporal_design.cluster_ratio_ht",
+            provenance: same_step("estimate.temporal_design_excursion"),
+        },
+        EstimatorId::BayesianTemporalDesignExcursion => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.temporal_design.excursion",
+            parallel_task_dimension: "analysis",
+            kernel_label: "temporal_design.cluster_bayesian_bootstrap",
+            provenance: same_step("estimate.bayesian_temporal_design_excursion"),
+        },
+        EstimatorId::TemporalRegimeSurvival => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "temporal_design.regime_survival",
+            parallel_task_dimension: "analysis",
+            kernel_label: "temporal_design.ipw_hazard_subject_bootstrap",
+            provenance: same_step("estimate.temporal_regime_survival"),
+        },
+        EstimatorId::BayesianTemporalRegimeSurvival => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.temporal_design.regime_survival",
+            parallel_task_dimension: "analysis",
+            kernel_label: "temporal_design.joint_likelihood_g_formula",
+            provenance: same_step("estimate.bayesian_temporal_regime_survival"),
+        },
         EstimatorId::SequentialCrossfitContrastWald => EstimatorData {
             compatible: RANDOMIZED,
             name: "sequential.crossfit_contrast.wald",
@@ -1487,6 +1527,10 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::SequentialCrossfitContrastWald
         | EstimatorId::BayesianSequentialCrossfitContrast
         | EstimatorId::PeriodHistoryMatching
+        | EstimatorId::TemporalDesignExcursion
+        | EstimatorId::BayesianTemporalDesignExcursion
+        | EstimatorId::TemporalRegimeSurvival
+        | EstimatorId::BayesianTemporalRegimeSurvival
         | EstimatorId::BayesianPiecewiseSurvival
         | EstimatorId::BayesianDosePolicy
         | EstimatorId::BayesianLocalRatio => false,

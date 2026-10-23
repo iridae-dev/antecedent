@@ -2,6 +2,7 @@
 
 use super::completion_fit_memo::{CompletionFitMemo, MediationFitKey, ResponseFitKey};
 use super::temporal_effect_core::FitFinishMeta;
+use super::temporal_point_uncertainty::{self as point_uncertainty, SlopeSource};
 use super::{
     Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, BayesianValidation,
     CausalError, CausalExprArena, CausalPosterior, CausalQuery, CausalResponse, ClassAtomOutcome,
@@ -1012,7 +1013,8 @@ impl super::Study {
     }
 
     /// A temporal derivative response: the local slope of the linear unfolded
-    /// fit at the one requested horizon, published without an interval.
+    /// fit at the one requested horizon, with its whole-procedure band
+    /// ([`temporal_dag_derivative_response`]).
     fn execute_temporal_derivative_response(
         &self,
         inputs: DerivativeResponseInputs<'_>,
@@ -1028,35 +1030,30 @@ impl super::Study {
                 message: "a temporal derivative is the local slope at one horizon",
             });
         }
-        let prior_scale = match &self.inference {
-            InferenceMode::Bayesian(cfg) => {
-                if cfg.has_transfer() {
-                    return Err(CausalError::Unsupported {
-                        message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
-                    });
-                }
-                Some(cfg.prior_scale)
+        if let InferenceMode::Bayesian(cfg) = &self.inference {
+            if cfg.has_transfer() {
+                return Err(CausalError::Unsupported {
+                    message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                });
             }
-            InferenceMode::Frequentist => None,
-        };
+        }
         let probe = unit_contrast_query(
             temporal,
             (treatment, outcome),
             temporal.horizons[0],
             query.target_population.clone(),
         );
-        let response = temporal_linear_derivative_response(
+        let response = temporal_dag_derivative_response(
             data,
             query,
-            &estimand,
-            indexer,
-            &identification,
-            DerivativeSpec {
-                treatment_offset: probe.try_treatment_offset()?,
-                outcome_offset: probe.outcome_offset(),
-                policy: &ctx.kernel_policy,
-                prior_scale,
+            DagDerivativeFit {
+                estimand: &estimand,
+                indexer,
+                identification: &identification,
+                offsets: (probe.try_treatment_offset()?, probe.outcome_offset()),
             },
+            (&self.inference, self.bootstrap_replicates),
+            ctx,
         )?;
         let scalar = super::response_path::response_scalar_summary(&response).0;
         let estimator_id = EstimatorId::temporal_response_for(&self.inference);
@@ -1066,6 +1063,15 @@ impl super::Study {
             identification.required_assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
+        let mut diagnostics = vec![Diagnostic::new(
+            "estimate.temporal.linear_derivative",
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Info,
+            "published value is the slope of the linear unfolded temporal fit; its band refits \
+             every outcome regression (frequentist shared circular blocks, or Bayesian joint \
+             slope-posterior draws)",
+        )];
+        diagnostics.extend(response.support.warnings.iter().cloned());
         let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -1080,14 +1086,9 @@ impl super::Study {
             .wall_time_ns(elapsed_ns(started)),
         );
         result.payload = crate::result::ResultPayload::Response(response);
-        result.interval = None;
         result.posterior = None;
-        result.diagnostics.push(Diagnostic::new(
-            "estimate.temporal.linear_derivative",
-            DiagnosticKind::Execution,
-            DiagnosticSeverity::Info,
-            "published value is the slope of the linear unfolded temporal fit; no interval is published",
-        ));
+        result.rebind_interval(self.inference.is_bayesian());
+        result.diagnostics.extend(diagnostics);
         Ok(result)
     }
 
@@ -1266,12 +1267,47 @@ impl super::Study {
             OverlapPolicy::ExplicitOverride,
         )
         .with_n_obs(lag_aligned_analysis_rows(data, aligned));
-        let diagnostics = temporal_response_diagnostics(
+        let mut diagnostics = temporal_response_diagnostics(
             aligned,
             &response,
             conflict_summary.as_ref(),
             identify_cached,
         );
+        // An intervention level's cheap/full suite runs the per-horizon Pulse-witness
+        // refuter state (unlicensed); a curve keeps the skipped note.
+        let (refutations, predictive_checks) = match &self.query {
+            CausalQuery::Response(query)
+                if !matches!(self.refute, RefuteSuite::None)
+                    && matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                    ) =>
+            {
+                match super::temporal_response_refutation::refute_temporal_intervention(
+                    self, data, query, aligned, ctx,
+                ) {
+                    Ok((reports, checks, notes)) => {
+                        diagnostics.retain(|diagnostic| {
+                            diagnostic.code.as_ref() != "refute.temporal_response.skipped"
+                        });
+                        diagnostics.extend(notes);
+                        (reports, checks)
+                    }
+                    Err(error) => {
+                        diagnostics.push(Diagnostic::new(
+                            "refute.temporal_response.state_failed",
+                            DiagnosticKind::Scientific,
+                            DiagnosticSeverity::Warning,
+                            format!(
+                                "the temporal intervention-level refuter state failed: {error}"
+                            ),
+                        ));
+                        (Vec::new(), Vec::new())
+                    }
+                }
+            }
+            _ => (Vec::new(), Vec::new()),
+        };
         self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -1285,6 +1321,7 @@ impl super::Study {
                 treatment,
                 outcome,
             )
+            .refutations(refutations)
             .wall_time_ns(elapsed_ns(started))
             .cancelled(ctx.cancellation.is_cancelled())
             .extras(IdentifiedExecuteExtras {
@@ -1299,6 +1336,7 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 response: Some(response),
                 posterior: observed_posterior,
+                predictive_checks,
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             }),
@@ -5179,35 +5217,29 @@ impl super::Study {
         ) {
             direct_estimand.adjustment_set = Arc::from([]);
         }
-        let fit =
-            |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
-                let used = match &self.query {
-                    CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_) => {
-                        &direct_estimand
-                    }
-                    _ => &estimand,
+        let used = match &self.query {
+            CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_) => &direct_estimand,
+            _ => &estimand,
+        };
+        let contrast = CrossWorldContrast { treatment, outcome, mediator, active, control };
+        // Every regression the point reads is recorded, so the interval refits the
+        // same procedure (see `temporal_point_uncertainty`).
+        let atom = point_uncertainty::SlopeAtom::new(
+            data,
+            used,
+            &found.indexer,
+            (probe.try_treatment_offset()?, probe.outcome_offset()),
+            ctx.kernel_policy,
+            prior_scale,
+        );
+        let point = {
+            let fit =
+                |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
+                    atom.slopes(outcome, treatments, contemporaneous)
                 };
-                antecedent_estimate::temporal_linear_slopes(
-                    data,
-                    used,
-                    &found.indexer,
-                    &antecedent_estimate::TemporalSlopeSpec {
-                        outcome,
-                        treatments,
-                        treatment_offset: probe.try_treatment_offset()?,
-                        outcome_offset: probe.outcome_offset(),
-                        contemporaneous,
-                    },
-                    &ctx.kernel_policy,
-                    prior_scale,
-                )
-                .map_err(CausalError::from)
-            };
-        let point = cross_world_point(
-            &self.query,
-            &fit,
-            CrossWorldContrast { treatment, outcome, mediator, active, control },
-        )?;
+            cross_world_point(&self.query, &fit, contrast)?
+        };
+        let structural_span = super::temporal_class_block_span(std::iter::once(&found.indexer));
         let proof = identification.clone();
         let proof_estimand = estimand.clone();
         let identification = template_scoped_cross_world(
@@ -5246,11 +5278,93 @@ impl super::Study {
             .wall_time_ns(elapsed_ns(started));
             return Ok(self.finish_cross_world_posterior(finish, posterior));
         }
-        let estimate = EffectEstimate::new(
+        let frozen = [atom.freeze()];
+        let query = &self.query;
+        let evaluate = |_: usize, source: &dyn SlopeSource| {
+            let fit =
+                |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
+                    source.slopes(outcome, treatments, contemporaneous)
+                };
+            cross_world_point(query, &fit, contrast).map(|value| vec![value])
+        };
+        let assumptions = identification.required_assumptions.clone();
+        if let InferenceMode::Bayesian(cfg) = &self.inference {
+            let draws = point_uncertainty::point_posterior_draws(
+                &frozen,
+                point_uncertainty::PointPosteriorPlan {
+                    prior_scale: cfg.prior_scale,
+                    draws: cfg.n_draws,
+                    structural_span,
+                    stream_base: point_uncertainty::CROSS_WORLD_POSTERIOR_STREAM,
+                },
+                ctx,
+                evaluate,
+            )?;
+            let column: Vec<f64> = draws.atom_draws[0].iter().map(|draw| draw[0]).collect();
+            let posterior = point_uncertainty::scalar_posterior(
+                &column,
+                "cross_world_contrast",
+                identification.status,
+                assumptions.clone(),
+                draws.tempering,
+            )?;
+            let sd = posterior.summaries.sd[0];
+            let estimate =
+                EffectEstimate::new(point, sd, assumptions, OverlapPolicy::ExplicitOverride);
+            let n_draws = u32::try_from(column.len()).unwrap_or(u32::MAX);
+            let finish = IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    EstimatorId::TemporalLinearAdjustment,
+                ),
+                treatment,
+                outcome,
+            )
+            .wall_time_ns(elapsed_ns(started))
+            .extra_diagnostics(vec![
+                Diagnostic::new(
+                    "estimate.temporal.cross_world",
+                    DiagnosticKind::Execution,
+                    DiagnosticSeverity::Info,
+                    "published value is the linear unfolded cross-world contrast at the \
+                     posterior-mean coefficients; the interval is the equal-tailed interval of \
+                     its joint posterior draws",
+                ),
+                point_uncertainty::posterior_diagnostic(&draws, "temporal cross-world contrast"),
+            ])
+            .extras(IdentifiedExecuteExtras {
+                n_draws: Some(n_draws),
+                posterior: Some(posterior),
+                ..Default::default()
+            });
+            return Ok(self.finish_identified_execute(finish));
+        }
+        let replicates = point_uncertainty::point_block_replicates(
+            &frozen,
+            point_uncertainty::PointBlockPlan {
+                replicates: self.bootstrap_replicates,
+                stream_base: point_uncertainty::CROSS_WORLD_BLOCK_STREAM,
+                structural_span,
+            },
+            false,
+            ctx,
+            evaluate,
+            |values| values.first().cloned(),
+        )?;
+        let family = if matches!(&self.query, CausalQuery::PathSpecific(_)) {
+            antecedent_estimate::CircularBlockFamily::Mediation
+        } else {
+            antecedent_estimate::CircularBlockFamily::SingleWindow
+        };
+        let estimate = point_uncertainty::block_scalar_estimate(
             point,
-            f64::NAN,
-            identification.required_assumptions.clone(),
-            OverlapPolicy::ExplicitOverride,
+            replicates.as_ref(),
+            assumptions,
+            family,
         );
         let finish = IdentifiedExecuteFinish::new(
             physical,
@@ -5264,8 +5378,45 @@ impl super::Study {
             treatment,
             outcome,
         )
-        .wall_time_ns(elapsed_ns(started));
-        Ok(self.finish_cross_world_point(finish))
+        .wall_time_ns(elapsed_ns(started))
+        .bootstrap_replicates_ok(
+            replicates.as_ref().map(point_uncertainty::PointBlockReplicates::completed),
+        )
+        .cancelled(replicates.as_ref().is_some_and(|r| r.draws.cancelled));
+        Ok(self.finish_cross_world_block(finish, replicates.as_ref()))
+    }
+
+    /// Finishes the frequentist cross-world contrast with its shared circular-block
+    /// interval (point only when no replicates were requested).
+    fn finish_cross_world_block(
+        &self,
+        finish: IdentifiedExecuteFinish<'_>,
+        replicates: Option<&point_uncertainty::PointBlockReplicates>,
+    ) -> StudyResult {
+        let family = if matches!(&self.query, CausalQuery::PathSpecific(_)) {
+            antecedent_estimate::CircularBlockFamily::Mediation
+        } else {
+            antecedent_estimate::CircularBlockFamily::SingleWindow
+        };
+        let mut diagnostics = vec![Diagnostic::new(
+            "estimate.temporal.cross_world",
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Info,
+            "published value is the linear unfolded cross-world point; its interval refits every \
+             regression of the contrast on shared circular blocks of series times",
+        )];
+        diagnostics.extend(point_uncertainty::block_diagnostics(
+            replicates,
+            self.bootstrap_replicates,
+            family,
+            "every regression of the contrast is refit on each replicate",
+        ));
+        let mut result = self.finish_identified_execute(finish.extra_diagnostics(diagnostics));
+        if replicates.is_none() {
+            result.interval = None;
+        }
+        result.posterior = None;
+        result
     }
 
     /// Finishes the posterior cross-world contrast: the credible interval of the generalized
@@ -5288,20 +5439,6 @@ impl super::Study {
             "published value is the posterior mean of the linear unfolded cross-world \
              contrast; the interval is the credible interval of the long-run-tempered \
              generalized posterior of the contrast slope, parameter uncertainty only",
-        ));
-        result
-    }
-
-    /// Finishes the point-only cross-world contrast: no interval is published.
-    fn finish_cross_world_point(&self, finish: IdentifiedExecuteFinish<'_>) -> StudyResult {
-        let mut result = self.finish_identified_execute(finish);
-        result.interval = None;
-        result.posterior = None;
-        result.diagnostics.push(Diagnostic::new(
-            "estimate.temporal.cross_world",
-            DiagnosticKind::Execution,
-            DiagnosticSeverity::Info,
-            "published value is the linear unfolded cross-world point; no interval is published",
         ));
         result
     }
@@ -5438,7 +5575,7 @@ fn cross_world_contrast(query: &CausalQuery) -> Result<CrossWorldContrast, Causa
 
 /// The linear unfolded cross-world point of the query's contrast, from the
 /// fitted slopes of `fit`.
-fn cross_world_point(
+pub(super) fn cross_world_point(
     query: &CausalQuery,
     fit: &impl Fn(VariableId, &[VariableId], &[VariableId]) -> Result<(f64, Vec<f64>), CausalError>,
     contrast: CrossWorldContrast,
@@ -5484,16 +5621,6 @@ pub(super) struct CrossWorldContrast {
     pub(super) mediator: Option<VariableId>,
     pub(super) active: f64,
     pub(super) control: f64,
-}
-
-/// How a temporal derivative response differentiates: the lag offsets of the
-/// derivative's treatment and outcome, the kernel policy and the prior scale.
-#[derive(Clone, Copy)]
-pub(super) struct DerivativeSpec<'a> {
-    pub(super) treatment_offset: i32,
-    pub(super) outcome_offset: i32,
-    pub(super) policy: &'a antecedent_core::KernelPolicy,
-    pub(super) prior_scale: Option<f64>,
 }
 
 pub(super) fn template_scoped_cross_world(
@@ -5775,87 +5902,17 @@ fn jacobian_derivative_value(
 pub(super) fn temporal_linear_derivative_response(
     data: &TimeSeriesData,
     query: &ResponseQuery,
-    estimand: &IdentifiedEstimand,
-    indexer: &TemporalIndexer,
     identification: &IdentificationResult,
-    spec: DerivativeSpec<'_>,
+    source: &dyn SlopeSource,
 ) -> Result<CausalResponse, CausalError> {
-    use antecedent_core::{DerivativeWeighting, ResponseFunctional as F};
-    let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
     if query.target_population != antecedent_core::TargetPopulation::AllObserved {
         return Err(CausalError::Unsupported {
             message: "temporal derivative requires the all-observed population",
         });
     }
-    let fit = |outcome, treatments: &[VariableId]| {
-        antecedent_estimate::temporal_linear_slopes(
-            data,
-            estimand,
-            indexer,
-            &antecedent_estimate::TemporalSlopeSpec {
-                outcome,
-                treatments,
-                treatment_offset,
-                outcome_offset,
-                contemporaneous: &[],
-            },
-            policy,
-            prior_scale,
-        )
-        .map_err(CausalError::from)
-    };
-    let mut support_at = vec![0.0_f64];
-    let support_treatments;
-    let mut average_over_observed = false;
-    let value = match &query.functional {
-        F::AverageDerivative { outcome, treatment, weighting } => {
-            if !matches!(weighting, DerivativeWeighting::Observed) {
-                return Err(CausalError::Unsupported {
-                    message: "temporal average derivative is licensed for the observed weighting",
-                });
-            }
-            support_treatments = vec![*treatment];
-            average_over_observed = true;
-            let (_, slopes) = fit(*outcome, &[*treatment])?;
-            ResponseValue::Scalar(slopes[0])
-        }
-        F::PointDerivative { outcome, treatment, at, order, scale } => {
-            if *order != 1 {
-                return Err(CausalError::Unsupported {
-                    message: "temporal point derivative is the first derivative of the linear fit",
-                });
-            }
-            let (intercept, slopes) = fit(*outcome, &[*treatment])?;
-            support_treatments = vec![*treatment];
-            support_at = vec![*at];
-            ResponseValue::Scalar(scaled_point_slope(*scale, *at, (intercept, slopes[0]))?)
-        }
-        F::DirectionalDerivative { outcomes, treatments, at, direction } => {
-            if at.len() != treatments.len() || direction.len() != treatments.len() {
-                return Err(CausalError::Unsupported {
-                    message: "temporal directional derivative point and direction follow the treatments",
-                });
-            }
-            support_treatments = treatments.to_vec();
-            support_at = at.to_vec();
-            directional_derivative_value(&fit, outcomes, treatments, direction)?
-        }
-        F::Jacobian { outcomes, treatments, at, scale } => {
-            if at.len() != treatments.len() {
-                return Err(CausalError::Unsupported {
-                    message: "temporal Jacobian is evaluated at one point per treatment",
-                });
-            }
-            support_treatments = treatments.to_vec();
-            support_at = at.to_vec();
-            jacobian_derivative_value(&fit, (outcomes, treatments), at, *scale)?
-        }
-        _ => {
-            return Err(CausalError::Unsupported {
-                message: "temporal linear derivative does not estimate this functional",
-            });
-        }
-    };
+    let value = temporal_linear_derivative_value(&query.functional, source)?;
+    let (support_treatments, support_at, average_over_observed) =
+        derivative_support_inputs(&query.functional);
     let support =
         derivative_support_report(data, &support_treatments, &support_at, average_over_observed);
     Ok(CausalResponse {
@@ -5868,6 +5925,173 @@ pub(super) fn temporal_linear_derivative_response(
         provenance_id: std::sync::Arc::from("estimate.temporal.linear_derivative"),
         horizon_identification: None,
         interaction_structurally_zero: false,
+    })
+}
+
+/// One `TemporalDag` derivative fit: the horizon's back-door estimand, its lag
+/// indexer and proof, and the probe's treatment and outcome offsets.
+#[derive(Clone, Copy)]
+pub(super) struct DagDerivativeFit<'a> {
+    pub(super) estimand: &'a IdentifiedEstimand,
+    pub(super) indexer: &'a TemporalIndexer,
+    pub(super) identification: &'a IdentificationResult,
+    pub(super) offsets: (i32, i32),
+}
+
+/// A `TemporalDag` derivative response with its whole-procedure uncertainty.
+///
+/// The point is the linear slope functional at the full-series fit (the
+/// posterior-mean coefficients under Bayesian inference). Frequentist: every
+/// outcome regression is refit on one shared circular-block bootstrap of
+/// series times and the band (with a sup-t simultaneous band for several
+/// coordinates) is attached when replicates were requested. Bayesian: the
+/// functional is evaluated on joint draws of the tempered slope posterior and
+/// its credible band is attached. Callers refuse a mapped prior before calling.
+pub(super) fn temporal_dag_derivative_response(
+    data: &TimeSeriesData,
+    query: &ResponseQuery,
+    fit: DagDerivativeFit<'_>,
+    (inference, bootstrap_replicates): (&InferenceMode, u32),
+    ctx: &ExecutionContext,
+) -> Result<CausalResponse, CausalError> {
+    let prior_scale = match inference {
+        InferenceMode::Bayesian(cfg) => Some(cfg.prior_scale),
+        InferenceMode::Frequentist => None,
+    };
+    let atom = point_uncertainty::SlopeAtom::new(
+        data,
+        fit.estimand,
+        fit.indexer,
+        fit.offsets,
+        ctx.kernel_policy,
+        prior_scale,
+    );
+    let mut response = temporal_linear_derivative_response(data, query, fit.identification, &atom)?;
+    let center = match &response.estimate {
+        ResponseIdentification::PointIdentified(value) => point_uncertainty::response_values(value),
+        _ => None,
+    }
+    .ok_or_else(|| CausalError::Compile {
+        message: "temporal derivative point has no numeric value".into(),
+    })?;
+    let frozen = [atom.freeze()];
+    let functional = &query.functional;
+    let evaluate = |_: usize, source: &dyn SlopeSource| {
+        let value = temporal_linear_derivative_value(functional, source)?;
+        point_uncertainty::response_values(&value).ok_or_else(|| CausalError::Compile {
+            message: "temporal derivative replicate has no numeric value".into(),
+        })
+    };
+    let structural_span = super::temporal_class_block_span(std::iter::once(fit.indexer));
+    if let InferenceMode::Bayesian(cfg) = inference {
+        let draws = point_uncertainty::point_posterior_draws(
+            &frozen,
+            point_uncertainty::PointPosteriorPlan {
+                prior_scale: cfg.prior_scale,
+                draws: cfg.n_draws,
+                structural_span,
+                stream_base: point_uncertainty::DERIVATIVE_POSTERIOR_STREAM,
+            },
+            ctx,
+            evaluate,
+        )?;
+        point_uncertainty::attach_posterior_response_band(
+            &mut response,
+            &draws.atom_draws[0],
+            &center,
+        );
+        response
+            .support
+            .warnings
+            .push(point_uncertainty::posterior_diagnostic(&draws, "temporal linear derivative"));
+        return Ok(response);
+    }
+    let replicates = point_uncertainty::point_block_replicates(
+        &frozen,
+        point_uncertainty::PointBlockPlan {
+            replicates: bootstrap_replicates,
+            stream_base: point_uncertainty::DERIVATIVE_BLOCK_STREAM,
+            structural_span,
+        },
+        false,
+        ctx,
+        evaluate,
+        |values| values.first().cloned(),
+    )?;
+    if let Some(replicates) = &replicates {
+        point_uncertainty::attach_block_response_band(&mut response, replicates, &center);
+    }
+    response.support.warnings.extend(point_uncertainty::block_diagnostics(
+        replicates.as_ref(),
+        bootstrap_replicates,
+        antecedent_estimate::CircularBlockFamily::SingleWindow,
+        "every outcome regression of the derivative is refit on each replicate",
+    ));
+    Ok(response)
+}
+
+/// The treatments, evaluation point and averaging of a derivative's support report.
+fn derivative_support_inputs(functional: &ResponseFunctional) -> (Vec<VariableId>, Vec<f64>, bool) {
+    use antecedent_core::ResponseFunctional as F;
+    match functional {
+        F::AverageDerivative { treatment, .. } => (vec![*treatment], vec![0.0], true),
+        F::PointDerivative { treatment, at, .. } => (vec![*treatment], vec![*at], false),
+        F::DirectionalDerivative { treatments, at, .. } | F::Jacobian { treatments, at, .. } => {
+            (treatments.to_vec(), at.to_vec(), false)
+        }
+        _ => (Vec::new(), vec![0.0], false),
+    }
+}
+
+/// The linear derivative of `functional` from the slopes `source` fits: the
+/// point routes call it on the full series, the shared block bootstrap on every
+/// replicate, and the slope posterior on every draw.
+pub(super) fn temporal_linear_derivative_value(
+    functional: &ResponseFunctional,
+    source: &dyn SlopeSource,
+) -> Result<ResponseValue, CausalError> {
+    use antecedent_core::{DerivativeWeighting, ResponseFunctional as F};
+    let fit = |outcome, treatments: &[VariableId]| source.slopes(outcome, treatments, &[]);
+    Ok(match functional {
+        F::AverageDerivative { outcome, treatment, weighting } => {
+            if !matches!(weighting, DerivativeWeighting::Observed) {
+                return Err(CausalError::Unsupported {
+                    message: "temporal average derivative is licensed for the observed weighting",
+                });
+            }
+            let (_, slopes) = fit(*outcome, &[*treatment])?;
+            ResponseValue::Scalar(slopes[0])
+        }
+        F::PointDerivative { outcome, treatment, at, order, scale } => {
+            if *order != 1 {
+                return Err(CausalError::Unsupported {
+                    message: "temporal point derivative is the first derivative of the linear fit",
+                });
+            }
+            let (intercept, slopes) = fit(*outcome, &[*treatment])?;
+            ResponseValue::Scalar(scaled_point_slope(*scale, *at, (intercept, slopes[0]))?)
+        }
+        F::DirectionalDerivative { outcomes, treatments, at, direction } => {
+            if at.len() != treatments.len() || direction.len() != treatments.len() {
+                return Err(CausalError::Unsupported {
+                    message: "temporal directional derivative point and direction follow the treatments",
+                });
+            }
+            directional_derivative_value(&fit, outcomes, treatments, direction)?
+        }
+        F::Jacobian { outcomes, treatments, at, scale } => {
+            if at.len() != treatments.len() {
+                return Err(CausalError::Unsupported {
+                    message: "temporal Jacobian is evaluated at one point per treatment",
+                });
+            }
+            jacobian_derivative_value(&fit, (outcomes, treatments), at, *scale)?
+        }
+        _ => {
+            return Err(CausalError::Unsupported {
+                message: "temporal linear derivative does not estimate this functional",
+            });
+        }
     })
 }
 

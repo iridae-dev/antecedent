@@ -69,11 +69,15 @@ nav:
     - Configured batches and batch retarget: guides/batch-retarget.md
     - Cross-fitted DML scores and retarget covariance: guides/dml-scores.md
     - Staleness and drift diagnostics: guides/staleness.md
+    - Sequentially randomized designs and regime survival: guides/temporal-designs.md
+    - Rollout designs: guides/rollout-designs.md
+    - Target-native validation and sensitivity ranges: guides/target-native-validation.md
   - Discovery and structural uncertainty:
     - Prior bank: priors.md
     - Graph uncertainty: graph_uncertainty.md
     - Selective discovery: selective-discovery.md
     - Background knowledge in discovery: guides/discovery-background-knowledge.md
+    - Discovery, attribution and simulation as compiled routes: guides/compiled-structure-routes.md
     - Falsifying a graph by node permutation: guides/graph-falsification.md
   - Transport:
     - Transport and interference: transport-interference.md

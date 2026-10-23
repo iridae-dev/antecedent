@@ -93,6 +93,19 @@ const STATIC_CONDITIONAL: &[GraphClass] =
 const STATIC_DISTRIBUTION: &[GraphClass] =
     &[GraphClass::Dag, GraphClass::Admg, GraphClass::TemporalAdmg];
 const RANDOMIZED: &[GraphClass] = &[GraphClass::RandomizedTrial];
+/// The classes a static structure search answers with; CPDAG and PAG stay classes.
+const STATIC_DISCOVERED: &[GraphClass] = &[GraphClass::Dag, GraphClass::Cpdag, GraphClass::Pag];
+/// The classes a temporal structure search answers with.
+const TEMPORAL_DISCOVERED: &[GraphClass] =
+    &[GraphClass::TemporalDag, GraphClass::TemporalCpdag, GraphClass::TemporalPag];
+
+fn discovery_refusal() -> CausalError {
+    crate::unsupported_reason!(
+        "data_modality_not_licensed",
+        "a static structure search runs on tabular data and a temporal one on series, panel or \
+         multi-environment data"
+    )
+}
 
 #[allow(
     clippy::unnecessary_wraps,
@@ -206,7 +219,26 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             }),
             ..UNLICENSED
         },
-        K::MechanismChange | K::UnitChange => UNLICENSED,
+        // Off the support matrix and without a coverage license; prepared on a
+        // supplied or accepted Dag so the retained compiler path executes them.
+        K::MechanismChange | K::UnitChange => KindLicense {
+            tabular: rule(DAG, || CausalError::Unsupported {
+                message: "MechanismChange and UnitChange require a supplied or accepted Dag",
+            }),
+            ..UNLICENSED
+        },
+        K::Discover => KindLicense {
+            tabular: rule(STATIC_DISCOVERED, discovery_refusal),
+            series: rule(TEMPORAL_DISCOVERED, discovery_refusal),
+            panel: rule(TEMPORAL_DISCOVERED, discovery_refusal),
+            multi_env: rule(TEMPORAL_DISCOVERED, discovery_refusal),
+        },
+        K::Attribute | K::Simulate => KindLicense {
+            tabular: rule(DAG, || CausalError::Unsupported {
+                message: "Attribute and Simulate fit mechanisms on a supplied or accepted Dag",
+            }),
+            ..UNLICENSED
+        },
         K::Mediation => KindLicense {
             tabular: rule(DAG, || CausalError::Unsupported {
                 message: "static mediation requires Dag",
@@ -330,6 +362,16 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             tabular: design(false, || CausalError::Unsupported {
                 message: "SequentialContrast requires a graphless two-decision panel with \
                           declared sequential exchangeability",
+            }),
+            ..UNLICENSED
+        },
+        // Off the support matrix and without a coverage license: the recorded sequential
+        // randomization (or, for regime survival, declared sequential exchangeability)
+        // identifies the target, so the study is a graphless design on a unit-period table.
+        K::TemporalDesign => KindLicense {
+            tabular: design(false, || CausalError::Unsupported {
+                message: "TemporalDesign requires a graphless unit-period table with its recorded \
+                          assignment design",
             }),
             ..UNLICENSED
         },

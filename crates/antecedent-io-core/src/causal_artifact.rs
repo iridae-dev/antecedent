@@ -484,6 +484,28 @@ pub(crate) fn validate_query_ids(
         Q::ChangeAttribution { outcome, .. } | Q::UnitChange { outcome, .. } => {
             validate_id(*outcome, variable_count)
         }
+        Q::Discover(wire) => {
+            validate_ids(wire.variable_ids(), variable_count)?;
+            wire.to_domain().map(|_| ())
+        }
+        Q::Attribute(wire) => {
+            validate_ids(wire.variable_ids(), variable_count)?;
+            if let Some(embedded) = wire.embedded() {
+                validate_query_ids(embedded, variable_count)?;
+            }
+            wire.to_domain().map(|_| ())
+        }
+        Q::Simulate(wire) => {
+            validate_ids(wire.variable_ids(), variable_count)?;
+            for intervention in wire.interventions() {
+                validate_intervention_ids(intervention, variable_count)?;
+            }
+            wire.to_domain().map(|_| ())
+        }
+        Q::TemporalDesign(wire) => {
+            validate_ids(wire.variable_ids(), variable_count)?;
+            wire.to_domain().map(|_| ())
+        }
         Q::Mediation { treatment, outcome, mediators, control, active, .. } => {
             validate_ids(
                 [*treatment, *outcome].into_iter().chain(mediators.iter().copied()),
@@ -774,6 +796,11 @@ pub(crate) fn validate_query_ids(
             if let Some((pre, propensity, prediction, _)) = wire.augmented {
                 validate_ids([pre, propensity, prediction], variable_count)?;
             }
+            if let Some(rollout) = &wire.rollout {
+                for covariate in &rollout.covariates {
+                    validate_id(*covariate, variable_count)?;
+                }
+            }
             let query = causal_query_from_wire(&Q::PanelDid(wire.clone()))?;
             query.validate().map_err(|e| IoError::Convert(e.to_string()))
         }
@@ -804,25 +831,27 @@ pub(crate) fn validate_query_ids(
             } else {
                 query
             };
-            let query = if let Some(ridge) = wire.augmentation_ridge {
+            let mut query = if let Some(ridge) = wire.augmentation_ridge {
                 query.with_augmentation(ridge)
             } else {
                 query
             };
+            query.rollout = wire
+                .rollout
+                .as_ref()
+                .map(crate::rollout_query_wire::synthetic_rollout_from_wire)
+                .transpose()?;
             query.validate().map_err(|error| IoError::Convert(error.to_string()))
         }
         Q::LocalPolynomialRatio(wire) => {
             validate_ids([wire.outcome, wire.treatment, wire.running], variable_count)?;
-            antecedent_core::LocalPolynomialRatioQuery {
-                outcome: antecedent_core::VariableId::from_raw(wire.outcome),
-                treatment: antecedent_core::VariableId::from_raw(wire.treatment),
-                running: antecedent_core::VariableId::from_raw(wire.running),
-                cutoff: wire.cutoff,
-                bandwidth: wire.bandwidth,
-                kink: wire.kink,
+            if let Some(options) = &wire.options {
+                for covariate in &options.balance_covariates {
+                    validate_id(*covariate, variable_count)?;
+                }
             }
-            .validate()
-            .map_err(|error| IoError::Convert(error.to_string()))
+            let query = causal_query_from_wire(&Q::LocalPolynomialRatio(wire.clone()))?;
+            query.validate().map_err(|error| IoError::Convert(error.to_string()))
         }
         Q::Survival(wire) => {
             if wire.censoring_probability_floor.is_none()
@@ -1886,6 +1915,8 @@ mod tests {
             post: vec![false, true, false, true],
             subjects: vec!["a".into(), "a".into(), "b".into(), "b".into()],
             clusters: vec!["x".into(), "x".into(), "y".into(), "y".into()],
+            rollout: None,
+            resampling: None,
         });
         let payload = CausalPayloadWire::Query(Box::new(query.clone()));
         let artifact =

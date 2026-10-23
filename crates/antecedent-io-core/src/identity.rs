@@ -339,7 +339,9 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         ],
         CausalQueryWire::PanelDid(query) => {
             // Same precedence as the wire decoder's design selection.
-            let design = if query.augmented.is_some() {
+            let design = if let Some(rollout) = &query.rollout {
+                rollout.design.as_str()
+            } else if query.augmented.is_some() {
                 "augmented_panel"
             } else if query.staggered_event_study {
                 "staggered_event_study"
@@ -360,6 +362,27 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             if let Some((cohort, period)) = query.staggered_target {
                 dimensions
                     .push(("staggered_target".into(), format!("cohort={cohort},period={period}")));
+            }
+            if let Some(rollout) = &query.rollout {
+                dimensions.push((
+                    "rollout_estimator".into(),
+                    format!(
+                        "{}:{}:{}:{}:{}:anticipation={}:covariates={:?}",
+                        rollout.estimator,
+                        rollout.comparison,
+                        rollout.nuisance,
+                        rollout.base_period,
+                        rollout.aggregation,
+                        rollout.anticipation,
+                        rollout.covariates
+                    ),
+                ));
+            }
+            if let Some(resampling) = &query.resampling {
+                dimensions.push((
+                    "resampling".into(),
+                    format!("{}:{}", resampling.scheme, resampling.replicates),
+                ));
             }
             dimensions
         }
@@ -397,16 +420,43 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             if let Some(ridge) = query.augmentation_ridge {
                 dimensions.push(("augmentation_ridge".into(), ridge.to_string()));
             }
+            if let Some(rollout) = &query.rollout {
+                dimensions.push((
+                    "synthetic_interval".into(),
+                    format!(
+                        "{}:{}:adoptions={:?}",
+                        rollout.interval, rollout.replicates, rollout.adoptions
+                    ),
+                ));
+            }
             dimensions
         }
-        CausalQueryWire::LocalPolynomialRatio(query) => vec![
-            ("query_kind".into(), if query.kink { "regression_kink" } else { "fuzzy_rd" }.into()),
-            ("outcome".into(), query.outcome.to_string()),
-            ("treatment".into(), query.treatment.to_string()),
-            ("running".into(), query.running.to_string()),
-            ("cutoff".into(), query.cutoff.to_string()),
-            ("bandwidth".into(), query.bandwidth.to_string()),
-        ],
+        CausalQueryWire::LocalPolynomialRatio(query) => {
+            let mut dimensions: Vec<(String, String)> = vec![
+                (
+                    "query_kind".into(),
+                    if query.kink { "regression_kink" } else { "fuzzy_rd" }.into(),
+                ),
+                ("outcome".into(), query.outcome.to_string()),
+                ("treatment".into(), query.treatment.to_string()),
+                ("running".into(), query.running.to_string()),
+                ("cutoff".into(), query.cutoff.to_string()),
+                ("bandwidth".into(), query.bandwidth.to_string()),
+            ];
+            if let Some(options) = &query.options {
+                dimensions.push((
+                    "local_ratio_options".into(),
+                    format!(
+                        "{}:temporal={:?}:density={}:balance={:?}",
+                        options.bandwidth_rule,
+                        options.temporal_replicates,
+                        options.density_test,
+                        options.balance_covariates
+                    ),
+                ));
+            }
+            dimensions
+        }
         CausalQueryWire::PolicyValue(query) => {
             let mut dimensions = vec![
                 ("query_kind".into(), "policy_value".into()),
@@ -493,6 +543,82 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         CausalQueryWire::MechanismChange { targets, .. } => {
             named_outcomes("mechanism_change", targets)
         }
+        CausalQueryWire::Discover(query) => vec![
+            ("query_kind".into(), "discover".into()),
+            ("variables".into(), join_ids(&query.variables)),
+            ("method".into(), format!("{:?}", query.method)),
+            (
+                "temporal_coordinates".into(),
+                if query.max_lag == 0 {
+                    "none".into()
+                } else {
+                    format!("max_lag:{}", query.max_lag)
+                },
+            ),
+        ],
+        CausalQueryWire::Attribute(query) => {
+            let (kind, outcomes) = match &query.target {
+                crate::AttributeTargetWire::IntrinsicInfluence { target, .. } => {
+                    ("intrinsic_influence", vec![*target])
+                }
+                crate::AttributeTargetWire::RootCauses { .. } => ("root_causes", Vec::new()),
+                crate::AttributeTargetWire::DistributionChange { .. } => {
+                    ("distribution_change", Vec::new())
+                }
+                crate::AttributeTargetWire::Paths { outcome, .. } => ("paths", vec![*outcome]),
+                crate::AttributeTargetWire::FeatureRelevance { outcome, .. } => {
+                    ("feature_relevance", vec![*outcome])
+                }
+                crate::AttributeTargetWire::Anomaly { .. } => ("anomaly", Vec::new()),
+                crate::AttributeTargetWire::UnitChange { .. } => ("unit_change", Vec::new()),
+                crate::AttributeTargetWire::MechanismChange { .. } => {
+                    ("mechanism_change", Vec::new())
+                }
+                crate::AttributeTargetWire::StructureChange { .. } => {
+                    ("structure_change", Vec::new())
+                }
+            };
+            let mut dimensions = named_outcomes("attribute", &outcomes);
+            dimensions.push(("attribution".into(), kind.into()));
+            if let Some(embedded) = query.embedded() {
+                dimensions.extend(
+                    executed_functional_labels(embedded)
+                        .into_iter()
+                        .map(|(key, value)| (format!("embedded.{key}"), value)),
+                );
+            }
+            dimensions
+        }
+        CausalQueryWire::Simulate(query) => {
+            let (kind, outcomes) = match &query.target {
+                crate::SimulationTargetWire::InterventionalSample { draws, .. } => {
+                    (format!("interventional_sample:{draws}"), Vec::new())
+                }
+                crate::SimulationTargetWire::PolicyValue { outcome, draws, .. } => {
+                    (format!("policy_value:{draws}"), vec![*outcome])
+                }
+                crate::SimulationTargetWire::UnitEffects { outcome, .. } => {
+                    ("unit_effects".to_owned(), vec![*outcome])
+                }
+            };
+            let mut dimensions = named_outcomes("simulate", &outcomes);
+            dimensions.push(("simulation".into(), kind));
+            dimensions
+        }
+        CausalQueryWire::TemporalDesign(query) => vec![
+            ("query_kind".into(), "temporal_design".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("design".into(), query.design_name().into()),
+            ("lag".into(), query.lag.to_string()),
+            (
+                "functional".into(),
+                query
+                    .quantile_level
+                    .map_or_else(|| "mean".into(), |level| format!("quantile:{level}")),
+            ),
+            ("rows".into(), query.units.len().to_string()),
+            ("temporal_coordinates".into(), "unit_period".into()),
+        ],
         // Contrast queries are labeled by `executed_functional_labels` before this
         // function is called. Matching them here keeps the match exhaustive, so a
         // new query kind is a compile error instead of a runtime panic.
@@ -1987,6 +2113,14 @@ pub struct ProgramIdentityWire {
     /// Checked linear-Gaussian shared-exogenous natural direct effect operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_nested_counterfactual: Option<CheckedNestedCounterfactualWire>,
+    /// Digest of the provenance of a discovered structure the program runs on:
+    /// the search method, its configuration and bounds, the data snapshot it
+    /// read, the discovery program and claim, and the review that accepted it.
+    /// Absent for a supplied structure. Identification excludes the discovery
+    /// algorithm as audit data (re-accepting a graph must not invalidate its
+    /// identification); the program that fits and estimates on it binds it here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub structure_provenance: Option<[u8; 32]>,
 }
 
 /// Fixed three-node Markovian natural direct effect procedure.
@@ -2856,6 +2990,7 @@ mod tests {
                 checked_linear_adjustment_lowering: None,
                 checked_functional_response_grid: None,
                 checked_nested_counterfactual: None,
+                structure_provenance: None,
             })
             .unwrap();
             (target_digest, question, program)

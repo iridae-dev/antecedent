@@ -91,7 +91,7 @@ pub mod scientific;
 pub mod validate;
 
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
-pub use accepted::{AcceptedGraph, GraphClass, GraphRef, IntoAccepted};
+pub use accepted::{AcceptedGraph, GraphClass, GraphRef, IntoAccepted, StructureProvenance};
 pub use analysis::api::*;
 #[doc(hidden)]
 pub use analysis::temporal_dependent_interval_candidate;
@@ -118,6 +118,13 @@ pub use query::{
     SyntheticPanelMethod, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
     TransportQuery, UnitChangeQuery,
 };
+pub use query::{AttributeQuery, DiscoverQuery, SimulateQuery};
+pub use query::{
+    OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
+    TemporalDoseTarget,
+};
+pub use result::QuasiRolloutEstimate;
+pub use result::TemporalDesignEstimate;
 pub use result::{
     AnalysisIdentification, ContinuousDoseResponseEstimate, ExecutedContract, HistoryMatchEstimate,
     LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, PERCENTILE_95_MIN_REPLICATES,

@@ -77,6 +77,27 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
         ) if analysis.structure_source == crate::support::StructureSource::Explicit => Some(
             crate::analysis::execute::CheckedAttributionOperation::checked(analysis, plan, cache)?,
         ),
+        // The fitted-model routes and the mechanism- and unit-change studies run on
+        // a supplied DAG or on one accepted from a compiled discovery, whose
+        // provenance the contract carries.
+        (
+            DataInput::Tabular(_),
+            CausalQuery::MechanismChange(_)
+            | CausalQuery::UnitChange(_)
+            | CausalQuery::Attribute(_)
+            | CausalQuery::Simulate(_),
+            Some(cache),
+            GraphClass::Dag,
+            _,
+        ) if matches!(
+            analysis.structure_source,
+            crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+        ) =>
+        {
+            Some(crate::analysis::execute::CheckedAttributionOperation::checked(
+                analysis, plan, cache,
+            )?)
+        }
         _ => None,
     };
     Ok(sealed.map(PreparedExecution::Attribution))
@@ -91,7 +112,8 @@ pub(super) fn counterfactual(cx: &SealContext<'_>) -> SealOutcome {
         message: "counterfactual preparation lost its identification product".into(),
     })?;
     let inference = analysis.inference.clone();
-    let procedure = crate::analysis::execute::CounterfactualProcedure::for_inference(&inference)?;
+    let procedure = crate::analysis::execute::CounterfactualProcedure::for_inference(&inference)?
+        .with_bootstrap(analysis.bootstrap_replicates, analysis.sampling_design)?;
     Ok(Some(PreparedExecution::Counterfactual(
         crate::analysis::execute::CheckedCounterfactualPlan::new(
             operation.clone(),

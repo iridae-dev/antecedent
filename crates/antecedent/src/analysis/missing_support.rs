@@ -20,7 +20,7 @@ const REGISTRY: &str = include_str!("../../../../parity/missing_policy_support.t
 /// Every query kind, in declaration order. [`query_kind_index`] is an exhaustive match, so a
 /// new [`CausalQueryKind`] fails to compile until it is listed here and given its rows (or
 /// left without one, which refuses every declaration).
-pub const ALL_QUERY_KINDS: [CausalQueryKind; 25] = [
+pub const ALL_QUERY_KINDS: [CausalQueryKind; 29] = [
     CausalQueryKind::AverageEffect,
     CausalQueryKind::TemporalEffect,
     CausalQueryKind::Counterfactual,
@@ -46,6 +46,10 @@ pub const ALL_QUERY_KINDS: [CausalQueryKind; 25] = [
     CausalQueryKind::LongitudinalRegime,
     CausalQueryKind::SequentialContrast,
     CausalQueryKind::HistoryMatch,
+    CausalQueryKind::Discover,
+    CausalQueryKind::Attribute,
+    CausalQueryKind::Simulate,
+    CausalQueryKind::TemporalDesign,
 ];
 
 /// Position of `kind` in [`ALL_QUERY_KINDS`].
@@ -77,6 +81,10 @@ pub(crate) const fn query_kind_index(kind: CausalQueryKind) -> usize {
         CausalQueryKind::LongitudinalRegime => 22,
         CausalQueryKind::SequentialContrast => 23,
         CausalQueryKind::HistoryMatch => 24,
+        CausalQueryKind::Discover => 25,
+        CausalQueryKind::Attribute => 26,
+        CausalQueryKind::Simulate => 27,
+        CausalQueryKind::TemporalDesign => 28,
     }
 }
 

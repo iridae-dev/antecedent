@@ -140,6 +140,11 @@ pub struct StudyConfig {
     /// Prepare-time transport formula + certificate.
     pub(crate) transport_identification_cache:
         Option<Arc<antecedent_identify::TransportIdentification>>,
+    /// Executable search of a structure-discovery query.
+    pub(crate) discovery: Option<Arc<super::structure_route::DiscoverySpec>>,
+    /// Mechanism fit of an attribution or simulation query; `None` runs the
+    /// standard registry.
+    pub(crate) mechanisms: Option<Arc<super::structure_route::MechanismProgram>>,
 }
 
 /// Prepared analysis (static or temporal).
@@ -255,6 +260,7 @@ mod checked_cell_aipw_response;
 pub(crate) use checked_bayesian_dag_conditional::{
     CheckedBayesianConditionalOperation, CheckedBayesianConditionalOperationPremises,
 };
+mod bayesian_level_refutation;
 mod bayesian_path;
 mod bayesian_quantile_path;
 mod bayesian_robust_ate_path;
@@ -266,8 +272,13 @@ mod checked_local_polynomial_ratio;
 mod checked_longitudinal_regime;
 mod checked_panel_did;
 mod checked_randomized;
+mod class_response_refutation;
+mod derivative_refutation;
+mod gcm_bootstrap;
 mod randomized_fit;
 mod randomized_trial;
+mod rollout_finish;
+mod temporal_response_refutation;
 use randomized_trial::{RandomizedTrialOperation, RandomizedTrialQuery};
 mod checked_static_mediation;
 mod checked_survival;
@@ -292,6 +303,7 @@ mod checked_sequential_contrast;
 pub(crate) use checked_sequential_contrast::CheckedSequentialContrastOperation;
 mod checked_history_match;
 pub(crate) use checked_history_match::CheckedHistoryMatchOperation;
+mod checked_temporal_design;
 pub(crate) use checked_panel_did::CheckedPanelDidOperation;
 pub(crate) use checked_panel_did::panel_did_graphless_key;
 pub(crate) use checked_panel_did::panel_did_identification;
@@ -303,6 +315,7 @@ pub(crate) use checked_survival::{CheckedSurvivalOperation, survival_identificat
 pub(crate) use checked_synthetic_control::{
     CheckedSyntheticControlOperation, synthetic_control_identification,
 };
+pub(crate) use checked_temporal_design::CheckedTemporalDesignOperation;
 pub(crate) use checked_temporal_mediation::CheckedTemporalMediationOperation;
 mod atom_mix;
 mod class_envelope_se;
@@ -327,6 +340,8 @@ mod planning_simulation;
 pub(super) use compile::compile_logical_admg_response;
 mod route_input;
 pub(crate) use route_input::{RouteInput, StaticMediationSource};
+mod structural_route;
+pub(crate) use structural_route::structure_search_identification;
 mod dbn_mediation_frequentist;
 mod mediation_streams;
 use mediation_streams::{MediationRoute, mediation_block_stream, mediation_mechanism_seed};
@@ -374,6 +389,7 @@ mod temporal_class_posterior_response;
 mod temporal_effect_core;
 mod temporal_mediation_core;
 mod temporal_path;
+mod temporal_point_uncertainty;
 mod temporal_posterior_response;
 mod transport_interference_path;
 mod tuple_bootstrap;

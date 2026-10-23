@@ -122,6 +122,7 @@ sealed_executions! {
     LongitudinalRegime(crate::analysis::execute::CheckedLongitudinalRegimeOperation),
     SequentialContrast(crate::analysis::execute::CheckedSequentialContrastOperation),
     HistoryMatch(crate::analysis::execute::CheckedHistoryMatchOperation),
+    TemporalDesign(Box<crate::analysis::execute::CheckedTemporalDesignOperation>),
     TemporalClassEffect(crate::analysis::execute::CheckedTemporalClassEffectExecution),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(crate::analysis::execute::CheckedBayesianDagAteExecution),

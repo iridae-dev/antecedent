@@ -8,6 +8,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub use super::structure_route::{
+    AttributionOutcome, AttributionPayload, CompiledExecution, DiscoveredStructure,
+    DiscoveryPayload, DiscoverySpec, MechanismProgram, SimulationOutcome, SimulationPayload,
+    accept_discovered, panel_of_units,
+};
 pub use super::{
     ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
     ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,

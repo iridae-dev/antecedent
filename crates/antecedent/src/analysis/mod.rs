@@ -148,6 +148,8 @@ pub mod sequential_evaluation;
 mod smoothed_dose;
 pub mod staleness;
 mod statistical;
+pub mod structure_route;
+pub mod target_validation;
 pub mod temporal_counterfactual;
 mod temporal_extensions;
 #[doc(hidden)]

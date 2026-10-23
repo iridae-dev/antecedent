@@ -177,10 +177,25 @@ pub use query::{
     VariableCoordinate, VariableDomain, policy_graphless_coordinate,
     randomized_graphless_coordinate,
 };
+pub use query::{
+    AttributeQuery, AttributeTarget, ChangeEstimator, ChangeMeasure, DiscoverQuery,
+    DiscoveredClass, DiscoveryInference, DiscoveryMethod, InfluenceAllocation,
+    IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration, ScreenWeight, SearchBounds,
+    SearchSchedule, SimulateQuery, SimulationTarget,
+};
 pub use query::{CounterfactualEvent, CounterfactualEventQuery};
 pub use query::{
     CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
     WorldSpec,
+};
+pub use query::{
+    DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod, DidResampling,
+    DidResamplingScheme, HeterogeneityRobustDid, LocalBandwidthRule, LocalRatioOptions,
+    RolloutDidEstimator, SyntheticInterval, SyntheticRollout,
+};
+pub use query::{
+    OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
+    TemporalDoseTarget,
 };
 pub use query::{SmoothedDoseTransportQuery, SmoothingKernel};
 pub use refusal::{NextAttempt, Refusal, Refused};

@@ -145,11 +145,15 @@ impl PyPreparedAnalysis {
                 outcome_functional,
                 &req.opts,
             )?;
-            let builder = Study::tabular(data)
-                .tiered_background(background)
-                .map_err(py_err)?
-                .query(query)
-                .estimator(antecedent::EstimatorId::CellAipw);
+            let builder =
+                Study::tabular(data).tiered_background(background).map_err(py_err)?.query(query);
+            // The Frequentist joint cell is cell.aipw; a Bayesian declaration runs
+            // response.bayesian over the same closure set (unlicensed).
+            let builder = if req.opts.inference.is_bayesian() {
+                builder
+            } else {
+                builder.estimator(antecedent::EstimatorId::CellAipw)
+            };
             req.finish_applied(builder, false)
         })
     }

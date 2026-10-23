@@ -316,6 +316,8 @@ fn panel_did() -> PanelDidQuery {
         cohorts: Arc::from([1_i64, 0]),
         target: None,
         augmented: None,
+        robust: None,
+        resampling: None,
     }
 }
 
@@ -330,6 +332,7 @@ fn synthetic_control() -> SyntheticControlQuery {
         uniform_unit_randomization: false,
         sharp_null_effect: None,
         augmentation_ridge: None,
+        rollout: None,
     }
 }
 
@@ -341,6 +344,7 @@ fn local_ratio() -> LocalPolynomialRatioQuery {
         cutoff: 0.0,
         bandwidth: 1.0,
         kink: false,
+        options: None,
     }
 }
 
@@ -1074,6 +1078,63 @@ fn every_design_query_field_reaches_the_encoding() {
                     predictions_cross_fitted: true,
                 });
             },
+            &|q| q.design = DidSamplingDesign::StaggeredHeterogeneityRobust,
+            &|q| q.design = DidSamplingDesign::CovariateAdjustedTwoPeriod,
+            &|q| q.robust = Some(HeterogeneityRobustDid::default()),
+            &|q| {
+                q.robust = Some(HeterogeneityRobustDid {
+                    estimator: RolloutDidEstimator::Imputation,
+                    ..HeterogeneityRobustDid::default()
+                });
+            },
+            &|q| {
+                q.robust = Some(HeterogeneityRobustDid {
+                    comparison: DidComparisonGroup::NotYetTreated,
+                    ..HeterogeneityRobustDid::default()
+                });
+            },
+            &|q| {
+                q.robust = Some(HeterogeneityRobustDid {
+                    nuisance: DidNuisanceMethod::OutcomeRegression,
+                    ..HeterogeneityRobustDid::default()
+                });
+            },
+            &|q| {
+                q.robust = Some(HeterogeneityRobustDid {
+                    base_period: DidBasePeriod::Universal,
+                    ..HeterogeneityRobustDid::default()
+                });
+            },
+            &|q| {
+                q.robust = Some(HeterogeneityRobustDid {
+                    aggregation: DidAggregation::Dynamic,
+                    ..HeterogeneityRobustDid::default()
+                });
+            },
+            &|q| {
+                q.robust = Some(HeterogeneityRobustDid {
+                    anticipation: 1,
+                    ..HeterogeneityRobustDid::default()
+                });
+            },
+            &|q| {
+                q.robust = Some(HeterogeneityRobustDid {
+                    covariates: Arc::from([v(7)]),
+                    ..HeterogeneityRobustDid::default()
+                });
+            },
+            &|q| {
+                q.resampling = Some(DidResampling {
+                    scheme: DidResamplingScheme::ClusterBootstrap,
+                    replicates: 99,
+                });
+            },
+            &|q| {
+                q.resampling = Some(DidResampling {
+                    scheme: DidResamplingScheme::ClusterMultiplier,
+                    replicates: 99,
+                });
+            },
         ],
     );
     check(
@@ -1089,6 +1150,20 @@ fn every_design_query_field_reaches_the_encoding() {
             &|q| q.uniform_unit_randomization = true,
             &|q| q.sharp_null_effect = Some(0.0),
             &|q| q.augmentation_ridge = Some(0.0),
+            &|q| {
+                q.rollout = Some(SyntheticRollout {
+                    adoptions: Arc::from([(Arc::from("a"), 1_i64)]),
+                    interval: SyntheticInterval::Conformal,
+                    replicates: 0,
+                });
+            },
+            &|q| {
+                q.rollout = Some(SyntheticRollout {
+                    adoptions: Arc::from([(Arc::from("a"), 1_i64)]),
+                    interval: SyntheticInterval::PlaceboVariance,
+                    replicates: 50,
+                });
+            },
         ],
     );
     check(
@@ -1101,6 +1176,29 @@ fn every_design_query_field_reaches_the_encoding() {
             &|q| q.cutoff = -0.0,
             &|q| q.bandwidth = 2.0,
             &|q| q.kink = true,
+            &|q| q.options = Some(LocalRatioOptions::default()),
+            &|q| {
+                q.options = Some(LocalRatioOptions {
+                    bandwidth_rule: LocalBandwidthRule::MseOptimal,
+                    ..LocalRatioOptions::default()
+                });
+            },
+            &|q| {
+                q.options = Some(LocalRatioOptions {
+                    temporal_replicates: Some(99),
+                    ..LocalRatioOptions::default()
+                });
+            },
+            &|q| {
+                q.options =
+                    Some(LocalRatioOptions { density_test: true, ..LocalRatioOptions::default() });
+            },
+            &|q| {
+                q.options = Some(LocalRatioOptions {
+                    balance_covariates: Arc::from([v(7)]),
+                    ..LocalRatioOptions::default()
+                });
+            },
         ],
     );
 }
@@ -1303,4 +1401,271 @@ fn variants_with_similar_payloads_encode_differently() {
         digest(&CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(v(0), v(1)))),
         digest(&CausalQuery::PathSpecific(PathSpecificEffectQuery::binary(v(0), v(1))))
     );
+}
+
+fn discover() -> DiscoverQuery {
+    DiscoverQuery::new(
+        vec![v(0), v(1), v(2)],
+        DiscoveryMethod::Pc,
+        SearchBounds {
+            alpha: 0.05,
+            max_cond_size: 2,
+            max_lag: 0,
+            schedule: None,
+            configuration: [7; 32],
+        },
+    )
+}
+
+fn attribute() -> AttributeQuery {
+    AttributeQuery::new(AttributeTarget::Paths {
+        sources: Arc::from([v(0)]),
+        outcome: v(2),
+        max_paths: 64,
+        max_len: 16,
+        through: Arc::from([]),
+    })
+}
+
+fn simulate() -> SimulateQuery {
+    SimulateQuery::new(SimulationTarget::InterventionalSample {
+        interventions: Arc::from([set(0, 1.0)]),
+        draws: 100,
+        seed: 3,
+    })
+}
+
+/// The tag a variant writes before its payload.
+fn tagged<T: CanonicalEncode>(tag: u64, payload: &T) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new("t");
+    writer.word(tag);
+    payload.encode(&mut writer);
+    writer.finish()
+}
+
+#[test]
+fn the_structure_and_model_kinds_append_their_tags() {
+    assert_eq!(digest(&CausalQuery::Discover(discover())), tagged(26, &discover()));
+    assert_eq!(digest(&CausalQuery::Attribute(attribute())), tagged(27, &attribute()));
+    assert_eq!(digest(&CausalQuery::Simulate(simulate())), tagged(28, &simulate()));
+    assert_eq!(CausalQuery::Discover(discover()).kind(), CausalQueryKind::Discover);
+    assert_eq!(CausalQuery::Attribute(attribute()).kind(), CausalQueryKind::Attribute);
+    assert_eq!(CausalQuery::Simulate(simulate()).kind(), CausalQueryKind::Simulate);
+    assert_distinct(&[
+        CausalQuery::HistoryMatch(history_match()),
+        CausalQuery::Discover(discover()),
+        CausalQuery::Attribute(attribute()),
+        CausalQuery::Simulate(simulate()),
+        CausalQuery::AnomalyAttribution(anomaly()),
+        CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::Anomaly(anomaly()))),
+    ]);
+}
+
+#[test]
+fn every_discover_field_reaches_the_bytes() {
+    check(
+        CausalQuery::Discover,
+        &discover(),
+        &[
+            &|q| q.variables = Arc::from([v(2), v(1), v(0)]),
+            &|q| q.method = DiscoveryMethod::Fci,
+            &|q| q.method = DiscoveryMethod::Ges { screen_pc: true, max_subset: None },
+            &|q| q.method = DiscoveryMethod::Ges { screen_pc: false, max_subset: Some(4) },
+            &|q| q.bounds.alpha = 0.01,
+            &|q| q.bounds.max_cond_size = 3,
+            &|q| q.bounds.max_lag = 1,
+            &|q| {
+                q.bounds.schedule =
+                    Some(SearchSchedule { chains: 2, warmup: 10, draws: 20, thin: 1 });
+            },
+            &|q| q.bounds.configuration = [8; 32],
+        ],
+    );
+}
+
+#[test]
+fn every_attribute_and_simulate_field_reaches_the_bytes() {
+    check(
+        CausalQuery::Attribute,
+        &attribute(),
+        &[
+            &|q| {
+                if let AttributeTarget::Paths { max_paths, .. } = &mut q.target {
+                    *max_paths = 8;
+                }
+            },
+            &|q| {
+                if let AttributeTarget::Paths { through, .. } = &mut q.target {
+                    *through = Arc::from([v(1)]);
+                }
+            },
+            &|q| q.target = AttributeTarget::UnitChange(unit_change()),
+            &|q| {
+                q.target = AttributeTarget::MechanismChange {
+                    query: mechanism(),
+                    test: MechanismChangeTest::MeanDifference,
+                };
+            },
+            &|q| {
+                q.target = AttributeTarget::DistributionChange {
+                    change: change(),
+                    estimator: ChangeEstimator::Sampled {
+                        measure: ChangeMeasure::MeanDifference,
+                        n_samples: 100,
+                        seed: 0,
+                    },
+                };
+            },
+            &|q| {
+                q.target = AttributeTarget::RootCauses {
+                    change: change(),
+                    estimator: ChangeEstimator::Sampled {
+                        measure: ChangeMeasure::MeanDifference,
+                        n_samples: 100,
+                        seed: 0,
+                    },
+                };
+            },
+        ],
+    );
+    check(
+        CausalQuery::Simulate,
+        &simulate(),
+        &[
+            &|q| {
+                if let SimulationTarget::InterventionalSample { seed, .. } = &mut q.target {
+                    *seed = 4;
+                }
+            },
+            &|q| {
+                if let SimulationTarget::InterventionalSample { draws, .. } = &mut q.target {
+                    *draws = 101;
+                }
+            },
+            &|q| {
+                q.target = SimulationTarget::PolicyValue {
+                    interventions: Arc::from([set(0, 1.0)]),
+                    outcome: v(2),
+                    draws: 100,
+                };
+            },
+            &|q| {
+                q.target = SimulationTarget::UnitEffects {
+                    treatment: v(0),
+                    outcome: v(2),
+                    active: 1.0,
+                    control: 0.0,
+                };
+            },
+        ],
+    );
+}
+
+#[test]
+fn the_new_kinds_validate_their_declarations() {
+    assert!(discover().validate().is_ok());
+    let mut static_lag = discover();
+    static_lag.bounds.max_lag = 1;
+    assert!(static_lag.validate().is_err());
+    let mut repeated = discover();
+    repeated.variables = Arc::from([v(0), v(0)]);
+    assert!(repeated.validate().is_err());
+    let mut unscheduled = discover();
+    unscheduled.method = DiscoveryMethod::StructureMcmc;
+    assert!(unscheduled.validate().is_err());
+    assert_eq!(DiscoveryMethod::StructureMcmc.inference(), DiscoveryInference::Bayesian);
+    assert_eq!(DiscoveryMethod::PcmciPlus.output(), DiscoveredClass::TemporalCpdag);
+    assert!(DiscoveredClass::Pag.is_equivalence_class());
+    assert!(attribute().validate().is_ok());
+    assert!(simulate().validate().is_ok());
+    let same = SimulateQuery::new(SimulationTarget::UnitEffects {
+        treatment: v(1),
+        outcome: v(1),
+        active: 1.0,
+        control: 0.0,
+    });
+    assert!(same.validate().is_err());
+}
+
+fn temporal_design() -> TemporalDesignQuery {
+    TemporalDesignQuery {
+        outcome: v(1),
+        units: labels(&["a", "a", "b", "b"]),
+        periods: Arc::from([0_i64, 1, 0, 1]),
+        lag: 1,
+        assignment: TemporalAssignment::TwoArm {
+            assignment: flags(&[true, false, false, true]),
+            probability: Arc::from([0.5, 0.4, 0.5, 0.6]),
+        },
+        functional: TemporalDesignFunctional::Mean,
+        min_probability: 0.05,
+        outcome_misclassification: None,
+    }
+}
+
+#[test]
+fn the_temporal_design_kind_appends_its_tag_and_every_field_reaches_the_bytes() {
+    assert_eq!(
+        digest(&CausalQuery::TemporalDesign(temporal_design())),
+        tagged(29, &temporal_design())
+    );
+    assert_eq!(
+        CausalQuery::TemporalDesign(temporal_design()).kind(),
+        CausalQueryKind::TemporalDesign
+    );
+    assert!(temporal_design().validate().is_ok());
+    check(
+        CausalQuery::TemporalDesign,
+        &temporal_design(),
+        &[
+            &|q| q.outcome = v(5),
+            &|q| q.units = labels(&["a", "a", "c", "c"]),
+            &|q| q.periods = Arc::from([0_i64, 2, 0, 1]),
+            &|q| q.lag = 0,
+            &|q| q.functional = TemporalDesignFunctional::Quantile { level: 0.5 },
+            &|q| q.min_probability = 0.1,
+            &|q| {
+                q.outcome_misclassification = Some(OutcomeMisclassification {
+                    true_positive: 9,
+                    false_negative: 1,
+                    true_negative: 8,
+                    false_positive: 2,
+                })
+            },
+            &|q| {
+                q.assignment = TemporalAssignment::Interference {
+                    assignment: flags(&[true, false, false, true]),
+                    probability: Arc::from([0.5, 0.4, 0.5, 0.6]),
+                    clusters: labels(&["x", "x", "x", "x"]),
+                }
+            },
+            &|q| {
+                q.assignment = TemporalAssignment::Dose {
+                    dose: Arc::from([0.1, 0.2, 0.3, 0.4]),
+                    density: Arc::from([1.0, 1.0, 1.0, 1.0]),
+                    bandwidth: 0.2,
+                    target: TemporalDoseTarget::SmoothedContrast { active: 0.3, control: 0.1 },
+                }
+            },
+            &|q| {
+                q.assignment = TemporalAssignment::RegimeSurvival {
+                    treatment: v(2),
+                    censored: v(3),
+                    confounders: Arc::from([v(4)]),
+                    horizon: 2,
+                }
+            },
+        ],
+    );
+    assert_distinct(&[
+        CausalQuery::HistoryMatch(history_match()),
+        CausalQuery::Simulate(simulate()),
+        CausalQuery::TemporalDesign(temporal_design()),
+    ]);
+    let mut repeated = temporal_design();
+    repeated.periods = Arc::from([0_i64, 0, 0, 1]);
+    assert!(repeated.validate().is_err());
+    let mut quantile_multi = temporal_design();
+    quantile_multi.functional = TemporalDesignFunctional::Quantile { level: 1.5 };
+    assert!(quantile_multi.validate().is_err());
 }

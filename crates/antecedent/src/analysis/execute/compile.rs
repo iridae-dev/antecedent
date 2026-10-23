@@ -205,6 +205,9 @@ impl super::Study {
             RouteInput::HistoryMatch { data, query: q } => {
                 self.compile_logical_history_match(data, q)
             }
+            RouteInput::TemporalDesign { data, query: q } => {
+                self.compile_logical_temporal_design(data, q)
+            }
             RouteInput::GcmDag { data, .. } => self.compile_logical_gcm(
                 data.row_count() as u64,
                 PlanId::GcmQuery.as_str(),
@@ -215,6 +218,22 @@ impl super::Study {
                 PlanId::GcmTemporalQuery.as_str(),
                 DataClassification::Temporal,
             ),
+            RouteInput::GcmAttributeDag { data, .. } => self.compile_logical_gcm(
+                data.row_count() as u64,
+                PlanId::GcmAttribute.as_str(),
+                DataClassification::Tabular,
+            ),
+            RouteInput::GcmSimulateDag { data, .. } => self.compile_logical_gcm(
+                data.row_count() as u64,
+                PlanId::GcmSimulate.as_str(),
+                DataClassification::Tabular,
+            ),
+            RouteInput::DiscoverStatic { query, .. } => {
+                self.compile_logical_discover(query, DataClassification::Tabular)
+            }
+            RouteInput::DiscoverTemporal { query, classification } => {
+                self.compile_logical_discover(query, classification)
+            }
             RouteInput::TemporalCrossWorldClass { data, class } => {
                 self.compile_logical_cross_world_class(data, class)
             }
@@ -1061,7 +1080,7 @@ impl super::Study {
         let (plan_id, identifier, estimator) = if self.inference.is_bayesian() {
             super::checked_synthetic_control::bayesian_synthetic_panel_plan_ids()
         } else {
-            super::checked_synthetic_control::synthetic_panel_plan_ids(q.method)
+            super::checked_synthetic_control::synthetic_query_plan_ids(q)
         };
         Ok(self.study_query_plan(
             data.row_count() as u64,
@@ -1111,7 +1130,7 @@ impl super::Study {
         let (plan_id, identifier, estimator) = if self.inference.is_bayesian() {
             super::checked_local_polynomial_ratio::bayesian_local_polynomial_ratio_plan_ids(q.kink)
         } else {
-            super::checked_local_polynomial_ratio::local_polynomial_ratio_plan_ids(q.kink)
+            super::checked_local_polynomial_ratio::local_ratio_query_plan_ids(q)
         };
         Ok(self.study_query_plan(
             data.row_count() as u64,
@@ -1178,6 +1197,40 @@ impl super::Study {
             "randomized.design",
             plan,
             Arc::from([q.outcome, q.treated]),
+        ))
+    }
+
+    fn compile_logical_temporal_design(
+        &self,
+        data: &TabularData,
+        q: &antecedent_core::TemporalDesignQuery,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        q.validate()?;
+        if q.rows() != data.row_count() {
+            return Err(CausalError::Compile {
+                message: "temporal-design unit and period labels must align with the table rows"
+                    .into(),
+            });
+        }
+        for id in q.columns() {
+            data.schema().get(id).map_err(CausalError::rejected)?;
+        }
+        let survival =
+            matches!(q.assignment, antecedent_core::TemporalAssignment::RegimeSurvival { .. });
+        let plan = match (survival, self.inference.is_bayesian()) {
+            (false, false) => PlanId::TemporalDesignExcursion,
+            (false, true) => PlanId::BayesianTemporalDesignExcursion,
+            (true, false) => PlanId::TemporalRegimeSurvival,
+            (true, true) => PlanId::BayesianTemporalRegimeSurvival,
+        }
+        .as_str();
+        Ok(self.study_query_plan(
+            data.row_count() as u64,
+            DataClassification::Tabular,
+            plan,
+            "randomized.design",
+            plan,
+            Arc::from(q.columns()),
         ))
     }
 
@@ -1249,6 +1302,49 @@ impl super::Study {
             "randomized.design",
             method_id,
             Arc::from([q.outcome]),
+        ))
+    }
+
+    /// Structure search: the record names the method as the discovery algorithm
+    /// and the estimator, and asks for review unless the answer is a posterior.
+    fn compile_logical_discover(
+        &self,
+        query: &antecedent_core::DiscoverQuery,
+        classification: DataClassification,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        use antecedent_core::DiscoveredClass;
+        query.validate()?;
+        let rows = match &self.data {
+            DataInput::Tabular(data) => data.row_count() as u64,
+            DataInput::Temporal(data) | DataInput::Event(data) => data.row_count() as u64,
+            DataInput::Panel(panel) => panel.total_rows() as u64,
+            DataInput::MultiEnv(multi) => {
+                multi.environments().iter().map(|env| env.row_count() as u64).sum()
+            }
+        };
+        let plan_id = if classification == DataClassification::Tabular {
+            PlanId::StructureDiscovery
+        } else {
+            PlanId::TemporalStructureDiscovery
+        };
+        Ok(LogicalAnalysisPlan::unsplit(
+            antecedent_contract::LogicalAnalysisPlanRecord {
+                plan_id: Arc::from(plan_id.as_str()),
+                data_classification: classification,
+                discovery_algorithm: Some(Arc::from(query.method.id())),
+                graph_review_required: !matches!(
+                    query.output(),
+                    DiscoveredClass::DagPosterior
+                        | DiscoveredClass::DagEdgeMarginals
+                        | DiscoveredClass::TemporalDagPosterior
+                ),
+                identifier: Some(Arc::from(super::structural_route::STRUCTURE_SEARCH_IDENTIFIER)),
+                estimator: Some(Arc::from(format!("discovery.{}", query.method.id()))),
+                validation_suite: None,
+                query_variables: Arc::clone(&query.variables),
+            },
+            self.query.clone(),
+            rows,
         ))
     }
 
@@ -1442,9 +1538,21 @@ impl super::Study {
             RouteInput::ConditionalDag { graph, .. }
             | RouteInput::StaticMediationDag { graph, .. }
             | RouteInput::InterferenceDag { graph, .. }
-            | RouteInput::GcmDag { graph, .. } => self
+            | RouteInput::GcmDag { graph, .. }
+            | RouteInput::GcmAttributeDag { graph, .. }
+            | RouteInput::GcmSimulateDag { graph, .. } => self
                 .compile_logical_from(input)?
                 .compile_physical_with_graphs(ctx, None, Some(graph.clone())),
+            RouteInput::DiscoverStatic { query, .. }
+            | RouteInput::DiscoverTemporal { query, .. } => {
+                let mut plan = self.compile_logical_from(input)?.compile_physical(ctx)?;
+                // The search runs its own engine, not an adjustment design.
+                plan.record.kernels = Arc::from([(
+                    Arc::from(format!("discovery.{}", query.method.id())),
+                    antecedent_contract::KernelSelection::DenseBackend,
+                )]);
+                Ok(plan)
+            }
             RouteInput::StaticResponseDag { .. }
             | RouteInput::StaticResponseCpdag { .. }
             | RouteInput::CodeterminedJoint { .. }
@@ -1471,6 +1579,7 @@ impl super::Study {
             | RouteInput::LongitudinalRegime { .. }
             | RouteInput::SequentialContrast { .. }
             | RouteInput::HistoryMatch { .. }
+            | RouteInput::TemporalDesign { .. }
             | RouteInput::GcmTemporal { .. }
             | RouteInput::TemporalCrossWorldClass { .. } => {
                 self.compile_logical_from(input)?.compile_physical(ctx)

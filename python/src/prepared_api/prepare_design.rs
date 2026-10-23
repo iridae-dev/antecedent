@@ -70,7 +70,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome_pre, outcome_post, propensity,
         untreated_change_prediction, treated, subjects, clusters, predictions_cross_fitted,
-        *, accepted=false, seed=1, threads=None, options=None))]
+        *, resampling=None, replicates=999, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_augmented_panel_did(
         py: Python<'_>,
@@ -84,11 +84,14 @@ impl PyPreparedAnalysis {
         subjects: Vec<String>,
         clusters: Vec<String>,
         predictions_cross_fitted: bool,
+        resampling: Option<String>,
+        replicates: u32,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        let resampling = did_resampling_scheme(resampling.as_deref())?;
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         req.refuse_design("augmented panel difference-in-differences")?;
         let data = req.load_columns(py, columns)?;
@@ -104,6 +107,10 @@ impl PyPreparedAnalysis {
                 clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect::<Vec<_>>(),
                 predictions_cross_fitted,
             );
+            let query = match resampling {
+                Some(scheme) => query.with_resampling(scheme, replicates),
+                None => query,
+            };
             query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
@@ -199,10 +206,147 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Freeze a heterogeneity-robust staggered rollout (no already-treated controls).
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, subjects, clusters, periods, cohorts,
+        *, estimator="callaway_santanna", comparison="never_treated", nuisance="doubly_robust",
+        base_period="varying", aggregation="simple", anticipation=0, covariates=Vec::new(),
+        resampling=None, replicates=999, accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_rollout_did(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        subjects: Vec<String>,
+        clusters: Vec<String>,
+        periods: Vec<i64>,
+        cohorts: Vec<i64>,
+        estimator: &str,
+        comparison: &str,
+        nuisance: &str,
+        base_period: &str,
+        aggregation: &str,
+        anticipation: u32,
+        covariates: Vec<String>,
+        resampling: Option<String>,
+        replicates: u32,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let estimator = rollout_estimator(estimator)?;
+        let comparison = did_comparison_group(comparison)?;
+        let nuisance = did_nuisance_method(nuisance)?;
+        let base_period = did_base_period(base_period)?;
+        let aggregation = did_aggregation(aggregation)?;
+        let resampling = did_resampling_scheme(resampling.as_deref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("heterogeneity-robust staggered difference-in-differences")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let covariate_ids = covariates
+                .iter()
+                .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
+                .collect::<Result<Vec<_>, _>>()?;
+            let subject_arc: Vec<Arc<str>> =
+                subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let cluster_arc: Vec<Arc<str>> =
+                clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let robust = antecedent_core::HeterogeneityRobustDid {
+                estimator,
+                comparison,
+                nuisance,
+                base_period,
+                aggregation,
+                anticipation,
+                covariates: Arc::from(covariate_ids),
+            };
+            let query = antecedent_core::PanelDidQuery::heterogeneity_robust(
+                outcome_id,
+                subject_arc,
+                cluster_arc,
+                periods,
+                cohorts,
+                robust,
+            );
+            let query = match resampling {
+                Some(scheme) => query.with_resampling(scheme, replicates),
+                None => query,
+            };
+            query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
+            req.finish_applied(builder, false)
+        })
+    }
+
+    /// Freeze a two-period panel DiD with parallel trends conditional on baseline covariates.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, treated, post, subjects, clusters, covariates,
+        *, nuisance="doubly_robust", resampling=None, replicates=999,
+        accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_covariate_adjusted_did(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        treated: Vec<bool>,
+        post: Vec<bool>,
+        subjects: Vec<String>,
+        clusters: Vec<String>,
+        covariates: Vec<String>,
+        nuisance: &str,
+        resampling: Option<String>,
+        replicates: u32,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let nuisance = did_nuisance_method(nuisance)?;
+        let resampling = did_resampling_scheme(resampling.as_deref())?;
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("covariate-adjusted difference-in-differences")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let covariate_ids = covariates
+                .iter()
+                .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
+                .collect::<Result<Vec<_>, _>>()?;
+            let subject_arc: Vec<Arc<str>> =
+                subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let cluster_arc: Vec<Arc<str>> =
+                clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let query = antecedent_core::PanelDidQuery::covariate_adjusted_two_period(
+                outcome_id,
+                treated,
+                post,
+                subject_arc,
+                cluster_arc,
+                covariate_ids,
+                nuisance,
+            );
+            let query = match resampling {
+                Some(scheme) => query.with_resampling(scheme, replicates),
+                None => query,
+            };
+            query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
+            req.finish_applied(builder, false)
+        })
+    }
+
     /// Freeze one treated unit and its balanced donor pool for native synthetic control.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, units, periods, treated_unit,
         intervention_period, *, difference_in_differences=false, uniform_unit_randomization=false, sharp_null_effect=None, augmentation_ridge=None,
+        conformal=false, adoptions=None, placebo_replicates=0,
         accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_synthetic_control(
@@ -218,11 +362,20 @@ impl PyPreparedAnalysis {
         uniform_unit_randomization: bool,
         sharp_null_effect: Option<f64>,
         augmentation_ridge: Option<f64>,
+        conformal: bool,
+        adoptions: Option<Vec<(String, i64)>>,
+        placebo_replicates: u32,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        if conformal && adoptions.is_some() {
+            return Err(crate::value_err(
+                "conformal intervals cover one treated unit; staggered adoptions use \
+                 placebo-variance intervals, so declare one or the other",
+            ));
+        }
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         req.refuse_design("synthetic control")?;
         let data = req.load_columns(py, columns)?;
@@ -251,6 +404,16 @@ impl PyPreparedAnalysis {
             };
             let query = if let Some(ridge) = augmentation_ridge {
                 query.with_augmentation(ridge)
+            } else {
+                query
+            };
+            let query = if conformal { query.with_conformal_intervals() } else { query };
+            let query = if let Some(adoptions) = adoptions {
+                let adoptions: Vec<(Arc<str>, i64)> = adoptions
+                    .into_iter()
+                    .map(|(unit, period)| (Arc::<str>::from(unit), period))
+                    .collect();
+                query.with_staggered_adoptions(adoptions, placebo_replicates)
             } else {
                 query
             };
@@ -337,7 +500,8 @@ impl PyPreparedAnalysis {
     /// Freeze a fixed-window fuzzy RD or regression-kink analysis.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, treatment, running, cutoff, bandwidth,
-        *, kink=false, accepted=false, seed=1, threads=None, options=None))]
+        *, kink=false, bandwidth_rule="declared", temporal_replicates=None, density_test=false,
+        balance_covariates=Vec::new(), accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_local_polynomial_ratio(
         py: Python<'_>,
@@ -349,15 +513,39 @@ impl PyPreparedAnalysis {
         cutoff: f64,
         bandwidth: f64,
         kink: bool,
+        bandwidth_rule: &str,
+        temporal_replicates: Option<u32>,
+        density_test: bool,
+        balance_covariates: Vec<String>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        let bandwidth_rule = local_bandwidth_rule(bandwidth_rule)?;
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         req.refuse_design("local polynomial ratio")?;
         let data = req.load_columns(py, columns)?;
         req.off_gil(py, move |req| {
+            // No declared option keeps the plain fixed-window query and its canonical bytes.
+            let ratio_options = if bandwidth_rule == antecedent_core::LocalBandwidthRule::Declared
+                && temporal_replicates.is_none()
+                && !density_test
+                && balance_covariates.is_empty()
+            {
+                None
+            } else {
+                let balance_ids = balance_covariates
+                    .iter()
+                    .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Some(antecedent_core::LocalRatioOptions {
+                    bandwidth_rule,
+                    temporal_replicates,
+                    density_test,
+                    balance_covariates: Arc::from(balance_ids),
+                })
+            };
             let query = antecedent_core::LocalPolynomialRatioQuery {
                 outcome: crate::graph_build::schema_var_id(data.schema(), &outcome)?,
                 treatment: crate::graph_build::schema_var_id(data.schema(), &treatment)?,
@@ -365,6 +553,7 @@ impl PyPreparedAnalysis {
                 cutoff,
                 bandwidth,
                 kink,
+                options: ratio_options,
             };
             query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
             let _ = accepted;
@@ -739,5 +928,89 @@ impl PyPreparedAnalysis {
             let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
             req.finish_applied(builder, false)
         })
+    }
+}
+
+fn unknown_name(what: &str, got: &str, expected: &str) -> PyErr {
+    crate::value_err(format!("unknown {what} {got:?}; expected one of {expected}"))
+}
+
+fn rollout_estimator(name: &str) -> PyResult<antecedent_core::RolloutDidEstimator> {
+    use antecedent_core::RolloutDidEstimator as Estimator;
+    match name {
+        "callaway_santanna" => Ok(Estimator::CallawaySantAnna),
+        "sun_abraham" => Ok(Estimator::SunAbraham),
+        "imputation" => Ok(Estimator::Imputation),
+        other => Err(unknown_name(
+            "rollout estimator",
+            other,
+            "callaway_santanna, sun_abraham, imputation",
+        )),
+    }
+}
+
+fn did_comparison_group(name: &str) -> PyResult<antecedent_core::DidComparisonGroup> {
+    use antecedent_core::DidComparisonGroup as Comparison;
+    match name {
+        "never_treated" => Ok(Comparison::NeverTreated),
+        "not_yet_treated" => Ok(Comparison::NotYetTreated),
+        other => Err(unknown_name("comparison group", other, "never_treated, not_yet_treated")),
+    }
+}
+
+fn did_nuisance_method(name: &str) -> PyResult<antecedent_core::DidNuisanceMethod> {
+    use antecedent_core::DidNuisanceMethod as Nuisance;
+    match name {
+        "outcome_regression" => Ok(Nuisance::OutcomeRegression),
+        "inverse_probability_weighting" => Ok(Nuisance::InverseProbabilityWeighting),
+        "doubly_robust" => Ok(Nuisance::DoublyRobust),
+        other => Err(unknown_name(
+            "nuisance method",
+            other,
+            "outcome_regression, inverse_probability_weighting, doubly_robust",
+        )),
+    }
+}
+
+fn did_base_period(name: &str) -> PyResult<antecedent_core::DidBasePeriod> {
+    use antecedent_core::DidBasePeriod as Base;
+    match name {
+        "varying" => Ok(Base::Varying),
+        "universal" => Ok(Base::Universal),
+        other => Err(unknown_name("base period", other, "varying, universal")),
+    }
+}
+
+fn did_aggregation(name: &str) -> PyResult<antecedent_core::DidAggregation> {
+    use antecedent_core::DidAggregation as Aggregation;
+    match name {
+        "simple" => Ok(Aggregation::Simple),
+        "dynamic" => Ok(Aggregation::Dynamic),
+        "group" => Ok(Aggregation::Group),
+        "calendar" => Ok(Aggregation::Calendar),
+        other => Err(unknown_name("aggregation", other, "simple, dynamic, group, calendar")),
+    }
+}
+
+fn did_resampling_scheme(
+    name: Option<&str>,
+) -> PyResult<Option<antecedent_core::DidResamplingScheme>> {
+    use antecedent_core::DidResamplingScheme as Scheme;
+    match name {
+        None => Ok(None),
+        Some("cluster_bootstrap") => Ok(Some(Scheme::ClusterBootstrap)),
+        Some("cluster_multiplier") => Ok(Some(Scheme::ClusterMultiplier)),
+        Some(other) => {
+            Err(unknown_name("resampling scheme", other, "cluster_bootstrap, cluster_multiplier"))
+        }
+    }
+}
+
+fn local_bandwidth_rule(name: &str) -> PyResult<antecedent_core::LocalBandwidthRule> {
+    use antecedent_core::LocalBandwidthRule as Rule;
+    match name {
+        "declared" => Ok(Rule::Declared),
+        "mse_optimal" => Ok(Rule::MseOptimal),
+        other => Err(unknown_name("bandwidth rule", other, "declared, mse_optimal")),
     }
 }

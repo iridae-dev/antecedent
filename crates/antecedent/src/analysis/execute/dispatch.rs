@@ -79,6 +79,11 @@ impl super::Study {
     }
 
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
+        if let CausalQuery::Discover(query) = &self.query {
+            // A structure search reads no supplied graph; its admission is the
+            // method against the data modality.
+            return self.ensure_discovery_admitted(query);
+        }
         let class = self.graph.class();
         self.ensure_nested_counterfactual_licensed(class)?;
         if self.estimator == Some(EstimatorId::BayesianBasisGcomp)
@@ -483,6 +488,14 @@ impl super::Study {
     }
 
     pub(super) fn resolve_codetermined_joint_pair(&self) -> (Arc<str>, Arc<str>) {
+        // The Bayesian joint level runs response.bayesian over the same closure set; a
+        // builder placeholder estimator does not override it, a caller selection does.
+        if self.inference.is_bayesian() {
+            return wire_pair((
+                self.identifier.unwrap_or(IdentifierId::GeneralizedAdjustment),
+                self.caller_selected_estimator().unwrap_or(EstimatorId::ResponseBayesian),
+            ));
+        }
         self.resolve_id_est_pair(IdentifierId::GeneralizedAdjustment, EstimatorId::CellAipw)
     }
 
@@ -678,6 +691,9 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
             return self.execute_graph_posterior_route(data, gp, physical, ctx);
+        }
+        if matches!(self.query, CausalQuery::Discover(_)) {
+            return self.execute_discover(data, physical, ctx);
         }
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
@@ -1055,8 +1071,16 @@ impl super::Study {
                 self.execute_longitudinal_regime(data, physical, ctx)
             }
             AnalysisRoute::HistoryMatch => self.execute_history_match(data, physical, ctx),
+            AnalysisRoute::TemporalDesign => self.execute_temporal_design(data, physical, ctx),
             AnalysisRoute::SequentialContrast => {
                 self.execute_sequential_contrast(data, physical, ctx)
+            }
+            AnalysisRoute::Discover => self.execute_discover_tabular(data, physical, ctx),
+            AnalysisRoute::Attribute | AnalysisRoute::Simulate => {
+                let graph = self.require_execute_dag(
+                    "Attribute and Simulate execute on a supplied or accepted static DAG",
+                )?;
+                self.execute_model_route(data, graph, physical, ctx)
             }
             AnalysisRoute::TemporalMediation
             | AnalysisRoute::TemporalEffect
@@ -1792,14 +1816,24 @@ impl super::Study {
                             .estimator
                             .is_none_or(|id| id == EstimatorId::ResponseInterventionGcomp),
                         (
-                            antecedent_core::ResponseFunctional::MeanCurve { .. }
-                            | antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                            antecedent_core::ResponseFunctional::MeanCurve { .. },
                             InferenceMode::Bayesian(_),
                         ) => {
                             self.refute == RefuteSuite::None
                                 && self
                                     .estimator
                                     .is_none_or(|id| id == EstimatorId::ResponseBayesian)
+                        }
+                        // The Bayesian intervention level seals its cheap/full refuter
+                        // state too (it executes unlicensed).
+                        (
+                            antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                            InferenceMode::Bayesian(_),
+                        ) => {
+                            matches!(
+                                self.refute,
+                                RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                            ) && self.estimator.is_none_or(|id| id == EstimatorId::ResponseBayesian)
                         }
                         _ => false,
                     }

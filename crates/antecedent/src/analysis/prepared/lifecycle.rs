@@ -432,6 +432,26 @@ impl PreparedStudy {
         crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
         out.predictive_checks = validated.predictive_checks;
         out.posterior = validated.posterior;
+        // A suite whose cell executes unlicensed (the Bayesian intervention-level
+        // refuter state) must not inherit the licensed status of the estimate.
+        let suite_cell = crate::support::support_cell_named(
+            &analysis.query,
+            if analysis.graph_posterior.is_some() {
+                analysis.graph.class().as_str()
+            } else {
+                crate::support::matrix_graph_class(
+                    &analysis.graph,
+                    &analysis.query,
+                    analysis.tiered.as_ref(),
+                )
+            },
+            analysis.structure_source,
+            &analysis.inference,
+            suite,
+        );
+        if suite_cell.is_some_and(crate::support::executes_unlicensed) {
+            out.support_status = Some(crate::support::CellStatus::Refused);
+        }
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
             Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));

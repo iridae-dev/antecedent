@@ -23,6 +23,17 @@ pub(crate) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, Variabl
             Ok((outcome, outcome))
         }
         CausalQuery::UnitChange(q) => Ok((q.outcome, q.outcome)),
+        CausalQuery::Attribute(q) => {
+            let outcome = q.outcome()?;
+            Ok((outcome, outcome))
+        }
+        CausalQuery::Simulate(q) => {
+            // An unintervened sample names no variable; the record names the
+            // model's first one, as a plain observational draw reads them all.
+            let (treatment, outcome) = q.endpoints();
+            let first = VariableId::from_raw(0);
+            Ok((treatment.or(outcome).unwrap_or(first), outcome.or(treatment).unwrap_or(first)))
+        }
         _ => Err(CausalError::Compile { message: "gcm_query_vars: unsupported query".into() }),
     }
 }
@@ -81,6 +92,10 @@ pub(crate) enum AnalysisRoute {
     LongitudinalRegime,
     SequentialContrast,
     HistoryMatch,
+    Discover,
+    Attribute,
+    Simulate,
+    TemporalDesign,
 }
 
 #[derive(Clone, Copy)]
@@ -188,6 +203,12 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         (DataModality::Tabular, CausalQuery::SequentialContrast(_)) => {
             AnalysisRoute::SequentialContrast
         }
+        // Every modality: the method decides which data it searches, and
+        // admission refuses a method on data it does not run on.
+        (_, CausalQuery::Discover(_)) => AnalysisRoute::Discover,
+        (DataModality::Tabular, CausalQuery::Attribute(_)) => AnalysisRoute::Attribute,
+        (DataModality::Tabular, CausalQuery::Simulate(_)) => AnalysisRoute::Simulate,
+        (DataModality::Tabular, CausalQuery::TemporalDesign(_)) => AnalysisRoute::TemporalDesign,
         _ => return None,
     })
 }
@@ -198,6 +219,8 @@ pub(super) enum GcmSlot {
     Change(antecedent_attribution::ChangeAttributionResult),
     Mechanism(Vec<antecedent_attribution::MechanismChangeDetection>),
     Unit(antecedent_attribution::UnitChangeResult),
+    Attribution(Box<crate::analysis::structure_route::AttributionPayload>),
+    Simulation(Box<crate::analysis::structure_route::SimulationPayload>),
 }
 
 impl GcmSlot {
@@ -209,6 +232,8 @@ impl GcmSlot {
             Self::Change(value) => ResultPayload::ChangeAttribution(value),
             Self::Mechanism(value) => ResultPayload::MechanismChange(value),
             Self::Unit(value) => ResultPayload::UnitChange(value),
+            Self::Attribution(value) => ResultPayload::Attribution(value),
+            Self::Simulation(value) => ResultPayload::Simulation(value),
         }
     }
 }

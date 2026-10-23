@@ -1424,6 +1424,61 @@ status = "internal"
 reason = "report rendering behind antecedent.drift.staleness and PreparedAnalysis.staleness; Python reads it as antecedent.drift.StalenessReport"
 
 [[entry]]
+rust = "antecedent::analysis::structure_route::accept_discovered"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.CompiledRoute"
+
+[[entry]]
+rust = "antecedent::analysis::structure_route::panel_of_units"
+kind = "fn"
+status = "internal"
+reason = "panel assembly behind the discover_* bindings: Python passes a panel as row-concatenated columns with unit_lengths, and the compiled discovery route builds the panel from those units"
+
+[[entry]]
+rust = "antecedent::analysis::target_validation::certify_result_refutations"
+kind = "fn"
+status = "internal"
+reason = "certificate step behind antecedent.estimation.PreparedAnalysis.refute_target (the returned TargetRefutation carries the certificate identity) and behind every claim export; tested in python/tests/test_target_validation.py"
+
+[[entry]]
+rust = "antecedent::analysis::target_validation::refuse_scalar_refutations_for_result"
+kind = "fn"
+status = "internal"
+reason = "enforced by StudyResult::claim, so every Python claim and artifact export refuses a scalar average-effect refutation offered for another target"
+
+[[entry]]
+rust = "antecedent::analysis::target_validation::refute_prepared_target"
+kind = "fn"
+status = "bound"
+python = "antecedent.estimation.PreparedAnalysis.refute_target"
+reason = "study.refute_target(data, suite=...); tested in python/tests/test_target_validation.py"
+
+[[entry]]
+rust = "antecedent::analysis::target_validation::result_quadrant"
+kind = "fn"
+status = "internal"
+reason = "quadrant of the target behind antecedent.estimation.PreparedAnalysis.refute_target; Python reads it as TargetRefutation.target.quadrant"
+
+[[entry]]
+rust = "antecedent::analysis::target_validation::result_refutation_target"
+kind = "fn"
+status = "internal"
+reason = "target identity behind antecedent.estimation.PreparedAnalysis.refute_target; Python reads it as TargetRefutation.target"
+
+[[entry]]
+rust = "antecedent::analysis::target_validation::result_target_family"
+kind = "fn"
+status = "internal"
+reason = "target family behind antecedent.estimation.PreparedAnalysis.refute_target; Python reads it as TargetRefutation.target.family"
+
+[[entry]]
+rust = "antecedent::analysis::target_validation::result_target_values"
+kind = "fn"
+status = "internal"
+reason = "target vector behind antecedent.estimation.PreparedAnalysis.refute_target; Python reads it as TargetCheck.original"
+
+[[entry]]
 rust = "antecedent::analysis::temporal_counterfactual::transported_path_specific"
 kind = "fn"
 status = "bound"

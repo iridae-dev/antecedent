@@ -51,9 +51,9 @@ use crate::analysis::IdentificationCache;
 use crate::analysis::execute::{
     CheckedContinuousDoseOperation, CheckedHistoryMatchOperation, CheckedInterferenceOperation,
     CheckedLongitudinalRegimeOperation, CheckedPolicyValueOperation,
-    CheckedSequentialContrastOperation, RouteInput, local_polynomial_ratio_identification,
-    panel_did_graphless_key, panel_did_identification, randomized_identification,
-    survival_identification, synthetic_control_identification,
+    CheckedSequentialContrastOperation, CheckedTemporalDesignOperation, RouteInput,
+    local_polynomial_ratio_identification, panel_did_graphless_key, panel_did_identification,
+    randomized_identification, survival_identification, synthetic_control_identification,
 };
 use crate::error::CausalError;
 use crate::planner::lowered::{
@@ -68,7 +68,7 @@ use crate::planner::statistical::{
 use crate::{EstimatorId, IdentifierId, InferenceMode, Study};
 
 /// Every cell this family lowers completely.
-pub(super) const LOWERED: [RouteCell; 12] = [
+pub(super) const LOWERED: [RouteCell; 13] = [
     RouteCell::TransportMixed,
     RouteCell::InterferenceDag,
     RouteCell::RandomizedEffect,
@@ -81,6 +81,7 @@ pub(super) const LOWERED: [RouteCell; 12] = [
     RouteCell::LongitudinalRegime,
     RouteCell::SequentialContrast,
     RouteCell::HistoryMatch,
+    RouteCell::TemporalDesign,
 ];
 
 /// Replicates of a randomization test that enumerates every admissible reassignment
@@ -121,7 +122,9 @@ struct DesignCell {
     identification: IdentificationResult,
     models: Vec<ModelSlot>,
     folds: Option<FoldPlan>,
-    /// A randomization test the design runs in place of the declared resampling.
+    /// A randomization test, or the design's own whole-procedure resample (a rollout's
+    /// whole-unit bootstrap, a synthetic panel's placebo or conformal permutations, a
+    /// calendar-time block bootstrap), that the design runs in place of the declared resampling.
     randomization_test: Option<ResamplingPlan>,
     basis: SamplingBasis,
     width: WidthSource,
@@ -411,7 +414,10 @@ fn design_cell(
         RouteInput::PanelDid { query, .. } => {
             let (identification, _) = panel_did_identification(query);
             let key = panel_did_graphless_key(query.design);
-            let mut models = vec![slot(ModelRole::Outcome, key.method, &[], Some(query.outcome))];
+            let mut models = match &query.robust {
+                Some(robust) => rollout_did_models(robust, query.outcome),
+                None => vec![slot(ModelRole::Outcome, key.method, &[], Some(query.outcome))],
+            };
             if let Some(augmented) = &query.augmented {
                 models.push(slot(
                     ModelRole::Propensity,
@@ -431,7 +437,18 @@ fn design_cell(
                 identification,
                 models,
                 folds: None,
-                randomization_test: None,
+                randomization_test: query.resampling.map(|resampling| ResamplingPlan {
+                    method: ResamplingMethod::Bootstrap,
+                    replicates: resampling.replicates,
+                    unit: if study.sampling_design
+                        == Some(
+                            antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories,
+                        ) {
+                        ResampleUnit::Subject
+                    } else {
+                        ResampleUnit::Cluster
+                    },
+                }),
                 basis: SamplingBasis::Superpopulation,
                 width: WidthSource::NotDesignBased(
                     "a difference of cluster outcome changes fits no design matrix",
@@ -453,15 +470,29 @@ fn design_cell(
                     "synthetic_did_unit_and_period_weights_ridge_augmented"
                 }
             };
+            let rollout_plan = query.rollout.as_ref().map(|rollout| match rollout.interval {
+                antecedent_core::SyntheticInterval::Conformal => ResamplingPlan {
+                    method: ResamplingMethod::Permutation,
+                    replicates: EXHAUSTIVE_REASSIGNMENT,
+                    unit: ResampleUnit::CalendarBlock,
+                },
+                antecedent_core::SyntheticInterval::PlaceboVariance => ResamplingPlan {
+                    method: ResamplingMethod::Permutation,
+                    replicates: rollout.replicates,
+                    unit: ResampleUnit::Subject,
+                },
+            });
             DesignCell {
                 target: functional(study, FunctionalKind::EffectOnTreated, query.outcome),
                 identification,
                 models: vec![slot(ModelRole::Outcome, family, &[], Some(query.outcome))],
                 folds: None,
-                randomization_test: query.uniform_unit_randomization.then_some(ResamplingPlan {
-                    method: ResamplingMethod::Permutation,
-                    replicates: EXHAUSTIVE_REASSIGNMENT,
-                    unit: ResampleUnit::Subject,
+                randomization_test: rollout_plan.or_else(|| {
+                    query.uniform_unit_randomization.then_some(ResamplingPlan {
+                        method: ResamplingMethod::Permutation,
+                        replicates: EXHAUSTIVE_REASSIGNMENT,
+                        unit: ResampleUnit::Subject,
+                    })
                 }),
                 basis: if query.uniform_unit_randomization {
                     SamplingBasis::DesignBased
@@ -556,6 +587,8 @@ fn design_cell(
                 inference,
             )?;
             let family = if query.kink { "local_linear_slope_change" } else { "local_linear_jump" };
+            let temporal_replicates =
+                query.options.as_ref().and_then(|options| options.temporal_replicates);
             DesignCell {
                 target: ProblemTarget::Target(target),
                 identification,
@@ -564,7 +597,11 @@ fn design_cell(
                     slot(ModelRole::Instrument, family, &[query.running], Some(query.treatment)),
                 ],
                 folds: None,
-                randomization_test: None,
+                randomization_test: temporal_replicates.map(|replicates| ResamplingPlan {
+                    method: ResamplingMethod::BlockBootstrap,
+                    replicates,
+                    unit: ResampleUnit::CalendarBlock,
+                }),
                 basis: SamplingBasis::Superpopulation,
                 width: WidthSource::NotDesignBased(
                     "two one-sided local fits inside the bandwidth, not one adjustment design",
@@ -732,8 +769,112 @@ fn design_cell(
                 claim: ClaimKind::Point,
             }
         }
+        RouteInput::TemporalDesign { query, .. } => temporal_design_cell(study, query),
         _ => return Err(not_lowered(cx)),
     })
+}
+
+/// The cell of a sequentially randomized unit-period design or of regime survival: the
+/// recorded assignment law (or the fitted treatment and censoring laws) and the outcome
+/// functional the excursion or the regime contrast reads.
+fn temporal_design_cell(study: &Study, query: &antecedent_core::TemporalDesignQuery) -> DesignCell {
+    use antecedent_core::{TemporalAssignment, TemporalDoseTarget};
+    let (identification, _) = CheckedTemporalDesignOperation::design_identification(query);
+    let (kind, claim) = match &query.assignment {
+        TemporalAssignment::Interference { .. } => {
+            (FunctionalKind::ExposureContrast, ClaimKind::Point)
+        }
+        TemporalAssignment::RegimeSurvival { .. } => {
+            (FunctionalKind::SurvivalContrast, ClaimKind::Point)
+        }
+        TemporalAssignment::Dose {
+            target:
+                TemporalDoseTarget::SmoothedCurve { .. } | TemporalDoseTarget::LocalQuadratic { .. },
+            ..
+        } => (FunctionalKind::AssignmentContrast, ClaimKind::Response),
+        _ => (FunctionalKind::AssignmentContrast, ClaimKind::Point),
+    };
+    let models = match &query.assignment {
+        TemporalAssignment::RegimeSurvival { treatment, censored, confounders, .. } => {
+            let mut history: Vec<VariableId> = confounders.to_vec();
+            let mut models = vec![slot(
+                ModelRole::Propensity,
+                "pooled_logistic_treatment",
+                &history,
+                Some(*treatment),
+            )];
+            history.push(*treatment);
+            models.push(slot(
+                ModelRole::Nuisance,
+                "pooled_logistic_censoring",
+                &history,
+                Some(*censored),
+            ));
+            models.push(slot(
+                ModelRole::Outcome,
+                "pooled_logistic_hazard",
+                &history,
+                Some(query.outcome),
+            ));
+            models
+        }
+        _ => vec![
+            slot(ModelRole::Propensity, "recorded_sequential_assignment_law", &[], None),
+            slot(ModelRole::Outcome, "horvitz_thompson_excursion", &[], Some(query.outcome)),
+        ],
+    };
+    DesignCell {
+        target: functional(study, kind, query.outcome),
+        identification,
+        models,
+        folds: None,
+        randomization_test: None,
+        basis: SamplingBasis::Superpopulation,
+        width: WidthSource::NotDesignBased(
+            "unit-clustered weighted ratios and pooled logistic fits are sized at execution",
+        ),
+        claim,
+    }
+}
+
+/// The model slots of a heterogeneity-robust or covariate-adjusted rollout: the estimator's
+/// outcome model and, for a covariate-adjusted 2x2, its nuisance models.
+fn rollout_did_models(
+    robust: &antecedent_core::HeterogeneityRobustDid,
+    outcome: VariableId,
+) -> Vec<ModelSlot> {
+    use antecedent_core::{DidNuisanceMethod, RolloutDidEstimator};
+    let family = match robust.estimator {
+        RolloutDidEstimator::CallawaySantAnna => "group_time_two_by_two_comparisons",
+        RolloutDidEstimator::SunAbraham => "interaction_weighted_cohort_event_time_contrasts",
+        RolloutDidEstimator::Imputation => "untreated_two_way_fixed_effects_imputation",
+    };
+    let mut models = vec![slot(ModelRole::Outcome, family, &robust.covariates, Some(outcome))];
+    if !robust.covariates.is_empty() {
+        if matches!(
+            robust.nuisance,
+            DidNuisanceMethod::OutcomeRegression | DidNuisanceMethod::DoublyRobust
+        ) {
+            models.push(slot(
+                ModelRole::Nuisance,
+                "linear_untreated_change_regression",
+                &robust.covariates,
+                Some(outcome),
+            ));
+        }
+        if matches!(
+            robust.nuisance,
+            DidNuisanceMethod::InverseProbabilityWeighting | DidNuisanceMethod::DoublyRobust
+        ) {
+            models.push(slot(
+                ModelRole::Propensity,
+                "logistic_cohort_propensity",
+                &robust.covariates,
+                None,
+            ));
+        }
+    }
+    models
 }
 
 /// The declared program, with the design's models, folds, randomization test and the

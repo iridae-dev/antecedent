@@ -336,6 +336,7 @@ fn contract_for(
         checked_linear_adjustment_lowering: None,
         checked_functional_response_grid: None,
         checked_nested_counterfactual: None,
+        structure_provenance: None,
     };
     let program_digest = program_digest(&program).unwrap();
     let inference_binding = InferenceBindingWire {

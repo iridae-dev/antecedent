@@ -546,11 +546,13 @@ pub(crate) fn compile_logical_codetermined_joint(
     query.validate()?;
     let identifier_id: IdentifierId = identifier.parse()?;
     let estimator_id: EstimatorId = estimator.parse()?;
-    if identifier_id != IdentifierId::GeneralizedAdjustment || estimator_id != EstimatorId::CellAipw
+    if identifier_id != IdentifierId::GeneralizedAdjustment
+        || !matches!(estimator_id, EstimatorId::CellAipw | EstimatorId::ResponseBayesian)
     {
         return Err(CausalError::Compile {
             message: format!(
-                "CoDetermined joint cells require generalized.adjustment + cell.aipw; got {:?} / {:?}",
+                "CoDetermined joint cells require generalized.adjustment + cell.aipw (or \
+                 response.bayesian under Bayesian inference); got {:?} / {:?}",
                 identifier_id.as_str(),
                 estimator_id.as_str()
             ),

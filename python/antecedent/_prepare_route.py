@@ -52,12 +52,14 @@ from .policy import (
 )
 from .quasi import (
     AugmentedPanelDiD,
+    CovariateAdjustedDiD,
     FuzzyRegressionDiscontinuity,
     PanelDifferenceInDifferences,
     PeriodHistoryMatch,
     RegressionKink,
     SharpRegressionDiscontinuity,
     StaggeredAdoption,
+    StaggeredRollout,
     SyntheticControl,
     SyntheticDifferenceInDifferences,
 )
@@ -296,6 +298,7 @@ _COMPILE_ROUTES: tuple[tuple[tuple[type, ...], str, str], ...] = (
     ((ComplierEffect, TreatmentOnTreated), "_complier_effect", "pre"),
     ((SwitchbackEffect,), "_switchback_effect", "pre"),
     ((PanelDifferenceInDifferences, StaggeredAdoption, AugmentedPanelDiD), "_panel_did", "pre"),
+    ((StaggeredRollout, CovariateAdjustedDiD), "_rollout_did", "pre"),
     ((SyntheticControl, SyntheticDifferenceInDifferences), "_synthetic_control", "pre"),
     ((SharpRegressionDiscontinuity,), "_sharp_rd", "pre"),
     ((FuzzyRegressionDiscontinuity, RegressionKink), "_local_polynomial_ratio", "pre"),
@@ -734,11 +737,13 @@ class _PrepareRoute:
             raise CausalValueError(
                 f"temporal response requires estimator={expected!r}; got {self.estimator!r}"
             )
-        if self._explicit_refute():
+        # A temporal intervention level's cheap/full suite is the per-horizon
+        # Pulse-witness refuter state (unlicensed); the native study runs it.
+        if self._explicit_refute() and not isinstance(self.query, InterventionResponse):
             raise CausalUnsupportedError(
-                "not_applicable: PreparedAnalysis temporal ResponseCurve/InterventionResponse "
-                "cheap/full does not denote; cheap and full name the ATE-shaped scalar refuter "
-                "suite and a function-valued estimand has no such state. Use refute='none'."
+                "not_applicable: PreparedAnalysis temporal ResponseCurve cheap/full does not "
+                "denote; cheap and full name the ATE-shaped scalar refuter suite and a "
+                "function-valued curve has no such state. Use refute='none'."
             )
         if isinstance(self.inference, Bayesian) and self.bootstrap:
             raise CausalUnsupportedError(
@@ -1304,6 +1309,8 @@ class _PrepareRoute:
                 list(design["subjects"]),
                 list(design["clusters"]),
                 query.predictions_cross_fitted,
+                resampling=query.resampling,
+                replicates=query.replicates,
                 accepted=False,
                 **self._common(),
             )
@@ -1380,9 +1387,69 @@ class _PrepareRoute:
             augmentation_ridge=query.augmentation_ridge
             if isinstance(query, SyntheticControl)
             else None,
+            conformal=query.conformal if isinstance(query, SyntheticControl) else False,
+            adoptions=None if query.adoptions is None else list(query.adoptions),
+            placebo_replicates=query.placebo_replicates,
             accepted=False,
             **self._common(),
         )
+        return native, "average"
+
+    def _rollout_did(self) -> tuple[Any, Literal["average"]]:
+        query = cast(StaggeredRollout | CovariateAdjustedDiD, self.query)
+        route = type(query).__name__
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", route)
+        self._refuse_ids(route, "bayesian.panel_did")
+        self._refuse_estimator_config(route)
+        if self._explicit_refute() or self.bootstrap:
+            raise CausalUnsupportedError(
+                f"{route} resamples whole clusters through resampling=; it has no refutation "
+                "or bootstrap= route",
+                reason_code="option_not_applicable",
+            )
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
+            raise _not_applicable("inference", route)
+        design = self.design_columns
+        if design is None:
+            raise CausalValueError("rollout DiD design columns were not bound at prepare")
+        if isinstance(query, StaggeredRollout):
+            native = _NativePreparedAnalysis.prepare_rollout_did(
+                self.names,
+                self.columns,
+                query.outcome,
+                list(design["subjects"]),
+                list(design["clusters"]),
+                list(design["periods"]),
+                list(design["cohorts"]),
+                estimator=query.estimator,
+                comparison=query.comparison,
+                nuisance=query.nuisance,
+                base_period=query.base_period,
+                aggregation=query.aggregation,
+                anticipation=int(query.anticipation),
+                covariates=list(query.covariates),
+                resampling=query.resampling,
+                replicates=query.replicates,
+                accepted=False,
+                **self._common(),
+            )
+        else:
+            native = _NativePreparedAnalysis.prepare_covariate_adjusted_did(
+                self.names,
+                self.columns,
+                query.outcome,
+                list(design["treated"]),
+                list(design["post"]),
+                list(design["subjects"]),
+                list(design["clusters"]),
+                list(query.covariates),
+                nuisance=query.nuisance,
+                resampling=query.resampling,
+                replicates=query.replicates,
+                accepted=False,
+                **self._common(),
+            )
         return native, "average"
 
     def _sharp_rd(self) -> tuple[Any, Literal["average"]]:
@@ -1440,6 +1507,10 @@ class _PrepareRoute:
             query.cutoff,
             query.bandwidth,
             kink=isinstance(query, RegressionKink),
+            bandwidth_rule=query.bandwidth_rule,
+            temporal_replicates=query.temporal_replicates,
+            density_test=query.density_test,
+            balance_covariates=list(query.balance_covariates),
             accepted=False,
             **self._common(),
         )
@@ -1724,8 +1795,12 @@ class _PrepareRoute:
                 "native ITE refuter suite and ATE refuters do not apply.",
                 reason_code="cell_not_licensed",
             )
-        if isinstance(query, Counterfactual) and self.bootstrap:
-            raise CausalUnsupportedError("counterfactual sampling uncertainty is unavailable")
+        if isinstance(query, Counterfactual) and self.bootstrap and isinstance(self.inference, Bayesian):
+            raise CausalUnsupportedError(
+                "Bayesian Counterfactual publishes its mechanism-refit posterior; bootstrap= "
+                "applies to the Frequentist mechanism-refit bootstrap",
+                reason_code="option_not_applicable",
+            )
         if isinstance(query, NestedCounterfactual) and self.bootstrap:
             raise CausalUnsupportedError(
                 "NestedCounterfactualEffect is point-only until its interval route is calibrated",
@@ -1913,9 +1988,13 @@ class _PrepareRoute:
         route = type(query).__name__
         self._refuse_ids(route)
         self._refuse_estimator_config(route)
-        if self.bootstrap:
+        # A Frequentist replicate count runs the whole-procedure mechanism-refit row
+        # bootstrap (unlicensed, calibration unmeasured); the Bayesian cell publishes
+        # its Bayesian-bootstrap posterior instead.
+        if self.bootstrap and isinstance(self.inference, Bayesian):
             raise CausalUnsupportedError(
-                f"{route} sampling uncertainty is unavailable",
+                f"Bayesian {route} publishes its Bayesian-bootstrap posterior; bootstrap= "
+                "applies to the Frequentist mechanism-refit bootstrap",
                 reason_code="option_not_applicable",
             )
         if self._explicit_refute():
@@ -1980,9 +2059,11 @@ class _PrepareRoute:
     def _response(self) -> tuple[Any, Any]:
         query, graph = self.query, self.graph
         # A scalar Dag InterventionResponse has an ATE-shaped state, so the
-        # refuter suite denotes on it; a curve or a derivative is function
-        # valued and cheap/full name nothing there. Admg InterventionResponse
-        # cheap/full is the plugin-level suite on the identified mean.
+        # refuter suite denotes on it (Bayesian: the unlicensed Bayesian refuter
+        # state); a curve is function valued and cheap/full name nothing there; a
+        # derivative runs its own unlicensed refuter state. Admg
+        # InterventionResponse cheap/full is the plugin-level suite on the
+        # identified mean.
         if isinstance(graph, Admg) and isinstance(query, (ResponseCurve, InterventionResponse)):
             response_options = _parse_response_estimator_config(query, self.estimator_config)
             return self._admg_response(response_options)
@@ -1992,7 +2073,20 @@ class _PrepareRoute:
             # suite as the second click of every estimate.
             self.deferred_suite = "placebo" if self.refute is True else str(self.refute)
             self.options.pop("refute", None)
-        if self._explicit_refute() and not scalar_dag_response:
+        derivative = isinstance(
+            query,
+            (
+                PointDerivative,
+                AverageDerivative,
+                Elasticity,
+                SemiElasticity,
+                DirectionalDerivative,
+                ResponseJacobian,
+            ),
+        )
+        # A static derivative's cheap/full suite is the derivative refuter state
+        # (unlicensed); the native study runs it, so the suite stays in the options.
+        if self._explicit_refute() and not scalar_dag_response and not derivative:
             raise CausalUnsupportedError(
                 "not_applicable: a function-valued response has no ATE-shaped state for the "
                 "cheap/full/placebo refuter suite; prepare it with refute='none'",
@@ -2138,14 +2232,18 @@ class _PrepareRoute:
         from .query import coerce_outcome_functional
 
         query, graph = self.query, self.graph
-        if not isinstance(self.inference, Frequentist):
-            raise CausalUnsupportedError("CoDetermined joint cells are Frequentist cell.aipw")
+        bayesian = not isinstance(self.inference, Frequentist)
         if self.identifier not in (None, "generalized.adjustment"):
             raise CausalUnsupportedError(
                 "CoDetermined joint cells require identifier generalized.adjustment"
             )
-        if self.estimator not in (None, "cell.aipw"):
-            raise CausalUnsupportedError("CoDetermined joint cells require estimator cell.aipw")
+        # The Frequentist joint cell is cell.aipw; a Bayesian declaration runs
+        # response.bayesian over the same closure set and is unlicensed.
+        expected_estimator = "response.bayesian" if bayesian else "cell.aipw"
+        if self.estimator not in (None, expected_estimator):
+            raise CausalUnsupportedError(
+                f"CoDetermined joint cells require estimator {expected_estimator}"
+            )
         from . import intervention as intervention_specs
 
         supplied = query.intervention
@@ -2239,11 +2337,10 @@ class _PrepareRoute:
         from .query import coerce_outcome_functional
 
         query = self.query
-        bayesian = isinstance(self.inference, Bayesian)
-        if bayesian and self._explicit_refute():
-            raise CausalUnsupportedError(
-                "not_applicable: Bayesian InterventionResponse cheap/full does not denote"
-            )
+        # A Bayesian intervention level's cheap/full suite is the Bayesian refuter
+        # state (plugin-level suite on the posterior-mean level, prior and posterior
+        # predictive checks, and under full level-native prior sensitivity). It runs
+        # as the deferred second click and stays unlicensed.
         treatments, kinds, parameters = _encode_interventions(
             query.intervention,
             route="response.intervention_gcomp",

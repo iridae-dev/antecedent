@@ -127,6 +127,10 @@ struct GraphPosteriorPooled {
     structural_set: Option<antecedent_core::ResponseEnvelope>,
 }
 
+/// Predictive checks and the posterior refutation reports added to a Bayesian level.
+type PosteriorLevelChecks =
+    (Vec<antecedent_validate::PredictiveCheckReport>, Vec<antecedent_validate::RefutationReport>);
+
 /// Structural atoms of a graph posterior, one per sample, before any fit fills their values.
 fn graph_posterior_structural_atoms(
     graphs: &WeightedGraphSamples,
@@ -183,6 +187,10 @@ impl super::Study {
         let run = GraphPosteriorResponseRun { data, query, treatment, outcome, ctx };
         let (mut fits, identification) =
             self.fit_graph_posterior_response_atoms(&run, &identified)?;
+        // The primary atom's own identification, before pooling may mark the
+        // mixture graph-dependent: the Bayesian refuter state refits that atom.
+        let primary_status = identification.status;
+        let primary_assumptions = identification.required_assumptions.clone();
         let pooled = self.pool_graph_posterior_response(&run, &fits, identification)?;
         let estimator_id = if self.inference.is_bayesian() {
             EstimatorId::ResponseBayesian
@@ -190,7 +198,7 @@ impl super::Study {
             EstimatorId::default_for_response(&query.functional)
         };
         let mut diagnostics = self.graph_posterior_response_diagnostics(&fits, &pooled);
-        let (refutations, refute_diags) = self.refute_graph_posterior_response(
+        let (mut refutations, refute_diags) = self.refute_graph_posterior_response(
             &run,
             estimator_id,
             &fits.estimand,
@@ -198,6 +206,13 @@ impl super::Study {
             &mut diagnostics,
         )?;
         diagnostics.extend(refute_diags);
+        let (predictive_checks, posterior_reports) = self.bayesian_graph_posterior_level_state(
+            &run,
+            &fits,
+            (primary_status, &primary_assumptions),
+            &mut diagnostics,
+        )?;
+        refutations.extend(posterior_reports);
         diagnostics.extend(std::mem::take(&mut fits.subsample_notes));
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
@@ -249,10 +264,76 @@ impl super::Study {
                     truncated_atoms: 0,
                 }),
                 diagnostics: Some(diagnostics),
+                predictive_checks,
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             }),
         ))
+    }
+
+    /// Bayesian additions to the plugin-level graph-posterior refutation: the predictive
+    /// checks and, under `full`, level-native prior sensitivity and MCMC diagnostics,
+    /// evaluated on the primary identified atom (the atom whose estimand the plugin-level
+    /// suite reads). Returns the predictive checks and the extra refutation reports;
+    /// Frequentist studies and `none` return nothing.
+    fn bayesian_graph_posterior_level_state(
+        &self,
+        run: &GraphPosteriorResponseRun<'_>,
+        fits: &GraphPosteriorResponseFits,
+        primary: (IdentificationStatus, &antecedent_core::AssumptionSet),
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<PosteriorLevelChecks, CausalError> {
+        let InferenceMode::Bayesian(config) = &self.inference else {
+            return Ok((Vec::new(), Vec::new()));
+        };
+        if !matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full)
+            || !matches!(run.query.functional, ResponseFunctional::InterventionResponse { .. })
+        {
+            return Ok((Vec::new(), Vec::new()));
+        }
+        let Some((_, _, primary_response)) = fits.weighted.first() else {
+            return Ok((Vec::new(), Vec::new()));
+        };
+        let (level, level_sd) = response_scalar_summary(primary_response);
+        let mut fitter =
+            ContinuousResponseEstimator::new(Arc::clone(&fits.estimand.adjustment_set));
+        fitter.options = fits.options.clone();
+        let mut estimator = bayesian_gcomp(config, run.ctx);
+        estimator.prior.clone_from(&config.prior);
+        let (status, assumptions) = primary;
+        let state = super::bayesian_level_refutation::refute_bayesian_intervention_level(
+            &super::bayesian_level_refutation::BayesianLevelRefutationInput {
+                data: run.data,
+                query: run.query,
+                estimand: &fits.estimand,
+                fitter: &fitter,
+                estimator: &estimator,
+                status,
+                assumptions,
+                level,
+                level_sd,
+                treatment: run.treatment,
+                outcome: run.outcome,
+                suite: self.refute,
+                latency: self.latency_mode,
+                // The plugin-level suite already ran on the pooled level; only the
+                // posterior checks are added here.
+                plugin_level: false,
+                summarize: response_scalar_summary,
+                target_label: "intervention-level",
+            },
+            run.ctx,
+        )?;
+        diagnostics.extend(state.diagnostics);
+        diagnostics.push(Diagnostic::new(
+            "refute.response.graph_posterior.bayesian_primary_atom",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "the predictive checks and prior sensitivity of this Bayesian graph-posterior \
+             intervention level are evaluated on the primary identified atom, the atom whose \
+             estimand the plugin-level suite reads; they are not mixed across atoms",
+        ));
+        Ok((state.predictive_checks, state.refutations))
     }
 
     /// Fits each identified atom of the graph posterior and collects the weighted responses.
@@ -561,9 +642,12 @@ impl super::Study {
         };
         let scalar_intervention = plugin_scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
+        // A Bayesian pooled level is the posterior-mean level: the plugin-level suite reads
+        // it exactly as it reads the Frequentist level; the posterior checks are added by
+        // `bayesian_graph_posterior_level_state`.
         let (refutations, refute_diags) = if scalar_intervention
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
-            && self.inference.is_frequentist()
+            && (!matches!(self.refute, RefuteSuite::None)
+                || (!self.custom_validators.is_empty() && self.inference.is_frequentist()))
         {
             let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
             let mut refute_ws = EstimationWorkspace::default();
@@ -600,7 +684,7 @@ impl super::Study {
                     "refute.response.skipped",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "scalar ATE refuters are not applicable to a function-valued or Bayesian \
+                    "scalar ATE refuters are not applicable to a function-valued \
                      graph-posterior response",
                 ));
             }
@@ -669,20 +753,101 @@ impl super::Study {
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
-        let (refutations, refute_diags) = self.refute_response_plugin_level(
-            ResponseRefuteInput {
-                data,
-                query,
-                estimand: &estimand,
-                estimate: &estimate,
-                scalar,
-                estimator_id,
-                treatment,
-                outcome,
-            },
-            &mut diagnostics,
-            ctx,
-        )?;
+        let mut predictive_checks = Vec::new();
+        let (refutations, refute_diags) = match &self.inference {
+            inference
+                if super::derivative_refutation::is_derivative(&query.functional)
+                    && !matches!(self.refute, RefuteSuite::None) =>
+            {
+                let mut fitter =
+                    ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
+                if let Some(options) = &self.response_options {
+                    fitter.options = options.clone();
+                }
+                let bayesian = match inference {
+                    InferenceMode::Bayesian(config) => Some(
+                        super::bayesian_level_refutation::bayesian_response_estimator_in_force(
+                            &fitter, &data_est, query, config, ctx,
+                        )?,
+                    ),
+                    InferenceMode::Frequentist => None,
+                };
+                let (reports, checks, notes) = super::derivative_refutation::refute_derivative(
+                    &super::derivative_refutation::DerivativeRefutationInput {
+                        data: &data_est,
+                        query,
+                        estimand: &estimand,
+                        fitter: &fitter,
+                        inference,
+                        bayesian: bayesian.as_ref(),
+                        status: identification.status,
+                        assumptions: &identification.required_assumptions,
+                        response: &response,
+                        suite: self.refute,
+                        latency: self.latency_mode,
+                        replicates: self.bootstrap_replicates,
+                    },
+                    ctx,
+                )?;
+                predictive_checks = checks;
+                (reports, notes)
+            }
+            InferenceMode::Bayesian(config)
+                if scalar.is_finite()
+                    && matches!(
+                        query.functional,
+                        ResponseFunctional::InterventionResponse { .. }
+                    )
+                    && !matches!(self.refute, RefuteSuite::None) =>
+            {
+                let mut fitter =
+                    ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
+                if let Some(options) = &self.response_options {
+                    fitter.options = options.clone();
+                }
+                let estimator =
+                    super::bayesian_level_refutation::bayesian_response_estimator_in_force(
+                        &fitter, &data_est, query, config, ctx,
+                    )?;
+                let state = super::bayesian_level_refutation::refute_bayesian_intervention_level(
+                    &super::bayesian_level_refutation::BayesianLevelRefutationInput {
+                        data: &data_est,
+                        query,
+                        estimand: &estimand,
+                        fitter: &fitter,
+                        estimator: &estimator,
+                        status: identification.status,
+                        assumptions: &identification.required_assumptions,
+                        level: scalar,
+                        level_sd: standard_error,
+                        treatment,
+                        outcome,
+                        suite: self.refute,
+                        latency: self.latency_mode,
+                        plugin_level: true,
+                        summarize: response_scalar_summary,
+                        target_label: "intervention-level",
+                    },
+                    ctx,
+                )?;
+                predictive_checks = state.predictive_checks;
+                (state.refutations, state.diagnostics)
+            }
+            _ => self.refute_response_plugin_level(
+                ResponseRefuteInput {
+                    data,
+                    query,
+                    estimand: &estimand,
+                    estimate: &estimate,
+                    scalar,
+                    estimator_id,
+                    treatment,
+                    outcome,
+                },
+                &mut diagnostics,
+                ctx,
+            )?,
+        };
         diagnostics.extend(refute_diags);
         if !scalar.is_finite() {
             // `result.effect` exists for every plan, but a curve, vector, Jacobian or
@@ -723,6 +888,7 @@ impl super::Study {
                 estimate_provenance: Some(estimate_provenance),
                 diagnostics: Some(diagnostics),
                 response: Some(response),
+                predictive_checks,
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             }),
@@ -985,13 +1151,16 @@ impl super::Study {
         let background = self.tiered.as_ref().ok_or_else(|| CausalError::Compile {
             message: "CoDetermined joint execute requires a tiered background".into(),
         })?;
+        let bayesian = self.inference.is_bayesian();
         let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults {
             identifier: IdentifierId::GeneralizedAdjustment,
-            estimator: EstimatorId::CellAipw,
+            estimator: if bayesian { EstimatorId::ResponseBayesian } else { EstimatorId::CellAipw },
         })?;
-        if estimator_id != EstimatorId::CellAipw {
+        let expected = if bayesian { EstimatorId::ResponseBayesian } else { EstimatorId::CellAipw };
+        if estimator_id != expected {
             return Err(CausalError::Unsupported {
-                message: "CoDetermined joint cells require estimator cell.aipw",
+                message: "CoDetermined joint cells require estimator cell.aipw (Frequentist) or \
+                          response.bayesian (Bayesian)",
             });
         }
         let (identification, estimand, identify_cached) =
@@ -1012,6 +1181,15 @@ impl super::Study {
                     })?;
                 Ok((identification, estimand))
             })?;
+        if bayesian {
+            return self.execute_codetermined_bayesian_joint(
+                data,
+                query,
+                ExecuteRun { physical, ctx, started, identify_cached },
+                IdentifiedClaim { identification, estimand },
+                Strategy::new(identifier_id, estimator_id),
+            );
+        }
         self.execute_cell_aipw_response(
             data,
             query,
@@ -1020,6 +1198,91 @@ impl super::Study {
             Strategy::new(identifier_id, estimator_id),
             None,
         )
+    }
+
+    /// Bayesian joint level on a CoDetermined tier closure: response.bayesian over the
+    /// closure's generalized adjustment set, one posterior over every coordinate of the
+    /// joint arm. The outcome regression is additive in the treatments, so the level is
+    /// that model's joint level, not the saturated cell mean cell.aipw estimates. The
+    /// route executes and is unlicensed.
+    fn execute_codetermined_bayesian_joint(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        run: ExecuteRun<'_>,
+        claim: IdentifiedClaim,
+        strategy: Strategy,
+    ) -> Result<StudyResult, CausalError> {
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
+        let IdentifiedClaim { identification, estimand } = claim;
+        let InferenceMode::Bayesian(config) = &self.inference else {
+            return Err(CausalError::unsupported_inference(
+                "the CoDetermined Bayesian joint level requires inference=Bayesian",
+            ));
+        };
+        let mut fitter = ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set));
+        if let Some(options) = &self.response_options {
+            fitter.options = options.clone();
+        }
+        let estimator = super::bayesian_level_refutation::bayesian_response_estimator_in_force(
+            &fitter, data, query, config, ctx,
+        )?;
+        let response = fitter
+            .estimate_bayesian(
+                data,
+                query,
+                identification.status,
+                identification.required_assumptions.clone(),
+                &estimator,
+                ctx,
+            )
+            .map_err(CausalError::from)?;
+        let (scalar, standard_error) = response_scalar_summary(&response);
+        let estimate = EffectEstimate::new(
+            scalar,
+            standard_error,
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let (treatment, outcome) = response_primary_pair(&query.functional)?;
+        let mut diagnostics = identification.diagnostics.clone();
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        diagnostics.push(Diagnostic::new(
+            "estimate.codetermined.bayesian_joint",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "Bayesian joint level on the CoDetermined tier closure: response.bayesian over the \
+             closure's generalized adjustment set, one posterior over every coordinate of the \
+             joint arm. The outcome regression is additive in the treatments, so this is that \
+             model's joint level, not the saturated cell mean of cell.aipw. It executes \
+             unlicensed: no coverage or evidence record names it.",
+        ));
+        diagnostics.extend(response.support.warnings.iter().cloned());
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                strategy,
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                estimate_provenance: Some(provenance_ids(
+                    Arc::clone(&response.provenance_id),
+                    Arc::clone(&response.provenance_id),
+                )),
+                diagnostics: Some(diagnostics),
+                response: Some(response),
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            }),
+        ))
     }
 
     /// Reads the binary joint `Set` levels of a cell.aipw intervention response.
@@ -1513,8 +1776,28 @@ impl super::Study {
         let inputs = ClassResponseInputs { data, data_est: &data_est, query, ctx };
         let atoms = self.evaluate_class_response_atoms(&inputs, envelope)?;
         let mixed = self.mix_class_response(data, envelope, query, atoms)?;
-        let diagnostics =
+        let mut diagnostics =
             self.class_response_diagnostics(envelope, envelope_diag, &mixed, identify_cached);
+        // A class-aware intervention level runs its per-completion refuter state
+        // (unlicensed); a curve keeps the skipped note.
+        let mut refutations = Vec::new();
+        if !matches!(self.refute, RefuteSuite::None)
+            && matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
+        {
+            let (reports, notes) =
+                super::class_response_refutation::refute_class_intervention_atoms(
+                    self,
+                    data,
+                    envelope,
+                    &mixed.weighted,
+                    (treatment, outcome),
+                    estimator_id,
+                    ctx,
+                )?;
+            refutations = reports;
+            diagnostics.retain(|diagnostic| diagnostic.code.as_ref() != "refute.response.skipped");
+            diagnostics.extend(notes);
+        }
         let MixedClassResponse {
             identification,
             estimand,
@@ -1534,6 +1817,7 @@ impl super::Study {
                 treatment,
                 outcome,
             )
+            .refutations(refutations)
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras {
                 estimate_provenance: Some(provenance_ids(

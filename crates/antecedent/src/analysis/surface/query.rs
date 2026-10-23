@@ -14,3 +14,13 @@ pub use antecedent_core::{
     SyntheticPanelMethod, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
     TransportQuery, UnitChangeQuery,
 };
+pub use antecedent_core::{
+    AttributeQuery, AttributeTarget, ChangeEstimator, ChangeMeasure, DiscoverQuery,
+    DiscoveredClass, DiscoveryInference, DiscoveryMethod, InfluenceAllocation,
+    IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration, ScreenWeight, SearchBounds,
+    SearchSchedule, SimulateQuery, SimulationTarget,
+};
+pub use antecedent_core::{
+    OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
+    TemporalDoseTarget,
+};
