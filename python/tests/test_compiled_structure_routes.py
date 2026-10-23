@@ -137,6 +137,8 @@ def test_list_returning_methods_record_their_route():
     names, cols = _static_rows()
     fitted = _native.fit_gcm(names, cols, [("z", "t"), ("t", "y"), ("z", "y")])
     assert fitted.last_route is None
-    scores = fitted.anomaly_attribution(["y"], max_units=20)
+    # The anomaly route scores every row and refuses more rows than `max_units`;
+    # `max_units=0` declares the cap as the row count.
+    scores = fitted.anomaly_attribution(["y"], max_units=0)
     assert scores
     assert fitted.last_route.contract["query_kind"] == "Attribute"

@@ -615,6 +615,9 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 crate::SimulationTargetWire::TemporalCounterfactual { n_rows, n_steps, .. } => {
                     (format!("temporal_counterfactual:{n_rows}x{n_steps}"), Vec::new())
                 }
+                crate::SimulationTargetWire::InProcess { target, digest, .. } => {
+                    (format!("{target}:in_process:{digest}"), Vec::new())
+                }
             };
             let mut dimensions = named_outcomes("simulate", &outcomes);
             dimensions.push(("simulation".into(), kind));

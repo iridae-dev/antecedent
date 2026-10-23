@@ -1792,6 +1792,9 @@ pub(crate) fn attach_specifications(
 // One-call execution
 // ---------------------------------------------------------------------------
 
+/// Stage a cancelled structure search reports, as the search engines report it.
+const DISCOVER_CANCELLED_STAGE: &str = "discover";
+
 /// A compiled route prepared and executed once on its retained data: the
 /// prepared handle and the result it stamped.
 ///
@@ -1812,8 +1815,21 @@ impl CompiledExecution {
     /// The refusals of [`crate::Study::prepare`] and
     /// [`crate::PreparedStudy::estimate_retained`].
     pub fn run(study: &crate::Study, ctx: &ExecutionContext) -> Result<Self, CausalError> {
-        let prepared = study.prepare(ctx)?;
-        let result = prepared.estimate_retained(ctx)?;
+        // A structure search is one stage to its caller: cancellation anywhere in its
+        // preparation or execution is reported as cancelled during the search, as the
+        // search engines report it.
+        let searching = matches!(study.query, CausalQuery::Discover(_));
+        let stage = |error: CausalError| match error {
+            CausalError::Cancelled { .. } if searching => {
+                CausalError::Cancelled { stage: DISCOVER_CANCELLED_STAGE }
+            }
+            other => other,
+        };
+        if searching && ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: DISCOVER_CANCELLED_STAGE });
+        }
+        let prepared = study.prepare(ctx).map_err(stage)?;
+        let result = prepared.estimate_retained(ctx).map_err(stage)?;
         Ok(Self { prepared: Arc::new(prepared), result: Arc::new(result) })
     }
 

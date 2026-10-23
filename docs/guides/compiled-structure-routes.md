@@ -118,6 +118,17 @@ route on `FittedGcm.last_route`. `antecedent.gcm.fit_gcm_discovered` goes
 through `fit_gcm_accepted`, so the fitted model keeps the provenance of the
 search that produced its graph.
 
+## Callbacks in simulation programs
+
+A simulation program can hold batch callbacks (`antecedent.intervention_callbacks`). They
+run in the process exactly as before. The route's contract records a recoverable callback
+(declared from source) by its verified recovery record. It records an in-process function
+by the canonical digest of the whole query, which covers each callback's name, inputs,
+output, pinned dependencies and implementation kind. Running locally is allowed.
+Decoding such a record back into a query, which is what export or replay does, is
+refused with `policy_callback_not_portable`, and the refusal names the next step:
+declare the callback from self-contained source.
+
 ## What is not here
 
 - `PreparedPolicy` still compiles and licenses a program once against a fitted model

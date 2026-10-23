@@ -841,10 +841,44 @@ pub enum SimulationTargetWire {
         /// History before the panel.
         history: Vec<f64>,
     },
+    /// A simulation whose program holds an in-process callback. It runs in the process
+    /// that holds the callback; the wire records the target and the canonical digest of
+    /// the whole query, which commits to every callback's declaration (name, inputs,
+    /// output, pinned dependencies, implementation kind), and refuses to decode: no
+    /// durable encoding of the callback exists.
+    InProcess {
+        /// Target kind (`SimulationTarget::as_str`).
+        target: String,
+        /// Lower-case hex canonical digest of the domain query.
+        digest: String,
+        /// Names of the in-process callbacks.
+        callbacks: Vec<String>,
+    },
+}
+
+/// Portability of every intervention a simulation target declares.
+fn target_portability(target: &SimulationTarget) -> antecedent_core::Portability {
+    let fold = |interventions: &[Intervention]| {
+        interventions
+            .iter()
+            .fold(antecedent_core::Portability::Portable, |acc, iv| acc.and(iv.portability()))
+    };
+    match target {
+        SimulationTarget::InterventionalSample { interventions, .. }
+        | SimulationTarget::PolicyValue { interventions, .. }
+        | SimulationTarget::NoiseSample { interventions, .. }
+        | SimulationTarget::NoiseReplay { interventions, .. }
+        | SimulationTarget::Counterfactual { interventions, .. } => fold(interventions),
+        SimulationTarget::TemporalRollout { schedule, .. }
+        | SimulationTarget::TemporalCounterfactual { schedule, .. } => {
+            Intervention::sequence(schedule.clone()).portability()
+        }
+        SimulationTarget::UnitEffects { .. } => antecedent_core::Portability::Portable,
+    }
 }
 
 fn schedule_to_wire(schedule: &InterventionSequence) -> Result<InterventionWire, IoError> {
-    InterventionWire::from_domain(&Intervention::sequence(schedule.clone()))
+    InterventionWire::from_domain_recoverable(&Intervention::sequence(schedule.clone()))
 }
 
 fn schedule_from_wire(schedule: &InterventionWire) -> Result<InterventionSequence, IoError> {
@@ -862,8 +896,10 @@ pub struct SimulateQueryWire {
     pub target: SimulationTargetWire,
 }
 
+/// A recoverable callback is written as its verified recovery record; a closed-form
+/// intervention as itself.
 fn interventions_to_wire(interventions: &[Intervention]) -> Result<Vec<InterventionWire>, IoError> {
-    interventions.iter().map(InterventionWire::from_domain).collect()
+    interventions.iter().map(InterventionWire::from_domain_recoverable).collect()
 }
 
 fn interventions_from_wire(interventions: &[InterventionWire]) -> Arc<[Intervention]> {
@@ -877,6 +913,21 @@ impl SimulateQueryWire {
     ///
     /// An intervention holding a runtime-bound callback, or a count that does not fit.
     pub fn from_domain(query: &SimulateQuery) -> Result<Self, IoError> {
+        if let antecedent_core::Portability::RuntimeBound { callbacks } =
+            target_portability(&query.target)
+        {
+            use antecedent_core::CanonicalEncode;
+            let mut writer =
+                antecedent_core::CanonicalWriter::new("antecedent.simulate_query.in_process");
+            query.encode(&mut writer);
+            return Ok(Self {
+                target: SimulationTargetWire::InProcess {
+                    target: query.target.as_str().to_owned(),
+                    digest: antecedent_core::to_hex(&writer.finish()),
+                    callbacks,
+                },
+            });
+        }
         let target = match &query.target {
             SimulationTarget::InterventionalSample { interventions, draws, seed } => {
                 SimulationTargetWire::InterventionalSample {
@@ -1033,6 +1084,23 @@ impl SimulateQueryWire {
                 panel: Arc::from(panel.as_slice()),
                 history: Arc::from(history.as_slice()),
             },
+            SimulationTargetWire::InProcess { target, callbacks, .. } => {
+                let refusal =
+                    antecedent_core::Portability::RuntimeBound { callbacks: callbacks.clone() }
+                        .export_refusal()
+                        .map_or_else(
+                            || ("policy_callback_not_portable", String::new()),
+                            |refusal| (refusal.code, refusal.message),
+                        );
+                return Err(IoError::Refused {
+                    code: refusal.0,
+                    message: format!(
+                        "{}; the {target} simulation ran in the process that held the callback \
+                         and its record keeps only the callbacks' declaration digest",
+                        refusal.1
+                    ),
+                });
+            }
         };
         let query = SimulateQuery { target };
         query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
@@ -1047,7 +1115,8 @@ impl SimulateQueryWire {
             | SimulationTargetWire::NoiseSample { .. }
             | SimulationTargetWire::NoiseReplay { .. }
             | SimulationTargetWire::TemporalRollout { .. }
-            | SimulationTargetWire::TemporalCounterfactual { .. } => Vec::new(),
+            | SimulationTargetWire::TemporalCounterfactual { .. }
+            | SimulationTargetWire::InProcess { .. } => Vec::new(),
             SimulationTargetWire::Counterfactual { outcomes, .. } => outcomes.clone(),
             SimulationTargetWire::PolicyValue { outcome, .. } => vec![*outcome],
             SimulationTargetWire::UnitEffects { treatment, outcome, .. } => {
@@ -1071,7 +1140,9 @@ impl SimulateQueryWire {
             | SimulationTargetWire::TemporalCounterfactual { schedule, .. } => {
                 std::slice::from_ref(schedule)
             }
-            SimulationTargetWire::UnitEffects { .. } => &[],
+            SimulationTargetWire::UnitEffects { .. } | SimulationTargetWire::InProcess { .. } => {
+                &[]
+            }
         }
     }
 }
@@ -1090,6 +1161,62 @@ mod tests {
         let json = serde_json::to_string(&wire).expect("serialize");
         let back: CausalQueryWire = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(&causal_query_from_wire(&back).expect("decode"), query);
+    }
+
+    #[derive(Debug)]
+    struct Identity(antecedent_core::CallbackSpec);
+
+    impl antecedent_core::BatchCallback for Identity {
+        fn spec(&self) -> &antecedent_core::CallbackSpec {
+            &self.0
+        }
+
+        fn call(
+            &self,
+            inputs: &[&[f64]],
+            out: &mut [f64],
+        ) -> Result<(), antecedent_core::CallbackError> {
+            out.copy_from_slice(inputs[0]);
+            Ok(())
+        }
+    }
+
+    fn in_process_sample(name: &str) -> CausalQuery {
+        let spec = antecedent_core::CallbackSpec {
+            name: name.into(),
+            inputs: Arc::from(["x".to_string()]),
+            output: antecedent_core::CallbackOutput::Real,
+            dependencies: Arc::from([]),
+            implementation: antecedent_core::CallbackImplementation::Runtime,
+        };
+        let callback: Arc<dyn antecedent_core::BatchCallback> = Arc::new(Identity(spec));
+        let expr =
+            antecedent_core::ValueExpr::callback(callback, [antecedent_core::ValueExpr::var(v(0))]);
+        CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::InterventionalSample {
+            interventions: Arc::from([Intervention::assign(v(1), expr)]),
+            draws: 4,
+            seed: 1,
+        }))
+    }
+
+    #[test]
+    fn an_in_process_callback_is_recorded_by_digest_and_refuses_to_decode() {
+        let wire = causal_query_to_wire(&in_process_sample("f")).expect("local execution encodes");
+        let CausalQueryWire::Simulate(simulate) = &wire else {
+            panic!("a simulate query encodes as a simulate wire");
+        };
+        let SimulationTargetWire::InProcess { target, digest, callbacks } = &simulate.target else {
+            panic!("an in-process callback is recorded by digest");
+        };
+        assert_eq!(target, "interventional_sample");
+        assert_eq!(digest.len(), 64);
+        assert_eq!(callbacks, &vec!["f".to_string()]);
+        let other = causal_query_to_wire(&in_process_sample("g")).unwrap();
+        assert_ne!(wire, other, "the digest commits to the callback's declaration");
+        let Err(IoError::Refused { code, .. }) = causal_query_from_wire(&wire) else {
+            panic!("export or replay of an in-process program is refused");
+        };
+        assert_eq!(code, "policy_callback_not_portable");
     }
 
     #[test]
