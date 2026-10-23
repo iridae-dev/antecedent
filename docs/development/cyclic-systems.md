@@ -171,6 +171,50 @@ it verifies full-size research-result integrity, runs the compiled component
 tests and installed Python acceptance, and consumes the retained integration
 fixture in a fresh CPU process. It does not run calibration or attestation.
 
+### Committed family fixtures and independent consumers
+
+`parity/cyclic/` also commits family fixtures, each a directory with the request,
+the exported report, the version-two family record (`family.ant`), the separately
+retained `expected-identity.json` and a manifest:
+
+| Fixture | What it pins |
+| --- | --- |
+| `specified-feedback-pair` | `A = 0.4 B + U_A`, `B = 0.5 A + U_B`: B-on-A association 1.40625/1.8125 (about 0.776), hard-clamp derivative 0.5, B response 0.625 to a unit mean shift of `U_A` |
+| `overlapping-loops` | `A = B + C + U_A`, `B = A + U_B`, `C = A + U_C`: the full system solves, `do(C = 1)` leaves `0 = 1 + U_A + U_B` and is kept as failed mass |
+| `recovered-asymptotic-normal`, `recovered-bootstrap` | linear laws recovered from seeded simulated clamp experiments, with their draw origins |
+| `recovered-unresolved-direction` | a clamp design that never clamps B: the row into A stays unresolved in every draw and its mass is withheld |
+| `dynamic-inference-ou` | a stationary OU fit with a seeded bootstrap sampling law of its stationary mean |
+| `previous-record-format` | the version-one record, which keeps replaying and carries no contract |
+
+`cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_` writes
+them deterministically from a fixed xorshift stream and request seeds; the same
+target checks that each committed request is the generator's.
+`crates/antecedent/tests/cyclic_independent_consumer.rs` reads only the committed
+bytes and expected identity, runs on its own scalar-kernel CPU context and never
+calls the producer. It verifies the contract, replays the answer bit for bit
+against the committed report, checks the analytic truths above, and refuses a
+malformed or foreign identity, a tampered report or contract section, a corrupted
+byte and an unknown record version. `crates/antecedent/tests/cyclic_dag_regression.rs`
+keeps acyclic models on the DAG algorithm: a recovered law on lower-triangular
+support is solved by the DAG schedule and agrees with an independent forward
+substitution to 1e-12; a specified equilibrium model with DAG structure compiles to
+mechanism blocks only; on acyclic support the recovered evidence ports equal those
+of a cyclic law with the same origin, with only the solve route differing. Python
+replays every committed fixture in a fresh process (`python/tests/test_cyclic.py`,
+which the gate runs with `ANTECEDENT_CYCLIC_FIXTURES` naming the fixture directory).
+
+Prepared Python families and systems expose `contract()`: the layered identities,
+the `cyclic.solution.v1` tag, the recovery identity of an experimental recovery and
+the layer payloads, derived natively without fitting.
+`interface_contract.check_composition_with_cyclic` declares a prepared product as
+one component of an interface composition. `inspect()` on an experimental recovery
+reports the rows its clamp design leaves unresolved (`design_unresolved`) before any
+fit. Whether an asymptotic-normal or posterior origin may be drawn under a declared
+clustered or time-series row design is decided by Rust request compilation: the
+design travels in the fit options (`sampling_design`) and such an origin is refused
+as `estimator_inference_mismatch`, naming a bootstrap under the declared design as
+the next attempt. Python passes the declaration through.
+
 ## Implementation acceptance
 
 The integrated acceptance run passed 263 Rust component tests, 33 installed-wheel

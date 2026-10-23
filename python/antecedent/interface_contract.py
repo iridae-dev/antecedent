@@ -75,6 +75,7 @@ __all__ = [
     "ProducedPort",
     "SupportDomain",
     "check_composition",
+    "check_composition_with_cyclic",
     "check_composition_with_ledger",
     "check_connection",
     "consume_interface_contract_artifact",
@@ -633,6 +634,54 @@ def check_composition_with_ledger(
         _dumps([c._wire() for c in components]),
         _dumps([list(c) for c in connections]),
         handle,
+    )
+    return _composed(wire, refusal)
+
+
+def check_composition_with_cyclic(
+    components: Sequence[InterfaceContract],
+    connections: Iterable[tuple[str, str, str, str]],
+    cyclic: Mapping[str, Any],
+    *,
+    ledger: Any = None,
+) -> ComposedInterfaces:
+    """Check a composition in which each prepared cyclic product is one declared component.
+
+    ``cyclic`` maps a component name of ``components`` to a prepared cyclic product
+    (:class:`~antecedent.cyclic.PreparedCyclicFamily` or
+    :class:`~antecedent.cyclic.PreparedCyclicSystem`). Rust derives each product's contract
+    without fitting and declares it as that component, so the composition identity binds the
+    product's program identity and ``cyclic.solution.v1`` tag. The feedback inside a product is
+    solved within its own component; feedback among components is refused with its path. With
+    ``ledger`` (an :class:`~antecedent.evidence_ledger.EvidenceLedger`) disjoint-evidence
+    requirements are decided as in :func:`check_composition_with_ledger`. Admission does not
+    solve, sample, calibrate or identify the cyclic product.
+
+    Raises:
+        InterfaceContractRefusal: a cycle among components
+            (``interface_contract_cyclic_composition``), a declaration naming no component, or
+            any defect of the groups of checks that failed, as for :func:`check_composition`.
+    """
+    handles = []
+    for component, product in cyclic.items():
+        native = getattr(product, "_native_handle", None)
+        handle = native() if callable(native) else getattr(product, "_handle", None)
+        if handle is None:
+            raise CausalTypeError(
+                f"cyclic component {component!r} must be a PreparedCyclicFamily or "
+                "PreparedCyclicSystem"
+            )
+        handles.append((_name(component, "cyclic component"), handle))
+    ledger_handle = None
+    if ledger is not None:
+        ledger_handle = getattr(ledger, "_handle", None)
+        if ledger_handle is None:
+            raise CausalTypeError("ledger must be an EvidenceLedger")
+    wire, refusal = _native.interface_contract_check_composition_with_cyclic(
+        _dumps([c._wire() for c in components]),
+        _dumps([list(c) for c in connections]),
+        handles,
+        ledger_handle,
     )
     return _composed(wire, refusal)
 

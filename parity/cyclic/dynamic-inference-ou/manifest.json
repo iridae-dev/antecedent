@@ -1,0 +1,13 @@
+{
+  "analytic": {
+    "law_meaning": "sampling_law",
+    "simulated_stationary_mean": 0.5
+  },
+  "artifact_blake3": "7b230e45fff4e92eb4107f56b6f6e435d41138e02609e413a348c90ae0b3c47c",
+  "attestation": "separate_not_performed",
+  "calibration": "separate_unmeasured",
+  "family": "dynamic_inference",
+  "fresh_process_cpu_replay": true,
+  "generator": "cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_",
+  "record_format": 2
+}

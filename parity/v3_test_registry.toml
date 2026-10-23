@@ -374,3 +374,24 @@ crate = "antecedent"
 cargo_target = "acyclic_identity_regression"
 path = "crates/antecedent/tests/acyclic_identity_regression.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-family-fixture-producer"
+crate = "antecedent"
+cargo_target = "cyclic_family_fixtures"
+path = "crates/antecedent/tests/cyclic_family_fixtures.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-independent-consumer"
+crate = "antecedent"
+cargo_target = "cyclic_independent_consumer"
+path = "crates/antecedent/tests/cyclic_independent_consumer.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-dag-regression"
+crate = "antecedent"
+cargo_target = "cyclic_dag_regression"
+path = "crates/antecedent/tests/cyclic_dag_regression.rs"
+gates = ["inventory", "named"]

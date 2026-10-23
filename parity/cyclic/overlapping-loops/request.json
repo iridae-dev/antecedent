@@ -1,0 +1,68 @@
+{
+  "family": "linear_worlds",
+  "variables": [
+    0,
+    1,
+    2
+  ],
+  "model": {
+    "coefficients": [
+      0.0,
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+    ],
+    "intercept": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "noise_mean": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "noise_covariance": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  },
+  "component": {
+    "component_id": "overlapping-loops",
+    "source_id": "specification",
+    "certifying_evidence": [
+      "independent-bench-test"
+    ]
+  },
+  "worlds": [
+    {
+      "world": 0,
+      "interventions": [],
+      "initial_states": []
+    },
+    {
+      "world": 1,
+      "interventions": [
+        {
+          "kind": "set",
+          "variable": 2,
+          "value": 1.0
+        }
+      ],
+      "initial_states": []
+    }
+  ],
+  "certificate": "report_uncertified"
+}

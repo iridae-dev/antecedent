@@ -1,0 +1,278 @@
+{
+  "identity": "97d95185b31931a21760a1eee3f62d28adeaab1a649094c9fc50c8ec26c89606",
+  "answer": {
+    "family": "dynamic_inference",
+    "result": {
+      "fit": {
+        "family": "ou",
+        "fit": {
+          "model": {
+            "drift": [
+              -1.97647705078125
+            ],
+            "center": [
+              0.5005126953125001
+            ],
+            "diffusion": [
+              4.0
+            ]
+          },
+          "log_likelihood": -427.4558042383771,
+          "sweeps": 30,
+          "converged": true
+        }
+      },
+      "inference": {
+        "method": "sampling_law",
+        "result": {
+          "method": "nonparametric",
+          "design": "independent_subject_trajectories",
+          "resampling": "row_subject_iid",
+          "stratification": "fixed_assignments",
+          "estimate": [
+            -1.97647705078125,
+            0.5005126953125001
+          ],
+          "quantity_estimates": [
+            0.5005126953125001
+          ],
+          "replicates": [
+            {
+              "parameters": [
+                -1.9538452148437497,
+                0.41383056640625004
+              ],
+              "quantities": [
+                0.41383056640625004
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.01856689453125,
+                0.49468994140625
+              ],
+              "quantities": [
+                0.49468994140625
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.2211181640624993,
+                0.57734375
+              ],
+              "quantities": [
+                0.57734375
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -1.6628662109375,
+                0.5845703124999999
+              ],
+              "quantities": [
+                0.5845703124999999
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.08070068359375,
+                0.5085693359375001
+              ],
+              "quantities": [
+                0.5085693359375001
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.0010864257812497,
+                0.5958740234375002
+              ],
+              "quantities": [
+                0.5958740234375002
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -1.9222778320312495,
+                0.5142700195312502
+              ],
+              "quantities": [
+                0.5142700195312502
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -1.8064697265624998,
+                0.46500244140624997
+              ],
+              "quantities": [
+                0.46500244140624997
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.0097412109375,
+                0.5269531250000001
+              ],
+              "quantities": [
+                0.5269531250000001
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -1.9615234374999997,
+                0.49970703125
+              ],
+              "quantities": [
+                0.49970703125
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.119653320312499,
+                0.5692504882812501
+              ],
+              "quantities": [
+                0.5692504882812501
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.0245727539062495,
+                0.53358154296875
+              ],
+              "quantities": [
+                0.53358154296875
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.2187622070312494,
+                0.4535400390625
+              ],
+              "quantities": [
+                0.4535400390625
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -1.899365234375,
+                0.5740966796875
+              ],
+              "quantities": [
+                0.5740966796875
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -1.8630615234374996,
+                0.54129638671875
+              ],
+              "quantities": [
+                0.54129638671875
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.14114990234375,
+                0.5497802734375002
+              ],
+              "quantities": [
+                0.5497802734375002
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -1.85111083984375,
+                0.5121337890625001
+              ],
+              "quantities": [
+                0.5121337890625001
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.46181640625,
+                0.3135620117187501
+              ],
+              "quantities": [
+                0.3135620117187501
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -1.7695556640624994,
+                0.45997314453125004
+              ],
+              "quantities": [
+                0.45997314453125004
+              ],
+              "failure": null
+            },
+            {
+              "parameters": [
+                -2.029931640625,
+                0.48822021484375
+              ],
+              "quantities": [
+                0.48822021484375
+              ],
+              "failure": null
+            }
+          ],
+          "weights": [
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05,
+            0.05
+          ],
+          "failed_mass": 0.0,
+          "standard_errors": [
+            0.18029505149995023,
+            0.06682957651553187
+          ],
+          "quantity_standard_errors": [
+            0.06682957651553187
+          ],
+          "quantity_failed_mass": [
+            0.0
+          ]
+        }
+      }
+    }
+  }
+}

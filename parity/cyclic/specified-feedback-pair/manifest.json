@@ -1,0 +1,14 @@
+{
+  "analytic": {
+    "association_b_on_a": 0.7758620689655172,
+    "hard_clamp_derivative_b_in_a": 0.5,
+    "mean_shift_response_b": 0.625
+  },
+  "artifact_blake3": "00ca384800dee12d58943a0e129506e36469ced09447c90d696fac100f42c57b",
+  "attestation": "separate_not_performed",
+  "calibration": "separate_unmeasured",
+  "family": "linear_worlds",
+  "fresh_process_cpu_replay": true,
+  "generator": "cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_",
+  "record_format": 2
+}

@@ -1,0 +1,1013 @@
+{
+  "identity": "a089aadc2e22200150a34b550eb4c540f0a3f4a2daeb5a44360fce0639567543",
+  "answer": {
+    "family": "experimental_recovery",
+    "result": {
+      "law": {
+        "nodes": [
+          0,
+          1
+        ],
+        "origin": {
+          "origin": "asymptotic_normal",
+          "draws": 16,
+          "seed": 9
+        },
+        "draws": [
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5384202447782664
+              }
+            ],
+            "intercept": [
+              null,
+              -0.01839376927238725
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.957830395625289
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4719038330985435
+              }
+            ],
+            "intercept": [
+              null,
+              0.10971125567825962
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              1.0327220001984148
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5483392424342776
+              }
+            ],
+            "intercept": [
+              null,
+              0.010227415552046967
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.9791034426804058
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.501938899823424
+              }
+            ],
+            "intercept": [
+              null,
+              0.014481647315438415
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.9863489607300511
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5051964713666628
+              }
+            ],
+            "intercept": [
+              null,
+              -0.09088124769532648
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.9394007934884939
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.46744362456724775
+              }
+            ],
+            "intercept": [
+              null,
+              0.13574032521396356
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.9535974709668856
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.48833979769614955
+              }
+            ],
+            "intercept": [
+              null,
+              0.049143282617194285
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.8941699059699261
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.506008439188139
+              }
+            ],
+            "intercept": [
+              null,
+              0.017579490917909585
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.9148246343885809
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4714124905848372
+              }
+            ],
+            "intercept": [
+              null,
+              0.0068707811089286225
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.969639592331874
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5841771066338332
+              }
+            ],
+            "intercept": [
+              null,
+              0.0192916356591369
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.7948352758668109
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.43982006021086356
+              }
+            ],
+            "intercept": [
+              null,
+              0.15721849518933628
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.8321843874486994
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5125650103380448
+              }
+            ],
+            "intercept": [
+              null,
+              0.06589769563046885
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.9452489676366641
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.49879674002979435
+              }
+            ],
+            "intercept": [
+              null,
+              0.015653391346658885
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.9154063081071713
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4951513842158399
+              }
+            ],
+            "intercept": [
+              null,
+              0.0514208737689773
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.9943875636860248
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4970737678674629
+              }
+            ],
+            "intercept": [
+              null,
+              0.04319857221428186
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.9637058825321134
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5103474347026579
+              }
+            ],
+            "intercept": [
+              null,
+              0.13361921196138304
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              null,
+              0.0,
+              0.0,
+              0.9165763560508231
+            ],
+            "unresolved": [
+              {
+                "support": [
+                  {
+                    "into": 0,
+                    "from": 1
+                  }
+                ],
+                "reason": {
+                  "reason": "incomplete_pair_coverage",
+                  "target": 0,
+                  "missing_clamps": [
+                    1
+                  ]
+                }
+              }
+            ],
+            "weight": 0.0625,
+            "marked_inadmissible": false
+          }
+        ],
+        "draw_status": [
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          },
+          {
+            "status": "unresolved",
+            "directions": 1
+          }
+        ],
+        "failed_mass": -0.0
+      },
+      "law_meaning": "sampling_law",
+      "worlds": [
+        {
+          "world": 1,
+          "answer": {
+            "draws": [
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              }
+            ],
+            "outcome": 1,
+            "total_mass": 1.0,
+            "withheld_mass": 1.0,
+            "mixture_mean": null,
+            "mixture_variance": null,
+            "between_draw_variance": null
+          }
+        },
+        {
+          "world": 2,
+          "answer": {
+            "draws": [
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              },
+              {
+                "weight": 0.0625,
+                "outcome": {
+                  "status": "inadmissible",
+                  "reason": "unresolved_directions"
+                }
+              }
+            ],
+            "outcome": 1,
+            "total_mass": 1.0,
+            "withheld_mass": 1.0,
+            "mixture_mean": null,
+            "mixture_variance": null,
+            "between_draw_variance": null
+          }
+        }
+      ]
+    }
+  }
+}

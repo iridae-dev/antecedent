@@ -1682,7 +1682,9 @@ def test_experimental_recovery_keeps_each_draw_origin_through_worlds_evidence_an
         assert facts["preparation_evaluations"] == 0
         assert facts["draw_origin"]["origin"] == origin
         assert facts["law_meaning"] == meaning
-        assert facts["unresolved_directions"] is None
+        # The complete clamp design leaves nothing unresolved, known before any fit.
+        assert facts["design_unresolved"] == []
+        assert facts["unresolved_directions"] == []
         assert {"regimes", "samples", "inference"} <= set(facts["fit_dependencies"])
         assert "worlds" not in facts["fit_dependencies"]
         assert facts["worlds"] == [1, 2]
@@ -1723,6 +1725,11 @@ def test_uncovered_recovery_rows_stay_unresolved_and_withhold_their_mass() -> No
 
     # Without a regime that clamps B, the row into A is uncovered: no draw completes it.
     prepared = _recovery(AsymptoticNormal(16, seed=9), designs=(None, "A"))
+    before = prepared.inspect()
+    # Read from the clamp design by the native compiler, before any fit (A is 0, B is 1).
+    assert before["design_unresolved"] == [{"target": 0, "missing_clamps": [1]}]
+    assert before["unresolved_directions"] == before["design_unresolved"]
+    assert "draw_status" not in before
     prepared.execute()
     facts = prepared.inspect()
     assert facts["unresolved_directions"]
@@ -1749,10 +1756,18 @@ def test_recovery_and_world_refusals_name_their_next_attempt() -> None:
     assert undeclared.value.reason_code == "required_option_missing"
     assert "sampling_design=" in undeclared.value.next_attempt
 
-    with pytest.raises(CyclicRefusal, match="clustered_panel") as clustered:
-        _recovery(AsymptoticNormal(8, seed=1), sampling_design="clustered_panel")
-    assert clustered.value.reason_code == "estimator_inference_mismatch"
-    assert "RecoveryBootstrap" in clustered.value.next_attempt
+    # Decided by Rust request compilation; Python passes the declared design through.
+    for design in ("clustered_panel", "dependent_time_series"):
+        with pytest.raises(CyclicRefusal, match=design) as clustered:
+            _recovery(AsymptoticNormal(8, seed=1), sampling_design=design)
+        assert clustered.value.reason_code == "estimator_inference_mismatch"
+        assert "bootstrap under the declared" in clustered.value.next_attempt
+    assert (
+        _recovery(
+            AsymptoticNormal(8, seed=1), sampling_design="independent_subject_trajectories"
+        ).inspect()["family"]
+        == "experimental_recovery"
+    )
 
     with pytest.raises(CyclicRefusal, match="not declared") as unknown:
         _recovery(AsymptoticNormal(8, seed=1), worlds=[World(1, Set("C", 1.0))])
@@ -1896,3 +1911,170 @@ def test_recovered_law_and_its_evidence_replay_in_a_fresh_process(tmp_path: Path
     assert family_report == result.report
     assert evidence_report == evidence.report
     assert evidence_report["columns"][0]["port"] == "sampling_law"
+
+
+def test_prepared_cyclic_handles_expose_their_contract_without_fitting() -> None:
+    from antecedent.cyclic import AsymptoticNormal, World
+
+    worlds = _feedback_linear().worlds(
+        [World(0)],
+        component_id="feedback",
+        source_id="specification",
+        certifying_evidence=["independent-bench-test"],
+    )
+    contract = worlds.contract()
+    assert contract["family"] == "linear_worlds"
+    assert contract["identification_kind"] == "specified_model_conditional"
+    assert contract["recovery"] is None
+    assert contract["request_identity"] == worlds.inspect()["identity"]
+    assert len(contract["lowered_program_identity"]) == 64
+    for name in ("target", "identification", "inference_binding", "observation", "data_snapshot"):
+        assert len(contract["identities"][name]) == 64
+    assert len(contract["cyclic_solution"]) == 64
+    assert set(contract["layers"]) == {
+        "target",
+        "identification",
+        "program",
+        "inference_binding",
+        "observation",
+        "data_snapshot",
+        "solution",
+    }
+
+    recovery = _recovery(AsymptoticNormal(8, seed=2))
+    recovered = recovery.contract()
+    assert recovered["identification_kind"] == "experimental_recovery"
+    assert len(recovered["recovery"]) == 64
+    assert recovered["layers"]["identification"]["unresolved"] == []
+    assert recovery.inspect()["preparation_evaluations"] == 0
+    assert "draw_status" not in recovery.inspect(), "reading the contract does not fit"
+
+    system = model().prepare([[], [{"variable": 0, "value": 2.0}]], [[0.1, 0.2]])
+    carried = system.contract()
+    assert carried["family"] == "system"
+    assert carried["identification_kind"] == "specified_model_conditional"
+    assert system.inspect()["fits_performed"] == 0
+
+
+def test_a_prepared_cyclic_product_composes_as_one_component() -> None:
+    from antecedent import interface_contract as ic
+    from antecedent.cyclic import World
+    from antecedent.joint_distribution import ScientificQuantity
+
+    def stage(name: str) -> ic.InterfaceContract:
+        quantity = ScientificQuantity.outcome("b", units="unit", population="bench", regime="do(a)")
+        support = ic.SupportDomain.real()
+        return ic.InterfaceContract(
+            name,
+            produces=[
+                ic.ProducedPort("out", quantity, "feedback:b", support, operations=("mean",))
+            ],
+            consumes=[ic.ConsumedPort("in", quantity, "feedback:b", support, operations=("mean",))],
+        )
+
+    product = _feedback_linear().worlds(
+        [World(0)],
+        component_id="feedback",
+        source_id="specification",
+        certifying_evidence=["independent-bench-test"],
+    )
+    parts = [stage("feedback"), stage("reader")]
+    wires = [("feedback", "out", "reader", "in")]
+    composed = ic.check_composition_with_cyclic(parts, wires, {"feedback": product})
+    assert composed.order == ("feedback", "reader")
+    # The composition identity binds the cyclic product's program and solve tag.
+    assert composed.identity != ic.check_composition(parts, wires).identity
+    system = model().prepare([[]], [[0.1, 0.2]])
+    assert (
+        ic.check_composition_with_cyclic(parts, wires, {"feedback": system}).identity
+        != composed.identity
+    )
+
+    # The feedback inside the product stays inside its component; among components it is
+    # refused with the path named.
+    looped = [*wires, ("reader", "out", "feedback", "in")]
+    with pytest.raises(ic.InterfaceContractRefusal) as refused:
+        ic.check_composition_with_cyclic(parts, looped, {"feedback": product})
+    assert refused.value.reason_code == "interface_contract_cyclic_composition"
+    assert refused.value.remedy
+    with pytest.raises(Exception, match="PreparedCyclicFamily"):
+        ic.check_composition_with_cyclic(parts, wires, {"feedback": object()})
+
+
+# Committed fixtures of parity/cyclic/, replayed in a fresh CPU process. The gate copies this
+# file elsewhere and names the fixture directory in ANTECEDENT_CYCLIC_FIXTURES.
+_FIXTURES = (
+    "specified-feedback-pair",
+    "overlapping-loops",
+    "recovered-asymptotic-normal",
+    "recovered-bootstrap",
+    "recovered-unresolved-direction",
+    "dynamic-inference-ou",
+    "previous-record-format",
+)
+
+
+def _committed_fixtures() -> Path:
+    configured = os.environ.get("ANTECEDENT_CYCLIC_FIXTURES")
+    if configured:
+        root = Path(configured)
+        if not (root / _FIXTURES[0] / "family.ant").is_file():
+            pytest.fail(f"ANTECEDENT_CYCLIC_FIXTURES={configured} holds no committed fixtures")
+        return root
+    root = Path(__file__).resolve().parents[2] / "parity" / "cyclic"
+    if not (root / _FIXTURES[0] / "family.ant").is_file():
+        pytest.skip("committed cyclic fixtures are not next to this copy of the tests")
+    return root
+
+
+def _replay_committed(tmp_path: Path, name: str) -> dict:
+    directory = _committed_fixtures() / name
+    identity = json.loads((directory / "expected-identity.json").read_text(encoding="utf-8"))
+    replayed = _fresh_replay(
+        tmp_path,
+        "import json,pathlib; from antecedent.cyclic import consume_family_artifact; "
+        + f"p=pathlib.Path({str(directory)!r}); "
+        + "r=consume_family_artifact((p/'family.ant').read_bytes(),"
+        + f"expected_identity={identity['identity']!r}); "
+        + "print(json.dumps(r.report))",
+    )
+    report = json.loads(replayed)
+    assert report == json.loads((directory / "report.json").read_text(encoding="utf-8"))
+    return report
+
+
+@pytest.mark.parametrize("name", _FIXTURES)
+def test_committed_cyclic_fixture_replays_in_a_fresh_process(tmp_path: Path, name: str) -> None:
+    report = _replay_committed(tmp_path, name)
+    manifest = json.loads(
+        (_committed_fixtures() / name / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["fresh_process_cpu_replay"] is True
+    expected = json.loads(
+        (_committed_fixtures() / name / "expected-identity.json").read_text(encoding="utf-8")
+    )
+    assert report["identity"] == expected["identity"]
+
+
+def test_committed_feedback_pair_replays_its_analytic_truths(tmp_path: Path) -> None:
+    worlds = _replay_committed(tmp_path, "specified-feedback-pair")["answer"]["result"]
+    law = {world["world"]: world["outcome"] for world in worlds}
+    covariance = law[0]["covariance"]
+    assert covariance[1] / covariance[0] == pytest.approx(1.40625 / 1.8125, abs=1e-12)
+    assert covariance[1] / covariance[0] == pytest.approx(0.776, abs=5e-4)
+    assert law[2]["mean"][1] - law[1]["mean"][1] == pytest.approx(0.5, abs=1e-12)
+    assert law[3]["mean"][1] == pytest.approx(0.625, abs=1e-12)
+
+    loops = _replay_committed(tmp_path, "overlapping-loops")["answer"]["result"]
+    clamped = next(world for world in loops if world["world"] == 1)
+    assert clamped["failed_mass"] == 1.0
+
+
+def test_committed_records_refuse_another_identity(tmp_path: Path) -> None:
+    root = _committed_fixtures()
+    other = json.loads(
+        (root / "overlapping-loops" / "expected-identity.json").read_text(encoding="utf-8")
+    )["identity"]
+    artifact = (root / "specified-feedback-pair" / "family.ant").read_bytes()
+    with pytest.raises(Exception, match="identity|mismatch"):
+        consume_family_artifact(artifact, expected_identity=other)

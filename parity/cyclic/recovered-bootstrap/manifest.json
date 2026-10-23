@@ -1,0 +1,13 @@
+{
+  "analytic": {
+    "law_meaning": "sampling_law",
+    "simulated_clamp_response_b": 1.0
+  },
+  "artifact_blake3": "f3e1c0389fe9cc66e7749b2f5bedf4cb35a5c279dddf7282bed1600d5d514851",
+  "attestation": "separate_not_performed",
+  "calibration": "separate_unmeasured",
+  "family": "experimental_recovery",
+  "fresh_process_cpu_replay": true,
+  "generator": "cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_",
+  "record_format": 2
+}

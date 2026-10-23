@@ -2513,3 +2513,27 @@ status = "REFUSED"
 detail = "feedback among components is `interface_contract_cyclic_composition` with its path and the cycle gate's next attempt; a declaration naming no component is `interface_contract.unknown_component`"
 evidence_test = "crates/antecedent/src/analysis/lowering/cyclic_tests.rs"
 evidence_assertion = "a_certified_cyclic_product_enters_as_one_component_and_component_cycles_stay_refused"
+
+[[rust_cell]]
+producer = "cyclic_family_contract"
+consumer = "cyclic_family_contract_consumer"
+status = "DIRECT"
+detail = "committed version-two records under `parity/cyclic/` (the specified feedback pair with association 0.776, clamp derivative 0.5 and mean-shift response 0.625; the overlapping-loop clamp kept as failed mass; asymptotic-normal, bootstrap and unresolved-direction recovered laws; a seeded dynamic-inference bootstrap) replay bit for bit on an independent CPU context from the committed bytes and the separately committed expected identity, without calling the producer; the committed version-one record still replays and carries no contract"
+evidence_test = "crates/antecedent/tests/cyclic_independent_consumer.rs"
+evidence_assertion = "the_specified_feedback_pair_replays_its_three_distinct_quantities"
+
+[[rust_cell]]
+producer = "cyclic_family_contract"
+consumer = "cyclic_family_contract_consumer"
+status = "REFUSED"
+detail = "against the committed bytes, a malformed or foreign expected identity, a re-encoded record with a tampered report (`Mismatch`), a tampered or foreign contract section, a corrupted byte and an unknown record version are refused"
+evidence_test = "crates/antecedent/tests/cyclic_independent_consumer.rs"
+evidence_assertion = "identity_report_contract_and_version_tampering_are_refused"
+
+[[rust_cell]]
+producer = "cyclic_family_contract"
+consumer = "interface_composition"
+status = "DIRECT"
+detail = "Python: `interface_contract.check_composition_with_cyclic` declares a prepared cyclic family or system as one component from its native contract; the composition identity binds the product, and feedback among components stays `interface_contract_cyclic_composition`"
+evidence_test = "python/tests/test_cyclic.py"
+evidence_assertion = "test_a_prepared_cyclic_product_composes_as_one_component"

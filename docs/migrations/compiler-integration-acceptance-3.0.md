@@ -19,6 +19,21 @@ reduction and verifies backend selection and capability refusals. It is a numeri
 component, not a causal workflow or an interchangeable substitute for retained-row
 adjustment uncertainty. Lazy and accelerator alternatives remain unavailable.
 
+## Cyclic family acceptance evidence
+
+Integrated cyclic families have committed fixtures under `parity/cyclic/` (the
+specified feedback pair and its three distinct quantities, the overlapping-loop
+clamp kept as failed mass, asymptotic-normal, bootstrap and unresolved-direction
+recovered laws, a dynamic-inference bootstrap, and the version-one record). They
+are written by `cargo test -p antecedent --test cyclic_family_fixtures -- --ignored
+write_`. `cyclic_independent_consumer` replays the committed bytes against the
+separately committed identity on an independent CPU context, bit for bit, and
+refuses identity, report, contract and version tampering. `cyclic_dag_regression`
+keeps acyclic support on the DAG schedule. Python replays each fixture in a fresh
+process. The capability row is `integrated_families` in
+`parity/cyclic/acceptance.toml`; the producer/consumer cells are in
+`parity/producer_consumer.toml`. These checks do not measure calibration.
+
 ## Ownership and compatibility
 
 Returned numerical reports retain reservations until their last shared owner is

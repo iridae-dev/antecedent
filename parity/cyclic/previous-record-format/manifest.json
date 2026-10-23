@@ -1,0 +1,10 @@
+{
+  "artifact_blake3": "697fa4bfdade3cb5eed2c8c57aa5536cde884d66ff7945a091e7208a55f4ab7d",
+  "attestation": "separate_not_performed",
+  "calibration": "separate_unmeasured",
+  "family": "linear_worlds",
+  "fresh_process_cpu_replay": true,
+  "generator": "cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_",
+  "record_format": 1,
+  "source": "crates/antecedent-io/tests/fixtures/cyclic_family_v1.bin"
+}

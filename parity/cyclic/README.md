@@ -13,6 +13,19 @@ Regenerate with an installed release wheel:
 python examples/python/general_cyclic_systems.py --output-dir parity/cyclic/general-equilibrium
 ```
 
+The family fixtures (`specified-feedback-pair`, `overlapping-loops`,
+`recovered-asymptotic-normal`, `recovered-bootstrap`, `recovered-unresolved-direction`,
+`dynamic-inference-ou`, `previous-record-format`) each hold `request.json`,
+`report.json`, the family record `family.ant`, `expected-identity.json` and
+`manifest.json`. Regenerate them with
+
+```sh
+cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_
+```
+
+`crates/antecedent/tests/cyclic_independent_consumer.rs` consumes them without
+calling the producer.
+
 Paper protocols and their explicit deviations are in
 `examples/python/cyclic_paper_experiments.py`. Experiment metrics retain original
 convergence failures and model-conditional interpretation. Calibration and

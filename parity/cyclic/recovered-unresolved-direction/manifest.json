@@ -1,0 +1,19 @@
+{
+  "analytic": {
+    "unresolved_rows": [
+      {
+        "missing_clamps": [
+          1
+        ],
+        "target": 0
+      }
+    ]
+  },
+  "artifact_blake3": "debace3fbd1cffb84066e6e1ba30f85c7ffc6f3866e1a9ebcfc31a2aab6ba3a9",
+  "attestation": "separate_not_performed",
+  "calibration": "separate_unmeasured",
+  "family": "experimental_recovery",
+  "fresh_process_cpu_replay": true,
+  "generator": "cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_",
+  "record_format": 2
+}

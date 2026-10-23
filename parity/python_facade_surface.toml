@@ -355,8 +355,9 @@ python = "antecedent.composition_verification.consume_composition_verification_a
 [[entry]]
 rust = "antecedent::analysis::interface_contract::check_interface_composition_with_cyclic"
 kind = "fn"
-status = "missing"
-reason = "composition of a certified cyclic component has no Python entry yet; next attempt: bind it in python/src/cyclic_system_api.rs next to as_component"
+status = "bound"
+python = "antecedent.interface_contract.check_composition_with_cyclic"
+reason = "tested in python/tests/test_cyclic.py"
 
 [[entry]]
 rust = "antecedent::analysis::composition_verification::contract_effects"

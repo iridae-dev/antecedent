@@ -125,3 +125,21 @@ contract (`consume_cyclic_family_contract` refuses them with a next attempt).
 A certified cyclic product enters an interface-contract composition as one
 declared component (`check_interface_composition_with_cyclic`,
 `CyclicFamilyContract::as_component`). Feedback among components stays refused.
+
+## Row design, contracts and composition from Python
+
+`ExperimentalFitOptionsWire` gains an optional `sampling_design`. Absent, the
+encoding and the request identity are unchanged. Declared, request compilation
+refuses an asymptotic-normal or posterior origin under a clustered or time-series
+design (`reason=estimator_inference_mismatch`), with a bootstrap under the declared
+design as the next attempt, and refuses a bootstrap that resamples under another
+design. Python `prepare_experimental_recovery` writes a declared design into the
+fit options for a row-independent origin and no longer decides the rule itself;
+the refusal keeps its reason code and next attempt.
+
+`PreparedStudy::design_unresolved` returns the rows a clamp design leaves
+unresolved before any fit. Python `inspect()` reports them as `design_unresolved`
+and, until a fit on the handle, as `unresolved_directions` (previously `None`).
+Python `PreparedCyclicFamily.contract()` and `PreparedCyclicSystem.contract()`
+return the native contract, and `interface_contract.check_composition_with_cyclic`
+binds `check_interface_composition_with_cyclic`.

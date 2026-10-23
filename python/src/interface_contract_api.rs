@@ -91,7 +91,7 @@ pub(crate) fn connection_json(connection: &Connection) -> String {
     .to_string()
 }
 
-type Checked = (Option<String>, Option<String>);
+pub(crate) type Checked = (Option<String>, Option<String>);
 
 /// The canonical identity of a declared contract, or its refusal.
 #[pyfunction]
@@ -135,7 +135,7 @@ fn interface_contract_check_connection(
     })
 }
 
-fn components_of(components_json: &str) -> PyResult<Vec<InterfaceContract>> {
+pub(crate) fn components_of(components_json: &str) -> PyResult<Vec<InterfaceContract>> {
     let components_value = parse(components_json, "components")?;
     let items = components_value
         .as_array()
@@ -147,7 +147,7 @@ fn components_of(components_json: &str) -> PyResult<Vec<InterfaceContract>> {
     Ok(components)
 }
 
-fn connections_of(connections_json: &str) -> PyResult<Vec<ComponentConnection>> {
+pub(crate) fn connections_of(connections_json: &str) -> PyResult<Vec<ComponentConnection>> {
     let connections_value = parse(connections_json, "connections")?;
     let entries = connections_value
         .as_array()
@@ -168,7 +168,9 @@ fn connections_of(connections_json: &str) -> PyResult<Vec<ComponentConnection>> 
     Ok(connections)
 }
 
-fn composed_checked(decided: Result<ComposedInterfaces, Vec<InterfaceContractRefusal>>) -> Checked {
+pub(crate) fn composed_checked(
+    decided: Result<ComposedInterfaces, Vec<InterfaceContractRefusal>>,
+) -> Checked {
     match decided {
         Ok(composed) => (
             Some(

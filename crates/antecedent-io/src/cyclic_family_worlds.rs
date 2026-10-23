@@ -723,6 +723,14 @@ impl SamplingDesignWire {
             D::DependentTimeSeries => Self::DependentTimeSeries,
         }
     }
+    /// Wire spelling.
+    const fn label(self) -> &'static str {
+        match self {
+            Self::IndependentSubjectTrajectories => "independent_subject_trajectories",
+            Self::ClusteredPanel => "clustered_panel",
+            Self::DependentTimeSeries => "dependent_time_series",
+        }
+    }
 }
 
 /// Resampling unit.
@@ -1243,6 +1251,56 @@ pub struct ExperimentalFitOptionsWire {
     /// Disturbance divisor.
     #[serde(default)]
     pub divisor: DisturbanceDivisorWire,
+    /// Declared sampling design of the experimental rows, when the study declares one.
+    ///
+    /// An asymptotic-normal or posterior origin treats rows as independent within each
+    /// regime, so it is refused under a clustered or time-series design; a bootstrap
+    /// must resample under this same design. Absent, the encoding and the request
+    /// identity are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampling_design: Option<SamplingDesignWire>,
+}
+
+/// Refuse an uncertainty origin that the declared row design does not allow.
+///
+/// The refusal carries the registered `estimator_inference_mismatch` reason and names
+/// the next attempt: a bootstrap under the declared design.
+fn check_recovery_design(
+    options: ExperimentalFitOptionsWire,
+    inference: &RecoveryInferenceWire,
+) -> Result<(), CyclicArtifactError> {
+    let Some(declared) = options.sampling_design else {
+        return Ok(());
+    };
+    let prefix = antecedent_core::reason_code::PREFIX;
+    let code = antecedent_core::reason_code!("estimator_inference_mismatch");
+    let origin = match inference {
+        RecoveryInferenceWire::Bootstrap { design, .. } if *design == declared => return Ok(()),
+        RecoveryInferenceWire::Bootstrap { design, .. } => {
+            return Err(invalid(format!(
+                "{prefix}{code}: the bootstrap resamples under the `{}` design but the rows \
+                 declare `{}`; next attempt: use a bootstrap under the declared `{}` design",
+                design.label(),
+                declared.label(),
+                declared.label(),
+            )));
+        }
+        RecoveryInferenceWire::AsymptoticNormal { .. } => "asymptotic_normal",
+        RecoveryInferenceWire::Posterior { .. } => "posterior",
+    };
+    match declared {
+        SamplingDesignWire::IndependentSubjectTrajectories => Ok(()),
+        SamplingDesignWire::ClusteredPanel | SamplingDesignWire::DependentTimeSeries => {
+            Err(invalid(format!(
+                "{prefix}{code}: the `{origin}` origin treats rows as independent within each \
+                 regime, which the declared `{}` design does not allow; next attempt: use a \
+                 bootstrap under the declared `{}` design, which resamples the unit the design \
+                 names",
+                declared.label(),
+                declared.label(),
+            )))
+        }
+    }
 }
 
 impl ExperimentalFitOptionsWire {
@@ -1380,17 +1438,22 @@ fn check_experiment(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments, reason = "each argument is one field of the typed request")]
 pub(super) fn experimental_recovery_plans(
     regimes: &[ExperimentRegimeWire],
     dropped: &[u32],
     samples: &[RegimeSampleWire],
+    options: ExperimentalFitOptionsWire,
+    inference: &RecoveryInferenceWire,
     worlds: &[CyclicWorldWire],
     outcome: u32,
     source_id: &str,
     certifying_evidence: &[String],
 ) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactError> {
-    // Compilation admits the worlds on the retained units. It does not fit.
+    // Compilation admits the worlds on the retained units and the uncertainty
+    // origin under the declared row design. It does not fit.
     check_experiment(regimes, samples, source_id, certifying_evidence)?;
+    check_recovery_design(options, inference)?;
     let units = retained_units(regimes, dropped);
     let variables = variables_of(&units)?;
     if variables.position(VariableId::from_raw(outcome)).is_none() {
@@ -1445,6 +1508,7 @@ fn estimate_law(
     inference: &RecoveryInferenceWire,
     ctx: &ExecutionContext,
 ) -> Result<RecoveredLawProduct, CyclicArtifactError> {
+    check_recovery_design(options, inference)?;
     let contract = regime_contract(regimes, dropped);
     let columns: Vec<Vec<UnitColumn<'_>>> = samples
         .iter()

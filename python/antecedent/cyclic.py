@@ -414,6 +414,19 @@ class PreparedCyclicSystem:
         result: dict[str, Any] = json.loads(self._handle.inspect())
         return result
 
+    def contract(self) -> dict[str, Any]:
+        """The contract of this handle, derived through the ``system`` family it is carried as.
+
+        Returns the layered identities (target, identification, identification product,
+        program, inference binding, observation, data snapshot) and the
+        ``cyclic.solution.v1`` tag as lowercase hex, the identification kind (always
+        ``specified_model_conditional`` here) and the typed layer payloads a family export
+        writes. Deriving it compiles schedules and does not fit. The contract grants no
+        scientific license.
+        """
+        result: dict[str, Any] = json.loads(self._handle.contract())
+        return result
+
     def to_family(
         self, *, max_bytes: int | None = None, cancel: Any = None
     ) -> PreparedCyclicFamily:
@@ -561,19 +574,32 @@ class PreparedCyclicFamily:
 
         Beyond identity, family and retained bytes, the inspection names the draw origin and
         its evidence meaning (``sampling_law``, ``parameter_posterior``, or None for supplied
-        draws), the unresolved directions of a recovered law (None for an experimental
-        recovery until an execution on this handle has fitted it), the request fields whose
-        change invalidates a retained fit (``fit_dependencies``; ``*`` is the whole request),
-        and the world ids of a typed-world family.
+        draws), the unresolved directions of a recovered law, the request fields whose change
+        invalidates a retained fit (``fit_dependencies``; ``*`` is the whole request), and the
+        world ids of a typed-world family.
+
+        For an experimental recovery, ``design_unresolved`` lists the coefficient rows the
+        clamp design leaves unresolved (``{"target", "missing_clamps"}`` by unit id), read from
+        the native compiler before any fit; it is None for other families. Before a fit on this
+        handle ``unresolved_directions`` reports those rows; after one it reports the recovered
+        law's directions, which also name rank deficiencies the fit found.
         """
         from ._cyclic_typed import family_facts
 
         request = json.loads(self.request_json)
+        if self._handle is None and request["family"] == "experimental_recovery":
+            # Compilation only: it admits the worlds and reads the clamp design, never fits.
+            with self._lock:
+                self._prepare(max_bytes=None, cancel=None)
         if self._handle is None:
-            facts: dict[str, Any] = {"family": request["family"], "preparation_evaluations": 0}
+            facts: dict[str, Any] = {
+                "family": request["family"],
+                "preparation_evaluations": 0,
+                "design_unresolved": None,
+            }
         else:
             facts = dict(json.loads(self._handle.inspect()))
-        facts.update(family_facts(request, self._law))
+        facts.update(family_facts(request, self._law, facts.get("design_unresolved")))
         if self.variable_names is not None:
             facts["variables"] = list(self.variable_names)
         return facts
@@ -656,6 +682,26 @@ class PreparedCyclicFamily:
         ):
             raise CausalValueError("source did not identify a functional")
         return IdentifiedCyclicFunctional(source["request"], result.identity, graph["program"])
+
+    def contract(self, *, max_bytes: int | None = None, cancel: Any = None) -> dict[str, Any]:
+        """The contract of this handle, derived without fitting, sampling or solving.
+
+        Returns the layered identities (target, identification, identification product,
+        program, inference binding, observation, data snapshot), the ``cyclic.solution.v1``
+        tag and, for an experimental recovery, the recovery identity, all as lowercase hex;
+        the identification kind (``specified_model_conditional``, ``experimental_recovery``
+        or ``cyclic_ioscm``, never a graphical product); and the typed layer payloads the
+        family export writes in its contract section. The contract grants no scientific
+        license.
+        """
+        result: dict[str, Any] = json.loads(self._native_handle(max_bytes, cancel).contract())
+        return result
+
+    def _native_handle(self, max_bytes: int | None = None, cancel: Any = None) -> Any:
+        """The compiled native handle, compiling it first when needed (no fit)."""
+        with self._lock:
+            self._prepare(max_bytes=max_bytes, cancel=cancel)
+            return self._handle
 
     def refresh(self, request_json: str) -> PreparedCyclicFamily:
         """Recompile changed inputs, reusing only compatible statistical products."""

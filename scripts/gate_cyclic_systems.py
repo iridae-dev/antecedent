@@ -20,6 +20,32 @@ from pathlib import Path
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
+#: Committed family fixtures: version-two records with contracts, and the version-one
+#: record that keeps replaying beside them.
+FAMILY_FIXTURES = (
+    "specified-feedback-pair",
+    "overlapping-loops",
+    "recovered-asymptotic-normal",
+    "recovered-bootstrap",
+    "recovered-unresolved-direction",
+    "dynamic-inference-ou",
+    "previous-record-format",
+)
+FIXTURE_FILES = (
+    "request.json",
+    "report.json",
+    "family.ant",
+    "expected-identity.json",
+    "manifest.json",
+)
+#: Integration targets of the integrated families: independent CPU consumers of the
+#: committed fixtures, DAG regression, fixture-request currency and the prepared handle.
+RUST_INTEGRATION_TESTS = (
+    "cyclic_independent_consumer",
+    "cyclic_dag_regression",
+    "cyclic_family_fixtures",
+    "cross_surface_cyclic_feedback",
+)
 RUST_CHECKS = [
     ("antecedent-model", None),
     ("antecedent-graph", "sigma"),
@@ -42,14 +68,34 @@ def run(command: list[str], **kwargs) -> None:
 
 
 def inventory() -> None:
-    record = tomllib.loads((ROOT / "parity/cyclic/acceptance.toml").read_text(encoding="utf-8"))
-    expected = {"Y18.1", "Y18.2"} | {f"Y19.{i}" for i in range(1, 9)}
+    record = tomllib.loads(
+        (ROOT / "parity/cyclic/acceptance.toml").read_text(encoding="utf-8")
+    )
+    expected = (
+        {"Y18.1", "Y18.2"} | {f"Y19.{i}" for i in range(1, 9)} | {"integrated_families"}
+    )
     if {row["id"] for row in record["capability"]} != expected:
         raise ValueError("cyclic acceptance children differ from promoted scope")
     for row in record["capability"]:
-        for path in row["rust"]:
-            if not (ROOT / path).is_file():
+        for path in [*row["rust"], *row.get("fixtures", []), *row.get("tests", [])]:
+            if not (ROOT / path).exists():
                 raise ValueError(f"missing cyclic implementation {path}")
+    for name in FAMILY_FIXTURES:
+        directory = ROOT / "parity/cyclic" / name
+        for file in FIXTURE_FILES:
+            if not (directory / file).is_file():
+                raise ValueError(f"missing committed family fixture {name}/{file}")
+        manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+        identity = json.loads(
+            (directory / "expected-identity.json").read_text(encoding="utf-8")
+        )
+        if (
+            len(identity["identity"]) != 64
+            or len(manifest["artifact_blake3"]) != 64
+            or not manifest["fresh_process_cpu_replay"]
+            or "cyclic_family_fixtures" not in manifest["generator"]
+        ):
+            raise ValueError(f"incomplete family fixture manifest {name}")
     fixture = ROOT / "parity/cyclic/general-equilibrium"
     manifest = json.loads((fixture / "manifest.json").read_text(encoding="utf-8"))
     for key, path in [
@@ -126,12 +172,16 @@ def inventory() -> None:
         for c in t["cases"]
         if not c["converged"]
     }
-    continued = json.loads((directory / "ou-continuations.json").read_text(encoding="utf-8"))["cases"]
+    continued = json.loads(
+        (directory / "ou-continuations.json").read_text(encoding="utf-8")
+    )["cases"]
     if {(r["seed"], r["case"]) for r in continued} != expected:
         raise ValueError("a budget-limited OU experiment has no named continuation")
     standardized = {
         (r["seed"], r["case"]): r
-        for r in json.loads((directory / "ou-standardized.json").read_text(encoding="utf-8"))["cases"]
+        for r in json.loads(
+            (directory / "ou-standardized.json").read_text(encoding="utf-8")
+        )["cases"]
     }
     base_identities = {
         (t["seed"], f"single-contexts-{c['single_contexts']}"): c["artifact"][
@@ -185,21 +235,37 @@ def main() -> None:
     for crate in dict.fromkeys(crate for crate, _ in RUST_CHECKS):
         command.extend(["-p", crate])
     selections = [
-        f"package({crate})" if test is None
-        else f"(package({crate}) & test({test}))"
+        f"package({crate})" if test is None else f"(package({crate}) & test({test}))"
         for crate, test in RUST_CHECKS
     ]
     command.extend(["--lib", "-E", " | ".join(selections)])
     run(command, cwd=ROOT)
+    integration = ["bash", "scripts/test.sh", "dev", "-p", "antecedent"]
+    for target in RUST_INTEGRATION_TESTS:
+        integration.extend(["--test", target])
+    run(integration, cwd=ROOT)
     with tempfile.TemporaryDirectory(prefix="antecedent-cyclic-gate-") as directory:
         target = Path(directory) / "test_cyclic.py"
         target.write_bytes((ROOT / "python/tests/test_cyclic.py").read_bytes())
         env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        # The copied tests replay the committed family fixtures in fresh processes.
+        env["ANTECEDENT_CYCLIC_FIXTURES"] = str(ROOT / "parity/cyclic")
         run(
             [args.python, "-m", "pytest", "--noconftest", "-q", str(target)],
             cwd=directory,
             env=env,
         )
+        for name in FAMILY_FIXTURES:
+            fixture = ROOT / "parity/cyclic" / name
+            code = (
+                "import json,pathlib;from antecedent.cyclic import consume_family_artifact;"
+                f"p=pathlib.Path({str(fixture)!r});"
+                "expected=json.loads((p/'expected-identity.json').read_text(encoding='utf-8'));"
+                "r=consume_family_artifact((p/'family.ant').read_bytes(),"
+                "expected_identity=expected['identity']);"
+                "assert r.report==json.loads((p/'report.json').read_text(encoding='utf-8'))"
+            )
+            run([args.python, "-c", code], cwd=directory, env=env)
         fixture = ROOT / "parity/cyclic/general-equilibrium"
         code = (
             "import json,pathlib;from antecedent.cyclic import consume_artifact;"

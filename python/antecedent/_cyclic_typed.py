@@ -67,14 +67,18 @@ def _refusal(
 
 
 def _next_attempt_refusal(error: BaseException, detail: str) -> CyclicRefusal | None:
-    """A native refusal that names its next attempt, as a :class:`CyclicRefusal`."""
+    """A native refusal that names its next attempt, as a :class:`CyclicRefusal`.
+
+    A registered ``reason=<code>:`` the native layer wrote into the message is kept as the
+    refusal's ``reason_code``; otherwise the route is ``route_not_supported``.
+    """
     text = str(error)
     match = _NEXT_ATTEMPT.search(text)
     if match is None:
         return None
     refusal = _refusal(
         text,
-        reason_code="route_not_supported",
+        reason_code=getattr(error, "reason_code", None) or "route_not_supported",
         detail=detail,
         next_attempt=match.group("sentence").strip(),
     )
@@ -923,14 +927,8 @@ def _inference_wire(
         raise CausalValueError(
             "uncertainty must be AsymptoticNormal, RecoveryBootstrap or RecoveryPosterior"
         )
-    if design in ("clustered_panel", "dependent_time_series"):
-        raise _refusal(
-            f"{type(uncertainty).__name__} treats rows as independent within each regime, "
-            f"which the declared {design} design does not allow",
-            reason_code="estimator_inference_mismatch",
-            detail="cyclic_recovery.row_independent_uncertainty",
-            next_attempt="use RecoveryBootstrap, which resamples the unit the design names",
-        )
+    # Whether a row-independent origin is allowed under the declared design is decided by
+    # Rust request compilation, which reads the design from the fit options.
     if isinstance(uncertainty, AsymptoticNormal):
         return {
             "method": "asymptotic_normal",
@@ -997,8 +995,9 @@ def prepare_experimental_recovery(
     stay at their weights. Directions the regimes do not pin down stay unresolved in every
     draw. A recovered law takes hard clamps only: a shift or mechanism replacement is refused
     with its next attempt. ``sampling_design`` is the study's declaration of how rows were
-    sampled; the bootstrap resamples the unit it names, and row-independent origins refuse a
-    clustered or time-series design. The law stays conditional on the clamp-experiment
+    sampled; the bootstrap resamples the unit it names, and Rust refuses a row-independent
+    origin under a clustered or time-series design (``estimator_inference_mismatch``, naming a
+    bootstrap under the declared design). The law stays conditional on the clamp-experiment
     recipe and grants no scientific license; ``certifying_evidence`` must name evidence
     other than ``source_id``.
     """
@@ -1012,13 +1011,18 @@ def prepare_experimental_recovery(
     masked = {_resolve(name, ids) for name in dropped}
     observed = {unit for regime, _ in wires for unit in regime["units"]}
     retained = [name for name in names if ids[name] in observed and ids[name] not in masked]
+    options = asdict(fit or ExperimentalFitOptions())
+    inference = _inference_wire(uncertainty, design, retained)
+    if design is not None and inference["method"] != "bootstrap":
+        # The bootstrap carries its design; a row-independent origin declares it here.
+        options["sampling_design"] = design
     request = {
         "family": "experimental_recovery",
         "regimes": [regime for regime, _ in wires],
         "dropped": sorted(masked),
         "samples": [sample for _, sample in wires],
-        "options": asdict(fit or ExperimentalFitOptions()),
-        "inference": _inference_wire(uncertainty, design, retained),
+        "options": options,
+        "inference": inference,
         "worlds": _worlds(worlds, ids),
         "outcome": _resolve(outcome, ids),
         "source_id": source_id,
@@ -1527,11 +1531,17 @@ def _distinct(directions: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     return list(seen.values())
 
 
-def family_facts(request: Mapping[str, Any], law: Mapping[str, Any] | None) -> dict[str, Any]:
+def family_facts(
+    request: Mapping[str, Any],
+    law: Mapping[str, Any] | None,
+    design_unresolved: Sequence[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Draw origin, unresolved directions, fit dependencies and worlds of a family request.
 
     ``law`` is the recovered law of the last execution on the handle, when there was one.
-    ``unresolved_directions`` is None when it is only known after the fit.
+    ``design_unresolved`` holds the rows the clamp design leaves unresolved, as the native
+    compiler reads them before any fit; an experimental recovery reports them as its
+    ``unresolved_directions`` until a fit on the handle reports the law's own.
     """
     family = request["family"]
     facts: dict[str, Any] = {
@@ -1551,6 +1561,8 @@ def family_facts(request: Mapping[str, Any], law: Mapping[str, Any] | None) -> d
         origin = _origin_of(request["inference"])
         facts["draw_origin"] = origin
         facts["law_meaning"] = _law_meaning(origin)
+        if design_unresolved is not None:
+            facts["unresolved_directions"] = [dict(row) for row in design_unresolved]
         if law is not None:
             facts["unresolved_directions"] = _distinct(
                 [item for draw in law["draws"] for item in draw.get("unresolved", [])]

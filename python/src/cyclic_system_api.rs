@@ -150,7 +150,98 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(consume_cyclic_family, m)?)?;
     m.add_function(wrap_pyfunction!(consume_cyclic_system, m)?)?;
     m.add_function(wrap_pyfunction!(cyclic_parameter_posterior, m)?)?;
+    m.add_function(wrap_pyfunction!(interface_contract_check_composition_with_cyclic, m)?)?;
     Ok(())
+}
+
+/// The contract of a prepared cyclic handle as JSON: layered identities and the
+/// cyclic layers as lowercase hex, and the typed layer payloads the family export
+/// writes. Deriving it does not fit, sample or solve.
+fn contract_json(
+    contract: &antecedent::analysis::cyclic::CyclicFamilyContract,
+) -> PyResult<String> {
+    let hex = antecedent_core::SemanticDigest::to_hex;
+    let identities = &contract.identities;
+    let section = &contract.section;
+    let layer = |value: Result<serde_json::Value, serde_json::Error>| {
+        value.map_err(|e| crate::serialization_err(e.to_string()))
+    };
+    Ok(serde_json::json!({
+        "family": section.family,
+        "request_identity": section.request_identity,
+        "identities": {
+            "target": hex(&identities.target),
+            "identification": hex(&identities.identification),
+            "identification_product": identities.identification_product.as_ref().map(hex),
+            "program": identities.program.as_ref().map(hex),
+            "inference_binding": hex(&identities.inference_binding),
+            "observation": hex(&identities.observation),
+            "data_snapshot": hex(&identities.data_snapshot),
+        },
+        "cyclic_solution": hex(&contract.cyclic_solution),
+        "recovery": contract.recovery.as_ref().map(hex),
+        "lowered_program_identity": hex(&contract.lowered_program_identity),
+        "identification_kind": section.identification.kind(),
+        "layers": {
+            "target": layer(serde_json::to_value(&section.target))?,
+            "identification": layer(serde_json::to_value(&section.identification))?,
+            "program": layer(serde_json::to_value(&section.program))?,
+            "inference_binding": layer(serde_json::to_value(&section.inference_binding))?,
+            "observation": layer(serde_json::to_value(&section.observation))?,
+            "data_snapshot": layer(serde_json::to_value(&section.data_snapshot))?,
+            "solution": layer(serde_json::to_value(&section.solution))?,
+        },
+    })
+    .to_string())
+}
+
+/// The contract of a prepared cyclic family or system handle.
+fn cyclic_contract_of(
+    handle: &Bound<'_, PyAny>,
+) -> PyResult<antecedent::analysis::cyclic::CyclicFamilyContract> {
+    let contract = if let Ok(family) = handle.extract::<PyRef<'_, PyPreparedCyclicFamily>>() {
+        family.inner.contract()
+    } else if let Ok(system) = handle.extract::<PyRef<'_, PyPreparedCyclicSystem>>() {
+        system.inner.contract()
+    } else {
+        return Err(crate::value_err(
+            "a cyclic component must be a prepared cyclic family or system handle",
+        ));
+    };
+    contract.map_err(|e| crate::value_err(e.to_string()))
+}
+
+/// Check an interface composition in which each prepared cyclic product enters as one
+/// declared component (`check_interface_composition_with_cyclic`).
+///
+/// `cyclic` pairs a component name with a prepared cyclic family or system handle; the
+/// declaration is that handle's contract (`CyclicFamilyContract::as_component`), derived
+/// without fitting. Feedback inside a product stays inside its component; feedback among
+/// components is refused with its path. Refusals are returned as a JSON array.
+#[pyfunction]
+#[pyo3(signature = (components_json, connections_json, cyclic, ledger=None))]
+fn interface_contract_check_composition_with_cyclic(
+    components_json: &str,
+    connections_json: &str,
+    cyclic: Vec<(String, Bound<'_, PyAny>)>,
+    ledger: Option<PyRef<'_, crate::evidence_ledger_api::EvidenceLedgerHandle>>,
+) -> PyResult<crate::interface_contract_api::Checked> {
+    let components = crate::interface_contract_api::components_of(components_json)?;
+    let connections = crate::interface_contract_api::connections_of(connections_json)?;
+    let declarations = cyclic
+        .iter()
+        .map(|(component, handle)| {
+            cyclic_contract_of(handle).map(|contract| contract.as_component(component.clone()))
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    Ok(crate::interface_contract_api::composed_checked(
+        antecedent::analysis::interface_contract::check_interface_composition_with_cyclic(
+            &components,
+            &connections,
+            &declarations,
+            ledger.as_deref().map(crate::evidence_ledger_api::EvidenceLedgerHandle::ledger),
+        ),
+    ))
 }
 
 #[pyfunction]
@@ -310,6 +401,14 @@ impl PyPreparedCyclicSystem {
             width,
             facts,
         ))
+    }
+
+    /// Contract of this handle, derived through the `system` family it is carried as
+    /// (`PreparedStudy::contract`). Deriving it does not fit.
+    fn contract(&self, py: Python<'_>) -> PyResult<String> {
+        let contract =
+            py.detach(|| self.inner.contract()).map_err(|e| crate::value_err(e.to_string()))?;
+        contract_json(&contract)
     }
 
     fn inspect(&self) -> PyResult<String> {
@@ -613,9 +712,19 @@ impl PyPreparedCyclicFamily {
             facts,
         ))
     }
+    /// Cheap inspection. `design_unresolved` lists the coefficient rows the clamp
+    /// design of an experimental recovery leaves unresolved, known before any fit
+    /// (`PreparedStudy::design_unresolved`); it is null for every other family.
     fn inspect(&self) -> String {
         let inspection = self.inner.inspect();
-        serde_json::json!({"identity":inspection.identity,"family":inspection.family,"preparation_evaluations":inspection.preparation_evaluations,"retained_bytes":inspection.retained_bytes,"execution_plans":inspection.execution_plans}).to_string()
+        serde_json::json!({"identity":inspection.identity,"family":inspection.family,"preparation_evaluations":inspection.preparation_evaluations,"retained_bytes":inspection.retained_bytes,"execution_plans":inspection.execution_plans,"design_unresolved":self.inner.design_unresolved()}).to_string()
+    }
+    /// Contract of this handle (`PreparedStudy::contract`): layered identities, the
+    /// `cyclic.solution.v1` tag, the recovery layer of an experimental recovery and
+    /// the layer payloads. Deriving it does not fit, sample or solve.
+    fn contract(&self) -> PyResult<String> {
+        let contract = self.inner.contract().map_err(|e| crate::value_err(e.to_string()))?;
+        contract_json(&contract)
     }
 }
 

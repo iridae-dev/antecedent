@@ -432,6 +432,74 @@ fn recovered_uncertainty_keeps_its_meaning_and_unresolved_rows_stay_unresolved()
     assert_eq!(consume_cyclic_family(&bytes, &report.identity, &ctx()).unwrap(), report);
 }
 
+fn with_row_design(
+    mut request: CyclicFamilyRequest,
+    design: SamplingDesignWire,
+) -> CyclicFamilyRequest {
+    if let CyclicFamilyRequest::ExperimentalRecovery { options, .. } = &mut request {
+        options.sampling_design = Some(design);
+    }
+    request
+}
+
+#[test]
+fn row_independent_origins_refuse_a_clustered_or_time_series_row_design() {
+    // Absent, the declared design adds nothing to the encoding.
+    let plain = serde_json::to_string(&ExperimentalFitOptionsWire::default()).unwrap();
+    assert!(!plain.contains("sampling_design"), "{plain}");
+
+    let posterior = RecoveryInferenceWire::Posterior {
+        prior: RecoveryPriorWire {
+            coefficients: CoefficientPriorWire::Flat,
+            disturbance: DisturbancePriorWire::Known { variances: vec![1.0, 1.0] },
+        },
+        draws: 4,
+        burn_in: 0,
+        seed: 3,
+    };
+    let asymptotic = RecoveryInferenceWire::AsymptoticNormal { draws: 4, seed: 1 };
+    for design in [SamplingDesignWire::ClusteredPanel, SamplingDesignWire::DependentTimeSeries] {
+        for inference in [asymptotic.clone(), posterior.clone()] {
+            let request = with_row_design(recovery_request(COMPLETE, inference), design);
+            let message =
+                refusal_text(CompiledCyclicFamilyProgram::compile(&request, &ctx()).unwrap_err());
+            assert!(message.contains("reason=estimator_inference_mismatch:"), "{message}");
+            assert!(
+                message.contains("next attempt: use a bootstrap under the declared"),
+                "{message}"
+            );
+        }
+    }
+    // Independent rows admit a row-independent origin.
+    let independent = with_row_design(
+        recovery_request(COMPLETE, asymptotic),
+        SamplingDesignWire::IndependentSubjectTrajectories,
+    );
+    assert!(CompiledCyclicFamilyProgram::compile(&independent, &ctx()).is_ok());
+
+    // A bootstrap resamples under the declared row design, never another one.
+    let bootstrap = |design: SamplingDesignWire| RecoveryInferenceWire::Bootstrap {
+        replicates: 4,
+        seed: 2,
+        design,
+        rule: ResamplingRuleWire::RowSubjectIid,
+        block_length: None,
+    };
+    let mismatched = with_row_design(
+        recovery_request(COMPLETE, bootstrap(SamplingDesignWire::IndependentSubjectTrajectories)),
+        SamplingDesignWire::ClusteredPanel,
+    );
+    let message =
+        refusal_text(CompiledCyclicFamilyProgram::compile(&mismatched, &ctx()).unwrap_err());
+    assert!(message.contains("reason=estimator_inference_mismatch:"), "{message}");
+    assert!(message.contains("next attempt:"), "{message}");
+    let agreed = with_row_design(
+        recovery_request(COMPLETE, bootstrap(SamplingDesignWire::IndependentSubjectTrajectories)),
+        SamplingDesignWire::IndependentSubjectTrajectories,
+    );
+    assert!(CompiledCyclicFamilyProgram::compile(&agreed, &ctx()).is_ok());
+}
+
 #[test]
 fn a_recovered_law_refuses_actions_other_than_hard_clamps_at_compilation() {
     let mut request =

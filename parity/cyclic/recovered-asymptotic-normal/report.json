@@ -1,0 +1,6133 @@
+{
+  "identity": "cb7d9997d83da3ca4c4b129628002cffed285b659ec67263597df7969ca8d515",
+  "answer": {
+    "family": "experimental_recovery",
+    "result": {
+      "law": {
+        "nodes": [
+          0,
+          1
+        ],
+        "origin": {
+          "origin": "asymptotic_normal",
+          "draws": 64,
+          "seed": 7
+        },
+        "draws": [
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.5086397040957735
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5358461830252514
+              }
+            ],
+            "intercept": [
+              -0.3273918905792206,
+              0.037867964237792255
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9050014735997287,
+              0.0,
+              0.0,
+              0.8959513682580018
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4081390572057367
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.502814381948135
+              }
+            ],
+            "intercept": [
+              -0.17032956155250872,
+              -0.005225855558639268
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0009828490763797,
+              0.0,
+              0.0,
+              0.8866990226321417
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.42142524060559927
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.554764180298624
+              }
+            ],
+            "intercept": [
+              -0.09434071546149,
+              0.07666679531721704
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9761569671181276,
+              0.0,
+              0.0,
+              0.8819653131040228
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.40124038391778055
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5829015666933333
+              }
+            ],
+            "intercept": [
+              -0.02529815071849112,
+              -0.011381472314131103
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.036489289472137,
+              0.0,
+              0.0,
+              0.9143389876240317
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4659792493583477
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.45729429955573
+              }
+            ],
+            "intercept": [
+              -0.16002814681086305,
+              0.039846674249197266
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9610897970041298,
+              0.0,
+              0.0,
+              0.9056489886865338
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.3855499969682504
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.45800970621944376
+              }
+            ],
+            "intercept": [
+              -0.10243091980863878,
+              0.14173451775402487
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9266604352104363,
+              0.0,
+              0.0,
+              0.8508021604015341
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.43710881463764895
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4634786171427623
+              }
+            ],
+            "intercept": [
+              -0.0894564284353096,
+              0.147720716648189
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8899146121199106,
+              0.0,
+              0.0,
+              0.9042637874541107
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.40179529684370463
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5357111494181631
+              }
+            ],
+            "intercept": [
+              -0.06957537481117829,
+              0.018971950240537758
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9359073634904428,
+              0.0,
+              0.0,
+              1.0618142441474256
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4086146449807895
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.40158307145075123
+              }
+            ],
+            "intercept": [
+              -0.11183270312395246,
+              0.16730136814291757
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9506370152997772,
+              0.0,
+              0.0,
+              1.0933295042828315
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.43493464756333294
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.47350503304157354
+              }
+            ],
+            "intercept": [
+              -0.20956133096856128,
+              0.07542678696799217
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9335570653116189,
+              0.0,
+              0.0,
+              1.0138714331803251
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.5128871630297642
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5713615009459676
+              }
+            ],
+            "intercept": [
+              -0.22850571699651362,
+              0.01858001640360503
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0251950859779104,
+              0.0,
+              0.0,
+              0.9348447658945386
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4300019266378449
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5112365850980569
+              }
+            ],
+            "intercept": [
+              -0.1767109756887639,
+              0.10432056297362274
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.912072898002883,
+              0.0,
+              0.0,
+              0.8569810957868831
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.44279641824732385
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.506549616542859
+              }
+            ],
+            "intercept": [
+              -0.18127241242411163,
+              0.10640583269851893
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.901032100939812,
+              0.0,
+              0.0,
+              0.9676668544659748
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.44500622204803697
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.48632240456738884
+              }
+            ],
+            "intercept": [
+              -0.16541674026424424,
+              0.12534502598717923
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8926097649193995,
+              0.0,
+              0.0,
+              0.9822995823364337
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4537945641037894
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5563495599439526
+              }
+            ],
+            "intercept": [
+              -0.18265283311469574,
+              -0.07852426925027244
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9374310947963387,
+              0.0,
+              0.0,
+              0.9342506853589488
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.5102801898678969
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4851846557868962
+              }
+            ],
+            "intercept": [
+              -0.16742303276949136,
+              0.001782774752969979
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8591211165517517,
+              0.0,
+              0.0,
+              0.9119152700308231
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.44580182916848204
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5033291764040486
+              }
+            ],
+            "intercept": [
+              -0.19708542553410863,
+              0.12166108208466847
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8792936239735052,
+              0.0,
+              0.0,
+              0.9591592724547419
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4921123938107749
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5037451707086267
+              }
+            ],
+            "intercept": [
+              -0.262359776682494,
+              0.03544674344504647
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8562415561296033,
+              0.0,
+              0.0,
+              0.968611088353502
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.5494349801417958
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.45022931234827046
+              }
+            ],
+            "intercept": [
+              -0.3387003268712593,
+              0.09267076285482582
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9807176423342504,
+              0.0,
+              0.0,
+              1.0130080306097011
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.3975132931524787
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.48112838774864825
+              }
+            ],
+            "intercept": [
+              -0.0502021483509729,
+              0.07700990839452238
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0143368993209843,
+              0.0,
+              0.0,
+              0.9626887553419661
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.3819650096259722
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.443166099599506
+              }
+            ],
+            "intercept": [
+              -0.07105367938400878,
+              0.1132124537763014
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9299529595204418,
+              0.0,
+              0.0,
+              0.940194957327213
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.5463060175210565
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4956115935942956
+              }
+            ],
+            "intercept": [
+              -0.28522548317141233,
+              0.11994356150365543
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8596255279463544,
+              0.0,
+              0.0,
+              0.9398270393112893
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4426185003130753
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4315447403024113
+              }
+            ],
+            "intercept": [
+              -0.11355361133805085,
+              0.06593825137512965
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9413903196089929,
+              0.0,
+              0.0,
+              1.108011666277673
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4381290231292103
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5933189071560613
+              }
+            ],
+            "intercept": [
+              -0.0799917966796948,
+              -0.030171302173931172
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8824695946791558,
+              0.0,
+              0.0,
+              0.9446811665409954
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4223073102096644
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5139108718685984
+              }
+            ],
+            "intercept": [
+              -0.11535698239849339,
+              0.03390269690965344
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8390871223842732,
+              0.0,
+              0.0,
+              0.9414866461402224
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.5910816010824997
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5418349715208304
+              }
+            ],
+            "intercept": [
+              -0.3320739316263771,
+              0.0073910568157242035
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8899722888412229,
+              0.0,
+              0.0,
+              0.8831166945125988
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.469811848603354
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4958580537023238
+              }
+            ],
+            "intercept": [
+              -0.14231229628761793,
+              0.07174188004100478
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8863042596272095,
+              0.0,
+              0.0,
+              0.8523876198447541
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4645504218854009
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4966569498522841
+              }
+            ],
+            "intercept": [
+              -0.23733650493752284,
+              0.03591342492617911
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9746912681350878,
+              0.0,
+              0.0,
+              0.925799506902324
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.5163263252520816
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5993571930956374
+              }
+            ],
+            "intercept": [
+              -0.1900994077384273,
+              -0.025100089063018582
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9354277544111511,
+              0.0,
+              0.0,
+              0.8389783482968954
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.49659175249476245
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5422331775173126
+              }
+            ],
+            "intercept": [
+              -0.22514479555007744,
+              0.03140344477640511
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9336943708566214,
+              0.0,
+              0.0,
+              0.9456763297861442
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.5028204462026921
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4964154784502117
+              }
+            ],
+            "intercept": [
+              -0.20157732949071577,
+              0.1090692879866878
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9078747240384757,
+              0.0,
+              0.0,
+              0.8586077043334703
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4652770185737912
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5206909088708204
+              }
+            ],
+            "intercept": [
+              -0.21465706936361156,
+              0.004530740239393826
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9535542333855985,
+              0.0,
+              0.0,
+              0.8425074483823951
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4279131356032173
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.512909727821287
+              }
+            ],
+            "intercept": [
+              -0.1331258745966436,
+              0.15035812085693323
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9631049438829312,
+              0.0,
+              0.0,
+              0.9461588559625372
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.48555803969295663
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4995205809583352
+              }
+            ],
+            "intercept": [
+              -0.2055904480610142,
+              0.03620935492312346
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.906231657455615,
+              0.0,
+              0.0,
+              0.91962339298686
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4702401509755634
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5610898328493084
+              }
+            ],
+            "intercept": [
+              -0.22958476400169028,
+              0.005288382142190049
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0240889771095067,
+              0.0,
+              0.0,
+              1.058281186426315
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.45087883348934815
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4514165748551969
+              }
+            ],
+            "intercept": [
+              -0.17041884026856738,
+              0.14308344978768728
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8817976016067348,
+              0.0,
+              0.0,
+              1.0541622517213383
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.45516256330849164
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5046766158361299
+              }
+            ],
+            "intercept": [
+              -0.2750789701628628,
+              -0.04390952733747683
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9414515579536413,
+              0.0,
+              0.0,
+              1.0009026448969518
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.40653305564386283
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5066792671917831
+              }
+            ],
+            "intercept": [
+              -0.07644789200830741,
+              0.022735244226927506
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9275448748339143,
+              0.0,
+              0.0,
+              1.0512825907361218
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4978692295231062
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5067701086109658
+              }
+            ],
+            "intercept": [
+              -0.24111020090350171,
+              0.005822296467140234
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8659496007297685,
+              0.0,
+              0.0,
+              0.970318225571355
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.46568038750795404
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5188973647762637
+              }
+            ],
+            "intercept": [
+              -0.21396653097842674,
+              0.04771888267440321
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0770845808207263,
+              0.0,
+              0.0,
+              1.0252055585795783
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4252606935075746
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5107412670282033
+              }
+            ],
+            "intercept": [
+              -0.09321559232310055,
+              0.10902410024615052
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8867512926803984,
+              0.0,
+              0.0,
+              0.979184320985258
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4211926566336416
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4424814929554367
+              }
+            ],
+            "intercept": [
+              -0.06328504160725917,
+              0.13707044863260665
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0311909889118722,
+              0.0,
+              0.0,
+              0.8906190809594612
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4217921125634651
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5429314410448947
+              }
+            ],
+            "intercept": [
+              -0.18504964574477423,
+              0.008114357683334605
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.1451327242653513,
+              0.0,
+              0.0,
+              0.9193172784339406
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.5057974849867616
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5765570532698893
+              }
+            ],
+            "intercept": [
+              -0.22835147574063822,
+              0.0068921782271476675
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8962909743898035,
+              0.0,
+              0.0,
+              0.8772053644226167
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.37064715842791357
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.49355872694129793
+              }
+            ],
+            "intercept": [
+              -0.060393564203315646,
+              0.01562770831826009
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0601969884712898,
+              0.0,
+              0.0,
+              0.8793328449590853
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.48023552310656675
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5304507523617664
+              }
+            ],
+            "intercept": [
+              -0.22624964578400755,
+              0.035607437833478014
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8260463716900346,
+              0.0,
+              0.0,
+              0.9185371460870622
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4725623643808752
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5482169976608883
+              }
+            ],
+            "intercept": [
+              -0.20889375531076562,
+              0.06194766531698144
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.89137529210805,
+              0.0,
+              0.0,
+              1.047285697703781
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.3846340663200644
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5670903024284513
+              }
+            ],
+            "intercept": [
+              -0.017188131563994395,
+              -0.11620961255085215
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.038781642687799,
+              0.0,
+              0.0,
+              0.8747422972494769
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.43685249422088734
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4671005670482349
+              }
+            ],
+            "intercept": [
+              -0.23899802302513778,
+              -0.01277927627822839
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9500498387723453,
+              0.0,
+              0.0,
+              0.9527177951360606
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.41819524116126167
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4012141791934063
+              }
+            ],
+            "intercept": [
+              -0.1591847579436655,
+              0.17058988791978882
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0039920498818,
+              0.0,
+              0.0,
+              1.0871991380085329
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4936942779923934
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.49668389120541995
+              }
+            ],
+            "intercept": [
+              -0.2186790074484448,
+              0.09585428160367382
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9040783493968764,
+              0.0,
+              0.0,
+              0.897261463561825
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4693382541911066
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5355924526243896
+              }
+            ],
+            "intercept": [
+              -0.1535188901905448,
+              0.09113193514489892
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9851511397890867,
+              0.0,
+              0.0,
+              0.8984694427277401
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4345358044105011
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5499596988973287
+              }
+            ],
+            "intercept": [
+              -0.1794261823974777,
+              -0.04844979060282152
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9259746457155105,
+              0.0,
+              0.0,
+              1.0304788010567538
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4316004971046507
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5776662900101623
+              }
+            ],
+            "intercept": [
+              -0.10458346079685263,
+              -0.006694816807308105
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0931092867162104,
+              0.0,
+              0.0,
+              0.9234485766737122
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.37650052357348346
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5791528999950767
+              }
+            ],
+            "intercept": [
+              -0.07403217359435439,
+              -0.07095227176089475
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0433499454459159,
+              0.0,
+              0.0,
+              0.848974634330244
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4834508745864803
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4992254115194827
+              }
+            ],
+            "intercept": [
+              -0.25884707197986984,
+              0.046337529256021304
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9778580154879886,
+              0.0,
+              0.0,
+              1.0408932807767715
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4981519347318531
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5265629425734131
+              }
+            ],
+            "intercept": [
+              -0.2925281324059078,
+              0.008099565873857736
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8994162984578794,
+              0.0,
+              0.0,
+              0.9166048271359034
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.42900796039067707
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5038950173442961
+              }
+            ],
+            "intercept": [
+              -0.16723898589384872,
+              0.03190487172729819
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9012952498312218,
+              0.0,
+              0.0,
+              0.8696980362108127
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.44453972620615695
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.46922027659420196
+              }
+            ],
+            "intercept": [
+              -0.12802337832059807,
+              0.02981151174636234
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.8762435722000812,
+              0.0,
+              0.0,
+              0.9091343270313254
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.47572627081081376
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.47043120410299966
+              }
+            ],
+            "intercept": [
+              -0.2019924912969172,
+              0.06708968621191053
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.060986493305865,
+              0.0,
+              0.0,
+              0.9658170513569783
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4094265667469055
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.5532865861426292
+              }
+            ],
+            "intercept": [
+              -0.11242889684025982,
+              0.032984775546873665
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0026827991373286,
+              0.0,
+              0.0,
+              1.0050191020612633
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.4359326155928729
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.46832783684600454
+              }
+            ],
+            "intercept": [
+              -0.20806970999016955,
+              -0.005109396720246129
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              0.9022625447881701,
+              0.0,
+              0.0,
+              0.8934955107906083
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.5291073057470127
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.476863593574975
+              }
+            ],
+            "intercept": [
+              -0.2758722615993495,
+              0.01931983696556372
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0511601466370502,
+              0.0,
+              0.0,
+              0.8973339909453898
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          },
+          {
+            "coefficients": [
+              {
+                "into": 0,
+                "from": 1,
+                "value": 0.43391647609861395
+              },
+              {
+                "into": 1,
+                "from": 0,
+                "value": 0.4450446896178577
+              }
+            ],
+            "intercept": [
+              -0.10811877789972807,
+              0.05050782339353955
+            ],
+            "noise_mean": [
+              0.0,
+              0.0
+            ],
+            "noise_covariance": [
+              1.0222363408718587,
+              0.0,
+              0.0,
+              1.0094484032279856
+            ],
+            "unresolved": [],
+            "weight": 0.015625,
+            "marked_inadmissible": false
+          }
+        ],
+        "draw_status": [
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          },
+          {
+            "status": "complete",
+            "weakly_stable": true,
+            "family_admitted": true
+          }
+        ],
+        "failed_mass": -0.0
+      },
+      "law_meaning": "sampling_law",
+      "worlds": [
+        {
+          "world": 1,
+          "answer": {
+            "draws": [
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.4235780608761085,
+                    -0.18910472289590807
+                  ],
+                  "covariance": [
+                    2.1482249662592263,
+                    1.777577829772771,
+                    1.777577829772771,
+                    2.184145692428311
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9050014735997287,
+                    0.0,
+                    0.0,
+                    0.8959513682580018
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.21699343727486858,
+                    -0.11433327660880371
+                  ],
+                  "covariance": [
+                    1.818468764260938,
+                    1.3696929432730025,
+                    1.3696929432730025,
+                    1.8043521837358611
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0009828490763797,
+                    0.0,
+                    0.0,
+                    0.8866990226321417
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.08095890762671529,
+                    0.031753693289810314
+                  ],
+                  "covariance": [
+                    1.9295538243548793,
+                    1.5555405108879705,
+                    1.5555405108879705,
+                    2.0140357816963403
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9761569671181276,
+                    0.0,
+                    0.0,
+                    0.8819653131040228
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.038982142826265456,
+                    -0.034104224440624525
+                  ],
+                  "covariance": [
+                    2.0167373274860703,
+                    1.6544288115081134,
+                    1.6544288115081134,
+                    2.1578418944714315
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.036489289472137,
+                    0.0,
+                    0.0,
+                    0.9143389876240317
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.1797668873633055,
+                    -0.042359698590919335
+                  ],
+                  "covariance": [
+                    1.8696499452852928,
+                    1.3912721514458422,
+                    1.3912721514458422,
+                    1.78711303654922
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9610897970041298,
+                    0.0,
+                    0.0,
+                    0.9056489886865338
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.05803296528284662,
+                    0.11515485637378511
+                  ],
+                  "covariance": [
+                    1.5532651154853339,
+                    1.1097843758953279,
+                    1.1097843758953279,
+                    1.5415532785918582
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9266604352104363,
+                    0.0,
+                    0.0,
+                    0.8508021604015341
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.031209063674079614,
+                    0.13325598297420616
+                  ],
+                  "covariance": [
+                    1.6712547054083382,
+                    1.2702730461959062,
+                    1.2702730461959062,
+                    1.7227462951513308
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8899146121199106,
+                    0.0,
+                    0.0,
+                    0.9042637874541107
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.07894518769504252,
+                    -0.0233198670006061
+                  ],
+                  "covariance": [
+                    1.798078703635239,
+                    1.5069015444430898,
+                    1.5069015444430898,
+                    2.160317962910453
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9359073634904428,
+                    0.0,
+                    0.0,
+                    1.0618142441474256
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.05200446895539892,
+                    0.14641725377064324
+                  ],
+                  "covariance": [
+                    1.6217537445349401,
+                    1.185718614999923,
+                    1.185718614999923,
+                    1.7841200057890039
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9506370152997772,
+                    0.0,
+                    0.0,
+                    1.0933295042828315
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.2225983446063552,
+                    -0.029974649549839617
+                  ],
+                  "covariance": [
+                    1.7847803742299047,
+                    1.400438225420813,
+                    1.400438225420813,
+                    1.939940247096546
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9335570653116189,
+                    0.0,
+                    0.0,
+                    1.0138714331803251
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.30974524394407454,
+                    -0.1583964910871563
+                  ],
+                  "covariance": [
+                    2.543302451545733,
+                    2.131362513952069,
+                    2.131362513952069,
+                    2.5401305670586445
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0251950859779104,
+                    0.0,
+                    0.0,
+                    0.9348447658945386
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.16900597528361727,
+                    0.01791852530845964
+                  ],
+                  "covariance": [
+                    1.758828214523895,
+                    1.3715164426915938,
+                    1.3715164426915938,
+                    1.7996275132495305
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.912072898002883,
+                    0.0,
+                    0.0,
+                    0.8569810957868831
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.17294831310432812,
+                    0.018798931013787202
+                  ],
+                  "covariance": [
+                    1.8127598678839063,
+                    1.4706293907128978,
+                    1.4706293907128978,
+                    1.9924197505361458
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.901032100939812,
+                    0.0,
+                    0.0,
+                    0.9676668544659748
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.13991798350915702,
+                    0.05729977580478572
+                  ],
+                  "covariance": [
+                    1.7705693432496212,
+                    1.418926943828811,
+                    1.418926943828811,
+                    1.943655072020371
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8926097649193995,
+                    0.0,
+                    0.0,
+                    0.9822995823364337
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.2920100252827169,
+                    -0.24098391831553445
+                  ],
+                  "covariance": [
+                    2.021857253438278,
+                    1.6920031580506925,
+                    1.6920031580506925,
+                    2.1911260817528118
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9374310947963387,
+                    0.0,
+                    0.0,
+                    0.9342506853589488
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.22130371907306665,
+                    -0.10559039400985583
+                  ],
+                  "covariance": [
+                    1.9369402270458826,
+                    1.5582213133431835,
+                    1.5582213133431835,
+                    1.9680016449819264
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8591211165517517,
+                    0.0,
+                    0.0,
+                    0.9119152700308231
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.18417475814246345,
+                    0.028960552754407495
+                  ],
+                  "covariance": [
+                    1.7785146853885587,
+                    1.446476328047932,
+                    1.446476328047932,
+                    1.964697377734106
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8792936239735052,
+                    0.0,
+                    0.0,
+                    0.9591592724547419
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.3256425316047324,
+                    -0.1285941092281688
+                  ],
+                  "covariance": [
+                    1.9284077846311298,
+                    1.6052049158021768,
+                    1.6052049158021768,
+                    2.096488326079497
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8562415561296033,
+                    0.0,
+                    0.0,
+                    0.968611088353502
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.38237172433097466,
+                    -0.07948419565213133
+                  ],
+                  "covariance": [
+                    2.2712063913599936,
+                    1.7620815544511688,
+                    1.7620815544511688,
+                    2.1393014159501718
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9807176423342504,
+                    0.0,
+                    0.0,
+                    1.0130080306097011
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.024222325158526535,
+                    0.06535586014347698
+                  ],
+                  "covariance": [
+                    1.7833877576330872,
+                    1.331217963568386,
+                    1.331217963568386,
+                    1.8308355915954104
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0143368993209843,
+                    0.0,
+                    0.0,
+                    0.9626887553419661
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.03347732163923619,
+                    0.09837643972040296
+                  ],
+                  "covariance": [
+                    1.5463206731269312,
+                    1.117575338590708,
+                    1.117575338590708,
+                    1.6270464733942087
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9299529595204418,
+                    0.0,
+                    0.0,
+                    0.940194957327213
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.30127018120951327,
+                    -0.029369433108033638
+                  ],
+                  "covariance": [
+                    2.143893811493027,
+                    1.7666004822173225,
+                    1.7666004822173225,
+                    2.1643159369013696
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8596255279463544,
+                    0.0,
+                    0.0,
+                    0.9398270393112893
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.10428817245048719,
+                    0.020933239078371076
+                  ],
+                  "covariance": [
+                    1.7700894062391612,
+                    1.3700932104196588,
+                    1.3700932104196588,
+                    1.9608794261355682
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9413903196089929,
+                    0.0,
+                    0.0,
+                    1.108011666277673
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.12595196162318284,
+                    -0.10490098239836017
+                  ],
+                  "covariance": [
+                    1.9424118391324492,
+                    1.7117458902833906,
+                    1.7117458902833906,
+                    2.2921215235226957
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8824695946791558,
+                    0.0,
+                    0.0,
+                    0.9446811665409954
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.12904633459778211,
+                    -0.03241561741493964
+                  ],
+                  "covariance": [
+                    1.6426129882474718,
+                    1.3519613640390684,
+                    1.3519613640390684,
+                    1.8972406410115135
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8390871223842732,
+                    0.0,
+                    0.0,
+                    0.9414866461402224
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.4821099241536051,
+                    -0.2538329602079541
+                  ],
+                  "covariance": [
+                    2.5939901246870414,
+                    2.1734562744895767,
+                    2.1734562744895767,
+                    2.476868987211793
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8899722888412229,
+                    0.0,
+                    0.0,
+                    0.8831166945125988
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.14159249768615667,
+                    0.001532099719496338
+                  ],
+                  "covariance": [
+                    1.8262008467787667,
+                    1.4276236388797616,
+                    1.4276236388797616,
+                    1.819167462186079
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8863042596272095,
+                    0.0,
+                    0.0,
+                    0.8523876198447541
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.28683124219976125,
+                    -0.10654330494709606
+                  ],
+                  "covariance": [
+                    1.9846375632598474,
+                    1.5447545709172528,
+                    1.5447545709172528,
+                    1.9706788656324252
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9746912681350878,
+                    0.0,
+                    0.0,
+                    0.925799506902324
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.2940602868015897,
+                    -0.2013472371613175
+                  ],
+                  "covariance": [
+                    2.4307800046781374,
+                    2.084224755727056,
+                    2.084224755727056,
+                    2.464161767562737
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9354277544111511,
+                    0.0,
+                    0.0,
+                    0.8389783482968954
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.2867675893585854,
+                    -0.12409145641048053
+                  ],
+                  "covariance": [
+                    2.1853374513222086,
+                    1.8276268157697968,
+                    1.8276268157697968,
+                    2.285150155604159
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9336943708566214,
+                    0.0,
+                    0.0,
+                    0.9456763297861442
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.19554450550009586,
+                    0.011997968730547667
+                  ],
+                  "covariance": [
+                    1.9978305122773916,
+                    1.567087180897551,
+                    1.567087180897551,
+                    1.9221383384309285
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9078747240384757,
+                    0.0,
+                    0.0,
+                    0.8586077043334703
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.28050593432109033,
+                    -0.14152614964591334
+                  ],
+                  "covariance": [
+                    1.9784371149143944,
+                    1.547484974259139,
+                    1.547484974259139,
+                    1.917638226971241
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9535542333855985,
+                    0.0,
+                    0.0,
+                    0.8425074483823951
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.08812808257759028,
+                    0.10515637000864951
+                  ],
+                  "covariance": [
+                    1.8652933765899404,
+                    1.4754508189019773,
+                    1.4754508189019773,
+                    1.9689903660953232
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9631049438829312,
+                    0.0,
+                    0.0,
+                    0.9461588559625372
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.24821145939746136,
+                    -0.08777737747561268
+                  ],
+                  "covariance": [
+                    1.9574294466875743,
+                    1.56729152561114,
+                    1.56729152561114,
+                    1.9969927571724204
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.906231657455615,
+                    0.0,
+                    0.0,
+                    0.91962339298686
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.3084928600759202,
+                    -0.1678038251530131
+                  ],
+                  "covariance": [
+                    2.3215590177857397,
+                    1.9786124732318329,
+                    1.9786124732318329,
+                    2.5477624801760403
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0240889771095067,
+                    0.0,
+                    0.0,
+                    1.058281186426315
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.132969348467797,
+                    0.08305888194162724
+                  ],
+                  "covariance": [
+                    1.7278892980209115,
+                    1.3767584999790645,
+                    1.3767584999790645,
+                    1.9450414983914714
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8817976016067348,
+                    0.0,
+                    0.0,
+                    1.0541622517213383
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.38305690802219183,
+                    -0.23722939135076826
+                  ],
+                  "covariance": [
+                    1.9361551339063439,
+                    1.5685631825278556,
+                    1.5685631825278556,
+                    2.091001179889384
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9414515579536413,
+                    0.0,
+                    0.0,
+                    1.0009026448969518
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.0846394574933803,
+                    -0.020149814071328494
+                  ],
+                  "covariance": [
+                    1.7467897449803425,
+                    1.423313238420941,
+                    1.423313238420941,
+                    2.0451665674613904
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9275448748339143,
+                    0.0,
+                    0.0,
+                    1.0512825907361218
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.3185945288270301,
+                    -0.15563188750939327
+                  ],
+                  "covariance": [
+                    1.97919879494317,
+                    1.649106819889644,
+                    1.649106819889644,
+                    2.133464505153156
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8659496007297685,
+                    0.0,
+                    0.0,
+                    0.970318225571355
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.2528414810982727,
+                    -0.08347989557361796
+                  ],
+                  "covariance": [
+                    2.259411596156009,
+                    1.8019432144682872,
+                    1.8019432144682872,
+                    2.286896045987752
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0770845808207263,
+                    0.0,
+                    0.0,
+                    1.0252055585795783
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.05985158308362132,
+                    0.07845542686837799
+                  ],
+                  "covariance": [
+                    1.736081128947863,
+                    1.4186346706520325,
+                    1.4186346706520325,
+                    1.9754265659943588
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8867512926803984,
+                    0.0,
+                    0.0,
+                    0.979184320985258
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.006823709669346145,
+                    0.1340510833906199
+                  ],
+                  "covariance": [
+                    1.796375771873937,
+                    1.255910679496614,
+                    1.255910679496614,
+                    1.650341364189089
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0311909889118722,
+                    0.0,
+                    0.0,
+                    0.8906190809594612
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.23557466014285205,
+                    -0.11978653202168539
+                  ],
+                  "covariance": [
+                    2.201566544087195,
+                    1.698234701603397,
+                    1.698234701603397,
+                    2.1144015193688603
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.1451327242653513,
+                    0.0,
+                    0.0,
+                    0.9193172784339406
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.3174366595427189,
+                    -0.1761281667986394
+                  ],
+                  "covariance": [
+                    2.233371702663662,
+                    1.9140093580503685,
+                    1.9140093580503685,
+                    2.341863520907482
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8962909743898035,
+                    0.0,
+                    0.0,
+                    0.8772053644226167
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.06682610891584875,
+                    -0.017354900924686743
+                  ],
+                  "covariance": [
+                    1.7690396855698143,
+                    1.272019401999661,
+                    1.272019401999661,
+                    1.7040269471701277
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0601969884712898,
+                    0.0,
+                    0.0,
+                    0.8793328449590853
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.2806403839606715,
+                    -0.11325846498155517
+                  ],
+                  "covariance": [
+                    1.8686809004012825,
+                    1.5831372038134837,
+                    1.5831372038134837,
+                    2.072284092130603
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8260463716900346,
+                    0.0,
+                    0.0,
+                    0.9185371460870622
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.24242347471312342,
+                    -0.07095300415276735
+                  ],
+                  "covariance": [
+                    2.0497026124939497,
+                    1.7916337308718386,
+                    1.7916337308718386,
+                    2.3956723579211223
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.89137529210805,
+                    0.0,
+                    0.0,
+                    1.047285697703781
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.07915087404042476,
+                    -0.16109530564791288
+                  ],
+                  "covariance": [
+                    1.9108968603543153,
+                    1.513968588237903,
+                    1.513968588237903,
+                    1.977328088587552
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.038781642687799,
+                    0.0,
+                    0.0,
+                    0.8747422972494769
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.30728302726518103,
+                    -0.15631135255809267
+                  ],
+                  "covariance": [
+                    1.7866031177155266,
+                    1.3574195686563792,
+                    1.3574195686563792,
+                    1.8310143752535162
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9500498387723453,
+                    0.0,
+                    0.0,
+                    0.9527177951360606
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.10555561897836649,
+                    0.12823947689213158
+                  ],
+                  "covariance": [
+                    1.7241743666879832,
+                    1.238090745819541,
+                    1.238090745819541,
+                    1.8031330568953678
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0039920498818,
+                    0.0,
+                    0.0,
+                    1.0871991380085329
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.22702512748967768,
+                    -0.016905442119305846
+                  ],
+                  "covariance": [
+                    1.9707843428991498,
+                    1.5657390782700222,
+                    1.5657390782700222,
+                    1.9664337972609942
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9040783493968764,
+                    0.0,
+                    0.0,
+                    0.897261463561825
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.14793393602997085,
+                    0.011899635520227294
+                  ],
+                  "covariance": [
+                    2.1109534620776462,
+                    1.693890797482283,
+                    1.693890797482283,
+                    2.10739311578963
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9851511397890867,
+                    0.0,
+                    0.0,
+                    0.8984694427277401
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.2634340862092505,
+                    -0.19332792133375387
+                  ],
+                  "covariance": [
+                    1.934800947850388,
+                    1.652454803899622,
+                    1.652454803899622,
+                    2.262854376050522
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9259746457155105,
+                    0.0,
+                    0.0,
+                    1.0304788010567538
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.14316765934902753,
+                    -0.08939794743289957
+                  ],
+                  "covariance": [
+                    2.2450505427279457,
+                    1.8278238731185863,
+                    1.8278238731185863,
+                    2.286023402633339
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0931092867162104,
+                    0.0,
+                    0.0,
+                    0.9234485766737122
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.12883933445987608,
+                    -0.14556994594676761
+                  ],
+                  "covariance": [
+                    1.9031914486978727,
+                    1.5110117278594888,
+                    1.5110117278594888,
+                    1.960823457975211
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0433499454459159,
+                    0.0,
+                    0.0,
+                    0.848974634330244
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.31166605509776846,
+                    -0.10925408535681592
+                  ],
+                  "covariance": [
+                    2.1216992586272028,
+                    1.7225178640505905,
+                    1.7225178640505905,
+                    2.2319600159928186
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9778580154879886,
+                    0.0,
+                    0.0,
+                    1.0408932807767715
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.3910757529223212,
+                    -0.19782643335403277
+                  ],
+                  "covariance": [
+                    2.070745176901956,
+                    1.7093469505430705,
+                    1.7093469505430705,
+                    2.1426098710859978
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8994162984578794,
+                    0.0,
+                    0.0,
+                    0.9166048271359034
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.19590027976147156,
+                    -0.06680830314086098
+                  ],
+                  "covariance": [
+                    1.7275275853508125,
+                    1.346501049742092,
+                    1.346501049742092,
+                    1.788051520995631
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9012952498312218,
+                    0.0,
+                    0.0,
+                    0.8696980362108127
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.1450203430811211,
+                    -0.03823497374594737
+                  ],
+                  "covariance": [
+                    1.6858447831422252,
+                    1.301696838230252,
+                    1.301696838230252,
+                    1.759530913524728
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8762435722000812,
+                    0.0,
+                    0.0,
+                    0.9091343270313254
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.2191128501859135,
+                    -0.03598783573548893
+                  ],
+                  "covariance": [
+                    2.1237892922651063,
+                    1.591034994070503,
+                    1.591034994070503,
+                    1.9927557784085164
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.060986493305865,
+                    0.0,
+                    0.0,
+                    0.9658170513569783
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.1278964698252747,
+                    -0.03777862562244636
+                  ],
+                  "covariance": [
+                    1.957615578303132,
+                    1.6151167535147128,
+                    1.6151167535147128,
+                    2.192986854241617
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0026827991373286,
+                    0.0,
+                    0.0,
+                    1.0050191020612633
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.2642451982009366,
+                    -0.1288627787906345
+                  ],
+                  "covariance": [
+                    1.6926488680054894,
+                    1.2821390036857871,
+                    1.2821390036857871,
+                    1.72316797721223
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9022625447881701,
+                    0.0,
+                    0.0,
+                    0.8934955107906083
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.3552952551013473,
+                    -0.1501075351622022
+                  ],
+                  "covariance": [
+                    2.3296706777721723,
+                    1.7459406113684044,
+                    1.7459406113684044,
+                    2.0327205002407074
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0511601466370502,
+                    0.0,
+                    0.0,
+                    0.8973339909453898
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    -0.10683344531917144,
+                    0.0029621658806625204
+                  ],
+                  "covariance": [
+                    1.862016016190987,
+                    1.3715269497017863,
+                    1.3715269497017863,
+                    1.8614301897901895
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0222363408718587,
+                    0.0,
+                    0.0,
+                    1.0094484032279856
+                  ],
+                  "solved_by": {
+                    "algorithm": "cyclic",
+                    "next_attempt": "edge 0->1 would create a cycle; next attempt: CyclicDigraph::condensation or CyclicMixedGraph::condensation for the feedback structure, or sigma_separates on a CyclicMixedGraph for a conditional-independence question. The edge was not inserted"
+                  }
+                }
+              }
+            ],
+            "outcome": 1,
+            "total_mass": 1.0,
+            "withheld_mass": -0.0,
+            "mixture_mean": -0.05665181586639681,
+            "mixture_variance": 2.0345921710879518,
+            "between_draw_variance": 0.01038269321465738
+          }
+        },
+        {
+          "world": 2,
+          "answer": {
+            "draws": [
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.109560330288295
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8959513682580018
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9050014735997287,
+                    0.0,
+                    0.0,
+                    0.8959513682580018
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0004029083376307
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8866990226321417
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0009828490763797,
+                    0.0,
+                    0.0,
+                    0.8866990226321417
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.186195155914465
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8819653131040228
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9761569671181276,
+                    0.0,
+                    0.0,
+                    0.8819653131040228
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1544216610725355
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9143389876240317
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.036489289472137,
+                    0.0,
+                    0.0,
+                    0.9143389876240317
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.9544352733606573
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9056489886865338
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9610897970041298,
+                    0.0,
+                    0.0,
+                    0.9056489886865338
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0577539301929124
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8508021604015341
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9266604352104363,
+                    0.0,
+                    0.0,
+                    0.8508021604015341
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0746779509337137
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9042637874541107
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8899146121199106,
+                    0.0,
+                    0.0,
+                    0.9042637874541107
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0903942490768639
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0618142441474256
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9359073634904428,
+                    0.0,
+                    0.0,
+                    1.0618142441474256
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.9704675110444201
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0933295042828315
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9506370152997772,
+                    0.0,
+                    0.0,
+                    1.0933295042828315
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0224368530511392
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0138714331803251
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9335570653116189,
+                    0.0,
+                    0.0,
+                    1.0138714331803251
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1613030182955402
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9348447658945386
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0251950859779104,
+                    0.0,
+                    0.0,
+                    0.9348447658945386
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1267937331697366
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8569810957868831
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.912072898002883,
+                    0.0,
+                    0.0,
+                    0.8569810957868831
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.119505065784237
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9676668544659748
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.901032100939812,
+                    0.0,
+                    0.0,
+                    0.9676668544659748
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.097989835121957
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9822995823364337
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8926097649193995,
+                    0.0,
+                    0.0,
+                    0.9822995823364337
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.034174850637633
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9342506853589488
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9374310947963387,
+                    0.0,
+                    0.0,
+                    0.9342506853589488
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.9721520863267623
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9119152700308231
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8591211165517517,
+                    0.0,
+                    0.0,
+                    0.9119152700308231
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1283194348927656
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9591592724547419
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8792936239735052,
+                    0.0,
+                    0.0,
+                    0.9591592724547419
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0429370848622999
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.968611088353502
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8562415561296033,
+                    0.0,
+                    0.0,
+                    0.968611088353502
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.9931293875513667
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0130080306097011
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9807176423342504,
+                    0.0,
+                    0.0,
+                    1.0130080306097011
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0392666838918188
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9626887553419661
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0143368993209843,
+                    0.0,
+                    0.0,
+                    0.9626887553419661
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.9995446529753134
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.940194957327213
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9299529595204418,
+                    0.0,
+                    0.0,
+                    0.940194957327213
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1111667486922465
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9398270393112893
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8596255279463544,
+                    0.0,
+                    0.0,
+                    0.9398270393112893
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.9290277319799523
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.108011666277673
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9413903196089929,
+                    0.0,
+                    0.0,
+                    1.108011666277673
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1564665121381914
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9446811665409954
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8824695946791558,
+                    0.0,
+                    0.0,
+                    0.9446811665409954
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0617244406468502
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9414866461402224
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8390871223842732,
+                    0.0,
+                    0.0,
+                    0.9414866461402224
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.091060999857385
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8831166945125988
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8899722888412229,
+                    0.0,
+                    0.0,
+                    0.8831166945125988
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0634579874456522
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8523876198447541
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8863042596272095,
+                    0.0,
+                    0.0,
+                    0.8523876198447541
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0292273246307473
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.925799506902324
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9746912681350878,
+                    0.0,
+                    0.0,
+                    0.925799506902324
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1736142971282562
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8389783482968954
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9354277544111511,
+                    0.0,
+                    0.0,
+                    0.8389783482968954
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1158697998110303
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9456763297861442
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9336943708566214,
+                    0.0,
+                    0.0,
+                    0.9456763297861442
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1019002448871111
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8586077043334703
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9078747240384757,
+                    0.0,
+                    0.0,
+                    0.8586077043334703
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0459125579810347
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8425074483823951
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9535542333855985,
+                    0.0,
+                    0.0,
+                    0.8425074483823951
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1761775764995073
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9461588559625372
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9631049438829312,
+                    0.0,
+                    0.0,
+                    0.9461588559625372
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0352505168397939
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.91962339298686
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.906231657455615,
+                    0.0,
+                    0.0,
+                    0.91962339298686
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1274680478408068
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.058281186426315
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0240889771095067,
+                    0.0,
+                    0.0,
+                    1.058281186426315
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.045916599498081
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0541622517213383
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8817976016067348,
+                    0.0,
+                    0.0,
+                    1.0541622517213383
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.965443704334783
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0009026448969518
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9414515579536413,
+                    0.0,
+                    0.0,
+                    1.0009026448969518
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0360937786104938
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0512825907361218
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9275448748339143,
+                    0.0,
+                    0.0,
+                    1.0512825907361218
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0193625136890718
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.970318225571355
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8659496007297685,
+                    0.0,
+                    0.0,
+                    0.970318225571355
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0855136122269307
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0252055585795783
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0770845808207263,
+                    0.0,
+                    0.0,
+                    1.0252055585795783
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1305066343025572
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.979184320985258
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8867512926803984,
+                    0.0,
+                    0.0,
+                    0.979184320985258
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.02203343454348
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8906190809594612
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0311909889118722,
+                    0.0,
+                    0.0,
+                    0.8906190809594612
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.093977239773124
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9193172784339406
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.1451327242653513,
+                    0.0,
+                    0.0,
+                    0.9193172784339406
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1600062847669261
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8772053644226167
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8962909743898035,
+                    0.0,
+                    0.0,
+                    0.8772053644226167
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0027451622008559
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8793328449590853
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0601969884712898,
+                    0.0,
+                    0.0,
+                    0.8793328449590853
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.096508942557011
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9185371460870622
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8260463716900346,
+                    0.0,
+                    0.0,
+                    0.9185371460870622
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.158381660638758
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.047285697703781
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.89137529210805,
+                    0.0,
+                    0.0,
+                    1.047285697703781
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0179709923060505
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8747422972494769
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.038781642687799,
+                    0.0,
+                    0.0,
+                    0.8747422972494769
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.9214218578182414
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9527177951360606
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9500498387723453,
+                    0.0,
+                    0.0,
+                    0.9527177951360606
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.9730182463066014
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0871991380085329
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0039920498818,
+                    0.0,
+                    0.0,
+                    1.0871991380085329
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0892220640145136
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.897261463561825
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9040783493968764,
+                    0.0,
+                    0.0,
+                    0.897261463561825
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.162316840393678
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8984694427277401
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9851511397890867,
+                    0.0,
+                    0.0,
+                    0.8984694427277401
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0514696071918357
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0304788010567538
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9259746457155105,
+                    0.0,
+                    0.0,
+                    1.0304788010567538
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.1486377632130165
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9234485766737122
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0931092867162104,
+                    0.0,
+                    0.0,
+                    0.9234485766737122
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0873535282292586
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.848974634330244
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0433499454459159,
+                    0.0,
+                    0.0,
+                    0.848974634330244
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0447883522949866
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0408932807767715
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9778580154879886,
+                    0.0,
+                    0.0,
+                    1.0408932807767715
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0612254510206838
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9166048271359034
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8994162984578794,
+                    0.0,
+                    0.0,
+                    0.9166048271359034
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.0396949064158905
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8696980362108127
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9012952498312218,
+                    0.0,
+                    0.0,
+                    0.8696980362108127
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.9682520649347662
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9091343270313254
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.8762435722000812,
+                    0.0,
+                    0.0,
+                    0.9091343270313254
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.00795209441791
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.9658170513569783
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.060986493305865,
+                    0.0,
+                    0.0,
+                    0.9658170513569783
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    1.139557947832132
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0050191020612633
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0026827991373286,
+                    0.0,
+                    0.0,
+                    1.0050191020612633
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.931546276971763
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8934955107906083
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    0.9022625447881701,
+                    0.0,
+                    0.0,
+                    0.8934955107906083
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.9730470241155137
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.8973339909453898
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0511601466370502,
+                    0.0,
+                    0.0,
+                    0.8973339909453898
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              },
+              {
+                "weight": 0.015625,
+                "outcome": {
+                  "status": "equilibrium",
+                  "mean": [
+                    2.0,
+                    0.940597202629255
+                  ],
+                  "covariance": [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0094484032279856
+                  ],
+                  "disturbance_mean": [
+                    0.0,
+                    0.0
+                  ],
+                  "disturbance_covariance": [
+                    1.0222363408718587,
+                    0.0,
+                    0.0,
+                    1.0094484032279856
+                  ],
+                  "solved_by": {
+                    "algorithm": "acyclic"
+                  }
+                }
+              }
+            ],
+            "outcome": 1,
+            "total_mass": 1.0,
+            "withheld_mass": -0.0,
+            "mixture_mean": 1.061386691100137,
+            "mixture_variance": 0.9498447424087157,
+            "between_draw_variance": 0.004851954021620485
+          }
+        }
+      ]
+    }
+  }
+}

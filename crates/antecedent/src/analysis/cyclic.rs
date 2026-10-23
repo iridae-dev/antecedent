@@ -520,6 +520,25 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
     pub fn contract(&self) -> Result<CyclicFamilyContract, CyclicArtifactError> {
         Ok(CyclicFamilyContract::of(self.state.program.contract()?, &self.state.lowered))
     }
+
+    /// Coefficient rows the clamp design of an experimental recovery leaves
+    /// unresolved, known before any fit: row `target` is unresolved when some
+    /// source in `missing_clamps` is never clamped while `target` is passive.
+    ///
+    /// `None` for every other family. Reading it does not fit, sample or solve. A
+    /// fit can leave further directions unresolved (a deficient constraint rank);
+    /// those are reported by the recovered law of an execution.
+    #[must_use]
+    pub fn design_unresolved(
+        &self,
+    ) -> Option<Vec<antecedent_io::contract_section::cyclic::CyclicUnresolvedWire>> {
+        match self.state.program.request() {
+            CyclicFamilyRequest::ExperimentalRecovery { regimes, dropped, .. } => {
+                Some(antecedent_io::cyclic_family_artifact::design_unresolved(regimes, dropped))
+            }
+            _ => None,
+        }
+    }
     /// Execute the retained typed program; compatible downstream worlds reuse frozen fits.
     ///
     /// # Errors

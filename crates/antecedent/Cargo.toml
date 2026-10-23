@@ -678,6 +678,18 @@ path = "tests/lowered_dispatch.rs"
 name = "acyclic_identity_regression"
 path = "tests/acyclic_identity_regression.rs"
 
+[[test]]
+name = "cyclic_family_fixtures"
+path = "tests/cyclic_family_fixtures.rs"
+
+[[test]]
+name = "cyclic_independent_consumer"
+path = "tests/cyclic_independent_consumer.rs"
+
+[[test]]
+name = "cyclic_dag_regression"
+path = "tests/cyclic_dag_regression.rs"
+
 [[example]]
 name = "joint_panel_workflow"
 path = "../../examples/rust/joint_panel_workflow.rs"
