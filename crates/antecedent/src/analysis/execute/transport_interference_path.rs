@@ -428,27 +428,11 @@ fn frequentist_transport_estimate(
 impl super::Study {
     /// The block length of a trial-transport uncertainty over `n` rows: `Some` when the
     /// rows are one dependent series (a `TemporalAdmg` projection), `None` for independent
-    /// rows. A declared design that allows neither (a clustered panel without cluster
-    /// labels) refuses the row-level construction.
+    /// rows. A declared independent-subject or clustered design on the projection refuses
+    /// ([`Self::functional_row_resampling`]).
     fn transport_series_block(&self, n: usize) -> Result<Option<usize>, CausalError> {
-        let (resampling, declared) = self.functional_row_resampling();
-        let block = resampling.block_length(n);
-        if block.is_none() {
-            if let antecedent_estimate::util::SamplingDeclaration::Declared(design) = declared {
-                design.apply_resampling(antecedent_core::ResamplingRule::RowSubjectIid).map_err(
-                    |_| {
-                        crate::unsupported_reason!(
-                            "option_not_applicable",
-                            "trial-to-target uncertainty over independent rows does not hold \
-                             under the declared design; a clustered panel needs a \
-                             whole-cluster resample. Next attempt: declare independent \
-                             subjects or a dependent series"
-                        )
-                    },
-                )?;
-            }
-        }
-        Ok(block)
+        let (resampling, _) = self.functional_row_resampling()?;
+        Ok(resampling.block_length(n))
     }
 }
 

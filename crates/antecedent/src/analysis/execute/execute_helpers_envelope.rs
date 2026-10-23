@@ -9,7 +9,7 @@ impl super::Study {
         extra: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<(EffectEstimate, Option<antecedent_estimate::CausalPosterior>), CausalError> {
-        let (row_resampling, sampling_design) = self.functional_row_resampling();
+        let (row_resampling, sampling_design) = self.functional_row_resampling()?;
         let est = FunctionalEffect {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalEffect::new()
@@ -33,31 +33,49 @@ impl super::Study {
     ///
     /// A `TemporalAdmg` functional is the contemporaneous projection, read on the
     /// consecutive times of one series: its frequentist bootstrap resamples circular
-    /// blocks of rows and its Bayesian bootstrap shares one Dirichlet weight per block,
-    /// unless the caller declares independent subjects. A declared clustered panel has no
-    /// cluster labels here, so its row draw is refused by the declared design. Every other
-    /// graph class keeps independent rows, as before.
+    /// blocks of rows and its Bayesian bootstrap shares one Dirichlet weight per block.
+    /// Every other graph class keeps independent rows, as before.
+    ///
+    /// # Errors
+    ///
+    /// On the projection, a declared independent-subject or clustered-panel design when a
+    /// resample or a posterior draw will run: the table carries no subject or cluster
+    /// labels, so neither a whole-subject nor a whole-cluster draw can be formed, and a
+    /// row-level draw is refused under both designs.
     pub(crate) fn functional_row_resampling(
         &self,
-    ) -> (antecedent_estimate::RowResampling, antecedent_estimate::util::SamplingDeclaration) {
+    ) -> Result<
+        (antecedent_estimate::RowResampling, antecedent_estimate::util::SamplingDeclaration),
+        CausalError,
+    > {
         use antecedent_core::DeclaredSamplingDesign as Design;
         use antecedent_estimate::RowResampling;
         let temporal_projection = matches!(self.graph.class(), GraphClass::TemporalAdmg)
             || self.graph_posterior.as_ref().is_some_and(|gp| {
                 gp.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
             });
+        let rows =
+            (RowResampling::Rows, antecedent_estimate::util::SamplingDeclaration::Undeclared);
         if !temporal_projection {
-            return (
-                RowResampling::Rows,
-                antecedent_estimate::util::SamplingDeclaration::Undeclared,
-            );
+            return Ok(rows);
         }
+        let draws = self.inference.is_bayesian() || self.bootstrap_replicates > 0;
         let declared = crate::estimator_spec::declared_sampling(self.sampling_design);
         match self.sampling_design {
-            None | Some(Design::DependentTimeSeries) => (RowResampling::SeriesBlocks, declared),
-            Some(Design::IndependentSubjectTrajectories | Design::ClusteredPanel) => {
-                (RowResampling::Rows, declared)
+            None | Some(Design::DependentTimeSeries) => Ok((RowResampling::SeriesBlocks, declared)),
+            Some(Design::IndependentSubjectTrajectories | Design::ClusteredPanel) if draws => {
+                Err(crate::unsupported_reason!(
+                    "option_not_applicable",
+                    "the contemporaneous-projection functional draws its uncertainty from the \
+                     table rows, and a declared independent-subject or clustered-panel design \
+                     refuses a row-level draw; this table carries no subject or cluster labels \
+                     to draw whole subjects or clusters from. Next attempt: declare a dependent \
+                     series (circular blocks of consecutive rows), analyse the units as panel \
+                     data with their unit labels, or omit bootstrap_replicates for the \
+                     frequentist point value"
+                ))
             }
+            Some(_) => Ok(rows),
         }
     }
 }

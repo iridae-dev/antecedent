@@ -587,6 +587,47 @@ fn series_with(
     Ok(out)
 }
 
+/// The periods `[start, end)` of a series as a complete, shorter series: every column is cut
+/// to the same window, so the series stays lag-aligned and no analysis mask hides a row
+/// (lagged temporal routes refuse an incomplete series). `None` when a column is not float64.
+fn truncated_series(
+    series: &TimeSeriesData,
+    start: usize,
+    end: usize,
+) -> Result<Option<TimeSeriesData>, TargetRefitError> {
+    let storage = series.storage();
+    let n = series.row_count();
+    if !(start < end && end <= n) {
+        return Err(unsupported("the window holds no period", "a longer series"));
+    }
+    let rows: Vec<usize> = (start..end).collect();
+    let mut columns = Vec::with_capacity(storage.columns().len());
+    for column in storage.columns() {
+        let OwnedColumn::Float64(column) = column else { return Ok(None) };
+        let values: Arc<[f64]> = Arc::from(&column.values[start..end]);
+        let validity = column.validity.gather_rows(&rows).map_err(data_failed)?;
+        columns.push(OwnedColumn::Float64(
+            antecedent_data::Float64Column::new(column.id, values, validity)
+                .map_err(data_failed)?,
+        ));
+    }
+    let mask =
+        storage.analysis_mask().map(|m| m.gather_rows(&rows)).transpose().map_err(data_failed)?;
+    let weights = storage.weights().map(|w| Arc::<[f64]>::from(&w[start..end]));
+    let storage = antecedent_data::OwnedColumnarStorage::try_new(
+        storage.schema().clone(),
+        columns,
+        mask,
+        weights,
+    )
+    .map_err(data_failed)?;
+    let index = antecedent_data::TimeIndex {
+        regularity: series.time_index().regularity.clone(),
+        length: end - start,
+    };
+    TimeSeriesData::try_new(storage, index).map(Some).map_err(data_failed)
+}
+
 /// Longest lag of a temporal graph (zero for a static one).
 fn max_graph_lag(study: &crate::analysis::execute::Study) -> usize {
     study.graph.as_temporal_dag().map_or(0, |graph| {
@@ -1102,8 +1143,17 @@ impl PreparedRefit<'_> {
                 // A contiguous window keeps every lag the procedure reads inside the window.
                 let width = ((fraction * n as f64).round() as usize).clamp(1, n);
                 let start = unbiased_index(rng, n - width + 1);
-                let keep: Vec<bool> = (0..n).map(|i| i >= start && i < start + width).collect();
-                series_with(series, &[], Some(&keep), None)
+                match truncated_series(series, start, start + width)? {
+                    Some(window) => Ok(window),
+                    // A non-float column cannot be cut here: the window is carried as zero
+                    // weights outside it, which also leaves the series complete.
+                    None => series_with(
+                        series,
+                        &[],
+                        None,
+                        Some(window_weights(n, start + span.min(width), start + width)),
+                    ),
+                }
             }
             TargetPerturbation::Bootstrap { .. } => {
                 series_with(series, &[], None, Some(block_weights(n, span, rng)?))
@@ -1212,6 +1262,21 @@ impl PreparedRefit<'_> {
         }
     }
 
+    /// Periods `[start, end)` of a unit series, complete; refused when a column is not float64.
+    fn cut(
+        series: &TimeSeriesData,
+        start: usize,
+        end: usize,
+    ) -> Result<TimeSeriesData, TargetRefitError> {
+        truncated_series(series, start, end)?.ok_or_else(|| {
+            unsupported(
+                "a shifted panel series is cut to its complete periods, which needs float64 \
+                 columns",
+                "encode every column as float64",
+            )
+        })
+    }
+
     fn panel_refit(
         &self,
         panel: &PanelData,
@@ -1310,17 +1375,23 @@ impl PreparedRefit<'_> {
                         units
                             .iter()
                             .map(|unit| {
-                                let (values, keep) = shifted(
+                                let (values, _) = shifted(
                                     Self::column_of(unit.series.storage(), self.outcome)?,
                                     -span,
                                 );
+                                let rows = unit.series.row_count();
+                                let skip = usize::try_from(span).unwrap_or(rows);
                                 Ok(PanelUnit {
                                     unit_id: unit.unit_id,
-                                    series: series_with(
-                                        &unit.series,
-                                        &[(self.outcome, values)],
-                                        Some(&keep),
-                                        None,
+                                    series: Self::cut(
+                                        &series_with(
+                                            &unit.series,
+                                            &[(self.outcome, values)],
+                                            None,
+                                            None,
+                                        )?,
+                                        skip,
+                                        rows,
                                     )?,
                                 })
                             })
@@ -1338,15 +1409,21 @@ impl PreparedRefit<'_> {
                 let shifted_units = units
                     .iter()
                     .map(|unit| {
-                        let (values, keep) =
+                        let (values, _) =
                             shifted(Self::column_of(unit.series.storage(), self.treatment)?, lead);
+                        let rows = unit.series.row_count();
+                        let keep = rows.saturating_sub(usize::try_from(lead).unwrap_or(rows));
                         Ok(PanelUnit {
                             unit_id: unit.unit_id,
-                            series: series_with(
-                                &unit.series,
-                                &[(self.treatment, values)],
-                                Some(&keep),
-                                None,
+                            series: Self::cut(
+                                &series_with(
+                                    &unit.series,
+                                    &[(self.treatment, values)],
+                                    None,
+                                    None,
+                                )?,
+                                0,
+                                keep,
                             )?,
                         })
                     })
@@ -1362,15 +1439,16 @@ impl PreparedRefit<'_> {
                 let shifted_units = units
                     .iter()
                     .map(|unit| {
-                        let (values, keep) =
+                        let (values, _) =
                             shifted(Self::column_of(unit.series.storage(), self.outcome)?, -back);
+                        let rows = unit.series.row_count();
+                        let skip = usize::try_from(back).unwrap_or(rows);
                         Ok(PanelUnit {
                             unit_id: unit.unit_id,
-                            series: series_with(
-                                &unit.series,
-                                &[(self.outcome, values)],
-                                Some(&keep),
-                                None,
+                            series: Self::cut(
+                                &series_with(&unit.series, &[(self.outcome, values)], None, None)?,
+                                skip,
+                                rows,
                             )?,
                         })
                     })

@@ -862,26 +862,24 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
     let column = posterior.effect_column().expect("an effect column");
     assert!((posterior.summaries.mean[column] - expected).abs() < 0.08);
     assert!(posterior.summaries.sd[column] > 0.0);
-    // Independent subjects declared: the row bootstrap of the static twin applies.
-    let rows = projected_ate(
-        &data,
-        &temporal,
-        (false, 199),
-        Some(antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories),
-        &ctx,
-    )
-    .unwrap();
-    assert_eq!(
-        rows.interval.as_ref().map(|binding| binding.method),
-        Some(antecedent_core::IntervalMethod::BootstrapSe)
-    );
-    // A clustered panel without cluster labels refuses the row-level draw.
-    let clustered = projected_ate(
-        &data,
-        &temporal,
-        (false, 199),
-        Some(antecedent_core::DeclaredSamplingDesign::ClusteredPanel),
-        &ctx,
-    );
-    assert!(clustered.is_err(), "a row draw under a declared clustered panel is refused");
+    // A declared independent-subject or clustered-panel design refuses: a row-level draw
+    // is not allowed under either, and the table carries no subject or cluster labels to
+    // draw whole units from. The refusal is typed and names the next attempt; without
+    // replicates the frequentist point still stands.
+    for design in [
+        antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories,
+        antecedent_core::DeclaredSamplingDesign::ClusteredPanel,
+    ] {
+        let refused = projected_ate(&data, &temporal, (false, 199), Some(design), &ctx)
+            .expect_err("a row draw under a subject or cluster design is refused");
+        let message = refused.to_string();
+        assert!(message.contains("option_not_applicable"), "{design:?}: {message}");
+        assert!(message.contains("no subject or cluster labels"), "{design:?}: {message}");
+        assert!(message.contains("Next attempt: declare a dependent series"), "{message}");
+        let bayesian_refused =
+            projected_ate(&data, &temporal, (true, 0), Some(design), &ctx).unwrap_err();
+        assert!(bayesian_refused.to_string().contains("Next attempt"), "{bayesian_refused}");
+        let point = projected_ate(&data, &temporal, (false, 0), Some(design), &ctx).unwrap();
+        assert!((point.effect() - expected).abs() < 1e-9);
+    }
 }

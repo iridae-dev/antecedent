@@ -921,7 +921,7 @@ impl super::Study {
                 Ok((identification, estimand))
             })?;
 
-        let (row_resampling, sampling_design) = self.functional_row_resampling();
+        let (row_resampling, sampling_design) = self.functional_row_resampling()?;
         let est = FunctionalDistribution {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalDistribution::new()

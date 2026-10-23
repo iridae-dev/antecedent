@@ -2932,9 +2932,16 @@ impl FunctionalBootstrap {
 
 impl super::Study {
     /// The functional bootstrap of this study with `replicates` replicates.
-    pub(super) fn functional_bootstrap(&self, replicates: u32) -> FunctionalBootstrap {
-        let (resampling, design) = self.functional_row_resampling();
-        FunctionalBootstrap { replicates, resampling, design }
+    ///
+    /// # Errors
+    ///
+    /// The declared design refuses the draw ([`Self::functional_row_resampling`]).
+    pub(super) fn functional_bootstrap(
+        &self,
+        replicates: u32,
+    ) -> Result<FunctionalBootstrap, CausalError> {
+        let (resampling, design) = self.functional_row_resampling()?;
+        Ok(FunctionalBootstrap { replicates, resampling, design })
     }
 }
 
