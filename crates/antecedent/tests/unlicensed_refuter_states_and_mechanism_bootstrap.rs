@@ -144,8 +144,11 @@ fn frequentist_attribution_bootstraps_publish_unlicensed_standard_errors() {
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
     assert_eq!(anomaly.support_status, Some(CellStatus::Refused));
-    assert!(anomaly.estimate.as_effect().unwrap().ate.is_finite());
-    assert!(bootstrap_se(&anomaly).is_some_and(|se| se.is_finite() && se >= 0.0));
+    // Known truth: `y` is Gaussian, so against its median / 1.4826·MAD reference the
+    // two-sided tail probability is uniform and the score `-ln p` is Exp(1): mean 1.
+    let mean_score = anomaly.estimate.as_effect().unwrap().ate;
+    assert!((mean_score - 1.0).abs() < 0.35, "mean anomaly score {mean_score}");
+    assert!(bootstrap_se(&anomaly).is_some_and(|se| se.is_finite() && se > 0.0));
     assert!(has_diagnostic(&anomaly, "gcm.frequentist_bootstrap"));
 
     // Two periods: the second shifts the outcome intercept by 3.

@@ -967,6 +967,32 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match route {
+            // The Frequentist mechanism-refit row bootstrap lives on the sealed
+            // attribution operation; a requested replicate count on an explicit static
+            // DAG runs that operation so the interval does not depend on the entry.
+            AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution
+                if self.structure_source == crate::support::StructureSource::Explicit
+                    && self.inference.is_frequentist()
+                    && self.bootstrap_replicates > 0
+                    && self.graph.as_dag().is_some() =>
+            {
+                let cache = match self.reuse_static_identification(physical) {
+                    Some((cache, _)) => cache,
+                    None => {
+                        super::report_identify_compute(ctx);
+                        std::sync::Arc::new(
+                            self.prepare_static_identification(physical)?.ok_or_else(|| {
+                                CausalError::Compile {
+                                    message: "attribution identified no structural product"
+                                        .into(),
+                                }
+                            })?,
+                        )
+                    }
+                };
+                super::CheckedAttributionOperation::checked(self, physical, &cache)?
+                    .execute(data, ctx)
+            }
             AnalysisRoute::Anomaly => {
                 let CausalQuery::AnomalyAttribution(q) = &self.query else {
                     return Err(route_mismatch());

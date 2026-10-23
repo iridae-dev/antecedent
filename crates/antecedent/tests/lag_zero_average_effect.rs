@@ -53,8 +53,15 @@ fn normals(n: usize, seed: u64) -> Vec<f64> {
         .collect()
 }
 
-/// `x_t = 0.6 z_{t-1} + e_t`, `y_t = 2 x_t + 0.8 z_{t-1} + u_t`.
+/// `x_t = 0.6 z_{t-1} + e_t`, `y_t = 2 x_t + 0.8 z_{t-1} + u_t`: the law of [`dag`].
 fn series() -> TimeSeriesData {
+    series_with(0.8)
+}
+
+/// [`series`] with `z_{t-1} -> y_t` of strength `z_to_y`. Zero is the law of [`pag`], whose
+/// `z[t-1]` is not adjacent to `y[t]`; on [`series`] that PAG is misspecified and omits the
+/// confounder (the lag-0 regression then converges to `2 + 0.8 * 0.6 / 1.36 = 2.353`).
+fn series_with(z_to_y: f64) -> TimeSeriesData {
     let zs = normals(N, 1);
     let e = normals(N, 2);
     let u = normals(N, 3);
@@ -62,7 +69,7 @@ fn series() -> TimeSeriesData {
     let mut ys = vec![0.0; N];
     for t in 1..N {
         xs[t] = 0.6 * zs[t - 1] + e[t];
-        ys[t] = BETA * xs[t] + 0.8 * zs[t - 1] + 0.5 * u[t];
+        ys[t] = BETA * xs[t] + z_to_y * zs[t - 1] + 0.5 * u[t];
     }
     TimeSeriesData::from_f64_columns(
         [("x", xs.as_slice()), ("y", ys.as_slice()), ("z", zs.as_slice())],
@@ -107,7 +114,16 @@ fn bayesian() -> InferenceMode {
 }
 
 fn build(graph: AcceptedGraph, query: CausalQuery, inference: InferenceMode) -> Study {
-    Study::series(series())
+    build_on(series(), graph, query, inference)
+}
+
+fn build_on(
+    data: TimeSeriesData,
+    graph: AcceptedGraph,
+    query: CausalQuery,
+    inference: InferenceMode,
+) -> Study {
+    Study::series(data)
         .graph(graph)
         .query(query)
         .inference(inference)
@@ -161,13 +177,20 @@ fn the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed() {
 #[test]
 fn the_point_identified_graphs_recover_the_contemporaneous_effect() {
     let ctx = ExecutionContext::for_tests(12);
-    for (name, graph) in
-        [("TemporalDag", dag().into()), ("TemporalPag", AcceptedGraph::temporal_pag(pag()))]
-    {
-        let result =
-            build(graph, CausalQuery::AverageEffect(average()), InferenceMode::Frequentist)
-                .run(&ctx)
-                .unwrap();
+    // Each graph is fitted on the law it encodes: the PAG has no z[t-1] -> y[t] edge.
+    let cases: [(&str, AcceptedGraph, f64); 2] = [
+        ("TemporalDag", dag().into(), 0.8),
+        ("TemporalPag", AcceptedGraph::temporal_pag(pag()), 0.0),
+    ];
+    for (name, graph, z_to_y) in cases {
+        let result = build_on(
+            series_with(z_to_y),
+            graph,
+            CausalQuery::AverageEffect(average()),
+            InferenceMode::Frequentist,
+        )
+        .run(&ctx)
+        .unwrap();
         let ate = result.estimate.as_effect().unwrap().ate;
         assert!((ate - BETA).abs() < 0.1, "{name}: ate={ate}");
     }
