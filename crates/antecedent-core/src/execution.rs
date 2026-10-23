@@ -1518,9 +1518,32 @@ pub struct ExecutionContext {
     pub adaptive_bootstrap: AdaptiveBootstrapBudget,
     /// Opt-in Bayesian draw early-stop (Laplace redraws); disabled by every constructor.
     pub adaptive_draws: AdaptiveDrawBudget,
+    /// Identity of the lowered program whose dispatch this context runs inside.
+    /// Clones carry it into workers. Private, so a context cannot be rebuilt field
+    /// by field outside this crate and silently lose it.
+    lowered_scope: Option<crate::identity::SemanticDigest>,
 }
 
 impl ExecutionContext {
+    /// This context inside the dispatch of the lowered program `program`.
+    ///
+    /// Compile, prepare and one-shot run refuse a context that carries this scope:
+    /// work inside a lowered dispatch must execute its retained program and must not
+    /// build and run another public study.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn enter_lowered_dispatch(&self, program: crate::identity::SemanticDigest) -> Self {
+        let mut scoped = self.clone();
+        scoped.lowered_scope = Some(program);
+        scoped
+    }
+
+    /// The lowered program whose dispatch this context runs inside, if any.
+    #[must_use]
+    pub const fn lowered_dispatch(&self) -> Option<crate::identity::SemanticDigest> {
+        self.lowered_scope
+    }
+
     /// Construct a serial, strict, scalar-friendly context for tests.
     ///
     /// # Examples
@@ -1545,6 +1568,7 @@ impl ExecutionContext {
             // Exact-N pins in unit tests; enable explicitly for adaptive MC tests.
             adaptive_bootstrap: AdaptiveBootstrapBudget::disabled(),
             adaptive_draws: AdaptiveDrawBudget::disabled(),
+            lowered_scope: None,
         }
     }
 
@@ -1890,6 +1914,7 @@ impl ExecutionContext {
             cache_policy: CachePolicy::enabled(None),
             adaptive_bootstrap: AdaptiveBootstrapBudget::disabled(),
             adaptive_draws: AdaptiveDrawBudget::disabled(),
+            lowered_scope: None,
         }
     }
 
@@ -2146,6 +2171,7 @@ impl core::fmt::Debug for ExecutionContext {
             .field("cache_policy", &self.cache_policy)
             .field("adaptive_bootstrap", &self.adaptive_bootstrap)
             .field("adaptive_draws", &self.adaptive_draws)
+            .field("lowered_scope", &self.lowered_scope)
             .field("admission", &self.admission())
             .finish()
     }

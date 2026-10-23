@@ -1365,6 +1365,19 @@ pub struct StudyResult {
     /// Population bindings in force, when the query names a predicate or a
     /// custom target distribution. Encoding the query needs them.
     pub population_registry: Option<antecedent_core::PopulationRegistry>,
+    /// Identity of the lowered program whose dispatch produced this result.
+    pub(crate) lowered_identity: Option<antecedent_core::SemanticDigest>,
+}
+
+impl StudyResult {
+    /// Identity of the lowered program whose dispatch produced this result.
+    ///
+    /// `None` for a result that no lowered dispatch produced. A prepared handle's
+    /// result carries the identity of its plan's lowered program.
+    #[must_use]
+    pub const fn lowered_program_identity(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.lowered_identity
+    }
 }
 
 macro_rules! payload_accessors {

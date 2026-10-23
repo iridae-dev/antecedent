@@ -787,3 +787,13 @@ meaning = "A value program contains a callback that is a runtime binding (an in-
 id = "policy_callback_unrecoverable"
 applies_to = ["runtime_refusal"]
 meaning = "A recovery record for a callback does not verify against the implementation supplied for replay: the source digest, entry point, input labels, output declaration or a pinned dependency version differs, a pinned dependency is not installed, or no implementation was supplied for a record the artifact carries. The refusal names the callback and the first mismatching field."
+
+[[code]]
+id = "route_not_lowered"
+applies_to = ["runtime_refusal"]
+meaning = "Execution was handed a physical plan that carries no lowered program for its route, or whose lowered program was compiled for a different route. Only `Study::compile` lowers a route; a plan built from a logical record alone cannot be dispatched."
+
+[[code]]
+id = "public_builder_reentry"
+applies_to = ["runtime_refusal"]
+meaning = "Compile, prepare or one-shot run was called with a context that is already inside the dispatch of a lowered program. A dispatched route executes its retained program and does not build and run another public study."

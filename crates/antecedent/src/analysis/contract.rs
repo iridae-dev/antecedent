@@ -3058,7 +3058,7 @@ fn identifies_per_execution(study: &Study) -> bool {
         || study.identifier == Some(crate::IdentifierId::RdSharp)
 }
 
-fn matrix_coordinate(study: &Study) -> Option<String> {
+pub(crate) fn matrix_coordinate(study: &Study) -> Option<String> {
     let cell = crate::support::support_cell_named(
         &study.query,
         if study.graph_posterior.is_some() {

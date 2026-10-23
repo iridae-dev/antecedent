@@ -1338,9 +1338,13 @@ impl super::Study {
     /// linear/Gaussian physical plan. Its checked scientific and statistical program
     /// is the same retained product consumed by [`Study::prepare`]. No fitting occurs.
     ///
+    /// Every returned plan carries the route's lowered program
+    /// ([`PhysicalExecutionPlan::lowered`]); execution refuses a plan without one.
+    ///
     /// # Errors
     ///
-    /// Modality / resource failures.
+    /// Modality / resource failures; `public_builder_reentry` when `ctx` is already
+    /// inside the dispatch of a lowered program.
     ///
     /// # Panics
     ///
@@ -1348,6 +1352,7 @@ impl super::Study {
     /// class/accessor invariant applies here, and it is checked inside
     /// [`Study::route_input`], not again below.
     pub fn compile(&self, ctx: &ExecutionContext) -> Result<PhysicalExecutionPlan, CausalError> {
+        crate::analysis::lowering::refuse_reentry(ctx)?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "compile" });
         }
@@ -1375,6 +1380,7 @@ impl super::Study {
                 ));
             }
         }
+        crate::analysis::lowering::attach(self, input, &mut plan, ctx)?;
         Ok(plan)
     }
 

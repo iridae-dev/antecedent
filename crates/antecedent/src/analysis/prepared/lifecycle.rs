@@ -562,12 +562,13 @@ impl PreparedStudy {
         let (DataInput::Temporal(series) | DataInput::Event(series)) = input else {
             unreachable!("series execution constructs temporal data")
         };
+        let scoped = ctx.enter_lowered_dispatch(self.plan.require_lowered(None)?.identity());
         self.execution.operation().estimate_series(&SeriesCall {
             handle: self,
             study,
             input,
             series,
-            ctx,
+            ctx: &scoped,
             entry,
         })
     }

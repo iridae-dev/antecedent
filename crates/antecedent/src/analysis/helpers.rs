@@ -110,6 +110,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         custom_validator_names: Vec::new(),
         executed_contract: None,
         population_registry: None,
+        lowered_identity: None,
     };
     result.rebind_interval(args.bayesian);
     result

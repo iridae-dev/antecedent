@@ -325,18 +325,11 @@ fn estimate_static_mediation_bayesian_impl(
     let n = rows.len();
     let mut mechanisms = vec![None; graph.node_count()];
     let mut ws = crate::BayesianGCompWorkspace::default();
-    let mechanism_ctx = ExecutionContext {
-        parallelism: ctx.parallelism,
-        determinism: ctx.determinism,
-        rng: ctx.rng.clone(),
-        admission: ctx.admission(),
-        cancellation: ctx.cancellation.clone(),
-        progress: ctx.progress.clone(),
-        kernel_policy: ctx.kernel_policy,
-        cache_policy: ctx.cache_policy,
-        adaptive_bootstrap: ctx.adaptive_bootstrap,
-        adaptive_draws: antecedent_core::AdaptiveDrawBudget::disabled(),
-    };
+    // Clone, then override: a context rebuilt field by field would drop the
+    // fields it does not name.
+    let mut mechanism_ctx = ctx.clone();
+    mechanism_ctx.admission = ctx.admission();
+    mechanism_ctx.adaptive_draws = antecedent_core::AdaptiveDrawBudget::disabled();
     let mut hydrated = Vec::new();
     let mut mechanism_assumptions = AssumptionSet::new();
     let mut bound_targets = std::collections::HashSet::new();

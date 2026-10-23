@@ -1,198 +1,489 @@
-//! Layer-1 and layer-5 descriptions for the static linear/Gaussian intervention route.
+//! The lowered program `Study::compile` attaches to every physical plan.
 //!
-//! The scientific target is the unconditional contrast of the query's two
-//! intervention worlds. The program operators are the read, the ordinary
-//! least-squares fit, and the intervention. The physical operators carry the
-//! byte estimates already on the physical plan `Study::compile` returns.
-//! Nothing here identifies, prepares, or compiles a second plan.
+//! One value per compiled route holds the six compiler layers: the scientific
+//! problem, the identification product, the statistical program, the evidence and
+//! decision program, the physical layer, and the claim the execution must publish.
+//! Dispatch refuses a plan that carries none. The physical record itself stays on
+//! [`crate::planner::PhysicalExecutionPlan`]; this value carries the operators and
+//! design shape that record was planned from.
+//!
+//! The identity covers layers one to four and six. Layer five is execution
+//! accounting: a data refresh may re-plan it without changing what was compiled.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod decision;
+mod linear_gaussian;
+
+use std::sync::Arc;
+
+use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, ByteEstimates, CancellationPoint, Conditioning,
-    DesignDependencyId, EvidenceClaims, GraphFamily, InferenceSelection, InterventionContrast,
-    InterventionWorld, ModelAssumptions, ObservationUnit, Operator, OperatorDeclaration,
-    OperatorEffect, OperatorGraph, OperatorPorts, OperatorRole, OutcomeQuantity, PhysicalEffect,
-    PhysicalOperator, QuantityUnits, ScientificTarget, ScientificWorldId, SourceDependencyId,
-    TargetForm, TimeFrame, WorldAction, WorldCollection,
+    CanonicalWriter, PhysicalOperator, ScientificTarget, SemanticDigest, VariableId,
+};
+use antecedent_identify::CompiledIdentificationProduct;
+
+use crate::analysis::lowering::RouteCell;
+use crate::planner::statistical::StatisticalProgram;
+
+pub use decision::{
+    CarrierDemand, Composition, DecisionProgram, EvidenceDecisionProgram, EvidenceRole,
+    EvidenceSourceRef, EvsiProgram,
+};
+pub(crate) use linear_gaussian::{
+    linear_gaussian_physical_operators, linear_gaussian_program_operators,
+    linear_gaussian_scientific_problem,
 };
 
-use super::PhysicalExecutionPlan;
-use crate::error::CausalError;
+const LOWERED_PROGRAM_TAG: &str = "antecedent.lowered_program";
 
-const CONTROL_WORLD: u32 = 0;
-const ACTIVE_WORLD: u32 = 1;
-const SOURCE_DEPENDENCY: u64 = 1;
-const DESIGN_DEPENDENCY: u64 = 1;
-/// One `f64` contrast. A declared size, not a measured allocation.
-const CONTRAST_BYTES: u64 = 8;
-
-/// Scientific problem for one static average contrast.
-///
-/// # Errors
-///
-/// The query's interventions are not a portable static contrast.
-pub(crate) fn linear_gaussian_scientific_problem(
-    query: &AverageEffectQuery,
-    bayesian: bool,
-    schema: &antecedent_core::CausalSchema,
-) -> Result<ScientificTarget, CausalError> {
-    let outcome = schema.get(query.outcome)?;
-    let units = QuantityUnits::new(outcome.unit.as_deref().unwrap_or("unspecified"))
-        .map_err(|err| target_error(&err))?;
-    let binding = antecedent_core::WorldBinding::new(
-        query.target_population.clone(),
-        ObservationUnit::new("row").map_err(|err| target_error(&err))?,
-        OutcomeQuantity::mean(query.outcome, units).map_err(|err| target_error(&err))?,
-        Conditioning::unconditional(),
-    )
-    .map_err(|err| target_error(&err))?;
-    let time = TimeFrame::static_decision();
-    let control = world(CONTROL_WORLD, &query.control, true, &binding, &time)?;
-    let active = world(ACTIVE_WORLD, &query.active, false, &binding, &time)?;
-    let worlds = WorldCollection::new([control, active]).map_err(|err| target_error(&err))?;
-    let contrast = InterventionContrast::difference(
-        worlds,
-        ScientificWorldId::from_raw(ACTIVE_WORLD),
-        ScientificWorldId::from_raw(CONTROL_WORLD),
-        ScientificWorldId::from_raw(CONTROL_WORLD),
-    )
-    .map_err(|err| target_error(&err))?;
-    let inference =
-        if bayesian { InferenceSelection::Bayesian } else { InferenceSelection::Frequentist };
-    Ok(ScientificTarget::new(
-        TargetForm::Contrast(contrast),
-        ModelAssumptions::new(GraphFamily::Dag, AssumptionSet::new()),
-        inference,
-    ))
+/// How far a route's lowering has been carried.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum LoweringDepth {
+    /// Placeholder lowering shared by every route: the route record, the declared
+    /// inference, and the planner's schema-bound physical estimate. Preparation
+    /// still identifies on its own.
+    Generic,
+    /// The route lowers each layer from its own scientific problem.
+    Complete,
 }
 
-fn world(
-    raw: u32,
-    intervention: &antecedent_core::Intervention,
-    reference: bool,
-    binding: &antecedent_core::WorldBinding,
-    time: &TimeFrame,
-) -> Result<InterventionWorld, CausalError> {
-    let action =
-        WorldAction::at_decision([intervention.clone()]).map_err(|err| target_error(&err))?;
-    InterventionWorld::new(
-        ScientificWorldId::from_raw(raw),
-        action,
-        reference,
-        binding.clone(),
-        time.clone(),
-    )
-    .map_err(|err| target_error(&err))
+impl LoweringDepth {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Generic => "generic",
+            Self::Complete => "complete",
+        }
+    }
 }
 
-/// Read, fit, and intervene edges for the retained program.
-///
-/// The read is provenance, the fit is execution, and the intervention is causal.
-/// None of them carries causal feedback.
-///
-/// # Errors
-///
-/// An operator declaration is illegal. These three declarations are fixed.
-pub(crate) fn linear_gaussian_program_operators() -> Result<Vec<Operator>, CausalError> {
-    Ok(vec![
-        operator(
-            OperatorEffect::Read,
-            OperatorGraph::Provenance,
-            &[OperatorRole::Population],
-            &[OperatorRole::Outcome],
-            EvidenceClaims::observation_read(),
-        )?,
-        operator(
-            OperatorEffect::Fit,
-            OperatorGraph::Execution,
-            &[OperatorRole::Outcome, OperatorRole::WorldOrSchedule],
-            &[OperatorRole::FitHandle],
-            EvidenceClaims::nuisance_fit(),
-        )?,
-        operator(
-            OperatorEffect::Intervene,
-            OperatorGraph::Causal,
-            &[OperatorRole::Population],
-            &[OperatorRole::WorldOrSchedule],
-            EvidenceClaims::none(),
-        )?,
-    ])
+/// Non-world-indexed functional a scientific problem asks for.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum FunctionalKind {
+    /// Law of an outcome under an intervention.
+    InterventionalDistribution,
+    /// Effect transmitted along a declared set of paths.
+    PathSpecific,
+    /// Unit-level counterfactual.
+    Counterfactual,
+    /// Attribution of an anomalous value to upstream mechanisms.
+    AnomalyAttribution,
+    /// Attribution of a distribution change to mechanism changes.
+    ChangeAttribution,
+    /// Detection of changed mechanisms.
+    MechanismChange,
+    /// Attribution of one unit's change.
+    UnitChange,
+    /// Matching on histories.
+    HistoryMatch,
+    /// Identified set rather than a point functional.
+    IdentifiedSet,
 }
 
-fn operator(
-    effect: OperatorEffect,
-    graph: OperatorGraph,
-    inputs: &[OperatorRole],
-    outputs: &[OperatorRole],
-    claims: EvidenceClaims,
-) -> Result<Operator, CausalError> {
-    let declaration = OperatorDeclaration::new(
-        effect,
-        graph,
-        OperatorPorts::new(inputs.iter().copied(), outputs.iter().copied()),
-    )
-    .with_evidence_claims(claims);
-    Operator::new(declaration).map_err(|err| CausalError::Compile { message: err.to_string() })
+impl FunctionalKind {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::InterventionalDistribution => "interventional_distribution",
+            Self::PathSpecific => "path_specific",
+            Self::Counterfactual => "counterfactual",
+            Self::AnomalyAttribution => "anomaly_attribution",
+            Self::ChangeAttribution => "change_attribution",
+            Self::MechanismChange => "mechanism_change",
+            Self::UnitChange => "unit_change",
+            Self::HistoryMatch => "history_match",
+            Self::IdentifiedSet => "identified_set",
+        }
+    }
 }
 
-/// Physical read, fit, and intervene metadata for `plan`.
-///
-/// Copy and workspace bytes come from the plan. An absent estimate is refused.
-/// `resample` declares a bootstrap cancellation point on the fit.
-///
-/// # Errors
-///
-/// The plan omitted a byte estimate, or an operator declaration is illegal.
-pub(crate) fn linear_gaussian_physical_operators(
-    plan: &PhysicalExecutionPlan,
-    resample: bool,
-) -> Result<Vec<PhysicalOperator>, CausalError> {
-    let copy = plan.record.estimated_copy_bytes.ok_or_else(|| CausalError::Compile {
-        message: "linear/Gaussian physical plan omitted copy bytes".into(),
-    })?;
-    let workspace = plan.record.workspace_bytes.ok_or_else(|| CausalError::Compile {
-        message: "linear/Gaussian physical plan omitted workspace bytes".into(),
-    })?;
-    let fit_estimates = ByteEstimates::declared(workspace, copy, CONTRAST_BYTES);
-    let fit = if resample {
-        physical_with_resample(fit_estimates)?
-    } else {
-        physical(PhysicalEffect::Fit, fit_estimates)?
-    };
-    Ok(vec![
-        physical(PhysicalEffect::Read, ByteEstimates::declared(0, 0, copy))?,
-        fit,
-        physical(PhysicalEffect::Intervene, ByteEstimates::declared(0, 0, 0))?,
-    ])
+/// What the scientific problem asks for.
+#[derive(Clone, Debug)]
+pub enum ProblemTarget {
+    /// World-indexed target: worlds, a contrast, a dose-time surface, or mediation.
+    Target(ScientificTarget),
+    /// A functional that is not indexed by intervention worlds.
+    Functional {
+        /// Kind of functional.
+        kind: FunctionalKind,
+        /// Outcome the functional reads, when it has one.
+        outcome: Option<VariableId>,
+    },
+    /// Generic lowering has not stated the target beyond the route record.
+    Unlowered,
 }
 
-fn physical(
-    effect: PhysicalEffect,
-    estimates: ByteEstimates,
-) -> Result<PhysicalOperator, CausalError> {
-    PhysicalOperator::declare(effect)
-        .source(SourceDependencyId::from_raw(SOURCE_DEPENDENCY))
-        .design(DesignDependencyId::from_raw(DESIGN_DEPENDENCY))
-        .estimates(estimates)
-        .build()
-        .map_err(|err| physical_error(&err))
+/// Layer one: the scientific problem.
+#[derive(Clone, Debug)]
+pub struct ScientificProblem {
+    pub(crate) target: ProblemTarget,
+    pub(crate) plan_id: Arc<str>,
+    pub(crate) data: DataClassification,
+    pub(crate) graph_class: &'static str,
+    pub(crate) query_variables: Arc<[VariableId]>,
+    pub(crate) source_digest: Option<[u8; 32]>,
+    pub(crate) support_coordinate: Option<Arc<str>>,
+    pub(crate) licensed: bool,
 }
 
-fn physical_with_resample(estimates: ByteEstimates) -> Result<PhysicalOperator, CausalError> {
-    PhysicalOperator::declare(PhysicalEffect::Fit)
-        .source(SourceDependencyId::from_raw(SOURCE_DEPENDENCY))
-        .design(DesignDependencyId::from_raw(DESIGN_DEPENDENCY))
-        .estimates(estimates)
-        .cancellation_point(CancellationPoint::Resample)
-        .build()
-        .map_err(|err| physical_error(&err))
+impl ScientificProblem {
+    /// What the problem asks for.
+    #[must_use]
+    pub const fn target(&self) -> &ProblemTarget {
+        &self.target
+    }
+
+    /// Route record plan id.
+    #[must_use]
+    pub fn plan_id(&self) -> &str {
+        &self.plan_id
+    }
+
+    /// Data modality the problem reads.
+    #[must_use]
+    pub const fn data(&self) -> DataClassification {
+        self.data
+    }
+
+    /// Graph class of the supplied structure.
+    #[must_use]
+    pub const fn graph_class(&self) -> &'static str {
+        self.graph_class
+    }
+
+    /// Variables the query names.
+    #[must_use]
+    pub fn query_variables(&self) -> &[VariableId] {
+        &self.query_variables
+    }
+
+    /// Content digest of the source rows, when the lowering bound one.
+    #[must_use]
+    pub const fn source_digest(&self) -> Option<[u8; 32]> {
+        self.source_digest
+    }
+
+    /// Support-matrix coordinate of the study, when the query is on the matrix axis.
+    #[must_use]
+    pub fn support_coordinate(&self) -> Option<&str> {
+        self.support_coordinate.as_deref()
+    }
+
+    /// Whether the study's coordinate is a licensed cell.
+    #[must_use]
+    pub const fn licensed(&self) -> bool {
+        self.licensed
+    }
+
+    fn write(&self, writer: &mut CanonicalWriter) {
+        match &self.target {
+            ProblemTarget::Target(target) => {
+                writer.text("target").bytes(target.identity().as_bytes());
+            }
+            ProblemTarget::Functional { kind, outcome } => {
+                writer
+                    .text("functional")
+                    .text(kind.as_str())
+                    .opt_word(outcome.map(|id| u64::from(id.raw())));
+            }
+            ProblemTarget::Unlowered => {
+                writer.text("unlowered");
+            }
+        }
+        writer
+            .text(&self.plan_id)
+            .text(data_classification_name(self.data))
+            .text(self.graph_class)
+            .word(self.query_variables.len() as u64);
+        for variable in &*self.query_variables {
+            writer.word(u64::from(variable.raw()));
+        }
+        writer
+            .opt_text(self.source_digest.as_ref().map(hex).as_deref())
+            .opt_text(self.support_coordinate.as_deref())
+            .word(u64::from(self.licensed));
+    }
 }
 
-fn target_error(err: &antecedent_core::ScientificTargetError) -> CausalError {
-    CausalError::Compile { message: err.to_string() }
+/// Layer two: what identification the program carries.
+#[derive(Clone, Debug)]
+pub(crate) enum IdentificationLayer {
+    /// Generic lowering: preparation identifies as it did before lowering.
+    Deferred,
+    /// Identified at compile; the product is retained with the program.
+    Product(CompiledIdentificationProduct),
+    /// The route identifies on each execution.
+    PerExecution {
+        /// Why the route cannot retain one identification.
+        reason: &'static str,
+    },
 }
 
-fn physical_error(err: &antecedent_core::PhysicalOperatorError) -> CausalError {
-    CausalError::Compile { message: err.to_string() }
+impl IdentificationLayer {
+    fn write(&self, writer: &mut CanonicalWriter) {
+        match self {
+            Self::Deferred => {
+                writer.text("deferred");
+            }
+            Self::Product(product) => {
+                writer.text("product").bytes(product.identity().as_bytes());
+            }
+            Self::PerExecution { reason } => {
+                writer.text("per_execution").text(reason);
+            }
+        }
+    }
+}
+
+/// Where a physical design width came from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum WidthSource {
+    /// Encoded from the selected roles and their contrast codings.
+    Quoted,
+    /// The route does not fit a design matrix.
+    NotDesignBased(&'static str),
+    /// The planner's bound from the query's variable count.
+    SchemaBound,
+}
+
+impl WidthSource {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Quoted => "quoted",
+            Self::NotDesignBased(_) => "not_design_based",
+            Self::SchemaBound => "schema_bound",
+        }
+    }
+}
+
+/// Rows and encoded columns a design-based program fits.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct DesignShape {
+    pub(crate) rows: u64,
+    pub(crate) columns: u64,
+    pub(crate) source: WidthSource,
+}
+
+impl DesignShape {
+    /// Rows the plan was sized for.
+    #[must_use]
+    pub const fn rows(&self) -> u64 {
+        self.rows
+    }
+
+    /// Encoded columns, including the intercept.
+    #[must_use]
+    pub const fn columns(&self) -> u64 {
+        self.columns
+    }
+
+    /// Where the column count came from.
+    #[must_use]
+    pub const fn source(&self) -> WidthSource {
+        self.source
+    }
+}
+
+/// Layer five: the physical operators and design shape the plan record was sized from.
+#[derive(Clone, Debug)]
+pub struct PhysicalLayer {
+    pub(crate) operators: Arc<[PhysicalOperator]>,
+    pub(crate) design: DesignShape,
+}
+
+impl PhysicalLayer {
+    /// Physical operator contracts.
+    #[must_use]
+    pub fn operators(&self) -> &[PhysicalOperator] {
+        &self.operators
+    }
+
+    /// Design shape.
+    #[must_use]
+    pub const fn design(&self) -> DesignShape {
+        self.design
+    }
+}
+
+/// How the published uncertainty must be read.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum UncertaintyReading {
+    /// Sampling law of a frequentist estimate.
+    Sampling,
+    /// Posterior law under a declared likelihood and prior.
+    Posterior,
+    /// Identified set or envelope.
+    Envelope,
+    /// Point claim with no uncertainty.
+    None,
+}
+
+impl UncertaintyReading {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Sampling => "sampling",
+            Self::Posterior => "posterior",
+            Self::Envelope => "envelope",
+            Self::None => "none",
+        }
+    }
+}
+
+/// Layer six: the claim an execution must publish. The measured receipt stays on the result.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ClaimDemand {
+    pub(crate) uncertainty: UncertaintyReading,
+    pub(crate) kind: Option<ClaimKind>,
+}
+
+impl ClaimDemand {
+    /// How the published uncertainty must be read.
+    #[must_use]
+    pub const fn uncertainty(&self) -> UncertaintyReading {
+        self.uncertainty
+    }
+
+    /// Claim kind the route publishes, when its lowering states one.
+    #[must_use]
+    pub const fn kind(&self) -> Option<ClaimKind> {
+        self.kind
+    }
+}
+
+/// The layers a route lowering assembles. [`Self::finish`] computes the identity.
+pub(crate) struct LoweredParts {
+    pub(crate) cell: RouteCell,
+    pub(crate) depth: LoweringDepth,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl LoweredParts {
+    /// Seal the parts into a lowered program.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(self.cell.as_str()).text(self.depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell: self.cell,
+            depth: self.depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+        }
+    }
+}
+
+/// The program one route lowers to. Every plan `Study::compile` returns carries one.
+#[derive(Clone, Debug)]
+pub struct LoweredProgram {
+    cell: RouteCell,
+    depth: LoweringDepth,
+    scientific: ScientificProblem,
+    identification: IdentificationLayer,
+    statistical: Arc<StatisticalProgram>,
+    evidence: EvidenceDecisionProgram,
+    physical: PhysicalLayer,
+    claim: ClaimDemand,
+    identity: SemanticDigest,
+}
+
+const _: () = {
+    const fn shared_across_workers<T: Send + Sync>() {}
+    shared_across_workers::<LoweredProgram>();
+};
+
+impl LoweredProgram {
+    /// Name of the compiled route cell this program was lowered for.
+    #[must_use]
+    pub const fn route(&self) -> &'static str {
+        self.cell.as_str()
+    }
+
+    /// How far this route's lowering has been carried.
+    #[must_use]
+    pub const fn depth(&self) -> LoweringDepth {
+        self.depth
+    }
+
+    /// Layer one.
+    #[must_use]
+    pub const fn scientific(&self) -> &ScientificProblem {
+        &self.scientific
+    }
+
+    /// Whether layer two retains an identification product compiled with the program.
+    #[must_use]
+    pub const fn identification_retained(&self) -> bool {
+        matches!(self.identification, IdentificationLayer::Product(_))
+    }
+
+    /// Layer three.
+    #[must_use]
+    pub fn statistical(&self) -> &StatisticalProgram {
+        &self.statistical
+    }
+
+    /// Layer four.
+    #[must_use]
+    pub const fn evidence(&self) -> &EvidenceDecisionProgram {
+        &self.evidence
+    }
+
+    /// Layer five.
+    #[must_use]
+    pub const fn physical(&self) -> &PhysicalLayer {
+        &self.physical
+    }
+
+    /// Layer six.
+    #[must_use]
+    pub const fn claim(&self) -> &ClaimDemand {
+        &self.claim
+    }
+
+    /// Identity over layers one to four and six.
+    #[must_use]
+    pub const fn identity(&self) -> SemanticDigest {
+        self.identity
+    }
+
+    /// Route cell, for dispatch verification.
+    pub(crate) const fn cell(&self) -> RouteCell {
+        self.cell
+    }
+}
+
+const fn data_classification_name(data: DataClassification) -> &'static str {
+    match data {
+        DataClassification::Tabular => "tabular",
+        DataClassification::Temporal => "temporal",
+        DataClassification::Panel => "panel",
+        DataClassification::MultiEnvironment => "multi_environment",
+        DataClassification::Event => "event",
+    }
+}
+
+fn hex(digest: &[u8; 32]) -> String {
+    SemanticDigest::from_bytes(*digest).to_hex()
 }

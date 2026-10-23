@@ -235,6 +235,7 @@ impl LogicalAnalysisPlan {
         };
         Ok(PhysicalExecutionPlan {
             linear: None,
+            lowered: None,
             choice,
             record,
             logical: self.clone(),
@@ -249,6 +250,9 @@ impl LogicalAnalysisPlan {
 #[derive(Clone, Debug)]
 pub struct PhysicalExecutionPlan {
     pub(crate) linear: Option<Arc<crate::analysis::compiled_linear::CompiledLinearExecution>>,
+    /// Lowered program `Study::compile` attached. A plan built from a logical record
+    /// alone carries none, and dispatch refuses it.
+    pub(crate) lowered: Option<Arc<super::lowered::LoweredProgram>>,
     /// Executable backend selection, with rejected alternatives and reasons.
     pub choice: antecedent_core::physical_choice::PhysicalChoice,
     /// Record for results.
@@ -270,6 +274,46 @@ impl PhysicalExecutionPlan {
         &self,
     ) -> Option<&crate::analysis::compiled_linear::CompiledLinearProgram> {
         self.linear.as_ref().map(|linear| linear.program.as_ref())
+    }
+
+    /// The lowered program `Study::compile` attached, when this plan has one.
+    #[must_use]
+    pub fn lowered(&self) -> Option<&super::lowered::LoweredProgram> {
+        self.lowered.as_deref()
+    }
+
+    /// Identity of the attached lowered program, when this plan has one.
+    #[must_use]
+    pub fn lowered_program_identity(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.lowered().map(super::lowered::LoweredProgram::identity)
+    }
+
+    /// The lowered program dispatch may execute, checked against the route the
+    /// study classifies as now (`expected`, when it classifies as one).
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered`: the plan carries no lowered program, or its program was
+    /// lowered for a different route.
+    pub(crate) fn require_lowered(
+        &self,
+        expected: Option<crate::analysis::lowering::RouteCell>,
+    ) -> Result<&super::lowered::LoweredProgram, CausalError> {
+        let lowered = self.lowered().ok_or_else(|| {
+            crate::compile_reason!(
+                "route_not_lowered",
+                "the physical plan carries no lowered program; compile it with Study::compile"
+            )
+        })?;
+        match expected {
+            Some(cell) if cell != lowered.cell() => Err(crate::compile_reason!(
+                "route_not_lowered",
+                "the plan was lowered for {} but the study executes as {}",
+                lowered.route(),
+                cell.as_str()
+            )),
+            _ => Ok(lowered),
+        }
     }
     /// Borrow the resolved temporal graph when present.
     #[must_use]

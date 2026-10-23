@@ -169,7 +169,26 @@ impl PreparedStudy {
 
     /// The click on `data`, recording in `notes` what it derived. A deferring
     /// `notes` leaves the result's executed contract for the caller to bind.
+    ///
+    /// Every tabular click, sealed or dispatched, passes here: the plan's lowered
+    /// program is required, the click runs inside its dispatch scope, and the
+    /// result carries its identity.
     pub(super) fn estimate_with_shared_unnamed(
+        &self,
+        data: &TabularData,
+        shared: Option<Arc<crate::analysis::batch::SharedBatchDesign>>,
+        ctx: &ExecutionContext,
+        notes: &mut ClickNotes,
+    ) -> Result<StudyResult, CausalError> {
+        let lowered = self.plan.require_lowered(None)?.identity();
+        let scoped = ctx.enter_lowered_dispatch(lowered);
+        let mut result = self.estimate_click(data, shared, &scoped, notes)?;
+        result.lowered_identity = Some(lowered);
+        Ok(result)
+    }
+
+    /// The click itself; see [`Self::estimate_with_shared_unnamed`].
+    fn estimate_click(
         &self,
         data: &TabularData,
         shared: Option<Arc<crate::analysis::batch::SharedBatchDesign>>,

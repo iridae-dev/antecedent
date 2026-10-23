@@ -584,6 +584,9 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let lowered =
+            physical.require_lowered(crate::analysis::lowering::expected_cell(self))?.identity();
+        let ctx = &ctx.enter_lowered_dispatch(lowered);
         let mut result = self.execute_on_inner(data, physical, ctx)?;
         push_gaussian_likelihood_disclosure(&mut result, &self.inference, data);
         result.custom_validator_names = self
@@ -591,6 +594,7 @@ impl super::Study {
             .iter()
             .map(|validator| std::sync::Arc::from(validator.name()))
             .collect();
+        result.lowered_identity = Some(lowered);
         Ok(result)
     }
 
@@ -814,14 +818,21 @@ impl super::Study {
         execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if let Some(gp) = &self.graph_posterior {
-            return self.execute_graph_posterior_tabular(data, gp, physical, ctx);
-        }
-        let route =
-            classify_route(DataModality::Tabular, &self.query).ok_or(CausalError::Unsupported {
-                message: "execute path unsupported for this configuration",
-            })?;
-        self.execute_tabular_route(route, data, physical, execution, ctx)
+        let lowered =
+            physical.require_lowered(crate::analysis::lowering::expected_cell(self))?.identity();
+        let ctx = &ctx.enter_lowered_dispatch(lowered);
+        let mut result = if let Some(gp) = &self.graph_posterior {
+            self.execute_graph_posterior_tabular(data, gp, physical, ctx)?
+        } else {
+            let route = classify_route(DataModality::Tabular, &self.query).ok_or(
+                CausalError::Unsupported {
+                    message: "execute path unsupported for this configuration",
+                },
+            )?;
+            self.execute_tabular_route(route, data, physical, execution, ctx)?
+        };
+        result.lowered_identity = Some(lowered);
+        Ok(result)
     }
 
     /// Tabular graph-posterior dispatch shared by fresh and prepared execution.
@@ -1345,6 +1356,7 @@ impl super::Study {
     }
 
     fn run_unnamed(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
+        crate::analysis::lowering::refuse_reentry(ctx)?;
         if let Some(result) = self.run_checked_bayesian_static_mediation(ctx)? {
             return Ok(*result);
         }

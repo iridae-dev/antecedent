@@ -4,8 +4,9 @@
 
 mod binding;
 mod logical;
-mod lowered;
+pub mod lowered;
 mod plan;
+pub mod statistical;
 
 pub(crate) use binding::{PlanBinding, RouteDefaults};
 pub(crate) use logical::{

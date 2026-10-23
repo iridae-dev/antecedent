@@ -36,6 +36,16 @@ impl super::Study {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
+        let mut plan = self.compile_graph_posterior_record(ctx)?;
+        crate::analysis::lowering::attach_graph_posterior(self, &mut plan, ctx)?;
+        Ok(plan)
+    }
+
+    /// The physical plan of the study's graph-posterior cell, before lowering.
+    fn compile_graph_posterior_record(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
         match (&self.data, &self.query) {
             (DataInput::Tabular(data), CausalQuery::Response(q)) => {
                 self.compile_graph_posterior_response(data, q, ctx)

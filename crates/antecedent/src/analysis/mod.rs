@@ -359,6 +359,7 @@ mod graph_posterior_target;
 mod helpers;
 mod identification_cache;
 mod latency;
+pub(crate) mod lowering;
 mod posterior_binding;
 mod prepared;
 pub(crate) mod proof_support;
