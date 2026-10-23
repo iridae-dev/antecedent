@@ -215,10 +215,26 @@ impl BayesianGComputationAte {
                 "Bayesian g-comp does not support effect modifiers",
             ));
         }
-        if query.target_population != TargetPopulation::AllObserved {
+        let reference_arm = match &query.target_population {
+            TargetPopulation::AllObserved => None,
+            TargetPopulation::Treated => Some(ReferenceArm::Active),
+            TargetPopulation::Untreated => Some(ReferenceArm::Control),
+            _ => {
+                return Err(EstimationError::refused(
+                    antecedent_core::reason_code!("population_not_estimable"),
+                    "Bayesian g-comp supports TargetPopulation::AllObserved, and Treated or \
+                     Untreated as a model-based effect under the Gaussian identity outcome model",
+                ));
+            }
+        };
+        if reference_arm.is_some()
+            && self.effective_likelihood() != BayesLikelihood::GaussianIdentity
+        {
             return Err(EstimationError::refused(
                 antecedent_core::reason_code!("population_not_estimable"),
-                "Bayesian g-comp only supports TargetPopulation::AllObserved",
+                "the Bayesian model-based effect on the treated or untreated centres treatment \
+                 interactions on the arm, which makes the treatment coefficient that arm's \
+                 contrast on the identity link only; use the Gaussian identity outcome model",
             ));
         }
         let active = intervention_f64(&query.active)?;
@@ -250,6 +266,16 @@ impl BayesianGComputationAte {
         let coef_names = coefficient_names_from_design(&design, treatment_name, |id| {
             schema.get(id).ok().map(|v| Arc::clone(&v.name))
         });
+        let (design, coef_names) = match reference_arm {
+            Some(arm) => {
+                let level = match arm {
+                    ReferenceArm::Active => active,
+                    ReferenceArm::Control => control,
+                };
+                center_interactions_on_arm(&design, &coef_names, level)?
+            }
+            None => (design, coef_names),
+        };
         Ok(PreparedBayesianProblem {
             design,
             method: Arc::clone(&estimand.method),
@@ -1298,6 +1324,74 @@ pub(super) fn random_intercept_gls_whiten(
         }
     }
     Some((x_star, y_star))
+}
+
+/// The arm whose rows a model-based Bayesian effect is averaged over.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ReferenceArm {
+    /// Rows observed at the active treatment level (the effect on the treated).
+    Active,
+    /// Rows observed at the control level (the effect on the untreated).
+    Control,
+}
+
+/// Append one treatment-by-covariate interaction per covariate column, each covariate
+/// centred at its mean over the rows observed at `level`.
+///
+/// The outcome model is then `y = b0 + b_T t + g'z + d' t (z - zbar_arm)`. Averaged over the
+/// reference arm the centred interactions vanish, so on the identity link `(active - control)
+/// b_T` is the model-based contrast on that arm for every posterior draw. It is the effect of
+/// the declared outcome model, not a matching estimand.
+fn center_interactions_on_arm(
+    design: &CompiledDesign,
+    names: &Arc<[Arc<str>]>,
+    level: f64,
+) -> Result<(CompiledDesign, Arc<[Arc<str>]>), EstimationError> {
+    let n = design.nrows;
+    let treatment = &design.matrix[n..2 * n];
+    let in_arm: Vec<bool> = treatment.iter().map(|&t| (t - level).abs() <= 1e-12).collect();
+    let arm_rows = in_arm.iter().filter(|&&flag| flag).count();
+    if arm_rows < 2 {
+        return Err(EstimationError::data_msg(
+            "the Bayesian model-based effect on an arm needs at least two rows observed at that \
+             arm's treatment level",
+        ));
+    }
+    let covariate_cols: Vec<usize> = design
+        .columns
+        .iter()
+        .enumerate()
+        .filter(|(_, column)| matches!(column.role, DesignColumnRole::Covariate(_)))
+        .map(|(index, _)| index)
+        .collect();
+    if design.ncols + covariate_cols.len() >= n {
+        return Err(EstimationError::data_msg(
+            "the Bayesian model-based effect on an arm needs more rows than coefficients",
+        ));
+    }
+    let mut matrix = design.matrix.to_vec();
+    let mut roles: Vec<DesignColumnRole> =
+        design.columns.iter().map(|column| column.role).collect();
+    let mut all_names: Vec<Arc<str>> = names.to_vec();
+    for &col in &covariate_cols {
+        let values = &design.matrix[col * n..(col + 1) * n];
+        let mean =
+            values.iter().zip(&in_arm).filter(|(_, flag)| **flag).map(|(v, _)| *v).sum::<f64>()
+                / arm_rows as f64;
+        matrix.extend(treatment.iter().zip(values).map(|(t, x)| t * (x - mean)));
+        roles.push(roles[col]);
+        let base = names.get(col).map_or("covariate", |name| name.as_ref());
+        all_names
+            .push(Arc::from(format!("treatment_x_centered_{}", base.trim_start_matches("coef_"))));
+    }
+    let ncols = roles.len();
+    let widened = CompiledDesign {
+        ncols,
+        matrix: Arc::from(matrix),
+        columns: antecedent_stats::DesignColumnMap::from_roles(roles),
+        ..design.clone()
+    };
+    Ok((widened, Arc::from(all_names)))
 }
 
 /// Prepared Bayesian g-comp problem.

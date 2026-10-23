@@ -324,6 +324,14 @@ key evidence dependence evidence.dependence.*
 # does not carry this facet.
 allow evidence crates/antecedent-contract/src/lib.rs AxisInterval CovarianceCombination CovarianceTerms DecisionRequest DependenceContract DependenceError DependenceSource DependenceSourceId DependenceStatus EFFECT_IDENTITY_VERSION EffectId EvidenceBinding EvidenceCalibration EvidenceEffect EvidenceEffectError EvidenceEffectLedger EvidenceEnvelope EvidenceEnvelopeError EvidenceOperator EvidenceOrigins EvidencePort EvidencePortError EvidenceSupport FactorDisclosure MAX_RECORDED_EFFECTS RECORD_DEPENDENT_POOLING RECORD_THEN_COMBINE NumericalAdmission RecordedEffect SharedFactor SharedFactorId SharedFactorKind SharedFactorSets UncertaintyAxes UncertaintyAxis WorldTime dependence evidence_effects evidence_envelope evidence_ports
 
+# The propagation chain consumes the dependence contract and does not change it.
+allow evidence crates/antecedent-contract/src/propagation_chain.rs DependenceContract DependenceSource DependenceStatus SharedFactorKind SharedFactorSets dependence
+allow evidence crates/antecedent-contract/src/propagation_chain_tests.rs DependenceStatus SharedFactorKind
+allow evidence crates/antecedent-io-core/src/propagation_chain_record.rs SharedFactorKind dependence
+allow evidence crates/antecedent-io-core/src/propagation_chain_record_tests.rs SharedFactorKind
+allow evidence crates/antecedent/src/analysis/propagation_chain.rs SharedFactorKind dependence
+allow evidence crates/antecedent/src/analysis/propagation_chain_tests.rs SharedFactorKind
+
 # ---- core: toolchain, manifests, shared libraries, the harness -------------
 core Cargo.toml
 core Cargo.lock

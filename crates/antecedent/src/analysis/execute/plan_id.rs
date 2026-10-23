@@ -52,6 +52,8 @@ pub(crate) enum PlanId {
     BayesianSequentialRegimeValue,
     /// Within-period history-matched contrast.
     PeriodHistoryMatching,
+    /// Bayesian outcome-model effect on the treated of a period-and-history design.
+    BayesianPeriodHistoryOutcomeModel,
     /// Normal interval of the observational sequential contrast.
     SequentialCrossfitContrastWald,
     /// Modular posterior of the observational sequential contrast.
@@ -137,6 +139,7 @@ impl PlanId {
             Self::BayesianDosePolicy => "bayesian_dose_policy",
             Self::BayesianSequentialRegimeValue => "bayesian.sequential_regime_value",
             Self::PeriodHistoryMatching => "matching.period_history_contrast",
+            Self::BayesianPeriodHistoryOutcomeModel => "bayesian.period_history_outcome_model",
             Self::SequentialCrossfitContrastWald => "sequential.crossfit_contrast.wald",
             Self::BayesianSequentialCrossfitContrast => "bayesian.sequential_crossfit_contrast",
             Self::GcmQuery => "gcm_query",

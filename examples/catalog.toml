@@ -35,6 +35,18 @@ runtime = "up to 1 min"
 claim = "Identity-bound consumption, wrong-identity and malformed-container refusals; loading does not recreate a live study."
 
 [[example]]
+id = "reference_host"
+title = "Reference host"
+summary = "Compile, read the status, tell a supported claim from a refusal and load an artifact, with no agent logic."
+python = "examples/python/reference_host.py"
+rust = "examples/rust/reference_host.rs"
+topic = "Start and reuse"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Status, coded refusal and identity-bound artifact acceptance read through the host-integration contract; the host plans nothing and certifies no assumption."
+
+[[example]]
 id = "artifact_producer"
 title = "Artifact producer"
 summary = "Store bytes and a separately retainable producer expectation."

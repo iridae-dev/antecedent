@@ -12,6 +12,9 @@ use antecedent::{PanelDidQuery, Study};
 use antecedent_core::{Assumption, VariableId};
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn fixture() -> (TabularData, PanelDidQuery) {
     let mut ids = Vec::new();
     let mut treated = Vec::new();
@@ -107,6 +110,12 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "supported_panel_did_interval_round_trips",
+        &prepared,
+        &result,
+        &context,
+    );
     let did = result.panel_did().unwrap();
     assert!((did.effect - 2.0).abs() < 1e-12);
     assert_eq!(did.uncertainty.as_ref(), "cluster_robust_normal_interval_independent_clusters");
@@ -173,6 +182,12 @@ fn supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "supported_repeated_cross_section_interva",
+        &prepared,
+        &result,
+        &context,
+    );
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let did = result.panel_did().unwrap();
     assert!((did.effect - 2.0).abs() < 1e-12);
@@ -583,6 +598,12 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "supported_staggered_event_study_interval",
+        &prepared,
+        &result,
+        &context,
+    );
     let did = result.panel_did().unwrap();
     assert_eq!(
         did.uncertainty.as_ref(),

@@ -190,10 +190,15 @@ impl CheckedBayesianDagAteExecution {
             });
         }
         if !matches!(target.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
-            || target.target_population != antecedent_core::TargetPopulation::AllObserved
+            || !matches!(
+                target.target_population,
+                antecedent_core::TargetPopulation::AllObserved
+                    | antecedent_core::TargetPopulation::Treated
+                    | antecedent_core::TargetPopulation::Untreated
+            )
         {
             return Err(CausalError::Unsupported {
-                message: "checked Bayesian DAG g-computation currently licenses only a mean ATE over AllObserved",
+                message: "checked Bayesian DAG g-computation licenses a mean ATE over AllObserved, and a model-based mean effect over the Treated or Untreated arm",
             });
         }
         let checked_identification =
@@ -319,6 +324,11 @@ impl CheckedBayesianDagAteExecution {
         posterior
             .assumptions
             .push(super::bayesian_path::gcomp_outcome_model_assumption(likelihood, false));
+        if let Some(arm_effect) =
+            super::bayesian_path::gcomp_arm_effect_assumption(&query_est.target_population)
+        {
+            posterior.assumptions.push(arm_effect);
+        }
         let estimate = effect_from_posterior(&posterior)?;
         clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(

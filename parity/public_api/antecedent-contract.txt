@@ -2,6 +2,7 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_contract::AlignedLaw
+#[non_exhaustive] pub enum antecedent_contract::ChainReading
 #[non_exhaustive] pub enum antecedent_contract::ClaimDomainAxis
 #[non_exhaustive] pub enum antecedent_contract::ClaimKind
 #[non_exhaustive] pub enum antecedent_contract::ClaimOperation
@@ -73,6 +74,12 @@
 #[non_exhaustive] pub enum antecedent_contract::mixed_module::CutFeedback
 #[non_exhaustive] pub enum antecedent_contract::mixed_module::MixedModulePolicy
 #[non_exhaustive] pub enum antecedent_contract::mixed_module::MixedModuleRefusal
+#[non_exhaustive] pub enum antecedent_contract::propagation_chain::LawMeaning
+#[non_exhaustive] pub enum antecedent_contract::propagation_chain::NodeRepresentation
+#[non_exhaustive] pub enum antecedent_contract::propagation_chain::OperatorClass
+#[non_exhaustive] pub enum antecedent_contract::propagation_chain::Representation
+#[non_exhaustive] pub enum antecedent_contract::propagation_chain::StageKind
+#[non_exhaustive] pub enum antecedent_contract::propagation_chain::TableConstruction
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::NuisanceEffect
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::PreparationEffect
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::PreservationAxis
@@ -105,6 +112,7 @@
 #[non_exhaustive] pub struct antecedent_contract::UncertaintyComponent
 #[non_exhaustive] pub struct antecedent_contract::UncertaintySlot
 #[non_exhaustive] pub struct antecedent_contract::bridge::BridgedClaim
+impl antecedent_core::refusal::Refused for antecedent_contract::ChainRefusal
 impl antecedent_core::refusal::Refused for antecedent_contract::DependenceError
 impl antecedent_core::refusal::Refused for antecedent_contract::EvidenceEffectError
 impl antecedent_core::refusal::Refused for antecedent_contract::EvidenceEnvelopeError
@@ -124,6 +132,10 @@ impl core::clone::Clone for antecedent_contract::BoundExternalClaim
 impl core::clone::Clone for antecedent_contract::BoundTrustLevel
 impl core::clone::Clone for antecedent_contract::BufferMaterialization
 impl core::clone::Clone for antecedent_contract::CalibrationView
+impl core::clone::Clone for antecedent_contract::ChainDecl
+impl core::clone::Clone for antecedent_contract::ChainPlan
+impl core::clone::Clone for antecedent_contract::ChainReading
+impl core::clone::Clone for antecedent_contract::ChainRefusal
 impl core::clone::Clone for antecedent_contract::CheckedCausalContract
 impl core::clone::Clone for antecedent_contract::CheckedEquivalence
 impl core::clone::Clone for antecedent_contract::ClaimCompatibility
@@ -458,6 +470,17 @@ impl core::clone::Clone for antecedent_contract::mixed_module::CutFeedback
 impl core::clone::Clone for antecedent_contract::mixed_module::MixedModulePolicy
 impl core::clone::Clone for antecedent_contract::mixed_module::MixedModuleRefusal
 impl core::clone::Clone for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::clone::Clone for antecedent_contract::propagation_chain::ChainSourceDecl
+impl core::clone::Clone for antecedent_contract::propagation_chain::ChainStageDecl
+impl core::clone::Clone for antecedent_contract::propagation_chain::FactorDecl
+impl core::clone::Clone for antecedent_contract::propagation_chain::LawMeaning
+impl core::clone::Clone for antecedent_contract::propagation_chain::NodeRepresentation
+impl core::clone::Clone for antecedent_contract::propagation_chain::OperatorClass
+impl core::clone::Clone for antecedent_contract::propagation_chain::Representation
+impl core::clone::Clone for antecedent_contract::propagation_chain::StageDependence
+impl core::clone::Clone for antecedent_contract::propagation_chain::StageKind
+impl core::clone::Clone for antecedent_contract::propagation_chain::StagePlan
+impl core::clone::Clone for antecedent_contract::propagation_chain::TableConstruction
 impl core::clone::Clone for antecedent_contract::provider_transport::AdmittedProviderSource
 impl core::clone::Clone for antecedent_contract::provider_transport::ProviderTransportSource
 impl core::clone::Clone for antecedent_contract::provider_transport::SourceTrustRequirement
@@ -504,6 +527,10 @@ impl core::cmp::Eq for antecedent_contract::AssumptionSlot
 impl core::cmp::Eq for antecedent_contract::BlockedOperation
 impl core::cmp::Eq for antecedent_contract::BoundTrustLevel
 impl core::cmp::Eq for antecedent_contract::BufferMaterialization
+impl core::cmp::Eq for antecedent_contract::ChainDecl
+impl core::cmp::Eq for antecedent_contract::ChainPlan
+impl core::cmp::Eq for antecedent_contract::ChainReading
+impl core::cmp::Eq for antecedent_contract::ChainRefusal
 impl core::cmp::Eq for antecedent_contract::CheckedEquivalence
 impl core::cmp::Eq for antecedent_contract::ClaimCompatibility
 impl core::cmp::Eq for antecedent_contract::ClaimDomainAxis
@@ -749,6 +776,17 @@ impl core::cmp::Eq for antecedent_contract::mixed_module::CutFeedback
 impl core::cmp::Eq for antecedent_contract::mixed_module::MixedModulePolicy
 impl core::cmp::Eq for antecedent_contract::mixed_module::MixedModuleRefusal
 impl core::cmp::Eq for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::cmp::Eq for antecedent_contract::propagation_chain::ChainSourceDecl
+impl core::cmp::Eq for antecedent_contract::propagation_chain::ChainStageDecl
+impl core::cmp::Eq for antecedent_contract::propagation_chain::FactorDecl
+impl core::cmp::Eq for antecedent_contract::propagation_chain::LawMeaning
+impl core::cmp::Eq for antecedent_contract::propagation_chain::NodeRepresentation
+impl core::cmp::Eq for antecedent_contract::propagation_chain::OperatorClass
+impl core::cmp::Eq for antecedent_contract::propagation_chain::Representation
+impl core::cmp::Eq for antecedent_contract::propagation_chain::StageDependence
+impl core::cmp::Eq for antecedent_contract::propagation_chain::StageKind
+impl core::cmp::Eq for antecedent_contract::propagation_chain::StagePlan
+impl core::cmp::Eq for antecedent_contract::propagation_chain::TableConstruction
 impl core::cmp::Eq for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedHandoff
 impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedInputPolicy
@@ -786,6 +824,7 @@ impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportRev
 impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportScene
 impl core::cmp::Ord for antecedent_contract::AdmissionCoordinate
 impl core::cmp::Ord for antecedent_contract::AlignedLaw
+impl core::cmp::Ord for antecedent_contract::ChainReading
 impl core::cmp::Ord for antecedent_contract::CompositionStage
 impl core::cmp::Ord for antecedent_contract::DependenceSourceId
 impl core::cmp::Ord for antecedent_contract::EffectId
@@ -842,6 +881,12 @@ impl core::cmp::Ord for antecedent_contract::evidence_ledger::SourceId
 impl core::cmp::Ord for antecedent_contract::evidence_ledger::SourceKind
 impl core::cmp::Ord for antecedent_contract::interface_contract::ContractOperation
 impl core::cmp::Ord for antecedent_contract::joint_alignment::ProducingLaw
+impl core::cmp::Ord for antecedent_contract::propagation_chain::LawMeaning
+impl core::cmp::Ord for antecedent_contract::propagation_chain::NodeRepresentation
+impl core::cmp::Ord for antecedent_contract::propagation_chain::OperatorClass
+impl core::cmp::Ord for antecedent_contract::propagation_chain::Representation
+impl core::cmp::Ord for antecedent_contract::propagation_chain::StageKind
+impl core::cmp::Ord for antecedent_contract::propagation_chain::TableConstruction
 impl core::cmp::Ord for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::cmp::Ord for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::cmp::Ord for antecedent_contract::transport_revalidation::TransportReason
@@ -857,6 +902,10 @@ impl core::cmp::PartialEq for antecedent_contract::BoundExternalClaim
 impl core::cmp::PartialEq for antecedent_contract::BoundTrustLevel
 impl core::cmp::PartialEq for antecedent_contract::BufferMaterialization
 impl core::cmp::PartialEq for antecedent_contract::CalibrationView
+impl core::cmp::PartialEq for antecedent_contract::ChainDecl
+impl core::cmp::PartialEq for antecedent_contract::ChainPlan
+impl core::cmp::PartialEq for antecedent_contract::ChainReading
+impl core::cmp::PartialEq for antecedent_contract::ChainRefusal
 impl core::cmp::PartialEq for antecedent_contract::CheckedCausalContract
 impl core::cmp::PartialEq for antecedent_contract::CheckedEquivalence
 impl core::cmp::PartialEq for antecedent_contract::ClaimCompatibility
@@ -1189,6 +1238,17 @@ impl core::cmp::PartialEq for antecedent_contract::mixed_module::CutFeedback
 impl core::cmp::PartialEq for antecedent_contract::mixed_module::MixedModulePolicy
 impl core::cmp::PartialEq for antecedent_contract::mixed_module::MixedModuleRefusal
 impl core::cmp::PartialEq for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::ChainSourceDecl
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::ChainStageDecl
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::FactorDecl
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::LawMeaning
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::NodeRepresentation
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::OperatorClass
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::Representation
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::StageDependence
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::StageKind
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::StagePlan
+impl core::cmp::PartialEq for antecedent_contract::propagation_chain::TableConstruction
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::AdmittedProviderSource
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::ProviderTransportSource
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::SourceTrustRequirement
@@ -1229,6 +1289,7 @@ impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::Trans
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportScene
 impl core::cmp::PartialOrd for antecedent_contract::AdmissionCoordinate
 impl core::cmp::PartialOrd for antecedent_contract::AlignedLaw
+impl core::cmp::PartialOrd for antecedent_contract::ChainReading
 impl core::cmp::PartialOrd for antecedent_contract::CompositionStage
 impl core::cmp::PartialOrd for antecedent_contract::DependenceSourceId
 impl core::cmp::PartialOrd for antecedent_contract::EffectId
@@ -1285,6 +1346,12 @@ impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::SourceId
 impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::SourceKind
 impl core::cmp::PartialOrd for antecedent_contract::interface_contract::ContractOperation
 impl core::cmp::PartialOrd for antecedent_contract::joint_alignment::ProducingLaw
+impl core::cmp::PartialOrd for antecedent_contract::propagation_chain::LawMeaning
+impl core::cmp::PartialOrd for antecedent_contract::propagation_chain::NodeRepresentation
+impl core::cmp::PartialOrd for antecedent_contract::propagation_chain::OperatorClass
+impl core::cmp::PartialOrd for antecedent_contract::propagation_chain::Representation
+impl core::cmp::PartialOrd for antecedent_contract::propagation_chain::StageKind
+impl core::cmp::PartialOrd for antecedent_contract::propagation_chain::TableConstruction
 impl core::cmp::PartialOrd for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::cmp::PartialOrd for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::cmp::PartialOrd for antecedent_contract::transport_revalidation::TransportReason
@@ -1299,6 +1366,7 @@ impl core::default::Default for antecedent_contract::ProvenanceGraph
 impl core::default::Default for antecedent_contract::composition_verification::CompositionGraph
 impl core::default::Default for antecedent_contract::evidence_ledger::EvidenceLedger
 impl core::default::Default for antecedent_contract::evidence_ledger::OperationEffect
+impl core::error::Error for antecedent_contract::ChainRefusal
 impl core::error::Error for antecedent_contract::DependenceError
 impl core::error::Error for antecedent_contract::EvidenceEffectError
 impl core::error::Error for antecedent_contract::EvidenceEnvelopeError
@@ -1325,6 +1393,10 @@ impl core::fmt::Debug for antecedent_contract::BoundExternalClaim
 impl core::fmt::Debug for antecedent_contract::BoundTrustLevel
 impl core::fmt::Debug for antecedent_contract::BufferMaterialization
 impl core::fmt::Debug for antecedent_contract::CalibrationView
+impl core::fmt::Debug for antecedent_contract::ChainDecl
+impl core::fmt::Debug for antecedent_contract::ChainPlan
+impl core::fmt::Debug for antecedent_contract::ChainReading
+impl core::fmt::Debug for antecedent_contract::ChainRefusal
 impl core::fmt::Debug for antecedent_contract::CheckedCausalContract
 impl core::fmt::Debug for antecedent_contract::CheckedEquivalence
 impl core::fmt::Debug for antecedent_contract::ClaimCompatibility
@@ -1659,6 +1731,17 @@ impl core::fmt::Debug for antecedent_contract::mixed_module::CutFeedback
 impl core::fmt::Debug for antecedent_contract::mixed_module::MixedModulePolicy
 impl core::fmt::Debug for antecedent_contract::mixed_module::MixedModuleRefusal
 impl core::fmt::Debug for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::fmt::Debug for antecedent_contract::propagation_chain::ChainSourceDecl
+impl core::fmt::Debug for antecedent_contract::propagation_chain::ChainStageDecl
+impl core::fmt::Debug for antecedent_contract::propagation_chain::FactorDecl
+impl core::fmt::Debug for antecedent_contract::propagation_chain::LawMeaning
+impl core::fmt::Debug for antecedent_contract::propagation_chain::NodeRepresentation
+impl core::fmt::Debug for antecedent_contract::propagation_chain::OperatorClass
+impl core::fmt::Debug for antecedent_contract::propagation_chain::Representation
+impl core::fmt::Debug for antecedent_contract::propagation_chain::StageDependence
+impl core::fmt::Debug for antecedent_contract::propagation_chain::StageKind
+impl core::fmt::Debug for antecedent_contract::propagation_chain::StagePlan
+impl core::fmt::Debug for antecedent_contract::propagation_chain::TableConstruction
 impl core::fmt::Debug for antecedent_contract::provider_transport::AdmittedProviderSource
 impl core::fmt::Debug for antecedent_contract::provider_transport::ProviderTransportSource
 impl core::fmt::Debug for antecedent_contract::provider_transport::SourceTrustRequirement
@@ -1697,6 +1780,7 @@ impl core::fmt::Debug for antecedent_contract::transport_revalidation::Transport
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportReason
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportRevalidation
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportScene
+impl core::fmt::Display for antecedent_contract::ChainRefusal
 impl core::fmt::Display for antecedent_contract::DependenceError
 impl core::fmt::Display for antecedent_contract::DependenceSourceId
 impl core::fmt::Display for antecedent_contract::EffectId
@@ -1731,6 +1815,7 @@ impl core::fmt::Display for antecedent_contract::summary_observation::SummaryUse
 impl core::hash::Hash for antecedent_contract::AdmissionCoordinate
 impl core::hash::Hash for antecedent_contract::AlignedLaw
 impl core::hash::Hash for antecedent_contract::BufferMaterialization
+impl core::hash::Hash for antecedent_contract::ChainReading
 impl core::hash::Hash for antecedent_contract::ClaimDomainAxis
 impl core::hash::Hash for antecedent_contract::ClaimKind
 impl core::hash::Hash for antecedent_contract::ClaimOperation
@@ -1836,6 +1921,12 @@ impl core::hash::Hash for antecedent_contract::mixed_module::CutFeedback
 impl core::hash::Hash for antecedent_contract::mixed_module::MixedModulePolicy
 impl core::hash::Hash for antecedent_contract::mixed_module::MixedModuleRefusal
 impl core::hash::Hash for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::hash::Hash for antecedent_contract::propagation_chain::LawMeaning
+impl core::hash::Hash for antecedent_contract::propagation_chain::NodeRepresentation
+impl core::hash::Hash for antecedent_contract::propagation_chain::OperatorClass
+impl core::hash::Hash for antecedent_contract::propagation_chain::Representation
+impl core::hash::Hash for antecedent_contract::propagation_chain::StageKind
+impl core::hash::Hash for antecedent_contract::propagation_chain::TableConstruction
 impl core::hash::Hash for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::hash::Hash for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::hash::Hash for antecedent_contract::rewrite_legality::FrameFingerprint
@@ -1863,6 +1954,7 @@ impl core::marker::Copy for antecedent_contract::AlignedLaw
 impl core::marker::Copy for antecedent_contract::AxisInterval
 impl core::marker::Copy for antecedent_contract::BoundTrustLevel
 impl core::marker::Copy for antecedent_contract::BufferMaterialization
+impl core::marker::Copy for antecedent_contract::ChainReading
 impl core::marker::Copy for antecedent_contract::ClaimDomainAxis
 impl core::marker::Copy for antecedent_contract::ClaimKind
 impl core::marker::Copy for antecedent_contract::ClaimOperation
@@ -1988,6 +2080,12 @@ impl core::marker::Copy for antecedent_contract::measurement::MeasurementOperati
 impl core::marker::Copy for antecedent_contract::measurement::MeasurementRouteCard
 impl core::marker::Copy for antecedent_contract::mixed_module::CutFeedback
 impl core::marker::Copy for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::marker::Copy for antecedent_contract::propagation_chain::LawMeaning
+impl core::marker::Copy for antecedent_contract::propagation_chain::NodeRepresentation
+impl core::marker::Copy for antecedent_contract::propagation_chain::OperatorClass
+impl core::marker::Copy for antecedent_contract::propagation_chain::Representation
+impl core::marker::Copy for antecedent_contract::propagation_chain::StageKind
+impl core::marker::Copy for antecedent_contract::propagation_chain::TableConstruction
 impl core::marker::Copy for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::marker::Copy for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::marker::Copy for antecedent_contract::rewrite_legality::FrameFingerprint
@@ -2012,6 +2110,10 @@ impl core::marker::Freeze for antecedent_contract::BoundExternalClaim [auto]
 impl core::marker::Freeze for antecedent_contract::BoundTrustLevel [auto]
 impl core::marker::Freeze for antecedent_contract::BufferMaterialization [auto]
 impl core::marker::Freeze for antecedent_contract::CalibrationView [auto]
+impl core::marker::Freeze for antecedent_contract::ChainDecl [auto]
+impl core::marker::Freeze for antecedent_contract::ChainPlan [auto]
+impl core::marker::Freeze for antecedent_contract::ChainReading [auto]
+impl core::marker::Freeze for antecedent_contract::ChainRefusal [auto]
 impl core::marker::Freeze for antecedent_contract::CheckedCausalContract [auto]
 impl core::marker::Freeze for antecedent_contract::CheckedEquivalence [auto]
 impl core::marker::Freeze for antecedent_contract::ClaimCompatibility [auto]
@@ -2346,6 +2448,17 @@ impl core::marker::Freeze for antecedent_contract::mixed_module::CutFeedback [au
 impl core::marker::Freeze for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::marker::Freeze for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
 impl core::marker::Freeze for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::ChainStageDecl [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::FactorDecl [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::LawMeaning [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::NodeRepresentation [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::OperatorClass [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::Representation [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::StageDependence [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::StageKind [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::StagePlan [auto]
+impl core::marker::Freeze for antecedent_contract::propagation_chain::TableConstruction [auto]
 impl core::marker::Freeze for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::marker::Freeze for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::marker::Freeze for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -2396,6 +2509,10 @@ impl core::marker::Send for antecedent_contract::BoundExternalClaim [auto]
 impl core::marker::Send for antecedent_contract::BoundTrustLevel [auto]
 impl core::marker::Send for antecedent_contract::BufferMaterialization [auto]
 impl core::marker::Send for antecedent_contract::CalibrationView [auto]
+impl core::marker::Send for antecedent_contract::ChainDecl [auto]
+impl core::marker::Send for antecedent_contract::ChainPlan [auto]
+impl core::marker::Send for antecedent_contract::ChainReading [auto]
+impl core::marker::Send for antecedent_contract::ChainRefusal [auto]
 impl core::marker::Send for antecedent_contract::CheckedCausalContract [auto]
 impl core::marker::Send for antecedent_contract::CheckedEquivalence [auto]
 impl core::marker::Send for antecedent_contract::ClaimCompatibility [auto]
@@ -2730,6 +2847,17 @@ impl core::marker::Send for antecedent_contract::mixed_module::CutFeedback [auto
 impl core::marker::Send for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::marker::Send for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
 impl core::marker::Send for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::ChainStageDecl [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::FactorDecl [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::LawMeaning [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::NodeRepresentation [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::OperatorClass [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::Representation [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::StageDependence [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::StageKind [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::StagePlan [auto]
+impl core::marker::Send for antecedent_contract::propagation_chain::TableConstruction [auto]
 impl core::marker::Send for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::marker::Send for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::marker::Send for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -2780,6 +2908,10 @@ impl core::marker::StructuralPartialEq for antecedent_contract::BoundExternalCla
 impl core::marker::StructuralPartialEq for antecedent_contract::BoundTrustLevel
 impl core::marker::StructuralPartialEq for antecedent_contract::BufferMaterialization
 impl core::marker::StructuralPartialEq for antecedent_contract::CalibrationView
+impl core::marker::StructuralPartialEq for antecedent_contract::ChainDecl
+impl core::marker::StructuralPartialEq for antecedent_contract::ChainPlan
+impl core::marker::StructuralPartialEq for antecedent_contract::ChainReading
+impl core::marker::StructuralPartialEq for antecedent_contract::ChainRefusal
 impl core::marker::StructuralPartialEq for antecedent_contract::CheckedCausalContract
 impl core::marker::StructuralPartialEq for antecedent_contract::CheckedEquivalence
 impl core::marker::StructuralPartialEq for antecedent_contract::ClaimCompatibility
@@ -3112,6 +3244,17 @@ impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::Cu
 impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::MixedModulePolicy
 impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::MixedModuleRefusal
 impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::ChainSourceDecl
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::ChainStageDecl
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::FactorDecl
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::LawMeaning
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::NodeRepresentation
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::OperatorClass
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::Representation
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::StageDependence
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::StageKind
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::StagePlan
+impl core::marker::StructuralPartialEq for antecedent_contract::propagation_chain::TableConstruction
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::AdmittedProviderSource
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::ProviderTransportSource
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::SourceTrustRequirement
@@ -3160,6 +3303,10 @@ impl core::marker::Sync for antecedent_contract::BoundExternalClaim [auto]
 impl core::marker::Sync for antecedent_contract::BoundTrustLevel [auto]
 impl core::marker::Sync for antecedent_contract::BufferMaterialization [auto]
 impl core::marker::Sync for antecedent_contract::CalibrationView [auto]
+impl core::marker::Sync for antecedent_contract::ChainDecl [auto]
+impl core::marker::Sync for antecedent_contract::ChainPlan [auto]
+impl core::marker::Sync for antecedent_contract::ChainReading [auto]
+impl core::marker::Sync for antecedent_contract::ChainRefusal [auto]
 impl core::marker::Sync for antecedent_contract::CheckedCausalContract [auto]
 impl core::marker::Sync for antecedent_contract::CheckedEquivalence [auto]
 impl core::marker::Sync for antecedent_contract::ClaimCompatibility [auto]
@@ -3494,6 +3641,17 @@ impl core::marker::Sync for antecedent_contract::mixed_module::CutFeedback [auto
 impl core::marker::Sync for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::marker::Sync for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
 impl core::marker::Sync for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::ChainStageDecl [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::FactorDecl [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::LawMeaning [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::NodeRepresentation [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::OperatorClass [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::Representation [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::StageDependence [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::StageKind [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::StagePlan [auto]
+impl core::marker::Sync for antecedent_contract::propagation_chain::TableConstruction [auto]
 impl core::marker::Sync for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::marker::Sync for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::marker::Sync for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -3544,6 +3702,10 @@ impl core::marker::Unpin for antecedent_contract::BoundExternalClaim [auto]
 impl core::marker::Unpin for antecedent_contract::BoundTrustLevel [auto]
 impl core::marker::Unpin for antecedent_contract::BufferMaterialization [auto]
 impl core::marker::Unpin for antecedent_contract::CalibrationView [auto]
+impl core::marker::Unpin for antecedent_contract::ChainDecl [auto]
+impl core::marker::Unpin for antecedent_contract::ChainPlan [auto]
+impl core::marker::Unpin for antecedent_contract::ChainReading [auto]
+impl core::marker::Unpin for antecedent_contract::ChainRefusal [auto]
 impl core::marker::Unpin for antecedent_contract::CheckedCausalContract [auto]
 impl core::marker::Unpin for antecedent_contract::CheckedEquivalence [auto]
 impl core::marker::Unpin for antecedent_contract::ClaimCompatibility [auto]
@@ -3878,6 +4040,17 @@ impl core::marker::Unpin for antecedent_contract::mixed_module::CutFeedback [aut
 impl core::marker::Unpin for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::marker::Unpin for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
 impl core::marker::Unpin for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::ChainStageDecl [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::FactorDecl [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::LawMeaning [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::NodeRepresentation [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::OperatorClass [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::Representation [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::StageDependence [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::StageKind [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::StagePlan [auto]
+impl core::marker::Unpin for antecedent_contract::propagation_chain::TableConstruction [auto]
 impl core::marker::Unpin for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::marker::Unpin for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::marker::Unpin for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -3928,6 +4101,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::BoundExter
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::BoundTrustLevel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::BufferMaterialization [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CalibrationView [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ChainDecl [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ChainPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ChainReading [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ChainRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CheckedCausalContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CheckedEquivalence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ClaimCompatibility [auto]
@@ -4262,6 +4439,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_modu
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::ChainStageDecl [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::FactorDecl [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::LawMeaning [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::NodeRepresentation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::OperatorClass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::Representation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::StageDependence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::StageKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::StagePlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::propagation_chain::TableConstruction [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -4312,6 +4500,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::BoundExternal
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::BoundTrustLevel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::BufferMaterialization [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CalibrationView [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ChainDecl [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ChainPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ChainReading [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ChainRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CheckedCausalContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CheckedEquivalence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ClaimCompatibility [auto]
@@ -4646,6 +4838,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::MixedModulePolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::ChainSourceDecl [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::ChainStageDecl [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::FactorDecl [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::LawMeaning [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::NodeRepresentation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::OperatorClass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::Representation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::StageDependence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::StageKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::StagePlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::propagation_chain::TableConstruction [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -4752,6 +4955,7 @@ impl<T> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SlotAva
 impl<T> core::panic::unwind_safe::UnwindSafe for antecedent_contract::SlotAvailability<T> where T: core::panic::unwind_safe::UnwindSafe [auto]
 pub const <antecedent_contract::AlignedLaw>::ALL: [Self; 2]
 pub const <antecedent_contract::BoundExternalClaim>::CLAIM_LINK_ID: &'static str
+pub const <antecedent_contract::ChainReading>::ALL: [Self; 5]
 pub const <antecedent_contract::ClaimKind>::ALL: [Self; 7]
 pub const <antecedent_contract::ColumnClaim>::DTYPE: &'static str
 pub const <antecedent_contract::CompositionStage>::ALL: [Self; 10]
@@ -4765,9 +4969,12 @@ pub const <antecedent_contract::JointConsumer>::ALL: [Self; 3]
 pub const <antecedent_contract::JointCovariance>::ALL: [Self; 2]
 pub const <antecedent_contract::LawCoupling>::ALL: [Self; 4]
 pub const <antecedent_contract::MassFate>::ALL: [Self; 2]
+pub const <antecedent_contract::OperationKind>::ALL: [Self; 6]
+pub const <antecedent_contract::OperationReadiness>::ALL: [Self; 8]
 pub const <antecedent_contract::PropagationOperation>::ALL: [Self; 9]
 pub const <antecedent_contract::PropagationRoute>::ALL: [Self; 5]
 pub const <antecedent_contract::RequestedReading>::ALL: [Self; 5]
+pub const <antecedent_contract::SemanticApplicability>::ALL: [Self; 4]
 pub const <antecedent_contract::SharedFactorKind>::ALL: [Self; 7]
 pub const <antecedent_contract::UncertaintyAxis>::ALL: [Self; 7]
 pub const <antecedent_contract::VerifiedContractKind>::ALL: [Self; 6]
@@ -4797,6 +5004,12 @@ pub const <antecedent_contract::interface_contract::DependenceRequirement>::ALL:
 pub const <antecedent_contract::interface_contract::UncertaintyMeaning>::ALL_MEANINGS: [antecedent_contract::DistributionMeaning; 7]
 pub const <antecedent_contract::interface_contract::UncertaintyParadigm>::ALL: [Self; 4]
 pub const <antecedent_contract::mixed_module::CutFeedback>::ALL: [Self; 2]
+pub const <antecedent_contract::propagation_chain::LawMeaning>::ALL: [Self; 2]
+pub const <antecedent_contract::propagation_chain::NodeRepresentation>::ALL: [Self; 3]
+pub const <antecedent_contract::propagation_chain::OperatorClass>::ALL: [Self; 6]
+pub const <antecedent_contract::propagation_chain::Representation>::ALL: [Self; 3]
+pub const <antecedent_contract::propagation_chain::StageKind>::ALL: [Self; 6]
+pub const <antecedent_contract::propagation_chain::TableConstruction>::ALL: [Self; 2]
 pub const <antecedent_contract::provider_transport::SourceTrustRequirement>::ALL: [Self; 2]
 pub const <antecedent_contract::provider_transport::TransportedHandoff>::STANDING: &'static str
 pub const <antecedent_contract::provider_transport::TransportedInputPolicy>::ALL: [Self; 2]
@@ -4882,6 +5095,28 @@ pub const antecedent_contract::joint_alignment::RETAIN_DROPPED_MASS: antecedent_
 pub const antecedent_contract::measurement::MEASUREMENT_CONSTRUCT_PORT: &str
 pub const antecedent_contract::measurement::MEASUREMENT_INDICATOR_PORT: &str
 pub const antecedent_contract::mechanism_composition::MECHANISM_PLAN_IDENTITY_VERSION: u64
+pub const antecedent_contract::propagation_chain::BUILD_INDEPENDENT_PRODUCT_TABLE: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::DROP_DUPLICATED_SOURCE: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::MATCH_LAW_MEANING: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::MAX_CHAIN_NODES: usize
+pub const antecedent_contract::propagation_chain::MEASURE_COMPOSED_COVERAGE: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 16]
+pub const antecedent_contract::propagation_chain::POOL_WITH_JOINT_COVARIANCE: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::POSTERIOR_PROPAGATION_LABEL: &str
+pub const antecedent_contract::propagation_chain::PROPAGATION_ENCLOSURE_LABEL: &str
+pub const antecedent_contract::propagation_chain::PROPAGATION_POINT_LABEL: &str
+pub const antecedent_contract::propagation_chain::PROPAGATION_SPREAD_LABEL: &str
+pub const antecedent_contract::propagation_chain::RAISE_BUDGET_OR_THIN_DRAWS: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::RAISE_DRAWS_OR_WIDEN_STUDY: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::RERUN_WITHOUT_WITHDRAWN_SOURCE: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::SUPPLY_ALIGNED_DRAWS: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::SUPPLY_DRAWS_FOR_FIXED_INPUT: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::SUPPLY_DRAWS_FOR_INTERVAL: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::SUPPLY_JOINT_DRAWS: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::SUPPLY_POSTERIOR_DRAWS: antecedent_core::refusal::NextAttempt
+pub const antecedent_contract::propagation_chain::USE_ENCLOSURE_READING: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::provider_transport::MAX_PROVIDER_TRANSPORT_ITEMS: usize
 pub const antecedent_contract::provider_transport::MAX_PROVIDER_TRANSPORT_TEXT_BYTES: usize
 pub const antecedent_contract::provider_transport::PROVIDER_SOURCE_PORT: &str
@@ -5020,6 +5255,17 @@ pub field antecedent_contract::CalibrationView::scope_n: core::option::Option<u6
 pub field antecedent_contract::CalibrationView::scope_n_max: core::option::Option<u64>
 pub field antecedent_contract::CalibrationView::secondary: alloc::sync::Arc<[antecedent_contract::CalibrationView]>
 pub field antecedent_contract::CalibrationView::status: alloc::sync::Arc<str>
+pub field antecedent_contract::ChainDecl::construction: antecedent_contract::propagation_chain::TableConstruction
+pub field antecedent_contract::ChainDecl::output: alloc::string::String
+pub field antecedent_contract::ChainDecl::reading: antecedent_contract::ChainReading
+pub field antecedent_contract::ChainDecl::sources: alloc::vec::Vec<antecedent_contract::propagation_chain::ChainSourceDecl>
+pub field antecedent_contract::ChainDecl::stages: alloc::vec::Vec<antecedent_contract::propagation_chain::ChainStageDecl>
+pub field antecedent_contract::ChainPlan::alignment: core::option::Option<alloc::string::String>
+pub field antecedent_contract::ChainPlan::fixed_sources: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_contract::ChainPlan::label: &'static str
+pub field antecedent_contract::ChainPlan::output: alloc::string::String
+pub field antecedent_contract::ChainPlan::reading: antecedent_contract::ChainReading
+pub field antecedent_contract::ChainPlan::stages: alloc::vec::Vec<antecedent_contract::propagation_chain::StagePlan>
 pub field antecedent_contract::CheckedCausalContract::accepted_meanings: alloc::vec::Vec<antecedent_contract::DistributionMeaning>
 pub field antecedent_contract::CheckedCausalContract::equivalences: alloc::vec::Vec<antecedent_contract::CheckedEquivalence>
 pub field antecedent_contract::CheckedCausalContract::estimand: alloc::vec::Vec<antecedent_contract::ScientificQuantity>
@@ -5795,6 +6041,28 @@ pub field antecedent_contract::measurement::MeasurementRouteCard::allowed: &'sta
 pub field antecedent_contract::measurement::MeasurementRouteCard::assumptions: &'static [&'static str]
 pub field antecedent_contract::measurement::MeasurementRouteCard::refused: &'static [(antecedent_contract::measurement::MeasurementOperation, &'static str)]
 pub field antecedent_contract::measurement::MeasurementRouteCard::route: antecedent_core::measurement_model::MeasurementRoute
+pub field antecedent_contract::propagation_chain::ChainSourceDecl::alignment: core::option::Option<alloc::string::String>
+pub field antecedent_contract::propagation_chain::ChainSourceDecl::complete_disclosure: bool
+pub field antecedent_contract::propagation_chain::ChainSourceDecl::factors: alloc::vec::Vec<antecedent_contract::propagation_chain::FactorDecl>
+pub field antecedent_contract::propagation_chain::ChainSourceDecl::id: alloc::string::String
+pub field antecedent_contract::propagation_chain::ChainSourceDecl::meaning: core::option::Option<antecedent_contract::propagation_chain::LawMeaning>
+pub field antecedent_contract::propagation_chain::ChainSourceDecl::representation: antecedent_contract::propagation_chain::Representation
+pub field antecedent_contract::propagation_chain::ChainStageDecl::class: antecedent_contract::propagation_chain::OperatorClass
+pub field antecedent_contract::propagation_chain::ChainStageDecl::id: alloc::string::String
+pub field antecedent_contract::propagation_chain::ChainStageDecl::inputs: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_contract::propagation_chain::ChainStageDecl::kind: antecedent_contract::propagation_chain::StageKind
+pub field antecedent_contract::propagation_chain::ChainStageDecl::own_factors: alloc::vec::Vec<antecedent_contract::propagation_chain::FactorDecl>
+pub field antecedent_contract::propagation_chain::FactorDecl::id: alloc::string::String
+pub field antecedent_contract::propagation_chain::FactorDecl::kind: antecedent_contract::SharedFactorKind
+pub field antecedent_contract::propagation_chain::StageDependence::shared: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_contract::propagation_chain::StageDependence::status: antecedent_contract::DependenceStatus
+pub field antecedent_contract::propagation_chain::StagePlan::class: antecedent_contract::propagation_chain::OperatorClass
+pub field antecedent_contract::propagation_chain::StagePlan::dependence: core::option::Option<antecedent_contract::propagation_chain::StageDependence>
+pub field antecedent_contract::propagation_chain::StagePlan::id: alloc::string::String
+pub field antecedent_contract::propagation_chain::StagePlan::kind: antecedent_contract::propagation_chain::StageKind
+pub field antecedent_contract::propagation_chain::StagePlan::meaning: core::option::Option<antecedent_contract::propagation_chain::LawMeaning>
+pub field antecedent_contract::propagation_chain::StagePlan::representation: antecedent_contract::propagation_chain::NodeRepresentation
+pub field antecedent_contract::propagation_chain::StagePlan::sources: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_contract::provider_transport::ProviderTransportSource::assumptions: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_contract::provider_transport::ProviderTransportSource::component: alloc::string::String
 pub field antecedent_contract::provider_transport::ProviderTransportSource::evidence: antecedent_contract::interface_contract::EvidenceBasis
@@ -5877,6 +6145,19 @@ pub fn <antecedent_contract::BoundExternalClaim>::fn support_status(&self) -> co
 pub fn <antecedent_contract::BoundExternalClaim>::fn uncertainty(&self) -> &antecedent_contract::ExternalUncertaintyMeaning
 pub fn <antecedent_contract::BoundExternalClaim>::fn values(&self) -> core::option::Option<&[f64]>
 pub fn <antecedent_contract::BoundExternalClaim>::fn verification(&self) -> &[antecedent_contract::VerificationProbe]
+pub fn <antecedent_contract::ChainPlan>::fn dependents_of(&self, source: &str) -> alloc::vec::Vec<&str>
+pub fn <antecedent_contract::ChainPlan>::fn stage(&self, id: &str) -> core::option::Option<&antecedent_contract::propagation_chain::StagePlan>
+pub fn <antecedent_contract::ChainReading>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::ChainReading>::const fn label(self) -> &'static str
+pub fn <antecedent_contract::ChainReading>::const fn tag(self) -> u64
+pub fn <antecedent_contract::ChainReading>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::ChainRefusal>::const fn code(&self) -> &'static str
+pub fn <antecedent_contract::ChainRefusal>::const fn detail(&self) -> &'static str
+pub fn <antecedent_contract::ChainRefusal>::const fn next_attempt(&self) -> antecedent_core::refusal::NextAttempt
+pub fn <antecedent_contract::ChainRefusal>::fn message(&self) -> &str
+pub fn <antecedent_contract::ChainRefusal>::fn message_with_next_attempt(&self) -> alloc::string::String
+pub fn <antecedent_contract::ChainRefusal>::fn new(code: &'static str, detail: &'static str, message: impl core::convert::Into<alloc::string::String>, stage: core::option::Option<&str>, next: antecedent_core::refusal::NextAttempt) -> Self
+pub fn <antecedent_contract::ChainRefusal>::fn stage(&self) -> core::option::Option<&str>
 pub fn <antecedent_contract::ClaimCompatibility>::fn new(operation: antecedent_contract::ClaimOperation, compatible: bool, unresolved: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, restriction: core::option::Option<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_contract::ClaimDomainAxis>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::ClaimDomains>::const fn new(identification: antecedent_contract::DomainStatus, support: antecedent_contract::DomainStatus, evaluated: antecedent_contract::DomainStatus) -> Self
@@ -6523,6 +6804,23 @@ pub fn <antecedent_contract::mixed_module::MixedModuleRefusal>::const fn code(se
 pub fn <antecedent_contract::mixed_module::MixedModuleRefusal>::const fn detail(self) -> &'static str
 pub fn <antecedent_contract::mixed_module::ReconciliationRecord>::fn as_str(&self) -> &str
 pub fn <antecedent_contract::mixed_module::ReconciliationRecord>::fn try_new(text: &str) -> core::result::Result<Self, antecedent_contract::mixed_module::MixedModuleRefusal>
+pub fn <antecedent_contract::propagation_chain::LawMeaning>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::propagation_chain::LawMeaning>::const fn tag(self) -> u64
+pub fn <antecedent_contract::propagation_chain::LawMeaning>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::propagation_chain::NodeRepresentation>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::propagation_chain::NodeRepresentation>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::propagation_chain::OperatorClass>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::propagation_chain::OperatorClass>::const fn tag(self) -> u64
+pub fn <antecedent_contract::propagation_chain::OperatorClass>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::propagation_chain::Representation>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::propagation_chain::Representation>::const fn tag(self) -> u64
+pub fn <antecedent_contract::propagation_chain::Representation>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::propagation_chain::StageKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::propagation_chain::StageKind>::const fn tag(self) -> u64
+pub fn <antecedent_contract::propagation_chain::StageKind>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::propagation_chain::TableConstruction>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::propagation_chain::TableConstruction>::const fn tag(self) -> u64
+pub fn <antecedent_contract::propagation_chain::TableConstruction>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::const fn is_native_target_data(&self) -> bool
 pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::const fn source(&self) -> &antecedent_contract::provider_transport::ProviderTransportSource
 pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::fn canonical_identity(&self) -> antecedent_core::identity::SemanticDigest
@@ -6733,6 +7031,7 @@ pub fn antecedent_contract::check_external_against_program(binding: &antecedent_
 pub fn antecedent_contract::check_mechanism_composition(decl: &antecedent_contract::MechanismCompositionDeclaration) -> core::result::Result<antecedent_contract::MechanismCompositionPlan, alloc::vec::Vec<antecedent_contract::ExternalRefusal>>
 pub fn antecedent_contract::check_observation_slots(request: &antecedent_contract::ObservationSlotsRequest<'_>) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_propagation(request: &antecedent_contract::PropagationRequest) -> core::result::Result<antecedent_contract::PropagationPlan, antecedent_contract::ExternalRefusal>
+pub fn antecedent_contract::check_propagation_chain(decl: &antecedent_contract::ChainDecl) -> core::result::Result<antecedent_contract::ChainPlan, antecedent_contract::ChainRefusal>
 pub fn antecedent_contract::check_propagation_with_ledger(request: &antecedent_contract::PropagationRequest, ledger: &antecedent_contract::evidence_ledger::EvidenceLedger) -> core::result::Result<antecedent_contract::PropagationPlan, antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_rows_pairable(alignment: &antecedent_contract::InputAlignment) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_rows_pairable_across(inputs: &[(&str, &antecedent_contract::InputAlignment)]) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
@@ -6809,6 +7108,7 @@ pub mod antecedent_contract::obligation
 pub mod antecedent_contract::observation_query
 pub mod antecedent_contract::plan
 pub mod antecedent_contract::program_binding
+pub mod antecedent_contract::propagation_chain
 pub mod antecedent_contract::provenance
 pub mod antecedent_contract::provider_transport
 pub mod antecedent_contract::provider_trust
@@ -6828,6 +7128,10 @@ pub struct antecedent_contract::AxisInterval has private fields
 pub struct antecedent_contract::BoundExternalClaim
 pub struct antecedent_contract::BoundExternalClaim has private fields
 pub struct antecedent_contract::CalibrationView
+pub struct antecedent_contract::ChainDecl
+pub struct antecedent_contract::ChainPlan
+pub struct antecedent_contract::ChainRefusal
+pub struct antecedent_contract::ChainRefusal has private fields
 pub struct antecedent_contract::CheckedCausalContract
 pub struct antecedent_contract::CheckedEquivalence
 pub struct antecedent_contract::ColumnClaim
@@ -7042,6 +7346,11 @@ pub struct antecedent_contract::measurement::MeasurementRequest<'a>
 pub struct antecedent_contract::measurement::MeasurementRouteCard
 pub struct antecedent_contract::mixed_module::ReconciliationRecord
 pub struct antecedent_contract::mixed_module::ReconciliationRecord has private fields
+pub struct antecedent_contract::propagation_chain::ChainSourceDecl
+pub struct antecedent_contract::propagation_chain::ChainStageDecl
+pub struct antecedent_contract::propagation_chain::FactorDecl
+pub struct antecedent_contract::propagation_chain::StageDependence
+pub struct antecedent_contract::propagation_chain::StagePlan
 pub struct antecedent_contract::provider_transport::AdmittedProviderSource
 pub struct antecedent_contract::provider_transport::AdmittedProviderSource has private fields
 pub struct antecedent_contract::provider_transport::ProviderTransportSource
@@ -7306,6 +7615,11 @@ pub use antecedent_contract::program_binding::ProgramCheck = antecedent_contract
 pub use antecedent_contract::program_binding::bind_external_result_to_program = antecedent_contract::bind_external_result_to_program
 pub use antecedent_contract::program_binding::check_external_against_program = antecedent_contract::check_external_against_program
 pub use antecedent_contract::program_binding::dose_label = antecedent_contract::dose_label
+pub use antecedent_contract::propagation_chain::ChainDecl = antecedent_contract::ChainDecl
+pub use antecedent_contract::propagation_chain::ChainPlan = antecedent_contract::ChainPlan
+pub use antecedent_contract::propagation_chain::ChainReading = antecedent_contract::ChainReading
+pub use antecedent_contract::propagation_chain::ChainRefusal = antecedent_contract::ChainRefusal
+pub use antecedent_contract::propagation_chain::check_propagation_chain = antecedent_contract::check_propagation_chain
 pub use antecedent_contract::provenance::ArtifactId = antecedent_contract::ArtifactId
 pub use antecedent_contract::provenance::ProvenanceError = antecedent_contract::ProvenanceError
 pub use antecedent_contract::provenance::ProvenanceGraph = antecedent_contract::ProvenanceGraph
@@ -7359,6 +7673,11 @@ pub variant antecedent_contract::BufferMaterialization::Borrowed
 pub variant antecedent_contract::BufferMaterialization::Chunked
 pub variant antecedent_contract::BufferMaterialization::CopiedContiguous
 pub variant antecedent_contract::BufferMaterialization::Transposed
+pub variant antecedent_contract::ChainReading::Enclosure
+pub variant antecedent_contract::ChainReading::Interval
+pub variant antecedent_contract::ChainReading::Point
+pub variant antecedent_contract::ChainReading::Posterior
+pub variant antecedent_contract::ChainReading::Spread
 pub variant antecedent_contract::ClaimDomainAxis::Evaluated
 pub variant antecedent_contract::ClaimDomainAxis::Identification
 pub variant antecedent_contract::ClaimDomainAxis::Support
@@ -8052,6 +8371,28 @@ pub variant antecedent_contract::mixed_module::CutFeedback::Feedback
 pub variant antecedent_contract::mixed_module::MixedModulePolicy::CoherentJoint
 pub variant antecedent_contract::mixed_module::MixedModulePolicy::DeclaredModular { reconciliation: antecedent_contract::mixed_module::ReconciliationRecord, cut_feedback: antecedent_contract::mixed_module::CutFeedback }
 pub variant antecedent_contract::mixed_module::MixedModuleRefusal::BlankReconciliation
+pub variant antecedent_contract::propagation_chain::LawMeaning::Posterior
+pub variant antecedent_contract::propagation_chain::LawMeaning::Sampling
+pub variant antecedent_contract::propagation_chain::NodeRepresentation::Draws
+pub variant antecedent_contract::propagation_chain::NodeRepresentation::Enclosure
+pub variant antecedent_contract::propagation_chain::NodeRepresentation::Point
+pub variant antecedent_contract::propagation_chain::OperatorClass::Affine
+pub variant antecedent_contract::propagation_chain::OperatorClass::DependentPool
+pub variant antecedent_contract::propagation_chain::OperatorClass::IndependentPool
+pub variant antecedent_contract::propagation_chain::OperatorClass::Nonlinear
+pub variant antecedent_contract::propagation_chain::OperatorClass::Reweight
+pub variant antecedent_contract::propagation_chain::OperatorClass::Update
+pub variant antecedent_contract::propagation_chain::Representation::Draws
+pub variant antecedent_contract::propagation_chain::Representation::Interval
+pub variant antecedent_contract::propagation_chain::Representation::Point
+pub variant antecedent_contract::propagation_chain::StageKind::DecisionUtility
+pub variant antecedent_contract::propagation_chain::StageKind::DerivedQuantity
+pub variant antecedent_contract::propagation_chain::StageKind::MeasurementMapping
+pub variant antecedent_contract::propagation_chain::StageKind::Pooling
+pub variant antecedent_contract::propagation_chain::StageKind::PreposteriorUpdate
+pub variant antecedent_contract::propagation_chain::StageKind::Transport
+pub variant antecedent_contract::propagation_chain::TableConstruction::IndependentProduct
+pub variant antecedent_contract::propagation_chain::TableConstruction::JointDraws
 pub variant antecedent_contract::provider_transport::SourceTrustRequirement::AttestationAccepted
 pub variant antecedent_contract::provider_transport::SourceTrustRequirement::ExactRequestVerified
 pub variant antecedent_contract::provider_transport::TransportedInputPolicy::AcceptsTransported

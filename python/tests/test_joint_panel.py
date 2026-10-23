@@ -56,7 +56,7 @@ def declarations():
     return groups, worlds
 
 
-def request(groups, worlds):
+def request(groups, worlds, functional=None):
     return joint_panel.prepare(
         groups,
         channels=["a", "b", "c"],
@@ -72,6 +72,7 @@ def request(groups, worlds):
             "inference": {"kind": "frequentist", "draws": 4},
             "initial": None,
         },
+        functional=functional,
         seed=20261021,
     )
 
@@ -149,3 +150,23 @@ def test_python_panel_refuses_foreign_expression_read_without_fitting():
                 "initial": None,
             },
         )
+
+
+def test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_worlds():
+    groups, worlds = declarations()
+    separate = request(groups, worlds).estimate(seed=20261021)
+    with pytest.raises(Exception, match="contrast target"):
+        separate.scheduled_contrast()
+    prepared = request(groups, worlds, functional={"terms": [(1, 1.0), (0, -1.0)], "reference": 0})
+    result = prepared.estimate(seed=20261021)
+    report = result.report()
+    contrast = result.scheduled_contrast("terminal_mean", level=0.9)
+    assert contrast["point"] == pytest.approx(
+        report["point"][1]["means"][-1] - report["point"][0]["means"][-1], abs=1e-12
+    )
+    # Unconverged fit: failed slots stay failed and no interval is invented.
+    assert contrast["draws"] == [None] * 4
+    assert contrast["interval"] is None
+    assert contrast["level"] == 0.9
+    with pytest.raises(Exception, match="level"):
+        result.scheduled_contrast("terminal_mean", level=1.5)

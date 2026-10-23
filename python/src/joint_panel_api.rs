@@ -51,6 +51,31 @@ struct Functional {
     terms: Vec<(u32, f64)>,
     reference: u32,
 }
+/// Time functional applied identically to every scheduled program before contrasting.
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+enum ContrastFunctional {
+    TerminalMean,
+    WindowAverage { from: usize, until: usize },
+    WindowChange { before: (usize, usize), after: (usize, usize) },
+    WeightedSum { coefficients: Vec<f64> },
+}
+impl ContrastFunctional {
+    fn native(self) -> facade::JointPanelResponseFunctional {
+        match self {
+            Self::TerminalMean => facade::JointPanelResponseFunctional::TerminalMean,
+            Self::WindowAverage { from, until } => {
+                facade::JointPanelResponseFunctional::WindowAverage { from, until }
+            }
+            Self::WindowChange { before, after } => {
+                facade::JointPanelResponseFunctional::WindowChange { before, after }
+            }
+            Self::WeightedSum { coefficients } => {
+                facade::JointPanelResponseFunctional::WeightedSum { coefficients }
+            }
+        }
+    }
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Declaration {
@@ -331,6 +356,29 @@ impl PyJointPanelResult {
         }
         .map_err(|error| crate::serialization_err(error.to_string()))?;
         Ok(serde_json::json!({"point_parameters":point_parameters,"point":self.inner.point,"draws":self.inner.draws,"identified":self.inner.identification().is_identified_claim(),"diagnostics":diagnostics,"fits_performed":self.inner.prepared().fits_performed()}).to_string())
+    }
+    /// The target's one assembled contrast of scheduled programs, evaluated on every shared
+    /// draw so the cross-world covariance is carried by the draws.
+    #[pyo3(signature=(functional_json,level))]
+    fn scheduled_contrast(&self, functional_json: &str, level: f64) -> PyResult<String> {
+        crate::bridge::check_declared_size(
+            functional_json,
+            crate::bridge::MAX_SPEC_DECLARATION_BYTES,
+            "panel contrast functional",
+        )?;
+        let functional: ContrastFunctional = serde_json::from_str(functional_json)
+            .map_err(|error| crate::value_err(error.to_string()))?;
+        let contrast =
+            self.inner.scheduled_contrast(&functional.native(), level).map_err(panel_error)?;
+        Ok(serde_json::json!({
+            "point": contrast.point,
+            "draws": contrast.draws,
+            "standard_error": contrast.standard_error,
+            "interval": contrast.interval,
+            "level": contrast.level,
+            "uncertainty": format!("{:?}", contrast.uncertainty),
+        })
+        .to_string())
     }
     #[pyo3(signature=(*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn export(

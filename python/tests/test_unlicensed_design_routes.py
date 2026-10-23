@@ -317,3 +317,109 @@ def test_bayesian_matching_is_the_typed_boundary() -> None:
             )
         assert static.value.reason_code == "route_not_supported"
         assert "covariates or a propensity score" in str(static.value)
+
+
+def _history_outcome_data(unequal_weights: bool = False) -> tuple[dict[str, np.ndarray], float]:
+    """Three periods of 60 units; the effect ``1 + 2 * score`` grows with the history mean."""
+    rows: dict[str, list[float]] = {k: [] for k in ("h1", "h2", "y", "treated", "period", "weight")}
+    effects: list[float] = []
+    for period in range(3):
+        for k in range(60):
+            base = float(np.sin(k * 0.37 + period))
+            first, second = base, base + 0.1 * ((k % 5) - 2.0)
+            score = (first + second) / 2.0
+            treated = score + float(np.cos(k * 0.11)) * 0.8 > 0.0
+            effect = 1.0 + 2.0 * score
+            outcome = (
+                1.5 * period + 0.5 * score + (effect if treated else 0.0) + 0.05 * np.sin(k * 1.3)
+            )
+            if treated:
+                effects.append(effect)
+            for key, value in zip(
+                rows,
+                (
+                    first,
+                    second,
+                    outcome,
+                    1.0 if treated else 0.0,
+                    float(period),
+                    2.0 if unequal_weights and k % 2 == 0 else 1.0,
+                ),
+                strict=True,
+            ):
+                rows[key].append(float(value))
+    return {key: np.asarray(value) for key, value in rows.items()}, float(np.mean(effects))
+
+
+def _history_outcome_query() -> PeriodHistoryMatch:
+    return PeriodHistoryMatch(
+        outcome="y", treated="treated", history=["h1", "h2"], period="period", weight="weight"
+    )
+
+
+def test_history_outcome_model_is_the_model_based_effect_on_the_treated() -> None:
+    data, truth = _history_outcome_data()
+    result = ant.analyze(
+        data,
+        query=_history_outcome_query(),
+        inference=ant.Bayesian(backend="conjugate", n_draws=2000),
+        return_posterior_artifact=True,
+        estimator=Estimator.BAYESIAN_PERIOD_HISTORY_OUTCOME_MODEL,
+        refute="none",
+        seed=5,
+    )
+    assert result.posterior is not None
+    assert result.history_match is None, "a model-based effect is not a matched contrast"
+    assert _draws(result)[:, 0].mean() == pytest.approx(truth, abs=0.06)
+
+
+def test_history_outcome_model_refusals_are_typed_and_name_the_next_attempt() -> None:
+    data, _ = _history_outcome_data()
+    with pytest.raises(CausalUnsupportedError) as matching:
+        ant.analyze(
+            data,
+            query=_history_outcome_query(),
+            inference=ant.Bayesian(backend="conjugate", n_draws=50),
+            refute="none",
+        )
+    assert matching.value.reason_code == "route_not_supported"
+    assert "bayesian.period_history_outcome_model" in str(matching.value)
+    with pytest.raises(CausalUnsupportedError) as mismatch:
+        ant.analyze(
+            data,
+            query=_history_outcome_query(),
+            estimator=Estimator.BAYESIAN_PERIOD_HISTORY_OUTCOME_MODEL,
+            refute="none",
+        )
+    assert mismatch.value.reason_code == "estimator_inference_mismatch"
+    weighted, _ = _history_outcome_data(unequal_weights=True)
+    with pytest.raises(CausalError) as unequal:
+        ant.analyze(
+            weighted,
+            query=_history_outcome_query(),
+            inference=ant.Bayesian(backend="conjugate", n_draws=50),
+            estimator=Estimator.BAYESIAN_PERIOD_HISTORY_OUTCOME_MODEL,
+            refute="none",
+        )
+    assert "equal sampling weights" in str(unequal.value)
+    assert "Next attempt" in str(unequal.value)
+
+
+def test_bayesian_gcomp_on_the_treated_is_a_model_based_effect_not_a_matching_posterior() -> None:
+    rng = np.random.default_rng(7)
+    z = rng.normal(size=1200)
+    t = (rng.uniform(size=1200) < 1 / (1 + np.exp(-1.5 * z))).astype(float)
+    y = t * (1.0 + 2.0 * z) + z + 0.3 * rng.normal(size=1200)
+    data = {"z": z, "t": t, "y": y}
+    graph = [("z", "t"), ("z", "y"), ("t", "y")]
+    truth = float(np.mean(1.0 + 2.0 * z[t > 0.5]))
+    result = ant.analyze(
+        data,
+        graph=graph,
+        query=ant.AverageEffect("t", "y", target_population=ant.population.Treated()),
+        inference=ant.Bayesian(backend="conjugate", n_draws=2000),
+        refute=False,
+        seed=4,
+    )
+    assert result.ate == pytest.approx(truth, abs=0.1)
+    assert result.posterior is not None

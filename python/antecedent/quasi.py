@@ -827,7 +827,11 @@ class PeriodHistoryMatch:
     units given the period and the history-mean score. The standard error is Abadie-Imbens for one
     match with replacement; no interval is reported and the route is unlicensed. A posterior of a
     matching contrast does not exist (a matching rule has no likelihood): ``Bayesian`` inference
-    raises ``CausalUnsupportedError`` naming that premise and the next attempt.
+    raises ``CausalUnsupportedError`` naming that premise and the next attempt. That attempt is
+    ``estimator="bayesian.period_history_outcome_model"`` with ``Bayesian`` inference: the
+    posterior of a Gaussian outcome model with period effects, the history-mean score and a
+    treatment-by-score interaction centred at the treated mean, reported as the model-based
+    effect on the treated units (a different estimand, unlicensed, equal sampling weights only).
     """
 
     outcome: str

@@ -160,6 +160,8 @@ macro_rules! route_lowerings {
             CyclicFamily(&'static str),
             /// A standalone experiment plan, by its design name.
             Planning(&'static str),
+            /// A chain of transformations, by the reading it answers.
+            PropagationChain(&'static str),
         }
 
         impl PlanRoute {
@@ -172,6 +174,7 @@ macro_rules! route_lowerings {
                     Self::GraphPosterior(cell) => cell.as_str(),
                     Self::CyclicFamily(_) => "CyclicFamily",
                     Self::Planning(_) => "ExperimentPlanning",
+                    Self::PropagationChain(_) => "PropagationChain",
                 }
             }
 
@@ -187,6 +190,7 @@ macro_rules! route_lowerings {
                     Self::GraphPosterior(_) => RouteFamily::GraphPosterior,
                     Self::CyclicFamily(_) => RouteFamily::Cyclic,
                     Self::Planning(_) => RouteFamily::Planning,
+                    Self::PropagationChain(_) => RouteFamily::PropagationChain,
                 }
             }
         }

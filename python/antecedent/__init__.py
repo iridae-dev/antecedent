@@ -424,6 +424,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "predictive_assessment",
     "preflight",
     "program_claims",
+    "propagation_chain",
     "proposal_arrival",
     "proposals",
     "provider_callbacks",
@@ -507,6 +508,7 @@ if _TYPE_CHECKING:
     from . import predictive_assessment as predictive_assessment
     from . import preflight as preflight
     from . import program_claims as program_claims
+    from . import propagation_chain as propagation_chain
     from . import proposal_arrival as proposal_arrival
     from . import proposals as proposals
     from . import provider_callbacks as provider_callbacks

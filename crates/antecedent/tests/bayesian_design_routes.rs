@@ -12,6 +12,9 @@ use antecedent::{BayesianConfig, InferenceMode, PanelDidQuery, Study, StudyResul
 use antecedent_core::{Assumption, AssumptionStatus, SyntheticControlQuery, VariableId};
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn noise(i: usize) -> f64 {
     ((i * 7) % 11) as f64 / 10.0 - 0.5
 }
@@ -86,6 +89,12 @@ fn effect_summary(result: &StudyResult) -> (f64, f64, f64, f64) {
 fn panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared() {
     let (data, query, changes, groups) = panel_fixture();
     let (prepared, result, ctx) = run(&data, query, bayes(20_000), 11).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "bayesian-panel-did",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let (mean, sd) = nig_group_posterior(&changes, &groups, 100.0, 1e-3, 1e-3);
     let (got_mean, got_sd, lower, upper) = effect_summary(&result);
     assert!((got_mean - mean).abs() < 0.02, "{got_mean} vs {mean}");
@@ -184,6 +193,12 @@ fn ratio_query() -> antecedent_core::LocalPolynomialRatioQuery {
 fn local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak() {
     let data = ratio_fixture(true);
     let (prepared, result, ctx) = run(&data, ratio_query(), bayes(8_000), 5).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "bayesian-fuzzy-rd",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let (median, _, lower, upper) = effect_summary(&result);
     assert!(lower < 2.0 && 2.0 < upper, "{lower} {upper}");
     assert!((result.effect() - 2.0).abs() < 0.2, "{}", result.effect());
@@ -207,6 +222,37 @@ fn local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak() {
     assert!(result.interval.is_none(), "a weak first stage publishes no interval");
     let posterior = result.posterior.as_ref().unwrap();
     assert!(posterior.effect_column().is_none(), "no ratio draws are published");
+}
+
+fn kink_fixture() -> TabularData {
+    let (mut x, mut t, mut y) = (vec![], vec![], vec![]);
+    for i in 0..200 {
+        let r = (i as f64 - 100.0) / 100.0;
+        let slope = 0.5 * r + 0.6 * r.max(0.0);
+        let dose = 0.2 + slope + 0.05 * noise(i);
+        x.push(r);
+        t.push(dose);
+        y.push(1.0 + 2.0 * dose + 0.05 * noise(i + 3));
+    }
+    TabularData::from_f64_columns([("x", x.as_slice()), ("t", t.as_slice()), ("y", y.as_slice())])
+        .unwrap()
+}
+
+#[test]
+fn regression_kink_posterior_recovers_the_slope_ratio_through_the_retained_program() {
+    let data = kink_fixture();
+    let mut query = ratio_query();
+    query.kink = true;
+    let (prepared, result, ctx) = run(&data, query, bayes(8_000), 5).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "bayesian-regression-kink",
+        &prepared,
+        &result,
+        &ctx,
+    );
+    assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.local_ratio"));
+    assert!((result.effect() - 2.0).abs() < 0.3, "{}", result.effect());
+    assert_eq!(result.support_status, None, "the Bayesian design route is unlicensed");
 }
 
 fn synthetic_fixture() -> (TabularData, SyntheticControlQuery) {
@@ -243,6 +289,12 @@ fn synthetic_fixture() -> (TabularData, SyntheticControlQuery) {
 fn synthetic_control_posterior_recovers_the_effect_and_records_convergence() {
     let (data, query) = synthetic_fixture();
     let (prepared, result, ctx) = run(&data, query.clone(), bayes(4_000), 9).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "bayesian-synthetic-control",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let (mean, _, lower, upper) = effect_summary(&result);
     assert!((mean - 3.0).abs() < 0.6, "{mean}");
     assert!(lower < 3.0 && 3.0 < upper);

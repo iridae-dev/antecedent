@@ -306,8 +306,13 @@ impl CheckedTemporalResponseOperation {
         let signature = temporal_graph_signature(graph).ok_or_else(|| CausalError::Compile {
             message: "temporal response graph holds a node that is not a lagged variable".into(),
         })?;
-        let fitter = antecedent_estimate::TemporalResponseEstimator::new()
+        let mut fitter = antecedent_estimate::TemporalResponseEstimator::new()
             .with_bootstrap_replicates(bootstrap_replicates);
+        if let InferenceMode::Bayesian(config) = inference {
+            if let Some(gate) = config.white_innovation {
+                fitter = fitter.with_white_innovation(gate);
+            }
+        }
         Ok(Self {
             graph: graph.clone(),
             graph_signature: signature,

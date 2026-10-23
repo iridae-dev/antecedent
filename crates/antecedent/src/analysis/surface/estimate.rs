@@ -10,9 +10,8 @@ pub use antecedent_estimate::{
     TemporalEffectSurface, TemporalLinearPredictor, TemporalMediationEstimator,
     TemporalMediationGrid, TemporalMediationIdentifiedSet, TemporalMediationSlice,
     TemporalMediationUncertainty, TransportEffectEstimate, TransportOverlapDiagnostic,
-    TransportOverlapReport, TransportResponseGridEstimate, estimate_interference,
-    evaluate_exact_transport, own_treatment_level, transport_augmented_response_grid,
-    trial_to_target_effect,
+    TransportOverlapReport, TransportResponseGridEstimate, own_treatment_level,
+    transport_augmented_response_grid,
 };
 
 pub use crate::strategy_table::{
@@ -21,10 +20,10 @@ pub use crate::strategy_table::{
     DEFAULT_DISTRIBUTION_IDENTIFIER_ID, DEFAULT_ESTIMATOR_ID, DEFAULT_IDENTIFIER_ID,
     DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID, DEFAULT_PATH_ESTIMATOR_ID,
     DEFAULT_PATH_IDENTIFIER_ID, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
-    estimand_compatible_with_estimator, estimate_provenance_step, estimate_static_effect,
-    identification_status_acceptable, identify_admg, identify_pag, identify_provenance_step,
-    identify_static, identify_static_query, identify_static_query_with_rd, require_identified,
-    select_estimand, validate_distribution_pair, validate_path_specific_pair, validate_static_pair,
+    estimand_compatible_with_estimator, estimate_provenance_step, identification_status_acceptable,
+    identify_provenance_step, identify_static_query, identify_static_query_with_rd,
+    require_identified, select_estimand, validate_distribution_pair, validate_path_specific_pair,
+    validate_static_pair,
 };
 
 pub use antecedent_expr::{

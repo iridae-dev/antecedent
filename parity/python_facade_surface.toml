@@ -1720,20 +1720,14 @@ python = "native:python/src/cross_world_api.rs"
 rust = "antecedent::design::preview_design_rank"
 kind = "fn"
 status = "internal"
-reason = "inspects ranking obligations against a prepared CausalContract that Python never holds as an object; rank_designs takes graph weights, not a prepared contract, and refuses incomplete or unlicensed inputs itself"
-
-[[entry]]
-rust = "antecedent::design::rank_designs"
-kind = "fn"
-status = "bound"
-python = "antecedent.design.ranking.rank_designs"
+reason = "inspects ranking obligations against a prepared CausalContract that Python never holds as an object; the native rank_designs takes graph weights, not a prepared contract, and refuses incomplete or unlicensed inputs itself"
 
 [[entry]]
 rust = "antecedent::design::rank_designs_bound"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.rank_designs"
-reason = "bound design ranking runs through rank_designs"
+reason = "bound design ranking runs through the native rank_designs, whose structure-prior inputs are the declared graph weights"
 
 [[entry]]
 rust = "antecedent::discovery::discover_ci_screened_posterior"
@@ -1916,37 +1910,13 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent::estimate::estimate_static_effect"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
 rust = "antecedent::estimate::identification_status_acceptable"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent::estimate::identify_admg"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::estimate::identify_pag"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
 rust = "antecedent::estimate::identify_provenance_step"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::estimate::identify_static"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
@@ -2174,25 +2144,6 @@ status = "bound"
 python = "antecedent._native.sample_interventional_distribution"
 
 [[entry]]
-rust = "antecedent::identify"
-kind = "fn"
-status = "bound"
-python = "antecedent.identify"
-reason = "root verb"
-
-[[entry]]
-rust = "antecedent::identify_api::identify_dag"
-kind = "fn"
-status = "bound"
-python = "native:python/src/prepared_api/prepare_effect.rs"
-
-[[entry]]
-rust = "antecedent::identify_api::identify_with"
-kind = "fn"
-status = "bound"
-python = "native:python/src/ate_api.rs"
-
-[[entry]]
 rust = "antecedent::inference::decode_prior_hydrate_source"
 kind = "fn"
 status = "internal"
@@ -2270,6 +2221,12 @@ rust = "antecedent::refused_message"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::report::render_report"
+kind = "fn"
+status = "bound"
+python = "antecedent.estimation.PreparedAnalysis.report"
 
 [[entry]]
 rust = "antecedent::result::circular_block_dependence"

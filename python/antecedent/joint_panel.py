@@ -46,6 +46,19 @@ class PanelResult:
         """Actual means, failed draw slots, diagnostics, support and fit count."""
         return json.loads(self._handle.report())
 
+    def scheduled_contrast(
+        self, functional: Mapping[str, Any] | str = "terminal_mean", *, level: float = 0.95
+    ) -> dict[str, Any]:
+        """The target's assembled contrast of scheduled programs on the shared draws.
+
+        ``functional`` is ``"terminal_mean"`` or a one-key mapping such as
+        ``{"window_average": {"from": 0, "until": 3}}``. Every world is evaluated on the
+        same parameter draw, so the interval carries the cross-world covariance; it
+        is withheld when a slot failed or the fit does not authorize a complete law.
+        The value is conditional on the fitted mechanism and grants no causal license.
+        """
+        return json.loads(self._handle.scheduled_contrast(_json(functional), level))
+
     def export(self, **execution: Any) -> bytes:
         """Encode the actual frozen compiler product; performs no second fit."""
         return bytes(self._handle.export(**execution))

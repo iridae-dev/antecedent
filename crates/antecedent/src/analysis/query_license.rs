@@ -181,7 +181,13 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
         K::TemporalEffect => KindLicense {
             series: rule(TEMPORAL_ENVELOPES, || CausalError::Unsupported {
                 message: "PreparedStudy supports TemporalEffect on TemporalDag, \
-                          TemporalCpdag, or TemporalPag",
+                          TemporalCpdag, or TemporalPag. A pulse or sustained contrast on a \
+                          TemporalAdmg has no prepared route yet (identification on the \
+                          unrolled window is antecedent_identify::temporal_admg, and a hedge \
+                          there names the latent confounding that blocks it); next attempts: \
+                          lower the identified window as a prepared temporal route, the \
+                          contemporaneous projection (AverageEffect on the TemporalAdmg), or a \
+                          TemporalDag when the lag structure has no latent confounding",
             }),
             panel: rule(TEMPORAL_ENVELOPES, panel_refusal),
             multi_env: rule(TEMPORAL_DAG, || {

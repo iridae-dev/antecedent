@@ -1,0 +1,24 @@
+feature_id = "estimate.interference.cluster_bayesian_bootstrap"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights, here on independent clusters"] },
+ { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3, definitions 1-2: exposure mappings under a known assignment design"] },
+]
+
+implementation_deviations = [
+ "The clusters are the units of the Bayesian bootstrap: a Dirichlet(1..1) weight vector over all clusters restricted to an arm is that arm's posterior, and a draw is the contrast of the two arms' weighted means of the scaled cluster totals.",
+ "Complete cluster randomization identifies the total-effect contrast between (0,0) and (1,1); partial interference and the exposure mapping are declared, not tested, and the prior identifies nothing.",
+ "Unlicensed and uncalibrated: no coverage record covers the credible interval.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/interference_interval_route.rs",
+ "crates/antecedent/src/analysis/execute/checked_interference.rs",
+]

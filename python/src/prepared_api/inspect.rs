@@ -35,6 +35,33 @@ impl PyPreparedAnalysis {
         serde_json::to_string(&json).map_err(|error| crate::value_err(error.to_string()))
     }
 
+    /// Readable report of this handle as Markdown or HTML: the executed claim when an
+    /// estimate has run, otherwise the prepared contract, with the plan view of the program.
+    /// The Rust renderer reads the records only; it identifies, fits and scans nothing.
+    #[pyo3(signature = (format="markdown"))]
+    fn report(&self, format: &str) -> PyResult<String> {
+        let format = antecedent::report::ReportFormat::from_name(format).ok_or_else(|| {
+            crate::value_err(format!(
+                "unknown report format {format:?}; use \"markdown\" or \"html\""
+            ))
+        })?;
+        let ctx = py_execution_context_ext(
+            self.last_seed,
+            self.last_threads,
+            None,
+            None,
+            Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        // The report reads the handle the last execution ran on, so a retarget or a
+        // second-click refute is reported under the contract it executed under.
+        let inner = if self.last.is_some() {
+            self.last_study.as_ref().unwrap_or(&self.inner)
+        } else {
+            &self.inner
+        };
+        inner.report(self.last.as_deref(), &ctx, format).map_err(py_err)
+    }
+
     /// Inspection of the frozen execution, using the executed reasoning slots.
     fn execution_contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
         let result = self

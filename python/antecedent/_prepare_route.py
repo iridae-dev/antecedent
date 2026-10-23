@@ -1756,7 +1756,16 @@ class _PrepareRoute:
 
     def _history_match(self) -> tuple[Any, Literal["average"]]:
         query = cast(PeriodHistoryMatch, self.query)
-        self._design_only("PeriodHistoryMatch", ("matching.period_history_contrast",))
+        self._design_only(
+            "PeriodHistoryMatch",
+            ("matching.period_history_contrast", "bayesian.period_history_outcome_model"),
+        )
+        # The matching contrast has no posterior; Bayesian inference reaches the model-based
+        # effect on the treated only through the outcome-model estimator, which the native
+        # compiler checks against the inference mode.
+        selected = getattr(self.estimator, "value", self.estimator)
+        if selected == "bayesian.period_history_outcome_model":
+            self._select_ids()
         native = _NativePreparedAnalysis.prepare_history_match(
             self.names,
             self.columns,

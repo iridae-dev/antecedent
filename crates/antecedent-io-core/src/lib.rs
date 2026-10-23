@@ -85,6 +85,7 @@ pub mod plan_wire;
 pub mod policy_program_artifact;
 pub mod posterior;
 pub mod prior_bank;
+pub mod propagation_chain_record;
 pub mod provenance_wire;
 pub mod provider_envelope;
 pub mod provider_replay;
@@ -262,6 +263,13 @@ pub use prior_bank::{
     PriorSourceMeta, PriorSourceRef, TargetDesign, TemporalCoordinates, attach_prior_source_meta,
     decode_prior_source_meta, encode_prior_source_meta, extract_prior_source_meta,
     posterior_has_named_effect,
+};
+pub use propagation_chain_record::{
+    ChainChangeWire, ChainCoefficientWire, ChainFactorWire, ChainOpWire, ChainSourceWire,
+    ChainStageResultWire, ChainStageWire, ChainUnaryWire, ConsumedPropagationChain,
+    PROPAGATION_CHAIN_FEATURE, PROPAGATION_CHAIN_SECTION, PROPAGATION_CHAIN_VERSION,
+    PropagationChainError, PropagationChainRecordWire, chain_float_bits,
+    propagation_chain_identity,
 };
 pub use provenance_wire::{
     ProvenanceGraphWire, ProvenanceNodeWire, provenance_from_wire, provenance_to_wire,

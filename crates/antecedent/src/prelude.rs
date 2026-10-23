@@ -14,7 +14,7 @@ pub use crate::analysis::{
 };
 pub use crate::class_prior::ClassPrior;
 pub use crate::error::CausalError;
-pub use crate::identify_api::{Identification, identify, identify_with};
+pub use crate::identify_api::Identification;
 pub use crate::inference::{BayesianConfig, InferenceMode};
 pub use crate::options::FdrControl;
 pub use crate::result::StudyResult;

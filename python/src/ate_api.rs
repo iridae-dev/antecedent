@@ -993,7 +993,7 @@ pub(crate) struct GraphEdge {
 /// before identification, where it looks like an ordinary adjustable node and
 /// the effect is reported as identified by adjusting on a variable no study
 /// can measure.
-#[pyfunction]
+#[pyfunction(name = "_identify_ate_admg")]
 #[pyo3(signature = (names, graph, treatment, outcome, *, identifier=None))]
 fn identify_ate_admg(
     py: Python<'_>,
@@ -1040,7 +1040,7 @@ fn identify_ate_admg(
 }
 
 /// Identify-only on a static DAG (no estimation).
-#[pyfunction]
+#[pyfunction(name = "_identify_ate")]
 #[pyo3(signature = (names, edges, treatment, outcome, *, identifier=None))]
 fn identify_ate(
     py: Python<'_>,
@@ -1242,7 +1242,7 @@ fn identification_tuple(
 }
 
 /// Identify without data against a typed graph class.
-#[pyfunction]
+#[pyfunction(name = "_identify_structure")]
 #[pyo3(signature = (
     graph,
     query_kind,
@@ -1384,9 +1384,9 @@ fn identify_structure(
             let strategy = id
                 .parse::<antecedent::IdentifierId>()
                 .map_err(|e| crate::value_err(e.to_string()))?;
-            antecedent::identify_with(&structure, &query, strategy).map_err(py_err)?
+            antecedent::identify_api::identify_with(&structure, &query, strategy).map_err(py_err)?
         } else {
-            antecedent::identify(&structure, &query).map_err(py_err)?
+            antecedent::identify_api::identify(&structure, &query).map_err(py_err)?
         };
         let details = if include_details {
             Some(crate::identification_details::to_json(
@@ -1627,6 +1627,7 @@ fn prepare_ate_batch(
     tiers=None,
     within_tier=None,
     family_contrast="cell_minus_control",
+    family_posterior_draws=None,
 ))]
 fn prepare_cells_batch(
     py: Python<'_>,
@@ -1649,6 +1650,7 @@ fn prepare_cells_batch(
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
     family_contrast: Option<&str>,
+    family_posterior_draws: Option<usize>,
 ) -> PyResult<PyPreparedBatch> {
     let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
@@ -1676,6 +1678,12 @@ fn prepare_cells_batch(
             within_tier,
             family_contrast,
         )?;
+        let batch = batch.family_posterior(family_posterior_draws.map(|draws| {
+            antecedent_estimate::score_posterior::ScorePosteriorOptions {
+                draws,
+                ..antecedent_estimate::score_posterior::ScorePosteriorOptions::default()
+            }
+        }));
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let prepared = batch.prepare_cells(&cell_queries, &ctx).map_err(py_err)?;
         Ok(PyPreparedBatch::new(prepared, names))

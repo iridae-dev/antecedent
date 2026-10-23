@@ -24,7 +24,11 @@ any test binary starts, when:
   the public builder (`Study::tabular` and its peers, `StudyBuilder`, or a
   builder's `.build()`), outside `#[cfg(test)]` items and test files;
 * any code outside antecedent-core writes an `ExecutionContext { .. }` literal,
-  which would bypass the lowered-dispatch scope the context carries.
+  which would bypass the lowered-dispatch scope the context carries;
+* a raw entry that runs without a lowered program or a contract is re-exported from the
+  facade, is public where it must be crate-internal, loses its `#[doc(hidden)]`, keeps a
+  row in the Python facade registry, or is imported by a Python module other than its
+  staged wrapper (`compiler_bypass_problems`).
 
 The evidence rows add the compiler-path, lowered-dispatch and lowering-registry
 assertions to the checked-execution citations.
@@ -254,12 +258,127 @@ def context_literal_problems() -> list[str]:
     return problems
 
 
+# Raw entries that run an estimate, an identification or a ranking without a lowered
+# program or a contract. The compiled path (`Study::compile`, `prepare`, `run`) is the entry.
+# Re-exporting one from the facade, or making it public again, reopens the bypass.
+BYPASS_CRATE_INTERNAL = {
+    "crates/antecedent/src/strategy_table/dispatch.rs": (
+        "estimate_static_effect", "identify_static", "identify_pag", "identify_admg",
+    ),
+    "crates/antecedent/src/design.rs": ("rank_designs",),
+}
+# Public only as hidden path items: absent from the crate root, the prelude and the docs.
+BYPASS_DOC_HIDDEN = {
+    "crates/antecedent/src/identify_api.rs": ("identify", "identify_with", "identify_dag"),
+}
+BYPASS_FACADE_SURFACES = (
+    "crates/antecedent/src/lib.rs",
+    "crates/antecedent/src/prelude.rs",
+    "crates/antecedent/src/strategy_table/mod.rs",
+    "crates/antecedent/src/design.rs",
+    "crates/antecedent/src/analysis/surface",
+)
+BYPASS_REEXPORTS = (
+    "estimate_static_effect", "identify_static", "identify_pag", "identify_admg",
+    "estimate_interference", "trial_to_target_effect", "evaluate_exact_transport",
+    "identify", "identify_with", "identify_dag", "rank_designs",
+)
+# Python natives with no compiled twin. Only the staged wrapper that owns each may import it.
+BYPASS_PYTHON_NATIVES = (
+    "_identify_ate_admg", "_identify_ate", "_identify_structure", "_binary_iv_ate_bounds",
+)
+BYPASS_PYTHON_WRAPPERS = ("estimation.py", "identify.py")
+_PUB_USE = re.compile(r"\bpub\s+use\b[^;]*;")
+
+
+def _reexport_named(name: str) -> re.Pattern[str]:
+    # The last path segment or a list item; `pub use crate::identify::{..}` is a module.
+    return re.compile(rf"(?<!\w){re.escape(name)}(?!\w|\s*::)")
+
+
+def compiler_bypass_problems(root: Path = ROOT) -> list[str]:
+    """Raw estimate, identification and ranking entries stay behind the compiled path."""
+    problems: list[str] = []
+    for surface in BYPASS_FACADE_SURFACES:
+        target = root / surface
+        files = [target] if target.is_file() else sorted(target.rglob("*.rs")) if target.is_dir() else []
+        for path in files:
+            masked = rust_mask(path.read_text(encoding="utf-8"))
+            for statement in _PUB_USE.finditer(masked):
+                for name in BYPASS_REEXPORTS:
+                    if _reexport_named(name).search(statement.group(0)):
+                        problems.append(
+                            f"{path.relative_to(root)}:{line_of(masked, statement.start())}: "
+                            f"the facade re-exports the raw entry {name!r}, which runs without a "
+                            "lowered program or a contract"
+                        )
+    for rel, names in BYPASS_CRATE_INTERNAL.items():
+        path = root / rel
+        if not path.is_file():
+            problems.append(f"{rel}: file not found; update the bypass gate with the move")
+            continue
+        masked = rust_mask(path.read_text(encoding="utf-8"))
+        for name in names:
+            for match in re.finditer(rf"(?m)^\s*pub\s+(?:const\s+)?fn\s+{name}\b", masked):
+                problems.append(
+                    f"{rel}:{line_of(masked, match.start())}: {name} is public; it must stay "
+                    "pub(crate) so only compiled programs reach it"
+                )
+    for rel, names in BYPASS_DOC_HIDDEN.items():
+        path = root / rel
+        if not path.is_file():
+            problems.append(f"{rel}: file not found; update the bypass gate with the move")
+            continue
+        masked = rust_mask(path.read_text(encoding="utf-8"))
+        for name in names:
+            for match in re.finditer(rf"(?m)^pub\s+fn\s+{name}\b", masked):
+                before = masked[: match.start()]
+                item_end = max(before.rfind("}"), before.rfind(";"))
+                if "#[doc(hidden)]" not in before[item_end + 1 :]:
+                    problems.append(
+                        f"{rel}:{line_of(masked, match.start())}: {name} lost #[doc(hidden)]; "
+                        "an analysis goes through Study::compile"
+                    )
+    registry = root / "parity" / "python_facade_surface.toml"
+    if registry.is_file():
+        raw_rows = {
+            "antecedent::" + path for path in (
+                "design::rank_designs", "estimate::estimate_static_effect",
+                "estimate::identify_admg", "estimate::identify_pag", "estimate::identify_static",
+                "estimate::estimate_interference", "estimate::trial_to_target_effect",
+                "estimate::evaluate_exact_transport", "identify", "identify_api::identify",
+                "identify_api::identify_with", "identify_api::identify_dag",
+            )
+        }
+        for row in tomllib.loads(registry.read_text(encoding="utf-8")).get("entry", []):
+            if row.get("rust") in raw_rows:
+                problems.append(
+                    f"parity/python_facade_surface.toml: row {row['rust']!r} names a raw entry "
+                    "that the facade no longer exports"
+                )
+    package = root / "python" / "antecedent"
+    pattern = re.compile(rf"(?<!\w)(?:{'|'.join(BYPASS_PYTHON_NATIVES)})\b")
+    if package.is_dir():
+        for path in sorted(package.rglob("*.py")):
+            if path.name in BYPASS_PYTHON_WRAPPERS:
+                continue
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if pattern.search(line) and not line.lstrip().startswith("#"):
+                    problems.append(
+                        f"{path.relative_to(root)}:{number}: names a native with no compiled twin "
+                        f"({pattern.search(line).group(0)}); only {', '.join(BYPASS_PYTHON_WRAPPERS)} "
+                        "own the staged wrappers"
+                    )
+    return problems
+
+
 def compiler_problems() -> list[str]:
     return (
         lowering_record_problems()
         + partial_lowering_problems()
         + reentry_problems()
         + context_literal_problems()
+        + compiler_bypass_problems()
     )
 
 

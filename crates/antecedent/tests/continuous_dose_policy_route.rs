@@ -7,6 +7,9 @@ use antecedent::prelude::ExecutionContext;
 use antecedent_core::{CausalQuery, ContinuousDoseResponseQuery, FixedGroupDosePolicy, VariableId};
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn fixture(provenance: &str, rows: usize) -> (TabularData, ContinuousDoseResponseQuery) {
     let dose = (0..rows).map(|i| ((i * 37) % 997) as f64 / 997.0).collect::<Vec<_>>();
     let outcome = (0..rows)
@@ -58,6 +61,12 @@ fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_fixed_dose_policy_intervals_rou",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let response = result.continuous_dose_response().unwrap();
     assert!(response.points.is_empty());
     let value = response.fixed_policy.as_ref().unwrap();

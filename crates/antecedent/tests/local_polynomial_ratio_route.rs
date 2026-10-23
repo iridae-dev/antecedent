@@ -12,6 +12,9 @@ use antecedent_core::{IntervalMethod, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn fixture(kink: bool) -> (TabularData, LocalPolynomialRatioQuery) {
     let mut x = Vec::new();
     let mut treatment = Vec::new();
@@ -63,6 +66,12 @@ fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
     let prepared =
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_fuzzy_rd_recovers_truth_and_rou",
+        &prepared,
+        &result,
+        &ctx,
+    );
     assert_eq!(
         prepared.estimate(&data, &ctx).unwrap().local_polynomial_ratio(),
         result.local_polynomial_ratio()
@@ -156,6 +165,12 @@ fn retained_regression_kink_recovers_truth_and_round_trips_calibrated_interval()
     let prepared =
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_regression_kink_recovers_truth_",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.local_polynomial_ratio().unwrap();
     assert!((fit.effect - 3.0).abs() < 1e-7);
     assert!(fit.kink);

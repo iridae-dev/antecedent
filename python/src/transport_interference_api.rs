@@ -7,10 +7,7 @@
 
 use std::sync::Arc;
 
-use antecedent::estimate::{
-    NetworkData, NetworkEdge, estimate_interference as facade_estimate_interference,
-    trial_to_target_effect,
-};
+use antecedent::estimate::{NetworkData, NetworkEdge};
 use antecedent::identify::{TransportFormula, TransportIdentification, TransportIdentifier};
 use antecedent_core::{
     AssignmentDesign, CausalSchema, DerivativeScale, DerivativeWeighting, ExposureLevel,
@@ -1188,7 +1185,7 @@ fn estimate_trial_transport(
     // interference path below.
     let estimate = detach_catch(py, move || {
         let regressions = mu0.as_deref().zip(mu1.as_deref());
-        trial_to_target_effect(
+        antecedent_estimate::trial_to_target_effect(
             &identification,
             &y,
             &treatment,
@@ -1268,7 +1265,8 @@ fn estimate_network_interference(
             .collect::<Vec<_>>();
         let network = NetworkData::try_new(loaded.data, network_edges).map_err(py_err)?;
         let result =
-            facade_estimate_interference(&query, &network, &assignment, seed).map_err(py_err)?;
+            antecedent_estimate::estimate_interference(&query, &network, &assignment, seed)
+                .map_err(py_err)?;
         Ok(InterferenceAnalysisResult {
             horvitz_thompson: result.contrast.horvitz_thompson,
             hajek: result.contrast.hajek,

@@ -88,12 +88,17 @@ class Bayesian:
         row, or ``bayesian.randomized_superpopulation``) and its switchback effect
         (``bayesian.switchback_effect``) need it with the ``conjugate`` backend; there is no
         default, because a prior alone does not identify a contrast. The results are unlicensed
-        and their calibration is unmeasured.
+        and their calibration is unmeasured. A ``ComplierEffect`` or ``TreatmentOnTreated``
+        under ``Bayesian`` runs ``bayesian.complier_effect``, a Bayesian bootstrap of the Wald
+        ratio that needs no ``design_model`` and refuses a first stage whose posterior reaches
+        zero; a cluster-randomized interference total runs
+        ``interference.cluster_bayesian_bootstrap`` likewise.
     white_innovation:
         ``(max_lag, level)`` declares that the outcome innovation of a single-step temporal
-        pulse or one-step sustained effect on a ``TemporalDag`` is serially independent, and
-        asks for the untempered full-likelihood posterior instead of the tempered (generalized)
-        one. The premise is yours to declare and is never inferred: a Ljung-Box test of the
+        pulse, one-step sustained effect or one-step single-horizon ``ResponseCurve`` on a
+        ``TemporalDag`` is serially independent, and asks for the untempered full-likelihood
+        posterior instead of the tempered (generalized) one. A curve with several horizons keeps
+        the tempered posterior and refuses the declaration. The premise is yours to declare and is never inferred: a Ljung-Box test of the
         least-squares residuals at ``max_lag`` lags and ``level`` can refute it, and a pass does
         not prove it. A rejecting test refuses with
         ``white_innovation.residual_autocorrelation``, a horizon above one step with

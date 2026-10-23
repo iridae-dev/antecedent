@@ -1,0 +1,24 @@
+feature_id = "estimate.bayesian_complier_effect"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights on the subject law"] },
+ { title = "Identification of Causal Effects Using Instrumental Variables", doi = "10.1080/01621459.1996.10476902", sections = ["the Wald ratio of the effect of assignment on the outcome to its effect on receipt is the complier effect under exclusion and monotonicity"] },
+]
+
+implementation_deviations = [
+ "The intention-to-treat and first-stage score means share one weight vector per draw and each draw of the complier effect is their ratio. A first-stage draw at or below zero is refused rather than published.",
+ "The assignment probabilities are declared and known; the Dirichlet-process prior identifies nothing, and exclusion and monotonicity are declared, not tested.",
+ "Unlicensed and uncalibrated: no coverage record covers the credible interval.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "unit tests in crates/antecedent-estimate/src/complier_posterior.rs",
+ "crates/antecedent/tests/bayesian_randomized_routes.rs",
+]

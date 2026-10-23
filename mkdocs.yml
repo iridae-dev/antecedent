@@ -70,6 +70,7 @@ nav:
     - Cross-fitted DML scores and retarget covariance: guides/dml-scores.md
     - Staleness and drift diagnostics: guides/staleness.md
     - Plan view: guides/plan-view.md
+    - Readable report: guides/report.md
     - Sequentially randomized designs and regime survival: guides/temporal-designs.md
     - Rollout designs: guides/rollout-designs.md
     - Target-native validation and sensitivity ranges: guides/target-native-validation.md
@@ -184,8 +185,10 @@ nav:
   - Hot paths: hot_paths.md
   - Practitioner acceptance: practitioner-acceptance.md
   - Acceptance manifest: acceptance-manifest.md
+  - Counterpart inventory: counterparts.md
   - Security review: security_review.md
   - Callback security: callback-security.md
+  - Embedding in software and agents: embedding.md
   - Technical derivations:
     - Joint mechanism sensitivity: guides/joint-mechanism-sensitivity.md
     - Exact transport: architecture/transport-exact.md

@@ -54,6 +54,9 @@
 #[doc(hidden)] pub fn antecedent::gcm::sample_interventional_distribution(model: &antecedent_model::compile::CompiledCausalModel, query: &antecedent_core::query::distribution::InterventionalDistributionQuery, n: usize, rng: &mut antecedent_core::execution::CausalRng, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::batch::ValueBatch, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::gcm::sample_temporal_policy(model: &antecedent_model::compile::CompiledCausalModel, plan: &antecedent_model::temporal_rollout::TemporalPlan<'_>, rng: &mut antecedent_core::execution::CausalRng, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::temporal_rollout::TemporalPath, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::gcm::sample_with_noise(model: &antecedent_model::compile::CompiledCausalModel, interventions: &[antecedent_core::intervention::Intervention], n: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_model::batch::ValueBatch, antecedent_model::noise_replay::NoiseTable), antecedent::CausalError>
+#[doc(hidden)] pub fn antecedent::identify_api::identify(structure: &antecedent::AcceptedGraph, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
+#[doc(hidden)] pub fn antecedent::identify_api::identify_dag(graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
+#[doc(hidden)] pub fn antecedent::identify_api::identify_with(structure: &antecedent::AcceptedGraph, query: &antecedent_core::query::CausalQuery, strategy: antecedent::IdentifierId) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
 #[doc(hidden)] pub struct antecedent::analysis::evidence_ledger::PooledIntervalCandidate
 #[non_exhaustive] pub enum antecedent::AttributionOutcome
 #[non_exhaustive] pub enum antecedent::CausalError
@@ -94,8 +97,10 @@
 #[non_exhaustive] pub enum antecedent::analysis::recalc_receipt::RecalcSessionKind
 #[non_exhaustive] pub enum antecedent::analysis::recalc_receipt::StandingInputDeclaration
 #[non_exhaustive] pub enum antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal
+#[non_exhaustive] pub enum antecedent::host::HostStatus
 #[non_exhaustive] pub enum antecedent::planner::PlanRoute
 #[non_exhaustive] pub enum antecedent::planner::RouteFamily
+#[non_exhaustive] pub enum antecedent::report::ReportFormat
 #[non_exhaustive] pub struct antecedent::CausalContract
 #[non_exhaustive] pub struct antecedent::RdConfig
 #[non_exhaustive] pub struct antecedent::RowWeightsBinding
@@ -526,6 +531,7 @@ impl core::clone::Clone for antecedent::analysis::ProcedureReport
 impl core::clone::Clone for antecedent::analysis::ProcedureReportBody
 impl core::clone::Clone for antecedent::analysis::ProcedureReportRequest
 impl core::clone::Clone for antecedent::analysis::ProcedureSimulationReport
+impl core::clone::Clone for antecedent::analysis::PropagationChain
 impl core::clone::Clone for antecedent::analysis::PropagationClaim
 impl core::clone::Clone for antecedent::analysis::PropagationDraws
 impl core::clone::Clone for antecedent::analysis::PublishedCarriers
@@ -645,6 +651,8 @@ impl core::clone::Clone for antecedent::analysis::joint_panel::JointPanelColumns
 impl core::clone::Clone for antecedent::analysis::joint_panel::JointPanelContinuousSearch
 impl core::clone::Clone for antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest
 impl core::clone::Clone for antecedent::analysis::joint_panel::JointPanelContinuousSearchResult
+impl core::clone::Clone for antecedent::analysis::joint_panel::JointPanelContrast
+impl core::clone::Clone for antecedent::analysis::joint_panel::JointPanelContrastUncertainty
 impl core::clone::Clone for antecedent::analysis::joint_panel::JointPanelDesignAttempt
 impl core::clone::Clone for antecedent::analysis::joint_panel::JointPanelDesignOutcome
 impl core::clone::Clone for antecedent::analysis::joint_panel::JointPanelError
@@ -707,6 +715,7 @@ impl core::clone::Clone for antecedent::analysis::observational_survival::Observ
 impl core::clone::Clone for antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire
 impl core::clone::Clone for antecedent::analysis::planning::PlannedExperiment
 impl core::clone::Clone for antecedent::analysis::planning::PlanningPlan
+impl core::clone::Clone for antecedent::analysis::propagation_chain::PropagationChainPlan
 impl core::clone::Clone for antecedent::analysis::proposal_arrival::ArrivalArtifact
 impl core::clone::Clone for antecedent::analysis::proposal_arrival::ArrivalPoint
 impl core::clone::Clone for antecedent::analysis::proposal_arrival::ArrivalRequest
@@ -818,6 +827,7 @@ impl core::clone::Clone for antecedent::gcm::NestedOutcomeMechanism
 impl core::clone::Clone for antecedent::gcm::PolicyValue
 impl core::clone::Clone for antecedent::gcm::PreparedPolicy
 impl core::clone::Clone for antecedent::gcm::UnitEffectIntervals
+impl core::clone::Clone for antecedent::host::HostStatus
 impl core::clone::Clone for antecedent::inference::DecodedPriorHydrate
 impl core::clone::Clone for antecedent::inference::ExternalComposeSpec
 impl core::clone::Clone for antecedent::period_refresh::PeriodRefresh
@@ -832,6 +842,7 @@ impl core::clone::Clone for antecedent::planner::PlanStage
 impl core::clone::Clone for antecedent::planner::PlanView
 impl core::clone::Clone for antecedent::planner::RouteFamily
 impl core::clone::Clone for antecedent::planner::lowered::CarrierDemand
+impl core::clone::Clone for antecedent::planner::lowered::ChainProgram
 impl core::clone::Clone for antecedent::planner::lowered::ClaimDemand
 impl core::clone::Clone for antecedent::planner::lowered::Composition
 impl core::clone::Clone for antecedent::planner::lowered::DecisionProgram
@@ -873,6 +884,7 @@ impl core::clone::Clone for antecedent::planner::statistical::ResampleUnit
 impl core::clone::Clone for antecedent::planner::statistical::ResamplingMethod
 impl core::clone::Clone for antecedent::planner::statistical::ResamplingPlan
 impl core::clone::Clone for antecedent::planner::statistical::StatisticalProgram
+impl core::clone::Clone for antecedent::report::ReportFormat
 impl core::clone::Clone for antecedent::result::ImputationReport
 impl core::clone::Clone for antecedent::result::InterferenceInference
 impl core::clone::Clone for antecedent::result::InterferencePointwiseInterval
@@ -982,6 +994,7 @@ impl core::cmp::Eq for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::cmp::Eq for antecedent::analysis::file_table::SummaryMissing
 impl core::cmp::Eq for antecedent::analysis::joint_law_composed_basis::Resolution
 impl core::cmp::Eq for antecedent::analysis::joint_panel::JointPanelColumns
+impl core::cmp::Eq for antecedent::analysis::joint_panel::JointPanelContrastUncertainty
 impl core::cmp::Eq for antecedent::analysis::joint_panel::JointPanelDesignOutcome
 impl core::cmp::Eq for antecedent::analysis::joint_panel::JointPanelSearchUncertainty
 impl core::cmp::Eq for antecedent::analysis::joint_panel::PanelExperimentModularPolicy
@@ -1015,6 +1028,7 @@ impl core::cmp::Eq for antecedent::cross_world::CrossWorldOptions
 impl core::cmp::Eq for antecedent::discovery::GraphMcmcSchedule
 impl core::cmp::Eq for antecedent::error::PendingEdge
 impl core::cmp::Eq for antecedent::gcm::NestedOutcomeMechanism
+impl core::cmp::Eq for antecedent::host::HostStatus
 impl core::cmp::Eq for antecedent::period_refresh::PeriodRefreshOutcome
 impl core::cmp::Eq for antecedent::planner::PlanRoute
 impl core::cmp::Eq for antecedent::planner::PlanStage
@@ -1045,6 +1059,7 @@ impl core::cmp::Eq for antecedent::planner::statistical::Realization
 impl core::cmp::Eq for antecedent::planner::statistical::ResampleUnit
 impl core::cmp::Eq for antecedent::planner::statistical::ResamplingMethod
 impl core::cmp::Eq for antecedent::planner::statistical::ResamplingPlan
+impl core::cmp::Eq for antecedent::report::ReportFormat
 impl core::cmp::Eq for antecedent::result::ImputationReport
 impl core::cmp::Eq for antecedent::result::MissingDataReport
 impl core::cmp::Eq for antecedent::strategy_table::UnknownStrategy
@@ -1272,6 +1287,7 @@ impl core::cmp::PartialEq for antecedent::analysis::ProcedureReport
 impl core::cmp::PartialEq for antecedent::analysis::ProcedureReportBody
 impl core::cmp::PartialEq for antecedent::analysis::ProcedureReportRequest
 impl core::cmp::PartialEq for antecedent::analysis::ProcedureSimulationReport
+impl core::cmp::PartialEq for antecedent::analysis::PropagationChain
 impl core::cmp::PartialEq for antecedent::analysis::PropagationClaim
 impl core::cmp::PartialEq for antecedent::analysis::PropagationDraws
 impl core::cmp::PartialEq for antecedent::analysis::PublishedCarriers
@@ -1350,6 +1366,8 @@ impl core::cmp::PartialEq for antecedent::analysis::inverse_sources::ForwardSour
 impl core::cmp::PartialEq for antecedent::analysis::inverse_sources::ObservationalScenarioInspection
 impl core::cmp::PartialEq for antecedent::analysis::joint_law_composed_basis::Resolution
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::JointPanelColumns
+impl core::cmp::PartialEq for antecedent::analysis::joint_panel::JointPanelContrast
+impl core::cmp::PartialEq for antecedent::analysis::joint_panel::JointPanelContrastUncertainty
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::JointPanelDesignAttempt
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::JointPanelDesignOutcome
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::JointPanelFunctional
@@ -1453,6 +1471,7 @@ impl core::cmp::PartialEq for antecedent::error::PendingEdge
 impl core::cmp::PartialEq for antecedent::gcm::NestedOutcomeMechanism
 impl core::cmp::PartialEq for antecedent::gcm::PolicyValue
 impl core::cmp::PartialEq for antecedent::gcm::UnitEffectIntervals
+impl core::cmp::PartialEq for antecedent::host::HostStatus
 impl core::cmp::PartialEq for antecedent::inference::ExternalComposeSpec
 impl core::cmp::PartialEq for antecedent::period_refresh::PeriodRefreshOutcome
 impl core::cmp::PartialEq for antecedent::period_refresh::RefreshBlock
@@ -1461,6 +1480,7 @@ impl core::cmp::PartialEq for antecedent::planner::PlanRoute
 impl core::cmp::PartialEq for antecedent::planner::PlanStage
 impl core::cmp::PartialEq for antecedent::planner::RouteFamily
 impl core::cmp::PartialEq for antecedent::planner::lowered::CarrierDemand
+impl core::cmp::PartialEq for antecedent::planner::lowered::ChainProgram
 impl core::cmp::PartialEq for antecedent::planner::lowered::ClaimDemand
 impl core::cmp::PartialEq for antecedent::planner::lowered::Composition
 impl core::cmp::PartialEq for antecedent::planner::lowered::DecisionProgram
@@ -1497,6 +1517,7 @@ impl core::cmp::PartialEq for antecedent::planner::statistical::Realization
 impl core::cmp::PartialEq for antecedent::planner::statistical::ResampleUnit
 impl core::cmp::PartialEq for antecedent::planner::statistical::ResamplingMethod
 impl core::cmp::PartialEq for antecedent::planner::statistical::ResamplingPlan
+impl core::cmp::PartialEq for antecedent::report::ReportFormat
 impl core::cmp::PartialEq for antecedent::result::ImputationReport
 impl core::cmp::PartialEq for antecedent::result::InterferenceInference
 impl core::cmp::PartialEq for antecedent::result::InterferencePointwiseInterval
@@ -2040,6 +2061,7 @@ impl core::fmt::Debug for antecedent::analysis::ProcedureReport
 impl core::fmt::Debug for antecedent::analysis::ProcedureReportBody
 impl core::fmt::Debug for antecedent::analysis::ProcedureReportRequest
 impl core::fmt::Debug for antecedent::analysis::ProcedureSimulationReport
+impl core::fmt::Debug for antecedent::analysis::PropagationChain
 impl core::fmt::Debug for antecedent::analysis::PropagationClaim
 impl core::fmt::Debug for antecedent::analysis::PropagationDraws
 impl core::fmt::Debug for antecedent::analysis::PublishedCarriers
@@ -2164,6 +2186,8 @@ impl core::fmt::Debug for antecedent::analysis::joint_panel::JointPanelColumns
 impl core::fmt::Debug for antecedent::analysis::joint_panel::JointPanelContinuousSearch
 impl core::fmt::Debug for antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest
 impl core::fmt::Debug for antecedent::analysis::joint_panel::JointPanelContinuousSearchResult
+impl core::fmt::Debug for antecedent::analysis::joint_panel::JointPanelContrast
+impl core::fmt::Debug for antecedent::analysis::joint_panel::JointPanelContrastUncertainty
 impl core::fmt::Debug for antecedent::analysis::joint_panel::JointPanelDesignAttempt
 impl core::fmt::Debug for antecedent::analysis::joint_panel::JointPanelDesignOutcome
 impl core::fmt::Debug for antecedent::analysis::joint_panel::JointPanelError
@@ -2226,6 +2250,7 @@ impl core::fmt::Debug for antecedent::analysis::observational_survival::Observat
 impl core::fmt::Debug for antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire
 impl core::fmt::Debug for antecedent::analysis::planning::PlannedExperiment
 impl core::fmt::Debug for antecedent::analysis::planning::PlanningPlan
+impl core::fmt::Debug for antecedent::analysis::propagation_chain::PropagationChainPlan
 impl core::fmt::Debug for antecedent::analysis::proposal_arrival::ArrivalArtifact
 impl core::fmt::Debug for antecedent::analysis::proposal_arrival::ArrivalPoint
 impl core::fmt::Debug for antecedent::analysis::proposal_arrival::ArrivalRequest
@@ -2343,6 +2368,7 @@ impl core::fmt::Debug for antecedent::gcm::NestedOutcomeMechanism
 impl core::fmt::Debug for antecedent::gcm::PolicyValue
 impl core::fmt::Debug for antecedent::gcm::PreparedPolicy
 impl core::fmt::Debug for antecedent::gcm::UnitEffectIntervals
+impl core::fmt::Debug for antecedent::host::HostStatus
 impl core::fmt::Debug for antecedent::inference::DecodedPriorHydrate
 impl core::fmt::Debug for antecedent::inference::ExternalComposeSpec
 impl core::fmt::Debug for antecedent::period_refresh::PeriodRefresh
@@ -2357,6 +2383,7 @@ impl core::fmt::Debug for antecedent::planner::PlanStage
 impl core::fmt::Debug for antecedent::planner::PlanView
 impl core::fmt::Debug for antecedent::planner::RouteFamily
 impl core::fmt::Debug for antecedent::planner::lowered::CarrierDemand
+impl core::fmt::Debug for antecedent::planner::lowered::ChainProgram
 impl core::fmt::Debug for antecedent::planner::lowered::ClaimDemand
 impl core::fmt::Debug for antecedent::planner::lowered::Composition
 impl core::fmt::Debug for antecedent::planner::lowered::DecisionProgram
@@ -2398,6 +2425,7 @@ impl core::fmt::Debug for antecedent::planner::statistical::ResampleUnit
 impl core::fmt::Debug for antecedent::planner::statistical::ResamplingMethod
 impl core::fmt::Debug for antecedent::planner::statistical::ResamplingPlan
 impl core::fmt::Debug for antecedent::planner::statistical::StatisticalProgram
+impl core::fmt::Debug for antecedent::report::ReportFormat
 impl core::fmt::Debug for antecedent::result::ImputationReport
 impl core::fmt::Debug for antecedent::result::InterferenceInference
 impl core::fmt::Debug for antecedent::result::InterferencePointwiseInterval
@@ -2478,6 +2506,7 @@ impl core::hash::Hash for antecedent::analysis::MissingCarrier
 impl core::hash::Hash for antecedent::analysis::file_table::SummaryMissing
 impl core::hash::Hash for antecedent::analysis::recalc_receipt::RecalcSessionKind
 impl core::hash::Hash for antecedent::error::PendingEdge
+impl core::hash::Hash for antecedent::host::HostStatus
 impl core::hash::Hash for antecedent::planner::PlanRoute
 impl core::hash::Hash for antecedent::planner::PlanStage
 impl core::hash::Hash for antecedent::planner::RouteFamily
@@ -2502,6 +2531,7 @@ impl core::hash::Hash for antecedent::planner::statistical::Realization
 impl core::hash::Hash for antecedent::planner::statistical::ResampleUnit
 impl core::hash::Hash for antecedent::planner::statistical::ResamplingMethod
 impl core::hash::Hash for antecedent::planner::statistical::ResamplingPlan
+impl core::hash::Hash for antecedent::report::ReportFormat
 impl core::marker::Copy for antecedent::ActionStatus
 impl core::marker::Copy for antecedent::BetweenStudy
 impl core::marker::Copy for antecedent::CandidateProcedure
@@ -2575,6 +2605,7 @@ impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::Tr
 impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::TrialLogicalBoundReason
 impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::TrialRandomization
 impl core::marker::Copy for antecedent::analysis::file_table::SummaryMissing
+impl core::marker::Copy for antecedent::analysis::joint_panel::JointPanelContrastUncertainty
 impl core::marker::Copy for antecedent::analysis::joint_panel::JointPanelDesignOutcome
 impl core::marker::Copy for antecedent::analysis::joint_panel::JointPanelSearchUncertainty
 impl core::marker::Copy for antecedent::analysis::joint_panel::PanelExperimentModularPolicy
@@ -2611,6 +2642,7 @@ impl core::marker::Copy for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::marker::Copy for antecedent::cross_world::CrossWorldOptions
 impl core::marker::Copy for antecedent::discovery::GraphMcmcSchedule
 impl core::marker::Copy for antecedent::gcm::NestedOutcomeMechanism
+impl core::marker::Copy for antecedent::host::HostStatus
 impl core::marker::Copy for antecedent::planner::PlanRoute
 impl core::marker::Copy for antecedent::planner::PlanStage
 impl core::marker::Copy for antecedent::planner::RouteFamily
@@ -2633,6 +2665,7 @@ impl core::marker::Copy for antecedent::planner::statistical::PosteriorAlgorithm
 impl core::marker::Copy for antecedent::planner::statistical::ResampleUnit
 impl core::marker::Copy for antecedent::planner::statistical::ResamplingMethod
 impl core::marker::Copy for antecedent::planner::statistical::ResamplingPlan
+impl core::marker::Copy for antecedent::report::ReportFormat
 impl core::marker::Copy for antecedent::result::IntervalBinding
 impl core::marker::Freeze for antecedent::AcceptedPosterior [auto]
 impl core::marker::Freeze for antecedent::ActionConstraint [auto]
@@ -2978,6 +3011,7 @@ impl core::marker::Freeze for antecedent::analysis::ProcedureReport [auto]
 impl core::marker::Freeze for antecedent::analysis::ProcedureReportBody [auto]
 impl core::marker::Freeze for antecedent::analysis::ProcedureReportRequest [auto]
 impl core::marker::Freeze for antecedent::analysis::ProcedureSimulationReport [auto]
+impl core::marker::Freeze for antecedent::analysis::PropagationChain [auto]
 impl core::marker::Freeze for antecedent::analysis::PropagationClaim [auto]
 impl core::marker::Freeze for antecedent::analysis::PropagationDraws [auto]
 impl core::marker::Freeze for antecedent::analysis::PublishedCarriers [auto]
@@ -3099,6 +3133,8 @@ impl core::marker::Freeze for antecedent::analysis::joint_panel::JointPanelColum
 impl core::marker::Freeze for antecedent::analysis::joint_panel::JointPanelContinuousSearch [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::JointPanelContinuousSearchResult [auto]
+impl core::marker::Freeze for antecedent::analysis::joint_panel::JointPanelContrast [auto]
+impl core::marker::Freeze for antecedent::analysis::joint_panel::JointPanelContrastUncertainty [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::JointPanelDesignAttempt [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::JointPanelDesignOutcome [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::JointPanelError [auto]
@@ -3164,6 +3200,7 @@ impl core::marker::Freeze for antecedent::analysis::observational_survival::Obse
 impl core::marker::Freeze for antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire [auto]
 impl core::marker::Freeze for antecedent::analysis::planning::PlannedExperiment [auto]
 impl core::marker::Freeze for antecedent::analysis::planning::PlanningPlan [auto]
+impl core::marker::Freeze for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::marker::Freeze for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::marker::Freeze for antecedent::analysis::proposal_arrival::ArrivalPoint [auto]
 impl core::marker::Freeze for antecedent::analysis::proposal_arrival::ArrivalRequest [auto]
@@ -3296,6 +3333,7 @@ impl core::marker::Freeze for antecedent::gcm::NestedOutcomeMechanism [auto]
 impl core::marker::Freeze for antecedent::gcm::PolicyValue [auto]
 impl core::marker::Freeze for antecedent::gcm::PreparedPolicy [auto]
 impl core::marker::Freeze for antecedent::gcm::UnitEffectIntervals [auto]
+impl core::marker::Freeze for antecedent::host::HostStatus [auto]
 impl core::marker::Freeze for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::marker::Freeze for antecedent::inference::ExternalComposeSpec [auto]
 impl core::marker::Freeze for antecedent::period_refresh::PeriodRefresh [auto]
@@ -3309,6 +3347,7 @@ impl core::marker::Freeze for antecedent::planner::PlanStage [auto]
 impl core::marker::Freeze for antecedent::planner::PlanView [auto]
 impl core::marker::Freeze for antecedent::planner::RouteFamily [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::CarrierDemand [auto]
+impl core::marker::Freeze for antecedent::planner::lowered::ChainProgram [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::ClaimDemand [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::Composition [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::DecisionProgram [auto]
@@ -3350,6 +3389,7 @@ impl core::marker::Freeze for antecedent::planner::statistical::ResampleUnit [au
 impl core::marker::Freeze for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::marker::Freeze for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::marker::Freeze for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::marker::Freeze for antecedent::report::ReportFormat [auto]
 impl core::marker::Freeze for antecedent::result::ImputationReport [auto]
 impl core::marker::Freeze for antecedent::result::InterferenceInference [auto]
 impl core::marker::Freeze for antecedent::result::InterferencePointwiseInterval [auto]
@@ -3709,6 +3749,7 @@ impl core::marker::Send for antecedent::analysis::ProcedureReport [auto]
 impl core::marker::Send for antecedent::analysis::ProcedureReportBody [auto]
 impl core::marker::Send for antecedent::analysis::ProcedureReportRequest [auto]
 impl core::marker::Send for antecedent::analysis::ProcedureSimulationReport [auto]
+impl core::marker::Send for antecedent::analysis::PropagationChain [auto]
 impl core::marker::Send for antecedent::analysis::PropagationClaim [auto]
 impl core::marker::Send for antecedent::analysis::PropagationDraws [auto]
 impl core::marker::Send for antecedent::analysis::PublishedCarriers [auto]
@@ -3832,6 +3873,8 @@ impl core::marker::Send for antecedent::analysis::joint_panel::JointPanelColumns
 impl core::marker::Send for antecedent::analysis::joint_panel::JointPanelContinuousSearch [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::JointPanelContinuousSearchResult [auto]
+impl core::marker::Send for antecedent::analysis::joint_panel::JointPanelContrast [auto]
+impl core::marker::Send for antecedent::analysis::joint_panel::JointPanelContrastUncertainty [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::JointPanelDesignAttempt [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::JointPanelDesignOutcome [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::JointPanelError [auto]
@@ -3897,6 +3940,7 @@ impl core::marker::Send for antecedent::analysis::observational_survival::Observ
 impl core::marker::Send for antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire [auto]
 impl core::marker::Send for antecedent::analysis::planning::PlannedExperiment [auto]
 impl core::marker::Send for antecedent::analysis::planning::PlanningPlan [auto]
+impl core::marker::Send for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::marker::Send for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::marker::Send for antecedent::analysis::proposal_arrival::ArrivalPoint [auto]
 impl core::marker::Send for antecedent::analysis::proposal_arrival::ArrivalRequest [auto]
@@ -4030,6 +4074,7 @@ impl core::marker::Send for antecedent::gcm::NestedOutcomeMechanism [auto]
 impl core::marker::Send for antecedent::gcm::PolicyValue [auto]
 impl core::marker::Send for antecedent::gcm::PreparedPolicy [auto]
 impl core::marker::Send for antecedent::gcm::UnitEffectIntervals [auto]
+impl core::marker::Send for antecedent::host::HostStatus [auto]
 impl core::marker::Send for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::marker::Send for antecedent::inference::ExternalComposeSpec [auto]
 impl core::marker::Send for antecedent::period_refresh::PeriodRefresh [auto]
@@ -4044,6 +4089,7 @@ impl core::marker::Send for antecedent::planner::PlanStage [auto]
 impl core::marker::Send for antecedent::planner::PlanView [auto]
 impl core::marker::Send for antecedent::planner::RouteFamily [auto]
 impl core::marker::Send for antecedent::planner::lowered::CarrierDemand [auto]
+impl core::marker::Send for antecedent::planner::lowered::ChainProgram [auto]
 impl core::marker::Send for antecedent::planner::lowered::ClaimDemand [auto]
 impl core::marker::Send for antecedent::planner::lowered::Composition [auto]
 impl core::marker::Send for antecedent::planner::lowered::DecisionProgram [auto]
@@ -4085,6 +4131,7 @@ impl core::marker::Send for antecedent::planner::statistical::ResampleUnit [auto
 impl core::marker::Send for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::marker::Send for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::marker::Send for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::marker::Send for antecedent::report::ReportFormat [auto]
 impl core::marker::Send for antecedent::result::ImputationReport [auto]
 impl core::marker::Send for antecedent::result::InterferenceInference [auto]
 impl core::marker::Send for antecedent::result::InterferencePointwiseInterval [auto]
@@ -4314,6 +4361,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::ProcedureReport
 impl core::marker::StructuralPartialEq for antecedent::analysis::ProcedureReportBody
 impl core::marker::StructuralPartialEq for antecedent::analysis::ProcedureReportRequest
 impl core::marker::StructuralPartialEq for antecedent::analysis::ProcedureSimulationReport
+impl core::marker::StructuralPartialEq for antecedent::analysis::PropagationChain
 impl core::marker::StructuralPartialEq for antecedent::analysis::PropagationClaim
 impl core::marker::StructuralPartialEq for antecedent::analysis::PropagationDraws
 impl core::marker::StructuralPartialEq for antecedent::analysis::PublishedCarriers
@@ -4391,6 +4439,8 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::inverse_sources
 impl core::marker::StructuralPartialEq for antecedent::analysis::inverse_sources::ObservationalScenarioInspection
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_law_composed_basis::Resolution
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::JointPanelColumns
+impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::JointPanelContrast
+impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::JointPanelContrastUncertainty
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::JointPanelDesignAttempt
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::JointPanelDesignOutcome
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::JointPanelFunctional
@@ -4494,6 +4544,7 @@ impl core::marker::StructuralPartialEq for antecedent::error::PendingEdge
 impl core::marker::StructuralPartialEq for antecedent::gcm::NestedOutcomeMechanism
 impl core::marker::StructuralPartialEq for antecedent::gcm::PolicyValue
 impl core::marker::StructuralPartialEq for antecedent::gcm::UnitEffectIntervals
+impl core::marker::StructuralPartialEq for antecedent::host::HostStatus
 impl core::marker::StructuralPartialEq for antecedent::inference::ExternalComposeSpec
 impl core::marker::StructuralPartialEq for antecedent::period_refresh::PeriodRefreshOutcome
 impl core::marker::StructuralPartialEq for antecedent::period_refresh::RefreshBlock
@@ -4502,6 +4553,7 @@ impl core::marker::StructuralPartialEq for antecedent::planner::PlanRoute
 impl core::marker::StructuralPartialEq for antecedent::planner::PlanStage
 impl core::marker::StructuralPartialEq for antecedent::planner::RouteFamily
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::CarrierDemand
+impl core::marker::StructuralPartialEq for antecedent::planner::lowered::ChainProgram
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::ClaimDemand
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::Composition
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::DecisionProgram
@@ -4538,6 +4590,7 @@ impl core::marker::StructuralPartialEq for antecedent::planner::statistical::Rea
 impl core::marker::StructuralPartialEq for antecedent::planner::statistical::ResampleUnit
 impl core::marker::StructuralPartialEq for antecedent::planner::statistical::ResamplingMethod
 impl core::marker::StructuralPartialEq for antecedent::planner::statistical::ResamplingPlan
+impl core::marker::StructuralPartialEq for antecedent::report::ReportFormat
 impl core::marker::StructuralPartialEq for antecedent::result::InterferenceInference
 impl core::marker::StructuralPartialEq for antecedent::result::InterferencePointwiseInterval
 impl core::marker::StructuralPartialEq for antecedent::result::IntervalBinding
@@ -4892,6 +4945,7 @@ impl core::marker::Sync for antecedent::analysis::ProcedureReport [auto]
 impl core::marker::Sync for antecedent::analysis::ProcedureReportBody [auto]
 impl core::marker::Sync for antecedent::analysis::ProcedureReportRequest [auto]
 impl core::marker::Sync for antecedent::analysis::ProcedureSimulationReport [auto]
+impl core::marker::Sync for antecedent::analysis::PropagationChain [auto]
 impl core::marker::Sync for antecedent::analysis::PropagationClaim [auto]
 impl core::marker::Sync for antecedent::analysis::PropagationDraws [auto]
 impl core::marker::Sync for antecedent::analysis::PublishedCarriers [auto]
@@ -5015,6 +5069,8 @@ impl core::marker::Sync for antecedent::analysis::joint_panel::JointPanelColumns
 impl core::marker::Sync for antecedent::analysis::joint_panel::JointPanelContinuousSearch [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::JointPanelContinuousSearchResult [auto]
+impl core::marker::Sync for antecedent::analysis::joint_panel::JointPanelContrast [auto]
+impl core::marker::Sync for antecedent::analysis::joint_panel::JointPanelContrastUncertainty [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::JointPanelDesignAttempt [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::JointPanelDesignOutcome [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::JointPanelError [auto]
@@ -5080,6 +5136,7 @@ impl core::marker::Sync for antecedent::analysis::observational_survival::Observ
 impl core::marker::Sync for antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire [auto]
 impl core::marker::Sync for antecedent::analysis::planning::PlannedExperiment [auto]
 impl core::marker::Sync for antecedent::analysis::planning::PlanningPlan [auto]
+impl core::marker::Sync for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::marker::Sync for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::marker::Sync for antecedent::analysis::proposal_arrival::ArrivalPoint [auto]
 impl core::marker::Sync for antecedent::analysis::proposal_arrival::ArrivalRequest [auto]
@@ -5213,6 +5270,7 @@ impl core::marker::Sync for antecedent::gcm::NestedOutcomeMechanism [auto]
 impl core::marker::Sync for antecedent::gcm::PolicyValue [auto]
 impl core::marker::Sync for antecedent::gcm::PreparedPolicy [auto]
 impl core::marker::Sync for antecedent::gcm::UnitEffectIntervals [auto]
+impl core::marker::Sync for antecedent::host::HostStatus [auto]
 impl core::marker::Sync for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::marker::Sync for antecedent::inference::ExternalComposeSpec [auto]
 impl core::marker::Sync for antecedent::period_refresh::PeriodRefresh [auto]
@@ -5227,6 +5285,7 @@ impl core::marker::Sync for antecedent::planner::PlanStage [auto]
 impl core::marker::Sync for antecedent::planner::PlanView [auto]
 impl core::marker::Sync for antecedent::planner::RouteFamily [auto]
 impl core::marker::Sync for antecedent::planner::lowered::CarrierDemand [auto]
+impl core::marker::Sync for antecedent::planner::lowered::ChainProgram [auto]
 impl core::marker::Sync for antecedent::planner::lowered::ClaimDemand [auto]
 impl core::marker::Sync for antecedent::planner::lowered::Composition [auto]
 impl core::marker::Sync for antecedent::planner::lowered::DecisionProgram [auto]
@@ -5268,6 +5327,7 @@ impl core::marker::Sync for antecedent::planner::statistical::ResampleUnit [auto
 impl core::marker::Sync for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::marker::Sync for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::marker::Sync for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::marker::Sync for antecedent::report::ReportFormat [auto]
 impl core::marker::Sync for antecedent::result::ImputationReport [auto]
 impl core::marker::Sync for antecedent::result::InterferenceInference [auto]
 impl core::marker::Sync for antecedent::result::InterferencePointwiseInterval [auto]
@@ -5627,6 +5687,7 @@ impl core::marker::Unpin for antecedent::analysis::ProcedureReport [auto]
 impl core::marker::Unpin for antecedent::analysis::ProcedureReportBody [auto]
 impl core::marker::Unpin for antecedent::analysis::ProcedureReportRequest [auto]
 impl core::marker::Unpin for antecedent::analysis::ProcedureSimulationReport [auto]
+impl core::marker::Unpin for antecedent::analysis::PropagationChain [auto]
 impl core::marker::Unpin for antecedent::analysis::PropagationClaim [auto]
 impl core::marker::Unpin for antecedent::analysis::PropagationDraws [auto]
 impl core::marker::Unpin for antecedent::analysis::PublishedCarriers [auto]
@@ -5750,6 +5811,8 @@ impl core::marker::Unpin for antecedent::analysis::joint_panel::JointPanelColumn
 impl core::marker::Unpin for antecedent::analysis::joint_panel::JointPanelContinuousSearch [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::JointPanelContinuousSearchResult [auto]
+impl core::marker::Unpin for antecedent::analysis::joint_panel::JointPanelContrast [auto]
+impl core::marker::Unpin for antecedent::analysis::joint_panel::JointPanelContrastUncertainty [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::JointPanelDesignAttempt [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::JointPanelDesignOutcome [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::JointPanelError [auto]
@@ -5815,6 +5878,7 @@ impl core::marker::Unpin for antecedent::analysis::observational_survival::Obser
 impl core::marker::Unpin for antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire [auto]
 impl core::marker::Unpin for antecedent::analysis::planning::PlannedExperiment [auto]
 impl core::marker::Unpin for antecedent::analysis::planning::PlanningPlan [auto]
+impl core::marker::Unpin for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::marker::Unpin for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::marker::Unpin for antecedent::analysis::proposal_arrival::ArrivalPoint [auto]
 impl core::marker::Unpin for antecedent::analysis::proposal_arrival::ArrivalRequest [auto]
@@ -5948,6 +6012,7 @@ impl core::marker::Unpin for antecedent::gcm::NestedOutcomeMechanism [auto]
 impl core::marker::Unpin for antecedent::gcm::PolicyValue [auto]
 impl core::marker::Unpin for antecedent::gcm::PreparedPolicy [auto]
 impl core::marker::Unpin for antecedent::gcm::UnitEffectIntervals [auto]
+impl core::marker::Unpin for antecedent::host::HostStatus [auto]
 impl core::marker::Unpin for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::marker::Unpin for antecedent::inference::ExternalComposeSpec [auto]
 impl core::marker::Unpin for antecedent::period_refresh::PeriodRefresh [auto]
@@ -5962,6 +6027,7 @@ impl core::marker::Unpin for antecedent::planner::PlanStage [auto]
 impl core::marker::Unpin for antecedent::planner::PlanView [auto]
 impl core::marker::Unpin for antecedent::planner::RouteFamily [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::CarrierDemand [auto]
+impl core::marker::Unpin for antecedent::planner::lowered::ChainProgram [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::ClaimDemand [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::Composition [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::DecisionProgram [auto]
@@ -6003,6 +6069,7 @@ impl core::marker::Unpin for antecedent::planner::statistical::ResampleUnit [aut
 impl core::marker::Unpin for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::marker::Unpin for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::marker::Unpin for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::marker::Unpin for antecedent::report::ReportFormat [auto]
 impl core::marker::Unpin for antecedent::result::ImputationReport [auto]
 impl core::marker::Unpin for antecedent::result::InterferenceInference [auto]
 impl core::marker::Unpin for antecedent::result::InterferencePointwiseInterval [auto]
@@ -6356,6 +6423,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::Procedure
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::ProcedureReportBody [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::ProcedureReportRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::ProcedureSimulationReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::PropagationChain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::PropagationClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::PropagationDraws [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::PublishedCarriers [auto]
@@ -6476,6 +6544,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_law
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::JointPanelColumns [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::JointPanelContinuousSearchResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::JointPanelContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::JointPanelContrastUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::JointPanelDesignAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::JointPanelDesignOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::JointPanelError [auto]
@@ -6536,6 +6606,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observati
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::planning::PlannedExperiment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::planning::PlanningPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::proposal_arrival::ArrivalPoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::proposal_arrival::ArrivalRequest [auto]
@@ -6657,6 +6728,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::NestedOutcomeM
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::PolicyValue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::PreparedPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::UnitEffectIntervals [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::host::HostStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::inference::ExternalComposeSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::PeriodRefresh [auto]
@@ -6671,6 +6743,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::PlanStage 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::PlanView [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::RouteFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::CarrierDemand [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::ChainProgram [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::ClaimDemand [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::Composition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::DecisionProgram [auto]
@@ -6712,6 +6785,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistica
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::report::ReportFormat [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::ImputationReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::InterferenceInference [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::InterferencePointwiseInterval [auto]
@@ -7061,6 +7135,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::ProcedureRep
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::ProcedureReportBody [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::ProcedureReportRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::ProcedureSimulationReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::PropagationChain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::PropagationClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::PropagationDraws [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::PublishedCarriers [auto]
@@ -7181,6 +7256,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_law_co
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::JointPanelColumns [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::JointPanelContinuousSearchResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::JointPanelContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::JointPanelContrastUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::JointPanelDesignAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::JointPanelDesignOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::JointPanelError [auto]
@@ -7241,6 +7318,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observationa
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::planning::PlannedExperiment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::planning::PlanningPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::proposal_arrival::ArrivalPoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::proposal_arrival::ArrivalRequest [auto]
@@ -7362,6 +7440,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::NestedOutcomeMech
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::PolicyValue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::PreparedPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::UnitEffectIntervals [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::host::HostStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::inference::DecodedPriorHydrate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::inference::ExternalComposeSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::PeriodRefresh [auto]
@@ -7376,6 +7455,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::PlanStage [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::PlanView [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::RouteFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::CarrierDemand [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::ChainProgram [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::ClaimDemand [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::Composition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::DecisionProgram [auto]
@@ -7417,6 +7497,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::ResamplingMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::ResamplingPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::StatisticalProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::report::ReportFormat [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::ImputationReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::InterferenceInference [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::InterferencePointwiseInterval [auto]
@@ -7537,6 +7618,7 @@ impl<'a> core::clone::Clone for antecedent::analysis::learned_joint_closed::Lear
 impl<'a> core::clone::Clone for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::target_validation::PreparedTargetData<'a>
 impl<'a> core::clone::Clone for antecedent::period_refresh::PeriodRefreshSpec<'a>
+impl<'a> core::clone::Clone for antecedent::report::ReportInput<'a>
 impl<'a> core::clone::Clone for antecedent::strategy_table::StaticEstimateInput<'a>
 impl<'a> core::cmp::Eq for antecedent::ScreenUnits<'a>
 impl<'a> core::cmp::PartialEq for antecedent::ScreenUnits<'a>
@@ -7550,6 +7632,7 @@ impl<'a> core::fmt::Debug for antecedent::analysis::learned_joint_closed::Learne
 impl<'a> core::fmt::Debug for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::target_validation::PreparedTargetData<'a>
 impl<'a> core::fmt::Debug for antecedent::period_refresh::PeriodRefreshSpec<'a>
+impl<'a> core::fmt::Debug for antecedent::report::ReportInput<'a>
 impl<'a> core::marker::Copy for antecedent::GraphRef<'a>
 impl<'a> core::marker::Copy for antecedent::ScreenUnits<'a>
 impl<'a> core::marker::Copy for antecedent::SequenceEndpoints<'a>
@@ -7560,6 +7643,7 @@ impl<'a> core::marker::Copy for antecedent::analysis::learned_joint_closed::Lear
 impl<'a> core::marker::Copy for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a>
 impl<'a> core::marker::Copy for antecedent::analysis::target_validation::PreparedTargetData<'a>
 impl<'a> core::marker::Copy for antecedent::period_refresh::PeriodRefreshSpec<'a>
+impl<'a> core::marker::Copy for antecedent::report::ReportInput<'a>
 impl<'a> core::marker::Copy for antecedent::strategy_table::StaticEstimateInput<'a>
 impl<'a> core::marker::Freeze for antecedent::GraphRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::PreflightInput<'a> [auto]
@@ -7574,6 +7658,7 @@ impl<'a> core::marker::Freeze for antecedent::analysis::provider_callbacks::Call
 impl<'a> core::marker::Freeze for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::target_validation::PreparedTargetData<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent::report::ReportInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent::GraphRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent::PreflightInput<'a> [auto]
@@ -7588,6 +7673,7 @@ impl<'a> core::marker::Send for antecedent::analysis::provider_callbacks::Callba
 impl<'a> core::marker::Send for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::target_validation::PreparedTargetData<'a> [auto]
 impl<'a> core::marker::Send for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
+impl<'a> core::marker::Send for antecedent::report::ReportInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent::ScreenUnits<'a>
 impl<'a> core::marker::Sync for antecedent::GraphRef<'a> [auto]
@@ -7603,6 +7689,7 @@ impl<'a> core::marker::Sync for antecedent::analysis::provider_callbacks::Callba
 impl<'a> core::marker::Sync for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::target_validation::PreparedTargetData<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
+impl<'a> core::marker::Sync for antecedent::report::ReportInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::GraphRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::PreflightInput<'a> [auto]
@@ -7617,6 +7704,7 @@ impl<'a> core::marker::Unpin for antecedent::analysis::provider_callbacks::Callb
 impl<'a> core::marker::Unpin for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::target_validation::PreparedTargetData<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent::report::ReportInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::strategy_table::StaticEstimateInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::GraphRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::ScreenUnits<'a> [auto]
@@ -7628,6 +7716,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::learn
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::report::ReportInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::GraphRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::SequenceEndpoints<'a> [auto]
@@ -7638,6 +7727,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::learned_
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::selective_discovery::DiscoverySnapshot<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::PeriodRefreshSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::report::ReportInput<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::ConstituentRole
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::DeclaredExclusion
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::DerivedTreatmentDeclaration
@@ -7745,6 +7835,7 @@ pub const <antecedent::MissingModality>::ALL: [Self; 5]
 pub const <antecedent::StudyBuilder>::OMITTED_BOOTSTRAP: u32
 pub const <antecedent::StudyBuilder>::OMITTED_REFUTE: antecedent::RefuteSuite
 pub const <antecedent::analysis::sample_split_analysis::SplitAnalysisEffect>::TARGET_POPULATION: &'static str
+pub const <antecedent::host::HostStatus>::ALL: [Self; 3]
 pub const antecedent::BATCH_RETARGET_SCOPE_NOTE: &str
 pub const antecedent::INVERSE_SCOPE_NOTE: &str
 pub const antecedent::JOINT_SENSITIVITY_ARTIFACT_VERSION: u32
@@ -7840,6 +7931,8 @@ pub const antecedent::estimate::DEFAULT_PAG_IDENTIFIER_ID: antecedent::Identifie
 pub const antecedent::estimate::DEFAULT_PATH_ESTIMATOR_ID: antecedent::EstimatorId
 pub const antecedent::estimate::DEFAULT_PATH_IDENTIFIER_ID: antecedent::IdentifierId
 pub const antecedent::estimator_spec::SAMPLING_WEIGHTS_LABEL: &str
+pub const antecedent::host::HOST_CONTRACT_VERSION: u32
+pub const antecedent::host::HOST_SCHEMA_TEXT: &str
 pub const antecedent::planner::lowered::SIMULATION_RECORD_BYTES: u64
 pub const antecedent::result::REPORTED_SE_INTERVAL_LEVEL: f64
 pub const antecedent::strategy_table::DEFAULT_RESPONSE_ESTIMATOR_ID: antecedent::EstimatorId
@@ -7914,6 +8007,7 @@ pub enum antecedent::analysis::discovered_transport_trial::TrialRandomization
 pub enum antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 pub enum antecedent::analysis::file_table::SummaryMissing
 pub enum antecedent::analysis::joint_law_composed_basis::Resolution
+pub enum antecedent::analysis::joint_panel::JointPanelContrastUncertainty
 pub enum antecedent::analysis::joint_panel::JointPanelDesignOutcome
 pub enum antecedent::analysis::joint_panel::JointPanelError
 pub enum antecedent::analysis::joint_panel::JointPanelFit
@@ -9625,6 +9719,12 @@ pub field antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest::
 pub field antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest::utility_units: alloc::string::String
 pub field antecedent::analysis::joint_panel::JointPanelContinuousSearchResult::best_source: core::option::Option<antecedent_design::scientific_source::ScientificDecisionSource>
 pub field antecedent::analysis::joint_panel::JointPanelContinuousSearchResult::search: antecedent_design::program_search::continuous::ContinuousProgramSearchResult
+pub field antecedent::analysis::joint_panel::JointPanelContrast::draws: alloc::vec::Vec<core::option::Option<f64>>
+pub field antecedent::analysis::joint_panel::JointPanelContrast::interval: core::option::Option<(f64, f64)>
+pub field antecedent::analysis::joint_panel::JointPanelContrast::level: f64
+pub field antecedent::analysis::joint_panel::JointPanelContrast::point: f64
+pub field antecedent::analysis::joint_panel::JointPanelContrast::standard_error: core::option::Option<f64>
+pub field antecedent::analysis::joint_panel::JointPanelContrast::uncertainty: antecedent::analysis::joint_panel::JointPanelContrastUncertainty
 pub field antecedent::analysis::joint_panel::JointPanelDesignAttempt::detail: alloc::string::String
 pub field antecedent::analysis::joint_panel::JointPanelDesignAttempt::id: alloc::string::String
 pub field antecedent::analysis::joint_panel::JointPanelDesignAttempt::next_attempt: core::option::Option<alloc::string::String>
@@ -10471,6 +10571,7 @@ pub fn <antecedent::BatchScores>::fn estimate_retarget_cost(&self, request: &ant
 pub fn <antecedent::BatchScores>::fn snapshot_id(&self) -> core::result::Result<core::option::Option<alloc::string::String>, antecedent::BatchRetargetError>
 pub fn <antecedent::BatchScores>::fn table(&self, index: usize) -> core::option::Option<&antecedent_estimate::scores::ScoreTable>
 pub fn <antecedent::BatchStudy>::const fn family_contrast(self, contrast: core::option::Option<antecedent::CellFamilyContrast>) -> Self
+pub fn <antecedent::BatchStudy>::const fn family_posterior(self, posterior: core::option::Option<antecedent_estimate::score_posterior::ScorePosteriorOptions>) -> Self
 pub fn <antecedent::BatchStudy>::const fn identifier(self, id: antecedent::IdentifierId) -> Self
 pub fn <antecedent::BatchStudy>::fn bootstrap_replicates(self, n: u32) -> Self
 pub fn <antecedent::BatchStudy>::fn candidate_screen(self, screen: antecedent::CandidateScreen) -> Self
@@ -11034,6 +11135,7 @@ pub fn <antecedent::PreparedStudy>::fn refresh_panel(&mut self, data: antecedent
 pub fn <antecedent::PreparedStudy>::fn refresh_series(&mut self, data: antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn refute(&self, prior: &antecedent::StudyResult, data: &antecedent_data::dataset::TabularData, suite: antecedent::RefuteSuite, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn refute_bound(&self, result: &antecedent::StudyResult, suite: antecedent::RefuteSuite, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn report(&self, result: core::option::Option<&antecedent::StudyResult>, ctx: &antecedent_core::execution::ExecutionContext, format: antecedent::report::ReportFormat) -> core::result::Result<alloc::string::String, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn retained_operation(&self) -> antecedent::analysis::RetainedOperation<'_>
 pub fn <antecedent::PreparedStudy>::fn retarget(&self, weights: &[f64], depends_on: &[antecedent_core::ids::VariableId], _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn schema(&self) -> &antecedent_core::schema::CausalSchema
@@ -11497,6 +11599,23 @@ pub fn <antecedent::analysis::PreparedDecisionReliability>::fn export(&self, art
 pub fn <antecedent::analysis::PreparedDecisionReliability>::fn inspect(&self) -> antecedent::analysis::DecisionReliabilityInspection
 pub fn <antecedent::analysis::PreparedDecisionReliability>::fn publish(&self, route: antecedent_design::decision_reliability::calibration::PublishedRoute) -> core::result::Result<(), antecedent::analysis::DecisionReliabilityRefusal>
 pub fn <antecedent::analysis::PreparedDecisionReliability>::fn verify_derived(&self, derived: &antecedent_design::decision_reliability::interval::DerivedUncertainty, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent::analysis::DecisionReliabilityRefusal>
+pub fn <antecedent::analysis::PropagationChain>::const fn lowered_program_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::PropagationChain>::const fn record(&self) -> &antecedent_io_core::propagation_chain_record::PropagationChainRecordWire
+pub fn <antecedent::analysis::PropagationChain>::fn answer(&self) -> core::option::Option<&antecedent_io_core::propagation_chain_record::ChainStageResultWire>
+pub fn <antecedent::analysis::PropagationChain>::fn declaration_identity(&self) -> core::result::Result<alloc::string::String, antecedent_contract::propagation_chain::ChainRefusal>
+pub fn <antecedent::analysis::PropagationChain>::fn dependents_of(&self, source: &str) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, antecedent_contract::propagation_chain::ChainRefusal>
+pub fn <antecedent::analysis::PropagationChain>::fn draft(construction: antecedent_contract::propagation_chain::TableConstruction, reading: antecedent_contract::propagation_chain::ChainReading, output: &str, sources: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::ChainSourceWire>, stages: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::ChainStageWire>) -> antecedent_io_core::propagation_chain_record::PropagationChainRecordWire
+pub fn <antecedent::analysis::PropagationChain>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_contract::propagation_chain::ChainRefusal>
+pub fn <antecedent::analysis::PropagationChain>::fn identity(&self) -> &str
+pub fn <antecedent::analysis::PropagationChain>::fn interval(&self) -> core::result::Result<(), antecedent_contract::propagation_chain::ChainRefusal>
+pub fn <antecedent::analysis::PropagationChain>::fn label(&self) -> &str
+pub fn <antecedent::analysis::PropagationChain>::fn plan(&self) -> core::result::Result<antecedent_contract::propagation_chain::ChainPlan, antecedent_contract::propagation_chain::ChainRefusal>
+pub fn <antecedent::analysis::PropagationChain>::fn posterior(&self) -> core::result::Result<(), antecedent_contract::propagation_chain::ChainRefusal>
+pub fn <antecedent::analysis::PropagationChain>::fn results(&self) -> &[antecedent_io_core::propagation_chain_record::ChainStageResultWire]
+pub fn <antecedent::analysis::PropagationChain>::fn reweight(&self, source: &str, log_weights: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_contract::propagation_chain::ChainRefusal>
+pub fn <antecedent::analysis::PropagationChain>::fn seal(draft: antecedent_io_core::propagation_chain_record::PropagationChainRecordWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_contract::propagation_chain::ChainRefusal>
+pub fn <antecedent::analysis::PropagationChain>::fn stage(&self, id: &str) -> core::option::Option<&antecedent_io_core::propagation_chain_record::ChainStageResultWire>
+pub fn <antecedent::analysis::PropagationChain>::fn withdraw(&self, source: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_contract::propagation_chain::ChainRefusal>
 pub fn <antecedent::analysis::PropagationClaim>::fn alignment_id(&self) -> core::option::Option<&str>
 pub fn <antecedent::analysis::PropagationClaim>::fn check_composed_interval(&self, construction: &str, evidence_rows: u64) -> core::result::Result<antecedent::analysis::ComposedInterval, antecedent::analysis::JointLawPropagationRefusal>
 pub fn <antecedent::analysis::PropagationClaim>::fn composed_interval_basis(&self, construction: &str, evidence_rows: u64) -> core::result::Result<antecedent_core::calibration_basis::CalibrationBasis, antecedent::analysis::JointLawPropagationRefusal>
@@ -11757,6 +11876,7 @@ pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn project_mean_so
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn request(&self) -> &antecedent::analysis::joint_panel::JointPanelRequest
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn require_identified(&self) -> core::result::Result<(), antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn retarget_frozen(&self, worlds: alloc::vec::Vec<antecedent::analysis::joint_panel::JointPanelWorld>, target: antecedent_core::scientific_target::identity::ScientificTarget, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn scheduled_contrast(&self, functional: &antecedent::analysis::joint_panel::JointPanelResponseFunctional, level: f64) -> core::result::Result<antecedent::analysis::joint_panel::JointPanelContrast, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelSearch>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::scientific_source::ScopedProgramSearchResult, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelSearch>::fn numerical_plan(&self) -> &antecedent_design::program_search::PreparedFiniteProgramSearch
 pub fn <antecedent::analysis::joint_panel::JointPanelSearch>::fn scientific_source(&self) -> &antecedent_design::scientific_source::ScientificDecisionSource
@@ -11849,6 +11969,13 @@ pub fn <antecedent::analysis::planning::PlanningPlan>::fn identity(&self) -> ant
 pub fn <antecedent::analysis::planning::PlanningPlan>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::planning::PlanningPlan>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::planning::PlanningPlan>::fn request(&self) -> &antecedent_design::planning::request::PlanningRequest
+pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::const fn plan(&self) -> &antecedent_contract::propagation_chain::ChainPlan
+pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn dependents_of(&self, source: &str) -> alloc::vec::Vec<&str>
+pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn execute(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::PropagationChain, antecedent_contract::propagation_chain::ChainRefusal>
+pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn with_change(&self, change: antecedent_io_core::propagation_chain_record::ChainChangeWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_contract::propagation_chain::ChainRefusal>
 pub fn <antecedent::analysis::proposal_arrival::ArrivalArtifact>::fn consume(bytes: &[u8], expected_proposal: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::proposal_arrival::ArrivalArtifact>::fn produce(request: antecedent::analysis::proposal_arrival::ArrivalRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::proposal_arrival::ArrivalArtifact>::fn to_bytes(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
@@ -12189,6 +12316,14 @@ pub fn <antecedent::gcm::PreparedPolicy>::fn prepare(model: &antecedent_model::c
 pub fn <antecedent::gcm::PreparedPolicy>::fn program_compilations(&self) -> u64
 pub fn <antecedent::gcm::PreparedPolicy>::fn rebind(&self, model: &antecedent_model::compile::CompiledCausalModel) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::gcm::PreparedPolicy>::fn support(&self) -> &antecedent_model::program::PolicySupport
+pub fn <antecedent::host::HostStatus>::const fn as_str(self) -> &'static str
+pub fn <antecedent::host::HostStatus>::const fn of_operation(report: &antecedent_contract::capability::OperationReport) -> Self
+pub fn <antecedent::host::HostStatus>::const fn of_operation_parts(applicability: antecedent_contract::capability::SemanticApplicability, readiness: core::option::Option<antecedent_contract::capability::OperationReadiness>) -> Self
+pub fn <antecedent::host::HostStatus>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent::host::HostStatus>::fn of_claim(claim: &antecedent_contract::claim::ClaimEnvelope) -> Self
+pub fn <antecedent::host::HostStatus>::fn of_claim_names(kind: &str, identification: &str, support: &str, evaluated: &str) -> core::option::Option<Self>
+pub fn <antecedent::host::HostStatus>::fn of_claim_parts(kind: antecedent_contract::claim::ClaimKind, domains: &antecedent_contract::claim::ClaimDomains) -> Self
+pub fn <antecedent::host::HostStatus>::fn of_operation_names(applicability: &str, readiness: core::option::Option<&str>) -> core::option::Option<Self>
 pub fn <antecedent::period_refresh::PeriodRefresh>::const fn fit(&self) -> &antecedent_state::ols_refresh::OlsRefresh
 pub fn <antecedent::period_refresh::PeriodRefresh>::const fn lags(&self) -> usize
 pub fn <antecedent::period_refresh::PeriodRefresh>::const fn prior(&self) -> &antecedent_state::conjugate_refresh::ConjugateOlsPrior
@@ -12257,6 +12392,10 @@ pub fn <antecedent::planner::PlanView>::fn to_json(&self) -> serde_json::value::
 pub fn <antecedent::planner::RouteFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent::planner::lowered::CarrierDemand>::const fn as_str(self) -> &'static str
 pub fn <antecedent::planner::lowered::CarrierDemand>::const fn evidence_request(self) -> core::option::Option<antecedent_contract::evidence_ports::DecisionRequest>
+pub fn <antecedent::planner::lowered::ChainProgram>::const fn plan(&self) -> &antecedent_contract::propagation_chain::ChainPlan
+pub fn <antecedent::planner::lowered::ChainProgram>::fn declaration_identity(&self) -> &str
+pub fn <antecedent::planner::lowered::ChainProgram>::fn dependents_of(&self, source: &str) -> alloc::vec::Vec<&str>
+pub fn <antecedent::planner::lowered::ChainProgram>::fn draft(&self) -> &antecedent_io_core::propagation_chain_record::PropagationChainRecordWire
 pub fn <antecedent::planner::lowered::ClaimDemand>::const fn kind(&self) -> core::option::Option<antecedent_contract::claim::ClaimKind>
 pub fn <antecedent::planner::lowered::ClaimDemand>::const fn uncertainty(&self) -> antecedent::planner::lowered::UncertaintyReading
 pub fn <antecedent::planner::lowered::DecisionProgram>::const fn actions(&self) -> usize
@@ -12271,6 +12410,7 @@ pub fn <antecedent::planner::lowered::DesignShape>::const fn columns(&self) -> c
 pub fn <antecedent::planner::lowered::DesignShape>::const fn direct(&self) -> bool
 pub fn <antecedent::planner::lowered::DesignShape>::const fn rows(&self) -> core::option::Option<u64>
 pub fn <antecedent::planner::lowered::DesignShape>::const fn source(&self) -> antecedent::planner::lowered::WidthSource
+pub fn <antecedent::planner::lowered::EvidenceDecisionProgram>::const fn chain(&self) -> core::option::Option<&antecedent::planner::lowered::ChainProgram>
 pub fn <antecedent::planner::lowered::EvidenceDecisionProgram>::const fn composition(&self) -> antecedent::planner::lowered::Composition
 pub fn <antecedent::planner::lowered::EvidenceDecisionProgram>::const fn decision(&self) -> core::option::Option<&antecedent::planner::lowered::DecisionProgram>
 pub fn <antecedent::planner::lowered::EvidenceDecisionProgram>::const fn planning(&self) -> core::option::Option<&antecedent::planner::lowered::PlanningProgram>
@@ -12289,6 +12429,7 @@ pub fn <antecedent::planner::lowered::EvsiProgram>::const fn tie_tolerance(&self
 pub fn <antecedent::planner::lowered::EvsiProgram>::fn candidates(&self) -> &[alloc::sync::Arc<str>]
 pub fn <antecedent::planner::lowered::EvsiProgram>::fn prior_observation_ids(&self) -> &[alloc::sync::Arc<str>]
 pub fn <antecedent::planner::lowered::FunctionalKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent::planner::lowered::LoweredProgram>::const fn chain_reading(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn claim(&self) -> &antecedent::planner::lowered::ClaimDemand
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn cyclic_family(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn depth(&self) -> antecedent::planner::lowered::LoweringDepth
@@ -12299,6 +12440,7 @@ pub fn <antecedent::planner::lowered::LoweredProgram>::const fn physical(&self) 
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn planned_design(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn route(&self) -> &'static str
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn scientific(&self) -> &antecedent::planner::lowered::ScientificProblem
+pub fn <antecedent::planner::lowered::LoweredProgram>::fn propagation_chain(&self) -> core::option::Option<&antecedent::planner::lowered::ChainProgram>
 pub fn <antecedent::planner::lowered::LoweredProgram>::fn refutation_quadrant(&self) -> antecedent_validate::target_native::TargetQuadrant
 pub fn <antecedent::planner::lowered::LoweredProgram>::fn refutation_target(&self, family: antecedent_validate::target_native::TargetFamily, labels: alloc::vec::Vec<alloc::sync::Arc<str>>) -> core::result::Result<antecedent_validate::target_native::RefutationTarget, antecedent::CausalError>
 pub fn <antecedent::planner::lowered::LoweredProgram>::fn statistical(&self) -> &antecedent::planner::statistical::StatisticalProgram
@@ -12425,6 +12567,12 @@ pub fn <antecedent::planner::statistical::StatisticalProgram>::const fn resampli
 pub fn <antecedent::planner::statistical::StatisticalProgram>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::planner::statistical::StatisticalProgram>::fn models(&self) -> &[antecedent::planner::statistical::ModelSlot]
 pub fn <antecedent::planner::statistical::StatisticalProgram>::fn operators(&self) -> &[antecedent_core::operator::Operator]
+pub fn <antecedent::report::ReportFormat>::const fn as_str(self) -> &'static str
+pub fn <antecedent::report::ReportFormat>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent::report::ReportInput<'a>>::const fn new(contract: &'a antecedent::CausalContract) -> Self
+pub fn <antecedent::report::ReportInput<'a>>::const fn with_claim(self, claim: &'a antecedent_contract::claim::ClaimEnvelope) -> Self
+pub fn <antecedent::report::ReportInput<'a>>::const fn with_names(self, names: &'a [alloc::sync::Arc<str>]) -> Self
+pub fn <antecedent::report::ReportInput<'a>>::const fn with_plan(self, plan: &'a antecedent::planner::PlanView) -> Self
 pub fn <antecedent::result::IntervalBinding>::const fn none(dependence: &'static str) -> Self
 pub fn <antecedent::result::MissingDataReport>::fn policy(&self) -> antecedent_data::sample_policy::MissingPolicy
 pub fn <antecedent::review::PendingCpdagReview>::fn accept_all_directed(self) -> Self
@@ -12522,6 +12670,7 @@ pub fn antecedent::analysis::consume_callback_result(bytes: &[u8], expected_iden
 pub fn antecedent::analysis::consume_decision_reliability_artifact(bytes: &[u8], expected: &antecedent_design::decision_reliability::artifact::DecisionReliabilityExpectation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::PreparedDecisionReliability, antecedent::analysis::DecisionReliabilityRefusal>
 pub fn antecedent::analysis::consume_interface_contract_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<antecedent::analysis::ConsumedInterfaceContract, antecedent::analysis::InterfaceContractRefusal>
 pub fn antecedent::analysis::consume_joint_law_propagation_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io_core::joint_law_propagation_artifact::ConsumedJointLawPropagation, antecedent::analysis::JointLawPropagationRefusal>
+pub fn antecedent::analysis::consume_propagation_chain(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io_core::propagation_chain_record::ConsumedPropagationChain, antecedent_contract::propagation_chain::ChainRefusal>
 pub fn antecedent::analysis::consume_smoothed_dose_posterior_artifact(bytes: &[u8], limits: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowConsumeLimits) -> core::result::Result<antecedent::analysis::SmoothedDosePosteriorResult, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::cross_world_interval::whole_path_interval(uncertainty: &antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty, level: f64) -> core::option::Option<(f64, (f64, f64), &'static str)>
 pub fn antecedent::analysis::cross_world_interval::whole_path_interval_basis(request: &antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest, unit_sampling: antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling) -> core::result::Result<antecedent_core::calibration_basis::CalibrationBasis, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionRefusalWire>
@@ -12561,6 +12710,7 @@ pub fn antecedent::analysis::export_callback_result(record: &antecedent_io_core:
 pub fn antecedent::analysis::export_interface_contract(contract: &antecedent_contract::interface_contract::declaration::InterfaceContract, artifact_id: &str) -> core::result::Result<antecedent::analysis::InterfaceContractExport, antecedent::analysis::InterfaceContractRefusal>
 pub fn antecedent::analysis::file_table::summarize_weighted_gaussian(file: &antecedent_data::file_source::TableFile, spec: &antecedent::analysis::file_table::GaussianSummarySpec, control: antecedent_io_core::capacity_account::weighted_gaussian_capacity::CapacityControl, options: &antecedent_io_core::capacity_account::weighted_gaussian_capacity::CapacityOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::file_table::FileGaussianSummary, antecedent::analysis::file_table::FileTableError>
 pub fn antecedent::analysis::forecast_law_from_sample(output: &antecedent_contract::callback_protocol::query::ValidatedOutput) -> core::result::Result<antecedent_validate::predictive_assessment::law::ForecastLaw, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent::analysis::independent_product_table(columns: &[alloc::vec::Vec<f64>], max_rows: usize) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_contract::propagation_chain::ChainRefusal>
 pub fn antecedent::analysis::input_alignment(artifact: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent_contract::joint_law_rule::InputAlignment, antecedent::analysis::JointLawPropagationRefusal>
 pub fn antecedent::analysis::inspect_callback_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::callback_result_artifact::CallbackResultMeta, antecedent_io_core::callback_result_artifact::CallbackResultArtifactError>
 pub fn antecedent::analysis::inspect_interface_contract_artifact(bytes: &[u8]) -> core::result::Result<antecedent_io_core::interface_contract_artifact::InterfaceContractMeta, antecedent::analysis::InterfaceContractRefusal>
@@ -12624,6 +12774,7 @@ pub fn antecedent::analysis::posterior_boundaries::trajectory_hazard_credible_in
 pub fn antecedent::analysis::posterior_boundaries::trajectory_survival_bootstrap(rows: &antecedent_estimate::trajectory_survival::TrajectoryRows<'_>, active: &[bool], control: &[bool], replicates: u32, seed: u64) -> core::result::Result<antecedent_estimate::trajectory_survival::TrajectoryBootstrapIntervals, antecedent::CausalError>
 pub fn antecedent::analysis::posterior_boundaries::trajectory_survival_contrast(rows: &antecedent_estimate::trajectory_survival::TrajectoryRows<'_>, active: &[bool], control: &[bool]) -> core::result::Result<antecedent_estimate::trajectory_survival::TrajectorySurvivalContrast, antecedent::CausalError>
 pub fn antecedent::analysis::predictive_law_source(declaration: &antecedent_contract::callback_protocol::declaration::CallbackDeclaration, verification_confirmed: bool) -> core::result::Result<antecedent_validate::predictive_assessment::law::LawSource, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent::analysis::propagation_chain::compile_propagation_chain(draft: antecedent_io_core::propagation_chain_record::PropagationChainRecordWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::propagation_chain::PropagationChainPlan, antecedent_contract::propagation_chain::ChainRefusal>
 pub fn antecedent::analysis::proposal_arrival::execute(r: &antecedent::analysis::proposal_arrival::ArrivalRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::proposal_arrival::ArrivalPoint, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::provider_callbacks::refuse_identification_licence() -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn antecedent::analysis::provider_callbacks::refuse_interval() -> antecedent_contract::external_refusal::ExternalRefusal
@@ -12731,7 +12882,6 @@ pub fn antecedent::cross_world::consume_cross_world_artifact(bytes: &[u8], ctx: 
 pub fn antecedent::cross_world::consume_cross_world_artifact_for_data(bytes: &[u8], expected_data_digest: &str, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::evaluate_cross_world_effect(graph: impl antecedent::IntoGraphInput, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, options: antecedent::cross_world::CrossWorldOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent::CausalError>
 pub fn antecedent::design::preview_design_rank<A, O>(contract: &antecedent::CausalContract, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::DesignRankPreview, antecedent::CausalError>
-pub fn antecedent::design::rank_designs<A, O>(ranker: &antecedent_design::ranker::DesignRanker, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::result::ScoredDesignRanking, antecedent::CausalError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
 pub fn antecedent::design::rank_designs_bound<A, O>(contract: &antecedent::CausalContract, ranker: &antecedent_design::ranker::DesignRanker, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::ExecutionContext, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent_design::result::ScoredDesignRanking, antecedent::CausalError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
 pub fn antecedent::discovery::pag_definite_directed_edge_count(pag: &antecedent_graph::temporal_pag::TemporalPag) -> u64
 pub fn antecedent::discovery_defaults::contemporaneous_constraints(max_lag: u32, alpha: f64, max_cond_size: usize) -> antecedent_discovery::constraints::DiscoveryConstraints
@@ -12741,12 +12891,8 @@ pub fn antecedent::discovery_defaults::resolve_ci(name: &str, weights: core::opt
 pub fn antecedent::discovery_defaults::static_pc_constraints(alpha: f64, max_cond_size: usize) -> antecedent_discovery::constraints::DiscoveryConstraints
 pub fn antecedent::estimate::estimand_compatible_with_estimator(method: antecedent_expr::estimand::EstimandMethod, estimator: &antecedent::EstimatorId) -> bool
 pub fn antecedent::estimate::estimate_provenance_step(estimator: antecedent::EstimatorId) -> (&'static str, &'static str)
-pub fn antecedent::estimate::estimate_static_effect(spec: &antecedent::EstimatorSpec, input: antecedent::strategy_table::StaticEstimateInput<'_>, assumptions: antecedent_core::assumption::AssumptionSet, ctx: &antecedent_core::execution::ExecutionContext, workspaces: &mut antecedent::estimate::StaticEstimateWorkspaces) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent::CausalError>
 pub fn antecedent::estimate::identification_status_acceptable(status: antecedent_core::identification::IdentificationStatus) -> bool
-pub fn antecedent::estimate::identify_admg(identifier: antecedent::IdentifierId, admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>
-pub fn antecedent::estimate::identify_pag(identifier: antecedent::IdentifierId, pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_identify::envelope::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent::CausalError>
 pub fn antecedent::estimate::identify_provenance_step(identifier: antecedent::IdentifierId) -> (&'static str, &'static str)
-pub fn antecedent::estimate::identify_static(identifier: antecedent::IdentifierId, graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>
 pub fn antecedent::estimate::identify_static_query(identifier: antecedent::IdentifierId, graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>
 pub fn antecedent::estimate::identify_static_query_with_rd(identifier: antecedent::IdentifierId, graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::CausalQuery, rd: core::option::Option<antecedent_identify::rd::SharpRdConfig>) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>
 pub fn antecedent::estimate::require_identified(result: &antecedent_identify::result::IdentificationResult) -> core::result::Result<(), antecedent::CausalError>
@@ -12760,9 +12906,14 @@ pub fn antecedent::gcm::fit_gcm(graph: antecedent_graph::dag::Dag, data: &antece
 pub fn antecedent::gcm::fit_gcm_counterfactual(graph: antecedent_graph::dag::Dag, data: &antecedent_data::dataset::TabularData) -> core::result::Result<antecedent::gcm::FittedGcm, antecedent::CausalError>
 pub fn antecedent::gcm::fit_gcm_with(graph: antecedent_graph::dag::Dag, data: &antecedent_data::dataset::TabularData, registry: &antecedent_model::registry::MechanismRegistry, options: &antecedent_model::registry::selection::SelectionOptions) -> core::result::Result<antecedent::gcm::FittedGcm, antecedent::CausalError>
 pub fn antecedent::gcm::registry_from_candidates(tokens: &[&str]) -> core::result::Result<antecedent_model::registry::MechanismRegistry, antecedent::CausalError>
-pub fn antecedent::identify(structure: &antecedent::AcceptedGraph, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
-pub fn antecedent::identify_api::identify_dag(graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::CausalQuery) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
-pub fn antecedent::identify_api::identify_with(structure: &antecedent::AcceptedGraph, query: &antecedent_core::query::CausalQuery, strategy: antecedent::IdentifierId) -> core::result::Result<antecedent::Identification, antecedent::CausalError>
+pub fn antecedent::host::claim_record(claim: &antecedent_contract::claim::ClaimEnvelope) -> serde_json::value::Value
+pub fn antecedent::host::claim_response(claim: &antecedent_contract::claim::ClaimEnvelope) -> serde_json::value::Value
+pub fn antecedent::host::error_family(error: &antecedent::CausalError) -> &'static str
+pub fn antecedent::host::error_response(error: &antecedent::CausalError) -> serde_json::value::Value
+pub fn antecedent::host::host_schema() -> core::result::Result<serde_json::value::Value, serde_json::error::Error>
+pub fn antecedent::host::operation_record(report: &antecedent_contract::capability::OperationReport) -> serde_json::value::Value
+pub fn antecedent::host::refusal_code(error: &antecedent::CausalError) -> core::option::Option<&str>
+pub fn antecedent::host::refusal_record(error: &antecedent::CausalError) -> serde_json::value::Value
 pub fn antecedent::inference::decode_prior_hydrate_source(cfg: &antecedent::BayesianConfig) -> core::result::Result<core::option::Option<antecedent::inference::DecodedPriorHydrate>, antecedent::CausalError>
 pub fn antecedent::inference::hydrate_mapping_from_io(mapping: &antecedent_io_core::prior_bank::PriorMapping) -> antecedent_estimate::bayesian::hydrate::HydrateMapping
 pub fn antecedent::inference::hydrate_prior_from_posterior_bytes(bytes: &[u8], mapping: &antecedent_estimate::bayesian::hydrate::HydrateMapping, baseline: &antecedent_prob::prior::PriorSet, target_coef_names: &[alloc::sync::Arc<str>], treatment_col: core::option::Option<usize>, fallback_contrast: core::option::Option<f64>) -> core::result::Result<antecedent_prob::prior::PriorSet, antecedent::CausalError>
@@ -12776,6 +12927,7 @@ pub fn antecedent::licensed_neighbors(cell: antecedent::SupportCell) -> alloc::v
 pub fn antecedent::licensed_support_cells() -> impl core::iter::traits::iterator::Iterator<Item = antecedent::SupportCell>
 pub fn antecedent::planner::reject_dag_only_on_pag(structure: &antecedent::AcceptedGraph, identifier: antecedent::IdentifierId) -> core::result::Result<(), antecedent::CausalError>
 pub fn antecedent::refused_message(cell: antecedent::SupportCell) -> &'static str
+pub fn antecedent::report::render_report(input: &antecedent::report::ReportInput<'_>, format: antecedent::report::ReportFormat) -> alloc::string::String
 pub fn antecedent::result::reported_se_interval_z() -> f64
 pub fn antecedent::state::apply_state_event(state: &mut antecedent_state::state::CausalState, event: antecedent_state::event::StateEvent) -> core::result::Result<antecedent_core::ids::StateVersion, antecedent::CausalError>
 pub fn antecedent::state::new_antecedent_state(budget: antecedent_core::execution::CacheBudget) -> antecedent_state::state::CausalState
@@ -12866,6 +13018,7 @@ pub mod antecedent::analysis::per_population_discovery
 pub mod antecedent::analysis::planning
 pub mod antecedent::analysis::posterior_boundaries
 pub mod antecedent::analysis::predictive_assessment
+pub mod antecedent::analysis::propagation_chain
 pub mod antecedent::analysis::proposal_arrival
 pub mod antecedent::analysis::provider_callbacks
 pub mod antecedent::analysis::recalc_adjusted
@@ -12919,6 +13072,7 @@ pub mod antecedent::estimate
 pub mod antecedent::estimator_spec
 pub mod antecedent::gcm
 pub mod antecedent::graph
+pub mod antecedent::host
 pub mod antecedent::identify
 pub mod antecedent::identify_api
 pub mod antecedent::inference
@@ -12931,6 +13085,7 @@ pub mod antecedent::planner::plan_view
 pub mod antecedent::planner::statistical
 pub mod antecedent::prelude
 pub mod antecedent::query
+pub mod antecedent::report
 pub mod antecedent::result
 pub mod antecedent::review
 pub mod antecedent::scientific
@@ -13279,6 +13434,8 @@ pub struct antecedent::analysis::ProcedureElements
 pub struct antecedent::analysis::ProcedureLawReport
 pub struct antecedent::analysis::ProcedureReport
 pub struct antecedent::analysis::ProcedureSimulationReport
+pub struct antecedent::analysis::PropagationChain
+pub struct antecedent::analysis::PropagationChain has private fields
 pub struct antecedent::analysis::PropagationClaim
 pub struct antecedent::analysis::PropagationClaim has private fields
 pub struct antecedent::analysis::PropagationDraws
@@ -13415,6 +13572,7 @@ pub struct antecedent::analysis::joint_panel::JointPanelContinuousSearch
 pub struct antecedent::analysis::joint_panel::JointPanelContinuousSearch has private fields
 pub struct antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest
 pub struct antecedent::analysis::joint_panel::JointPanelContinuousSearchResult
+pub struct antecedent::analysis::joint_panel::JointPanelContrast
 pub struct antecedent::analysis::joint_panel::JointPanelDesignAttempt
 pub struct antecedent::analysis::joint_panel::JointPanelExplanationAttempt
 pub struct antecedent::analysis::joint_panel::JointPanelExplanationAttempt has private fields
@@ -13484,6 +13642,8 @@ pub struct antecedent::analysis::observational_survival::ObservationalSurvivalSp
 pub struct antecedent::analysis::planning::PlannedExperiment
 pub struct antecedent::analysis::planning::PlanningPlan
 pub struct antecedent::analysis::planning::PlanningPlan has private fields
+pub struct antecedent::analysis::propagation_chain::PropagationChainPlan
+pub struct antecedent::analysis::propagation_chain::PropagationChainPlan has private fields
 pub struct antecedent::analysis::proposal_arrival::ArrivalArtifact
 pub struct antecedent::analysis::proposal_arrival::ArrivalPoint
 pub struct antecedent::analysis::proposal_arrival::ArrivalRequest
@@ -13652,6 +13812,8 @@ pub struct antecedent::planner::PhysicalExecutionPlan
 pub struct antecedent::planner::PhysicalExecutionPlan has private fields
 pub struct antecedent::planner::PlanView
 pub struct antecedent::planner::PlanView has private fields
+pub struct antecedent::planner::lowered::ChainProgram
+pub struct antecedent::planner::lowered::ChainProgram has private fields
 pub struct antecedent::planner::lowered::ClaimDemand
 pub struct antecedent::planner::lowered::ClaimDemand has private fields
 pub struct antecedent::planner::lowered::DecisionProgram
@@ -13706,6 +13868,8 @@ pub struct antecedent::planner::statistical::ResamplingPlan
 pub struct antecedent::planner::statistical::ResamplingPlan has private fields
 pub struct antecedent::planner::statistical::StatisticalProgram
 pub struct antecedent::planner::statistical::StatisticalProgram has private fields
+pub struct antecedent::report::ReportInput has private fields
+pub struct antecedent::report::ReportInput<'a>
 pub struct antecedent::result::InterferenceInference
 pub struct antecedent::result::InterferencePointwiseInterval
 pub struct antecedent::result::StructuralResponseAtom
@@ -15368,6 +15532,33 @@ pub use antecedent::analysis::propagate_mixture_exceedance = antecedent::analysi
 pub use antecedent::analysis::propagate_spread = antecedent::analysis::joint_law_propagation::propagate_spread
 pub use antecedent::analysis::propagate_transported_spread = antecedent::analysis::joint_law_propagation::propagate_transported_spread
 pub use antecedent::analysis::propagate_transported_spread_aligned = antecedent::analysis::joint_law_propagation::propagate_transported_spread_aligned
+pub use antecedent::analysis::propagation_chain::ChainChangeWire = antecedent_io::propagation_chain_record::ChainChangeWire
+pub use antecedent::analysis::propagation_chain::ChainCoefficientWire = antecedent_io::propagation_chain_record::ChainCoefficientWire
+pub use antecedent::analysis::propagation_chain::ChainFactorWire = antecedent_io::propagation_chain_record::ChainFactorWire
+pub use antecedent::analysis::propagation_chain::ChainOpWire = antecedent_io::propagation_chain_record::ChainOpWire
+pub use antecedent::analysis::propagation_chain::ChainPlan = antecedent_contract::propagation_chain::ChainPlan
+pub use antecedent::analysis::propagation_chain::ChainReading = antecedent_contract::propagation_chain::ChainReading
+pub use antecedent::analysis::propagation_chain::ChainRefusal = antecedent_contract::propagation_chain::ChainRefusal
+pub use antecedent::analysis::propagation_chain::ChainSourceWire = antecedent_io::propagation_chain_record::ChainSourceWire
+pub use antecedent::analysis::propagation_chain::ChainStageResultWire = antecedent_io::propagation_chain_record::ChainStageResultWire
+pub use antecedent::analysis::propagation_chain::ChainStageWire = antecedent_io::propagation_chain_record::ChainStageWire
+pub use antecedent::analysis::propagation_chain::ChainUnaryWire = antecedent_io::propagation_chain_record::ChainUnaryWire
+pub use antecedent::analysis::propagation_chain::ConsumedPropagationChain = antecedent_io::propagation_chain_record::ConsumedPropagationChain
+pub use antecedent::analysis::propagation_chain::LawMeaning = antecedent_contract::propagation_chain::LawMeaning
+pub use antecedent::analysis::propagation_chain::NEXT_ATTEMPTS = antecedent_contract::propagation_chain::NEXT_ATTEMPTS
+pub use antecedent::analysis::propagation_chain::PROPAGATION_CHAIN_SECTION = antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_SECTION
+pub use antecedent::analysis::propagation_chain::PropagationChain = antecedent::analysis::PropagationChain
+pub use antecedent::analysis::propagation_chain::PropagationChainError = antecedent_io::propagation_chain_record::PropagationChainError
+pub use antecedent::analysis::propagation_chain::PropagationChainRecordWire = antecedent_io::propagation_chain_record::PropagationChainRecordWire
+pub use antecedent::analysis::propagation_chain::STATUS_CURRENT = antecedent_io::propagation_chain_record::STATUS_CURRENT
+pub use antecedent::analysis::propagation_chain::STATUS_INVALIDATED = antecedent_io::propagation_chain_record::STATUS_INVALIDATED
+pub use antecedent::analysis::propagation_chain::STATUS_REWEIGHTED = antecedent_io::propagation_chain_record::STATUS_REWEIGHTED
+pub use antecedent::analysis::propagation_chain::SharedFactorKind = antecedent_contract::dependence::SharedFactorKind
+pub use antecedent::analysis::propagation_chain::StageKind = antecedent_contract::propagation_chain::StageKind
+pub use antecedent::analysis::propagation_chain::StagePlan = antecedent_contract::propagation_chain::StagePlan
+pub use antecedent::analysis::propagation_chain::TableConstruction = antecedent_contract::propagation_chain::TableConstruction
+pub use antecedent::analysis::propagation_chain::consume_propagation_chain = antecedent::analysis::consume_propagation_chain
+pub use antecedent::analysis::propagation_chain::independent_product_table = antecedent::analysis::independent_product_table
 pub use antecedent::analysis::provider_callbacks::CALLBACK_OUTPUT_PORT = antecedent_contract::callback_protocol::CALLBACK_OUTPUT_PORT
 pub use antecedent::analysis::provider_callbacks::CallbackConnectionError = antecedent::analysis::CallbackConnectionError
 pub use antecedent::analysis::provider_callbacks::CallbackDeclaration = antecedent_contract::callback_protocol::CallbackDeclaration
@@ -16092,11 +16283,8 @@ pub use antecedent::estimate::TransportEffectEstimate = antecedent_estimate::Tra
 pub use antecedent::estimate::TransportOverlapDiagnostic = antecedent_estimate::TransportOverlapDiagnostic
 pub use antecedent::estimate::TransportOverlapReport = antecedent_estimate::TransportOverlapReport
 pub use antecedent::estimate::TransportResponseGridEstimate = antecedent_estimate::TransportResponseGridEstimate
-pub use antecedent::estimate::estimate_interference = antecedent_estimate::estimate_interference
-pub use antecedent::estimate::evaluate_exact_transport = antecedent_estimate::evaluate_exact_transport
 pub use antecedent::estimate::own_treatment_level = antecedent_estimate::own_treatment_level
 pub use antecedent::estimate::transport_augmented_response_grid = antecedent_estimate::transport_augmented_response_grid
-pub use antecedent::estimate::trial_to_target_effect = antecedent_estimate::trial_to_target_effect
 pub use antecedent::estimate_derived_joint_cells = antecedent::analysis::api::estimate_derived_joint_cells
 pub use antecedent::estimate_joint_cell_cost = antecedent::analysis::api::estimate_joint_cell_cost
 pub use antecedent::estimate_with_rank_drop = antecedent::analysis::api::estimate_with_rank_drop
@@ -16261,9 +16449,6 @@ pub use antecedent::identify::identify_classical_transport = antecedent_identify
 pub use antecedent::identify::verify_classical_transport = antecedent_identify::verify_classical_transport
 pub use antecedent::identify::verify_s_hedge = antecedent_identify::sid::verify_s_hedge
 pub use antecedent::identify_api::Identification = antecedent::Identification
-pub use antecedent::identify_api::identify = antecedent::identify
-pub use antecedent::identify_dag = antecedent::identify_api::identify_dag
-pub use antecedent::identify_with = antecedent::identify_api::identify_with
 pub use antecedent::inference::BayesianConfig = antecedent::BayesianConfig
 pub use antecedent::inference::InferenceMode = antecedent::InferenceMode
 pub use antecedent::inference::PosteriorDrawControls = antecedent::PosteriorDrawControls
@@ -16422,8 +16607,6 @@ pub use antecedent::prelude::TransformIntent = antecedent_contract::TransformInt
 pub use antecedent::prelude::Value = antecedent_core::Value
 pub use antecedent::prelude::VariableId = antecedent_core::VariableId
 pub use antecedent::prelude::WithinTier = antecedent_graph::WithinTier
-pub use antecedent::prelude::identify = antecedent::identify
-pub use antecedent::prelude::identify_with = antecedent::identify_api::identify_with
 pub use antecedent::prepare_counterfactual_transport = antecedent::analysis::api::prepare_counterfactual_transport
 pub use antecedent::query::AnomalyAttributionQuery = antecedent_core::AnomalyAttributionQuery
 pub use antecedent::query::AssignmentDesign = antecedent_core::AssignmentDesign
@@ -16618,12 +16801,8 @@ pub use antecedent::strategy_table::IdentifierId = antecedent::IdentifierId
 pub use antecedent::strategy_table::StaticEstimateWorkspaces = antecedent::estimate::StaticEstimateWorkspaces
 pub use antecedent::strategy_table::estimand_compatible_with_estimator = antecedent::estimate::estimand_compatible_with_estimator
 pub use antecedent::strategy_table::estimate_provenance_step = antecedent::estimate::estimate_provenance_step
-pub use antecedent::strategy_table::estimate_static_effect = antecedent::estimate::estimate_static_effect
 pub use antecedent::strategy_table::identification_status_acceptable = antecedent::estimate::identification_status_acceptable
-pub use antecedent::strategy_table::identify_admg = antecedent::estimate::identify_admg
-pub use antecedent::strategy_table::identify_pag = antecedent::estimate::identify_pag
 pub use antecedent::strategy_table::identify_provenance_step = antecedent::estimate::identify_provenance_step
-pub use antecedent::strategy_table::identify_static = antecedent::estimate::identify_static
 pub use antecedent::strategy_table::identify_static_query = antecedent::estimate::identify_static_query
 pub use antecedent::strategy_table::identify_static_query_with_rd = antecedent::estimate::identify_static_query_with_rd
 pub use antecedent::strategy_table::require_identified = antecedent::estimate::require_identified
@@ -16727,7 +16906,7 @@ pub variant antecedent::ColumnPriority::Declared(alloc::vec::Vec<antecedent_core
 pub variant antecedent::CompileCause::Attribution(antecedent_attribution::error::AttributionError)
 pub variant antecedent::CompileCause::Counterfactual(antecedent_counterfactual::error::CounterfactualError)
 pub variant antecedent::CompileCause::Data(antecedent_data::error::DataError)
-pub variant antecedent::CompileCause::Decision(antecedent::analysis::DecisionCarrierError)
+pub variant antecedent::CompileCause::Decision(alloc::boxed::Box<antecedent::analysis::DecisionCarrierError>)
 pub variant antecedent::CompileCause::Discovery(antecedent_discovery::error::DiscoveryError)
 pub variant antecedent::CompileCause::Estimation(antecedent_estimate::error::EstimationError)
 pub variant antecedent::CompileCause::Graph(antecedent_graph::error::GraphError)
@@ -16773,12 +16952,14 @@ pub variant antecedent::EnumeratedStatus::UnreachableWithinSet
 pub variant antecedent::EstimatorId::Aipw
 pub variant antecedent::EstimatorId::BayesianBasisGcomp
 pub variant antecedent::EstimatorId::BayesianBinaryPolicyValue
+pub variant antecedent::EstimatorId::BayesianComplierEffect
 pub variant antecedent::EstimatorId::BayesianConditional
 pub variant antecedent::EstimatorId::BayesianDosePolicy
 pub variant antecedent::EstimatorId::BayesianGcomp
 pub variant antecedent::EstimatorId::BayesianIvJointLinear
 pub variant antecedent::EstimatorId::BayesianLocalRatio
 pub variant antecedent::EstimatorId::BayesianPanelDid
+pub variant antecedent::EstimatorId::BayesianPeriodHistoryOutcomeModel
 pub variant antecedent::EstimatorId::BayesianPiecewiseSurvival
 pub variant antecedent::EstimatorId::BayesianRandomizedFinitePopulation
 pub variant antecedent::EstimatorId::BayesianRandomizedQuantile
@@ -16812,6 +16993,7 @@ pub variant antecedent::EstimatorId::GcmFit
 pub variant antecedent::EstimatorId::GcmFitBayesian
 pub variant antecedent::EstimatorId::GlmAdjustment
 pub variant antecedent::EstimatorId::InterferenceBayesianGaussian
+pub variant antecedent::EstimatorId::InterferenceClusterBayesianBootstrap
 pub variant antecedent::EstimatorId::InterferenceClusterNeyman
 pub variant antecedent::EstimatorId::InterferenceHtHajek
 pub variant antecedent::EstimatorId::InterferenceObservationalIpw
@@ -17278,6 +17460,8 @@ pub variant antecedent::analysis::inverse_sources::ComposedSourceRefusal::Source
 pub variant antecedent::analysis::joint_law_composed_basis::Resolution::Calibrated { record_id: alloc::string::String }
 pub variant antecedent::analysis::joint_law_composed_basis::Resolution::NoRecord
 pub variant antecedent::analysis::joint_law_composed_basis::Resolution::NotAttesting { record_id: alloc::string::String, reason: alloc::string::String }
+pub variant antecedent::analysis::joint_panel::JointPanelContrastUncertainty::EstimatorSampling
+pub variant antecedent::analysis::joint_panel::JointPanelContrastUncertainty::Posterior
 pub variant antecedent::analysis::joint_panel::JointPanelDesignOutcome::Identified
 pub variant antecedent::analysis::joint_panel::JointPanelDesignOutcome::Rejected
 pub variant antecedent::analysis::joint_panel::JointPanelDesignOutcome::Unsupported
@@ -17388,6 +17572,9 @@ pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEnt
 pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal::RouteUndeclared
 pub variant antecedent::gcm::NestedOutcomeMechanism::LinearGaussian
 pub variant antecedent::gcm::NestedOutcomeMechanism::NonSeparableBasis
+pub variant antecedent::host::HostStatus::Partial
+pub variant antecedent::host::HostStatus::Supported
+pub variant antecedent::host::HostStatus::Unsupported
 pub variant antecedent::period_refresh::PeriodRefreshOutcome::Extended { contiguous: bool }
 pub variant antecedent::period_refresh::PeriodRefreshOutcome::Restarted { invalidated: alloc::vec::Vec<antecedent_estimate::temporal_refresh::WindowProduct> }
 pub variant antecedent::planner::PlanRoute::CodeterminedJoint
@@ -17420,6 +17607,7 @@ pub variant antecedent::planner::PlanRoute::PanelTemporalResponseDag
 pub variant antecedent::planner::PlanRoute::PathSpecificDag
 pub variant antecedent::planner::PlanRoute::Planning(&'static str)
 pub variant antecedent::planner::PlanRoute::PolicyValue
+pub variant antecedent::planner::PlanRoute::PropagationChain(&'static str)
 pub variant antecedent::planner::PlanRoute::RandomizedEffect
 pub variant antecedent::planner::PlanRoute::SequentialContrast
 pub variant antecedent::planner::PlanRoute::StaticAteCpdag
@@ -17450,6 +17638,7 @@ pub variant antecedent::planner::RouteFamily::DesignBased
 pub variant antecedent::planner::RouteFamily::Discovery
 pub variant antecedent::planner::RouteFamily::GraphPosterior
 pub variant antecedent::planner::RouteFamily::Planning
+pub variant antecedent::planner::RouteFamily::PropagationChain
 pub variant antecedent::planner::RouteFamily::StaticEffect
 pub variant antecedent::planner::RouteFamily::StaticResponse
 pub variant antecedent::planner::RouteFamily::Structural
@@ -17458,9 +17647,11 @@ pub variant antecedent::planner::lowered::CarrierDemand::Mean
 pub variant antecedent::planner::lowered::CarrierDemand::OutcomeLaw
 pub variant antecedent::planner::lowered::CarrierDemand::ParameterPosterior
 pub variant antecedent::planner::lowered::Composition::AtomMixture { atoms: usize }
+pub variant antecedent::planner::lowered::Composition::Chained { stages: usize }
 pub variant antecedent::planner::lowered::Composition::Pooled { sources: usize }
 pub variant antecedent::planner::lowered::Composition::Single
 pub variant antecedent::planner::lowered::Composition::Transported
+pub variant antecedent::planner::lowered::EvidenceRole::ChainSource
 pub variant antecedent::planner::lowered::EvidenceRole::DiscoveredStructure
 pub variant antecedent::planner::lowered::EvidenceRole::Observations
 pub variant antecedent::planner::lowered::EvidenceRole::PriorArtifact
@@ -17480,6 +17671,7 @@ pub variant antecedent::planner::lowered::FunctionalKind::InterventionalDistribu
 pub variant antecedent::planner::lowered::FunctionalKind::MechanismChange
 pub variant antecedent::planner::lowered::FunctionalKind::PathSpecific
 pub variant antecedent::planner::lowered::FunctionalKind::PolicyValue
+pub variant antecedent::planner::lowered::FunctionalKind::PropagatedChain
 pub variant antecedent::planner::lowered::FunctionalKind::RegimeValue
 pub variant antecedent::planner::lowered::FunctionalKind::ResponseDerivative
 pub variant antecedent::planner::lowered::FunctionalKind::Simulation
@@ -17532,3 +17724,5 @@ pub variant antecedent::planner::statistical::ResamplingMethod::BlockBootstrap
 pub variant antecedent::planner::statistical::ResamplingMethod::Bootstrap
 pub variant antecedent::planner::statistical::ResamplingMethod::Jackknife
 pub variant antecedent::planner::statistical::ResamplingMethod::Permutation
+pub variant antecedent::report::ReportFormat::Html
+pub variant antecedent::report::ReportFormat::Markdown

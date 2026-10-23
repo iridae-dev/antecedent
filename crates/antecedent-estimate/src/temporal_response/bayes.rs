@@ -9,6 +9,9 @@ use std::sync::Arc;
 use crate::error::EstimationError;
 use crate::serial_dependence::{DependenceScope, SerialDependence};
 use crate::temporal_adjustment::TemporalLinearAdjustment;
+use crate::white_innovation_posterior::{
+    WHITE_INNOVATION_NOTE_PREFIX, WhiteInnovationDeclaration, fit_white_innovation_posterior,
+};
 use antecedent_core::{
     CausalResponse, CredibleDraws, Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity,
     ExecutionContext, IdentificationStatus, Intervention, ResponseFunctional,
@@ -29,6 +32,10 @@ use super::{
     surface::TREATMENT_COL, surface::design_column_means, surface::flatten_dose_horizon_grid,
     surface::horizon_identification_of,
 };
+
+/// Support diagnostic id of the residual test behind an untempered temporal curve.
+pub(crate) const WHITE_INNOVATION_SUPPORT_DIAGNOSTIC: &str =
+    "response.temporal_bayesian.white_innovation";
 
 /// Why an ordinary or non-Gaussian likelihood is refused, and the attempt that would reach the
 /// same end-state.
@@ -117,6 +124,21 @@ impl TemporalResponseEstimator {
                 ));
             }
         };
+        // The untempered posterior is licensed at one step ahead only: an unfolded regression at
+        // horizon h >= 2 has moving-average residuals of order h - 1 whatever the innovation
+        // process, and horizons are separate fits that no single likelihood joins.
+        if self.white_innovation.is_some() && &*temporal.horizons != [1_u32].as_slice() {
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                "a declared white-innovation premise licenses the untempered posterior of a \
+                 temporal response at the single horizon of one step ahead only: an unfolded \
+                 regression at horizon h >= 2 has moving-average residuals of order h - 1 whatever \
+                 the innovation process, and separate horizons share no likelihood. Next attempt: \
+                 request horizon 1 alone, drop the declaration to use the tempered posterior, or \
+                 compose per-mechanism posteriors through the structural equations",
+            ));
+        }
+        let mut whiteness = None;
         let mut rows = Vec::new();
         let mut ranges = Vec::new();
         let mut horizons = Vec::new();
@@ -164,28 +186,45 @@ impl TemporalResponseEstimator {
             };
             let mut est = estimator.clone();
             est.seed = est.seed.wrapping_add(h as u64);
-            let mut bprep = crate::BayesianGComputationAte::from_prepared_estimation(&prep);
-            // Lag-aligned rows are time-ordered: at h ≥ 2 the unfolded regression omits the
-            // intermediate treatments and outcome innovations, so its residuals are MA(h−1)
-            // whenever the outcome or treatment is persistent, and serially dependent at every
-            // horizon under autocorrelated innovations. Each horizon's likelihood is tempered
-            // by the long-run-variance ratio of its grid-cell levels (floored at 1), the same
-            // generalized posterior as the Bayesian Pulse / Sustained cells.
-            bprep.serial_dependence = SerialDependence::LongRunTempering(DependenceScope::Levels(
-                grid.iter()
-                    .map(|&dose| {
-                        let mut direction = weights.clone();
-                        direction[TREATMENT_COL] = dose;
-                        Arc::from(direction)
-                    })
-                    .collect(),
-            ));
-            let posterior = est.fit(
-                &bprep,
-                identification_status,
-                &mut crate::BayesianGCompWorkspace::default(),
-                ctx,
-            )?;
+            let posterior = if let Some(gate) = self.white_innovation {
+                // Declared serially independent innovations: the lag-aligned residual is the
+                // innovation, the rows are independent Gaussian terms, and the likelihood is
+                // untempered. A Ljung-Box rejection refuses the fit and names the tempered
+                // posterior; a pass does not prove the premise.
+                let fit = fit_white_innovation_posterior(
+                    &est,
+                    &prep,
+                    &WhiteInnovationDeclaration { horizon_steps, gate },
+                    identification_status,
+                    ctx,
+                )?;
+                whiteness = Some(fit.whiteness);
+                fit.posterior
+            } else {
+                let mut bprep = crate::BayesianGComputationAte::from_prepared_estimation(&prep);
+                // Lag-aligned rows are time-ordered: at h ≥ 2 the unfolded regression omits the
+                // intermediate treatments and outcome innovations, so its residuals are MA(h−1)
+                // whenever the outcome or treatment is persistent, and serially dependent at
+                // every horizon under autocorrelated innovations. Each horizon's likelihood is
+                // tempered by the long-run-variance ratio of its grid-cell levels (floored at 1),
+                // the same generalized posterior as the Bayesian Pulse / Sustained cells.
+                bprep.serial_dependence =
+                    SerialDependence::LongRunTempering(DependenceScope::Levels(
+                        grid.iter()
+                            .map(|&dose| {
+                                let mut direction = weights.clone();
+                                direction[TREATMENT_COL] = dose;
+                                Arc::from(direction)
+                            })
+                            .collect(),
+                    ));
+                est.fit(
+                    &bprep,
+                    identification_status,
+                    &mut crate::BayesianGCompWorkspace::default(),
+                    ctx,
+                )?
+            };
             if h == 0 {
                 assumptions.entries.extend(
                     posterior
@@ -196,7 +235,9 @@ impl TemporalResponseEstimator {
                         .cloned(),
                 );
             }
-            tempering.push(HorizonTempering::from_notes(&posterior.diagnostics.notes));
+            if whiteness.is_none() {
+                tempering.push(HorizonTempering::from_notes(&posterior.diagnostics.notes));
+            }
             if intervention.is_some() {
                 levels.push(grid[0]);
             }
@@ -250,30 +291,53 @@ impl TemporalResponseEstimator {
                 mean_curve_support(&doses, temporal, &ranges),
             )
         };
+        let posterior_basis = if whiteness.is_some() {
+            "the posterior is the untempered full-likelihood posterior under the declared \
+             white-innovation premise (support diagnostic \
+             response.temporal_bayesian.white_innovation)"
+        } else {
+            "each horizon's posterior is the long-run-tempered generalized posterior (support \
+             diagnostic response.temporal_bayesian.tempering)"
+        };
         let simultaneous_detail = format!(
             "simultaneous CREDIBLE band: max studentized deviation of the posterior draws of the \
              whole grid around the posterior mean; doses at one horizon share each coefficient \
              draw, while horizons are separate fits whose independent draws are paired by index \
              (a product of per-horizon posteriors, not a joint horizon posterior). \
              {INDEPENDENT_DRAW_STATEMENT} Conditional on the observed adjustment distribution; \
-             each horizon's posterior is the long-run-tempered generalized posterior (support \
-             diagnostic response.temporal_bayesian.tempering)"
+             {posterior_basis}"
         );
         publish_simultaneous_band(&mut support, simultaneous, &simultaneous_detail);
-        support.diagnostics.push(SupportDiagnostic {
-            id: Arc::from(TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC),
-            values: Arc::from(tempering.iter().map(|t| t.kappa).collect::<Vec<_>>()),
-            detail: Arc::from(
-                "per-horizon likelihood tempering factor kappa (rows weighted 1/kappa): the \
-                 variance ratio of that horizon's driving grid-cell-level combination under a \
-                 REML-fitted autoregressive residual, scaled by the residual-scale and \
-                 delta-method spread factors, bounded by three times the prewhitened Newey-West \
-                 long-run-variance ratio of the driving score, floored at 1 and capped at \
-                 n/(p+2) (support diagnostics response.temporal_bayesian.tempering_capped / \
-                 _inestimable disclose which horizons hit either bound)",
-            ),
-            scope: DiagnosticScope::Global,
-        });
+        if let Some(report) = whiteness {
+            support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from(WHITE_INNOVATION_SUPPORT_DIAGNOSTIC),
+                values: Arc::from(vec![report.q_statistic, report.p_value]),
+                detail: Arc::from(format!(
+                    "{WHITE_INNOVATION_NOTE_PREFIX}: Ljung-Box Q and its p-value on {} residual \
+                     autocorrelations of {} rows; the test did not reject serially independent \
+                     innovations at level {}, and a pass does not prove the declared premise. The \
+                     likelihood is untempered, so the credible interval is the interval of a \
+                     correctly specified model only if the premise holds",
+                    report.lags, report.rows, report.level
+                )),
+                scope: DiagnosticScope::Global,
+            });
+        } else {
+            support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from(TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC),
+                values: Arc::from(tempering.iter().map(|t| t.kappa).collect::<Vec<_>>()),
+                detail: Arc::from(
+                    "per-horizon likelihood tempering factor kappa (rows weighted 1/kappa): the \
+                     variance ratio of that horizon's driving grid-cell-level combination under a \
+                     REML-fitted autoregressive residual, scaled by the residual-scale and \
+                     delta-method spread factors, bounded by three times the prewhitened Newey-West \
+                     long-run-variance ratio of the driving score, floored at 1 and capped at \
+                     n/(p+2) (support diagnostics response.temporal_bayesian.tempering_capped / \
+                     _inestimable disclose which horizons hit either bound)",
+                ),
+                scope: DiagnosticScope::Global,
+            });
+        }
         let capped_horizons: Vec<u32> = temporal
             .horizons
             .iter()
@@ -313,7 +377,10 @@ impl TemporalResponseEstimator {
             ));
         }
         assumptions.push(temporal_bayesian_product_posterior_assumption());
-        assumptions.push(temporal_bayesian_tempering_assumption(&temporal.horizons, &tempering));
+        if whiteness.is_none() {
+            assumptions
+                .push(temporal_bayesian_tempering_assumption(&temporal.horizons, &tempering));
+        }
         let band_draws = if intervention.is_some() {
             retained_response_draws(&band_columns, temporal.horizons.len())
         } else {

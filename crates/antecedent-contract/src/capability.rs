@@ -26,6 +26,9 @@ pub enum SemanticApplicability {
 }
 
 impl SemanticApplicability {
+    /// Every variant, in declaration order.
+    pub const ALL: [Self; 4] = [Self::Licensed, Self::Unlicensed, Self::Impossible, Self::Unknown];
+
     /// Stable `snake_case` name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -64,6 +67,18 @@ pub enum OperationReadiness {
 }
 
 impl OperationReadiness {
+    /// Every variant, in declaration order.
+    pub const ALL: [Self; 8] = [
+        Self::Executable,
+        Self::ReviewRequired,
+        Self::AssumptionMissing,
+        Self::EmpiricalCheckPending,
+        Self::EmpiricalSupportFailed,
+        Self::BindingMissing,
+        Self::RuntimeUnavailable,
+        Self::UnknownSupport,
+    ];
+
     /// Stable `snake_case` name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -99,6 +114,16 @@ pub enum OperationKind {
 }
 
 impl OperationKind {
+    /// Every variant, in declaration order.
+    pub const ALL: [Self; 6] = [
+        Self::Inspect,
+        Self::Prepare,
+        Self::Execute,
+        Self::Retarget,
+        Self::RankDesigns,
+        Self::Export,
+    ];
+
     /// Stable `snake_case` name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {

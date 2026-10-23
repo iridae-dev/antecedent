@@ -6,9 +6,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use antecedent::Study;
 use antecedent::design::{
     CandidateDesign, DesignCost, DesignEvaluationContext, DesignObjective, DesignRankConfig,
-    DesignRanker, MeasurementPlan, SamplingPlan, ScoreEvaluation, rank_designs,
+    DesignRanker, MeasurementPlan, SamplingPlan, ScoreEvaluation,
 };
 use antecedent::state::{
     CausalState, DataVersion, GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LgssmParams,
@@ -22,6 +23,11 @@ use antecedent_core::{
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use antecedent_state::DataBatchRef;
 use serde_json::Value;
+
+#[path = "fixtures_common/mod.rs"]
+mod common;
+
+use common::fixtures::confounded_scm;
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -77,9 +83,20 @@ fn rank_candidates_eig_conformance() {
         identified_under_intervention: None,
         graph_features: None,
     };
-    let ranking =
-        rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
-            .unwrap();
+    // Ranking runs through a prepared study's contract: it refuses an unlicensed or
+    // unprepared study and reports the candidates the objective cannot score.
+    let (data, dag, query) = confounded_scm(96, 11);
+    let prepared = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let ranking = prepared
+        .rank_designs(&ranker, &DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
+        .unwrap();
     assert_eq!(ranking.ranked.len(), 2);
     // Exactly scored objectives return the same value on every draw, so the ranker
     // takes one and reports one sample; only Monte Carlo rankings owe the minimum.

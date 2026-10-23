@@ -9,7 +9,7 @@ use crate::CausalIdentifyError;
 ///
 /// ``cells`` is a 2×4 nested list: one arm per instrument value ``Z∈{0,1}``,
 /// with cell order ``(Y,D)=(0,0),(1,0),(0,1),(1,1)``.
-#[pyfunction(name = "binary_iv_ate_bounds")]
+#[pyfunction(name = "_binary_iv_ate_bounds")]
 fn binary_iv_ate_bounds_py(cells: Vec<Vec<f64>>) -> PyResult<(f64, f64)> {
     if cells.len() != 2 || cells.iter().any(|arm| arm.len() != 4) {
         return Err(crate::value_err(

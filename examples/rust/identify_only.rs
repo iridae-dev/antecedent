@@ -16,9 +16,8 @@ pub fn run() -> Result<(), CausalError> {
         .continuous("z")
         .context()
         .build()?;
-    // Dummy data required by the builder; identify_only ignores rows.
-    // For Cpdag / Pag / temporal classes use `identify(&AcceptedGraph::from(graph), &query)` —
-    // that path takes no data.
+    // Dummy data required by the builder; identify_only ignores rows. Cpdag / Pag / temporal
+    // classes run through `Study::run`, which reports the identification beside the estimate.
     let data = TabularData::from_f64_columns([
         ("t", &[0.0_f64, 1.0][..]),
         ("y", &[0.0_f64, 1.0][..]),

@@ -15,7 +15,7 @@
 
 use super::super::bayesian_quasi_common::{
     DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior_as,
-    require_built_in_model, unread_option,
+    require_built_in_model, scalar_quantity, unread_option,
 };
 use super::{
     CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext,
@@ -36,10 +36,24 @@ const CREDIBLE_LEVEL: f64 = 0.95;
 /// same target as the design-based row.
 pub(in crate::analysis::execute) fn bayesian_randomized_estimator(
     selected: Option<EstimatorId>,
-    design: &RandomizationDesign,
+    query: &RandomizedEffectQuery,
 ) -> EstimatorId {
-    if matches!(design, RandomizationDesign::Switchback { .. }) {
+    if matches!(query.design, RandomizationDesign::Switchback { .. }) {
         return EstimatorId::BayesianSwitchback;
+    }
+    // A receipt-adjusted estimand runs the complier posterior unless another arm-contrast
+    // estimator was selected, which the arm admission then refuses naming this route.
+    if selected == Some(EstimatorId::BayesianComplierEffect)
+        || (is_complier_query(query)
+            && !matches!(
+                selected,
+                Some(
+                    EstimatorId::BayesianRandomizedFinitePopulation
+                        | EstimatorId::BayesianRandomizedSuperpopulation
+                )
+            ))
+    {
+        return EstimatorId::BayesianComplierEffect;
     }
     match selected {
         Some(EstimatorId::BayesianRandomizedSuperpopulation) => {
@@ -47,6 +61,56 @@ pub(in crate::analysis::execute) fn bayesian_randomized_estimator(
         }
         _ => EstimatorId::BayesianRandomizedFinitePopulation,
     }
+}
+
+/// Whether the query asks for a receipt-adjusted (complier or treated) effect.
+pub(super) fn is_complier_query(query: &RandomizedEffectQuery) -> bool {
+    query.estimand != antecedent_core::RandomizedEstimand::IntentionToTreat
+}
+
+const COMPLIER_ROUTE: &str = "the Bayesian complier effect";
+
+/// Whether the receipt-adjusted query and configuration can run under the complier posterior.
+pub(super) fn admit_complier(
+    query: &RandomizedEffectQuery,
+    config: &super::super::BayesianConfig,
+    selected: Option<EstimatorId>,
+) -> Result<(), CausalError> {
+    require_built_in_model(config, COMPLIER_ROUTE)?;
+    let next = "the design-based Wald complier effect under Frequentist inference";
+    if !matches!(selected, None | Some(EstimatorId::BayesianComplierEffect)) {
+        return Err(unread_option(
+            COMPLIER_ROUTE,
+            "an arm-contrast estimator selection for a receipt-adjusted effect",
+            "omit estimator= or select bayesian.complier_effect",
+        ));
+    }
+    if !matches!(query.design, RandomizationDesign::Bernoulli) || query.received_treatment.is_none()
+    {
+        return Err(unread_option(
+            COMPLIER_ROUTE,
+            "an assignment design other than Bernoulli encouragement with observed receipt",
+            next,
+        ));
+    }
+    if query.fixed_cuped.is_some()
+        || !query.ancova_covariates.is_empty()
+        || query.exact_randomization_test
+    {
+        return Err(unread_option(
+            COMPLIER_ROUTE,
+            "CUPED, ANCOVA or the exact randomization test",
+            next,
+        ));
+    }
+    if config.n_draws < 2 {
+        return Err(unread_option(
+            COMPLIER_ROUTE,
+            "fewer than two posterior draws",
+            "at least two draws",
+        ));
+    }
+    Ok(())
 }
 
 /// Whether the query and configuration can run, and the declared arm model when they can.
@@ -280,6 +344,11 @@ fn arm_design_posterior(
 impl super::CheckedRandomizedOperation {
     /// Whether the compiled plan selected the superpopulation posterior.
     fn selected_estimator(&self) -> EstimatorId {
+        if self.physical.logical.record.estimator.as_deref()
+            == Some(EstimatorId::BayesianComplierEffect.as_str())
+        {
+            return EstimatorId::BayesianComplierEffect;
+        }
         let superpopulation = self.physical.logical.record.estimator.as_deref()
             == Some(EstimatorId::BayesianRandomizedSuperpopulation.as_str());
         if superpopulation {
@@ -293,13 +362,16 @@ impl super::CheckedRandomizedOperation {
     pub(super) fn execute_bayesian(
         &self,
         data: &TabularData,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let InferenceMode::Bayesian(config) = &self.result_context.inference else {
             return Err(CausalError::unsupported_inference(
                 "Bayesian randomized execution requires Bayesian inference",
             ));
         };
+        if is_complier_query(&self.query) {
+            return self.execute_bayesian_complier(data, config, ctx);
+        }
         if matches!(self.query.design, RandomizationDesign::Switchback { .. }) {
             return self.execute_bayesian_switchback(data, config);
         }
@@ -348,6 +420,103 @@ impl super::CheckedRandomizedOperation {
             },
             fit,
             super::super::Strategy::new(IdentifierId::RandomizedDesign, estimator),
+        )
+    }
+}
+
+impl super::CheckedRandomizedOperation {
+    /// Bayesian-bootstrap posterior of the complier (or treated-on-treated) effect.
+    fn execute_bayesian_complier(
+        &self,
+        data: &TabularData,
+        config: &super::super::BayesianConfig,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        admit_complier(&self.query, config, Some(EstimatorId::BayesianComplierEffect))?;
+        if data.storage().weights().is_some() {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::sampling_weights::unsupported_route(
+                    "the Bayesian complier posterior reads no sampling weights. Next attempt: \
+                     the design-based Wald complier effect, which reads them",
+                ),
+            ));
+        }
+        let outcomes = complete_outcomes(data, self.query.outcome)?;
+        let Some(received) = self.query.received_treatment.as_ref() else {
+            return Err(CausalError::Compile {
+                message: "the complier posterior requires the received-treatment column".into(),
+            });
+        };
+        let started = Instant::now();
+        let options = antecedent_estimate::score_posterior::ScorePosteriorOptions {
+            draws: config.n_draws,
+            coverage: CREDIBLE_LEVEL,
+        };
+        let fit = antecedent_estimate::complier_posterior::bayesian_complier_effect(
+            &outcomes,
+            &self.query.realized_assignment,
+            received,
+            &self.query.assignment_probabilities,
+            options,
+            ctx,
+        )
+        .map_err(CausalError::from)?;
+        let name = match self.query.estimand {
+            antecedent_core::RandomizedEstimand::TreatmentOnTreated => "treated_on_treated_effect",
+            _ => "complier_effect",
+        };
+        let posterior = DesignPosterior {
+            columns: vec![
+                (effect_quantity(name), fit.complier.draws.clone()),
+                (scalar_quantity("intention_to_treat_effect"), fit.intention_to_treat.draws.clone()),
+                (scalar_quantity("first_stage_effect"), fit.first_stage.draws.clone()),
+            ],
+            point: fit.complier.posterior_mean,
+            point_sd: fit.complier.standard_deviation,
+            n_obs: outcomes.len() as u64,
+            interval_withheld: false,
+            backend: "bayesian_bootstrap.known_encouragement_wald",
+            model: "Bayesian-bootstrap posterior of the Wald ratio of the assignment-on-outcome and assignment-on-receipt score means under known Bernoulli encouragement".to_owned(),
+            assumptions: vec![
+                (
+                    "bayesian_bootstrap_known_encouragement",
+                    "the subject law has a vanishing-concentration Dirichlet-process prior; the declared assignment probabilities, not the prior, identify the two score means"
+                        .to_owned(),
+                ),
+                (
+                    "complier_exclusion_monotonicity",
+                    "assignment affects the outcome only through receipt and never discourages receipt; declared, not tested"
+                        .to_owned(),
+                ),
+            ],
+            diagnostics: vec![Diagnostic::new(
+                "estimate.randomized.bayesian_complier_effect.unlicensed",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "unlicensed and uncalibrated Bayesian route: every first-stage draw is positive (smallest {:.4}) so the ratio posterior is proper; a first stage reaching zero is refused, never published as a ratio",
+                    fit.first_stage.draws.iter().copied().fold(f64::INFINITY, f64::min)
+                ),
+            )],
+            notes: vec![format!("draws={} interval=equal_tailed_95", config.n_draws)],
+            sampler: None,
+        };
+        finish_design_posterior_as(
+            DesignFinish {
+                context: &self.result_context,
+                data,
+                physical: &self.physical,
+                identification: &self.identification,
+                estimand: &self.estimand,
+                outcome: self.query.outcome,
+                config,
+                started,
+            },
+            posterior,
+            super::super::Strategy::new(
+                IdentifierId::RandomizedDesign,
+                EstimatorId::BayesianComplierEffect,
+            ),
         )
     }
 }

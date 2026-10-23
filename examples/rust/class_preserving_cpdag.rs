@@ -41,21 +41,13 @@ fn node(schema: &CausalSchema, name: &str) -> Result<DenseNodeId, CausalError> {
 pub fn run() -> Result<(), CausalError> {
     let (t, y, z) = confounded(200);
     let schema = schema()?;
-    let data = TabularData::try_from_schema_f64(
-        schema.clone(),
-        [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
-    )?;
+    let columns = || [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())];
+    let data = TabularData::try_from_schema_f64(schema.clone(), columns())?;
+    let data_oriented = TabularData::try_from_schema_f64(schema.clone(), columns())?;
     let query = AverageEffectQuery::binary_ate(schema.id_of("t")?, schema.id_of("y")?);
 
     let mut partial = Cpdag::from_named_edges(&schema, &[("z", "y"), ("t", "y")])?;
     partial.insert_undirected(node(&schema, "z")?, node(&schema, "t")?)?;
-    let identified = identify(
-        &AcceptedGraph::from(partial.clone()),
-        &CausalQuery::AverageEffect(query.clone()),
-    )?;
-    println!("partial status = {:?}", identified.status());
-    assert_eq!(format!("{:?}", identified.status()), "PartiallyIdentified");
-
     let result = Study::tabular(data)
         .graph(partial)
         .query(query.clone())
@@ -63,15 +55,23 @@ pub fn run() -> Result<(), CausalError> {
         .bootstrap_replicates(0)
         .build()?
         .run(&ExecutionContext::for_tests(1))?;
+    println!("partial status = {:?}", result.identification.status);
     println!("partial effect = {:.4}", result.effect());
     // The two completions disagree: Z -> T adjusts for Z (effect 2), T -> Z is the crude
     // contrast (2 + 3 * (E[z | t=1] - E[z | t=0]) = 3.5). Equal weights give their mean.
     assert!((result.effect() - 2.75).abs() < 1e-6, "envelope mean {}", result.effect());
 
     let oriented = Cpdag::from_named_edges(&schema, &[("z", "t"), ("z", "y"), ("t", "y")])?;
-    let point = identify(&AcceptedGraph::from(oriented), &CausalQuery::AverageEffect(query))?;
-    println!("oriented status = {:?}", point.status());
-    assert_eq!(format!("{:?}", point.status()), "NonparametricallyIdentified");
+    let point = Study::tabular(data_oriented)
+        .graph(oriented)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()?
+        .run(&ExecutionContext::for_tests(1))?;
+    println!("oriented status = {:?}", point.identification.status);
+    // A fully oriented CPDAG adjusts for Z: the effect is the structural 2.
+    assert!((point.effect() - 2.0).abs() < 1e-6, "oriented effect {}", point.effect());
     Ok(())
 }
 

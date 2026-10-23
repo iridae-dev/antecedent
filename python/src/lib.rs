@@ -130,6 +130,7 @@ mod prepared_options;
 mod prior_bank;
 mod prior_signal_api;
 mod program_claims_api;
+mod propagation_chain_api;
 mod proposal_arrival_api;
 mod provider_api;
 mod quasi_api;
@@ -1601,6 +1602,10 @@ pub(crate) struct EstimateSection {
     family_contrast: Option<(f64, f64)>,
     #[pyo3(get)]
     family_contrast_interval: Option<(f64, f64, f64)>,
+    /// `(posterior mean, standard deviation, (lower, upper), draws)` of the family contrast;
+    /// draw `d` of every family member shares one row-weight vector.
+    #[pyo3(get)]
+    family_contrast_posterior: Option<(f64, f64, (f64, f64), Vec<f64>)>,
     #[pyo3(get)]
     candidate_selection: Option<CandidateSelectionSection>,
     #[pyo3(get)]
@@ -1932,6 +1937,14 @@ pub(crate) fn shared_study_sections(
         adjusted_p_values: estimate.family.adjusted_p_values,
         family_contrast: estimate.family.contrast,
         family_contrast_interval: estimate.family.contrast_interval,
+        family_contrast_posterior: estimate.family.contrast_posterior.as_ref().map(|posterior| {
+            (
+                posterior.posterior_mean,
+                posterior.standard_deviation,
+                posterior.interval,
+                posterior.draws.clone(),
+            )
+        }),
         candidate_selection: estimate
             .family
             .candidate_selection

@@ -3,7 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, InterferenceFunctional, InterferenceQuery,
+    EXPOSURE_LEVEL_TOLERANCE, ExecutionContext, ExposureLevel, InterferenceFunctional,
+    InterferenceQuery,
 };
 use antecedent_data::{NetworkData, TableView};
 use antecedent_prob::{LaplaceWorkspace, sample_gaussian_mvn};
@@ -14,6 +15,9 @@ use antecedent_stats::{
 use std::collections::BTreeMap;
 
 use crate::EstimationError;
+use crate::score_posterior::{
+    ScorePosterior, ScorePosteriorOptions, bayesian_bootstrap_score_posteriors, summarize,
+};
 
 /// Closed exposure match at [`EXPOSURE_LEVEL_TOLERANCE`] (`1e-12`).
 ///
@@ -420,6 +424,76 @@ pub(crate) fn estimate_cluster_interference_total_pointwise(
         "cluster total-effect interval requires eight independent clusters in each arm and positive cluster variation",
     ))?;
     Ok((estimate, interval))
+}
+
+/// Cluster-level Bayesian-bootstrap posterior of the total-effect contrast under complete
+/// cluster randomization.
+///
+/// The clusters are the units of inference and carry a Dirichlet-process prior of vanishing
+/// concentration, so one Dirichlet(1, ..., 1) weight vector over all clusters restricted to an
+/// arm is that arm's Dirichlet posterior. Each draw is the contrast of the two arms'
+/// weighted means of the scaled cluster totals, on the same totals as
+/// [`estimate_cluster_interference_total`]. The declared complete cluster allocation identifies
+/// the contrast; the prior on the cluster law does not. All design refusals of the
+/// design-based estimator apply, and the posterior carries no calibration.
+///
+/// # Errors
+/// Every refusal of [`estimate_cluster_interference_total`], and the option refusals of
+/// [`bayesian_bootstrap_score_posteriors`].
+pub fn estimate_cluster_interference_bayesian_bootstrap(
+    query: &InterferenceQuery,
+    data: &NetworkData,
+    assignment: &[bool],
+    options: ScorePosteriorOptions,
+    ctx: &ExecutionContext,
+) -> Result<(InterferenceEstimate, ScorePosterior), EstimationError> {
+    // Validates the design, the neighborhoods and the arm sizes, and gives the point estimate.
+    let estimate = estimate_cluster_interference_total(query, data, assignment)?;
+    let antecedent_core::AssignmentDesign::ClusterRandomization { clusters, .. } =
+        &query.assignment
+    else {
+        return Err(EstimationError::unsupported(
+            "cluster total-effect posterior requires cluster randomization",
+        ));
+    };
+    let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, from, .. } =
+        query.functional;
+    let outcomes = data.units().float64_values(outcome)?;
+    let mut by_cluster: BTreeMap<u32, (bool, f64)> = BTreeMap::new();
+    for ((&cluster, &assigned), value) in clusters.iter().zip(assignment).zip(outcomes) {
+        by_cluster.entry(cluster).or_insert((assigned, 0.0)).1 += value;
+    }
+    let scale = by_cluster.len() as f64 / assignment.len() as f64;
+    let (mut treated_total, mut treated_flag) = (Vec::new(), Vec::new());
+    let (mut control_total, mut control_flag) = (Vec::new(), Vec::new());
+    for &(assigned, total) in by_cluster.values() {
+        let (t, c) = if assigned { (1.0, 0.0) } else { (0.0, 1.0) };
+        treated_total.push(t * total * scale);
+        treated_flag.push(t);
+        control_total.push(c * total * scale);
+        control_flag.push(c);
+    }
+    let direction = if from == (ExposureLevel { own: 0.0, neighbors: 0.0 }) { 1.0 } else { -1.0 };
+    let posteriors = bayesian_bootstrap_score_posteriors(
+        &[&treated_total, &treated_flag, &control_total, &control_flag],
+        options,
+        ctx,
+    )?;
+    let [treated, treated_mass, control, control_mass] = posteriors.as_slice() else {
+        return Err(EstimationError::stats_msg("cluster posterior lost a score column"));
+    };
+    let draws = (0..options.draws)
+        .map(|k| {
+            direction
+                * (treated.draws[k] / treated_mass.draws[k]
+                    - control.draws[k] / control_mass.draws[k])
+        })
+        .collect::<Vec<_>>();
+    if draws.iter().any(|draw| !draw.is_finite()) {
+        return Err(EstimationError::stats_msg("cluster posterior produced a non-finite draw"));
+    }
+    let posterior = summarize(draws, estimate.contrast.horvitz_thompson, options.coverage);
+    Ok((estimate, posterior))
 }
 
 /// Convenience exposure level for an own-treatment contrast on an empty network.

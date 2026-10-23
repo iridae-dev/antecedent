@@ -6,15 +6,19 @@
 
 mod dispatch;
 mod ids;
+#[cfg(test)]
+mod workspace_tests;
 
 pub use dispatch::{
     StaticEstimateInput, StaticEstimateWorkspaces, attach_static_bootstrap,
-    estimate_provenance_step, estimate_static_effect, identify_admg, identify_admg_query,
-    identify_cpdag, identify_cpdag_response, identify_pag, identify_pag_response,
-    identify_provenance_step, identify_static, identify_static_query,
+    estimate_provenance_step, identify_admg_query, identify_cpdag, identify_cpdag_response,
+    identify_pag_response, identify_provenance_step, identify_static_query,
     identify_static_query_with_rd, identify_temporal_cpdag, identify_temporal_cpdag_configured,
     identify_temporal_pag, identify_temporal_pag_configured,
 };
+// The raw static estimate and identification entries run without a lowered program or a
+// contract; only the compiled paths inside the crate reach them.
+pub(crate) use dispatch::{estimate_static_effect, identify_admg, identify_pag, identify_static};
 pub use ids::{
     DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_CONDITIONAL_ESTIMATOR_ID,
     DEFAULT_CONDITIONAL_IDENTIFIER_ID, DEFAULT_DISTRIBUTION_ESTIMATOR_ID,

@@ -401,6 +401,7 @@ for _name in (
     "replace_snapshot",
     "mechanism_sensitivity",
     "plan_view",
+    "report",
     "identification",
     "plan",
 ):

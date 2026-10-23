@@ -15,6 +15,9 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn query(functional: SurvivalFunctional) -> SurvivalQuery {
     SurvivalQuery {
         duration: VariableId::from_raw(0),
@@ -288,6 +291,12 @@ fn licensed_survival_scalar_intervals_round_trip_and_refuse_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "licensed_survival_scalar_intervals_round",
+        &prepared,
+        &result,
+        &ctx,
+    );
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [120, 120]);
@@ -656,6 +665,12 @@ fn licensed_delayed_entry_survival_intervals_round_trip_and_refuse_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "licensed_delayed_entry_survival_interval",
+        &prepared,
+        &result,
+        &ctx,
+    );
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [170, 170]);
@@ -737,6 +752,12 @@ fn licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "licensed_fixed_g_ipcw_survival_intervals",
+        &prepared,
+        &result,
+        &ctx,
+    );
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [170, 170]);
@@ -837,6 +858,12 @@ fn licensed_delayed_entry_fixed_g_survival_intervals_round_trip_and_refuse_forge
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "licensed_delayed_entry_fixed_g_survival_",
+        &prepared,
+        &result,
+        &ctx,
+    );
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [210, 210]);
@@ -898,6 +925,12 @@ fn licensed_survival_difference_band_round_trips_and_refuses_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "licensed_survival_difference_band_round_",
+        &prepared,
+        &result,
+        &ctx,
+    );
     // Only 100 subjects per arm: the scalar row needs 120, so the scalar route
     // is off-axis while the band's own 80-per-arm license applies.
     assert!(result.support_status.is_none());
@@ -980,6 +1013,12 @@ fn licensed_competing_incidence_band_round_trips_and_refuses_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "licensed_competing_incidence_band_round_",
+        &prepared,
+        &result,
+        &ctx,
+    );
     // Cumulative incidence never carries the scalar RMST+horizon license.
     assert!(result.support_status.is_none());
     let curve = result.survival().unwrap();

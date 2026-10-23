@@ -13,9 +13,8 @@ use std::sync::Arc;
 
 use common::lagged_ols::{Eval, lagged_ols_level};
 
-use antecedent::{
-    BayesianConfig, ClassPrior, InferenceMode, PreparedStudy, RefuteSuite, Study, identify,
-};
+use antecedent::identify_api::identify;
+use antecedent::{BayesianConfig, ClassPrior, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
     Assumption, AssumptionSet, CausalQuery, CausalSchemaBuilder, ContinuousDomain,
     ExecutionContext, GridSpec, IdentificationStatus, Intervention, InterventionSequence, Lag,

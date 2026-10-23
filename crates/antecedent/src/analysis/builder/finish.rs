@@ -704,6 +704,7 @@ fn refuse_randomized_effect_mismatch(
             Some(
                 EstimatorId::BayesianRandomizedFinitePopulation
                     | EstimatorId::BayesianRandomizedSuperpopulation
+                    | EstimatorId::BayesianComplierEffect
             )
         );
         let selected_switchback = estimator == Some(EstimatorId::BayesianSwitchback);
@@ -844,7 +845,10 @@ fn refuse_history_contrast_mismatch(
     query: &CausalQuery,
     estimator: Option<EstimatorId>,
 ) -> Result<(), CausalError> {
-    let history_estimator = estimator == Some(EstimatorId::PeriodHistoryMatching);
+    let history_estimator = matches!(
+        estimator,
+        Some(EstimatorId::PeriodHistoryMatching | EstimatorId::BayesianPeriodHistoryOutcomeModel)
+    );
     if matches!(query, CausalQuery::HistoryMatch(_)) != history_estimator
         && (history_estimator || estimator.is_some())
     {
@@ -922,6 +926,7 @@ fn apply_design_contract(
     }
     if matches!(query, CausalQuery::HistoryMatch(_))
         && matches!(carry.inference, InferenceMode::Bayesian(_))
+        && carry.estimator != Some(EstimatorId::BayesianPeriodHistoryOutcomeModel)
     {
         // A matching rule has no likelihood: the typed boundary names the premise and the
         // next attempt instead of a mislabelled interval.
@@ -941,6 +946,7 @@ fn apply_design_contract(
             | CausalQuery::Survival(_)
             | CausalQuery::ContinuousDoseResponse(_)
             | CausalQuery::TemporalDesign(_)
+            | CausalQuery::HistoryMatch(_)
     );
     if !matches!(carry.inference, InferenceMode::Frequentist) && !bayesian_design {
         return Err(CausalError::Unsupported {
@@ -991,8 +997,10 @@ fn apply_design_contract(
                     | EstimatorId::SequentialCrossfitContrastWald
                     | EstimatorId::BayesianSequentialCrossfitContrast
                     | EstimatorId::PeriodHistoryMatching
+                    | EstimatorId::BayesianPeriodHistoryOutcomeModel
                     | EstimatorId::BayesianRandomizedFinitePopulation
                     | EstimatorId::BayesianRandomizedSuperpopulation
+                    | EstimatorId::BayesianComplierEffect
                     | EstimatorId::BayesianSwitchback
                     | EstimatorId::TemporalDesignExcursion
                     | EstimatorId::BayesianTemporalDesignExcursion

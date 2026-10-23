@@ -293,6 +293,10 @@ class EstimateView(ResultModel):
     adjusted_p_values: tuple[float, float] | None = None
     family_contrast: tuple[float, float] | None = None
     family_contrast_interval: tuple[float, float, float] | None = None
+    #: ``(posterior mean, standard deviation, (lower, upper), draws)`` of the family
+    #: contrast when the batch requested it; draw ``d`` of every member is one joint
+    #: realization of the shared row weights.
+    family_contrast_posterior: tuple[float, float, tuple[float, float], list[float]] | None = None
     candidate_selection: Any = None
     evalue: float | None = None
     #: Threshold the ``sensitivity.evalue`` refuter judged :attr:`evalue` against.

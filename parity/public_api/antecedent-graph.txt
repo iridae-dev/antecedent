@@ -72,6 +72,7 @@ impl core::clone::Clone for antecedent_graph::TemporalPagReview
 impl core::clone::Clone for antecedent_graph::TieredBackground
 impl core::clone::Clone for antecedent_graph::UnfoldedTemporalGraph
 impl core::clone::Clone for antecedent_graph::UnfoldedTemporalPag
+impl core::clone::Clone for antecedent_graph::UnrolledTemporalAdmg
 impl core::clone::Clone for antecedent_graph::WithinTier
 impl core::clone::Clone for antecedent_graph::bipartite::BSeparation
 impl core::clone::Clone for antecedent_graph::bipartite::BipartiteCausalGraph
@@ -210,6 +211,7 @@ impl core::fmt::Debug for antecedent_graph::TemporalPagReview
 impl core::fmt::Debug for antecedent_graph::TieredBackground
 impl core::fmt::Debug for antecedent_graph::UnfoldedTemporalGraph
 impl core::fmt::Debug for antecedent_graph::UnfoldedTemporalPag
+impl core::fmt::Debug for antecedent_graph::UnrolledTemporalAdmg
 impl core::fmt::Debug for antecedent_graph::WithinTier
 impl core::fmt::Debug for antecedent_graph::bipartite::BSeparation
 impl core::fmt::Debug for antecedent_graph::bipartite::BipartiteCausalGraph
@@ -294,6 +296,7 @@ impl core::marker::Freeze for antecedent_graph::TemporalPagCompletionSampler [au
 impl core::marker::Freeze for antecedent_graph::TemporalPagReview [auto]
 impl core::marker::Freeze for antecedent_graph::TieredBackground [auto]
 impl core::marker::Freeze for antecedent_graph::UnfoldedTemporalGraph [auto]
+impl core::marker::Freeze for antecedent_graph::UnrolledTemporalAdmg [auto]
 impl core::marker::Freeze for antecedent_graph::WithinTier [auto]
 impl core::marker::Freeze for antecedent_graph::bipartite::BSeparation [auto]
 impl core::marker::Freeze for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
@@ -352,6 +355,7 @@ impl core::marker::Send for antecedent_graph::TemporalPagReview [auto]
 impl core::marker::Send for antecedent_graph::TieredBackground [auto]
 impl core::marker::Send for antecedent_graph::UnfoldedTemporalGraph [auto]
 impl core::marker::Send for antecedent_graph::UnfoldedTemporalPag [auto]
+impl core::marker::Send for antecedent_graph::UnrolledTemporalAdmg [auto]
 impl core::marker::Send for antecedent_graph::WithinTier [auto]
 impl core::marker::Send for antecedent_graph::bipartite::BSeparation [auto]
 impl core::marker::Send for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
@@ -441,6 +445,7 @@ impl core::marker::Sync for antecedent_graph::TemporalPagReview [auto]
 impl core::marker::Sync for antecedent_graph::TieredBackground [auto]
 impl core::marker::Sync for antecedent_graph::UnfoldedTemporalGraph [auto]
 impl core::marker::Sync for antecedent_graph::UnfoldedTemporalPag [auto]
+impl core::marker::Sync for antecedent_graph::UnrolledTemporalAdmg [auto]
 impl core::marker::Sync for antecedent_graph::WithinTier [auto]
 impl core::marker::Sync for antecedent_graph::bipartite::BSeparation [auto]
 impl core::marker::Sync for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
@@ -499,6 +504,7 @@ impl core::marker::Unpin for antecedent_graph::TemporalPagReview [auto]
 impl core::marker::Unpin for antecedent_graph::TieredBackground [auto]
 impl core::marker::Unpin for antecedent_graph::UnfoldedTemporalGraph [auto]
 impl core::marker::Unpin for antecedent_graph::UnfoldedTemporalPag [auto]
+impl core::marker::Unpin for antecedent_graph::UnrolledTemporalAdmg [auto]
 impl core::marker::Unpin for antecedent_graph::WithinTier [auto]
 impl core::marker::Unpin for antecedent_graph::bipartite::BSeparation [auto]
 impl core::marker::Unpin for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
@@ -557,6 +563,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalPagRe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TieredBackground [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::UnfoldedTemporalGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::UnfoldedTemporalPag [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::UnrolledTemporalAdmg [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::WithinTier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::bipartite::BSeparation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
@@ -615,6 +622,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalPagRevie
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TieredBackground [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::UnfoldedTemporalGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::UnfoldedTemporalPag [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::UnrolledTemporalAdmg [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::WithinTier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::bipartite::BSeparation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
@@ -996,6 +1004,7 @@ pub fn <antecedent_graph::TemporalAdmg>::fn nodes(&self) -> &[antecedent_core::n
 pub fn <antecedent_graph::TemporalAdmg>::fn parents(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
 pub fn <antecedent_graph::TemporalAdmg>::fn project_preserving_functional(&self) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalAdmg>::fn temporal_key(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_core::temporal::TemporalNodeKey>
+pub fn <antecedent_graph::TemporalAdmg>::fn unroll_window(&self, periods: u32) -> core::result::Result<antecedent_graph::UnrolledTemporalAdmg, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalCpdag>::fn add_context(&mut self, variable: antecedent_core::ids::VariableId, environment: core::option::Option<antecedent_core::ids::EnvironmentId>) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalCpdag>::fn add_lagged(&mut self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalCpdag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
@@ -1101,6 +1110,11 @@ pub fn <antecedent_graph::TieredBackground>::fn tier_of(&self, id: antecedent_co
 pub fn <antecedent_graph::TieredBackground>::fn to_admg(&self, schema: &antecedent_core::schema::CausalSchema) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TieredBackground>::fn to_pag(&self, schema: &antecedent_core::schema::CausalSchema) -> core::result::Result<antecedent_graph::Pag, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TieredBackground>::fn unknown_canonical_sets(&self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> core::result::Result<[alloc::sync::Arc<[antecedent_core::ids::VariableId]>; 2], antecedent_graph::GraphError>
+pub fn <antecedent_graph::UnrolledTemporalAdmg>::const fn periods(&self) -> u32
+pub fn <antecedent_graph::UnrolledTemporalAdmg>::fn admg(&self) -> &antecedent_graph::Admg
+pub fn <antecedent_graph::UnrolledTemporalAdmg>::fn coordinate(&self, variable: antecedent_core::ids::VariableId, period: u32) -> core::option::Option<antecedent_core::ids::VariableId>
+pub fn <antecedent_graph::UnrolledTemporalAdmg>::fn locate(&self, coordinate: antecedent_core::ids::VariableId) -> core::option::Option<(antecedent_core::ids::VariableId, u32)>
+pub fn <antecedent_graph::UnrolledTemporalAdmg>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_graph::bipartite::BipartiteCausalGraph>::fn acyclification(&self) -> &antecedent_graph::Dag
 pub fn <antecedent_graph::bipartite::BipartiteCausalGraph>::fn b_separates(&self, x: usize, y: usize, conditioning: &[usize]) -> core::result::Result<antecedent_graph::bipartite::BSeparation, antecedent_graph::GraphError>
 pub fn <antecedent_graph::bipartite::BipartiteCausalGraph>::fn equation_clusters(&self) -> &[usize]
@@ -1218,6 +1232,8 @@ pub struct antecedent_graph::TemporalPagReview
 pub struct antecedent_graph::TieredBackground
 pub struct antecedent_graph::UnfoldedTemporalGraph
 pub struct antecedent_graph::UnfoldedTemporalPag
+pub struct antecedent_graph::UnrolledTemporalAdmg
+pub struct antecedent_graph::UnrolledTemporalAdmg has private fields
 pub struct antecedent_graph::bipartite::BSeparation
 pub struct antecedent_graph::bipartite::BipartiteCausalGraph
 pub struct antecedent_graph::bipartite::BipartiteCausalGraph has private fields
@@ -1273,6 +1289,7 @@ pub use antecedent_graph::sigma_separation::sigma_separates = antecedent_graph::
 pub use antecedent_graph::sigma_walk_oracle = antecedent_graph::sigma_separation::sigma_walk_oracle
 pub use antecedent_graph::temporal::TemporalDag = antecedent_graph::TemporalDag
 pub use antecedent_graph::temporal_admg::TemporalAdmg = antecedent_graph::TemporalAdmg
+pub use antecedent_graph::temporal_admg::UnrolledTemporalAdmg = antecedent_graph::UnrolledTemporalAdmg
 pub use antecedent_graph::temporal_cpdag_completion::TemporalCpdagCompletion = antecedent_graph::TemporalCpdagCompletion
 pub use antecedent_graph::temporal_cpdag_completion::TemporalCpdagCompletionSampler = antecedent_graph::TemporalCpdagCompletionSampler
 pub use antecedent_graph::temporal_pag::TemporalPag = antecedent_graph::TemporalPag

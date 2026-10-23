@@ -84,7 +84,7 @@ pub use sigma_separation::{
     sigma_walk_oracle,
 };
 pub use temporal::TemporalDag;
-pub use temporal_admg::TemporalAdmg;
+pub use temporal_admg::{TemporalAdmg, UnrolledTemporalAdmg};
 pub use temporal_cpdag_completion::{TemporalCpdagCompletion, TemporalCpdagCompletionSampler};
 pub use temporal_pag::{TemporalPag, TemporalPagReview};
 pub use temporal_pag_completion::{TemporalPagCompletion, TemporalPagCompletionSampler};

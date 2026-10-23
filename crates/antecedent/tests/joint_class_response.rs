@@ -67,7 +67,8 @@ fn data() -> TabularData {
 fn joint_certificate_and_estimate_cover_both_targets() {
     let (dag, cpdag, pag) = graphs();
     for graph in [AcceptedGraph::from(dag), AcceptedGraph::from(cpdag), AcceptedGraph::from(pag)] {
-        let identification = antecedent::identify(&graph, &CausalQuery::Response(query())).unwrap();
+        let identification =
+            antecedent::identify_api::identify(&graph, &CausalQuery::Response(query())).unwrap();
         assert!(identification.is_identified());
         assert_eq!(
             identification.estimands()[0].adjustment_set.as_ref(),
@@ -130,8 +131,11 @@ fn hidden_confounding_of_second_target_is_not_hidden_by_first_target() {
     ] {
         pag.insert_marked(edge).unwrap();
     }
-    let identified =
-        antecedent::identify(&AcceptedGraph::from(pag), &CausalQuery::Response(query())).unwrap();
+    let identified = antecedent::identify_api::identify(
+        &AcceptedGraph::from(pag),
+        &CausalQuery::Response(query()),
+    )
+    .unwrap();
     assert!(!identified.is_identified());
 }
 

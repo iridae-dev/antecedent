@@ -33,6 +33,7 @@ pub mod matching;
 pub mod measurement_error;
 pub mod observation;
 pub mod power;
+pub mod propagation_chain;
 pub use cox_ipcw::{CoxBreslowFit, CoxIpcwFit, cox_breslow, cox_ipcw};
 pub mod propensity;
 pub mod quantile;
@@ -132,6 +133,12 @@ pub use observation::{
     GaussianObservation, KaplanMeierIpcw, ObservationProbabilityFit, censoring_tail_restriction,
     fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,
     selected_outcome_pseudo_values,
+};
+pub use propagation_chain::{
+    ChainError, Coefficient, ColumnSummary, Combine, Decision, Enclosure, Evaluated, PoolOutcome,
+    Preposterior, PreposteriorOutcome, StageOp, StageSpec, UnaryFn, decide, evaluate_columns,
+    evaluate_enclosures, independent_product_table, preposterior, summarize, validate_spec,
+    weights_from_log,
 };
 pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,

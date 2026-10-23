@@ -13,6 +13,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub(crate) mod chain;
 pub(crate) mod cyclic;
 mod decision;
 mod design_based;

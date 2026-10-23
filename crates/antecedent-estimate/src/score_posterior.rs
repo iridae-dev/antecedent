@@ -112,7 +112,7 @@ pub fn bayesian_bootstrap_score_posteriors(
         .collect())
 }
 
-fn summarize(draws: Vec<f64>, score_mean: f64, coverage: f64) -> ScorePosterior {
+pub(crate) fn summarize(draws: Vec<f64>, score_mean: f64, coverage: f64) -> ScorePosterior {
     let mut sorted = draws.clone();
     sorted.sort_by(f64::total_cmp);
     let interval = antecedent_stats::equal_tail_interval_sorted(

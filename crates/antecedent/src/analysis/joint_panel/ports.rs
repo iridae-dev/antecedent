@@ -563,3 +563,117 @@ impl JointPanelResult {
         )
     }
 }
+
+/// Meaning of the draws behind a scheduled-program contrast interval.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JointPanelContrastUncertainty {
+    /// Local group-cluster sandwich approximation of the fitted-parameter sampling law.
+    EstimatorSampling,
+    /// Posterior of the fitted mean functional under the stated likelihood and priors.
+    Posterior,
+}
+
+/// The one scalar the target's contrast assembles from the jointly fitted worlds.
+///
+/// Every world is evaluated on the same parameter draw, so the cross-world covariance is
+/// carried by the draws and nothing is recovered by subtracting marginal intervals. The
+/// value is conditional on the fitted mechanism; it grants no causal license.
+#[derive(Clone, Debug, PartialEq)]
+pub struct JointPanelContrast {
+    /// Contrast of the fitted point responses.
+    pub point: f64,
+    /// One contrast per shared draw slot; a failed or nonfinite slot stays `None`.
+    pub draws: Vec<Option<f64>>,
+    /// Standard deviation of the complete aligned draws.
+    pub standard_error: Option<f64>,
+    /// Equal-tailed interval at `level`, withheld when any slot failed or the fit
+    /// diagnostics do not authorize a complete uncertainty law.
+    pub interval: Option<(f64, f64)>,
+    /// Nominal interval level.
+    pub level: f64,
+    /// What the draws mean.
+    pub uncertainty: JointPanelContrastUncertainty,
+}
+
+impl JointPanelResult {
+    /// Assemble the target's contrast of scheduled programs under one prespecified time
+    /// functional, with its shared-draw uncertainty.
+    ///
+    /// # Errors
+    /// The target is not a contrast, a contrast term names a world the request lacks, the
+    /// level is outside `(0, 1)`, or the response functional does not fit every program.
+    pub fn scheduled_contrast(
+        &self,
+        functional: &JointPanelResponseFunctional,
+        level: f64,
+    ) -> Result<JointPanelContrast, JointPanelError> {
+        use antecedent_stats::quantile::{QuantileRule, equal_tail_interval_sorted};
+        if !(level > 0.0 && level < 1.0) {
+            return Err(JointPanelError::compile("contrast interval level must lie in (0, 1)"));
+        }
+        let antecedent_core::TargetForm::Contrast(contrast) = self.request().target.form() else {
+            return Err(JointPanelError::compile(
+                "a scheduled contrast needs a contrast target; this target keeps its worlds separate",
+            ));
+        };
+        let terms = contrast.terms();
+        let worlds = &self.request().worlds;
+        let coefficients = worlds
+            .iter()
+            .map(|world| {
+                terms
+                    .iter()
+                    .filter(|term| term.world == world.world)
+                    .map(|term| term.coefficient)
+                    .sum::<f64>()
+            })
+            .collect::<Vec<_>>();
+        if terms.iter().any(|term| worlds.iter().all(|world| world.world != term.world)) {
+            return Err(JointPanelError::compile(
+                "a contrast term names a world that has no program in the request",
+            ));
+        }
+        let (_, weights) = self.projection(functional)?;
+        let assemble = |rows: &[PanelResponse]| -> Result<f64, JointPanelError> {
+            Ok(self
+                .project_rows(rows, &weights)?
+                .iter()
+                .zip(&coefficients)
+                .map(|(value, coefficient)| value * coefficient)
+                .sum())
+        };
+        let point = assemble(&self.point)?;
+        let draws = self
+            .draws
+            .iter()
+            .map(|slot| {
+                slot.as_deref()
+                    .map(&assemble)
+                    .transpose()
+                    .map(|value| value.filter(|value| value.is_finite()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let bayes =
+            matches!(self.request().options.inference, engine::PanelInference::Bayesian { .. });
+        let uncertainty = if bayes {
+            JointPanelContrastUncertainty::Posterior
+        } else {
+            JointPanelContrastUncertainty::EstimatorSampling
+        };
+        let complete = draws.iter().copied().collect::<Option<Vec<f64>>>();
+        let authorized = self.law_semantic().is_ok();
+        let (standard_error, interval) = match complete {
+            Some(mut values) if authorized && values.len() > 1 => {
+                let n = values.len() as f64;
+                let mean = values.iter().sum::<f64>() / n;
+                let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
+                values.sort_by(f64::total_cmp);
+                let rule =
+                    if bayes { QuantileRule::ExchangeableRank } else { QuantileRule::Interpolated };
+                (Some(variance.sqrt()), Some(equal_tail_interval_sorted(&values, level, rule)))
+            }
+            _ => (None, None),
+        };
+        Ok(JointPanelContrast { point, draws, standard_error, interval, level, uncertainty })
+    }
+}

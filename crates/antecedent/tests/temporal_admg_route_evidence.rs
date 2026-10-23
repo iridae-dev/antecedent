@@ -688,6 +688,125 @@ fn temporal_admg_transport_explicit() {
     }
 }
 
+/// One series of `n` consecutive times. Treatment is held in runs of 25 and the outcome noise is
+/// AR(0.9), so the per-row influence of the trial-to-target contrast is strongly serially
+/// dependent. The trial indicator is an independent coin per row, and the supplied selection and
+/// treatment probabilities are the true 0.5.
+#[allow(clippy::cast_precision_loss, reason = "a uniform draw from the top 53 bits of a word")]
+fn dependent_transport_series(n: usize) -> TabularData {
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+    let mut uniform = move || {
+        state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        ((state >> 11) as f64 + 0.5) / (1_u64 << 53) as f64
+    };
+    let (mut a, mut y, mut trial) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut arm, mut noise) = (0.0_f64, 0.0_f64);
+    for row in 0..n {
+        if row % 25 == 0 {
+            arm = if uniform() < 0.5 { 1.0 } else { 0.0 };
+        }
+        let normal =
+            (-2.0 * uniform().ln()).sqrt() * (2.0 * std::f64::consts::PI * uniform()).cos();
+        noise = 0.9 * noise + (1.0_f64 - 0.81).sqrt() * normal;
+        a.push(arm);
+        y.push(arm + noise);
+        trial.push(if uniform() < 0.5 { 1.0 } else { 0.0 });
+    }
+    let half = vec![0.5; n];
+    TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("y", y.as_slice()),
+        ("trial", trial.as_slice()),
+        ("s", half.as_slice()),
+        ("e", half.as_slice()),
+    ])
+    .unwrap()
+}
+
+fn transport_study(
+    data: &TabularData,
+    graph: impl antecedent::IntoGraphInput,
+    bayesian: bool,
+) -> antecedent::StudyResult {
+    let response = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(Arc::from([0.0, 1.0])),
+        ),
+    });
+    let query = antecedent_core::TransportQuery::new(
+        response,
+        "trial",
+        "target",
+        [VariableId::from_raw(0)],
+    );
+    Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Transport(query))
+        .selection_targets(Arc::from([]))
+        .transport_trial(TransportTrialSpec {
+            trial: VariableId::from_raw(2),
+            selection_probability: VariableId::from_raw(3),
+            treatment_probability: VariableId::from_raw(4),
+        })
+        .inference(if bayesian {
+            InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(2_000))
+        } else {
+            InferenceMode::Frequentist
+        })
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(11_019))
+        .unwrap()
+}
+
+/// A temporal transport reports an interval that respects the serial dependence of its rows: the
+/// frequentist standard error is the Newey-West long-run variance of the per-row influence at
+/// the series block length, and the Bayesian interval is the posterior of one Dirichlet weight
+/// per circular block. Both are wider than the same rows read as independent, which a static
+/// ADMG does. Both are unlicensed with calibration unmeasured.
+#[test]
+fn temporal_admg_transport_reports_a_serial_dependence_aware_interval() {
+    let data = dependent_transport_series(1000);
+    let mut admg = Admg::with_variables(5);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let temporal = lift(&admg);
+
+    let series = transport_study(&data, temporal.clone(), false);
+    let rows = transport_study(&data, admg.clone(), false);
+    let series_effect = series.estimate.as_effect().expect("a temporal transport effect");
+    let rows_effect = rows.estimate.as_effect().expect("a static transport effect");
+    assert!(matches!(
+        series_effect.uncertainty.analytic.kind,
+        Some(antecedent_estimate::AnalyticSeKind::NeweyWest { lag: 10 })
+    ));
+    assert!(
+        (series_effect.ate - rows_effect.ate).abs() < 1e-12,
+        "the point estimate is the same contrast"
+    );
+    let (series_se, rows_se) =
+        (series_effect.uncertainty.analytic.se, rows_effect.uncertainty.analytic.se);
+    assert!(series_se.is_finite() && rows_se.is_finite() && rows_se > 0.0);
+    assert!(series_se > 1.3 * rows_se, "Newey-West {series_se} vs independent rows {rows_se}");
+
+    let series_posterior = transport_study(&data, temporal, true);
+    let rows_posterior = transport_study(&data, admg, true);
+    let sd = |result: &antecedent::StudyResult| {
+        let posterior = result.posterior.as_ref().expect("a transport posterior");
+        let column = posterior.effect_column().expect("the transported effect");
+        posterior.summaries.sd[column]
+    };
+    assert!(
+        sd(&series_posterior) > 1.3 * sd(&rows_posterior),
+        "block posterior {} vs row posterior {}",
+        sd(&series_posterior),
+        sd(&rows_posterior)
+    );
+}
+
 #[test]
 fn repeated_variable_temporal_admg_is_refused() {
     let mut graph = TemporalAdmg::empty();
@@ -709,6 +828,37 @@ fn repeated_variable_temporal_admg_is_refused() {
         text.contains("projection") || text.contains("variable") || text.contains("Compile"),
         "{text}"
     );
+}
+
+#[test]
+fn temporal_admg_temporal_contrasts_are_typed_boundaries() {
+    // A pulse, sustained or temporal conditional contrast on a TemporalAdmg is closed in every
+    // structure and inference coordinate, while the contemporaneous projection is licensed.
+    for query in ["PulseEffect", "SustainedEffect", "TemporalConditionalPulse"] {
+        for structure in ["explicit", "accepted"] {
+            for inference in ["Frequentist", "Bayesian"] {
+                let status = antecedent::support::classify(
+                    SupportCell::from_labels(query, "TemporalAdmg", structure, inference, "none")
+                        .expect("support axis"),
+                );
+                assert!(
+                    matches!(status, CellStatus::Refused),
+                    "{query}:{structure}:{inference} must stay a typed refusal: {status:?}"
+                );
+            }
+        }
+    }
+    let projection = antecedent::support::classify(
+        SupportCell::from_labels("AverageEffect", "TemporalAdmg", "explicit", "Bayesian", "none")
+            .expect("support axis"),
+    );
+    assert!(matches!(projection, CellStatus::Licensed), "{projection:?}");
+    // The same contrast on a graph with no latent confounding over time is licensed.
+    let on_temporal_dag = antecedent::support::classify(
+        SupportCell::from_labels("PulseEffect", "TemporalDag", "explicit", "Frequentist", "none")
+            .expect("support axis"),
+    );
+    assert!(matches!(on_temporal_dag, CellStatus::Licensed), "{on_temporal_dag:?}");
 }
 
 #[test]

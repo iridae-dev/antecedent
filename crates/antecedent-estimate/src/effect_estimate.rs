@@ -301,6 +301,11 @@ pub struct FamilyInference {
     /// by [`Self::simultaneous_interval`]. `None` when no contrast was declared
     /// or contrast max-t could not form.
     pub contrast_interval: Option<(f64, f64, f64)>,
+    /// Bayesian-bootstrap posterior of [`Self::contrast`]'s functional, requested by the
+    /// batch. Every member of the family shares each draw's row weights, so draw `d` of
+    /// every member is one joint posterior realization of the whole family. Conditional on
+    /// the frozen cross-fit nuisances; native retention only.
+    pub contrast_posterior: Option<crate::score_posterior::ScorePosterior>,
     /// Candidate-selection screen recorded on a batch family (artifact payload).
     pub candidate_selection: Option<CandidateSelectionRecord>,
 }

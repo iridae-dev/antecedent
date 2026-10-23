@@ -11,6 +11,9 @@ use antecedent_core::{CausalQuery, LongitudinalRegimeQuery, VariableId};
 use antecedent_data::TabularData;
 use std::sync::Arc;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn query() -> LongitudinalRegimeQuery {
     LongitudinalRegimeQuery {
         outcome: VariableId::from_raw(0),
@@ -570,6 +573,12 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
         Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "two_period_sequential_dr_graphless_licen",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
@@ -625,6 +634,12 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "fixed_known_q_g_formula_graphless_licens",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.longitudinal_regime().unwrap();
     assert_eq!(&*fit.method, "g_formula");
     assert!(fit.value_interval_95.is_some());
@@ -697,6 +712,12 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "additive_msm_graphless_license_round_tri",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.period_intervals_95.as_ref().unwrap().len(), 2);
@@ -765,6 +786,12 @@ fn three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_hori
         .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "three_period_sequential_dr_interval_roun",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));

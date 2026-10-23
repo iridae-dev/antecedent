@@ -80,6 +80,68 @@ fn actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes()
     experiment_chain::exercise(&prepared, &result, &ctx);
 }
 
+/// Interaction cells in request order: joint, A only, B only, reference.
+fn terminal_interaction(row: &[antecedent_estimate::joint_panel::PanelResponse]) -> f64 {
+    let last = |index: usize| *row[index].means.last().unwrap();
+    last(3) - last(1) - last(2) + last(0)
+}
+
+#[test]
+fn scheduled_contrast_is_assembled_on_every_shared_draw_for_both_inferences() {
+    use antecedent::analysis::joint_panel::{
+        JointPanelContrastUncertainty, JointPanelResponseFunctional,
+    };
+    let ctx = cached_context(20_261_021);
+    for (inference, uncertainty) in [
+        (
+            PanelInference::Frequentist { draws: 100 },
+            JointPanelContrastUncertainty::EstimatorSampling,
+        ),
+        (
+            PanelInference::Bayesian {
+                prior: PanelPrior::default(),
+                sampler: fixture::posterior_sampling(),
+            },
+            JointPanelContrastUncertainty::Posterior,
+        ),
+    ] {
+        let data = fixture::source(false);
+        let request = fixture::request(&data, false, inference);
+        let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+        let result = prepared.estimate(&ctx).unwrap();
+        let contrast =
+            result.scheduled_contrast(&JointPanelResponseFunctional::TerminalMean, 0.95).unwrap();
+        assert_eq!(contrast.uncertainty, uncertainty);
+        assert!((contrast.point - terminal_interaction(&result.point)).abs() < 1e-12);
+        assert_eq!(contrast.draws.len(), result.draws.len());
+        // One contrast per shared parameter draw: never a difference of marginal intervals.
+        for (value, row) in contrast.draws.iter().zip(&result.draws) {
+            match (value, row) {
+                (Some(value), Some(row)) => {
+                    assert!((value - terminal_interaction(row)).abs() < 1e-12);
+                }
+                (None, _) => {}
+                (Some(_), None) => panic!("a failed slot cannot carry a contrast"),
+            }
+        }
+        if let Some((low, high)) = contrast.interval {
+            assert!(low <= high && contrast.standard_error.unwrap() >= 0.0);
+        }
+        // A window outside the actual programs is refused, not clipped.
+        assert!(
+            result
+                .scheduled_contrast(
+                    &JointPanelResponseFunctional::WindowAverage { from: 0, until: 10_000 },
+                    0.95,
+                )
+                .is_err()
+        );
+        assert!(
+            result.scheduled_contrast(&JointPanelResponseFunctional::TerminalMean, 1.5).is_err()
+        );
+    }
+}
+
 #[test]
 fn confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism() {
     let ctx = cached_context(20_261_021);

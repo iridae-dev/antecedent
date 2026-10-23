@@ -6,31 +6,41 @@
 //! treated units, conditional on the period and the history-mean score. The standard error is the
 //! Abadie-Imbens form for one match with replacement; no interval is reported, the route is
 //! unlicensed and its calibration is unmeasured. A posterior of this contrast does not exist (a
-//! matching rule has no likelihood): Bayesian inference is refused with that premise and the next
-//! attempt.
+//! matching rule has no likelihood): Bayesian inference with the matching estimator is refused
+//! with that premise and the next attempt. That next attempt is the estimator
+//! `bayesian.period_history_outcome_model`: the posterior of a declared Gaussian outcome model
+//! with period effects, the history-mean score and a treatment-by-score interaction centred at
+//! the treated mean, reported as the model-based effect on the treated units (a different
+//! estimand, with no donor pairing). It is unlicensed and uncalibrated as well.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::bayesian_quasi_common::{
+    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior_as,
+    require_built_in_model,
+};
 use super::{
-    Arc, CausalError, CausalExprArena, CausalQuery, DerivationMeta, DerivationTrace, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate, EstimatorId, ExecutionContext,
-    ExprNode, GraphClass, IdentificationPerformanceRecord, IdentificationResult,
-    IdentifiedEstimand, IdentifiedExecuteFinish, IdentifierId, InferenceMode, OutcomeExprId,
-    OverlapPolicy, PhysicalExecutionPlan, RandomizedTrialOperation, RandomizedTrialQuery,
-    RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData,
-    finish_identified_execute_with_context,
+    Arc, BayesianGCompWorkspace, CausalError, CausalExprArena, CausalQuery, DerivationMeta,
+    DerivationTrace, Diagnostic, DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate,
+    EstimatorId, ExecutionContext, ExprNode, GraphClass, IdentificationPerformanceRecord,
+    IdentificationResult, IdentifiedEstimand, IdentifiedExecuteFinish, IdentifierId, InferenceMode,
+    OutcomeExprId, OverlapPolicy, PhysicalExecutionPlan, RandomizedTrialOperation,
+    RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData,
+    bayesian_gcomp, finish_identified_execute_with_context, resolve_bayesian_prior_with_conflict,
 };
 use crate::analysis::matching_posterior_refusal::{MatchingSetting, matching_posterior_refusal};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 use antecedent_estimate::history_match::{HistoryUnit, PeriodHistoryContrast};
+use antecedent_estimate::history_outcome_model::prepare_history_outcome_model;
 
 /// Uncertainty label of the history-matched contrast.
 const UNCERTAINTY: &str = "abadie_imbens_standard_error_calibration_unmeasured_no_interval";
 
-/// Frozen history match; it holds no Bayesian configuration because it has no posterior.
+/// Frozen history match. The extra is the Bayesian configuration of the outcome-model estimator;
+/// the matching contrast itself has no posterior and holds none.
 pub(crate) type CheckedHistoryMatchOperation =
-    RandomizedTrialOperation<antecedent_core::HistoryMatchQuery, ()>;
+    RandomizedTrialOperation<antecedent_core::HistoryMatchQuery, Option<super::BayesianConfig>>;
 
 impl RandomizedTrialQuery for antecedent_core::HistoryMatchQuery {
     const OPERATION: &'static str = "CheckedHistoryMatchOperation";
@@ -57,9 +67,19 @@ impl CheckedHistoryMatchOperation {
             });
         };
         query.validate()?;
-        if matches!(study.inference, InferenceMode::Bayesian(_)) {
-            return Err(matching_posterior_refusal(MatchingSetting::WithinPeriodHistory));
-        }
+        let bayesian = match &study.inference {
+            InferenceMode::Frequentist => None,
+            InferenceMode::Bayesian(config) => {
+                if !physical.binding().names(
+                    IdentifierId::RandomizedDesign,
+                    EstimatorId::BayesianPeriodHistoryOutcomeModel,
+                ) {
+                    return Err(matching_posterior_refusal(MatchingSetting::WithinPeriodHistory));
+                }
+                require_built_in_model(config, "the Bayesian history outcome model")?;
+                Some(config.clone())
+            }
+        };
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || study.refute != RefuteSuite::None
@@ -75,17 +95,20 @@ impl CheckedHistoryMatchOperation {
         for id in history_columns(query) {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
+        let estimator_id = if bayesian.is_some() {
+            EstimatorId::BayesianPeriodHistoryOutcomeModel
+        } else {
+            EstimatorId::PeriodHistoryMatching
+        };
         if physical.logical.query != study.query
-            || !physical
-                .binding()
-                .names(IdentifierId::RandomizedDesign, EstimatorId::PeriodHistoryMatching)
+            || !physical.binding().names(IdentifierId::RandomizedDesign, estimator_id)
         {
             return Err(CausalError::Compile {
                 message: "history match query differs from compiled plan".into(),
             });
         }
         let (identification, estimand) = match_identification(query);
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
     pub(crate) fn execute(
@@ -96,6 +119,9 @@ impl CheckedHistoryMatchOperation {
         self.begin_execute(data, ctx)?;
         let columns = MatchColumns::read(&self.query, data)?;
         let units = columns.units()?;
+        if let Some(config) = &self.extra {
+            return self.execute_outcome_model(config, data, &units, ctx);
+        }
         let estimate = PeriodHistoryContrast::try_new(self.query.caliper)
             .map_err(CausalError::from)?
             .contrast(&units)
@@ -160,6 +186,106 @@ impl CheckedHistoryMatchOperation {
             uncertainty: Arc::from(UNCERTAINTY),
         });
         Ok(result)
+    }
+}
+
+impl CheckedHistoryMatchOperation {
+    /// The posterior of the declared outcome model, reported as the model-based effect on the
+    /// treated units of the periods that hold both arms.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fit: prepare the design, fit, summarize the effect draws, then assemble the result"
+    )]
+    fn execute_outcome_model(
+        &self,
+        config: &super::BayesianConfig,
+        data: &TabularData,
+        units: &[HistoryUnit],
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = std::time::Instant::now();
+        let problem = prepare_history_outcome_model(units).map_err(CausalError::from)?;
+        let mut fitter = bayesian_gcomp(config, ctx);
+        let (prior, _) =
+            resolve_bayesian_prior_with_conflict(config, &problem.prepared, Some(ctx))?;
+        fitter.prior = prior;
+        let mut workspace = BayesianGCompWorkspace::default();
+        let posterior = fitter
+            .fit(&problem.prepared, self.identification.status, &mut workspace, ctx)
+            .map_err(CausalError::from)?;
+        let column = posterior.effect_column().ok_or(CausalError::Compile {
+            message: "the history outcome model produced no effect column".into(),
+        })?;
+        let draws = posterior.draws.column(column).map_err(CausalError::from)?.to_vec();
+        let count = draws.len() as f64;
+        let mean = draws.iter().sum::<f64>() / count;
+        let sd = (draws.iter().map(|draw| (draw - mean).powi(2)).sum::<f64>()
+            / (count - 1.0).max(1.0))
+        .sqrt();
+        let design = DesignPosterior {
+            columns: vec![(effect_quantity("effect_on_treated"), draws)],
+            point: mean,
+            point_sd: sd,
+            n_obs: problem.rows as u64,
+            interval_withheld: false,
+            backend: "bayesian.conjugate_gaussian.period_history_outcome_model",
+            model: format!(
+                "Gaussian outcome model with {} calendar-period effects, the history-mean score \
+                 and a treatment-by-score interaction centred at the treated mean, fitted to {} \
+                 units; the reported effect is the model-based contrast over the {} treated units, \
+                 not a matching estimand",
+                problem.periods, problem.rows, problem.treated_rows
+            ),
+            assumptions: vec![
+                (
+                    "bayesian.period_history_outcome_model.linear_gaussian",
+                    "the outcome is linear in the history-mean score within a period, with a \
+                     common treatment effect shift across periods and homoskedastic Gaussian \
+                     residuals independent across units; the history mean carrying the \
+                     confounding is the caller's assumption"
+                        .to_string(),
+                ),
+                (
+                    "bayesian.period_history_outcome_model.model_based_effect_on_treated",
+                    "the reported effect is the model's contrast averaged over the treated \
+                     units of the periods that hold both arms; it is a different estimand from \
+                     the history-matched contrast and its interval is unlicensed with calibration \
+                     unmeasured"
+                        .to_string(),
+                ),
+            ],
+            diagnostics: vec![Diagnostic::new(
+                "estimate.history_outcome_model.unused_treated",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "{} treated units sit in a period without a control and are not used",
+                    problem.unused_treated.len()
+                ),
+            )],
+            notes: vec![format!(
+                "periods={} rows={} treated_rows={}",
+                problem.periods, problem.rows, problem.treated_rows
+            )],
+            sampler: None,
+        };
+        finish_design_posterior_as(
+            DesignFinish {
+                context: &self.result_context,
+                data,
+                physical: &self.physical,
+                identification: &self.identification,
+                estimand: &self.estimand,
+                outcome: self.query.outcome,
+                config,
+                started,
+            },
+            design,
+            Strategy::new(
+                IdentifierId::RandomizedDesign,
+                EstimatorId::BayesianPeriodHistoryOutcomeModel,
+            ),
+        )
     }
 }
 

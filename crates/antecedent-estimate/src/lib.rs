@@ -38,6 +38,7 @@ pub mod categorical_treatment_posterior;
 pub mod causal_forest;
 pub mod cell_aipw;
 pub mod cohort_linear_effect;
+pub mod complier_posterior;
 pub mod conditional;
 pub mod constraint_likelihood;
 pub mod continuous_dose;
@@ -76,6 +77,7 @@ pub mod gaussian_linear_posterior;
 pub mod gcomp;
 pub mod glm_adjustment;
 pub mod history_match;
+pub mod history_outcome_model;
 pub mod ou_mechanisms;
 pub mod polynomial_scm;
 pub mod population_aipw;
@@ -308,8 +310,9 @@ pub use identified_set::{
 };
 pub use interference::{
     BayesianInterferenceEstimate, ClusterTotalInterval, InterferenceEstimate,
-    estimate_cluster_interference_total, estimate_cluster_interference_total_with_inference,
-    estimate_interference, estimate_interference_bayesian, own_treatment_level,
+    estimate_cluster_interference_bayesian_bootstrap, estimate_cluster_interference_total,
+    estimate_cluster_interference_total_with_inference, estimate_interference,
+    estimate_interference_bayesian, own_treatment_level,
 };
 pub use interference_observational::{
     ObservationalExposureEstimate, ObservationalExposureSpec, estimate_observational_exposure,

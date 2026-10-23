@@ -2,6 +2,13 @@
 
 This direct estimator is not a licensed ``analyze`` workflow. Its design
 assumptions are stated in each result and must be justified by the caller.
+
+The estimate is compiled, not computed beside the compiler: independent Bernoulli
+assignment of two factors with known row probabilities is exactly independent
+assignment among the four cells with product probabilities, so ``estimate`` builds
+a multi-arm randomized-effect study over the cells, runs it through ``analyze``
+(``Study.compile`` and the retained checked route), and reads the cell means and
+variance contributions from the executed result.
 """
 
 from __future__ import annotations
@@ -13,7 +20,6 @@ from typing import Any
 import numpy as np
 
 from ._data import as_columns
-from ._native import estimate_factorial_2x2 as _estimate_factorial_2x2
 from .errors import CausalTypeError, CausalValueError
 
 
@@ -88,7 +94,8 @@ def estimate(
     the difference-in-differences ``mu11 - mu10 - mu01 + mu00``. Every cell must
     have observed rows, and every row must have strictly positive probability
     of assignment to all four cells. This remains a point utility outside the
-    support matrix.
+    support matrix: the retained route publishes cell means and variance
+    contributions, and the factorial contrasts below are formed from them.
     """
 
     if not isinstance(design, FactorialDesign):
@@ -102,17 +109,59 @@ def estimate(
     a = _assignment(factor_a, n, "factor_a")
     b = _assignment(factor_b, n, "factor_b")
     pa, pb = design.probability_vectors(n)
-    raw = _estimate_factorial_2x2(y, a, b, pa, pb)
     labels = ("00", "01", "10", "11")
+    cell = [2 * int(x) + int(z) for x, z in zip(a, b, strict=True)]
+    # Independent factors give each row the product cell probabilities, so the design
+    # is independent assignment among four named cells.
+    probabilities = [
+        [
+            (pa[i] if u else 1.0 - pa[i]) * (pb[i] if v else 1.0 - pb[i])
+            for u in (False, True)
+            for v in (False, True)
+        ]
+        for i in range(n)
+    ]
+    from ._analyze import analyze
+    from .experiment import MultiArmExperimentDesign, RandomizedEffect
+
+    cell_design = MultiArmExperimentDesign(
+        [labels[index] for index in cell],
+        labels,
+        probabilities,
+        [f"unit-{i}" for i in range(n)],
+        [f"row-{i}" for i in range(n)],
+    )
+    fit = analyze(
+        {outcome: y}, query=RandomizedEffect(outcome, cell_design), refute="none"
+    ).randomized_effect
+    if fit is None or len(fit.multi_arm_values) != 4:
+        raise CausalValueError("the compiled randomized route returned no four-cell result")
+    by_label = {
+        label: (value, variance, support)
+        for label, value, variance, support in fit.multi_arm_values
+    }
+    means = [by_label[label][0] for label in labels]
+    variances = [by_label[label][1] for label in labels]
+
+    def contrast(weights: Sequence[float]) -> float:
+        return float(sum(m * w for m, w in zip(means, weights, strict=True)))
+
+    def bound(weights: Sequence[float]) -> float:
+        # Young's inequality: Var(sum w_j X_j) <= 4 sum w_j^2 Var(X_j).
+        return float(4.0 * sum(v * w * w for v, w in zip(variances, weights, strict=True)))
+
+    weights_a = (-0.5, -0.5, 0.5, 0.5)
+    weights_b = (-0.5, 0.5, -0.5, 0.5)
+    weights_ab = (1.0, -1.0, -1.0, 1.0)
     return FactorialEstimate(
-        cell_means=dict(zip(labels, raw.cell_means, strict=True)),
-        cell_support=dict(zip(labels, raw.cell_support, strict=True)),
-        factor_a_effect=raw.factor_a_effect,
-        factor_b_effect=raw.factor_b_effect,
-        interaction_effect=raw.interaction_effect,
-        factor_a_variance_bound=raw.factor_a_variance_bound,
-        factor_b_variance_bound=raw.factor_b_variance_bound,
-        interaction_variance_bound=raw.interaction_variance_bound,
+        cell_means=dict(zip(labels, means, strict=True)),
+        cell_support={label: by_label[label][2] for label in labels},
+        factor_a_effect=contrast(weights_a),
+        factor_b_effect=contrast(weights_b),
+        interaction_effect=contrast(weights_ab),
+        factor_a_variance_bound=bound(weights_a),
+        factor_b_variance_bound=bound(weights_b),
+        interaction_variance_bound=bound(weights_ab),
     )
 
 

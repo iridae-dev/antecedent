@@ -3499,6 +3499,7 @@ pub variant antecedent_validate::StalenessError::Plan(alloc::string::String)
 pub variant antecedent_validate::StalenessError::Policy(&'static str)
 pub variant antecedent_validate::TargetCertificationError::ScalarRefuterForOtherTarget { refuter: alloc::sync::Arc<str>, claim_family: antecedent_validate::TargetFamily, next_attempt: &'static str }
 pub variant antecedent_validate::TargetCertificationError::TargetMismatch { refuter: alloc::sync::Arc<str>, claim_target: alloc::string::String, report_target: alloc::string::String, next_attempt: &'static str }
+pub variant antecedent_validate::TargetFamily::Attribution
 pub variant antecedent_validate::TargetFamily::ConditionalEffect
 pub variant antecedent_validate::TargetFamily::JointContrast
 pub variant antecedent_validate::TargetFamily::Mediation

@@ -418,7 +418,7 @@ impl PyPreparedAnalysis {
                     crate::response_api::parse_weighting(weighting)?,
                 )?))
             };
-        let id = antecedent::identify_dag(&dag, &query).map_err(py_err)?;
+        let id = antecedent::identify_api::identify_dag(&dag, &query).map_err(py_err)?;
         let adjustment = id
             .estimands()
             .first()

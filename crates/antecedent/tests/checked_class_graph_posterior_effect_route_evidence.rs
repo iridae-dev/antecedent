@@ -208,12 +208,9 @@ fn frequentist_pag_graph_posterior_effect_body() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let ctx = ExecutionContext::for_tests(1941);
     let dag = antecedent_discovery::pag_from_adjacency_mask(gp.adjacency[0], 0, 3).unwrap();
-    let truth = antecedent::strategy_table::identify_pag(
-        antecedent::strategy_table::IdentifierId::GeneralizedAdjustment,
-        &dag,
-        &query,
-    )
-    .unwrap();
+    let truth = antecedent::identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(&dag, &query)
+        .unwrap();
     assert!(truth.identified_weight.0 > 0.0, "fixture must satisfy PAG identification");
 
     for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {

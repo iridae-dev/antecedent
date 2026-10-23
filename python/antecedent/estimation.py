@@ -53,10 +53,10 @@ from ._native import (
     mediation_effects_summary,
 )
 from ._native import (
-    identify_ate as _identify_ate,
+    _identify_ate,
 )
 from ._native import (
-    identify_ate_admg as _identify_ate_admg,
+    _identify_ate_admg,
 )
 from ._study_lifecycle import guard_design, replay_declaration, retain, retain_preparation
 from ._table_file import coerce_table_source
@@ -1853,6 +1853,35 @@ class PreparedAnalysis(Generic[ResultT]):
                 reason_code="plan_view_unavailable",
             )
         return ProgramPlanView.from_json(native.plan_view_json())
+
+    def report(self, format: Literal["markdown", "html"] = "markdown") -> str:
+        """A readable report of this handle, as Markdown or one self-contained HTML page.
+
+        The report restates the records the handle holds: after an estimate, the
+        executed claim (its kind, value, domains, calibration slot and evidence) with
+        the contract it ran under; before one, the prepared contract alone. It carries
+        the identification, the assumptions and obligations, the diagnostics, the
+        uncertainty axes, the support cell, the refusals and limits the operation
+        report names, and the plan view of the program.
+
+        The report computes nothing: every number is a value one of those records
+        holds (printed to at most twelve significant digits), the wording is fixed
+        text chosen by the records' status tags, and the same records render to the
+        same bytes. The HTML carries no script, loads no resource and escapes every
+        value. Rendering identifies, fits and scans nothing; it neither runs an
+        estimate nor changes this handle.
+        """
+        if format not in ("markdown", "html"):
+            raise CausalValueError(f"unknown report format {format!r}; use 'markdown' or 'html'")
+        native = getattr(self, "_native", None)
+        transport = getattr(self, "_transport", None)
+        if transport is not None or native is None or not hasattr(native, "report"):
+            raise CausalUnsupportedError(
+                "This handle executes no lowered study program, so it has no plan view to "
+                "report from.",
+                reason_code="plan_view_unavailable",
+            )
+        return str(native.report(format))
 
     @property
     def evidence_status(self) -> str | None:

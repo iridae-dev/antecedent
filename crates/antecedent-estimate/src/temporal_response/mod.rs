@@ -81,6 +81,11 @@ pub struct TemporalResponseEstimator {
     /// Fit each horizon on its intact lag windows when the series has missing time points.
     /// The joint bootstrap then resamples blocks of the original window axis.
     pub allow_gaps: bool,
+    /// The declared premise that the outcome innovation is serially independent, with the
+    /// Ljung-Box gate that can refute it. Under it a single-horizon, one-step Bayesian curve is
+    /// the untempered full-likelihood posterior; without it, or at any other horizon, the
+    /// Bayesian curve is the long-run-tempered generalized posterior.
+    pub white_innovation: Option<crate::white_innovation_posterior::InnovationWhitenessGate>,
 }
 
 /// A temporal query's per-horizon identification and the aggregate identification status
@@ -120,7 +125,20 @@ impl TemporalResponseEstimator {
         let mut inner = LinearAdjustmentAte::new();
         inner.bootstrap_replicates = 0;
         inner.overlap = OverlapPolicy::ExplicitOverride;
-        Self { inner, allow_gaps: false }
+        Self { inner, allow_gaps: false, white_innovation: None }
+    }
+
+    /// Declare serially independent outcome innovations, refutable by `gate`, so a one-step
+    /// single-horizon Bayesian curve reports the untempered full-likelihood posterior instead
+    /// of the tempered generalized posterior. The declaration is never established here; a
+    /// rejecting residual test refuses the fit and names the tempered posterior.
+    #[must_use]
+    pub const fn with_white_innovation(
+        mut self,
+        gate: crate::white_innovation_posterior::InnovationWhitenessGate,
+    ) -> Self {
+        self.white_innovation = Some(gate);
+        self
     }
 
     /// Admit a series with missing time points: windows that read a gap are dropped.

@@ -13,6 +13,9 @@ use antecedent::{RandomizedEffectQuery, Study};
 use antecedent_core::VariableId;
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 #[test]
 fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
     use antecedent_core::RandomizationDesign;
@@ -23,6 +26,12 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         let prepared =
             Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
+        retained_graphless::assert_retained_graphless_program(
+            "calibrated_randomized_intervals_round_tr",
+            &prepared,
+            &result,
+            &ctx,
+        );
         let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported randomized design interval");
         assert_eq!(fit.assignment_design.as_ref(), design);

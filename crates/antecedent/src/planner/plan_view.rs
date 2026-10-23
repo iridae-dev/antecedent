@@ -73,6 +73,9 @@ pub enum RouteFamily {
     Cyclic,
     /// A standalone experiment plan.
     Planning,
+    /// A chain of transformations carrying uncertainty from declared sources to a
+    /// reading.
+    PropagationChain,
 }
 
 impl RouteFamily {
@@ -89,6 +92,7 @@ impl RouteFamily {
             Self::GraphPosterior => "graph_posterior",
             Self::Cyclic => "cyclic",
             Self::Planning => "planning",
+            Self::PropagationChain => "propagation_chain",
         }
     }
 }
@@ -1326,7 +1330,8 @@ impl PlanView {
             | RouteFamily::DesignBased
             | RouteFamily::Discovery
             | RouteFamily::Cyclic
-            | RouteFamily::Planning => None,
+            | RouteFamily::Planning
+            | RouteFamily::PropagationChain => None,
         };
         let scientific = program.scientific();
         let support = SupportView {
@@ -1553,6 +1558,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::Route(cell) => cell.plan_route(),
         ProgramCell::CyclicFamily(family) => PlanRoute::CyclicFamily(family),
         ProgramCell::Planning(design) => PlanRoute::Planning(design),
+        ProgramCell::PropagationChain(reading) => PlanRoute::PropagationChain(reading),
     }
 }
 
@@ -1670,6 +1676,7 @@ fn composition_json(composition: Composition) -> Json {
         Composition::AtomMixture { atoms } => json!({"kind": "atom_mixture", "atoms": atoms}),
         Composition::Transported => json!({"kind": "transported"}),
         Composition::Pooled { sources } => json!({"kind": "pooled", "sources": sources}),
+        Composition::Chained { stages } => json!({"kind": "chained", "stages": stages}),
     }
 }
 

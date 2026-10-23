@@ -150,6 +150,8 @@ bash scripts/gate_docs_support_matrix.sh
 
 echo "== acceptance manifest: every case bound to a live test =="
 python3 scripts/check_acceptance_manifest.py --require-bound
+echo "== counterpart inventory: every method records all four quadrants =="
+python3 scripts/check_counterparts.py
 echo "== published docs links resolve =="
 python3 scripts/check_doc_links.py
 
@@ -286,6 +288,9 @@ if ! git diff --exit-code -- docs/release-notes/ \
   git diff --stat -- docs/release-notes/ ":!docs/release-notes/v${VERSION}.md"
   exit 1
 fi
+
+echo "== host-integration schema (must match its generator) =="
+python3 scripts/generate_host_schema.py --check
 
 fi
 

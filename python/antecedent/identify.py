@@ -589,7 +589,7 @@ def _identify_typed_graph(
     identifier: str | None,
     names: Sequence[str] | None,
 ) -> Identification:
-    from ._native import identify_structure as _identify_structure
+    from ._native import _identify_structure
 
     if not isinstance(supplied, (Dag, Cpdag, Pag, TemporalDag, TemporalCpdag, TemporalPag)):
         raise TypeError("typed-graph identify() requires a supported graph class")
@@ -979,7 +979,7 @@ def binary_iv_bounds(cells: Sequence[Sequence[float]]) -> BinaryIvBounds:
     with cell order ``(Y,D)=(0,0),(1,0),(0,1),(1,1)``. This is a contrast bound,
     not a continuous-response curve estimator.
     """
-    from ._native import binary_iv_ate_bounds as _binary_iv_ate_bounds
+    from ._native import _binary_iv_ate_bounds
 
     lower, upper = _binary_iv_ate_bounds([list(arm) for arm in cells])
     return BinaryIvBounds(lower=float(lower), upper=float(upper))

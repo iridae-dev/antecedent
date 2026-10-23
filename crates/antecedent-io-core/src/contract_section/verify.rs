@@ -245,7 +245,8 @@ pub(in crate::contract_section) fn note_replay_dependencies(
         Some(
             "interference.ht_hajek"
             | "interference.cluster_neyman"
-            | "interference.bayesian_gaussian",
+            | "interference.bayesian_gaussian"
+            | "interference.cluster_bayesian_bootstrap",
         ) if matches!(contract.target.query, CausalQueryWire::Interference { .. }) => {
             unresolved.push(ContractReason::DependenciesCheckedInterferenceOperation);
         }
@@ -292,6 +293,7 @@ pub(in crate::contract_section) fn note_replay_dependencies(
         Some(
             "bayesian.randomized_finite_population"
             | "bayesian.randomized_superpopulation"
+            | "bayesian.complier_effect"
             | "bayesian.switchback_effect",
         ) if matches!(contract.target.query, CausalQueryWire::RandomizedEffect(_)) => {
             unresolved.push(ContractReason::DependenciesCheckedBayesianRandomizedOperation);

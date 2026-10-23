@@ -4185,6 +4185,46 @@ fn batch_family_contrasts_retain_checked_worlds_after_builder_disposal() {
 }
 
 #[test]
+fn batch_family_posterior_draws_the_whole_interaction_on_shared_row_weights() {
+    use antecedent_estimate::score_posterior::ScorePosteriorOptions;
+    let (data, graph) = zero_effect_pair_dgp(800, 271);
+    let ctx = ExecutionContext::for_tests(271);
+    let results = BatchStudy::new(data.clone(), graph.clone())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .family_contrast(Some(CellFamilyContrast::Interaction))
+        .family_posterior(Some(ScorePosteriorOptions { draws: 400, coverage: 0.95 }))
+        .prepare_cells(&[joint_query(1.0, 1.0), joint_query(1.0, 0.0)], &ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    let families: Vec<_> =
+        results.iter().map(|result| &result.estimate.as_effect().unwrap().family).collect();
+    let first = families[0].contrast_posterior.as_ref().expect("interaction posterior");
+    let second = families[1].contrast_posterior.as_ref().expect("interaction posterior");
+    // The interaction does not depend on the member level, and both members share each
+    // draw's row weights: the two posteriors are the same joint draws, bit for bit.
+    assert_eq!(first.draws.len(), 400);
+    assert_eq!(first.draws, second.draws);
+    let (value, _) = families[0].contrast.unwrap();
+    assert!((first.score_mean - value).abs() < 1.0e-6, "{} vs {value}", first.score_mean);
+    assert!(first.standard_deviation > 0.0);
+    assert!(first.interval.0 < value && value < first.interval.1, "{:?}", first.interval);
+    // No posterior is invented when none was requested.
+    let plain = BatchStudy::new(data.clone(), graph)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .family_contrast(Some(CellFamilyContrast::Interaction))
+        .prepare_cells(&[joint_query(1.0, 1.0), joint_query(1.0, 0.0)], &ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    assert!(plain.iter().all(|result| {
+        result.estimate.as_effect().unwrap().family.contrast_posterior.is_none()
+    }));
+}
+
+#[test]
 fn three_factor_interaction_batch_withholds_instead_of_using_first_four_cells() {
     let mut columns = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
     for i in 0_u32..1024 {

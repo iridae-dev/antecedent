@@ -168,6 +168,18 @@ mod noise_replay;
 #[path = "../../../examples/rust/intrinsic_influence.rs"]
 mod intrinsic_influence;
 
+#[allow(
+    dead_code,
+    reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
+)]
+#[path = "../../../examples/rust/reference_host.rs"]
+mod reference_host;
+
+#[test]
+fn example_reference_host_runs() {
+    reference_host::run().unwrap();
+}
+
 #[test]
 fn example_ate_quickstart_runs() {
     ate_quickstart::run().unwrap();

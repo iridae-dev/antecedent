@@ -565,3 +565,151 @@ all_reported_intervals = true
 known_truth_test = "crates/antecedent-estimate/src/marginal_structural_model.rs::subject_clustered_msm_intervals_cover_known_coefficients"
 retained_route_test = "crates/antecedent/tests/longitudinal_regime_route.rs::additive_msm_graphless_license_round_trips_and_refuses_forgery"
 limitations = "Additive binary marginal structural mean over known sequential randomization with stabilized sequential IPTW and subject-clustered CR1 sandwich standard errors, one terminal outcome row per independent subject and at least two treatment periods. Requires at least 300 subjects, at least 200 observed terminal outcomes, Kish effective weighted sample size at least 150, per-period action probability at least 0.4, positive CR1 standard errors, and actually published pointwise 95% intervals for the intercept and every period coefficient. A 2,000-replication known-truth coverage test at 300 subjects confirms nominal coverage of all reported coefficients. The intervals are separate pointwise subject-clustered CR1 claims conditional on the declared stabilized-weight law; simultaneous coverage, treatment interactions, unstabilized weights, the g-formula route, and the sequential doubly robust route are not licensed by this row."
+
+# Bayesian and temporal axes of every graphless family. A family either names the
+# compiled counterpart routes that exist for the axis (they execute through the
+# retained checked path and stay unlicensed until a known-truth coverage record
+# licenses them) or records why the family has no counterpart and the dated exit
+# by which its next attempt is reviewed. No axis is blanket not_applicable.
+
+[[family_axis]]
+family = "interference"
+axis = "bayesian"
+disposition = "counterpart"
+routes = ["interference.cluster_bayesian_bootstrap"]
+reason = "Cluster-level Bayesian bootstrap of the cluster total-effect contrast (retained, unlicensed). The saturation and observational-exposure designs have no posterior of their own: under Bayesian inference they run only the additive Gaussian model route, which refuses them naming its Bernoulli and NeighborCount scope."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "interference"
+axis = "temporal"
+disposition = "counterpart"
+routes = ["temporal_design.excursion.interference", "bayesian.temporal_design.excursion.interference"]
+reason = "The excursion interference design carries the exposure contrast over time; both routes execute through the retained checked path and are unlicensed."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "survival"
+axis = "bayesian"
+disposition = "counterpart"
+routes = ["bayesian.piecewise_survival"]
+reason = "Piecewise-exponential posterior of the same two-arm contrast; executes through the retained checked path, uncalibrated, no license."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "survival"
+axis = "temporal"
+disposition = "counterpart"
+routes = ["temporal_design.regime_survival", "bayesian.temporal_design.regime_survival"]
+reason = "Regime survival over a temporal design; both routes are retained and unlicensed."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "continuous_dose_policy"
+axis = "bayesian"
+disposition = "counterpart"
+routes = ["bayesian.continuous_dose_policy", "bayesian.dose_grid"]
+reason = "Posterior of the fixed group-to-dose policy contrast; retained and unlicensed."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "continuous_dose_policy"
+axis = "temporal"
+disposition = "counterpart"
+routes = ["temporal_design.excursion.continuous_dose", "temporal_design.excursion.smoothed_dose", "temporal_design.excursion.dose_grid", "bayesian.temporal_design.excursion.continuous_dose", "bayesian.temporal_design.excursion.smoothed_dose", "bayesian.temporal_design.excursion.dose_grid"]
+reason = "Excursion dose designs over time in frequentist and Bayesian form; retained and unlicensed."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "randomized_effect"
+axis = "bayesian"
+disposition = "counterpart"
+routes = ["bayesian.randomized_finite_population", "bayesian.randomized_superpopulation", "bayesian.switchback_effect"]
+reason = "Finite-population and superpopulation posteriors of the arm contrasts and the switchback effect; retained and unlicensed."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "randomized_effect"
+axis = "temporal"
+disposition = "counterpart"
+routes = ["temporal_design.excursion.two_arm", "temporal_design.excursion.multi_arm", "temporal_design.excursion.factorial", "temporal_design.excursion.categorical", "temporal_design.excursion.quantile"]
+reason = "Temporal assignment designs over repeated periods; each has a Bayesian twin in the manifest. Retained and unlicensed. The switchback row in this file is itself a within-unit time design."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "complier_effect"
+axis = "bayesian"
+disposition = "counterpart"
+routes = ["bayesian.complier_effect"]
+reason = "Bayesian bootstrap of the Wald ratio from the shared-weight intention-to-treat and first-stage score posteriors; a first stage reaching zero is refused, never published as a ratio (retained, unlicensed)."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "complier_effect"
+axis = "temporal"
+disposition = "counterpart"
+routes = ["temporal.lagged_instrument", "bayesian.temporal.lagged_instrument"]
+reason = "The time-indexed Wald ratio of a lagged instrument is the temporal form of the encouragement design (exclusion and monotonicity stated per lag); it identifies the lagged complier effect rather than the one-shot effect, and both routes are retained and unlicensed. Repeated encouragement of the same units inside the cross-section designs is not routed."
+exit_by = "2027-03-31"
+[[family_axis]]
+family = "policy_value"
+axis = "bayesian"
+disposition = "counterpart"
+routes = ["bayesian.binary_policy_value"]
+reason = "Bayesian bootstrap of the augmented policy score; retained and unlicensed. Uplift, regret and multi-action designs have no posterior and refuse with the next attempt."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "policy_value"
+axis = "temporal"
+disposition = "counterpart"
+routes = ["bayesian.sequential_regime_value", "graphless.longitudinal_regime.known_sequential_randomized_two_period.subject_excluded_q_sequential_dr_scores", "graphless.longitudinal_regime.known_sequential_randomized_additive_msm.stabilized_ipw_cr1_scores", "sequential.crossfit_contrast.wald"]
+reason = "The value of a regime over repeated decisions is the longitudinal regime value: the fixed randomized policy designs score one decision per row, and the sequential regime rows score the same policy functional over periods under known sequential randomization (licensed, frequentist) with a Bayesian twin and an observational crossfit contrast (retained, unlicensed)."
+exit_by = "2027-03-31"
+[[family_axis]]
+family = "difference_in_differences"
+axis = "bayesian"
+disposition = "counterpart"
+routes = ["bayesian.panel_did", "bayesian.staggered_heterogeneity_robust"]
+reason = "Normal-Inverse-Gamma posterior of the 2x2 contrast and a joint Bayesian bootstrap of the staggered rollout; retained and unlicensed."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "difference_in_differences"
+axis = "temporal"
+disposition = "counterpart"
+routes = ["quasi.staggered_heterogeneity_robust", "temporal.glm_link_contrast", "bayesian.temporal.glm_link_contrast"]
+reason = "The panel is the time axis; staggered rollout and the GLM link path contrast are the temporal forms. Retained and unlicensed."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "longitudinal_regime"
+axis = "bayesian"
+disposition = "counterpart"
+routes = ["bayesian.sequential_regime_value"]
+reason = "Posterior regime value under known sequential randomization; retained and unlicensed."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "longitudinal_regime"
+axis = "temporal"
+disposition = "counterpart"
+routes = ["sequential.crossfit_contrast.wald", "bayesian.sequential_crossfit_contrast", "temporal_design.regime_survival"]
+reason = "The family indexes treatment periods itself, so the temporal axis is the family's own structure; the observational sequential contrast and its Bayesian twin are the unlicensed counterparts."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "local_polynomial_ratio"
+axis = "bayesian"
+disposition = "counterpart"
+routes = ["bayesian.fuzzy_rd", "bayesian.regression_kink"]
+reason = "Joint local-linear posterior of the outcome-over-treatment jump or kink ratio; retained and unlicensed."
+exit_by = "2027-03-31"
+
+[[family_axis]]
+family = "local_polynomial_ratio"
+axis = "temporal"
+disposition = "counterpart"
+routes = ["quasi.temporal_local_ratio", "bayesian.temporal_local_ratio"]
+reason = "Discontinuity in time with a block bootstrap respecting the sampling design; retained and unlicensed."
+exit_by = "2027-03-31"

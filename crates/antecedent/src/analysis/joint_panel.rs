@@ -39,7 +39,10 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-pub use ports::{JointPanelResponseFunctional, JointPanelScientificScope};
+pub use ports::{
+    JointPanelContrast, JointPanelContrastUncertainty, JointPanelResponseFunctional,
+    JointPanelScientificScope,
+};
 pub use search::{
     JointPanelContinuousSearch, JointPanelContinuousSearchRequest,
     JointPanelContinuousSearchResult, JointPanelSearch, JointPanelSearchRequest,

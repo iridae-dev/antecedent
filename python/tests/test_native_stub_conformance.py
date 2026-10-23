@@ -223,10 +223,24 @@ for _fn in ("prepare_statistical_transport", "prepare_transport_grid"):
 # Entry points the signature sweep below must actually compare. If introspection ever
 # silently stopped covering them (e.g. by falling into `_SIGNATURE_UNAVAILABLE` without
 # anyone noticing), this test would stop being able to catch parameter-list drift at all.
+# Underscore-named natives the package wraps. They are private, but their stub signatures
+# are compared exactly like the public ones.
+_WRAPPED_PRIVATE_NATIVES = {
+    "_identify_ate",
+    "_identify_ate_admg",
+    "_identify_structure",
+    "_binary_iv_ate_bounds",
+}
+
+def test_wrapped_private_natives_exist_and_are_stubbed():
+    assert _WRAPPED_PRIVATE_NATIVES <= set(dir(_native))
+    assert _WRAPPED_PRIVATE_NATIVES <= _stub_toplevel_names()
+
+
 _MUST_BE_CHECKED = (
     "analyze_ate_many",
     "discover_pcmci",
-    "identify_ate",
+    "_identify_ate",
     "prepare_ate_batch",
     "prepare_cells_batch",
 )
@@ -299,7 +313,7 @@ def test_stub_signatures_match_the_extension():
     unavailable: list[str] = []
     checked: set[str] = set()
 
-    for name in sorted(_extension_public_names() & stub_fns.keys()):
+    for name in sorted((_extension_public_names() | _WRAPPED_PRIVATE_NATIVES) & stub_fns.keys()):
         obj = getattr(_native, name)
         if not inspect.isroutine(obj):
             continue  # classes: covered by the member sweeps below

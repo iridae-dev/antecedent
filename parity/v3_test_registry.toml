@@ -558,6 +558,13 @@ path = "scripts/check_missing_policy_support.py"
 gates = ["inventory"]
 
 [[test]]
+id = "counterpart-inventory-check"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_check_counterparts.py"
+gates = ["inventory"]
+
+[[test]]
 id = "unbalanced-panel-preparation"
 crate = "antecedent-data"
 cargo_target = "lib"
@@ -842,4 +849,102 @@ id = "temporal-design-queries-python"
 crate = "python"
 cargo_target = "script"
 path = "python/tests/test_temporal_design_queries.py"
+gates = ["inventory"]
+
+[[test]]
+id = "host-contract"
+crate = "antecedent"
+cargo_target = "host_contract"
+path = "crates/antecedent/tests/host_contract.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "host-contract-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_host_contract.py"
+gates = ["inventory"]
+
+[[test]]
+id = "compiler-bypass-gate"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_compiler_bypass.py"
+gates = ["inventory"]
+
+[[test]]
+id = "strategy-table-workspace-reuse"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/strategy_table/workspace_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "readable-report"
+crate = "antecedent"
+cargo_target = "report"
+path = "crates/antecedent/tests/report.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "readable-report-escaping"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/report.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "readable-report-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_report.py"
+gates = ["inventory"]
+
+[[test]]
+id = "bayesian-arm-effect-routes"
+crate = "antecedent"
+cargo_target = "bayesian_arm_effect_routes"
+path = "crates/antecedent/tests/bayesian_arm_effect_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "history-outcome-model"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/history_outcome_model.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "propagation-chain-arithmetic"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/propagation_chain_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "propagation-chain-rule"
+crate = "antecedent-contract"
+cargo_target = "lib"
+path = "crates/antecedent-contract/src/propagation_chain_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "propagation-chain-record"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/propagation_chain_record_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "propagation-chain-facade"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/propagation_chain_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "propagation-chain-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_propagation_chain.py"
 gates = ["inventory"]

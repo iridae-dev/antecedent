@@ -2149,3 +2149,106 @@ fn summary_only_sources_keep_diagonal_hydration() {
     assert!(prior.coefficient_correlation().is_none());
     assert!(prior.restrictions.iter().any(|r| r.id.as_ref() == HYDRATED_COVARIANCE_DROPPED_ID));
 }
+
+/// Binary treatment confounded by `z`; the effect `1 + 2 z` grows in `z`, so the effect on the
+/// treated differs from the all-observed effect. A small deterministic wiggle keeps the
+/// residual variance positive.
+fn arm_effect_table(n: usize) -> (TabularData, f64, f64) {
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 7.0).sin() * 1.5).collect();
+    let t: Vec<f64> =
+        (0..n).map(|i| if z[i] + (i as f64 / 3.0).cos() > 0.0 { 1.0 } else { 0.0 }).collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| t[i] * (1.0 + 2.0 * z[i]) + z[i] + (i as f64 / 5.0).sin() * 0.1).collect();
+    let treated: Vec<usize> = (0..n).filter(|&i| t[i] > 0.5).collect();
+    let untreated: Vec<usize> = (0..n).filter(|&i| t[i] < 0.5).collect();
+    let att = treated.iter().map(|&i| 1.0 + 2.0 * z[i]).sum::<f64>() / treated.len() as f64;
+    let atc = untreated.iter().map(|&i| 1.0 + 2.0 * z[i]).sum::<f64>() / untreated.len() as f64;
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("z", z.as_slice()),
+    ])
+    .unwrap();
+    (data, att, atc)
+}
+
+fn arm_effect_posterior_mean(population: antecedent_core::TargetPopulation) -> (f64, usize) {
+    let (data, _, _) = arm_effect_table(400);
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from(vec![VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    );
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+        .with_target_population(population);
+    let bayes = BayesianGComputationAte {
+        backend: BayesianBackendKind::ConjugateGaussian,
+        n_draws: 2000,
+        seed: 9,
+        prior_scale: 100.0,
+        ..BayesianGComputationAte::new()
+    };
+    let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = BayesianGCompWorkspace::default();
+    let post = bayes
+        .fit(
+            &prep,
+            IdentificationStatus::NonparametricallyIdentified,
+            &mut ws,
+            &ExecutionContext::for_tests(3),
+        )
+        .unwrap();
+    let eq = post.effect_column().unwrap();
+    (post.summaries.mean[eq], prep.design.ncols)
+}
+
+#[test]
+fn bayesian_gcomp_on_the_treated_and_untreated_recovers_each_arms_model_based_effect() {
+    let (_, att, atc) = arm_effect_table(400);
+    let (treated, treated_cols) =
+        arm_effect_posterior_mean(antecedent_core::TargetPopulation::Treated);
+    let (untreated, _) = arm_effect_posterior_mean(antecedent_core::TargetPopulation::Untreated);
+    let (all, all_cols) = arm_effect_posterior_mean(antecedent_core::TargetPopulation::AllObserved);
+    // Intercept, treatment, z, and one centred treatment-by-z interaction on an arm.
+    assert_eq!((treated_cols, all_cols), (4, 3));
+    assert!((treated - att).abs() < 0.05, "treated {treated} vs {att}");
+    assert!((untreated - atc).abs() < 0.05, "untreated {untreated} vs {atc}");
+    assert!((att - atc).abs() > 0.3, "the arms must differ for the check to bite");
+    assert!(all.is_finite());
+}
+
+#[test]
+fn bayesian_gcomp_arm_effect_centres_interactions_and_refuses_unsupported_targets() {
+    let (data, _, _) = arm_effect_table(400);
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from(vec![VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    );
+    let base = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let on_treated =
+        base.clone().with_target_population(antecedent_core::TargetPopulation::Treated);
+    let prep = BayesianGComputationAte::conjugate().prepare(&data, &estimand, &on_treated).unwrap();
+    let n = prep.design.nrows;
+    let treatment = &prep.design.matrix[n..2 * n];
+    let interaction = &prep.design.matrix[3 * n..4 * n];
+    let treated_rows = treatment.iter().filter(|&&t| t > 0.5).count();
+    let mean_over_treated: f64 =
+        interaction.iter().zip(treatment).filter(|(_, t)| **t > 0.5).map(|(x, _)| *x).sum::<f64>()
+            / treated_rows as f64;
+    assert!(mean_over_treated.abs() < 1e-12, "{mean_over_treated}");
+    let names = prep.coef_names.unwrap();
+    assert_eq!(names[3].as_ref(), "treatment_x_centered_z");
+
+    // A non-identity outcome model does not make the treatment coefficient the arm contrast.
+    let logit = BayesianGComputationAte::new().with_likelihood(BayesLikelihood::BernoulliLogit);
+    let error = logit.prepare(&data, &estimand, &on_treated).unwrap_err().to_string();
+    assert!(error.contains("Gaussian identity"), "{error}");
+    // A predicate population stays unsupported.
+    let predicate = base.with_target_population(antecedent_core::TargetPopulation::Predicate(
+        antecedent_core::PredicateExpr::rows(vec![0, 1, 2]),
+    ));
+    let error =
+        BayesianGComputationAte::conjugate().prepare(&data, &estimand, &predicate).unwrap_err();
+    assert!(error.to_string().contains("Treated or Untreated"), "{error}");
+}

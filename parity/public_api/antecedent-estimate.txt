@@ -390,6 +390,7 @@ impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::CohortMea
 impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::NativeCohortFit
 impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::NativeFitRows
 impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::NativeFitSize
+impl core::clone::Clone for antecedent_estimate::complier_posterior::ComplierEffectPosterior
 impl core::clone::Clone for antecedent_estimate::constraint_likelihood::PolynomialCandidate
 impl core::clone::Clone for antecedent_estimate::constraint_likelihood::PolynomialFit
 impl core::clone::Clone for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
@@ -545,6 +546,7 @@ impl core::clone::Clone for antecedent_estimate::history_match::FrequentistHisto
 impl core::clone::Clone for antecedent_estimate::history_match::HistoryUnit
 impl core::clone::Clone for antecedent_estimate::history_match::PeriodHistoryContrast
 impl core::clone::Clone for antecedent_estimate::history_match::PeriodHistoryEstimate
+impl core::clone::Clone for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem
 impl core::clone::Clone for antecedent_estimate::interference_observational::ObservationalExposureInterval
 impl core::clone::Clone for antecedent_estimate::interference_saturation::SaturationClusterInterval
 impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::DataIdentity
@@ -1453,6 +1455,7 @@ impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::CohortM
 impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::NativeCohortFit
 impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::NativeFitRows
 impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::NativeFitSize
+impl core::cmp::PartialEq for antecedent_estimate::complier_posterior::ComplierEffectPosterior
 impl core::cmp::PartialEq for antecedent_estimate::constraint_likelihood::PolynomialCandidate
 impl core::cmp::PartialEq for antecedent_estimate::constraint_likelihood::PolynomialFit
 impl core::cmp::PartialEq for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
@@ -2465,6 +2468,7 @@ impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::CohortMeanI
 impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::NativeCohortFit
 impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::NativeFitRows
 impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::NativeFitSize
+impl core::fmt::Debug for antecedent_estimate::complier_posterior::ComplierEffectPosterior
 impl core::fmt::Debug for antecedent_estimate::constraint_likelihood::PolynomialCandidate
 impl core::fmt::Debug for antecedent_estimate::constraint_likelihood::PolynomialFit
 impl core::fmt::Debug for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
@@ -2621,6 +2625,7 @@ impl core::fmt::Debug for antecedent_estimate::history_match::FrequentistHistory
 impl core::fmt::Debug for antecedent_estimate::history_match::HistoryUnit
 impl core::fmt::Debug for antecedent_estimate::history_match::PeriodHistoryContrast
 impl core::fmt::Debug for antecedent_estimate::history_match::PeriodHistoryEstimate
+impl core::fmt::Debug for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem
 impl core::fmt::Debug for antecedent_estimate::interference_observational::ObservationalExposureInterval
 impl core::fmt::Debug for antecedent_estimate::interference_saturation::SaturationClusterInterval
 impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::DataIdentity
@@ -3769,6 +3774,7 @@ impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::CohortM
 impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::marker::Freeze for antecedent_estimate::complier_posterior::ComplierEffectPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
 impl core::marker::Freeze for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
 impl core::marker::Freeze for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
@@ -3924,6 +3930,7 @@ impl core::marker::Freeze for antecedent_estimate::history_match::FrequentistHis
 impl core::marker::Freeze for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Freeze for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -4685,6 +4692,7 @@ impl core::marker::Send for antecedent_estimate::cohort_linear_effect::CohortMea
 impl core::marker::Send for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::marker::Send for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::marker::Send for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::marker::Send for antecedent_estimate::complier_posterior::ComplierEffectPosterior [auto]
 impl core::marker::Send for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
 impl core::marker::Send for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
 impl core::marker::Send for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
@@ -4841,6 +4849,7 @@ impl core::marker::Send for antecedent_estimate::history_match::FrequentistHisto
 impl core::marker::Send for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Send for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::marker::Send for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::marker::Send for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::marker::Send for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::marker::Send for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -5504,6 +5513,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_ef
 impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_effect::NativeCohortFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_effect::NativeFitRows
 impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_effect::NativeFitSize
+impl core::marker::StructuralPartialEq for antecedent_estimate::complier_posterior::ComplierEffectPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::constraint_likelihood::PolynomialCandidate
 impl core::marker::StructuralPartialEq for antecedent_estimate::constraint_likelihood::PolynomialFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
@@ -6358,6 +6368,7 @@ impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::CohortMea
 impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::marker::Sync for antecedent_estimate::complier_posterior::ComplierEffectPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
 impl core::marker::Sync for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
 impl core::marker::Sync for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
@@ -6514,6 +6525,7 @@ impl core::marker::Sync for antecedent_estimate::history_match::FrequentistHisto
 impl core::marker::Sync for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Sync for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::marker::Sync for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::marker::Sync for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::marker::Sync for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -7277,6 +7289,7 @@ impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::CohortMe
 impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::marker::Unpin for antecedent_estimate::complier_posterior::ComplierEffectPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
 impl core::marker::Unpin for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
 impl core::marker::Unpin for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
@@ -7433,6 +7446,7 @@ impl core::marker::Unpin for antecedent_estimate::history_match::FrequentistHist
 impl core::marker::Unpin for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::marker::Unpin for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::marker::Unpin for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -8196,6 +8210,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_lin
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::complier_posterior::ComplierEffectPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
@@ -8352,6 +8367,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_ma
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -9114,6 +9130,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear_effect::NativeCohortFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear_effect::NativeFitRows [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear_effect::NativeFitSize [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::complier_posterior::ComplierEffectPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialCandidate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound [auto]
@@ -9270,6 +9287,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::HistoryUnit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::PeriodHistoryContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_match::PeriodHistoryEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::history_outcome_model::HistoryOutcomeProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::interference_observational::ObservationalExposureInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::interference_saturation::SaturationClusterInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesian_transport::DataIdentity [auto]
@@ -11397,6 +11415,7 @@ pub field antecedent_estimate::FamilyInference::candidate_selection: core::optio
 pub field antecedent_estimate::FamilyInference::compiled_contrast: core::option::Option<alloc::sync::Arc<antecedent_estimate::effect_estimate::CompiledFamilyContrast>>
 pub field antecedent_estimate::FamilyInference::contrast: core::option::Option<(f64, f64)>
 pub field antecedent_estimate::FamilyInference::contrast_interval: core::option::Option<(f64, f64, f64)>
+pub field antecedent_estimate::FamilyInference::contrast_posterior: core::option::Option<antecedent_estimate::score_posterior::ScorePosterior>
 pub field antecedent_estimate::FamilyInference::simultaneous_interval: core::option::Option<(f64, f64, f64)>
 pub field antecedent_estimate::FoldProvenance::assignment: alloc::vec::Vec<u16>
 pub field antecedent_estimate::FoldProvenance::count: usize
@@ -12118,6 +12137,7 @@ pub field antecedent_estimate::TemporalMediationSlice::method: alloc::sync::Arc<
 pub field antecedent_estimate::TemporalMediationSlice::uncertainty: antecedent_estimate::TemporalMediationUncertainty
 pub field antecedent_estimate::TemporalResponseEstimator::allow_gaps: bool
 pub field antecedent_estimate::TemporalResponseEstimator::inner: antecedent_estimate::LinearAdjustmentAte
+pub field antecedent_estimate::TemporalResponseEstimator::white_innovation: core::option::Option<antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate>
 pub field antecedent_estimate::TemporalSlopeSpec::contemporaneous: &'a [antecedent_core::ids::VariableId]
 pub field antecedent_estimate::TemporalSlopeSpec::outcome: antecedent_core::ids::VariableId
 pub field antecedent_estimate::TemporalSlopeSpec::outcome_offset: i32
@@ -12514,6 +12534,9 @@ pub field antecedent_estimate::cohort_linear_effect::NativeFitRows::outcome: all
 pub field antecedent_estimate::cohort_linear_effect::NativeFitRows::treatment: alloc::vec::Vec<f64>
 pub field antecedent_estimate::cohort_linear_effect::NativeFitSize::rows: u64
 pub field antecedent_estimate::cohort_linear_effect::NativeFitSize::width: u64
+pub field antecedent_estimate::complier_posterior::ComplierEffectPosterior::complier: antecedent_estimate::score_posterior::ScorePosterior
+pub field antecedent_estimate::complier_posterior::ComplierEffectPosterior::first_stage: antecedent_estimate::score_posterior::ScorePosterior
+pub field antecedent_estimate::complier_posterior::ComplierEffectPosterior::intention_to_treat: antecedent_estimate::score_posterior::ScorePosterior
 pub field antecedent_estimate::constraint_likelihood::PolynomialCandidate::id: alloc::string::String
 pub field antecedent_estimate::constraint_likelihood::PolynomialCandidate::model: antecedent_model::equation_system::PolynomialSystem
 pub field antecedent_estimate::constraint_likelihood::PolynomialCandidate::selection: alloc::vec::Vec<antecedent_estimate::constraint_likelihood::RootSelectionRegion>
@@ -13138,6 +13161,11 @@ pub field antecedent_estimate::history_match::PeriodHistoryEstimate::periods_mat
 pub field antecedent_estimate::history_match::PeriodHistoryEstimate::standard_error: core::option::Option<f64>
 pub field antecedent_estimate::history_match::PeriodHistoryEstimate::unmatched_treated: alloc::vec::Vec<usize>
 pub field antecedent_estimate::history_match::PeriodHistoryEstimate::weight_total: f64
+pub field antecedent_estimate::history_outcome_model::HistoryOutcomeProblem::periods: usize
+pub field antecedent_estimate::history_outcome_model::HistoryOutcomeProblem::prepared: antecedent_estimate::PreparedBayesianProblem
+pub field antecedent_estimate::history_outcome_model::HistoryOutcomeProblem::rows: usize
+pub field antecedent_estimate::history_outcome_model::HistoryOutcomeProblem::treated_rows: usize
+pub field antecedent_estimate::history_outcome_model::HistoryOutcomeProblem::unused_treated: alloc::vec::Vec<usize>
 pub field antecedent_estimate::interference_observational::ObservationalExposureInterval::bounds: [f64; 2]
 pub field antecedent_estimate::interference_observational::ObservationalExposureInterval::degrees_of_freedom: f64
 pub field antecedent_estimate::interference_observational::ObservationalExposureInterval::standard_error: f64
@@ -15430,6 +15458,7 @@ pub fn <antecedent_estimate::TemporalMediationEstimator>::fn prepare_shared(&sel
 pub fn <antecedent_estimate::TemporalMediationEstimator>::fn window_selection(&self, data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::mediation::MediationQuery, adjustment: &[antecedent_data::sample::LaggedColumn], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::GapSelection, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::TemporalResponseEstimator>::const fn with_allow_gaps(self, allow_gaps: bool) -> Self
 pub fn <antecedent_estimate::TemporalResponseEstimator>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
+pub fn <antecedent_estimate::TemporalResponseEstimator>::const fn with_white_innovation(self, gate: antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate) -> Self
 pub fn <antecedent_estimate::TemporalResponseEstimator>::fn estimate(&self, data: &antecedent_data::dataset::TimeSeriesData, identifications: &[(&antecedent_expr::estimand::IdentifiedEstimand, &antecedent_core::temporal::TemporalIndexer)], query: &antecedent_core::query::response::ResponseQuery, identification_status: antecedent_core::identification::IdentificationStatus, assumptions: antecedent_core::assumption::AssumptionSet, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_core::response::CausalResponse, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::TemporalResponseEstimator>::fn estimate_bayesian(&self, data: &antecedent_data::dataset::TimeSeriesData, identified: antecedent_estimate::TemporalIdentification<'_>, query: &antecedent_core::query::response::ResponseQuery, estimator: &antecedent_estimate::BayesianGComputationAte, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_core::response::CausalResponse, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::TemporalResponseEstimator>::fn new() -> Self
@@ -15993,6 +16022,7 @@ pub fn antecedent_estimate::cohort_linear_effect::native_cohort_interval(native:
 pub fn antecedent_estimate::cohort_linear_effect::native_cohort_interval_for(native: &antecedent_estimate::cohort_linear_effect::NativeCohortFit, cohort: &antecedent_io_core::cohort_decision::CohortBinding, outcome_units: &str, level: f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_io_core::cohort_decision::CohortDecisionSource, antecedent_estimate::cohort_linear_effect::CohortMeanInterval), antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal>
 pub fn antecedent_estimate::common_time_window(designs: &[antecedent_estimate::AlignedRows]) -> core::option::Option<(usize, usize)>
 pub fn antecedent_estimate::compare_raw_adjusted(outcome: &[f64], treatment: &[f64], adjusted: antecedent_estimate::AdjustedEstimate, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::DescriptiveComparison, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::complier_posterior::bayesian_complier_effect(outcomes: &[f64], assignment: &[bool], received: &[bool], probabilities: &[f64], options: antecedent_estimate::score_posterior::ScorePosteriorOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::complier_posterior::ComplierEffectPosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::conditional_odds_ratio(stratum: &[alloc::string::String], case: &[f64], exposed: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::ConditionalOddsRatio, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::constraint_likelihood::fit_polynomial_candidates(candidates: &[antecedent_estimate::constraint_likelihood::PolynomialCandidate], measurements: &[antecedent_estimate::constraint_likelihood::PolynomialMeasurement], policy: antecedent_model::equation_system::IsolationPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::constraint_likelihood::PolynomialFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::continuous_dose::conditional_dose_response(outcome: &[f64], dose: &[f64], groups: &[alloc::string::String], density: &[f64], target_doses: &[f64], bandwidth: f64, min_local_support: usize) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::continuous_dose::DoseResponsePoint>, alloc::string::String>
@@ -16063,6 +16093,7 @@ pub fn antecedent_estimate::empirical_table::licensed_iid_regimes(catalog: &ante
 pub fn antecedent_estimate::empirical_table::sample_key(sample: &antecedent_estimate::RegimeSample) -> (alloc::sync::Arc<str>, alloc::sync::Arc<str>, antecedent_core::ids::RegimeId, alloc::vec::Vec<(u32, u64)>)
 pub fn antecedent_estimate::empirical_table::validate_options(options: &antecedent_estimate::EmpiricalTableOptions) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::empirical_threshold_grid(y: &[f64], points: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::estimate_cluster_interference_bayesian_bootstrap(query: &antecedent_core::query::interference::InterferenceQuery, data: &antecedent_data::network::NetworkData, assignment: &[bool], options: antecedent_estimate::score_posterior::ScorePosteriorOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_estimate::InterferenceEstimate, antecedent_estimate::score_posterior::ScorePosterior), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::estimate_cluster_interference_total(query: &antecedent_core::query::interference::InterferenceQuery, data: &antecedent_data::network::NetworkData, assignment: &[bool]) -> core::result::Result<antecedent_estimate::InterferenceEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::estimate_cluster_interference_total_with_inference(query: &antecedent_core::query::interference::InterferenceQuery, data: &antecedent_data::network::NetworkData, assignment: &[bool]) -> core::result::Result<(antecedent_estimate::InterferenceEstimate, core::option::Option<antecedent_estimate::ClusterTotalInterval>), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::estimate_interference(query: &antecedent_core::query::interference::InterferenceQuery, data: &antecedent_data::network::NetworkData, assignment: &[bool], seed: u64) -> core::result::Result<antecedent_estimate::InterferenceEstimate, antecedent_estimate::EstimationError>
@@ -16111,6 +16142,7 @@ pub fn antecedent_estimate::gaussian_linear_posterior::conjugate_posterior(gram:
 pub fn antecedent_estimate::heterogeneity_robust_did::estimate_rollout_did(panel: &antecedent_estimate::heterogeneity_robust_did::RolloutPanel<'_>, spec: &antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec, resampling: core::option::Option<antecedent_estimate::heterogeneity_robust_did::RolloutResampling>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::heterogeneity_robust_did::RolloutDidFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::heterogeneity_robust_did::posterior_rollout_did(panel: &antecedent_estimate::heterogeneity_robust_did::RolloutPanel<'_>, spec: &antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec, draws: u32, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::heterogeneity_robust_did::RolloutDidPosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::heterogeneity_robust_did::prepare(panel: &antecedent_estimate::heterogeneity_robust_did::RolloutPanel<'_>, spec: &antecedent_estimate::heterogeneity_robust_did::RolloutDidSpec) -> core::result::Result<antecedent_estimate::heterogeneity_robust_did::PreparedRollout, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::history_outcome_model::prepare_history_outcome_model(units: &[antecedent_estimate::history_match::HistoryUnit]) -> core::result::Result<antecedent_estimate::history_outcome_model::HistoryOutcomeProblem, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::inference_from_influence_columns(raw_means: &[f64], columns: &[&[f64]], event_n_eff: &[f64], threshold_supported: &[bool], support: antecedent_estimate::WeightedSupport) -> core::result::Result<antecedent_estimate::ScoreInference, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::inflate_replicates(center: &[f64], draws: &mut [alloc::vec::Vec<f64>], factor: f64)
 pub fn antecedent_estimate::is_temporal_coefficient_name(name: &str) -> bool
@@ -16432,6 +16464,7 @@ pub mod antecedent_estimate::causal_forest
 pub mod antecedent_estimate::cell_aipw
 pub mod antecedent_estimate::cluster_dml_aipw
 pub mod antecedent_estimate::cohort_linear_effect
+pub mod antecedent_estimate::complier_posterior
 pub mod antecedent_estimate::conditional
 pub mod antecedent_estimate::constraint_likelihood
 pub mod antecedent_estimate::continuous_dose
@@ -16475,6 +16508,7 @@ pub mod antecedent_estimate::gcomp
 pub mod antecedent_estimate::glm_adjustment
 pub mod antecedent_estimate::heterogeneity_robust_did
 pub mod antecedent_estimate::history_match
+pub mod antecedent_estimate::history_outcome_model
 pub mod antecedent_estimate::interference
 pub mod antecedent_estimate::interference_observational
 pub mod antecedent_estimate::interference_saturation
@@ -16892,6 +16926,7 @@ pub struct antecedent_estimate::cohort_linear_effect::NativeCohortFit
 pub struct antecedent_estimate::cohort_linear_effect::NativeCohortFit has private fields
 pub struct antecedent_estimate::cohort_linear_effect::NativeFitRows
 pub struct antecedent_estimate::cohort_linear_effect::NativeFitSize
+pub struct antecedent_estimate::complier_posterior::ComplierEffectPosterior
 pub struct antecedent_estimate::constraint_likelihood::PolynomialCandidate
 pub struct antecedent_estimate::constraint_likelihood::PolynomialFit
 pub struct antecedent_estimate::constraint_likelihood::PolynomialLikelihoodBound
@@ -17039,6 +17074,7 @@ pub struct antecedent_estimate::history_match::HistoryUnit has private fields
 pub struct antecedent_estimate::history_match::PeriodHistoryContrast
 pub struct antecedent_estimate::history_match::PeriodHistoryContrast has private fields
 pub struct antecedent_estimate::history_match::PeriodHistoryEstimate
+pub struct antecedent_estimate::history_outcome_model::HistoryOutcomeProblem
 pub struct antecedent_estimate::interference_observational::ObservationalExposureInterval
 pub struct antecedent_estimate::interference_saturation::SaturationClusterInterval
 pub struct antecedent_estimate::joint_bayesian_transport::DataIdentity
@@ -17686,6 +17722,7 @@ pub use antecedent_estimate::interaction_contrast = antecedent_estimate::cell_ai
 pub use antecedent_estimate::interference::BayesianInterferenceEstimate = antecedent_estimate::BayesianInterferenceEstimate
 pub use antecedent_estimate::interference::ClusterTotalInterval = antecedent_estimate::ClusterTotalInterval
 pub use antecedent_estimate::interference::InterferenceEstimate = antecedent_estimate::InterferenceEstimate
+pub use antecedent_estimate::interference::estimate_cluster_interference_bayesian_bootstrap = antecedent_estimate::estimate_cluster_interference_bayesian_bootstrap
 pub use antecedent_estimate::interference::estimate_cluster_interference_total = antecedent_estimate::estimate_cluster_interference_total
 pub use antecedent_estimate::interference::estimate_cluster_interference_total_with_inference = antecedent_estimate::estimate_cluster_interference_total_with_inference
 pub use antecedent_estimate::interference::estimate_interference = antecedent_estimate::estimate_interference

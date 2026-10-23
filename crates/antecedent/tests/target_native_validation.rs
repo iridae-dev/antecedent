@@ -243,3 +243,73 @@ fn a_report_on_another_program_does_not_certify_the_result() {
         Err(TargetCertificationError::TargetMismatch { .. })
     ));
 }
+
+/// `z -> t -> y`, `z -> y` over `(z, t, y)` with a deterministic, well-conditioned table.
+fn attribution_fixture(n: u32) -> (TabularData, Dag) {
+    let z: Vec<f64> = (0..n).map(|i| (f64::from(i) * 1.37).sin()).collect();
+    let t: Vec<f64> = (0..n).zip(&z).map(|(i, z)| 0.6 * z + (f64::from(i) * 0.91).cos()).collect();
+    let y: Vec<f64> = (0..n)
+        .zip(t.iter().zip(&z))
+        .map(|(i, (t, z))| 1.0 + 2.0 * t + z + 0.4 * (f64::from(i) * 2.17).sin())
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("z", z.as_slice()),
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    for (source, target) in [(0, 1), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    (data, graph)
+}
+
+#[test]
+fn an_attribution_vector_is_refuted_by_refits_of_its_own_attribution_program() {
+    let (data, graph) = attribution_fixture(96);
+    let ctx = ExecutionContext::for_tests(67);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::AnomalyAttribution(antecedent_core::AnomalyAttributionQuery::new(
+            [VariableId::from_raw(2)],
+            100,
+        )))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result_target_family(&result), TargetFamily::Attribution);
+    let (_, labels, values) = result_target_values(&result).unwrap();
+    // The mean score and one mean Shapley contribution per ancestor noise component.
+    assert!(labels.len() >= 2 && labels.len() == values.len(), "{labels:?}");
+    let config = TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() };
+    let outcome = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Full,
+        &config,
+        &TargetRefitOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(outcome.plan.target().family(), TargetFamily::Attribution);
+    // No treatment-keyed refuter denotes for an attribution; only stability refuters run, on
+    // the whole vector.
+    let kinds: Vec<_> = outcome.run.reports.iter().map(|report| report.kind).collect();
+    assert!(
+        kinds.iter().all(|kind| matches!(
+            kind,
+            TargetRefuterKind::SubsetStability | TargetRefuterKind::BootstrapStability
+        )),
+        "{kinds:?} {:?}",
+        outcome.run.refused
+    );
+    assert!(!kinds.is_empty(), "{:?}", outcome.run.refused);
+    assert!(outcome.run.reports.iter().all(|report| report.original.len() == values.len()));
+}

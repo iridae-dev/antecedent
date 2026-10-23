@@ -1442,6 +1442,9 @@ impl super::Study {
                 est.likelihood
             };
         posterior.assumptions.push(gcomp_outcome_model_assumption(likelihood, conditional));
+        if let Some(arm_effect) = gcomp_arm_effect_assumption(&query_est.target_population) {
+            posterior.assumptions.push(arm_effect);
+        }
         let estimate = effect_from_posterior(&posterior)?;
         clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(
@@ -4453,6 +4456,43 @@ pub(super) fn gcomp_outcome_model_assumption(
         scope: antecedent_core::AssumptionScope::Estimation,
         status: antecedent_core::AssumptionStatus::Declared,
     }
+}
+
+/// The label of a Bayesian g-computation effect on the treated or untreated arm.
+///
+/// It is the contrast of the declared Gaussian outcome model averaged over that arm, with
+/// treatment-by-covariate interactions centred at the arm's covariate means. It is not a
+/// matching estimand: a matching contrast has no posterior, and this effect keeps the
+/// model's identifying premises instead of the matcher's rule.
+pub(super) fn gcomp_arm_effect_assumption(
+    population: &antecedent_core::TargetPopulation,
+) -> Option<antecedent_core::AssumptionRecord> {
+    let arm = match population {
+        antecedent_core::TargetPopulation::Treated => "treated",
+        antecedent_core::TargetPopulation::Untreated => "untreated",
+        _ => return None,
+    };
+    Some(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(
+            antecedent_core::ParametricAssumption {
+                id: Arc::from("bayesian.gcomp.model_based_arm_effect"),
+                description: Arc::from(format!(
+                    "the reported effect is the Gaussian outcome model's contrast averaged over \
+                     the {arm} rows, with treatment x covariate interactions centred at the \
+                     {arm} covariate means; it is a model-based effect on the {arm}, not a \
+                     matching estimand and not the all-observed effect, and it is biased if the \
+                     outcome mean is not linear in the adjustment columns and their \
+                     interactions with treatment; the arm-effect interval is unlicensed and \
+                     its coverage is unmeasured"
+                )),
+            },
+        ),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("bayesian.gcomp"),
+        },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    })
 }
 
 pub(super) fn envelope_draws_from_posterior(

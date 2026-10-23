@@ -153,10 +153,61 @@ pub fn result_target_family(result: &StudyResult) -> TargetFamily {
     if result.distribution().is_some() {
         return TargetFamily::WorldValued;
     }
+    if result.anomaly().is_some() || result.change_attribution().is_some() {
+        return TargetFamily::Attribution;
+    }
     if result.counterfactual().is_some() {
         return TargetFamily::ConditionalEffect;
     }
     TargetFamily::ScalarAverageEffect
+}
+
+/// The per-component vector of an anomaly or change attribution: for each scored target the
+/// mean score and the mean Shapley contribution of every noise component; for a change
+/// attribution the total change and every component's contribution.
+fn attribution_values(result: &StudyResult) -> Result<(Vec<Arc<str>>, Vec<f64>), CausalError> {
+    let mut labels: Vec<Arc<str>> = Vec::new();
+    let mut values = Vec::new();
+    if let Some(scores) = result.anomaly() {
+        for score in scores {
+            let rows = score.rows.len();
+            let width = score.noise_components.len();
+            if rows == 0 || score.noise_contributions.len() != rows * width {
+                return Err(CausalError::Unsupported {
+                    message: "an anomaly attribution without scored rows has no vector to refute",
+                });
+            }
+            let target = score.target.raw();
+            labels.push(Arc::from(format!("anomaly[{target}].score")));
+            values.push(score.scores.iter().sum::<f64>() / rows as f64);
+            for (j, component) in score.noise_components.iter().enumerate() {
+                labels.push(Arc::from(format!(
+                    "anomaly[{target}].component[{}]",
+                    component.variable().raw()
+                )));
+                values.push(
+                    (0..rows).map(|row| score.noise_contributions[row * width + j]).sum::<f64>()
+                        / rows as f64,
+                );
+            }
+        }
+    } else if let Some(change) = result.change_attribution() {
+        labels.push(Arc::from("change.total"));
+        values.push(change.total_change);
+        for contribution in change.contributions.iter() {
+            labels.push(Arc::from(format!(
+                "change.component[{}]",
+                contribution.component.variable().raw()
+            )));
+            values.push(contribution.contribution);
+        }
+    }
+    if values.is_empty() {
+        return Err(CausalError::Unsupported {
+            message: "the attribution result carries no component vector to refute",
+        });
+    }
+    Ok((labels, values))
 }
 
 fn labelled(prefix: &str, values: &[f64]) -> (Vec<Arc<str>>, Vec<f64>) {
@@ -231,6 +282,7 @@ pub fn result_target_values(
                  attempt: query the interventional mean as an InterventionResponse",
             ));
         }
+        TargetFamily::Attribution => attribution_values(result)?,
         TargetFamily::ConditionalEffect => {
             let ite = result
                 .counterfactual()
@@ -442,9 +494,17 @@ pub fn refute_prepared_target(
 ) -> Result<TargetRefutationOutcome, CausalError> {
     let target = result_refutation_target(result)?;
     let (_, _, original) = result_target_values(result)?;
-    let treatment = result.treatment.ok_or(CausalError::Unsupported {
-        message: "target refutation needs a result with a treatment",
-    })?;
+    // An attribution has no treatment; its stability refuters never read one, so the
+    // outcome stands in for the unused field.
+    let treatment = match result.treatment {
+        Some(treatment) => treatment,
+        None if target.family() == TargetFamily::Attribution => result.outcome,
+        None => {
+            return Err(CausalError::Unsupported {
+                message: "target refutation needs a result with a treatment",
+            });
+        }
+    };
     if let Some(lowered) = prepared.plan().lowered() {
         if Some(lowered.identity()) != result.lowered_program_identity() {
             return Err(CausalError::Conflict {

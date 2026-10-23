@@ -7,6 +7,9 @@ use antecedent::{RandomizedEffectQuery, Study};
 use antecedent_core::{RandomizationDesign, VariableId};
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn study(
     sequences: usize,
     periods: usize,
@@ -48,6 +51,12 @@ fn supported_switchback_interval_round_trips_and_rejects_forgery() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "supported_switchback_interval_round_trip",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.randomized_effect().unwrap();
     let [lower, upper] = fit.interval_95.expect("supported switchback interval");
     assert!(lower < fit.effect && fit.effect < upper);

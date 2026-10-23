@@ -12,6 +12,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod chain;
 mod decision;
 mod linear_gaussian;
 mod planning;
@@ -28,6 +29,7 @@ use crate::analysis::IdentificationCache;
 use crate::analysis::lowering::RouteCell;
 use crate::planner::statistical::StatisticalProgram;
 
+pub use chain::ChainProgram;
 pub use decision::{
     CarrierDemand, Composition, DecisionProgram, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, EvsiProgram,
@@ -104,6 +106,10 @@ pub enum FunctionalKind {
     Attribution,
     /// A simulation of fitted mechanisms (interventional draws, policy value, unit effects).
     Simulation,
+    /// A quantity propagated through a chain of transformations: a measurement
+    /// mapping, a transport, a pool, a derived quantity, a decision utility and a
+    /// preposterior update.
+    PropagatedChain,
 }
 
 impl FunctionalKind {
@@ -131,6 +137,7 @@ impl FunctionalKind {
             Self::StructureSearch => "structure_search",
             Self::Attribution => "attribution",
             Self::Simulation => "simulation",
+            Self::PropagatedChain => "propagated_chain",
         }
     }
 }
@@ -299,6 +306,13 @@ pub(crate) enum NonGraphicalIdentification {
         /// Digest of the graphical source and its premises.
         source: [u8; 32],
     },
+    /// The overlap of the evidence a chain combines, from its dependence
+    /// contract: which stages share rows, clusters, models, priors,
+    /// disturbances or periods. Nothing is identified from observations.
+    SharedEvidenceContract {
+        /// Digest of the declared chain, which carries the declared factors.
+        contract: [u8; 32],
+    },
 }
 
 impl NonGraphicalIdentification {
@@ -308,6 +322,7 @@ impl NonGraphicalIdentification {
             Self::SpecifiedModelConditional { .. } => "specified_model_conditional",
             Self::ExperimentalRecovery { .. } => "experimental_recovery",
             Self::CyclicIoScm { .. } => "cyclic_ioscm",
+            Self::SharedEvidenceContract { .. } => "shared_evidence_contract",
         }
     }
 
@@ -328,6 +343,9 @@ impl NonGraphicalIdentification {
             }
             Self::CyclicIoScm { source } => {
                 writer.bytes(source);
+            }
+            Self::SharedEvidenceContract { contract } => {
+                writer.bytes(contract);
             }
         }
     }
@@ -660,9 +678,50 @@ impl PlanningLoweredParts {
     }
 }
 
+/// The parts a propagation-chain lowering assembles: a chain of transformations
+/// over declared sources, with no study bound. [`Self::finish`] computes the
+/// identity.
+pub(crate) struct ChainLoweredParts {
+    /// Stable name of the reading the chain answers (`spread`, `enclosure`, ...).
+    pub(crate) reading: &'static str,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl ChainLoweredParts {
+    /// Seal the parts into a lowered program for the chain.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::PropagationChain(self.reading);
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(self.reading).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+        }
+    }
+}
+
 /// The compiled cell a lowered program was lowered for: a route cell of
-/// `Study::compile`, a cyclic family that prepares through its own entry, or a
-/// standalone experiment plan.
+/// `Study::compile`, a cyclic family that prepares through its own entry, a
+/// standalone experiment plan, or a propagation chain.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(crate) enum ProgramCell {
     /// A registered route cell.
@@ -671,6 +730,8 @@ pub(crate) enum ProgramCell {
     CyclicFamily(&'static str),
     /// A standalone experiment plan, by its design name.
     Planning(&'static str),
+    /// A chain of transformations, by the reading it answers.
+    PropagationChain(&'static str),
 }
 
 impl ProgramCell {
@@ -680,6 +741,7 @@ impl ProgramCell {
             Self::Route(cell) => cell.as_str(),
             Self::CyclicFamily(_) => "CyclicFamily",
             Self::Planning(_) => "ExperimentPlanning",
+            Self::PropagationChain(_) => "PropagationChain",
         }
     }
 }
@@ -727,7 +789,9 @@ impl LoweredProgram {
     pub const fn cyclic_family(&self) -> Option<&'static str> {
         match self.cell {
             ProgramCell::CyclicFamily(family) => Some(family),
-            ProgramCell::Route(_) | ProgramCell::Planning(_) => None,
+            ProgramCell::Route(_) | ProgramCell::Planning(_) | ProgramCell::PropagationChain(_) => {
+                None
+            }
         }
     }
 
@@ -736,8 +800,26 @@ impl LoweredProgram {
     pub const fn planned_design(&self) -> Option<&'static str> {
         match self.cell {
             ProgramCell::Planning(design) => Some(design),
-            ProgramCell::Route(_) | ProgramCell::CyclicFamily(_) => None,
+            ProgramCell::Route(_)
+            | ProgramCell::CyclicFamily(_)
+            | ProgramCell::PropagationChain(_) => None,
         }
+    }
+
+    /// The reading a propagation chain answers when this program was lowered for one.
+    #[must_use]
+    pub const fn chain_reading(&self) -> Option<&'static str> {
+        match self.cell {
+            ProgramCell::PropagationChain(reading) => Some(reading),
+            ProgramCell::Route(_) | ProgramCell::CyclicFamily(_) | ProgramCell::Planning(_) => None,
+        }
+    }
+
+    /// The propagation chain this program was lowered from, when it was lowered
+    /// for one.
+    #[must_use]
+    pub fn propagation_chain(&self) -> Option<&ChainProgram> {
+        self.evidence.chain()
     }
 
     /// How far this route's lowering has been carried.

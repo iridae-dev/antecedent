@@ -26,6 +26,8 @@ pub enum EvidenceRole {
     TransportSource,
     /// The compiled search and review a discovered structure came from.
     DiscoveredStructure,
+    /// A source of a propagation chain: a column of draws, an interval or a point.
+    ChainSource,
 }
 
 impl EvidenceRole {
@@ -38,6 +40,7 @@ impl EvidenceRole {
             Self::PriorArtifact => "prior_artifact",
             Self::TransportSource => "transport_source",
             Self::DiscoveredStructure => "discovered_structure",
+            Self::ChainSource => "chain_source",
         }
     }
 }
@@ -79,6 +82,11 @@ pub enum Composition {
     Pooled {
         /// Number of pooled sources.
         sources: usize,
+    },
+    /// Stages run in sequence, each fed by the stages before it.
+    Chained {
+        /// Number of stages.
+        stages: usize,
     },
 }
 
@@ -542,6 +550,7 @@ pub struct EvidenceDecisionProgram {
     pub(crate) composition: Composition,
     pub(crate) decision: Option<DecisionProgram>,
     pub(crate) planning: Option<super::planning::PlanningProgram>,
+    pub(crate) chain: Option<super::chain::ChainProgram>,
 }
 
 impl EvidenceDecisionProgram {
@@ -569,6 +578,12 @@ impl EvidenceDecisionProgram {
         self.planning.as_ref()
     }
 
+    /// The propagation chain compile started from, when it started from one.
+    #[must_use]
+    pub const fn chain(&self) -> Option<&super::chain::ChainProgram> {
+        self.chain.as_ref()
+    }
+
     /// Identity of this layer.
     pub(crate) fn identity(&self) -> SemanticDigest {
         let mut writer = CanonicalWriter::new(EVIDENCE_PROGRAM_TAG);
@@ -585,6 +600,7 @@ impl EvidenceDecisionProgram {
             Composition::AtomMixture { atoms } => writer.text("atom_mixture").word(atoms as u64),
             Composition::Transported => writer.text("transported"),
             Composition::Pooled { sources } => writer.text("pooled").word(sources as u64),
+            Composition::Chained { stages } => writer.text("chained").word(stages as u64),
         };
         match &self.decision {
             Some(decision) => {
@@ -599,6 +615,10 @@ impl EvidenceDecisionProgram {
         // keeps the identity it had before planning goals existed.
         if let Some(planning) = &self.planning {
             planning.write(&mut writer);
+        }
+        // Likewise for a propagation chain.
+        if let Some(chain) = &self.chain {
+            chain.write(&mut writer);
         }
         SemanticDigest::from_bytes(writer.finish())
     }

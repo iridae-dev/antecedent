@@ -419,3 +419,73 @@ fn unrestricted_carryover_and_an_unspecified_dependence_are_typed_refusals() {
     let error = run(&data, query, bayes(None), None).err().expect("refused");
     assert_eq!(error.reason_code(), Some("required_option_missing"));
 }
+
+/// Alternating assignment at probability one half; 70% of units are compliers with a constant
+/// effect of two, so the Wald ratio recovers two.
+fn encouragement(n: usize, receipt_unrelated: bool) -> (TabularData, RandomizedEffectQuery) {
+    let assigned: Vec<bool> = (0..n).map(|i| i % 2 == 0).collect();
+    let received: Vec<bool> = (0..n)
+        .map(|i| if receipt_unrelated { i % 3 == 0 } else { assigned[i] && (i % 10) < 7 })
+        .collect();
+    let outcome: Vec<f64> = (0..n)
+        .map(|i| {
+            let effect = if received[i] && !receipt_unrelated { 2.0 } else { 0.0 };
+            1.0 + 0.1 * (i % 7) as f64 + effect
+        })
+        .collect();
+    let data = TabularData::from_f64_columns([("y", outcome.as_slice())]).unwrap();
+    let query = RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(0),
+        assigned,
+        vec![0.5; n],
+        units(n, "account"),
+        units(n, "row"),
+        ("control", "encouraged"),
+    )
+    .with_received_treatment(received);
+    (data, query)
+}
+
+#[test]
+fn the_complier_posterior_recovers_the_known_effect_and_is_unlicensed() {
+    let (data, query) = encouragement(2_000, false);
+    let (prepared, result, ctx) = run(&data, query, bayes(None), None).unwrap();
+    assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.complier_effect"));
+    assert_eq!(result.support_status, None, "the Bayesian complier route is unlicensed");
+    assert_eq!(prepared.retained_operation().name(), "randomized");
+    let posterior = result.posterior.as_ref().unwrap();
+    let column = posterior.effect_column().unwrap();
+    close(posterior.summaries.mean[column], 2.0, 0.3, "complier posterior mean");
+    assert!(posterior.summaries.q025[column] < 2.0 && 2.0 < posterior.summaries.q975[column]);
+    let bytes = prepared.encode_contracted_result(&result, "bayes-complier", &ctx).unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let acceptance = &consumed.acceptance;
+    assert!(
+        acceptance.recognized
+            && acceptance.claim_present
+            && acceptance.unresolved.iter().all(|reason| reason.starts_with("dependencies.")),
+        "unresolved: {:?}",
+        acceptance.unresolved,
+    );
+}
+
+#[test]
+fn a_first_stage_that_reaches_zero_is_refused_not_published_as_a_ratio() {
+    let (data, query) = encouragement(200, true);
+    let error = run(&data, query, bayes(None), None).unwrap_err().to_string();
+    assert!(error.contains("weak first stage") && error.contains("Next attempt"), "{error}");
+}
+
+#[test]
+fn the_complier_posterior_refuses_an_arm_contrast_estimator() {
+    let (data, query) = encouragement(400, false);
+    let error = run(
+        &data,
+        query,
+        bayes(Some(uniform_arms())),
+        Some(EstimatorId::BayesianRandomizedSuperpopulation),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("Next attempt"), "{error}");
+}

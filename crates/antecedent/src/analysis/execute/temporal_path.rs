@@ -1209,6 +1209,11 @@ impl super::Study {
         // uncertainty. Replicates = 0 keeps the analytic OLS linear-functional SE.
         let mut estimator =
             TemporalResponseEstimator::new().with_allow_gaps(self.declares_complete_case());
+        if let InferenceMode::Bayesian(cfg) = &self.inference {
+            if let Some(gate) = cfg.white_innovation {
+                estimator = estimator.with_white_innovation(gate);
+            }
+        }
         estimator.inner.bootstrap_replicates =
             if observation_adjusted.is_some() { 0 } else { self.bootstrap_replicates };
         let mut conflict_summary = None;

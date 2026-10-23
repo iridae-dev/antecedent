@@ -11,6 +11,9 @@ use antecedent::{RandomizedEffectQuery, Study};
 use antecedent_core::VariableId;
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn query(n: usize) -> RandomizedEffectQuery {
     RandomizedEffectQuery::bernoulli_itt(
         VariableId::from_raw(0),
@@ -48,6 +51,12 @@ fn supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery() {
         let prepared =
             Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
+        retained_graphless::assert_retained_graphless_program(
+            "supported_ancova_and_fixed_cuped_interva",
+            &prepared,
+            &result,
+            &ctx,
+        );
         let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported precision interval");
         assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));

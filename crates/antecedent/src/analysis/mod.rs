@@ -122,6 +122,7 @@ pub mod planning;
 pub mod posterior_boundaries;
 pub mod predictive_assessment;
 mod preflight;
+pub mod propagation_chain;
 pub mod provider_callbacks;
 pub(crate) mod query_license;
 mod rank_drop_estimate;
@@ -321,6 +322,9 @@ pub use preflight::{
     FittedPropensity, NuisanceFitDiagnostics, PreflightFinding, PreflightInput, PreflightReport,
     PropensityOutcome, RankDropPlan, RankDropPolicy, RankReport, ScoreQuantile, SpanCheck,
     fit_diagnostics_design, plan_rank_drop, preflight_design,
+};
+pub use propagation_chain::{
+    PropagationChain, consume_propagation_chain, independent_product_table,
 };
 pub use provider_callbacks::{
     CallbackConnectionError, CallbackExecution, CallbackExecutionError, CallbackExecutionPolicy,

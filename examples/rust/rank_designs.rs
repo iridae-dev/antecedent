@@ -13,7 +13,9 @@
 )]
 //! Rank candidate experimental designs by identification probability.
 //!
-//! See ADR 0016: ranking is advisory — it does not auto-rerun analyses.
+//! See ADR 0016: ranking is advisory — it does not auto-rerun analyses. Ranking runs through a
+//! prepared study's contract, which refuses an unlicensed study and reports the candidates the
+//! objective cannot score instead of scoring them.
 //!
 //! Run: `cargo run -p antecedent --example rank_designs`
 
@@ -21,10 +23,11 @@ use std::sync::Arc;
 
 use antecedent::design::{
     CandidateDesign, DesignCost, DesignEvaluationContext, DesignObjective, DesignRankConfig,
-    DesignRanker, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan, rank_designs,
+    DesignRanker, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
 };
 use antecedent::prelude::*;
 use antecedent_core::{EnvironmentId, QueryId};
+use antecedent_data::TableView;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 fn candidate_kind(c: &CandidateDesign) -> &'static str {
@@ -94,7 +97,25 @@ pub fn run() -> Result<(), CausalError> {
         graph_features: None,
     };
 
-    let ranking = rank_designs(
+    // A small confounded study (z -> t, z -> y, t -> y) supplies the prepared contract.
+    let n = 96_usize;
+    let z: Vec<f64> = (0..n).map(|i| ((i * 37) % n) as f64 / n as f64 - 0.5).collect();
+    let t: Vec<f64> = (0..n)
+        .map(|i| if (i as f64 * 0.618_033_988).fract() + 0.5 * z[i] > 0.5 { 1.0 } else { 0.0 })
+        .collect();
+    let y: Vec<f64> = (0..n).map(|i| 2.0 * t[i] + z[i] + 0.1 * (i as f64 * 1.7).sin()).collect();
+    let data = TabularData::from_f64_columns([("t", &t[..]), ("y", &y[..]), ("z", &z[..])])?;
+    let dag = Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")])?;
+    let (t_id, y_id) = (data.schema().id_of("t")?, data.schema().id_of("y")?);
+    let query = AverageEffectQuery::binary_ate(t_id, y_id);
+    let prepared = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .build()?
+        .prepare(&ctx)?;
+
+    let ranking = prepared.rank_designs(
         &ranker,
         &DesignObjective::IncreaseIdentificationProbability { query: q },
         &candidates,
@@ -104,7 +125,14 @@ pub fn run() -> Result<(), CausalError> {
 
     let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
     println!("best_index={best} mc_samples={}", ranking.budget.samples);
-    assert_eq!(ranking.ranked.len(), candidates.len(), "every candidate is ranked");
+    // More observational units cannot identify a structurally unidentified effect, so that
+    // candidate is reported as a violation instead of being scored.
+    assert_eq!(
+        ranking.ranked.len() + ranking.violations.len(),
+        candidates.len(),
+        "every candidate is ranked or reported"
+    );
+    assert!(!ranking.violations.is_empty(), "the sampling-rate candidate is reported");
     assert!(best < candidates.len());
     assert!(ranking.budget.samples > 0);
     for row in ranking.ranked.iter() {

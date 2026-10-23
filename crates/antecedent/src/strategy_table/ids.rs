@@ -357,6 +357,9 @@ pub enum EstimatorId {
     InterferenceObservationalIpw,
     /// Bayesian finite-network Gaussian potential-outcome exposure contrast.
     InterferenceBayesianGaussian,
+    /// Cluster-level Bayesian-bootstrap posterior of the cluster total exposure contrast
+    /// (unlicensed, uncalibrated).
+    InterferenceClusterBayesianBootstrap,
     /// Horvitz--Thompson design-based Bernoulli ITT.
     RandomizedHt,
     /// Local Epanechnikov-kernel response with supplied inverse dose density.
@@ -414,6 +417,9 @@ pub enum EstimatorId {
     /// Posterior of the arm contrasts of a randomized trial in the population the units are
     /// sampled from (unlicensed, uncalibrated).
     BayesianRandomizedSuperpopulation,
+    /// Bayesian-bootstrap posterior of the complier effect under known Bernoulli encouragement
+    /// (unlicensed, uncalibrated).
+    BayesianComplierEffect,
     /// Posterior of the switchback direct effect under a declared carryover and within-sequence
     /// dependence (unlicensed, uncalibrated).
     BayesianSwitchback,
@@ -431,6 +437,9 @@ pub enum EstimatorId {
     BayesianSequentialCrossfitContrast,
     /// Frequentist within-period history-matched contrast (unlicensed, uncalibrated).
     PeriodHistoryMatching,
+    /// Bayesian outcome-model effect on the treated of a period-and-history design
+    /// (unlicensed, uncalibrated). A model-based estimand, not a matching posterior.
+    BayesianPeriodHistoryOutcomeModel,
     /// Cluster-robust Horvitz-Thompson excursion contrasts of a sequentially randomized
     /// unit-period design (unlicensed, uncalibrated).
     TemporalDesignExcursion,
@@ -955,6 +964,23 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.interference.bayesian_gaussian",
             ),
         },
+        EstimatorId::InterferenceClusterBayesianBootstrap => EstimatorData {
+            compatible: INTERFERENCE,
+            name: "interference.cluster_bayesian_bootstrap",
+            parallel_task_dimension: "analysis",
+            kernel_label: "interference.cluster_bayesian_bootstrap",
+            provenance: (
+                "estimate.interference.cluster_bayesian_bootstrap",
+                "estimate.interference.cluster_bayesian_bootstrap",
+            ),
+        },
+        EstimatorId::BayesianComplierEffect => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.complier_effect",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian.complier_effect",
+            provenance: same_step("estimate.bayesian_complier_effect"),
+        },
         EstimatorId::RandomizedHt => EstimatorData {
             compatible: RANDOMIZED,
             name: "randomized.ht_itt",
@@ -1160,6 +1186,13 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             parallel_task_dimension: "analysis",
             kernel_label: "matching.period_history_contrast",
             provenance: same_step("estimate.period_history_matching"),
+        },
+        EstimatorId::BayesianPeriodHistoryOutcomeModel => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.period_history_outcome_model",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_gaussian.period_history_outcome_model",
+            provenance: same_step("estimate.bayesian_period_history_outcome_model"),
         },
         EstimatorId::TemporalDesignExcursion => EstimatorData {
             compatible: RANDOMIZED,
@@ -1516,6 +1549,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::InterferenceSaturationExact
         | EstimatorId::InterferenceObservationalIpw
         | EstimatorId::InterferenceBayesianGaussian
+        | EstimatorId::InterferenceClusterBayesianBootstrap
         | EstimatorId::ContinuousDoseKernel
         | EstimatorId::RandomizedSurvivalProductLimit
         | EstimatorId::LongitudinalIpwRegime
@@ -1528,6 +1562,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::SequentialCrossfitContrastWald
         | EstimatorId::BayesianSequentialCrossfitContrast
         | EstimatorId::PeriodHistoryMatching
+        | EstimatorId::BayesianPeriodHistoryOutcomeModel
         | EstimatorId::TemporalDesignExcursion
         | EstimatorId::BayesianTemporalDesignExcursion
         | EstimatorId::TemporalRegimeSurvival
@@ -1542,6 +1577,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::RandomizedSwitchbackHt
         | EstimatorId::BayesianRandomizedFinitePopulation
         | EstimatorId::BayesianRandomizedSuperpopulation
+        | EstimatorId::BayesianComplierEffect
         | EstimatorId::BayesianSwitchback
         | EstimatorId::RandomizedNeyman => {
             matches!(method, EstimandMethod::RandomizedItt)

@@ -620,6 +620,7 @@ class PreparedBatch:
         latency: Literal["interactive", "standard", "report"] | None = None,
         candidate_screen: CandidateScreen | None = None,
         family_contrast: Literal["cell_minus_control", "interaction"] | None = "cell_minus_control",
+        family_posterior_draws: int | None = None,
     ) -> PreparedBatch:
         """Compile discrete joint ``InterventionResponse`` cells into one batch.
 
@@ -632,6 +633,13 @@ class PreparedBatch:
         formed on that contrast family. ``family_contrast=None`` publishes no
         p-values. ``estimate.ate`` remains the requested cell level, not a
         contrast.
+
+        ``family_posterior_draws`` additionally publishes
+        ``estimate.family_contrast_posterior``: a Bayesian-bootstrap posterior of the
+        family contrast (for ``interaction``, the complete non-additivity) from the
+        frozen cross-fit scores. Every family member shares each draw's Dirichlet row
+        weights, so draw ``d`` is one aligned joint realization. It is conditional on
+        the cross-fit nuisances and its calibration is unmeasured.
         """
         if not queries:
             raise CausalValueError("PreparedBatch.prepare_cells requires at least one query")
@@ -660,6 +668,7 @@ class PreparedBatch:
             bootstrap=bootstrap,
             threads=threads,
             family_contrast=family_contrast,
+            family_posterior_draws=family_posterior_draws,
         )
         if latency is not None:
             kwargs["latency"] = latency

@@ -152,7 +152,12 @@ pub(super) fn bayesian_gcomp(cx: &SealContext<'_>) -> SealOutcome {
         match (cx.static_ate_dag(), analysis.identification_cache.as_ref(), &analysis.inference) {
             (Some((_, query)), Some(cache), InferenceMode::Bayesian(_))
                 if matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                    && matches!(query.target_population, TargetPopulation::AllObserved)
+                    && matches!(
+                        query.target_population,
+                        TargetPopulation::AllObserved
+                            | TargetPopulation::Treated
+                            | TargetPopulation::Untreated
+                    )
                     && cx.binding.estimator.is(EstimatorId::BayesianGcomp) =>
             {
                 CheckedBayesianGcompOperation {

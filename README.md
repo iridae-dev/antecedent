@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/antecedent)](https://crates.io/crates/antecedent) [![PyPI](https://img.shields.io/pypi/v/antecedent)](https://pypi.org/project/antecedent/) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21556247-blue)](https://doi.org/10.5281/zenodo.21556247)
 
-**Antecedent is a causal inference compiler for research and for building causally aware software and agents.** Discover causal structure, estimate intervention effects, validate analyses, answer counterfactual questions and transport evidence across populations.
+**Antecedent is a causal inference compiler: a library for research and for building causally aware software and agents.** It ships no agent; a host supplies planning and tool use. Discover causal structure, estimate intervention effects, validate analyses, answer counterfactual questions and transport evidence across populations.
 
 Declare a question, structure or study design, and evidence. Antecedent checks identification and compiles an executable plan with compatible methods, explicit assumptions and evidence requirements. Inspect before execution; reuse with compatible data. Unidentified effects, missing evidence and unsupported methods remain explicit.
 
-Explore results in a notebook or embed causal analysis in applications and agents. Readable reports and machine-readable contracts carry assumptions, diagnostics, uncertainty and limits through reuse, decisions and export. Applications and agents can distinguish supported claims, partial answers and refusals before using a result.
+Explore results in a notebook or embed causal analysis in applications and agents you build. Readable reports and machine-readable contracts carry assumptions, diagnostics, uncertainty and limits through reuse, decisions and export. A versioned JSON Schema and stable refusal codes let a host distinguish supported claims, partial answers and refusals before using a result; see [embedding Antecedent](docs/embedding.md) and the minimal [reference host](examples/rust/reference_host.rs) ([Python](examples/python/reference_host.py)), which contains no agent logic.
 
 ## When statistical significance isn't the decision
 
@@ -77,6 +77,7 @@ print("Answer:", result.answer.kind, result.answer.value)
 print("Calibration:", result.calibration.status)
 report = result.inspect().to_dict()
 print("Identification:", report["identification"]["summary"])
+print(study.report("markdown"))  # a readable report of the contract, claim and plan
 
 # Reuse the analysis with new data.
 new_data = {**data, "outcome": data["outcome"] + treatment}

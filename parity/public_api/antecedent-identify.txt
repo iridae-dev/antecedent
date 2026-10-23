@@ -360,6 +360,7 @@ impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec
 impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::TemporalSlots
 impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::UnrolledSequence
+impl core::clone::Clone for antecedent_identify::temporal_admg::TemporalAdmgIdentification
 impl core::cmp::Eq for antecedent_identify::AcceptedRegimeContract
 impl core::cmp::Eq for antecedent_identify::ChainPartial
 impl core::cmp::Eq for antecedent_identify::ChainRecoveryDetail
@@ -1203,6 +1204,7 @@ impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::TemporalS
 impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec
 impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::TemporalSlots
 impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::UnrolledSequence
+impl core::fmt::Debug for antecedent_identify::temporal_admg::TemporalAdmgIdentification
 impl core::fmt::Display for antecedent_identify::ChainRecoveryError
 impl core::fmt::Display for antecedent_identify::IdentificationError
 impl core::fmt::Display for antecedent_identify::ProductRefusal
@@ -1673,6 +1675,7 @@ impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::Tempo
 impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::marker::Freeze for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
 impl core::marker::Send for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Send for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::marker::Send for antecedent_identify::AutoIdentifier [auto]
@@ -2009,6 +2012,7 @@ impl core::marker::Send for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::marker::Send for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Send for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Send for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::marker::Send for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
 impl core::marker::StructuralPartialEq for antecedent_identify::AcceptedRegimeContract
 impl core::marker::StructuralPartialEq for antecedent_identify::BinaryIvLaw
 impl core::marker::StructuralPartialEq for antecedent_identify::ChainPartial
@@ -2583,6 +2587,7 @@ impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::marker::Sync for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
 impl core::marker::Unpin for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Unpin for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::marker::Unpin for antecedent_identify::AutoIdentifier [auto]
@@ -2919,6 +2924,7 @@ impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::Tempor
 impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::marker::Unpin for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AutoIdentifier [auto]
@@ -3255,6 +3261,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::tempo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AutoIdentifier [auto]
@@ -3591,6 +3598,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::temporal
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
 impl serde_core::ser::Serialize for antecedent_identify::ConditionalNonTransportabilityRecord
 impl serde_core::ser::Serialize for antecedent_identify::ConditionalObstructionRecord
 impl serde_core::ser::Serialize for antecedent_identify::ConditionalTransportRecord
@@ -4818,6 +4826,11 @@ pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::covariates
 pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::outcome: antecedent_core::ids::VariableId
 pub field antecedent_identify::sid::temporal_sequence::UnrolledSequence::admg: antecedent_graph::admg::Admg
 pub field antecedent_identify::sid::temporal_sequence::UnrolledSequence::slots: antecedent_identify::sid::temporal_sequence::TemporalSlots
+pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::obstruction: core::option::Option<alloc::string::String>
+pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::outcome: antecedent_core::ids::VariableId
+pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::result: antecedent_identify::IdentificationResult
+pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::schedule: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::window: antecedent_graph::temporal_admg::UnrolledTemporalAdmg
 pub fn <antecedent_identify::AcceptedRegimeContract>::const fn mask(&self) -> &antecedent_identify::UnitMask
 pub fn <antecedent_identify::AcceptedRegimeContract>::fn passive_units(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_identify::AcceptedRegimeContract>::fn regimes(&self) -> &[antecedent_identify::ExperimentRegime]
@@ -5414,6 +5427,7 @@ pub fn antecedent_identify::sid::verify_mixed_source_derivation(graph: &antecede
 pub fn antecedent_identify::sid::verify_mz_transport_obstruction(graph: &antecedent_graph::admg::Admg, obstruction: &antecedent_identify::MzTransportObstruction, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_s_hedge(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, witness: &antecedent_identify::sid::SHedgeCertificate, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::sid::verify_z_transport_derivation(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, derivation: &antecedent_identify::ZTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn antecedent_identify::temporal_admg::identify_temporal_admg_contrast(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::temporal_admg::TemporalAdmgIdentification, antecedent_identify::IdentificationError>
 pub mod antecedent_identify::assumptions
 pub mod antecedent_identify::auto
 pub mod antecedent_identify::backdoor
@@ -5453,6 +5467,7 @@ pub mod antecedent_identify::sid::scenario_invariance
 pub mod antecedent_identify::sid::scenarios
 pub mod antecedent_identify::sid::temporal_initial_shift
 pub mod antecedent_identify::sid::temporal_sequence
+pub mod antecedent_identify::temporal_admg
 pub mod antecedent_identify::temporal_backdoor
 pub mod antecedent_identify::temporal_generalized
 pub mod antecedent_identify::temporal_iv
@@ -5761,6 +5776,7 @@ pub struct antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec has
 pub struct antecedent_identify::sid::temporal_sequence::TemporalSlots
 pub struct antecedent_identify::sid::temporal_sequence::UnrolledSequence
 pub struct antecedent_identify::sid::temporal_sequence::UnrolledSequence has private fields
+pub struct antecedent_identify::temporal_admg::TemporalAdmgIdentification
 pub trait antecedent_identify::Identifier<G>: sealed::Sealed
 pub trait fn fn antecedent_identify::Identifier::identify(&self, prepared: &<Self as antecedent_identify::Identifier>::Prepared, query: &antecedent_core::query::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub trait fn fn antecedent_identify::Identifier::prepare(&self, graph: &G, assumptions: &antecedent_core::assumption::AssumptionSet) -> core::result::Result<<Self as antecedent_identify::Identifier>::Prepared, antecedent_identify::IdentificationError>

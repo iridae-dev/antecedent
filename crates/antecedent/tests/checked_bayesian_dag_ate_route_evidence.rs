@@ -267,7 +267,8 @@ fn bayesian_dag_ate_hmc_draw_floor_and_population_refusal_keep_scope_visible() {
     );
 
     let mut other_population = query;
-    other_population.target_population = antecedent_core::TargetPopulation::Treated;
+    other_population.target_population =
+        antecedent_core::TargetPopulation::Environment(antecedent_core::EnvironmentId::from_raw(1));
     let maybe_study = Study::tabular(data.clone())
         .graph(graph)
         .query(other_population)

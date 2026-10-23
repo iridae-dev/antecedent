@@ -67,6 +67,7 @@ impl std::str::FromStr for CellFamilyContrast {
     }
 }
 use antecedent_data::{TableView, TabularData, ValidityBitmap};
+use antecedent_estimate::score_posterior::ScorePosteriorOptions;
 use antecedent_estimate::{
     CrossfitNuisanceCache, DEFAULT_AIPW_FOLDS, NuisanceScopeUse, PreparedPropensityProblem,
 };
@@ -414,6 +415,7 @@ pub struct BatchStudy {
     estimator_spec: Option<EstimatorSpec>,
     screen: Option<CandidateScreen>,
     family_contrast: Option<CellFamilyContrast>,
+    family_posterior: Option<ScorePosteriorOptions>,
 }
 
 impl BatchStudy {
@@ -431,6 +433,7 @@ impl BatchStudy {
             estimator_spec: None,
             screen: None,
             family_contrast: Some(CellFamilyContrast::CellMinusControl),
+            family_posterior: None,
         }
     }
 
@@ -451,6 +454,7 @@ impl BatchStudy {
             estimator_spec: None,
             screen: None,
             family_contrast: Some(CellFamilyContrast::CellMinusControl),
+            family_posterior: None,
         }
     }
 
@@ -547,6 +551,18 @@ impl BatchStudy {
         self
     }
 
+    /// Also publish the Bayesian-bootstrap posterior of the declared family contrast on
+    /// [`Self::prepare_cells`] results: the frozen cross-fit scores are reweighted by
+    /// Dirichlet(1, ..., 1) row weights shared by every member of the family, so the draws
+    /// are one aligned joint posterior of the contrast (for the interaction, the complete
+    /// non-additivity, not a difference of marginal intervals). Conditional on the cross-fit
+    /// nuisances; calibration is unmeasured. `None` publishes no posterior.
+    #[must_use]
+    pub const fn family_posterior(mut self, posterior: Option<ScorePosteriorOptions>) -> Self {
+        self.family_posterior = posterior;
+        self
+    }
+
     /// Estimate each query against the shared table.
     ///
     /// Shared fold assignment and covariate design when the batch uses AIPW /
@@ -633,6 +649,7 @@ impl BatchStudy {
             screen: self.screen.clone(),
             shared_design: shared,
             family_contrast: None,
+            family_posterior: None,
             estimator_fingerprint: Arc::from(self.estimator_fingerprint()),
         })
     }
@@ -690,6 +707,7 @@ impl BatchStudy {
             screen: self.screen.clone(),
             shared_design: shared,
             family_contrast: self.family_contrast,
+            family_posterior: self.family_posterior,
             estimator_fingerprint: Arc::from(self.estimator_fingerprint()),
         })
     }
@@ -863,6 +881,7 @@ pub struct PreparedBatch {
     screen: Option<CandidateScreen>,
     shared_design: Option<Arc<SharedBatchDesign>>,
     family_contrast: Option<CellFamilyContrast>,
+    family_posterior: Option<ScorePosteriorOptions>,
     /// [`BatchStudy::estimator_fingerprint`] of the batch this was prepared from.
     estimator_fingerprint: Arc<str>,
 }
@@ -919,6 +938,7 @@ impl PreparedBatch {
             &self.queries,
             self.screen.as_ref(),
             self.family_contrast,
+            self.family_posterior.map(|options| (options, ctx)),
         );
         attach_shared_design_diagnostics(
             &mut out,
@@ -1087,8 +1107,9 @@ fn attach_prepared_batch_joint_inference(
     queries: &[BatchQuery],
     screen: Option<&CandidateScreen>,
     family_contrast: Option<CellFamilyContrast>,
+    posterior: Option<(ScorePosteriorOptions, &ExecutionContext)>,
 ) {
-    attach_batch_family_joint_inference(results, data, queries, screen, family_contrast);
+    attach_batch_family_joint_inference(results, data, queries, screen, family_contrast, posterior);
 }
 
 fn attach_batch_joint_inference(
@@ -1098,7 +1119,7 @@ fn attach_batch_joint_inference(
     screen: Option<&CandidateScreen>,
 ) {
     let family: Vec<BatchQuery> = queries.iter().cloned().map(BatchQuery::Average).collect();
-    attach_batch_family_joint_inference(results, data, &family, screen, None);
+    attach_batch_family_joint_inference(results, data, &family, screen, None, None);
 }
 
 fn batch_claim_alignment(
@@ -1147,6 +1168,7 @@ fn attach_batch_family_joint_inference(
     queries: &[BatchQuery],
     screen: Option<&CandidateScreen>,
     family_contrast: Option<CellFamilyContrast>,
+    posterior: Option<(ScorePosteriorOptions, &ExecutionContext)>,
 ) {
     if results.len() < 2 {
         attach_candidate_selection(results, screen, &[], &[], None);
@@ -1207,6 +1229,7 @@ fn attach_batch_family_joint_inference(
             Some(kind) => {
                 let mut contrast_aligned = Vec::new();
                 let mut contrast_values = Vec::new();
+                let mut contrast_scores = Vec::new();
                 let mut contrast_bindings = Vec::new();
                 for ((result, query), rows) in results.iter().zip(queries).zip(&row_sets) {
                     let CellFamilyClaim { value, scores, binding } =
@@ -1234,6 +1257,7 @@ fn attach_batch_family_joint_inference(
                         return;
                     }
                     contrast_aligned.push(embed_centered_influence(&scores, rows, full_n));
+                    contrast_scores.push(scores);
                     contrast_values.push(value);
                 }
                 let contrast_cols: Vec<&[f64]> =
@@ -1254,6 +1278,9 @@ fn attach_batch_family_joint_inference(
                     if let Some(effect) = result.estimate.as_effect_mut() {
                         effect.family.compiled_contrast = Some(binding);
                     }
+                }
+                if let Some((options, ctx)) = posterior {
+                    attach_family_contrast_posterior(results, &contrast_scores, options, ctx);
                 }
                 attach_family_p_values(
                     results,
@@ -1367,6 +1394,47 @@ fn two_sided_p(value: f64, se: f64) -> f64 {
     }
     let z = value.abs() / se;
     2.0 * antecedent_stats::student_t_sf(z, 1.0e8)
+}
+
+/// Publish the Bayesian-bootstrap posterior of each member's contrast score mean.
+///
+/// All members must be scored on the same complete-case rows so that one Dirichlet weight
+/// vector per draw is shared by the whole family; otherwise the posterior is withheld, never
+/// formed from independent draws.
+fn attach_family_contrast_posterior(
+    results: &mut [StudyResult],
+    scores: &[Vec<f64>],
+    options: ScorePosteriorOptions,
+    ctx: &ExecutionContext,
+) {
+    let columns: Vec<&[f64]> = scores.iter().map(Vec::as_slice).collect();
+    let outcome = if columns.windows(2).any(|pair| pair[0].len() != pair[1].len()) {
+        Err("family members are scored on different complete-case rows".to_owned())
+    } else {
+        antecedent_estimate::score_posterior::bayesian_bootstrap_score_posteriors(
+            &columns, options, ctx,
+        )
+        .map_err(|error| error.to_string())
+    };
+    match outcome {
+        Ok(posteriors) => {
+            for (result, posterior) in results.iter_mut().zip(posteriors) {
+                if let Some(effect) = result.estimate.as_effect_mut() {
+                    effect.family.contrast_posterior = Some(posterior);
+                }
+            }
+        }
+        Err(reason) => {
+            for result in results.iter_mut() {
+                result.diagnostics.push(antecedent_core::Diagnostic::new(
+                    "batch.family_posterior",
+                    antecedent_core::DiagnosticKind::Scientific,
+                    antecedent_core::DiagnosticSeverity::Info,
+                    format!("family contrast posterior withheld: {reason}"),
+                ));
+            }
+        }
+    }
 }
 
 fn attach_family_p_values(

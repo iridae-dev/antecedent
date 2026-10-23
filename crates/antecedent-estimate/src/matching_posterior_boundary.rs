@@ -41,13 +41,14 @@ pub fn refuse_matching_posterior(request: MatchingPosteriorRequest) -> Estimatio
     let next = match request {
         MatchingPosteriorRequest::Static => {
             "next attempt: declare a Bayesian outcome model on the same covariates (the Bayesian \
-             g-computation route) and report its model-based effect on the treated as that \
-             different estimand"
+             g-computation route with a Treated target population on the Gaussian identity \
+             model) and report its model-based effect on the treated as that different estimand"
         }
         MatchingPosteriorRequest::WithinPeriodHistory => {
             "next attempt: declare a Bayesian outcome model on the pre-treatment history and \
-             calendar period (a model with a stated likelihood and prior) and report its \
-             model-based effect on the treated as that different estimand"
+             calendar period (a model with a stated likelihood and prior; select the estimator \
+             bayesian.period_history_outcome_model) and report its model-based effect on the \
+             treated as that different estimand"
         }
     };
     EstimationError::refused(

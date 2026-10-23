@@ -288,6 +288,7 @@ fn evidence_program(payloads: &CyclicContractPayloads) -> EvidenceDecisionProgra
         composition: Composition::Single,
         decision: None,
         planning: None,
+        chain: None,
     }
 }
 

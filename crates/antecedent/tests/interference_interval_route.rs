@@ -14,13 +14,16 @@
 use std::sync::Arc;
 
 use antecedent::support::CellStatus;
-use antecedent::{InterferenceSpec, RefuteSuite, Study};
+use antecedent::{BayesianConfig, InferenceMode, InterferenceSpec, RefuteSuite, Study};
 use antecedent_core::{
     AssignmentDesign, CausalQuery, ExecutionContext, ExposureLevel, ExposureMapping,
     ExposurePropensityProvenance, InterferenceFunctional, InterferenceQuery, VariableId,
 };
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::Dag;
+
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
 
 fn run(
     data: &TabularData,
@@ -116,6 +119,12 @@ fn licensed_cluster_total_interval_round_trips_and_refuses_forgery() {
     );
     let ctx = ExecutionContext::for_tests(611);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
+    retained_graphless::assert_retained_graphless_program(
+        "licensed_cluster_total_interval_round_tr",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "cluster_total_neyman_welch");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [8, 8]);
@@ -225,6 +234,12 @@ fn licensed_saturation_interval_round_trips_and_refuses_forgery() {
     );
     let ctx = ExecutionContext::for_tests(613);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
+    retained_graphless::assert_retained_graphless_program(
+        "licensed_saturation_interval_round_trips",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "saturation_cluster_neyman_welch");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [24, 24]);
@@ -269,6 +284,12 @@ fn licensed_observational_known_interval_round_trips_and_refuses_forgery() {
     );
     let ctx = ExecutionContext::for_tests(614);
     let (prepared, result) = run(&data, query, edges, assignment, &ctx);
+    retained_graphless::assert_retained_graphless_program(
+        "licensed_observational_known_interval_ro",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let inference = result.interference_inference().unwrap();
     assert_eq!(inference.method, "observational_known_exposure_cluster_t");
     assert_eq!(inference.interval.as_ref().unwrap().first_stage_arm_clusters, [30, 30]);
@@ -331,4 +352,104 @@ fn externally_estimated_observational_stays_point_only() {
         )
         .is_err()
     );
+}
+
+/// Sixteen two-unit clusters, eight treated, with a constant cluster total effect of 3.
+fn cluster_fixture() -> (TabularData, InterferenceQuery, Vec<NetworkEdge>, Vec<bool>) {
+    const K: usize = 16;
+    const TREATED: usize = 8;
+    let clusters = (0..K).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
+    let assignment = (0..K).flat_map(|cluster| [cluster < TREATED; 2]).collect::<Vec<_>>();
+    let edges = (0..K)
+        .flat_map(|cluster| {
+            let first = (cluster * 2) as u32;
+            [
+                NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
+                NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),
+            ]
+        })
+        .collect::<Vec<_>>();
+    let outcomes = (0..K * 2)
+        .map(|unit| {
+            let cluster = unit / 2;
+            let base = 0.5 * ((cluster * 7) % K) as f64 + 0.1 * (unit % 2) as f64;
+            base + if cluster < TREATED { 3.0 } else { 0.0 }
+        })
+        .collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+    let query = InterferenceQuery::new(
+        AssignmentDesign::ClusterRandomization {
+            clusters: Arc::from(clusters),
+            treated_clusters: TREATED,
+        },
+        ExposureMapping::NeighborFraction,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+        },
+    );
+    (data, query, edges, assignment)
+}
+
+#[test]
+fn cluster_bayesian_bootstrap_centres_on_the_design_estimate_with_a_matching_spread() {
+    let (data, query, edges, assignment) = cluster_fixture();
+    let ctx = ExecutionContext::for_tests(613);
+    let (_, frequentist) = run(&data, query.clone(), edges.clone(), assignment.clone(), &ctx);
+    let network = NetworkData::try_new(data.clone(), edges).unwrap();
+    let prepared = Study::tabular(data.clone())
+        .graph(Dag::with_variables(1))
+        .query(CausalQuery::Interference(query))
+        .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8_000)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "cluster_bayesian_bootstrap",
+        &prepared,
+        &result,
+        &ctx,
+    );
+    assert_eq!(
+        result.logical_plan.estimator.as_deref(),
+        Some("interference.cluster_bayesian_bootstrap")
+    );
+    assert_eq!(result.support_status, None, "the Bayesian bootstrap route is unlicensed");
+    let posterior = result.posterior.as_ref().unwrap();
+    let column = posterior.effect_column().unwrap();
+    let design_effect = frequentist.effect();
+    // The Bayesian bootstrap of the arm means centres on the design-based contrast.
+    assert!((posterior.summaries.mean[column] - design_effect).abs() < 0.25);
+    // Its spread is of the order of the conservative cluster Neyman standard error.
+    let neyman_se =
+        frequentist.interference_inference().unwrap().interval.as_ref().unwrap().standard_error;
+    let sd = posterior.summaries.sd[column];
+    assert!(sd > 0.4 * neyman_se && sd < 1.6 * neyman_se, "{sd} vs {neyman_se}");
+}
+
+#[test]
+fn cluster_bayesian_bootstrap_refuses_a_thin_arm_at_prepare() {
+    let (data, mut query, edges, mut assignment) = cluster_fixture();
+    if let AssignmentDesign::ClusterRandomization { treated_clusters, .. } = &mut query.assignment {
+        *treated_clusters = 1;
+    }
+    for flag in assignment.iter_mut().skip(2) {
+        *flag = false;
+    }
+    let network = NetworkData::try_new(data.clone(), edges).unwrap();
+    let ctx = ExecutionContext::for_tests(614);
+    let outcome = Study::tabular(data)
+        .graph(Dag::with_variables(1))
+        .query(CausalQuery::Interference(query))
+        .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200)))
+        .refute(RefuteSuite::None)
+        .build()
+        .and_then(|study| study.prepare(&ctx));
+    assert!(outcome.is_err(), "a thin arm must be refused at prepare");
 }

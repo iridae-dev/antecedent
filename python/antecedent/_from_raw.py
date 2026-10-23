@@ -1387,6 +1387,7 @@ def _wrap_ate(
             adjusted_p_values=getattr(sec_estimate, "adjusted_p_values", None),
             family_contrast=getattr(sec_estimate, "family_contrast", None),
             family_contrast_interval=getattr(sec_estimate, "family_contrast_interval", None),
+            family_contrast_posterior=getattr(sec_estimate, "family_contrast_posterior", None),
             candidate_selection=getattr(sec_estimate, "candidate_selection", None),
             evalue=getattr(sec_estimate, "evalue", None),
             evalue_threshold=getattr(sec_estimate, "evalue_threshold", None),

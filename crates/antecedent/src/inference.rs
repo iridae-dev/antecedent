@@ -102,8 +102,9 @@ pub struct BayesianConfig {
     pub external_compose: Option<Box<ExternalComposeSpec>>,
     /// Declared premise that the outcome innovation of a single-step temporal linear effect is
     /// serially independent, with the Ljung-Box gate that can refute it. Set with
-    /// [`Self::white_innovation`]. Only the temporal pulse and one-step sustained effect on a
-    /// fixed `TemporalDag` reads it; every other route refuses it rather than ignore it.
+    /// [`Self::white_innovation`]. Only the temporal pulse, the one-step sustained effect and a
+    /// response curve at the single horizon of one step ahead, on a fixed `TemporalDag`, read it;
+    /// every other route refuses it rather than ignore it.
     pub white_innovation:
         Option<antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate>,
     /// Declared likelihood-side model of a randomized-design posterior (the hazard partition

@@ -69,6 +69,10 @@ pub enum TargetFamily {
     WorldValued,
     /// A joint contrast of several outcomes or several treatment levels.
     JointContrast,
+    /// Per-component attribution (anomaly noise contributions or change contributions) of a
+    /// fitted structural model; it has no treatment, so the treatment-keyed refuters do not
+    /// denote and the stability refuters of its whole-procedure refit apply.
+    Attribution,
 }
 
 impl TargetFamily {
@@ -83,6 +87,7 @@ impl TargetFamily {
             Self::Mediation => "mediation",
             Self::WorldValued => "world_valued",
             Self::JointContrast => "joint_contrast",
+            Self::Attribution => "attribution",
         }
     }
 
@@ -97,6 +102,7 @@ impl TargetFamily {
             "mediation" => Self::Mediation,
             "world_valued" => Self::WorldValued,
             "joint_contrast" => Self::JointContrast,
+            "attribution" => Self::Attribution,
             _ => return None,
         })
     }
@@ -424,6 +430,15 @@ impl TargetRefutationPlan {
         let quadrant = target.quadrant();
         let family = target.family();
         let mut refuters: Vec<TargetRefuterKind> = Vec::new();
+        if family == TargetFamily::Attribution {
+            // No treatment or outcome to permute or swap: the whole contribution vector is
+            // refuted by refitting the attribution program on perturbed data.
+            refuters.push(K::SubsetStability);
+            if suite != TargetSuite::Cheap {
+                refuters.push(K::BootstrapStability);
+            }
+            return Self { target, suite, refuters: refuters.into() };
+        }
         let native: &[TargetRefuterKind] = match family {
             TargetFamily::Mediation => &[K::SequentialIgnorability],
             TargetFamily::ResponseDerivative => {

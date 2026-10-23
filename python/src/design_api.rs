@@ -10,7 +10,6 @@ use antecedent::design::{
     DesignObjective, DesignRankConfig, DesignRanker, EffectWidthContext, EnvironmentGramSpec,
     EnvironmentPlan, ExperimentPlan, GaussianMeanSignal, InterventionDesignEffect,
     MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, SamplingPlan,
-    rank_designs as facade_rank_designs,
 };
 use antecedent_core::{EnvironmentId, ModelId, QueryId, VariableId};
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
@@ -580,15 +579,16 @@ pub(crate) fn rank_designs(
         let ranking = match &decision {
             None => {
                 let eval: DesignEvaluationContext<'_, (), ()> = eval_with!(None);
-                facade_rank_designs(&ranker, &objective, &parsed, &eval, &ctx)
+                ranker.rank(&objective, &parsed, &eval, &ctx)
             }
             Some(PyDecision::Callback(registry)) => {
-                facade_rank_designs(&ranker, &objective, &parsed, &eval_with!(Some(registry)), &ctx)
+                ranker.rank(&objective, &parsed, &eval_with!(Some(registry)), &ctx)
             }
             Some(PyDecision::Affine(registry)) => {
-                facade_rank_designs(&ranker, &objective, &parsed, &eval_with!(Some(registry)), &ctx)
+                ranker.rank(&objective, &parsed, &eval_with!(Some(registry)), &ctx)
             }
         }
+        .map_err(antecedent::CausalError::from)
         .map_err(py_err)?;
         let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
         let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);

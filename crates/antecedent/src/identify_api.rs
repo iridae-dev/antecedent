@@ -1,10 +1,12 @@
-//! Free `identify()`: identification as a function of structure and query.
+//! Structure-and-query identification without data, for staged tooling.
 //!
-//! `Study::identify_only()` requires a caller-supplied `TabularData` it never
-//! reads (see `examples/rust/identify_only.rs`, which apologises for this in a
-//! comment). Identification does not need data — only a graph and a query — and this
-//! module says so in its signature: [`identify`] and [`identify_with`] take an
-//! [`AcceptedGraph`] and a [`CausalQuery`], nothing else.
+//! [`identify`] and [`identify_with`] take an [`AcceptedGraph`] and a [`CausalQuery`],
+//! nothing else, and return the [`Identification`] a compiled study derives for the same
+//! pair. They produce no estimate, contract or claim, and they are `#[doc(hidden)]` and
+//! absent from the crate root and the prelude: an analysis goes through `Study::compile`,
+//! `Study::prepare` or `Study::run`, which retain the identification product. The staged
+//! Python `identify()` and the test oracles that compare an executed study against its
+//! identification stage reach them by path.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -163,11 +165,13 @@ impl Identification {
 
 /// Identify `query` against `structure` using the class-appropriate default identifier.
 ///
-/// Takes no data: identification is a function of structure and query.
+/// Takes no data: identification is a function of structure and query. Hidden from the
+/// documented surface: the compiled path (`Study::compile`) is the entry for an analysis.
 ///
 /// # Errors
 ///
 /// Unsupported graph-class/query pair, or identification failure.
+#[doc(hidden)]
 pub fn identify(
     structure: &AcceptedGraph,
     query: &CausalQuery,
@@ -191,6 +195,7 @@ pub fn identify(
 /// itself establishes — the class tag is derived from the stored graph, so the matching
 /// accessor is always `Some`. A panic here would mean `AcceptedGraph`'s internal
 /// representation had drifted from its class tag.
+#[doc(hidden)]
 pub fn identify_with(
     structure: &AcceptedGraph,
     query: &CausalQuery,
@@ -203,6 +208,7 @@ pub fn identify_with(
 ///
 /// # Errors
 /// Unsupported query coordinate or identification failure.
+#[doc(hidden)]
 pub fn identify_dag(
     graph: &antecedent_graph::Dag,
     query: &CausalQuery,

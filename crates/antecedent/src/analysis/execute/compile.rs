@@ -923,7 +923,14 @@ impl super::Study {
             DataClassification::Tabular,
             PlanId::InterferenceDesign.as_str(),
             "interference.design",
-            if self.inference.is_bayesian() {
+            if self.inference.is_bayesian()
+                && matches!(
+                    q.assignment,
+                    antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                )
+            {
+                "interference.cluster_bayesian_bootstrap"
+            } else if self.inference.is_bayesian() {
                 "interference.bayesian_gaussian"
             } else if matches!(
                 q.assignment,
@@ -964,8 +971,7 @@ impl super::Study {
             PlanId::RandomizedTrialItt.as_str(),
             "randomized.design",
             if self.inference.is_bayesian() {
-                super::checked_randomized::bayesian_randomized_estimator(self.estimator, &q.design)
-                    .as_str()
+                super::checked_randomized::bayesian_randomized_estimator(self.estimator, q).as_str()
             } else {
                 match &q.design {
                     antecedent_core::RandomizationDesign::Bernoulli => {
@@ -1189,7 +1195,17 @@ impl super::Study {
         {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
-        let plan = PlanId::PeriodHistoryMatching.as_str();
+        // The matching contrast has no posterior; a Bayesian request reaches the outcome-model
+        // estimator only by selecting it, and otherwise keeps the matching plan so the typed
+        // boundary refuses it at build with the estimator named as the next attempt.
+        let plan = if self.inference.is_bayesian()
+            && self.estimator == Some(EstimatorId::BayesianPeriodHistoryOutcomeModel)
+        {
+            PlanId::BayesianPeriodHistoryOutcomeModel
+        } else {
+            PlanId::PeriodHistoryMatching
+        }
+        .as_str();
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,

@@ -12,6 +12,9 @@ use antecedent::{PrimaryEstimate, Study};
 use antecedent_core::{CausalQuery, MultiActionPolicyInputs, PolicyValueQuery, VariableId};
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn query() -> PolicyValueQuery {
     PolicyValueQuery {
         outcome: VariableId::from_raw(0),
@@ -78,6 +81,12 @@ fn retained_finite_class_regret_round_trips_and_rejects_forged_bounds() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_finite_class_regret_round_trips",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let policy = result.policy_value().unwrap();
     let regret = policy.regret.as_ref().unwrap();
     assert!(regret.regret > 0.0);
@@ -213,6 +222,12 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_held_out_uplift_intervals_round",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let bins = &result.policy_value().unwrap().uplift_bins;
     assert_eq!(bins.len(), 2);
     for (index, &truth) in [2.0, 0.5].iter().enumerate() {
@@ -299,6 +314,12 @@ fn retained_held_out_policy_intervals_round_trip_and_reject_forgery() {
         Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_held_out_policy_intervals_round",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let value = result.policy_value().unwrap();
     let policy_ci = value.policy_interval_95.unwrap();
     let incremental_ci = value.incremental_interval_95.unwrap();
@@ -371,6 +392,12 @@ fn retained_crossfit_policy_intervals_round_trip_and_refuse_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "retained_crossfit_policy_intervals_round",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let value = result.policy_value().unwrap();
     let policy_ci =
         value.policy_interval_95.expect("cross-fitted AIPW publishes a policy interval");
@@ -578,6 +605,12 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
         Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "multi_action_intervals_require_nonbindin",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let value = result.policy_value().unwrap();
     assert!(value.policy_interval_95.is_some());
     assert!(value.incremental_interval_95.is_some());

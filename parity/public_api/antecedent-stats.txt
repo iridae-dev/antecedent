@@ -2,6 +2,7 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_stats::BasisKind
+#[non_exhaustive] pub enum antecedent_stats::ChainError
 #[non_exhaustive] pub enum antecedent_stats::IdentifiedSetIntervalMethod
 #[non_exhaustive] pub enum antecedent_stats::JointLawError
 #[non_exhaustive] pub enum antecedent_stats::StatsError
@@ -29,6 +30,12 @@
 #[non_exhaustive] pub enum antecedent_stats::synthesis_transport::TransportedSynthesisError
 #[non_exhaustive] pub struct antecedent_stats::Hc2Coefficient
 impl !core::marker::Freeze for antecedent_stats::faer_scope::FaerScratch [auto]
+impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::Coefficient
+impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::Combine
+impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::Preposterior
+impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::StageOp
+impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::StageSpec
+impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_stats::UnaryFn
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::BayesFactorCi
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::GSquared
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::Gpdc
@@ -52,11 +59,15 @@ impl core::clone::Clone for antecedent_stats::BasisKind
 impl core::clone::Clone for antecedent_stats::BayesFactorCi
 impl core::clone::Clone for antecedent_stats::BetweenStudyMethod
 impl core::clone::Clone for antecedent_stats::CalibrationReport
+impl core::clone::Clone for antecedent_stats::ChainError
 impl core::clone::Clone for antecedent_stats::CiBatchResult
 impl core::clone::Clone for antecedent_stats::CiPreparationPlan
 impl core::clone::Clone for antecedent_stats::CiQuery
 impl core::clone::Clone for antecedent_stats::CiResult
 impl core::clone::Clone for antecedent_stats::CiWorkspace
+impl core::clone::Clone for antecedent_stats::Coefficient
+impl core::clone::Clone for antecedent_stats::ColumnSummary
+impl core::clone::Clone for antecedent_stats::Combine
 impl core::clone::Clone for antecedent_stats::CompiledDesign
 impl core::clone::Clone for antecedent_stats::ConfidenceMethod
 impl core::clone::Clone for antecedent_stats::ContrastCodingKind
@@ -64,12 +75,15 @@ impl core::clone::Clone for antecedent_stats::CorrelationRangeEnvelope
 impl core::clone::Clone for antecedent_stats::CovarianceCheck
 impl core::clone::Clone for antecedent_stats::CoxBreslowFit
 impl core::clone::Clone for antecedent_stats::CoxIpcwFit
+impl core::clone::Clone for antecedent_stats::Decision
 impl core::clone::Clone for antecedent_stats::DecisionVerdict
 impl core::clone::Clone for antecedent_stats::DependenceEnvelope
 impl core::clone::Clone for antecedent_stats::DesignColumn
 impl core::clone::Clone for antecedent_stats::DesignColumnMap
 impl core::clone::Clone for antecedent_stats::DesignColumnRole
 impl core::clone::Clone for antecedent_stats::DrawSpread
+impl core::clone::Clone for antecedent_stats::Enclosure
+impl core::clone::Clone for antecedent_stats::Evaluated
 impl core::clone::Clone for antecedent_stats::ExceedanceDecision
 impl core::clone::Clone for antecedent_stats::ExposureProbabilities
 impl core::clone::Clone for antecedent_stats::ExposureProbabilityMethod
@@ -127,10 +141,13 @@ impl core::clone::Clone for antecedent_stats::PairedMoments
 impl core::clone::Clone for antecedent_stats::PairwiseMultivariateCi
 impl core::clone::Clone for antecedent_stats::PartialCorrelation
 impl core::clone::Clone for antecedent_stats::PermutationTestResult
+impl core::clone::Clone for antecedent_stats::PoolOutcome
 impl core::clone::Clone for antecedent_stats::PooledEstimate
 impl core::clone::Clone for antecedent_stats::PosteriorDependenceCi
 impl core::clone::Clone for antecedent_stats::PosteriorPredictiveCi
 impl core::clone::Clone for antecedent_stats::PreparedCiTest
+impl core::clone::Clone for antecedent_stats::Preposterior
+impl core::clone::Clone for antecedent_stats::PreposteriorOutcome
 impl core::clone::Clone for antecedent_stats::PropensityFit
 impl core::clone::Clone for antecedent_stats::PropensityWorkspace
 impl core::clone::Clone for antecedent_stats::QuantileRule
@@ -144,6 +161,8 @@ impl core::clone::Clone for antecedent_stats::RobustPartialCorrelation
 impl core::clone::Clone for antecedent_stats::SignificanceMethod
 impl core::clone::Clone for antecedent_stats::SmoothSpec
 impl core::clone::Clone for antecedent_stats::SparseDiscreteCi
+impl core::clone::Clone for antecedent_stats::StageOp
+impl core::clone::Clone for antecedent_stats::StageSpec
 impl core::clone::Clone for antecedent_stats::StandardizationRecord
 impl core::clone::Clone for antecedent_stats::StandardizedColumn
 impl core::clone::Clone for antecedent_stats::StatsError
@@ -151,6 +170,7 @@ impl core::clone::Clone for antecedent_stats::SymbolicCmi
 impl core::clone::Clone for antecedent_stats::SynthesisError
 impl core::clone::Clone for antecedent_stats::TauPrior
 impl core::clone::Clone for antecedent_stats::TwoSlsFit
+impl core::clone::Clone for antecedent_stats::UnaryFn
 impl core::clone::Clone for antecedent_stats::ValueBounds
 impl core::clone::Clone for antecedent_stats::ValueFunctional
 impl core::clone::Clone for antecedent_stats::WeightedPartialCorrelation
@@ -290,6 +310,7 @@ impl core::clone::Clone for antecedent_stats::synthesis_transport::TransportedSy
 impl core::cmp::Eq for antecedent_stats::BasisKind
 impl core::cmp::Eq for antecedent_stats::BetweenStudyMethod
 impl core::cmp::Eq for antecedent_stats::CiQuery
+impl core::cmp::Eq for antecedent_stats::Combine
 impl core::cmp::Eq for antecedent_stats::DecisionVerdict
 impl core::cmp::Eq for antecedent_stats::DesignColumn
 impl core::cmp::Eq for antecedent_stats::DesignColumnMap
@@ -338,20 +359,27 @@ impl core::cmp::Eq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::cmp::PartialEq for antecedent_stats::BasisKind
 impl core::cmp::PartialEq for antecedent_stats::BetweenStudyMethod
 impl core::cmp::PartialEq for antecedent_stats::CalibrationReport
+impl core::cmp::PartialEq for antecedent_stats::ChainError
 impl core::cmp::PartialEq for antecedent_stats::CiQuery
 impl core::cmp::PartialEq for antecedent_stats::CiResult
+impl core::cmp::PartialEq for antecedent_stats::Coefficient
+impl core::cmp::PartialEq for antecedent_stats::ColumnSummary
+impl core::cmp::PartialEq for antecedent_stats::Combine
 impl core::cmp::PartialEq for antecedent_stats::ConfidenceMethod
 impl core::cmp::PartialEq for antecedent_stats::ContrastCodingKind
 impl core::cmp::PartialEq for antecedent_stats::CorrelationRangeEnvelope
 impl core::cmp::PartialEq for antecedent_stats::CovarianceCheck
 impl core::cmp::PartialEq for antecedent_stats::CoxBreslowFit
 impl core::cmp::PartialEq for antecedent_stats::CoxIpcwFit
+impl core::cmp::PartialEq for antecedent_stats::Decision
 impl core::cmp::PartialEq for antecedent_stats::DecisionVerdict
 impl core::cmp::PartialEq for antecedent_stats::DependenceEnvelope
 impl core::cmp::PartialEq for antecedent_stats::DesignColumn
 impl core::cmp::PartialEq for antecedent_stats::DesignColumnMap
 impl core::cmp::PartialEq for antecedent_stats::DesignColumnRole
 impl core::cmp::PartialEq for antecedent_stats::DrawSpread
+impl core::cmp::PartialEq for antecedent_stats::Enclosure
+impl core::cmp::PartialEq for antecedent_stats::Evaluated
 impl core::cmp::PartialEq for antecedent_stats::ExceedanceDecision
 impl core::cmp::PartialEq for antecedent_stats::ExposureProbabilities
 impl core::cmp::PartialEq for antecedent_stats::ExposureProbabilityMethod
@@ -387,7 +415,10 @@ impl core::cmp::PartialEq for antecedent_stats::ObservationProbabilityFit
 impl core::cmp::PartialEq for antecedent_stats::PairStructure
 impl core::cmp::PartialEq for antecedent_stats::PairedMoments
 impl core::cmp::PartialEq for antecedent_stats::PermutationTestResult
+impl core::cmp::PartialEq for antecedent_stats::PoolOutcome
 impl core::cmp::PartialEq for antecedent_stats::PooledEstimate
+impl core::cmp::PartialEq for antecedent_stats::Preposterior
+impl core::cmp::PartialEq for antecedent_stats::PreposteriorOutcome
 impl core::cmp::PartialEq for antecedent_stats::QuantileRule
 impl core::cmp::PartialEq for antecedent_stats::RandomEffectsEstimate
 impl core::cmp::PartialEq for antecedent_stats::RandomizationContrast
@@ -396,11 +427,14 @@ impl core::cmp::PartialEq for antecedent_stats::RecordedContrast
 impl core::cmp::PartialEq for antecedent_stats::RecordedSmooth
 impl core::cmp::PartialEq for antecedent_stats::SignificanceMethod
 impl core::cmp::PartialEq for antecedent_stats::SmoothSpec
+impl core::cmp::PartialEq for antecedent_stats::StageOp
+impl core::cmp::PartialEq for antecedent_stats::StageSpec
 impl core::cmp::PartialEq for antecedent_stats::StandardizationRecord
 impl core::cmp::PartialEq for antecedent_stats::StandardizedColumn
 impl core::cmp::PartialEq for antecedent_stats::StatsError
 impl core::cmp::PartialEq for antecedent_stats::SynthesisError
 impl core::cmp::PartialEq for antecedent_stats::TauPrior
+impl core::cmp::PartialEq for antecedent_stats::UnaryFn
 impl core::cmp::PartialEq for antecedent_stats::ValueBounds
 impl core::cmp::PartialEq for antecedent_stats::ValueFunctional
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::AdaptiveEstimate
@@ -580,6 +614,7 @@ impl core::default::Default for antecedent_stats::adaptive_inference::ResourceBu
 impl core::default::Default for antecedent_stats::adaptive_inference::ResourceReceipt
 impl core::default::Default for antecedent_stats::continuous_error::SimexConfig
 impl core::default::Default for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace
+impl core::error::Error for antecedent_stats::ChainError
 impl core::error::Error for antecedent_stats::JointLawError
 impl core::error::Error for antecedent_stats::StatsError
 impl core::error::Error for antecedent_stats::SynthesisError
@@ -595,11 +630,15 @@ impl core::fmt::Debug for antecedent_stats::BasisKind
 impl core::fmt::Debug for antecedent_stats::BayesFactorCi
 impl core::fmt::Debug for antecedent_stats::BetweenStudyMethod
 impl core::fmt::Debug for antecedent_stats::CalibrationReport
+impl core::fmt::Debug for antecedent_stats::ChainError
 impl core::fmt::Debug for antecedent_stats::CiBatchResult
 impl core::fmt::Debug for antecedent_stats::CiPreparationPlan
 impl core::fmt::Debug for antecedent_stats::CiQuery
 impl core::fmt::Debug for antecedent_stats::CiResult
 impl core::fmt::Debug for antecedent_stats::CiWorkspace
+impl core::fmt::Debug for antecedent_stats::Coefficient
+impl core::fmt::Debug for antecedent_stats::ColumnSummary
+impl core::fmt::Debug for antecedent_stats::Combine
 impl core::fmt::Debug for antecedent_stats::CompiledDesign
 impl core::fmt::Debug for antecedent_stats::ConfidenceMethod
 impl core::fmt::Debug for antecedent_stats::ContrastCodingKind
@@ -607,12 +646,15 @@ impl core::fmt::Debug for antecedent_stats::CorrelationRangeEnvelope
 impl core::fmt::Debug for antecedent_stats::CovarianceCheck
 impl core::fmt::Debug for antecedent_stats::CoxBreslowFit
 impl core::fmt::Debug for antecedent_stats::CoxIpcwFit
+impl core::fmt::Debug for antecedent_stats::Decision
 impl core::fmt::Debug for antecedent_stats::DecisionVerdict
 impl core::fmt::Debug for antecedent_stats::DependenceEnvelope
 impl core::fmt::Debug for antecedent_stats::DesignColumn
 impl core::fmt::Debug for antecedent_stats::DesignColumnMap
 impl core::fmt::Debug for antecedent_stats::DesignColumnRole
 impl core::fmt::Debug for antecedent_stats::DrawSpread
+impl core::fmt::Debug for antecedent_stats::Enclosure
+impl core::fmt::Debug for antecedent_stats::Evaluated
 impl core::fmt::Debug for antecedent_stats::ExceedanceDecision
 impl core::fmt::Debug for antecedent_stats::ExposureProbabilities
 impl core::fmt::Debug for antecedent_stats::ExposureProbabilityMethod
@@ -670,10 +712,13 @@ impl core::fmt::Debug for antecedent_stats::PairedMoments
 impl core::fmt::Debug for antecedent_stats::PairwiseMultivariateCi
 impl core::fmt::Debug for antecedent_stats::PartialCorrelation
 impl core::fmt::Debug for antecedent_stats::PermutationTestResult
+impl core::fmt::Debug for antecedent_stats::PoolOutcome
 impl core::fmt::Debug for antecedent_stats::PooledEstimate
 impl core::fmt::Debug for antecedent_stats::PosteriorDependenceCi
 impl core::fmt::Debug for antecedent_stats::PosteriorPredictiveCi
 impl core::fmt::Debug for antecedent_stats::PreparedCiTest
+impl core::fmt::Debug for antecedent_stats::Preposterior
+impl core::fmt::Debug for antecedent_stats::PreposteriorOutcome
 impl core::fmt::Debug for antecedent_stats::PropensityFit
 impl core::fmt::Debug for antecedent_stats::PropensityWorkspace
 impl core::fmt::Debug for antecedent_stats::QuantileRule
@@ -687,6 +732,8 @@ impl core::fmt::Debug for antecedent_stats::RobustPartialCorrelation
 impl core::fmt::Debug for antecedent_stats::SignificanceMethod
 impl core::fmt::Debug for antecedent_stats::SmoothSpec
 impl core::fmt::Debug for antecedent_stats::SparseDiscreteCi
+impl core::fmt::Debug for antecedent_stats::StageOp
+impl core::fmt::Debug for antecedent_stats::StageSpec
 impl core::fmt::Debug for antecedent_stats::StandardizationRecord
 impl core::fmt::Debug for antecedent_stats::StandardizedColumn
 impl core::fmt::Debug for antecedent_stats::StatsError
@@ -694,6 +741,7 @@ impl core::fmt::Debug for antecedent_stats::SymbolicCmi
 impl core::fmt::Debug for antecedent_stats::SynthesisError
 impl core::fmt::Debug for antecedent_stats::TauPrior
 impl core::fmt::Debug for antecedent_stats::TwoSlsFit
+impl core::fmt::Debug for antecedent_stats::UnaryFn
 impl core::fmt::Debug for antecedent_stats::ValueBounds
 impl core::fmt::Debug for antecedent_stats::ValueFunctional
 impl core::fmt::Debug for antecedent_stats::WeightedPartialCorrelation
@@ -830,6 +878,7 @@ impl core::fmt::Debug for antecedent_stats::synthesis_transport::TransportedBorr
 impl core::fmt::Debug for antecedent_stats::synthesis_transport::TransportedPooled
 impl core::fmt::Debug for antecedent_stats::synthesis_transport::TransportedPriorUpdate
 impl core::fmt::Debug for antecedent_stats::synthesis_transport::TransportedSynthesisError
+impl core::fmt::Display for antecedent_stats::ChainError
 impl core::fmt::Display for antecedent_stats::JointLawError
 impl core::fmt::Display for antecedent_stats::StatsError
 impl core::fmt::Display for antecedent_stats::SynthesisError
@@ -862,13 +911,18 @@ impl core::marker::Copy for antecedent_stats::BetweenStudyMethod
 impl core::marker::Copy for antecedent_stats::CalibrationReport
 impl core::marker::Copy for antecedent_stats::CiQuery
 impl core::marker::Copy for antecedent_stats::CiResult
+impl core::marker::Copy for antecedent_stats::Coefficient
+impl core::marker::Copy for antecedent_stats::ColumnSummary
+impl core::marker::Copy for antecedent_stats::Combine
 impl core::marker::Copy for antecedent_stats::ConfidenceMethod
 impl core::marker::Copy for antecedent_stats::CorrelationRangeEnvelope
 impl core::marker::Copy for antecedent_stats::CovarianceCheck
+impl core::marker::Copy for antecedent_stats::Decision
 impl core::marker::Copy for antecedent_stats::DecisionVerdict
 impl core::marker::Copy for antecedent_stats::DesignColumn
 impl core::marker::Copy for antecedent_stats::DesignColumnRole
 impl core::marker::Copy for antecedent_stats::DrawSpread
+impl core::marker::Copy for antecedent_stats::Enclosure
 impl core::marker::Copy for antecedent_stats::ExceedanceDecision
 impl core::marker::Copy for antecedent_stats::ExposureProbabilityMethod
 impl core::marker::Copy for antecedent_stats::FaerBackend
@@ -898,11 +952,13 @@ impl core::marker::Copy for antecedent_stats::PairedMoments
 impl core::marker::Copy for antecedent_stats::PermutationTestResult
 impl core::marker::Copy for antecedent_stats::PosteriorDependenceCi
 impl core::marker::Copy for antecedent_stats::PosteriorPredictiveCi
+impl core::marker::Copy for antecedent_stats::PreposteriorOutcome
 impl core::marker::Copy for antecedent_stats::QuantileRule
 impl core::marker::Copy for antecedent_stats::RandomizationContrast
 impl core::marker::Copy for antecedent_stats::RandomizationMean
 impl core::marker::Copy for antecedent_stats::SignificanceMethod
 impl core::marker::Copy for antecedent_stats::StandardizedColumn
+impl core::marker::Copy for antecedent_stats::UnaryFn
 impl core::marker::Copy for antecedent_stats::ValueBounds
 impl core::marker::Copy for antecedent_stats::ValueFunctional
 impl core::marker::Copy for antecedent_stats::adaptive_inference::AdaptiveEstimate
@@ -980,11 +1036,15 @@ impl core::marker::Freeze for antecedent_stats::BasisKind [auto]
 impl core::marker::Freeze for antecedent_stats::BayesFactorCi [auto]
 impl core::marker::Freeze for antecedent_stats::BetweenStudyMethod [auto]
 impl core::marker::Freeze for antecedent_stats::CalibrationReport [auto]
+impl core::marker::Freeze for antecedent_stats::ChainError [auto]
 impl core::marker::Freeze for antecedent_stats::CiBatchResult [auto]
 impl core::marker::Freeze for antecedent_stats::CiPreparationPlan [auto]
 impl core::marker::Freeze for antecedent_stats::CiQuery [auto]
 impl core::marker::Freeze for antecedent_stats::CiResult [auto]
 impl core::marker::Freeze for antecedent_stats::CiWorkspace [auto]
+impl core::marker::Freeze for antecedent_stats::Coefficient [auto]
+impl core::marker::Freeze for antecedent_stats::ColumnSummary [auto]
+impl core::marker::Freeze for antecedent_stats::Combine [auto]
 impl core::marker::Freeze for antecedent_stats::CompiledDesign [auto]
 impl core::marker::Freeze for antecedent_stats::ConfidenceMethod [auto]
 impl core::marker::Freeze for antecedent_stats::ContrastCodingKind [auto]
@@ -992,12 +1052,15 @@ impl core::marker::Freeze for antecedent_stats::CorrelationRangeEnvelope [auto]
 impl core::marker::Freeze for antecedent_stats::CovarianceCheck [auto]
 impl core::marker::Freeze for antecedent_stats::CoxBreslowFit [auto]
 impl core::marker::Freeze for antecedent_stats::CoxIpcwFit [auto]
+impl core::marker::Freeze for antecedent_stats::Decision [auto]
 impl core::marker::Freeze for antecedent_stats::DecisionVerdict [auto]
 impl core::marker::Freeze for antecedent_stats::DependenceEnvelope [auto]
 impl core::marker::Freeze for antecedent_stats::DesignColumn [auto]
 impl core::marker::Freeze for antecedent_stats::DesignColumnMap [auto]
 impl core::marker::Freeze for antecedent_stats::DesignColumnRole [auto]
 impl core::marker::Freeze for antecedent_stats::DrawSpread [auto]
+impl core::marker::Freeze for antecedent_stats::Enclosure [auto]
+impl core::marker::Freeze for antecedent_stats::Evaluated [auto]
 impl core::marker::Freeze for antecedent_stats::ExceedanceDecision [auto]
 impl core::marker::Freeze for antecedent_stats::ExposureProbabilities [auto]
 impl core::marker::Freeze for antecedent_stats::ExposureProbabilityMethod [auto]
@@ -1055,10 +1118,13 @@ impl core::marker::Freeze for antecedent_stats::PairedMoments [auto]
 impl core::marker::Freeze for antecedent_stats::PairwiseMultivariateCi [auto]
 impl core::marker::Freeze for antecedent_stats::PartialCorrelation [auto]
 impl core::marker::Freeze for antecedent_stats::PermutationTestResult [auto]
+impl core::marker::Freeze for antecedent_stats::PoolOutcome [auto]
 impl core::marker::Freeze for antecedent_stats::PooledEstimate [auto]
 impl core::marker::Freeze for antecedent_stats::PosteriorDependenceCi [auto]
 impl core::marker::Freeze for antecedent_stats::PosteriorPredictiveCi [auto]
 impl core::marker::Freeze for antecedent_stats::PreparedCiTest [auto]
+impl core::marker::Freeze for antecedent_stats::Preposterior [auto]
+impl core::marker::Freeze for antecedent_stats::PreposteriorOutcome [auto]
 impl core::marker::Freeze for antecedent_stats::PropensityFit [auto]
 impl core::marker::Freeze for antecedent_stats::PropensityWorkspace [auto]
 impl core::marker::Freeze for antecedent_stats::QuantileRule [auto]
@@ -1072,6 +1138,8 @@ impl core::marker::Freeze for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Freeze for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Freeze for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Freeze for antecedent_stats::SparseDiscreteCi [auto]
+impl core::marker::Freeze for antecedent_stats::StageOp [auto]
+impl core::marker::Freeze for antecedent_stats::StageSpec [auto]
 impl core::marker::Freeze for antecedent_stats::StandardizationRecord [auto]
 impl core::marker::Freeze for antecedent_stats::StandardizedColumn [auto]
 impl core::marker::Freeze for antecedent_stats::StatsError [auto]
@@ -1079,6 +1147,7 @@ impl core::marker::Freeze for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Freeze for antecedent_stats::SynthesisError [auto]
 impl core::marker::Freeze for antecedent_stats::TauPrior [auto]
 impl core::marker::Freeze for antecedent_stats::TwoSlsFit [auto]
+impl core::marker::Freeze for antecedent_stats::UnaryFn [auto]
 impl core::marker::Freeze for antecedent_stats::ValueBounds [auto]
 impl core::marker::Freeze for antecedent_stats::ValueFunctional [auto]
 impl core::marker::Freeze for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -1222,11 +1291,15 @@ impl core::marker::Send for antecedent_stats::BasisKind [auto]
 impl core::marker::Send for antecedent_stats::BayesFactorCi [auto]
 impl core::marker::Send for antecedent_stats::BetweenStudyMethod [auto]
 impl core::marker::Send for antecedent_stats::CalibrationReport [auto]
+impl core::marker::Send for antecedent_stats::ChainError [auto]
 impl core::marker::Send for antecedent_stats::CiBatchResult [auto]
 impl core::marker::Send for antecedent_stats::CiPreparationPlan [auto]
 impl core::marker::Send for antecedent_stats::CiQuery [auto]
 impl core::marker::Send for antecedent_stats::CiResult [auto]
 impl core::marker::Send for antecedent_stats::CiWorkspace [auto]
+impl core::marker::Send for antecedent_stats::Coefficient [auto]
+impl core::marker::Send for antecedent_stats::ColumnSummary [auto]
+impl core::marker::Send for antecedent_stats::Combine [auto]
 impl core::marker::Send for antecedent_stats::CompiledDesign [auto]
 impl core::marker::Send for antecedent_stats::ConfidenceMethod [auto]
 impl core::marker::Send for antecedent_stats::ContrastCodingKind [auto]
@@ -1234,12 +1307,15 @@ impl core::marker::Send for antecedent_stats::CorrelationRangeEnvelope [auto]
 impl core::marker::Send for antecedent_stats::CovarianceCheck [auto]
 impl core::marker::Send for antecedent_stats::CoxBreslowFit [auto]
 impl core::marker::Send for antecedent_stats::CoxIpcwFit [auto]
+impl core::marker::Send for antecedent_stats::Decision [auto]
 impl core::marker::Send for antecedent_stats::DecisionVerdict [auto]
 impl core::marker::Send for antecedent_stats::DependenceEnvelope [auto]
 impl core::marker::Send for antecedent_stats::DesignColumn [auto]
 impl core::marker::Send for antecedent_stats::DesignColumnMap [auto]
 impl core::marker::Send for antecedent_stats::DesignColumnRole [auto]
 impl core::marker::Send for antecedent_stats::DrawSpread [auto]
+impl core::marker::Send for antecedent_stats::Enclosure [auto]
+impl core::marker::Send for antecedent_stats::Evaluated [auto]
 impl core::marker::Send for antecedent_stats::ExceedanceDecision [auto]
 impl core::marker::Send for antecedent_stats::ExposureProbabilities [auto]
 impl core::marker::Send for antecedent_stats::ExposureProbabilityMethod [auto]
@@ -1297,10 +1373,13 @@ impl core::marker::Send for antecedent_stats::PairedMoments [auto]
 impl core::marker::Send for antecedent_stats::PairwiseMultivariateCi [auto]
 impl core::marker::Send for antecedent_stats::PartialCorrelation [auto]
 impl core::marker::Send for antecedent_stats::PermutationTestResult [auto]
+impl core::marker::Send for antecedent_stats::PoolOutcome [auto]
 impl core::marker::Send for antecedent_stats::PooledEstimate [auto]
 impl core::marker::Send for antecedent_stats::PosteriorDependenceCi [auto]
 impl core::marker::Send for antecedent_stats::PosteriorPredictiveCi [auto]
 impl core::marker::Send for antecedent_stats::PreparedCiTest [auto]
+impl core::marker::Send for antecedent_stats::Preposterior [auto]
+impl core::marker::Send for antecedent_stats::PreposteriorOutcome [auto]
 impl core::marker::Send for antecedent_stats::PropensityFit [auto]
 impl core::marker::Send for antecedent_stats::PropensityWorkspace [auto]
 impl core::marker::Send for antecedent_stats::QuantileRule [auto]
@@ -1314,6 +1393,8 @@ impl core::marker::Send for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Send for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Send for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Send for antecedent_stats::SparseDiscreteCi [auto]
+impl core::marker::Send for antecedent_stats::StageOp [auto]
+impl core::marker::Send for antecedent_stats::StageSpec [auto]
 impl core::marker::Send for antecedent_stats::StandardizationRecord [auto]
 impl core::marker::Send for antecedent_stats::StandardizedColumn [auto]
 impl core::marker::Send for antecedent_stats::StatsError [auto]
@@ -1321,6 +1402,7 @@ impl core::marker::Send for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Send for antecedent_stats::SynthesisError [auto]
 impl core::marker::Send for antecedent_stats::TauPrior [auto]
 impl core::marker::Send for antecedent_stats::TwoSlsFit [auto]
+impl core::marker::Send for antecedent_stats::UnaryFn [auto]
 impl core::marker::Send for antecedent_stats::ValueBounds [auto]
 impl core::marker::Send for antecedent_stats::ValueFunctional [auto]
 impl core::marker::Send for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -1463,20 +1545,27 @@ impl core::marker::Send for antecedent_stats::synthesis_transport::TransportedSy
 impl core::marker::StructuralPartialEq for antecedent_stats::BasisKind
 impl core::marker::StructuralPartialEq for antecedent_stats::BetweenStudyMethod
 impl core::marker::StructuralPartialEq for antecedent_stats::CalibrationReport
+impl core::marker::StructuralPartialEq for antecedent_stats::ChainError
 impl core::marker::StructuralPartialEq for antecedent_stats::CiQuery
 impl core::marker::StructuralPartialEq for antecedent_stats::CiResult
+impl core::marker::StructuralPartialEq for antecedent_stats::Coefficient
+impl core::marker::StructuralPartialEq for antecedent_stats::ColumnSummary
+impl core::marker::StructuralPartialEq for antecedent_stats::Combine
 impl core::marker::StructuralPartialEq for antecedent_stats::ConfidenceMethod
 impl core::marker::StructuralPartialEq for antecedent_stats::ContrastCodingKind
 impl core::marker::StructuralPartialEq for antecedent_stats::CorrelationRangeEnvelope
 impl core::marker::StructuralPartialEq for antecedent_stats::CovarianceCheck
 impl core::marker::StructuralPartialEq for antecedent_stats::CoxBreslowFit
 impl core::marker::StructuralPartialEq for antecedent_stats::CoxIpcwFit
+impl core::marker::StructuralPartialEq for antecedent_stats::Decision
 impl core::marker::StructuralPartialEq for antecedent_stats::DecisionVerdict
 impl core::marker::StructuralPartialEq for antecedent_stats::DependenceEnvelope
 impl core::marker::StructuralPartialEq for antecedent_stats::DesignColumn
 impl core::marker::StructuralPartialEq for antecedent_stats::DesignColumnMap
 impl core::marker::StructuralPartialEq for antecedent_stats::DesignColumnRole
 impl core::marker::StructuralPartialEq for antecedent_stats::DrawSpread
+impl core::marker::StructuralPartialEq for antecedent_stats::Enclosure
+impl core::marker::StructuralPartialEq for antecedent_stats::Evaluated
 impl core::marker::StructuralPartialEq for antecedent_stats::ExceedanceDecision
 impl core::marker::StructuralPartialEq for antecedent_stats::ExposureProbabilities
 impl core::marker::StructuralPartialEq for antecedent_stats::ExposureProbabilityMethod
@@ -1512,7 +1601,10 @@ impl core::marker::StructuralPartialEq for antecedent_stats::ObservationProbabil
 impl core::marker::StructuralPartialEq for antecedent_stats::PairStructure
 impl core::marker::StructuralPartialEq for antecedent_stats::PairedMoments
 impl core::marker::StructuralPartialEq for antecedent_stats::PermutationTestResult
+impl core::marker::StructuralPartialEq for antecedent_stats::PoolOutcome
 impl core::marker::StructuralPartialEq for antecedent_stats::PooledEstimate
+impl core::marker::StructuralPartialEq for antecedent_stats::Preposterior
+impl core::marker::StructuralPartialEq for antecedent_stats::PreposteriorOutcome
 impl core::marker::StructuralPartialEq for antecedent_stats::QuantileRule
 impl core::marker::StructuralPartialEq for antecedent_stats::RandomEffectsEstimate
 impl core::marker::StructuralPartialEq for antecedent_stats::RandomizationContrast
@@ -1521,11 +1613,14 @@ impl core::marker::StructuralPartialEq for antecedent_stats::RecordedContrast
 impl core::marker::StructuralPartialEq for antecedent_stats::RecordedSmooth
 impl core::marker::StructuralPartialEq for antecedent_stats::SignificanceMethod
 impl core::marker::StructuralPartialEq for antecedent_stats::SmoothSpec
+impl core::marker::StructuralPartialEq for antecedent_stats::StageOp
+impl core::marker::StructuralPartialEq for antecedent_stats::StageSpec
 impl core::marker::StructuralPartialEq for antecedent_stats::StandardizationRecord
 impl core::marker::StructuralPartialEq for antecedent_stats::StandardizedColumn
 impl core::marker::StructuralPartialEq for antecedent_stats::StatsError
 impl core::marker::StructuralPartialEq for antecedent_stats::SynthesisError
 impl core::marker::StructuralPartialEq for antecedent_stats::TauPrior
+impl core::marker::StructuralPartialEq for antecedent_stats::UnaryFn
 impl core::marker::StructuralPartialEq for antecedent_stats::ValueBounds
 impl core::marker::StructuralPartialEq for antecedent_stats::ValueFunctional
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::AdaptiveEstimate
@@ -1666,11 +1761,15 @@ impl core::marker::Sync for antecedent_stats::BasisKind [auto]
 impl core::marker::Sync for antecedent_stats::BayesFactorCi [auto]
 impl core::marker::Sync for antecedent_stats::BetweenStudyMethod [auto]
 impl core::marker::Sync for antecedent_stats::CalibrationReport [auto]
+impl core::marker::Sync for antecedent_stats::ChainError [auto]
 impl core::marker::Sync for antecedent_stats::CiBatchResult [auto]
 impl core::marker::Sync for antecedent_stats::CiPreparationPlan [auto]
 impl core::marker::Sync for antecedent_stats::CiQuery [auto]
 impl core::marker::Sync for antecedent_stats::CiResult [auto]
 impl core::marker::Sync for antecedent_stats::CiWorkspace [auto]
+impl core::marker::Sync for antecedent_stats::Coefficient [auto]
+impl core::marker::Sync for antecedent_stats::ColumnSummary [auto]
+impl core::marker::Sync for antecedent_stats::Combine [auto]
 impl core::marker::Sync for antecedent_stats::CompiledDesign [auto]
 impl core::marker::Sync for antecedent_stats::ConfidenceMethod [auto]
 impl core::marker::Sync for antecedent_stats::ContrastCodingKind [auto]
@@ -1678,12 +1777,15 @@ impl core::marker::Sync for antecedent_stats::CorrelationRangeEnvelope [auto]
 impl core::marker::Sync for antecedent_stats::CovarianceCheck [auto]
 impl core::marker::Sync for antecedent_stats::CoxBreslowFit [auto]
 impl core::marker::Sync for antecedent_stats::CoxIpcwFit [auto]
+impl core::marker::Sync for antecedent_stats::Decision [auto]
 impl core::marker::Sync for antecedent_stats::DecisionVerdict [auto]
 impl core::marker::Sync for antecedent_stats::DependenceEnvelope [auto]
 impl core::marker::Sync for antecedent_stats::DesignColumn [auto]
 impl core::marker::Sync for antecedent_stats::DesignColumnMap [auto]
 impl core::marker::Sync for antecedent_stats::DesignColumnRole [auto]
 impl core::marker::Sync for antecedent_stats::DrawSpread [auto]
+impl core::marker::Sync for antecedent_stats::Enclosure [auto]
+impl core::marker::Sync for antecedent_stats::Evaluated [auto]
 impl core::marker::Sync for antecedent_stats::ExceedanceDecision [auto]
 impl core::marker::Sync for antecedent_stats::ExposureProbabilities [auto]
 impl core::marker::Sync for antecedent_stats::ExposureProbabilityMethod [auto]
@@ -1741,10 +1843,13 @@ impl core::marker::Sync for antecedent_stats::PairedMoments [auto]
 impl core::marker::Sync for antecedent_stats::PairwiseMultivariateCi [auto]
 impl core::marker::Sync for antecedent_stats::PartialCorrelation [auto]
 impl core::marker::Sync for antecedent_stats::PermutationTestResult [auto]
+impl core::marker::Sync for antecedent_stats::PoolOutcome [auto]
 impl core::marker::Sync for antecedent_stats::PooledEstimate [auto]
 impl core::marker::Sync for antecedent_stats::PosteriorDependenceCi [auto]
 impl core::marker::Sync for antecedent_stats::PosteriorPredictiveCi [auto]
 impl core::marker::Sync for antecedent_stats::PreparedCiTest [auto]
+impl core::marker::Sync for antecedent_stats::Preposterior [auto]
+impl core::marker::Sync for antecedent_stats::PreposteriorOutcome [auto]
 impl core::marker::Sync for antecedent_stats::PropensityFit [auto]
 impl core::marker::Sync for antecedent_stats::PropensityWorkspace [auto]
 impl core::marker::Sync for antecedent_stats::QuantileRule [auto]
@@ -1758,6 +1863,8 @@ impl core::marker::Sync for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Sync for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Sync for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Sync for antecedent_stats::SparseDiscreteCi [auto]
+impl core::marker::Sync for antecedent_stats::StageOp [auto]
+impl core::marker::Sync for antecedent_stats::StageSpec [auto]
 impl core::marker::Sync for antecedent_stats::StandardizationRecord [auto]
 impl core::marker::Sync for antecedent_stats::StandardizedColumn [auto]
 impl core::marker::Sync for antecedent_stats::StatsError [auto]
@@ -1765,6 +1872,7 @@ impl core::marker::Sync for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Sync for antecedent_stats::SynthesisError [auto]
 impl core::marker::Sync for antecedent_stats::TauPrior [auto]
 impl core::marker::Sync for antecedent_stats::TwoSlsFit [auto]
+impl core::marker::Sync for antecedent_stats::UnaryFn [auto]
 impl core::marker::Sync for antecedent_stats::ValueBounds [auto]
 impl core::marker::Sync for antecedent_stats::ValueFunctional [auto]
 impl core::marker::Sync for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -1909,11 +2017,15 @@ impl core::marker::Unpin for antecedent_stats::BasisKind [auto]
 impl core::marker::Unpin for antecedent_stats::BayesFactorCi [auto]
 impl core::marker::Unpin for antecedent_stats::BetweenStudyMethod [auto]
 impl core::marker::Unpin for antecedent_stats::CalibrationReport [auto]
+impl core::marker::Unpin for antecedent_stats::ChainError [auto]
 impl core::marker::Unpin for antecedent_stats::CiBatchResult [auto]
 impl core::marker::Unpin for antecedent_stats::CiPreparationPlan [auto]
 impl core::marker::Unpin for antecedent_stats::CiQuery [auto]
 impl core::marker::Unpin for antecedent_stats::CiResult [auto]
 impl core::marker::Unpin for antecedent_stats::CiWorkspace [auto]
+impl core::marker::Unpin for antecedent_stats::Coefficient [auto]
+impl core::marker::Unpin for antecedent_stats::ColumnSummary [auto]
+impl core::marker::Unpin for antecedent_stats::Combine [auto]
 impl core::marker::Unpin for antecedent_stats::CompiledDesign [auto]
 impl core::marker::Unpin for antecedent_stats::ConfidenceMethod [auto]
 impl core::marker::Unpin for antecedent_stats::ContrastCodingKind [auto]
@@ -1921,12 +2033,15 @@ impl core::marker::Unpin for antecedent_stats::CorrelationRangeEnvelope [auto]
 impl core::marker::Unpin for antecedent_stats::CovarianceCheck [auto]
 impl core::marker::Unpin for antecedent_stats::CoxBreslowFit [auto]
 impl core::marker::Unpin for antecedent_stats::CoxIpcwFit [auto]
+impl core::marker::Unpin for antecedent_stats::Decision [auto]
 impl core::marker::Unpin for antecedent_stats::DecisionVerdict [auto]
 impl core::marker::Unpin for antecedent_stats::DependenceEnvelope [auto]
 impl core::marker::Unpin for antecedent_stats::DesignColumn [auto]
 impl core::marker::Unpin for antecedent_stats::DesignColumnMap [auto]
 impl core::marker::Unpin for antecedent_stats::DesignColumnRole [auto]
 impl core::marker::Unpin for antecedent_stats::DrawSpread [auto]
+impl core::marker::Unpin for antecedent_stats::Enclosure [auto]
+impl core::marker::Unpin for antecedent_stats::Evaluated [auto]
 impl core::marker::Unpin for antecedent_stats::ExceedanceDecision [auto]
 impl core::marker::Unpin for antecedent_stats::ExposureProbabilities [auto]
 impl core::marker::Unpin for antecedent_stats::ExposureProbabilityMethod [auto]
@@ -1984,10 +2099,13 @@ impl core::marker::Unpin for antecedent_stats::PairedMoments [auto]
 impl core::marker::Unpin for antecedent_stats::PairwiseMultivariateCi [auto]
 impl core::marker::Unpin for antecedent_stats::PartialCorrelation [auto]
 impl core::marker::Unpin for antecedent_stats::PermutationTestResult [auto]
+impl core::marker::Unpin for antecedent_stats::PoolOutcome [auto]
 impl core::marker::Unpin for antecedent_stats::PooledEstimate [auto]
 impl core::marker::Unpin for antecedent_stats::PosteriorDependenceCi [auto]
 impl core::marker::Unpin for antecedent_stats::PosteriorPredictiveCi [auto]
 impl core::marker::Unpin for antecedent_stats::PreparedCiTest [auto]
+impl core::marker::Unpin for antecedent_stats::Preposterior [auto]
+impl core::marker::Unpin for antecedent_stats::PreposteriorOutcome [auto]
 impl core::marker::Unpin for antecedent_stats::PropensityFit [auto]
 impl core::marker::Unpin for antecedent_stats::PropensityWorkspace [auto]
 impl core::marker::Unpin for antecedent_stats::QuantileRule [auto]
@@ -2001,6 +2119,8 @@ impl core::marker::Unpin for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Unpin for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Unpin for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Unpin for antecedent_stats::SparseDiscreteCi [auto]
+impl core::marker::Unpin for antecedent_stats::StageOp [auto]
+impl core::marker::Unpin for antecedent_stats::StageSpec [auto]
 impl core::marker::Unpin for antecedent_stats::StandardizationRecord [auto]
 impl core::marker::Unpin for antecedent_stats::StandardizedColumn [auto]
 impl core::marker::Unpin for antecedent_stats::StatsError [auto]
@@ -2008,6 +2128,7 @@ impl core::marker::Unpin for antecedent_stats::SymbolicCmi [auto]
 impl core::marker::Unpin for antecedent_stats::SynthesisError [auto]
 impl core::marker::Unpin for antecedent_stats::TauPrior [auto]
 impl core::marker::Unpin for antecedent_stats::TwoSlsFit [auto]
+impl core::marker::Unpin for antecedent_stats::UnaryFn [auto]
 impl core::marker::Unpin for antecedent_stats::ValueBounds [auto]
 impl core::marker::Unpin for antecedent_stats::ValueFunctional [auto]
 impl core::marker::Unpin for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -2153,11 +2274,15 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BasisKind [au
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BayesFactorCi [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BetweenStudyMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CalibrationReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ChainError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CiBatchResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CiPreparationPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CiQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CiResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CiWorkspace [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::Coefficient [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ColumnSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::Combine [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CompiledDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ConfidenceMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ContrastCodingKind [auto]
@@ -2165,12 +2290,15 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CorrelationRa
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CovarianceCheck [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CoxBreslowFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CoxIpcwFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::Decision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::DecisionVerdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::DependenceEnvelope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::DesignColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::DesignColumnMap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::DesignColumnRole [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::DrawSpread [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::Enclosure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::Evaluated [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ExceedanceDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ExposureProbabilities [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ExposureProbabilityMethod [auto]
@@ -2228,10 +2356,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PairedMoments
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PairwiseMultivariateCi [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PartialCorrelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PermutationTestResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PoolOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PooledEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PosteriorDependenceCi [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PosteriorPredictiveCi [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PreparedCiTest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::Preposterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PreposteriorOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PropensityFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PropensityWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::QuantileRule [auto]
@@ -2245,6 +2376,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RobustPartial
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SignificanceMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SmoothSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SparseDiscreteCi [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::StageOp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::StageSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::StandardizationRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::StandardizedColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::StatsError [auto]
@@ -2252,6 +2385,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SymbolicCmi [
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SynthesisError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::TauPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::TwoSlsFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::UnaryFn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ValueBounds [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ValueFunctional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -2396,11 +2530,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::BasisKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::BayesFactorCi [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::BetweenStudyMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CalibrationReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ChainError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CiBatchResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CiPreparationPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CiQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CiResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CiWorkspace [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::Coefficient [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ColumnSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::Combine [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CompiledDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ConfidenceMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ContrastCodingKind [auto]
@@ -2408,12 +2546,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CorrelationRange
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CovarianceCheck [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CoxBreslowFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::CoxIpcwFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::Decision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::DecisionVerdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::DependenceEnvelope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::DesignColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::DesignColumnMap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::DesignColumnRole [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::DrawSpread [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::Enclosure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::Evaluated [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ExceedanceDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ExposureProbabilities [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ExposureProbabilityMethod [auto]
@@ -2471,10 +2612,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PairedMoments [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PairwiseMultivariateCi [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PartialCorrelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PermutationTestResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PoolOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PooledEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PosteriorDependenceCi [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PosteriorPredictiveCi [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PreparedCiTest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::Preposterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PreposteriorOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PropensityFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PropensityWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::QuantileRule [auto]
@@ -2488,6 +2632,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RobustPartialCor
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SignificanceMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SmoothSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SparseDiscreteCi [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::StageOp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::StageSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::StandardizationRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::StandardizedColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::StatsError [auto]
@@ -2495,6 +2641,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SymbolicCmi [aut
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SynthesisError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::TauPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::TwoSlsFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::UnaryFn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ValueBounds [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ValueFunctional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -2791,6 +2938,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::Design
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+pub const <antecedent_stats::Combine>::ALL: [Self; 4]
 pub const <antecedent_stats::IdentifiedSetIntervalMethod>::ALL: [Self; 2]
 pub const <antecedent_stats::ValueFunctional>::ALL: [Self; 5]
 pub const <antecedent_stats::adaptive_inference::BetaPrior>::UNIFORM: Self
@@ -2857,11 +3005,18 @@ pub const antecedent_stats::measurement_error::MAX_MEASUREMENT_CATEGORIES: usize
 pub const antecedent_stats::measurement_error::MAX_MEASUREMENT_COVARIATES: usize
 pub const antecedent_stats::measurement_error::MAX_MEASUREMENT_ROWS: usize
 pub const antecedent_stats::power::MAX_COMPARISONS: usize
+pub const antecedent_stats::propagation_chain::DECISION_BAND_LEVEL: f64
+pub const antecedent_stats::propagation_chain::MAX_CHAIN_NODES: usize
+pub const antecedent_stats::propagation_chain::MAX_CHAIN_ROWS: usize
+pub const antecedent_stats::propagation_chain::MAX_PREPOSTERIOR_ROWS: usize
+pub const antecedent_stats::propagation_chain::MIN_UPDATE_EFFECTIVE_SIZE: f64
 pub const antecedent_stats::synthesis::MAX_STUDIES: usize
 pub const antecedent_stats::synthesis::MAX_TAU_SUPPORT: usize
 pub const antecedent_stats::synthesis_transport::MAX_TRANSPORTED_SUMMARIES: usize
 pub const antecedent_stats::synthesis_transport::TRANSPORTED_SYNTHESIS_VERSION: u32
 pub enum antecedent_stats::BetweenStudyMethod
+pub enum antecedent_stats::Coefficient
+pub enum antecedent_stats::Combine
 pub enum antecedent_stats::ConfidenceMethod
 pub enum antecedent_stats::ContrastCodingKind
 pub enum antecedent_stats::DecisionVerdict
@@ -2878,6 +3033,8 @@ pub enum antecedent_stats::PairStructure
 pub enum antecedent_stats::QuantileRule
 pub enum antecedent_stats::SandwichKind<'a>
 pub enum antecedent_stats::SignificanceMethod
+pub enum antecedent_stats::StageOp
+pub enum antecedent_stats::UnaryFn
 pub enum antecedent_stats::ValueFunctional
 pub enum antecedent_stats::adaptive_inference::Attribution
 pub enum antecedent_stats::adaptive_inference::CorrelationModel
@@ -2922,6 +3079,11 @@ pub field antecedent_stats::CiWorkspace::knn: antecedent_stats::KnnDependenceWor
 pub field antecedent_stats::CiWorkspace::parcorr: antecedent_kernels::parcorr::ParCorrWorkspace
 pub field antecedent_stats::CiWorkspace::shuffled: alloc::vec::Vec<f64>
 pub field antecedent_stats::CiWorkspace::stats: alloc::vec::Vec<core::option::Option<f64>>
+pub field antecedent_stats::ColumnSummary::effective_size: f64
+pub field antecedent_stats::ColumnSummary::mean: f64
+pub field antecedent_stats::ColumnSummary::mean_standard_error: f64
+pub field antecedent_stats::ColumnSummary::n: usize
+pub field antecedent_stats::ColumnSummary::variance: f64
 pub field antecedent_stats::CompiledDesign::columns: antecedent_stats::DesignColumnMap
 pub field antecedent_stats::CompiledDesign::contrasts: alloc::vec::Vec<antecedent_stats::RecordedContrast>
 pub field antecedent_stats::CompiledDesign::matrix: alloc::sync::Arc<[f64]>
@@ -2946,6 +3108,11 @@ pub field antecedent_stats::CoxBreslowFit::jump_times: alloc::vec::Vec<f64>
 pub field antecedent_stats::CoxIpcwFit::coefficients: alloc::vec::Vec<f64>
 pub field antecedent_stats::CoxIpcwFit::survival_before: alloc::vec::Vec<f64>
 pub field antecedent_stats::CoxIpcwFit::weights: alloc::vec::Vec<f64>
+pub field antecedent_stats::Decision::band: f64
+pub field antecedent_stats::Decision::expected_utility: f64
+pub field antecedent_stats::Decision::gap: f64
+pub field antecedent_stats::Decision::reference_utility: f64
+pub field antecedent_stats::Decision::verdict: antecedent_stats::DecisionVerdict
 pub field antecedent_stats::DependenceEnvelope::estimate_max: f64
 pub field antecedent_stats::DependenceEnvelope::estimate_min: f64
 pub field antecedent_stats::DependenceEnvelope::rho_at_estimate_max: f64
@@ -2966,6 +3133,10 @@ pub field antecedent_stats::DrawSpread::mean_standard_error: f64
 pub field antecedent_stats::DrawSpread::n: usize
 pub field antecedent_stats::DrawSpread::standard_deviation: f64
 pub field antecedent_stats::DrawSpread::variance: f64
+pub field antecedent_stats::Enclosure::lower: f64
+pub field antecedent_stats::Enclosure::upper: f64
+pub field antecedent_stats::Evaluated::columns: alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>
+pub field antecedent_stats::Evaluated::pools: alloc::vec::Vec<core::option::Option<antecedent_stats::PoolOutcome>>
 pub field antecedent_stats::ExceedanceDecision::band: f64
 pub field antecedent_stats::ExceedanceDecision::calibration: &'static str
 pub field antecedent_stats::ExceedanceDecision::cutoff: f64
@@ -3159,6 +3330,9 @@ pub field antecedent_stats::PermutationTestResult::n_permutations: usize
 pub field antecedent_stats::PermutationTestResult::p_floor: f64
 pub field antecedent_stats::PermutationTestResult::p_value: f64
 pub field antecedent_stats::PermutationTestResult::statistic: f64
+pub field antecedent_stats::PoolOutcome::independent_variance: f64
+pub field antecedent_stats::PoolOutcome::joint_variance: f64
+pub field antecedent_stats::PoolOutcome::weights: alloc::vec::Vec<f64>
 pub field antecedent_stats::PooledEstimate::degrees_of_freedom: usize
 pub field antecedent_stats::PooledEstimate::estimate: f64
 pub field antecedent_stats::PooledEstimate::heterogeneity_q: f64
@@ -3172,6 +3346,17 @@ pub field antecedent_stats::PredictorMatrix::x_colmajor: &'a [f64]
 pub field antecedent_stats::PreparedCiTest::n: usize
 pub field antecedent_stats::PreparedCiTest::ncols: usize
 pub field antecedent_stats::PreparedCiTest::plan: antecedent_stats::CiPreparationPlan
+pub field antecedent_stats::Preposterior::noise: alloc::vec::Vec<f64>
+pub field antecedent_stats::Preposterior::noise_sd: f64
+pub field antecedent_stats::Preposterior::reference_utility: f64
+pub field antecedent_stats::Preposterior::sample_size: f64
+pub field antecedent_stats::PreposteriorOutcome::current_expected_utility: f64
+pub field antecedent_stats::PreposteriorOutcome::expected_value_with_study: f64
+pub field antecedent_stats::PreposteriorOutcome::mean_effective_size: f64
+pub field antecedent_stats::PreposteriorOutcome::mean_updated_expected_utility: f64
+pub field antecedent_stats::PreposteriorOutcome::min_effective_size: f64
+pub field antecedent_stats::PreposteriorOutcome::probability_decision_changes: f64
+pub field antecedent_stats::PreposteriorOutcome::value_of_information: f64
 pub field antecedent_stats::PropensityFit::coefficients: alloc::vec::Vec<f64>
 pub field antecedent_stats::PropensityFit::glm: antecedent_stats::GlmFit
 pub field antecedent_stats::PropensityFit::scores: alloc::vec::Vec<f64>
@@ -3210,6 +3395,8 @@ pub field antecedent_stats::SmoothSpec::lambda: f64
 pub field antecedent_stats::SmoothSpec::n_basis: usize
 pub field antecedent_stats::SmoothSpec::raw_col: usize
 pub field antecedent_stats::SmoothSpec::variable: core::option::Option<antecedent_core::ids::VariableId>
+pub field antecedent_stats::StageSpec::inputs: alloc::vec::Vec<usize>
+pub field antecedent_stats::StageSpec::op: antecedent_stats::StageOp
 pub field antecedent_stats::StandardizationRecord::entries: alloc::vec::Vec<antecedent_stats::StandardizedColumn>
 pub field antecedent_stats::StandardizedColumn::col_idx: usize
 pub field antecedent_stats::StandardizedColumn::mean: f64
@@ -3707,6 +3894,8 @@ pub fn <antecedent_stats::CalibrationReport>::fn power(self) -> f64
 pub fn <antecedent_stats::CalibrationReport>::fn type_i_rate(self) -> f64
 pub fn <antecedent_stats::CiBatchRequest<'_>>::fn nrows(&self) -> core::result::Result<usize, antecedent_stats::StatsError>
 pub fn <antecedent_stats::CiWorkspace>::fn prepare_queries(&mut self, n_queries: usize)
+pub fn <antecedent_stats::Combine>::const fn as_str(self) -> &'static str
+pub fn <antecedent_stats::Combine>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_stats::CompiledDesign>::fn fit_ols(&self, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace) -> core::result::Result<antecedent_stats::LeastSquaresFit, antecedent_stats::StatsError>
 pub fn <antecedent_stats::CompiledDesign>::fn linear_adjustment(treatment: &[f64], covariates: &[(antecedent_core::ids::VariableId, &[f64])], outcome: &[f64], row_selection: &[usize]) -> core::result::Result<Self, antecedent_stats::StatsError>
 pub fn <antecedent_stats::CompiledDesign>::fn treatment_column(&self) -> core::option::Option<usize>
@@ -3730,6 +3919,7 @@ pub fn <antecedent_stats::DesignColumnMap>::fn treatment_column(&self) -> core::
 pub fn <antecedent_stats::DesignColumnMap>::fn with_contrast_links(self, contrasts: &[antecedent_stats::RecordedContrast]) -> Self
 pub fn <antecedent_stats::DesignColumnMap>::fn with_smooth_links(self, smooths: &[antecedent_stats::RecordedSmooth]) -> Self
 pub fn <antecedent_stats::DesignColumnMap>::fn with_standardization_links(self, record: &antecedent_stats::StandardizationRecord) -> Self
+pub fn <antecedent_stats::Enclosure>::fn new(lower: f64, upper: f64) -> core::result::Result<Self, antecedent_stats::ChainError>
 pub fn <antecedent_stats::FaerBackend>::fn least_squares_coefficients(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
 pub fn <antecedent_stats::FaerBackend>::fn min_norm_least_squares(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64]) -> core::result::Result<antecedent_stats::LeastSquaresFit, antecedent_stats::StatsError>
 pub fn <antecedent_stats::FdrAdjustment>::const fn bh() -> Self
@@ -3805,6 +3995,7 @@ pub fn <antecedent_stats::SparseDiscreteCi>::fn new(permutations: u32) -> core::
 pub fn <antecedent_stats::StatsError>::const fn route_diagnostic(&self) -> core::option::Option<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_stats::StatsError>::fn glm_boundary_margin(&self) -> core::option::Option<f64>
 pub fn <antecedent_stats::SymbolicCmi>::fn new() -> Self
+pub fn <antecedent_stats::UnaryFn>::fn apply(self, x: f64) -> f64
 pub fn <antecedent_stats::ValueBounds>::fn is_degenerate(&self) -> bool
 pub fn <antecedent_stats::ValueFunctional>::const fn as_str(self) -> &'static str
 pub fn <antecedent_stats::ValueFunctional>::const fn structure(self) -> antecedent_stats::PairStructure
@@ -4079,6 +4270,7 @@ pub fn antecedent_stats::covariance_envelope(x: &antecedent_stats::Marginal, y: 
 pub fn antecedent_stats::cox_breslow(time: &[f64], failure: &[bool], covariates: &[f64], p: usize) -> core::result::Result<antecedent_stats::CoxBreslowFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::cox_ipcw(time: &[f64], event: &[f64], covariates: &[f64], p: usize, survival_floor: f64) -> core::result::Result<antecedent_stats::CoxIpcwFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::dcor::distance_correlation(x: &[f64], y: &[f64]) -> f64
+pub fn antecedent_stats::decide(summary: &antecedent_stats::ColumnSummary, reference_utility: f64) -> antecedent_stats::Decision
 pub fn antecedent_stats::describe::iid_se(values: &[f64]) -> f64
 pub fn antecedent_stats::describe::mean_and_se(values: &[f64]) -> core::option::Option<(f64, f64)>
 pub fn antecedent_stats::design::standardize_columns(matrix: &mut [f64], nrows: usize, ncols: usize, col_idxs: &[usize], eps: f64, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_stats::StandardizationRecord, antecedent_stats::StatsError>
@@ -4096,6 +4288,8 @@ pub fn antecedent_stats::draw_interval_candidate(draws: &[f64], level: f64, rule
 pub fn antecedent_stats::draw_spread(draws: &[f64], effective_size: core::option::Option<f64>) -> core::result::Result<antecedent_stats::DrawSpread, antecedent_stats::JointLawError>
 pub fn antecedent_stats::equal_tail_interval_sorted(sorted: &[f64], level: f64, rule: antecedent_stats::QuantileRule) -> (f64, f64)
 pub fn antecedent_stats::equicorrelated_gls(estimates: &[f64], standard_errors: &[f64], rho: f64) -> core::result::Result<(f64, f64), antecedent_stats::SynthesisError>
+pub fn antecedent_stats::evaluate_columns(sources: &[alloc::vec::Vec<f64>], stages: &[antecedent_stats::StageSpec], cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent_stats::Evaluated, antecedent_stats::ChainError>
+pub fn antecedent_stats::evaluate_enclosures(sources: &[antecedent_stats::Enclosure], stages: &[antecedent_stats::StageSpec]) -> core::result::Result<alloc::vec::Vec<antecedent_stats::Enclosure>, antecedent_stats::ChainError>
 pub fn antecedent_stats::expand_bspline(x: &[f64], n_basis: usize, knots: core::option::Option<&[f64]>) -> core::result::Result<(alloc::vec::Vec<f64>, alloc::sync::Arc<[f64]>), antecedent_stats::StatsError>
 pub fn antecedent_stats::exposure_probabilities(design: &antecedent_core::query::interference::AssignmentDesign, incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping, level: antecedent_core::query::interference::ExposureLevel, monte_carlo_draws: u32, seed: u64) -> core::result::Result<antecedent_stats::ExposureProbabilities, antecedent_stats::StatsError>
 pub fn antecedent_stats::exposures(assignment: &[bool], incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping) -> core::result::Result<alloc::vec::Vec<antecedent_core::query::interference::ExposureLevel>, antecedent_stats::StatsError>
@@ -4147,6 +4341,7 @@ pub fn antecedent_stats::hierarchical_normal_borrowing(estimates: &[f64], varian
 pub fn antecedent_stats::identified_set::imbens_manski_critical_value(level: f64, standardized_width: f64) -> f64
 pub fn antecedent_stats::identified_set::imbens_manski_posterior_draws(posterior_means: &[f64], draws: &[&[f64]], rows: usize, level: f64) -> core::option::Option<antecedent_stats::IdentifiedSetInterval>
 pub fn antecedent_stats::identified_set::imbens_manski_shared_replicates(points: &[f64], draws: &[alloc::vec::Vec<f64>], se_scale: f64, rows: usize, level: f64) -> core::option::Option<antecedent_stats::IdentifiedSetInterval>
+pub fn antecedent_stats::independent_product_table(columns: &[alloc::vec::Vec<f64>], max_rows: usize) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_stats::ChainError>
 pub fn antecedent_stats::interference::randomization_contrast(from: antecedent_stats::RandomizationMean, to: antecedent_stats::RandomizationMean) -> antecedent_stats::RandomizationContrast
 pub fn antecedent_stats::interference::randomization_mean(outcomes: &[f64], observed: &[antecedent_core::query::interference::ExposureLevel], probabilities: &[f64], level: antecedent_core::query::interference::ExposureLevel) -> core::result::Result<antecedent_stats::RandomizationMean, antecedent_stats::StatsError>
 pub fn antecedent_stats::joint_law::linear_combination_moments(coefficients: &[f64], means: &[f64], covariance: &[f64]) -> core::result::Result<antecedent_stats::LinearMoments, antecedent_stats::JointLawError>
@@ -4191,6 +4386,10 @@ pub fn antecedent_stats::power::student_t_upper_quantile(p: f64, df: core::optio
 pub fn antecedent_stats::power::t_test_power(noncentrality: f64, df: core::option::Option<f64>, alpha: f64, two_sided: bool) -> f64
 pub fn antecedent_stats::predict_lasso(fit: &antecedent_stats::LassoFit, x_colmajor: &[f64], nrows: usize, ncols: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
 pub fn antecedent_stats::predict_propensity(x_colmajor: &[f64], nrows: usize, ncols: usize, coefficients: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_stats::StatsError>
+pub fn antecedent_stats::preposterior(parameter: &[f64], utility: &[f64], weights: core::option::Option<&[f64]>, study: &antecedent_stats::Preposterior, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent_stats::PreposteriorOutcome, antecedent_stats::ChainError>
+pub fn antecedent_stats::propagation_chain::summarize(column: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_stats::ColumnSummary, antecedent_stats::ChainError>
+pub fn antecedent_stats::propagation_chain::validate_spec(n_sources: usize, stages: &[antecedent_stats::StageSpec]) -> core::result::Result<(), antecedent_stats::ChainError>
+pub fn antecedent_stats::propagation_chain::weights_from_log(log_weights: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::ChainError>
 pub fn antecedent_stats::quantile::quantile_sorted(sorted: &[f64], p: f64, rule: antecedent_stats::QuantileRule) -> f64
 pub fn antecedent_stats::random_effects_dersimonian_laird(estimates: &[f64], variances: &[f64]) -> core::result::Result<antecedent_stats::RandomEffectsEstimate, antecedent_stats::SynthesisError>
 pub fn antecedent_stats::random_effects_reml(estimates: &[f64], variances: &[f64]) -> core::result::Result<antecedent_stats::RandomEffectsEstimate, antecedent_stats::SynthesisError>
@@ -4246,6 +4445,7 @@ pub mod antecedent_stats::matching
 pub mod antecedent_stats::measurement_error
 pub mod antecedent_stats::observation
 pub mod antecedent_stats::power
+pub mod antecedent_stats::propagation_chain
 pub mod antecedent_stats::propensity
 pub mod antecedent_stats::quantile
 pub mod antecedent_stats::regularized
@@ -4265,16 +4465,20 @@ pub struct antecedent_stats::CiPreparationPlan
 pub struct antecedent_stats::CiQuery
 pub struct antecedent_stats::CiResult
 pub struct antecedent_stats::CiWorkspace
+pub struct antecedent_stats::ColumnSummary
 pub struct antecedent_stats::CompiledDesign
 pub struct antecedent_stats::CorrelationRangeEnvelope
 pub struct antecedent_stats::CovarianceCheck
 pub struct antecedent_stats::CoxBreslowFit
 pub struct antecedent_stats::CoxIpcwFit
+pub struct antecedent_stats::Decision
 pub struct antecedent_stats::DependenceEnvelope
 pub struct antecedent_stats::DesignColumn
 pub struct antecedent_stats::DesignColumnMap
 pub struct antecedent_stats::DesignColumnMap has private fields
 pub struct antecedent_stats::DrawSpread
+pub struct antecedent_stats::Enclosure
+pub struct antecedent_stats::Evaluated
 pub struct antecedent_stats::ExceedanceDecision
 pub struct antecedent_stats::ExposureProbabilities
 pub struct antecedent_stats::FaerBackend
@@ -4332,11 +4536,14 @@ pub struct antecedent_stats::PairwiseMultivariateCi
 pub struct antecedent_stats::PairwiseMultivariateCi has private fields
 pub struct antecedent_stats::PartialCorrelation
 pub struct antecedent_stats::PermutationTestResult
+pub struct antecedent_stats::PoolOutcome
 pub struct antecedent_stats::PooledEstimate
 pub struct antecedent_stats::PosteriorDependenceCi
 pub struct antecedent_stats::PosteriorPredictiveCi
 pub struct antecedent_stats::PredictorMatrix<'a>
 pub struct antecedent_stats::PreparedCiTest
+pub struct antecedent_stats::Preposterior
+pub struct antecedent_stats::PreposteriorOutcome
 pub struct antecedent_stats::PropensityFit
 pub struct antecedent_stats::PropensityWorkspace
 pub struct antecedent_stats::RandomEffectsEstimate
@@ -4351,6 +4558,7 @@ pub struct antecedent_stats::RobustPartialCorrelation has private fields
 pub struct antecedent_stats::SmoothSpec
 pub struct antecedent_stats::SparseDiscreteCi
 pub struct antecedent_stats::SparseDiscreteCi has private fields
+pub struct antecedent_stats::StageSpec
 pub struct antecedent_stats::StandardizationRecord
 pub struct antecedent_stats::StandardizedColumn
 pub struct antecedent_stats::SymbolicCmi
@@ -4871,6 +5079,24 @@ pub use antecedent_stats::paired_moments = antecedent_stats::joint_law::paired_m
 pub use antecedent_stats::panel_hac_meat_scalar = antecedent_stats::cluster::panel_hac_meat_scalar
 pub use antecedent_stats::predict_gam = antecedent_stats::gam::predict_gam
 pub use antecedent_stats::product_moment_envelope = antecedent_stats::joint_law::product_moment_envelope
+pub use antecedent_stats::propagation_chain::ChainError = antecedent_stats::ChainError
+pub use antecedent_stats::propagation_chain::Coefficient = antecedent_stats::Coefficient
+pub use antecedent_stats::propagation_chain::ColumnSummary = antecedent_stats::ColumnSummary
+pub use antecedent_stats::propagation_chain::Combine = antecedent_stats::Combine
+pub use antecedent_stats::propagation_chain::Decision = antecedent_stats::Decision
+pub use antecedent_stats::propagation_chain::Enclosure = antecedent_stats::Enclosure
+pub use antecedent_stats::propagation_chain::Evaluated = antecedent_stats::Evaluated
+pub use antecedent_stats::propagation_chain::PoolOutcome = antecedent_stats::PoolOutcome
+pub use antecedent_stats::propagation_chain::Preposterior = antecedent_stats::Preposterior
+pub use antecedent_stats::propagation_chain::PreposteriorOutcome = antecedent_stats::PreposteriorOutcome
+pub use antecedent_stats::propagation_chain::StageOp = antecedent_stats::StageOp
+pub use antecedent_stats::propagation_chain::StageSpec = antecedent_stats::StageSpec
+pub use antecedent_stats::propagation_chain::UnaryFn = antecedent_stats::UnaryFn
+pub use antecedent_stats::propagation_chain::decide = antecedent_stats::decide
+pub use antecedent_stats::propagation_chain::evaluate_columns = antecedent_stats::evaluate_columns
+pub use antecedent_stats::propagation_chain::evaluate_enclosures = antecedent_stats::evaluate_enclosures
+pub use antecedent_stats::propagation_chain::independent_product_table = antecedent_stats::independent_product_table
+pub use antecedent_stats::propagation_chain::preposterior = antecedent_stats::preposterior
 pub use antecedent_stats::propensity::PropensityFit = antecedent_stats::PropensityFit
 pub use antecedent_stats::propensity::PropensityWorkspace = antecedent_stats::PropensityWorkspace
 pub use antecedent_stats::propensity::fit_propensity = antecedent_stats::fit_propensity
@@ -4923,6 +5149,7 @@ pub use antecedent_stats::standardize_columns = antecedent_stats::design::standa
 pub use antecedent_stats::student_t_ppf = antecedent_stats::special::student_t_ppf
 pub use antecedent_stats::student_t_sf = antecedent_stats::special::student_t_sf
 pub use antecedent_stats::sum_cdf_envelope = antecedent_stats::joint_law::sum_cdf_envelope
+pub use antecedent_stats::summarize = antecedent_stats::propagation_chain::summarize
 pub use antecedent_stats::symmetric_eigen = antecedent_stats::covariance::symmetric_eigen
 pub use antecedent_stats::synthesis::BetweenStudyMethod = antecedent_stats::BetweenStudyMethod
 pub use antecedent_stats::synthesis::CovarianceCheck = antecedent_stats::CovarianceCheck
@@ -4951,9 +5178,28 @@ pub use antecedent_stats::twosls::anderson_rubin_statistic = antecedent_stats::a
 pub use antecedent_stats::twosls::f_critical = antecedent_stats::f_critical
 pub use antecedent_stats::twosls::fit_2sls = antecedent_stats::fit_2sls
 pub use antecedent_stats::twosls::fit_wls = antecedent_stats::fit_wls
+pub use antecedent_stats::validate_spec = antecedent_stats::propagation_chain::validate_spec
+pub use antecedent_stats::weights_from_log = antecedent_stats::propagation_chain::weights_from_log
 pub variant antecedent_stats::BasisKind::CubicBSpline
 pub variant antecedent_stats::BetweenStudyMethod::DerSimonianLaird
 pub variant antecedent_stats::BetweenStudyMethod::RestrictedMaximumLikelihood
+pub variant antecedent_stats::ChainError::Budget(&'static str)
+pub variant antecedent_stats::ChainError::Cancelled
+pub variant antecedent_stats::ChainError::Domain(&'static str)
+pub variant antecedent_stats::ChainError::EnclosureUnbounded(&'static str)
+pub variant antecedent_stats::ChainError::InvalidWeights(&'static str)
+pub variant antecedent_stats::ChainError::LowEffectiveSize { effective: f64, minimum: f64 }
+pub variant antecedent_stats::ChainError::NonFinite(&'static str)
+pub variant antecedent_stats::ChainError::Operator(&'static str)
+pub variant antecedent_stats::ChainError::PoolCovariance(antecedent_stats::SynthesisError)
+pub variant antecedent_stats::ChainError::Shape(&'static str)
+pub variant antecedent_stats::ChainError::SingularPool
+pub variant antecedent_stats::Coefficient::Fixed(f64)
+pub variant antecedent_stats::Coefficient::Input(usize)
+pub variant antecedent_stats::Combine::Difference
+pub variant antecedent_stats::Combine::Product
+pub variant antecedent_stats::Combine::Ratio
+pub variant antecedent_stats::Combine::Sum
 pub variant antecedent_stats::ConfidenceMethod::Analytic { level: f64 }
 pub variant antecedent_stats::ConfidenceMethod::None
 pub variant antecedent_stats::ContrastCodingKind::Custom
@@ -5024,6 +5270,12 @@ pub variant antecedent_stats::SandwichKind::NeweyWest { lag: usize }
 pub variant antecedent_stats::SandwichKind::PanelClusterHac { groups: &'a [u32], time: &'a [i64], lag: usize }
 pub variant antecedent_stats::SignificanceMethod::Analytic
 pub variant antecedent_stats::SignificanceMethod::BlockShuffle { replicates: u32, block_size: usize }
+pub variant antecedent_stats::StageOp::Affine { scale: antecedent_stats::Coefficient, shift: antecedent_stats::Coefficient }
+pub variant antecedent_stats::StageOp::Binary(antecedent_stats::Combine)
+pub variant antecedent_stats::StageOp::Pool { dependent: bool }
+pub variant antecedent_stats::StageOp::Preposterior(antecedent_stats::Preposterior)
+pub variant antecedent_stats::StageOp::Reweight { weights: alloc::vec::Vec<f64> }
+pub variant antecedent_stats::StageOp::Unary(antecedent_stats::UnaryFn)
 pub variant antecedent_stats::StatsError::Backend(alloc::string::String)
 pub variant antecedent_stats::StatsError::Cancelled
 pub variant antecedent_stats::StatsError::FewClusters { clusters: u64, minimum: u64, rendered: &'static str }
@@ -5045,6 +5297,14 @@ pub variant antecedent_stats::SynthesisError::NotSymmetric { asymmetry: f64 }
 pub variant antecedent_stats::SynthesisError::Shape(&'static str)
 pub variant antecedent_stats::SynthesisError::Singular { min_eigenvalue: f64, max_eigenvalue: f64 }
 pub variant antecedent_stats::SynthesisError::TooFewStudies { needed: usize, got: usize }
+pub variant antecedent_stats::UnaryFn::Exp
+pub variant antecedent_stats::UnaryFn::ExponentialUtility { risk_aversion: f64 }
+pub variant antecedent_stats::UnaryFn::Log
+pub variant antecedent_stats::UnaryFn::Logistic
+pub variant antecedent_stats::UnaryFn::PiecewiseLinear { kink: f64, below_slope: f64, above_slope: f64 }
+pub variant antecedent_stats::UnaryFn::Reciprocal
+pub variant antecedent_stats::UnaryFn::Square
+pub variant antecedent_stats::UnaryFn::Threshold { cutoff: f64, below: f64, above: f64 }
 pub variant antecedent_stats::ValueFunctional::Maximum
 pub variant antecedent_stats::ValueFunctional::Minimum
 pub variant antecedent_stats::ValueFunctional::Product

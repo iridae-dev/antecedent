@@ -687,7 +687,7 @@ def target_refutation_plan(
     """The target-native refuter catalogue of a target family in one quadrant.
 
     ``family`` is ``scalar_average_effect``, ``conditional_effect``, ``response_derivative``,
-    ``temporal_effect``, ``mediation``, ``world_valued`` or ``joint_contrast``; ``suite`` is
+    ``temporal_effect``, ``mediation``, ``world_valued``, ``joint_contrast`` or ``attribution``; ``suite`` is
     ``cheap``, ``placebo`` or ``full``.
     """
     wire = json.loads(

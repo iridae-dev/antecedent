@@ -3,7 +3,9 @@
 //! A single-step pulse on a `TemporalDag` has a tempered (generalized) posterior by default.
 //! Declaring serially independent innovations on the Bayesian inference swaps in the untempered
 //! full-likelihood posterior of the same effect, licensed only by that declaration and refutable
-//! by a Ljung-Box test of the residuals. The reference is the least-squares coefficient and its
+//! by a Ljung-Box test of the residuals. The same premise licenses the untempered posterior of a
+//! response curve at the single horizon of one step ahead; any other horizon, and the default,
+//! keep the tempered generalized posterior. The reference is the least-squares coefficient and its
 //! standard error of the lag-aligned regression, computed here from the raw series. The route is
 //! an unlicensed estimator with calibration unmeasured, and every result says so.
 //!
@@ -14,11 +16,15 @@
     reason = "integration test builds deterministic fixtures from small counts"
 )]
 
+use std::sync::Arc;
+
 use antecedent::estimate::InnovationWhitenessGate;
 use antecedent::prelude::{CausalSchemaBuilder, TabularData};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    Assumption, CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
+    Assumption, CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Lag, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseValue, TemporalEffectQuery, TemporalPolicy,
+    TemporalResponseSpec, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -187,6 +193,95 @@ fn a_route_that_does_not_read_the_premise_refuses_it() {
         .bootstrap_replicates(0)
         .build()
         .unwrap_err();
+    let text = error.to_string();
+    assert!(text.contains("option_not_applicable"), "{text}");
+    assert!(text.contains("Next attempt"), "{text}");
+}
+
+fn curve(horizons: Vec<u32>) -> CausalQuery {
+    CausalQuery::Response(
+        ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([0.0, 1.0, 2.0])),
+            ),
+        })
+        .with_temporal(
+            TemporalResponseSpec::new(horizons, TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
+    )
+}
+
+fn curve_study(
+    x: &[f64],
+    y: &[f64],
+    horizons: Vec<u32>,
+    config: BayesianConfig,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    Study::series(data(x, y))
+        .graph(lag_one_graph())
+        .query(curve(horizons))
+        .inference(InferenceMode::Bayesian(config))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()?
+        .run(&ExecutionContext::for_tests(12))
+}
+
+fn has_white_premise(assumptions: &antecedent_core::AssumptionSet) -> bool {
+    assumptions.entries.iter().any(|record| {
+        matches!(&record.assumption, Assumption::ParametricRestriction(p) if p.id.as_ref() == ASSUMPTION)
+    })
+}
+
+#[test]
+fn a_declared_premise_gives_the_untempered_curve_at_one_step_with_its_premise_recorded() {
+    let (x, y) = series(0.5, 0.0, 2);
+    let (beta, se) = ols(&x, &y);
+    let result = curve_study(&x, &y, vec![1], config().white_innovation(gate())).unwrap();
+    let response = result.response().expect("a temporal response payload");
+    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+        &response.estimate
+    else {
+        panic!("expected a point-identified surface");
+    };
+    // The response is linear in the dose, so its slope is the lag-aligned coefficient and the
+    // untempered posterior of a correctly specified model has the least-squares mean.
+    let slope = mean[1] - mean[0];
+    assert!((slope - beta).abs() < 3.0 * se / (DRAWS as f64).sqrt() + 5e-3, "{slope} vs {beta}");
+    assert!(has_white_premise(&response.assumptions));
+    let ids: Vec<&str> = response.support.diagnostics.iter().map(|d| d.id.as_ref()).collect();
+    assert!(ids.contains(&"response.temporal_bayesian.white_innovation"), "{ids:?}");
+    assert!(!ids.contains(&"response.temporal_bayesian.tempering"), "{ids:?}");
+}
+
+#[test]
+fn the_curve_without_the_declaration_keeps_its_tempered_meaning() {
+    let (x, y) = series(0.5, 0.0, 2);
+    let result = curve_study(&x, &y, vec![1], config()).unwrap();
+    let response = result.response().unwrap();
+    assert!(!has_white_premise(&response.assumptions));
+    let ids: Vec<&str> = response.support.diagnostics.iter().map(|d| d.id.as_ref()).collect();
+    assert!(ids.contains(&"response.temporal_bayesian.tempering"), "{ids:?}");
+    assert!(!ids.contains(&"response.temporal_bayesian.white_innovation"), "{ids:?}");
+}
+
+#[test]
+fn a_curve_with_autocorrelated_innovations_refuses_the_premise_and_keeps_the_tempered_posterior() {
+    let (x, y) = series(0.8, 0.8, 1);
+    let error = curve_study(&x, &y, vec![1], config().white_innovation(gate())).unwrap_err();
+    let text = error.to_string();
+    assert!(text.contains("white_innovation.residual_autocorrelation"), "{text}");
+    assert!(text.contains("tempered posterior"), "{text}");
+    assert!(text.contains("Next attempt"), "{text}");
+    assert!(curve_study(&x, &y, vec![1], config()).is_ok());
+}
+
+#[test]
+fn a_multi_horizon_curve_refuses_the_premise_naming_the_next_attempt() {
+    let (x, y) = series(0.5, 0.0, 2);
+    let error = curve_study(&x, &y, vec![1, 2], config().white_innovation(gate())).unwrap_err();
     let text = error.to_string();
     assert!(text.contains("option_not_applicable"), "{text}");
     assert!(text.contains("Next attempt"), "{text}");

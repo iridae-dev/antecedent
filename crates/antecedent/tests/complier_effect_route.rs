@@ -13,6 +13,9 @@ use antecedent::{RandomizedEffectQuery, Study};
 use antecedent_core::VariableId;
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 #[test]
 fn licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery() {
     fn run_case(query: RandomizedEffectQuery, outcomes: &[f64], design: &str, estimand: &str) {
@@ -21,6 +24,12 @@ fn licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery() {
         let prepared =
             Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
+        retained_graphless::assert_retained_graphless_program(
+            "licensed_complier_and_tot_intervals_roun",
+            &prepared,
+            &result,
+            &ctx,
+        );
         let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported complier interval");
         assert_eq!(fit.assignment_design.as_ref(), "bernoulli");

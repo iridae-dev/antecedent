@@ -323,6 +323,7 @@ fn lower_planning(program: PlanningProgram) -> Result<LoweredProgram, CausalErro
         composition: Composition::Single,
         decision: None,
         planning: Some(program),
+        chain: None,
     };
     Ok(PlanningLoweredParts {
         design,

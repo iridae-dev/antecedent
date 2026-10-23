@@ -17,6 +17,63 @@ use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
+/// A finite window of a [`TemporalAdmg`] template as one static [`Admg`].
+///
+/// Coordinate `period * variable_count + index` is the template variable of dense `index` in
+/// that period. Template edges are replicated at their delay (the lag of the cause minus the
+/// lag of the effect) wherever both endpoints fall in the window. A cause that falls before
+/// the window is an observed variable the window does not contain: it is treated as a latent
+/// common cause of its in-window effects (and of its in-window bidirected partners), so a
+/// confounding path through the truncated history is kept, never dropped. History deeper than
+/// the direct lags of the window's first periods is the initial state, as in the unfolding of
+/// a [`crate::TemporalDag`].
+#[derive(Clone, Debug)]
+pub struct UnrolledTemporalAdmg {
+    admg: Admg,
+    variables: Vec<VariableId>,
+    periods: u32,
+}
+
+impl UnrolledTemporalAdmg {
+    /// The window as a static ADMG whose node `i` has variable id `i`.
+    #[must_use]
+    pub fn admg(&self) -> &Admg {
+        &self.admg
+    }
+
+    /// Number of periods in the window.
+    #[must_use]
+    pub const fn periods(&self) -> u32 {
+        self.periods
+    }
+
+    /// Template variables, in coordinate order within a period.
+    #[must_use]
+    pub fn variables(&self) -> &[VariableId] {
+        &self.variables
+    }
+
+    /// Window coordinate of template `variable` in `period`, if both exist.
+    #[must_use]
+    pub fn coordinate(&self, variable: VariableId, period: u32) -> Option<VariableId> {
+        if period >= self.periods {
+            return None;
+        }
+        let index = self.variables.iter().position(|v| *v == variable)?;
+        let count = u32::try_from(self.variables.len()).ok()?;
+        Some(VariableId::from_raw(period * count + u32::try_from(index).ok()?))
+    }
+
+    /// Template variable and period of a window coordinate.
+    #[must_use]
+    pub fn locate(&self, coordinate: VariableId) -> Option<(VariableId, u32)> {
+        let count = u32::try_from(self.variables.len()).ok()?;
+        let period = coordinate.raw().checked_div(count)?;
+        let index = usize::try_from(coordinate.raw() % count).ok()?;
+        (period < self.periods).then(|| (self.variables[index], period))
+    }
+}
+
 /// Acyclic directed mixed graph over lagged (`VariableId`, `Lag`) nodes.
 #[derive(Clone, Debug)]
 pub struct TemporalAdmg {
@@ -256,6 +313,115 @@ impl TemporalAdmg {
             }
         }
         Ok(admg)
+    }
+
+    /// Unroll the template over `periods` consecutive periods into one static [`Admg`].
+    ///
+    /// # Errors
+    ///
+    /// No periods, a non-lagged node, a window too large to number, or an edge the window
+    /// cannot hold (a same-period cycle).
+    pub fn unroll_window(&self, periods: u32) -> Result<UnrolledTemporalAdmg, GraphError> {
+        let mut variables = Vec::new();
+        for node in &self.nodes {
+            let NodeRef::Lagged { variable, .. } = node else {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "TemporalAdmg unrolling requires lagged nodes",
+                });
+            };
+            variables.push(*variable);
+        }
+        variables.sort_unstable();
+        variables.dedup();
+        let count = u32::try_from(variables.len()).map_err(|_| GraphError::TooManyNodes)?;
+        let total = periods.checked_mul(count).ok_or(GraphError::TooManyNodes)?;
+        if periods == 0 || count == 0 {
+            return Err(GraphError::InvalidEndpoints {
+                message: "TemporalAdmg unrolling needs at least one period and one variable",
+            });
+        }
+        let template = |id: DenseNodeId| -> Result<(usize, i64), GraphError> {
+            match self.nodes[id.as_usize()] {
+                NodeRef::Lagged { variable, lag } => {
+                    let index = variables.iter().position(|v| *v == variable).ok_or(
+                        GraphError::InvalidEndpoints { message: "unknown template variable" },
+                    )?;
+                    Ok((index, i64::from(lag.raw())))
+                }
+                _ => Err(GraphError::InvalidEndpoints {
+                    message: "TemporalAdmg unrolling requires lagged nodes",
+                }),
+            }
+        };
+        let coordinate = |index: usize, period: i64| -> DenseNodeId {
+            // `period` is in `0..periods` and `index < count` at every call.
+            let flat =
+                u32::try_from(period).unwrap_or(0) * count + u32::try_from(index).unwrap_or(0);
+            DenseNodeId::from_raw(flat)
+        };
+        let window = i64::from(periods);
+        let mut admg = Admg::with_variables(total);
+        // In-window effects of each observed cause that precedes the window.
+        let mut truncated: std::collections::BTreeMap<(usize, i64), Vec<DenseNodeId>> =
+            std::collections::BTreeMap::new();
+        let tolerate = |result: Result<(), GraphError>| match result {
+            Err(GraphError::DuplicateEdge { .. }) => Ok(()),
+            other => other,
+        };
+        for (parent_id, kids) in self.children.iter().enumerate() {
+            let (pi, plag) = template(DenseNodeId::from_index(parent_id))?;
+            for &kid in kids {
+                let (ci, clag) = template(kid)?;
+                let delay = plag - clag;
+                for child_period in 0..window {
+                    let parent_period = child_period - delay;
+                    if parent_period >= window {
+                        continue;
+                    }
+                    let child = coordinate(ci, child_period);
+                    if parent_period < 0 {
+                        truncated.entry((pi, parent_period)).or_default().push(child);
+                    } else {
+                        tolerate(admg.insert_directed(coordinate(pi, parent_period), child))?;
+                    }
+                }
+            }
+        }
+        for (a_id, partners) in self.bidirected.iter().enumerate() {
+            let (ai, alag) = template(DenseNodeId::from_index(a_id))?;
+            for &partner in partners {
+                if partner.as_usize() < a_id {
+                    continue;
+                }
+                let (bi, blag) = template(partner)?;
+                let delay = alag - blag;
+                for b_period in 0..window {
+                    let a_period = b_period - delay;
+                    if a_period >= window {
+                        continue;
+                    }
+                    let b = coordinate(bi, b_period);
+                    if a_period < 0 {
+                        truncated.entry((ai, a_period)).or_default().push(b);
+                    } else {
+                        let a = coordinate(ai, a_period);
+                        if a != b {
+                            tolerate(admg.insert_bidirected(a, b))?;
+                        }
+                    }
+                }
+            }
+        }
+        for effects in truncated.values() {
+            for (i, &a) in effects.iter().enumerate() {
+                for &b in &effects[i + 1..] {
+                    if a != b {
+                        tolerate(admg.insert_bidirected(a, b))?;
+                    }
+                }
+            }
+        }
+        Ok(UnrolledTemporalAdmg { admg, variables, periods })
     }
 
     /// Lift a static [`Admg`] to contemporaneous lagged nodes.

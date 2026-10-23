@@ -740,12 +740,16 @@ fn refuse_bayesian_estimator_under_frequentist(estimator: EstimatorId) -> Result
             bayesian!("bayesian.randomized_superpopulation")
         }
         EstimatorId::BayesianSwitchback => bayesian!("bayesian.switchback_effect"),
+        EstimatorId::BayesianComplierEffect => bayesian!("bayesian.complier_effect"),
         EstimatorId::BayesianBinaryPolicyValue => bayesian!("bayesian.binary_policy_value"),
         EstimatorId::BayesianSequentialRegimeValue => {
             bayesian!("bayesian.sequential_regime_value")
         }
         EstimatorId::BayesianSequentialCrossfitContrast => {
             bayesian!("bayesian.sequential_crossfit_contrast")
+        }
+        EstimatorId::BayesianPeriodHistoryOutcomeModel => {
+            bayesian!("bayesian.period_history_outcome_model")
         }
         EstimatorId::BayesianTemporalDesignExcursion => {
             bayesian!("bayesian.temporal_design.excursion")
@@ -946,8 +950,9 @@ pub(super) fn refuse_unsupported_draw_controls(
 /// Refuse a declared white-innovation premise where no executor reads it.
 ///
 /// The untempered posterior is the full-likelihood posterior of one lag-aligned Gaussian
-/// regression, so it exists for the temporal pulse and one-step sustained effect on one fixed
-/// `TemporalDag` under the isotropic Gaussian prior only. Every other route would ignore the
+/// regression, so it exists for the temporal pulse, the one-step sustained effect and the
+/// response curve at the single horizon of one step ahead, on one fixed `TemporalDag` under the
+/// isotropic Gaussian prior only. Every other route would ignore the
 /// premise, so it refuses it instead of publish a posterior the premise did not shape.
 pub(super) fn refuse_unsupported_white_innovation(
     query: &CausalQuery,
@@ -962,10 +967,17 @@ pub(super) fn refuse_unsupported_white_innovation(
     if cfg.white_innovation.is_none() {
         return Ok(());
     }
-    let single_window = matches!(
+    // A response curve reads the premise at the single horizon of one step ahead.
+    let single_horizon_response = matches!(
         query,
-        CausalQuery::TemporalEffect(q) if !q.is_multi_step_sustained() && q.effect_modifiers.is_empty()
+        CausalQuery::Response(q)
+            if q.temporal.as_ref().is_some_and(|spec| &*spec.horizons == [1_u32].as_slice())
     );
+    let single_window = single_horizon_response
+        || matches!(
+            query,
+            CausalQuery::TemporalEffect(q) if !q.is_multi_step_sustained() && q.effect_modifiers.is_empty()
+        );
     let supported = single_window
         && matches!(data, DataInput::Temporal(_))
         && class == GraphClass::TemporalDag
@@ -978,8 +990,9 @@ pub(super) fn refuse_unsupported_white_innovation(
     Err(crate::unsupported_reason!(
         "option_not_applicable",
         "a declared white-innovation premise licenses the untempered Gaussian posterior of a \
-         single-step temporal pulse or one-step sustained effect on one fixed TemporalDag under \
-         the isotropic Gaussian prior; this route does not read it, so it refuses the premise \
+         single-step temporal pulse, one-step sustained effect or one-step single-horizon \
+         response curve on one fixed TemporalDag under the isotropic Gaussian prior; this route \
+         does not read it, so it refuses the premise \
          rather than publish a posterior it did not shape. Next attempt: drop the declaration to \
          use the tempered posterior, or compose per-mechanism posteriors for a longer horizon"
     ))

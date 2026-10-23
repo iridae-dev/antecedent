@@ -748,24 +748,41 @@ fn design_cell(
             let (identification, _) = CheckedHistoryMatchOperation::design_identification(query);
             let mut match_inputs = vec![query.treated];
             match_inputs.extend(query.period);
+            // A Bayesian request is the outcome-model estimator: one Gaussian regression of the
+            // outcome on period effects, the history-mean score and the treated-centred
+            // interaction. The matching estimator has no posterior.
+            let bayesian = study.inference.is_bayesian();
+            let mut model_inputs = match_inputs.clone();
+            model_inputs.extend(query.history.iter().copied());
             DesignCell {
                 target: functional(study, FunctionalKind::HistoryMatch, query.outcome),
                 identification,
-                models: vec![
-                    slot(ModelRole::Nuisance, "history_mean_score", &query.history, None),
-                    slot(
+                models: if bayesian {
+                    vec![slot(
                         ModelRole::Outcome,
-                        "within_period_nearest_neighbor",
-                        &match_inputs,
+                        "gaussian_period_history_outcome_model",
+                        &model_inputs,
                         Some(query.outcome),
-                    ),
-                ],
+                    )]
+                } else {
+                    vec![
+                        slot(ModelRole::Nuisance, "history_mean_score", &query.history, None),
+                        slot(
+                            ModelRole::Outcome,
+                            "within_period_nearest_neighbor",
+                            &match_inputs,
+                            Some(query.outcome),
+                        ),
+                    ]
+                },
                 folds: None,
                 randomization_test: None,
                 basis: SamplingBasis::Superpopulation,
-                width: WidthSource::NotDesignBased(
-                    "nearest-neighbor matching on a history score fits no design matrix",
-                ),
+                width: WidthSource::NotDesignBased(if bayesian {
+                    "the Gaussian outcome model's posterior is the model-based effect on the treated, not a design-based width"
+                } else {
+                    "nearest-neighbor matching on a history score fits no design matrix"
+                }),
                 claim: ClaimKind::Point,
             }
         }

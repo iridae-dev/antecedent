@@ -14,6 +14,9 @@ use antecedent::{Study, SyntheticControlQuery};
 use antecedent_core::{IntervalMethod, VariableId};
 use antecedent_data::TabularData;
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 fn fixture() -> (TabularData, SyntheticControlQuery) {
     let donors = [
         ("a", [0.0, 0.0, 1.0, 0.0, 1.0, 0.0]),
@@ -71,6 +74,12 @@ fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_clai
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let retained = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "synthetic-control",
+        &prepared,
+        &retained,
+        &ctx,
+    );
     assert_eq!(retained.synthetic_control(), result.synthetic_control());
     let bytes = prepared.encode_contracted_result(&retained, "synthetic-control", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();

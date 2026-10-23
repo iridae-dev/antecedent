@@ -18,6 +18,7 @@ enum InterferenceProcedure {
     SaturationExact,
     ObservationalIpw,
     ConjugateGaussian { draws: usize, prior_sd: f64 },
+    ClusterBayesianBootstrap { draws: usize },
 }
 
 /// Complete fixed network, assignment, query and inference procedure for one exposure contrast.
@@ -74,6 +75,20 @@ impl CheckedInterferenceOperation {
         refuse_unsupported_interference_design(study, &design, data, graph)?;
         let (procedure, estimator) = match &study.inference {
             InferenceMode::Frequentist => frequentist_interference_procedure(query, &design)?,
+            InferenceMode::Bayesian(config) if cluster_bootstrap_design(query) => {
+                admit_cluster_bootstrap(config)?;
+                // Reject unsupported neighborhood, assignment and arm sizes during prepare.
+                antecedent_estimate::estimate_cluster_interference_total(
+                    query,
+                    &design.network,
+                    &design.assignment,
+                )
+                .map_err(CausalError::from)?;
+                (
+                    InterferenceProcedure::ClusterBayesianBootstrap { draws: config.n_draws },
+                    EstimatorId::InterferenceClusterBayesianBootstrap,
+                )
+            }
             InferenceMode::Bayesian(config) => {
                 if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
                     || config.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
@@ -166,6 +181,9 @@ impl CheckedInterferenceOperation {
         inference: &InferenceMode,
     ) -> (IdentificationResult, IdentifiedEstimand) {
         let procedure = match inference {
+            InferenceMode::Bayesian(config) if cluster_bootstrap_design(query) => {
+                InterferenceProcedure::ClusterBayesianBootstrap { draws: config.n_draws }
+            }
             InferenceMode::Bayesian(config) => InterferenceProcedure::ConjugateGaussian {
                 draws: config.n_draws,
                 prior_sd: config.prior_scale,
@@ -227,6 +245,9 @@ impl CheckedInterferenceOperation {
                 InterferenceProcedure::ObservationalIpw => self.observational_arm(&network)?,
                 InterferenceProcedure::ConjugateGaussian { draws, prior_sd } => {
                     self.bayesian_arm(&network, ctx, draws, prior_sd)?
+                }
+                InterferenceProcedure::ClusterBayesianBootstrap { draws } => {
+                    self.cluster_bootstrap_arm(&network, ctx, draws)?
                 }
             };
         let mut result = finish_identified_execute_with_context(
@@ -598,6 +619,120 @@ impl CheckedInterferenceOperation {
     }
 }
 
+impl CheckedInterferenceOperation {
+    /// Cluster-level Bayesian-bootstrap posterior of the cluster total-effect contrast.
+    fn cluster_bootstrap_arm(
+        &self,
+        network: &antecedent_data::NetworkData,
+        ctx: &ExecutionContext,
+        draws: usize,
+    ) -> Result<InterferenceArm, CausalError> {
+        let options =
+            antecedent_estimate::score_posterior::ScorePosteriorOptions { draws, coverage: 0.95 };
+        let (_, summary) = antecedent_estimate::estimate_cluster_interference_bayesian_bootstrap(
+            &self.query,
+            network,
+            &self.assignment,
+            options,
+            ctx,
+        )
+        .map_err(CausalError::from)?;
+        let schema = antecedent_prob::PosteriorSchema {
+            quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
+                name: Arc::from("cluster_total_exposure_contrast"),
+            }]),
+        };
+        let posterior_draws = antecedent_prob::PosteriorDraws::from_column_major(
+            schema,
+            summary.draws.len(),
+            Arc::<[f64]>::from(summary.draws),
+        )?;
+        let mut diagnostics =
+            InferenceDiagnostics::analytic("interference.cluster_bayesian_bootstrap");
+        let clusters = match &self.query.assignment {
+            antecedent_core::AssignmentDesign::ClusterRandomization { clusters, .. } => {
+                clusters.iter().copied().collect::<std::collections::BTreeSet<_>>().len()
+            }
+            _ => 0,
+        };
+        diagnostics.notes = [Arc::<str>::from(format!(
+            "clusters={clusters} draws={draws} interval=equal_tailed_95"
+        ))]
+        .into();
+        let posterior = CausalPosterior {
+            summaries: posterior_draws.summarize(),
+            draws: posterior_draws,
+            identification: self.identification.status,
+            prior_sensitivity: None,
+            conflict_summary: None,
+            diagnostics,
+            assumptions: cluster_bootstrap_assumptions(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.0,
+            early_stopped: false,
+            treatment_contrast: None,
+            preparation: None,
+        };
+        let estimate = effect_from_posterior(&posterior)?;
+        Ok((
+            None,
+            None,
+            Some(posterior),
+            estimate,
+            Diagnostic::new(
+                "estimate.interference.cluster_bayesian_bootstrap",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "unlicensed and uncalibrated Bayesian-bootstrap posterior of the cluster total-effect contrast: the declared complete cluster allocation (not the prior) identifies the contrast, and partial interference is declared, not tested",
+            ),
+        ))
+    }
+}
+
+/// Whether a Bayesian study declares the complete cluster allocation the bootstrap models.
+fn cluster_bootstrap_design(query: &antecedent_core::InterferenceQuery) -> bool {
+    matches!(query.assignment, antecedent_core::AssignmentDesign::ClusterRandomization { .. })
+}
+
+/// Refuse the Bayesian configurations the cluster bootstrap does not read.
+fn admit_cluster_bootstrap(config: &crate::BayesianConfig) -> Result<(), CausalError> {
+    if config.prior.is_some()
+        || config.prior_artifact.is_some()
+        || config.prior_mapping.is_some()
+        || config.external_compose.is_some()
+    {
+        return Err(CausalError::Unsupported {
+            message: "the cluster Bayesian bootstrap reads no declared prior: its prior is the vanishing-concentration Dirichlet process on the cluster law. Next attempt: omit the prior, or use the design-based cluster interval under Frequentist inference",
+        });
+    }
+    if config.n_draws < 2 {
+        return Err(CausalError::Unsupported {
+            message: "the cluster Bayesian bootstrap requires at least two posterior draws",
+        });
+    }
+    Ok(())
+}
+
+fn cluster_bootstrap_assumptions() -> antecedent_core::AssumptionSet {
+    use antecedent_core::{
+        Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
+        ParametricAssumption,
+    };
+    let algorithm: Arc<str> = Arc::from("interference.cluster_bayesian_bootstrap");
+    let mut assumptions = design_identification_assumptions(true);
+    assumptions.push(AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from("interference.cluster_dirichlet_process_prior"),
+            description: Arc::from("The law of the scaled cluster totals within each arm has a Dirichlet-process prior of vanishing concentration, so the posterior weights on the observed clusters are Dirichlet(1, ..., 1) within the arm; clusters are independent units of inference."),
+        }),
+        source: AssumptionSource::AlgorithmDefault { algorithm },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    });
+    assumptions
+}
+
 /// Estimate, inference block, posterior, effect and diagnostic one procedure arm produces.
 type InterferenceArm = (
     Option<antecedent_estimate::InterferenceEstimate>,
@@ -737,6 +872,11 @@ fn interference_identification(
             "interference.observational_exchangeability",
             "Identification assumes no unmeasured confounding of network exposure and potential outcomes conditional on the variables used to supply exposure probabilities, plus partial interference, consistency, and positivity.",
             observational_identification_assumptions(),
+        ),
+        InterferenceProcedure::ClusterBayesianBootstrap { .. } => (
+            "interference.cluster_bayesian_bootstrap",
+            "Identification is complete randomization of clusters and partial interference within disjoint clusters; the posterior is over the (0,0) to (1,1) total effect of assigning an entire cluster, with the clusters as the units of a Bayesian bootstrap.",
+            cluster_bootstrap_assumptions(),
         ),
         InterferenceProcedure::ConjugateGaussian { prior_sd, .. } => (
             "interference.bayesian_gaussian",

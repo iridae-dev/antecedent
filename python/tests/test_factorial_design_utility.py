@@ -104,3 +104,26 @@ def test_bayesian_factorial_main_effect_matches_the_exact_beta_moments() -> None
     assert result.estimate.estimator_id == "bayesian.randomized_superpopulation"
     assert result.posterior.effect_mean == pytest.approx(main_effect_a, abs=5e-3)
     assert result.posterior.effect_sd == pytest.approx(sd_a, abs=6e-3)
+
+
+def test_factorial_2x2_runs_through_the_compiled_randomized_route() -> None:
+    data, a, b = _balanced_fixture()
+    probability_a = [0.4, 0.5, 0.6, 0.5, 0.4, 0.5, 0.6, 0.5]
+    result = factorial.estimate(
+        data,
+        factor_a=a,
+        factor_b=b,
+        design=factorial.FactorialDesign(probability_a, 0.5),
+        outcome="y",
+    )
+    y = data["y"]
+    expected = {"00": 0.0, "01": 0.0, "10": 0.0, "11": 0.0}
+    for i, outcome in enumerate(y):
+        pa = probability_a[i] if a[i] else 1.0 - probability_a[i]
+        cell = f"{int(a[i])}{int(b[i])}"
+        expected[cell] += outcome / (pa * 0.5) / len(y)
+    assert result.cell_means == pytest.approx(expected)
+    assert result.interaction_effect == pytest.approx(
+        expected["11"] - expected["10"] - expected["01"] + expected["00"]
+    )
+    assert result.interaction_variance_bound > 0.0

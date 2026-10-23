@@ -124,3 +124,47 @@ def test_the_declaration_is_validated() -> None:
     for bad in ((0, 0.01), (6, 0.0), (6, 1.0)):
         with pytest.raises(antecedent.errors.CausalValueError):
             run(x, y, white_innovation=bad)
+
+
+def run_curve(x, y, horizons=(1,), **bayes):
+    return antecedent.analyze(
+        {"x": x, "y": y},
+        graph=[("x", 1, "y", 0)],
+        query=antecedent.ResponseCurve(
+            "x", "y", grid=[0.0, 1.0, 2.0], horizons=list(horizons), policy="pulse", treatment_lag=1
+        ),
+        inference=antecedent.Bayesian(
+            n_draws=DRAWS, prior_scale=1.0e3, backend="conjugate", **bayes
+        ),
+        refute=False,
+        bootstrap=0,
+        seed=12,
+    )
+
+
+def test_a_declared_premise_gives_the_untempered_curve_at_one_step() -> None:
+    x, y = series(0.5, 0.0, 2)
+    beta, se, _ = ols(x, y)
+    declared = run_curve(x, y, white_innovation=(6, 0.01))
+    values = np.asarray([row[0] for row in declared.response.values], dtype=float)
+    assert values[1] - values[0] == pytest.approx(beta, abs=3.0 * se / math.sqrt(DRAWS) + 5e-3)
+    ids = {d.id for d in declared.support.diagnostics}
+    assert "response.temporal_bayesian.white_innovation" in ids
+    assert "response.temporal_bayesian.tempering" not in ids
+    default_ids = {d.id for d in run_curve(x, y).support.diagnostics}
+    assert "response.temporal_bayesian.tempering" in default_ids
+    assert "response.temporal_bayesian.white_innovation" not in default_ids
+
+
+def test_the_curve_refuses_the_premise_on_autocorrelation_and_beyond_one_step() -> None:
+    x, y = series(0.8, 0.8, 1)
+    with pytest.raises(CausalUnsupportedError) as info:
+        run_curve(x, y, white_innovation=(6, 0.01))
+    text = str(info.value)
+    assert "tempered posterior" in text and "Next attempt" in text
+    assert run_curve(x, y).response is not None
+    x, y = series(0.5, 0.0, 2)
+    with pytest.raises(CausalUnsupportedError) as multi:
+        run_curve(x, y, horizons=(1, 2), white_innovation=(6, 0.01))
+    assert multi.value.reason_code == "option_not_applicable"
+    assert "Next attempt" in str(multi.value)

@@ -127,6 +127,8 @@ impl CheckedRandomizedOperation {
             InferenceMode::Bayesian(config) => {
                 if matches!(query.design, antecedent_core::RandomizationDesign::Switchback { .. }) {
                     bayesian_switchback::admit(query, config)?;
+                } else if bayesian_arms::is_complier_query(query) {
+                    bayesian_arms::admit_complier(query, config, study.estimator)?;
                 } else {
                     bayesian_arms::admit(query, config)?;
                 }
@@ -146,10 +148,17 @@ impl CheckedRandomizedOperation {
             data.schema().get(covariate).map_err(CausalError::rejected)?;
         }
         let planned_estimator = if bayesian {
-            bayesian_randomized_estimator(study.estimator, &query.design)
+            bayesian_randomized_estimator(study.estimator, query)
         } else {
             RandomizedMethod::of(query).estimator_id()
         };
+        if planned_estimator == EstimatorId::BayesianComplierEffect
+            && !bayesian_arms::is_complier_query(query)
+        {
+            return Err(CausalError::Unsupported {
+                message: "the Bayesian complier effect answers a receipt-adjusted randomized query only",
+            });
+        }
         if physical.logical.query != study.query
             || !physical.binding().names(IdentifierId::RandomizedDesign, planned_estimator)
         {

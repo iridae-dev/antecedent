@@ -51,7 +51,7 @@ fn family_of(name: &str) -> PyResult<TargetFamily> {
     TargetFamily::parse(name).ok_or_else(|| {
         value_err(format!(
             "unknown target family {name:?}; expected scalar_average_effect, conditional_effect, \
-             response_derivative, temporal_effect, mediation, world_valued or joint_contrast"
+             response_derivative, temporal_effect, mediation, world_valued, joint_contrast or attribution"
         ))
     })
 }

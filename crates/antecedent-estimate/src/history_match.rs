@@ -92,6 +92,31 @@ impl HistoryUnit {
     pub fn score(&self) -> f64 {
         self.history.iter().sum::<f64>() / self.history.len() as f64
     }
+
+    /// Number of history time points.
+    pub(crate) fn history_len(&self) -> usize {
+        self.history.len()
+    }
+
+    /// The outcome contrasted after the history.
+    pub(crate) const fn outcome(&self) -> f64 {
+        self.outcome
+    }
+
+    /// Whether the unit is in the treated arm.
+    pub(crate) const fn is_treated(&self) -> bool {
+        self.treated
+    }
+
+    /// Sampling weight.
+    pub(crate) const fn weight(&self) -> f64 {
+        self.weight
+    }
+
+    /// Calendar period.
+    pub(crate) const fn period(&self) -> i64 {
+        self.period
+    }
 }
 
 /// Normal prior for a history-matched contrast.

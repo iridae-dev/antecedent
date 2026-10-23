@@ -41,10 +41,12 @@ use antecedent_identify::{
 use crate::{CausalError, EstimatorId, IdentifierId};
 
 /// Identification of this cell is blocked. The message is the refusal.
-const TEMPORAL_IDENTIFICATION_BLOCKED: &str = "Identification is blocked. A temporal contrast on \
-     TemporalAdmg is not identified, and the contemporaneous projection answers a different \
-     target. Next attempts: TemporalConditionalPulse or TemporalConditionalSustained on a \
-     TemporalDag when the lag structure has no latent confounding, or the static Admg for the \
+const TEMPORAL_IDENTIFICATION_BLOCKED: &str = "Identification is blocked. A temporal conditional \
+     contrast on a TemporalAdmg has no prepared route yet, and the contemporaneous projection \
+     answers a different target. The unconditional pulse and sustained contrasts are identified \
+     on the unrolled window by antecedent_identify::temporal_admg; next attempts: IDC on that \
+     window for the conditional law, TemporalConditionalPulse or TemporalConditionalSustained on \
+     a TemporalDag when the lag structure has no latent confounding, or the static Admg for the \
      contemporaneous conditional effect.";
 
 /// IDC contrast of the active and control conditional laws.

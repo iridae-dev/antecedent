@@ -21,6 +21,17 @@ def temporal_response_spec() -> dict[str, Any]:
 def runtime_refusal_codes() -> list[str]:
     """Registered runtime-refusal reason codes (``parity/reason_codes.toml``)."""
 
+def host_schema_text() -> str:
+    """The committed host-integration JSON Schema, exactly as generated."""
+
+def host_status_of_claim(
+    kind: str, identification: str, support: str, evaluated: str
+) -> str | None:
+    """Host status of a claim from its wire names; ``None`` for an unregistered name."""
+
+def host_status_of_operation(applicability: str, readiness: str | None = None) -> str | None:
+    """Host status of an operation from its wire names; ``None`` for an unregistered name."""
+
 class CausalError(Exception):
     # What the caller can change to get past a refusal, when it names one;
     # ``None`` otherwise (a class default every subclass inherits).
@@ -833,6 +844,7 @@ class EstimateSection:
     adjusted_p_values: tuple[float, float] | None
     family_contrast: tuple[float, float] | None
     family_contrast_interval: tuple[float, float, float] | None
+    family_contrast_posterior: tuple[float, float, tuple[float, float], list[float]] | None
     candidate_selection: CandidateSelectionSection | None
     evalue: float | None
     evalue_threshold: float | None
@@ -1239,6 +1251,7 @@ class PreparedAnalysis:
         self,
     ) -> dict[str, str]: ...
     def plan_view_json(self) -> str: ...
+    def report(self, format: str = "markdown") -> str: ...
     def estimate(
         self,
         names: list[str],
@@ -2872,6 +2885,7 @@ def prepare_cells_batch(
     tiers: list[list[str]] | None = None,
     within_tier: str | None = None,
     family_contrast: str | None = "cell_minus_control",
+    family_posterior_draws: int | None = None,
 ) -> PreparedBatch: ...
 def identify_transport(
     graph: Admg,
@@ -2974,7 +2988,7 @@ def prepare_observation_response(
     threads: int | None = None,
     options: dict[str, Any] | None = None,
 ) -> PreparedAnalysis: ...
-def binary_iv_ate_bounds(cells: list[list[float]]) -> tuple[float, float]:
+def _binary_iv_ate_bounds(cells: list[list[float]]) -> tuple[float, float]:
     """Sharp Balke–Pearl bounds on E[Y(1)-Y(0)] from a 2×4 observed binary-IV law."""
     ...
 
@@ -2998,7 +3012,7 @@ def gaussian_observation_log_likelihood(
     assumption_variables: list[str] = ...,
     structural_model: str | None = None,
 ) -> float: ...
-def identify_ate(
+def _identify_ate(
     names: list[str],
     edges: list[tuple[str, str]],
     treatment: str,
@@ -3006,7 +3020,7 @@ def identify_ate(
     *,
     identifier: str | None = None,
 ) -> tuple[str, str, list[str]]: ...
-def identify_structure(
+def _identify_structure(
     graph: Dag | Cpdag | Pag | TemporalDag | TemporalCpdag | TemporalPag,
     query_kind: str,
     treatment: str,
@@ -3026,7 +3040,7 @@ def identify_structure(
     response_grid: list[float] | None = None,
     response_steps: list[tuple[str, str, list[float]]] | None = None,
 ) -> tuple[str, str, list[str]] | str: ...
-def identify_ate_admg(
+def _identify_ate_admg(
     names: list[str],
     graph: Admg,
     treatment: str,
@@ -8073,6 +8087,26 @@ def joint_law_check_composed_interval(
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def joint_law_coordinate_id(artifact: bytes) -> tuple[str | None, str | None]: ...
+def propagation_chain_seal(
+    record_json: str, cancel: CancellationToken | None = None
+) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
+def propagation_chain_change(
+    record_json: str, change_json: str, cancel: CancellationToken | None = None
+) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
+def propagation_chain_plan_view(
+    record_json: str, cancel: CancellationToken | None = None
+) -> tuple[str | None, str | None]: ...
+def propagation_chain_consume(
+    artifact: bytes,
+    expected_identity: str | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def propagation_chain_dependents(
+    record_json: str, source: str
+) -> tuple[list[str] | None, str | None]: ...
+def propagation_chain_product_table(
+    columns: list[list[float]], max_rows: int
+) -> tuple[list[list[float]] | None, str | None]: ...
 
 class SequentialBeliefSession:
     @staticmethod
@@ -9060,6 +9094,7 @@ class _JointPanelResult:
     @property
     def execution_facts(self) -> ExecutionFacts: ...
     def report(self) -> str: ...
+    def scheduled_contrast(self, functional_json: str, level: float) -> str: ...
     def export(self, *, seed: int = 0, threads: int = 1, max_bytes: int | None = None, cancel: CancellationToken | None = None) -> bytes: ...
 
 class _PreparedJointPanel:

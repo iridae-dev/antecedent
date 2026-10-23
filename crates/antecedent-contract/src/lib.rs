@@ -41,6 +41,7 @@ pub mod obligation;
 pub mod observation_query;
 pub mod plan;
 pub mod program_binding;
+pub mod propagation_chain;
 pub mod provenance;
 pub mod provider_transport;
 pub mod provider_trust;
@@ -142,6 +143,9 @@ pub use plan::{
 pub use program_binding::{
     ExternalProgramClaim, ProgramBinding, ProgramBoundClaim, ProgramCheck,
     bind_external_result_to_program, check_external_against_program, dose_label,
+};
+pub use propagation_chain::{
+    ChainDecl, ChainPlan, ChainReading, ChainRefusal, check_propagation_chain,
 };
 pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
 pub use provider_trust::ProviderTrust;

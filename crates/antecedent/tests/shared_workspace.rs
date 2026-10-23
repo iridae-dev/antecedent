@@ -7,7 +7,6 @@
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
-use antecedent::EstimatorSpec;
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy};
@@ -94,89 +93,4 @@ fn shared_workspace_placebo_parity_and_capacity() {
     let report_fresh = placebo.refute(&problem, &mut fresh, &ctx).unwrap();
     assert_eq!(report_warm.passed, report_fresh.passed);
     assert!((report_warm.refuted_ate - report_fresh.refuted_ate).abs() < 1e-9);
-}
-
-#[test]
-fn propensity_workspace_reused_estimate_into_overlap() {
-    use antecedent::strategy_table::{
-        EstimatorId, StaticEstimateInput, StaticEstimateWorkspaces, estimate_static_effect,
-    };
-    use antecedent::{RefuteSuite, Study};
-    use antecedent_estimate::OverlapPolicy;
-    use antecedent_validate::OverlapRefuter;
-
-    let (data, dag, query) = confounded_scm(280, 7);
-    let id_run = Study::tabular(data.clone())
-        .graph(dag)
-        .query(query.clone())
-        .estimator(EstimatorId::PropensityWeighting)
-        .bootstrap_replicates(10)
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(3))
-        .unwrap();
-    let estimand = id_run.estimand.clone();
-    let estimate = id_run.estimate.clone();
-
-    let mut ws = StaticEstimateWorkspaces::default();
-    let _ = estimate_static_effect(
-        &EstimatorSpec::Default(EstimatorId::PropensityWeighting),
-        StaticEstimateInput {
-            data: &data,
-            estimand: &estimand,
-            query: &query,
-            bootstrap_replicates: 10,
-            overlap_policy: Some(OverlapPolicy::require_diagnostics()),
-            population_registry: None,
-            sampling_design: None,
-        },
-        estimate.as_effect().unwrap().provenance.assumptions.clone(),
-        &ExecutionContext::for_tests(3),
-        &mut ws,
-    )
-    .unwrap();
-    let score_grows = ws.propensity.propensity.scores_grow_count;
-    let score_cap = ws.propensity.propensity.scores.capacity();
-    let ols_grows = ws.propensity.propensity.ols.grow_count;
-    assert!(score_grows >= 1 && score_cap > 0, "point propensity fit must warm buffers");
-    assert!(estimate.as_effect().unwrap().ate.is_finite());
-
-    let problem = RefutationProblem::new(
-        &data,
-        &estimand,
-        &query,
-        estimate.as_effect().unwrap(),
-        Some("propensity.weighting"),
-        None,
-    );
-    let _ = OverlapRefuter::new()
-        .refute_with_propensity(&problem, &mut ws.propensity.propensity)
-        .unwrap();
-    assert!(ws.propensity.propensity.scores.capacity() >= score_cap);
-    assert!(ws.propensity.propensity.scores_grow_count >= score_grows);
-    assert!(ws.propensity.propensity.ols.grow_count >= ols_grows);
-
-    // ATT uses the legacy residualized fit and its reusable propensity workspace.
-    // AllObserved iid AIPW now cross-fits per-fold nuisances instead.
-    let query = query.with_target_population(antecedent_core::TargetPopulation::Treated);
-    let mut ws2 = StaticEstimateWorkspaces::default();
-    let aipw = estimate_static_effect(
-        &EstimatorSpec::Default(EstimatorId::Aipw),
-        StaticEstimateInput {
-            data: &data,
-            estimand: &estimand,
-            query: &query,
-            bootstrap_replicates: 0,
-            overlap_policy: None,
-            population_registry: None,
-            sampling_design: None,
-        },
-        estimate.as_effect().unwrap().provenance.assumptions.clone(),
-        &ExecutionContext::for_tests(4),
-        &mut ws2,
-    )
-    .unwrap();
-    assert!(aipw.ate.is_finite());
-    assert!(ws2.aipw.propensity.scores_grow_count >= 1 || ws2.aipw.propensity.ols.grow_count >= 1);
 }

@@ -19,7 +19,7 @@ use crate::strategy_table::EstimatorId;
 /// bootstrap / overlap settings.
 ///
 /// Only estimators actually constructed by
-/// [`crate::strategy_table::estimate_static_effect`] have a configured variant
+/// the static estimate dispatcher have a configured variant
 /// here; estimators driven through other paths (`rd.sharp`, `bayesian.gcomp`,
 /// the temporal / conditional / mediation / functional-plug-in families) are
 /// selectable only via [`Self::Default`].

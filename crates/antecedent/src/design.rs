@@ -64,12 +64,16 @@ pub struct DesignRankPreview {
     pub unresolved: bool,
 }
 
-/// Rank candidate designs under an objective.
+/// Rank candidate designs under an objective, with no contract binding.
+///
+/// Crate-internal: the public entries are [`preview_design_rank`] and
+/// [`rank_designs_bound`], which refuse an unlicensed or unprepared contract and
+/// report the candidates the objective cannot score before this ranker runs.
 ///
 /// # Errors
 ///
 /// Propagates design evaluation failures.
-pub fn rank_designs<A, O>(
+pub(crate) fn rank_designs<A, O>(
     ranker: &DesignRanker,
     objective: &DesignObjective,
     candidates: &[CandidateDesign],

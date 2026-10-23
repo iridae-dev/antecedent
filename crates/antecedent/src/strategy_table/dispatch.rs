@@ -33,7 +33,7 @@ use super::{EstimatorId, IdentifierId, estimator_data, identifier_data, require_
 /// # Errors
 ///
 /// Unknown identifier, identification failure, or non-identified status.
-pub fn identify_static(
+pub(crate) fn identify_static(
     identifier: IdentifierId,
     graph: &Dag,
     query: &AverageEffectQuery,
@@ -215,7 +215,7 @@ pub fn identify_cpdag(
 /// # Errors
 ///
 /// Unsupported identifier or identification failure.
-pub fn identify_pag(
+pub(crate) fn identify_pag(
     identifier: IdentifierId,
     pag: &Pag,
     query: &AverageEffectQuery,
@@ -307,7 +307,7 @@ pub fn identify_temporal_pag_configured(
 /// # Errors
 ///
 /// Unsupported identifier or identification failure.
-pub fn identify_admg(
+pub(crate) fn identify_admg(
     identifier: IdentifierId,
     admg: &antecedent_graph::Admg,
     query: &AverageEffectQuery,
@@ -397,7 +397,7 @@ pub struct StaticEstimateInput<'a> {
 /// # Errors
 ///
 /// Unknown estimator or estimation failure.
-pub fn estimate_static_effect(
+pub(crate) fn estimate_static_effect(
     spec: &EstimatorSpec,
     input: StaticEstimateInput<'_>,
     assumptions: AssumptionSet,
@@ -619,7 +619,7 @@ fn estimate_static_effect_default(
     }
 }
 
-/// Attach the facade bootstrap SE onto the point estimate [`estimate_static_effect`] returned
+/// Attach the facade bootstrap SE onto the point estimate `estimate_static_effect` returned
 /// for an [`EstimatorSpec::Default`] id with `bootstrap_replicates == 0`, without refitting the
 /// point model. The published estimate equals a one-shot `estimate_static_effect` with
 /// `bootstrap_replicates` (the estimator's own `fit` is `fit point` + `attach_bootstrap`).

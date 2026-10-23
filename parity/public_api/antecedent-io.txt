@@ -9990,6 +9990,7 @@ pub use antecedent_io::prior_set_identity = antecedent_io_core::prior_set_identi
 pub use antecedent_io::program_digest = antecedent_io_core::program_digest
 pub use antecedent_io::project_claim_host = antecedent_io_core::project_claim_host
 pub use antecedent_io::project_lossy_scalar = antecedent_io_core::project_lossy_scalar
+pub use antecedent_io::propagation_chain_record = antecedent_io_core::propagation_chain_record
 pub use antecedent_io::provenance_from_wire = antecedent_io_core::provenance_from_wire
 pub use antecedent_io::provenance_to_wire = antecedent_io_core::provenance_to_wire
 pub use antecedent_io::provenance_wire = antecedent_io_core::provenance_wire

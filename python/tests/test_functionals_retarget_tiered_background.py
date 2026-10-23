@@ -701,6 +701,29 @@ def test_prepared_batch_zero_effect_pair_family_is_not_significant():
     assert all(r.estimate.simultaneous_interval is not None for r in omitted)
 
 
+def test_prepared_batch_family_posterior_is_one_joint_interaction_draw_set():
+    data, graph, q11, q10 = _zero_effect_pair_family()
+    kwargs = {
+        "graph": graph,
+        "queries": [q11, q10],
+        "estimator": "cell.aipw",
+        "refute": "none",
+        "bootstrap": 0,
+        "family_contrast": "interaction",
+    }
+    first, second = antecedent.estimation.PreparedBatch.prepare_cells(
+        data, family_posterior_draws=300, **kwargs
+    ).estimate(data)
+    mean, sd, (lo, hi), draws = first.estimate.family_contrast_posterior
+    assert len(draws) == 300 and sd > 0.0 and lo < hi
+    # The interaction is independent of the member level and shares each draw's row weights.
+    assert second.estimate.family_contrast_posterior[3] == draws
+    value, _se = first.estimate.family_contrast
+    assert mean == pytest.approx(value, abs=0.05)
+    plain = antecedent.estimation.PreparedBatch.prepare_cells(data, **kwargs).estimate(data)
+    assert all(r.estimate.family_contrast_posterior is None for r in plain)
+
+
 def test_prepared_batch_codetermined_distinct_pairs_share_folds_not_z():
     rng = np.random.default_rng(17)
     n = 2400

@@ -41,11 +41,11 @@ use super::{
     observation_api, observation_query_api, observational_interference_api,
     observational_policy_api, observational_survival_api, policy_api, posterior_boundary_api,
     posterior_row_api, predictive_assessment_api, preflight_api, prepared_api, prior_bank,
-    prior_signal_api, program_claims_api, proposal_arrival_api, provider_api,
-    provider_callbacks_api, quasi_api, recalc_adjusted_api, recalc_api, recalc_bayesian_api,
-    recalc_cell_api, recalc_composite_api, recalc_design_api, recalc_dr_api, recalc_external_api,
-    recalc_static_api, recalc_temporal_api, recovery_api, recovery_chain_api, regimes_api,
-    repair_api, response_api, scenario_invariance_api, scientific_bridge_api,
+    prior_signal_api, program_claims_api, propagation_chain_api, proposal_arrival_api,
+    provider_api, provider_callbacks_api, quasi_api, recalc_adjusted_api, recalc_api,
+    recalc_bayesian_api, recalc_cell_api, recalc_composite_api, recalc_design_api, recalc_dr_api,
+    recalc_external_api, recalc_static_api, recalc_temporal_api, recovery_api, recovery_chain_api,
+    regimes_api, repair_api, response_api, scenario_invariance_api, scientific_bridge_api,
     selective_discovery_api, sensitivity_decision_api, sensitivity_source_api,
     set_not_identified_error_class, set_review_error_class, set_unsupported_error_class,
     set_value_error_class, smoothed_dose_api, source_evidence_api, source_projection_api,
@@ -94,6 +94,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     learned_joint_api::register(m)?;
     measured_inference_api::register(m)?;
     joint_law_propagation_api::register(m)?;
+    propagation_chain_api::register(m)?;
     cross_world_execution_api::register(m)?;
     joint_transport_api::register(m)?;
     msm_sensitivity_api::register(m)?;
@@ -309,7 +310,38 @@ fn runtime_refusal_codes() -> Vec<&'static str> {
     antecedent_core::reason_code::RUNTIME_REFUSAL_CODES.to_vec()
 }
 
+/// The committed host-integration JSON Schema, exactly as generated.
+#[pyfunction]
+fn host_schema_text() -> &'static str {
+    antecedent::host::HOST_SCHEMA_TEXT
+}
+
+/// Host status (`supported`, `partial`, `unsupported`) of a claim from its wire names;
+/// `None` for a name outside the registered vocabularies.
+#[pyfunction]
+fn host_status_of_claim(
+    kind: &str,
+    identification: &str,
+    support: &str,
+    evaluated: &str,
+) -> Option<&'static str> {
+    antecedent::host::HostStatus::of_claim_names(kind, identification, support, evaluated)
+        .map(antecedent::host::HostStatus::as_str)
+}
+
+/// Host status of an operation from its applicability and readiness wire names; `None` for a
+/// name outside the registered vocabularies.
+#[pyfunction]
+#[pyo3(signature = (applicability, readiness=None))]
+fn host_status_of_operation(applicability: &str, readiness: Option<&str>) -> Option<&'static str> {
+    antecedent::host::HostStatus::of_operation_names(applicability, readiness)
+        .map(antecedent::host::HostStatus::as_str)
+}
+
 fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(host_schema_text, m)?)?;
+    m.add_function(wrap_pyfunction!(host_status_of_claim, m)?)?;
+    m.add_function(wrap_pyfunction!(host_status_of_operation, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;

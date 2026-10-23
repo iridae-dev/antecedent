@@ -91,5 +91,6 @@ pub(super) fn evidence_program(
         composition,
         decision,
         planning: cx.goal.planning().cloned(),
+        chain: None,
     })
 }
