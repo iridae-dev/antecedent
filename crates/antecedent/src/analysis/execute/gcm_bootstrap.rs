@@ -40,6 +40,26 @@ pub(super) fn require_subject_resampling(
     )
 }
 
+/// Refuse a contiguous-block resample the declared sampling design does not allow.
+///
+/// With no declaration a lag-aligned unfolding of one series is a dependent series.
+pub(super) fn require_series_resampling(
+    design: Option<antecedent_core::DeclaredSamplingDesign>,
+) -> Result<(), CausalError> {
+    let design = design.unwrap_or(antecedent_core::DeclaredSamplingDesign::DependentTimeSeries);
+    design.apply_resampling(antecedent_core::ResamplingRule::ContiguousBlock).map(|_| ()).map_err(
+        |_| {
+            crate::unsupported_reason!(
+                "option_not_applicable",
+                "the lag-aligned mechanism-refit bootstrap resamples contiguous blocks of one \
+                 dependent series; an independent-subject or clustered design needs a \
+                 subject or whole-cluster resample of separate series. Next attempt: declare \
+                 a dependent series, or omit bootstrap_replicates for the point value"
+            )
+        },
+    )
+}
+
 /// Lease `replicates * columns` replicate values plus one count vector of `rows` on
 /// the execution pool before anything is allocated.
 pub(super) fn admit_replicates(
@@ -122,6 +142,36 @@ pub(super) fn accounting(values: &[f64], failed: u32, requested: u32) -> Bootstr
 
 /// Disclosure of the Frequentist mechanism-refit bootstrap interval.
 pub(super) fn bootstrap_diagnostic(target: &str, accounting: &BootstrapAccounting) -> Diagnostic {
+    bootstrap_diagnostic_over(
+        target,
+        "whole-procedure multinomial row bootstrap over independent subjects",
+        accounting,
+    )
+}
+
+/// [`bootstrap_diagnostic`] for a lag-aligned unfolding of one dependent series: the
+/// counts are circular blocks of `block` consecutive times.
+pub(super) fn block_bootstrap_diagnostic(
+    target: &str,
+    block: usize,
+    accounting: &BootstrapAccounting,
+) -> Diagnostic {
+    bootstrap_diagnostic_over(
+        target,
+        &format!(
+            "whole-procedure circular-block multinomial bootstrap of one dependent series \
+             (blocks of {block} consecutive lag-aligned times, at least the lag span plus one, \
+             each drawn at a uniform start and wrapping at the end)"
+        ),
+        accounting,
+    )
+}
+
+fn bootstrap_diagnostic_over(
+    target: &str,
+    resample: &str,
+    accounting: &BootstrapAccounting,
+) -> Diagnostic {
     let ok = accounting.replicates_ok.unwrap_or(0);
     let failed = accounting.replicates_failed.unwrap_or(0);
     Diagnostic::new(
@@ -133,8 +183,7 @@ pub(super) fn bootstrap_diagnostic(target: &str, accounting: &BootstrapAccountin
             DiagnosticSeverity::Warning
         },
         format!(
-            "{target}: whole-procedure multinomial row bootstrap over independent subjects; \
-             each replicate refits every mechanism under the replicate's row counts \
+            "{target}: {resample}; each replicate refits every mechanism under the replicate's row counts \
              (conditional on the mechanism families selected on the original data, as the \
              Bayesian-bootstrap cell is) and recomputes the quantity on the original units. \
              replicates_ok={ok}, replicates_failed={failed} (failed replicates are retained \

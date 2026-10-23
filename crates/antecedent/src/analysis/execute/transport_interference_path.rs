@@ -8,7 +8,7 @@ use antecedent_core::{
 use antecedent_data::TableView;
 use antecedent_estimate::{
     EffectEstimate, OverlapPolicy, estimate_interference, estimate_interference_bayesian,
-    trial_to_target_bayesian_bootstrap, trial_to_target_effect, trial_to_target_ipw_se,
+    trial_to_target_effect, trial_to_target_ipw_se,
 };
 use antecedent_identify::{
     TransportIdentification, TransportIdentifier, bind_transport_derivation, lower_transport_mean,
@@ -165,11 +165,12 @@ impl super::Study {
             selection: &selection,
             propensity: &propensity,
         };
+        let series_block = self.transport_series_block(outcomes.len())?;
         let (estimate, posterior, estimator_id, diagnostic) = match inference {
             InferenceMode::Bayesian(cfg) => {
                 let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
                     cfg,
-                    transport_id,
+                    (transport_id, series_block),
                     &columns,
                     assumptions,
                     identification.status,
@@ -184,8 +185,11 @@ impl super::Study {
                 )
             }
             InferenceMode::Frequentist => {
-                let (estimate, diagnostic) =
-                    frequentist_transport_estimate(&columns, transported.ipw, assumptions)?;
+                let (estimate, diagnostic) = frequentist_transport_estimate(
+                    &columns,
+                    (transported.ipw, series_block),
+                    assumptions,
+                )?;
                 (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
             }
         };
@@ -373,23 +377,79 @@ fn known_probability_assumption() -> antecedent_core::AssumptionRecord {
 }
 
 /// Delta-method SE of the ratio-of-means IPW contrast under known probabilities.
+///
+/// When the rows are the consecutive times of one series (`series_block`), the SE is the
+/// Newey–West long-run variance of the per-row influence at the block length.
 fn frequentist_transport_estimate(
     columns: &TrialColumns<'_>,
-    ipw: f64,
+    (ipw, series_block): (f64, Option<usize>),
     assumptions: antecedent_core::AssumptionSet,
 ) -> Result<(EffectEstimate, Diagnostic), CausalError> {
     let TrialColumns { outcomes, treatment, trial, selection, propensity } = *columns;
-    let se = trial_to_target_ipw_se(outcomes, treatment, trial, selection, propensity, ipw)
-        .map_err(CausalError::from)?;
+    let Some(lag) = series_block else {
+        let se = trial_to_target_ipw_se(outcomes, treatment, trial, selection, propensity, ipw)
+            .map_err(CausalError::from)?;
+        return Ok((
+            EffectEstimate::new(ipw, se, assumptions, OverlapPolicy::ExplicitOverride),
+            Diagnostic::new(
+                "estimate.transport.trial_ipw",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "binary trial-to-target IPW; inner ResponseCurve names treatment/outcome only",
+            ),
+        ));
+    };
+    let se = antecedent_estimate::trial_to_target_ipw_hac_se(
+        outcomes,
+        treatment,
+        trial,
+        selection,
+        propensity,
+        (ipw, lag),
+    )
+    .map_err(CausalError::from)?;
     Ok((
-        EffectEstimate::new(ipw, se, assumptions, OverlapPolicy::ExplicitOverride),
+        EffectEstimate::new(ipw, se, assumptions, OverlapPolicy::ExplicitOverride)
+            .with_se_kind(antecedent_estimate::AnalyticSeKind::NeweyWest { lag }),
         Diagnostic::new(
             "estimate.transport.trial_ipw",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "binary trial-to-target IPW; inner ResponseCurve names treatment/outcome only",
+            format!(
+                "binary trial-to-target IPW on the consecutive times of one series; the SE is \
+                 the Newey-West long-run variance of the per-row influence at lag {lag} (the \
+                 contemporaneous projection's block length), unlicensed and unmeasured; inner \
+                 ResponseCurve names treatment/outcome only"
+            ),
         ),
     ))
+}
+
+impl super::Study {
+    /// The block length of a trial-transport uncertainty over `n` rows: `Some` when the
+    /// rows are one dependent series (a `TemporalAdmg` projection), `None` for independent
+    /// rows. A declared design that allows neither (a clustered panel without cluster
+    /// labels) refuses the row-level construction.
+    fn transport_series_block(&self, n: usize) -> Result<Option<usize>, CausalError> {
+        let (resampling, declared) = self.functional_row_resampling();
+        let block = resampling.block_length(n);
+        if block.is_none() {
+            if let antecedent_estimate::util::SamplingDeclaration::Declared(design) = declared {
+                design.apply_resampling(antecedent_core::ResamplingRule::RowSubjectIid).map_err(
+                    |_| {
+                        crate::unsupported_reason!(
+                            "option_not_applicable",
+                            "trial-to-target uncertainty over independent rows does not hold \
+                             under the declared design; a clustered panel needs a \
+                             whole-cluster resample. Next attempt: declare independent \
+                             subjects or a dependent series"
+                        )
+                    },
+                )?;
+            }
+        }
+        Ok(block)
+    }
 }
 
 /// The binary trial-to-target columns the IPW estimator and its bootstrap read.
@@ -404,7 +464,7 @@ struct TrialColumns<'a> {
 /// Dirichlet Bayesian bootstrap of the trial-to-target IPW contrast over the observed trial rows.
 fn bayesian_transport_estimate(
     cfg: &BayesianConfig,
-    transport_id: &TransportIdentification,
+    (transport_id, series_block): (&TransportIdentification, Option<usize>),
     columns: &TrialColumns<'_>,
     mut assumptions: antecedent_core::AssumptionSet,
     status: IdentificationStatus,
@@ -412,16 +472,19 @@ fn bayesian_transport_estimate(
 ) -> Result<(EffectEstimate, CausalPosterior, Diagnostic), CausalError> {
     let TrialColumns { outcomes, treatment, trial, selection, propensity } = *columns;
     refuse_transport_bayesian_priors(cfg)?;
-    let draws = trial_to_target_bayesian_bootstrap(
+    let draws = antecedent_estimate::trial_to_target_bayesian_bootstrap_blocks(
         transport_id,
         outcomes,
         treatment,
         trial,
         selection,
         propensity,
-        antecedent_estimate::DrawSpec::new(
-            cfg.n_draws,
-            ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
+        (
+            antecedent_estimate::DrawSpec::new(
+                cfg.n_draws,
+                ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
+            ),
+            series_block,
         ),
     )
     .map_err(CausalError::from)?;

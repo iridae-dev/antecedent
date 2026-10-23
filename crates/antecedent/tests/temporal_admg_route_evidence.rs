@@ -778,3 +778,110 @@ fn response_curve_refuters_are_not_applicable_on_temporal_admg() {
         "graph-posterior curve refuters stay closed: {curve_posterior_cheap:?}"
     );
 }
+
+/// The front-door fixture's rows in a fixed scrambled time order (a prime stride over
+/// the expanded contingency table), so consecutive rows are not copies of one cell.
+fn frontdoor_series() -> (TabularData, Admg, f64) {
+    let pin = load_pin("conformance/estimate/admg_frontdoor_functional");
+    let (_, graph) = expand(&pin);
+    let columns: Vec<&str> =
+        pin["columns"].as_array().unwrap().iter().map(|value| value.as_str().unwrap()).collect();
+    let mut values = vec![Vec::new(); columns.len()];
+    for cell in pin["contingency_table"].as_array().unwrap() {
+        let count = usize::try_from(cell["count"].as_u64().unwrap()).unwrap();
+        for (index, name) in columns.iter().enumerate() {
+            values[index].extend(std::iter::repeat_n(cell[*name].as_f64().unwrap(), count));
+        }
+    }
+    let n = values[0].len();
+    let stride = (7919..).find(|stride| gcd(*stride, n) == 1).unwrap();
+    let order: Vec<usize> = (0..n).map(|row| (row * stride) % n).collect();
+    let shuffled: Vec<Vec<f64>> =
+        values.iter().map(|column| order.iter().map(|&row| column[row]).collect()).collect();
+    let data = TabularData::from_f64_columns(
+        columns.iter().zip(&shuffled).map(|(name, column)| (*name, column.as_slice())),
+    )
+    .unwrap();
+    let expected = pin["frequentist"]["expected_ate"].as_f64().unwrap();
+    (data, graph, expected)
+}
+
+fn gcd(a: usize, b: usize) -> usize {
+    if b == 0 { a } else { gcd(b, a % b) }
+}
+
+fn projected_ate(
+    data: &TabularData,
+    temporal: &TemporalAdmg,
+    (bayesian, replicates): (bool, u32),
+    design: Option<antecedent_core::DeclaredSamplingDesign>,
+    ctx: &ExecutionContext,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(2), 0.0, 1.0);
+    let builder = Study::tabular(data.clone())
+        .query(query)
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalEffect)
+        .inference(inference_of(bayesian, 400))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(replicates)
+        .graph(temporal.clone());
+    let builder = match design {
+        Some(design) => builder.sampling_design(design),
+        None => builder,
+    };
+    builder.build()?.run(ctx)
+}
+
+#[test]
+fn temporal_admg_projection_resamples_blocks_of_the_series() {
+    let (data, graph, expected) = frontdoor_series();
+    let temporal = lift(&graph);
+    let ctx = ExecutionContext::for_tests(17);
+    // Frequentist: the whole plug-in is refit on circular blocks of consecutive rows.
+    let frequentist = projected_ate(&data, &temporal, (false, 199), None, &ctx).unwrap();
+    assert!((frequentist.effect() - expected).abs() < 1e-9);
+    let binding = frequentist.interval.as_ref().expect("an interval binding");
+    assert_eq!(binding.method, antecedent_core::IntervalMethod::CircularBlockSe);
+    assert_eq!(binding.dependence, "circular_block:row_block");
+    let se = frequentist.estimate.as_effect().unwrap().se_bootstrap().expect("a block SE");
+    assert!(se.is_finite() && se > 0.0 && se < 0.2, "se {se}");
+    // The same replicates for any thread budget.
+    let mut parallel = ExecutionContext::for_tests(17);
+    parallel.parallelism =
+        antecedent_core::Parallelism::bounded(antecedent_core::NonZeroThreadCount::new(4).unwrap());
+    let threaded = projected_ate(&data, &temporal, (false, 199), None, &parallel).unwrap();
+    assert_eq!(
+        threaded.estimate.as_effect().unwrap().se_bootstrap().map(f64::to_bits),
+        Some(se.to_bits())
+    );
+    // Bayesian: one Dirichlet weight per block of consecutive rows.
+    let bayesian = projected_ate(&data, &temporal, (true, 0), None, &ctx).unwrap();
+    let posterior = bayesian.posterior.as_ref().expect("a block Bayesian-bootstrap posterior");
+    let column = posterior.effect_column().expect("an effect column");
+    assert!((posterior.summaries.mean[column] - expected).abs() < 0.08);
+    assert!(posterior.summaries.sd[column] > 0.0);
+    // Independent subjects declared: the row bootstrap of the static twin applies.
+    let rows = projected_ate(
+        &data,
+        &temporal,
+        (false, 199),
+        Some(antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(
+        rows.interval.as_ref().map(|binding| binding.method),
+        Some(antecedent_core::IntervalMethod::BootstrapSe)
+    );
+    // A clustered panel without cluster labels refuses the row-level draw.
+    let clustered = projected_ate(
+        &data,
+        &temporal,
+        (false, 199),
+        Some(antecedent_core::DeclaredSamplingDesign::ClusteredPanel),
+        &ctx,
+    );
+    assert!(clustered.is_err(), "a row draw under a declared clustered panel is refused");
+}

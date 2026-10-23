@@ -144,8 +144,25 @@ impl LagAlignedScm {
         n: usize,
         rng: &mut antecedent_core::CausalRng,
     ) -> Vec<f64> {
+        block_dirichlet_row_weights(n, self.block_length(n), rng)
+    }
+
+    /// Circular-block multinomial row counts of `n` consecutive lag-aligned rows for one
+    /// frequentist replicate: blocks of [`antecedent_data::circular_block_length`] rows
+    /// (at least the unfolding's lag span plus one) start at uniform positions and wrap
+    /// at the end of the series, until `n` rows are drawn.
+    pub(super) fn block_row_counts(
+        &self,
+        n: usize,
+        rng: &mut antecedent_core::CausalRng,
+    ) -> Vec<f64> {
+        block_bootstrap_counts(n, self.block_length(n), rng)
+    }
+
+    /// Block length of the unfolding's block resamples over `n` rows.
+    pub(super) fn block_length(&self, n: usize) -> usize {
         let span = usize::try_from(self.history).unwrap_or(usize::MAX).saturating_add(1);
-        block_dirichlet_row_weights(n, antecedent_data::circular_block_length(span, n), rng)
+        antecedent_data::circular_block_length(span, n)
     }
 
     /// Build the lag-aligned table for `series`. Incomplete lag prefixes copy
@@ -186,6 +203,34 @@ impl LagAlignedScm {
     }
 }
 
+/// Multinomial counts of `n` rows in time order drawn as circular blocks of `block`
+/// consecutive rows: each block starts at a uniform row and wraps past the end.
+pub(super) fn block_bootstrap_counts(
+    n: usize,
+    block: usize,
+    rng: &mut antecedent_core::CausalRng,
+) -> Vec<f64> {
+    let mut counts = vec![0.0_f64; n];
+    if n == 0 {
+        return counts;
+    }
+    let block = block.clamp(1, n);
+    let mut drawn = 0;
+    while drawn < n {
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a uniform in [0, 1) times n floors to a row index below n"
+        )]
+        let start = ((rng.next_f64() * n as f64) as usize).min(n - 1);
+        for offset in 0..block.min(n - drawn) {
+            counts[(start + offset) % n] += 1.0;
+        }
+        drawn += block.min(n - drawn);
+    }
+    counts
+}
+
 /// One `Exp(1)` weight per contiguous block of `block` rows, repeated on every row of
 /// the block (the last block may be shorter), for `n` rows in time order.
 pub(super) fn block_dirichlet_row_weights(
@@ -202,6 +247,18 @@ pub(super) fn block_dirichlet_row_weights(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn block_counts_draw_every_row_once_in_total_and_keep_blocks_contiguous() {
+        let mut rng = antecedent_core::RngFactory::from_seed(5)
+            .stream_for(antecedent_core::StreamDomain::Test, 2);
+        let counts = block_bootstrap_counts(10, 4, &mut rng);
+        assert_eq!(counts.len(), 10);
+        assert!((counts.iter().sum::<f64>() - 10.0).abs() < 1e-12);
+        assert!(counts.iter().all(|count| *count >= 0.0 && count.fract() == 0.0));
+        let full = block_bootstrap_counts(7, 7, &mut rng);
+        assert!(full.iter().all(|count| (*count - 1.0).abs() < 1e-12));
+    }
 
     #[test]
     fn block_weights_are_shared_within_each_block() {

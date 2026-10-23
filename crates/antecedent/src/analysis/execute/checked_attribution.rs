@@ -242,6 +242,38 @@ impl CheckedAttributionOperation {
         }
     }
 
+    /// One frequentist replicate's row counts over `n` rows: multinomial single rows on a
+    /// static table, circular blocks of consecutive times on a lag-aligned unfolding.
+    fn draw_row_counts(&self, n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
+        match &self.lag_aligned {
+            Some(aligned) => aligned.block_row_counts(n, rng),
+            None => super::gcm_bootstrap::bootstrap_counts(rng, n),
+        }
+    }
+
+    /// The bootstrap disclosure of `target` over `n` rows, recording the row-block
+    /// family on `estimate` when the rows are one lag-aligned series.
+    fn bootstrap_disclosure(
+        &self,
+        target: &str,
+        n: usize,
+        estimate: &mut EffectEstimate,
+    ) -> Diagnostic {
+        let accounting = estimate.uncertainty.bootstrap;
+        match &self.lag_aligned {
+            Some(aligned) => {
+                estimate.uncertainty.block.family =
+                    Some(antecedent_estimate::CircularBlockFamily::RowBlock);
+                super::gcm_bootstrap::block_bootstrap_diagnostic(
+                    target,
+                    aligned.block_length(n),
+                    &accounting,
+                )
+            }
+            None => super::gcm_bootstrap::bootstrap_diagnostic(target, &accounting),
+        }
+    }
+
     /// One draw's row weights over `n` rows: Dirichlet row weights on a static table,
     /// block weights on the consecutive times of a lag-aligned unfolding.
     fn draw_row_weights(&self, n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
@@ -336,6 +368,10 @@ impl CheckedAttributionOperation {
         let bootstrap_diagnostic = self.change_bootstrap(query, data, &fitted.model, ctx)?.map(
             |(accounting, diagnostic)| {
                 estimate.uncertainty.bootstrap = accounting;
+                if self.lag_aligned.is_some() {
+                    estimate.uncertainty.block.family =
+                        Some(antecedent_estimate::CircularBlockFamily::RowBlock);
+                }
                 diagnostic
             },
         );
@@ -414,7 +450,7 @@ impl CheckedAttributionOperation {
                 });
             }
             let mut rng = super::gcm_bootstrap::replicate_stream(ctx, 0xA110_B007, replicate);
-            let counts = super::gcm_bootstrap::bootstrap_counts(&mut rng, n);
+            let counts = self.draw_row_counts(n, &mut rng);
             let store = match registry.refit_frequency_weighted_polled(
                 &fitted.model,
                 data,
@@ -471,9 +507,10 @@ impl CheckedAttributionOperation {
             OverlapPolicy::ExplicitOverride,
         );
         estimate.uncertainty.bootstrap = accounting;
-        let diagnostic = super::gcm_bootstrap::bootstrap_diagnostic(
+        let diagnostic = self.bootstrap_disclosure(
             &format!("mean anomaly score of target v{}", primary.target.raw()),
-            &accounting,
+            n,
+            &mut estimate,
         );
         Ok((estimate, Some(diagnostic)))
     }
@@ -510,8 +547,8 @@ impl CheckedAttributionOperation {
                 });
             }
             let mut rng = super::gcm_bootstrap::replicate_stream(ctx, 0xC4A6_B007, replicate);
-            let baseline_counts = super::gcm_bootstrap::bootstrap_counts(&mut rng, baseline_n);
-            let comparison_counts = super::gcm_bootstrap::bootstrap_counts(&mut rng, comparison_n);
+            let baseline_counts = self.draw_row_counts(baseline_n, &mut rng);
+            let comparison_counts = self.draw_row_counts(comparison_n, &mut rng);
             match antecedent_attribution::distribution_change_with_frequency_weights(
                 model,
                 data,
@@ -531,8 +568,16 @@ impl CheckedAttributionOperation {
             }
         }
         let accounting = super::gcm_bootstrap::accounting(&totals, failed, replicates);
-        let diagnostic =
-            super::gcm_bootstrap::bootstrap_diagnostic("total distribution change", &accounting);
+        let diagnostic = match &self.lag_aligned {
+            Some(aligned) => super::gcm_bootstrap::block_bootstrap_diagnostic(
+                "total distribution change",
+                aligned.block_length(baseline_n.min(comparison_n)),
+                &accounting,
+            ),
+            None => {
+                super::gcm_bootstrap::bootstrap_diagnostic("total distribution change", &accounting)
+            }
+        };
         Ok(Some((accounting, diagnostic)))
     }
 
@@ -827,10 +872,19 @@ fn attribution_procedure(
         // A fitted-model target reports the fitted model's answer under either mode.
         (AttributionTarget::Model(_), _) => (EstimatorId::GcmFit, AttributionProcedure::Point),
         (_, InferenceMode::Frequentist) => {
-            // A requested replicate count on a static DAG is the mechanism-refit row
-            // bootstrap; a lag-aligned unfolding keeps its point value here.
+            // A requested replicate count is the mechanism-refit bootstrap: multinomial
+            // rows of independent subjects on a static DAG, circular blocks of consecutive
+            // times on a lag-aligned TemporalDag unfolding.
             if study.bootstrap_replicates > 0 && study.graph.as_dag().is_some() {
                 super::gcm_bootstrap::require_subject_resampling(study.sampling_design)?;
+                (
+                    EstimatorId::GcmFit,
+                    AttributionProcedure::RowBootstrap { replicates: study.bootstrap_replicates },
+                )
+            } else if study.bootstrap_replicates > 0
+                && matches!(study.graph.class(), crate::accepted::GraphClass::TemporalDag)
+            {
+                super::gcm_bootstrap::require_series_resampling(study.sampling_design)?;
                 (
                     EstimatorId::GcmFit,
                     AttributionProcedure::RowBootstrap { replicates: study.bootstrap_replicates },

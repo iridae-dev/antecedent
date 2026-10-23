@@ -9,10 +9,12 @@ impl super::Study {
         extra: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<(EffectEstimate, Option<antecedent_estimate::CausalPosterior>), CausalError> {
+        let (row_resampling, sampling_design) = self.functional_row_resampling();
         let est = FunctionalEffect {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalEffect::new()
-        };
+        }
+        .with_row_resampling(row_resampling, sampling_design);
         let prepared = est
             .prepare(
                 data,
@@ -23,6 +25,40 @@ impl super::Study {
             )
             .map_err(CausalError::from)?;
         run_functional(&est, &prepared, &self.inference, identification.status, ctx)
+    }
+}
+
+impl super::Study {
+    /// How a functional plug-in resamples its rows on this study.
+    ///
+    /// A `TemporalAdmg` functional is the contemporaneous projection, read on the
+    /// consecutive times of one series: its frequentist bootstrap resamples circular
+    /// blocks of rows and its Bayesian bootstrap shares one Dirichlet weight per block,
+    /// unless the caller declares independent subjects. A declared clustered panel has no
+    /// cluster labels here, so its row draw is refused by the declared design. Every other
+    /// graph class keeps independent rows, as before.
+    pub(crate) fn functional_row_resampling(
+        &self,
+    ) -> (antecedent_estimate::RowResampling, antecedent_estimate::util::SamplingDeclaration) {
+        use antecedent_core::DeclaredSamplingDesign as Design;
+        use antecedent_estimate::RowResampling;
+        let temporal_projection = matches!(self.graph.class(), GraphClass::TemporalAdmg)
+            || self.graph_posterior.as_ref().is_some_and(|gp| {
+                gp.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+            });
+        if !temporal_projection {
+            return (
+                RowResampling::Rows,
+                antecedent_estimate::util::SamplingDeclaration::Undeclared,
+            );
+        }
+        let declared = crate::estimator_spec::declared_sampling(self.sampling_design);
+        match self.sampling_design {
+            None | Some(Design::DependentTimeSeries) => (RowResampling::SeriesBlocks, declared),
+            Some(Design::IndependentSubjectTrajectories | Design::ClusteredPanel) => {
+                (RowResampling::Rows, declared)
+            }
+        }
     }
 }
 

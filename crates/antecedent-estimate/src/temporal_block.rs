@@ -64,6 +64,11 @@ pub enum CircularBlockFamily {
     /// DBN posteriors) resampled on one shared replicate; the statistic is the
     /// smallest over every atom's score and the weighted mixture score.
     Mixture,
+    /// A whole procedure refit under contiguous-row block resampling of one dependent
+    /// series, where the statistic is not a lag-aligned regression score (a mechanism
+    /// refit, or a projected identified functional evaluated on time-ordered rows).
+    /// No short-series threshold has been measured for it.
+    RowBlock,
 }
 
 impl CircularBlockFamily {
@@ -130,6 +135,8 @@ impl CircularBlockFamily {
             Self::SingleWindow => 45.0,
             Self::Mediation | Self::Sequential => 40.0,
             Self::Mixture => 155.0,
+            // Not measured: every reading warns until a sweep sets the threshold.
+            Self::RowBlock => f64::INFINITY,
         }
     }
 
@@ -141,6 +148,7 @@ impl CircularBlockFamily {
             Self::Mediation => "temporal mediation",
             Self::Sequential => "multi-step sequential",
             Self::Mixture => "multi-atom mixture",
+            Self::RowBlock => "row-block whole-procedure refit",
         }
     }
 
@@ -153,6 +161,7 @@ impl CircularBlockFamily {
             Self::Mediation => "mediation",
             Self::Sequential => "sequential",
             Self::Mixture => "mixture",
+            Self::RowBlock => "row_block",
         }
     }
 

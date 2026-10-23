@@ -7,7 +7,7 @@
 id = "no_interval_reported"
 applies_to = ["calibration"]
 meaning = "The cell reports no interval; nothing to calibrate."
-max_uses = 8
+max_uses = 6
 # Eligibility: a licensed cell may cite this code only for these queries,
 # which report a point quantity without a sampling interval.
 queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution", "AverageEffect", "InterventionResponse", "InterventionalDistribution", "PathSpecificEffect", "ResponseCurve", "TransportQuery", "TemporalConditionalPulse", "TemporalConditionalSustained", "AverageDerivative", "PointDerivative", "Elasticity", "SemiElasticity", "DirectionalDerivative", "ResponseJacobian"]
@@ -24,7 +24,7 @@ applies_to = ["calibration"]
 meaning = "No coverage record measured this construction (query, graph class, structure, inference, estimator, interval method, SE kind, dependence, posterior, functional)."
 # Raised when the temporal point routes (cross-world, derivative, conditional, attribution,
 # contemporaneous-projection ADMG) began reporting an interval with no coverage record.
-max_uses = 255
+max_uses = 257
 
 [[code]]
 id = "interval_level_not_measured"

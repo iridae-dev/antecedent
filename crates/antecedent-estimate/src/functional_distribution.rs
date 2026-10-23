@@ -53,7 +53,6 @@ use antecedent_prob::{
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::prepare::require_method;
-use crate::util::bootstrap_se;
 
 /// One retained empirical factor fit: its stage identity, its entries and their byte cost.
 type RetainedFactorFit =
@@ -489,6 +488,33 @@ fn functional_program(
         .map_err(|error| EstimationError::stats_msg(error.to_string()))
 }
 
+/// How the rows of a functional plug-in are resampled for its frequentist bootstrap and
+/// reweighted for its Bayesian bootstrap.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RowResampling {
+    /// Each row is one independent subject (the static default).
+    #[default]
+    Rows,
+    /// The rows are the consecutive times of one dependent series: circular blocks of
+    /// consecutive rows are resampled (frequentist), or share one Dirichlet weight
+    /// (Bayesian). The block length is the structural rule over the rows for a lag span
+    /// of one, since a contemporaneous functional reads every variable at lag 0.
+    SeriesBlocks,
+}
+
+impl RowResampling {
+    /// The contiguous block length over `n` rows, when the rows are one series.
+    #[must_use]
+    pub fn block_length(self, n: usize) -> Option<usize> {
+        match self {
+            Self::Rows => None,
+            Self::SeriesBlocks => {
+                Some(antecedent_data::circular_block_length(1, n).clamp(1, n.max(1)))
+            }
+        }
+    }
+}
+
 /// Plug-in estimator for identified interventional distributions (discrete).
 #[derive(Clone, Debug)]
 pub struct FunctionalDistribution {
@@ -499,6 +525,10 @@ pub struct FunctionalDistribution {
     pub bootstrap_replicates: u32,
     /// Two-sided level of the published atom-probability intervals.
     pub confidence_level: f64,
+    /// How rows are resampled or reweighted.
+    pub row_resampling: RowResampling,
+    /// The sampling design the caller declared; a draw the design does not allow is refused.
+    pub sampling_design: crate::util::SamplingDeclaration,
 }
 
 impl Default for FunctionalDistribution {
@@ -549,6 +579,8 @@ impl FunctionalDistribution {
             overlap: OverlapPolicy::ExplicitOverride,
             bootstrap_replicates: 0,
             confidence_level: 0.95,
+            row_resampling: RowResampling::Rows,
+            sampling_design: crate::util::SamplingDeclaration::Undeclared,
         }
     }
 
@@ -574,6 +606,34 @@ impl FunctionalDistribution {
     pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
         self.bootstrap_replicates = replicates;
         self
+    }
+
+    /// Resample (or reweight) rows as `resampling` under the declared `design`.
+    #[must_use]
+    pub const fn with_row_resampling(
+        mut self,
+        resampling: RowResampling,
+        design: crate::util::SamplingDeclaration,
+    ) -> Self {
+        self.row_resampling = resampling;
+        self.sampling_design = design;
+        self
+    }
+
+    fn resample(
+        &self,
+        ctx: &ExecutionContext,
+        stream_base: u64,
+        n: usize,
+        estimate: impl Fn(&[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+    ) -> Result<crate::util::BootstrapSeResult, EstimationError> {
+        resample_rows(
+            (self.bootstrap_replicates, self.row_resampling, self.sampling_design),
+            ctx,
+            stream_base,
+            n,
+            estimate,
+        )
     }
 
     /// Prepare from an identified `GeneralId` functional and tabular data.
@@ -703,7 +763,7 @@ impl FunctionalDistribution {
         let atom_replicates = Mutex::new(vec![Vec::new(); out.atoms.len()]);
         let n_atoms = out.atoms.len();
         let n = prepared.bootstrap_columns.n();
-        let boot = bootstrap_se(self.bootstrap_replicates, ctx, 0xF01D_u64, n, |idx| {
+        let boot = self.resample(ctx, 0xF01D_u64, n, |idx| {
             let columns = prepared.bootstrap_columns.gather(idx);
             let provider = provider_from_columns(
                 &columns,
@@ -938,7 +998,7 @@ impl FunctionalDistribution {
                 n,
                 &prepared.bootstrap_factors,
                 &prepared.bootstrap_signatures,
-                &mut rng,
+                (self.row_resampling.block_length(n), &mut rng),
             )?;
             let est =
                 self.estimate_point_with(prepared, &provider, conditioning_values, &mut draw_ws)?;
@@ -1123,6 +1183,10 @@ pub struct FunctionalEffect {
     pub overlap: OverlapPolicy,
     /// Bootstrap replicates for the scalar SE (0 = skip).
     pub bootstrap_replicates: u32,
+    /// How rows are resampled or reweighted.
+    pub row_resampling: RowResampling,
+    /// The sampling design the caller declared; a draw the design does not allow is refused.
+    pub sampling_design: crate::util::SamplingDeclaration,
 }
 
 impl Default for FunctionalEffect {
@@ -1135,7 +1199,12 @@ impl FunctionalEffect {
     /// Create with explicit overlap override.
     #[must_use]
     pub fn new() -> Self {
-        Self { overlap: OverlapPolicy::ExplicitOverride, bootstrap_replicates: 0 }
+        Self {
+            overlap: OverlapPolicy::ExplicitOverride,
+            bootstrap_replicates: 0,
+            row_resampling: RowResampling::Rows,
+            sampling_design: crate::util::SamplingDeclaration::Undeclared,
+        }
     }
 
     /// Set the overlap policy recorded on the estimate artifact.
@@ -1151,6 +1220,34 @@ impl FunctionalEffect {
     pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
         self.bootstrap_replicates = replicates;
         self
+    }
+
+    /// Resample (or reweight) rows as `resampling` under the declared `design`.
+    #[must_use]
+    pub const fn with_row_resampling(
+        mut self,
+        resampling: RowResampling,
+        design: crate::util::SamplingDeclaration,
+    ) -> Self {
+        self.row_resampling = resampling;
+        self.sampling_design = design;
+        self
+    }
+
+    fn resample(
+        &self,
+        ctx: &ExecutionContext,
+        stream_base: u64,
+        n: usize,
+        estimate: impl Fn(&[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+    ) -> Result<crate::util::BootstrapSeResult, EstimationError> {
+        resample_rows(
+            (self.bootstrap_replicates, self.row_resampling, self.sampling_design),
+            ctx,
+            stream_base,
+            n,
+            estimate,
+        )
     }
 
     /// Prepare CPT plug-in for a path-specific / general-ID contrast functional.
@@ -1222,7 +1319,7 @@ impl FunctionalEffect {
             None
         } else {
             let n = prepared.bootstrap_columns.n();
-            Some(bootstrap_se(self.bootstrap_replicates, ctx, 0xF02D_u64, n, |idx| {
+            Some(self.resample(ctx, 0xF02D_u64, n, |idx| {
                 let columns = prepared.bootstrap_columns.gather(idx);
                 let provider = provider_from_columns(
                     &columns,
@@ -1237,14 +1334,21 @@ impl FunctionalEffect {
                 }
             })?)
         };
-        Ok(crate::adjustment::EffectEstimate::new(
+        let estimate = crate::adjustment::EffectEstimate::new(
             ate,
             // Multinomial delta-method analytic SE is out of scope for the discrete plug-in.
             f64::NAN,
             prepared.assumptions.clone(),
             self.overlap,
         )
-        .with_bootstrap(boot))
+        .with_bootstrap(boot);
+        // Blocks of one series' consecutive rows: the SE is a row-block bootstrap SE.
+        Ok(match self.row_resampling {
+            RowResampling::SeriesBlocks if self.bootstrap_replicates > 0 => {
+                estimate.with_block_family(crate::temporal_block::CircularBlockFamily::RowBlock)
+            }
+            _ => estimate,
+        })
     }
 
     /// Bayesian bootstrap of the identified functional. All CPT factors are
@@ -1282,7 +1386,7 @@ impl FunctionalEffect {
                 n,
                 &prepared.bootstrap_factors,
                 &prepared.bootstrap_signatures,
-                &mut rng,
+                (self.row_resampling.block_length(n), &mut rng),
             )?;
             let value = prepared.evaluate(&provider).map_err(eval_err)?;
             if !value.is_finite() {
@@ -1777,15 +1881,50 @@ fn provider_from_columns(
 // One random observational law per draw. All marginal/conditional factors and
 // interventional aliases are derived from the same row masses, preserving
 // probability identities even when the compiled expression reuses a kernel.
+//
+// With a block length the rows are one dependent series: one `Exp(1)` weight per
+// contiguous block of rows, shared by every row of the block.
 fn provider_from_bayesian_bootstrap(
     columns: &EncodedColumns,
     n: usize,
     factors: &[FactorKey],
     signatures: &[FactorSignature],
-    rng: &mut CausalRng,
+    (block, rng): (Option<usize>, &mut CausalRng),
 ) -> Result<EmpiricalTableProvider, EstimationError> {
-    let weights = antecedent_kernels::bayesian_bootstrap_weights(rng, n, false);
+    let weights = match block {
+        None => antecedent_kernels::bayesian_bootstrap_weights(rng, n, false),
+        Some(block) => {
+            let block = block.clamp(1, n.max(1));
+            let draws =
+                antecedent_kernels::bayesian_bootstrap_weights(rng, n.div_ceil(block), false);
+            (0..n).map(|row| draws[row / block]).collect()
+        }
+    };
     provider_from_columns(columns, n, factors, signatures, Some(&weights))
+}
+
+/// The frequentist bootstrap of a functional plug-in under its row resampling and
+/// declared design: single rows, or circular blocks of one series' consecutive rows.
+fn resample_rows(
+    (replicates, resampling, declared): (u32, RowResampling, crate::util::SamplingDeclaration),
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    n: usize,
+    estimate: impl Fn(&[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+) -> Result<crate::util::BootstrapSeResult, EstimationError> {
+    crate::util::bootstrap_by_design(
+        crate::util::BootstrapDesign {
+            clusters: None,
+            series_block: resampling.block_length(n),
+            declared,
+        },
+        replicates,
+        ctx,
+        stream_base,
+        n,
+        || (),
+        |(), idx| estimate(idx),
+    )
 }
 
 /// Every combination of one code per variable (first variable varies slowest).
@@ -2632,8 +2771,14 @@ mod tests {
         let mut rng = ExecutionContext::for_tests(42).rng.stream_for(StreamDomain::Estimate, 1);
         let mut draws = Vec::new();
         for _ in 0..4000 {
-            let p = provider_from_bayesian_bootstrap(&columns, 4, &factors, &signatures, &mut rng)
-                .unwrap();
+            let p = provider_from_bayesian_bootstrap(
+                &columns,
+                4,
+                &factors,
+                &signatures,
+                (None, &mut rng),
+            )
+            .unwrap();
             let assignment = Assignment::from_pairs([(x, f(1.0)), (y, f(1.0))]);
             let prob = |vars: &[VariableId],
                         cond: &[VariableId],

@@ -579,7 +579,7 @@ fn estimate_admg_posterior_atom_response(
                 query,
                 identification,
                 estimand,
-                replicates,
+                study.functional_bootstrap(replicates),
                 ctx,
             )?;
             if !bayesian {
@@ -681,7 +681,7 @@ fn estimate_admg_mean_curve(
                 &level_query,
                 &level_id,
                 &level_est,
-                replicates,
+                study.functional_bootstrap(replicates),
                 ctx,
             )?;
             if let ResponseUncertainty::Scalar { lower, upper, .. } = &response.uncertainty {

@@ -405,6 +405,34 @@ pub fn trial_to_target_bayesian_bootstrap(
     treatment_probability: &[f64],
     sampling: crate::util::DrawSpec,
 ) -> Result<Vec<f64>, EstimationError> {
+    trial_to_target_bayesian_bootstrap_blocks(
+        identification,
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+        (sampling, None),
+    )
+}
+
+/// [`trial_to_target_bayesian_bootstrap`] when the rows are the consecutive times of one
+/// dependent series: with `block = Some(length)` every trial row in the same contiguous
+/// block of `length` rows (in row order over the whole table) shares one `Exp(1)`
+/// weight, so the Dirichlet law falls on blocks of times rather than single rows.
+///
+/// # Errors
+///
+/// As [`trial_to_target_bayesian_bootstrap`].
+pub fn trial_to_target_bayesian_bootstrap_blocks(
+    identification: &TransportIdentification,
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    (sampling, block): (crate::util::DrawSpec, Option<usize>),
+) -> Result<Vec<f64>, EstimationError> {
     let crate::util::DrawSpec { draws: n_draws, seed } = sampling;
     require_dahabreh_compatible_formula(identification, "Bayesian trial-to-target effect")?;
     let target_n = validate_trial_to_target_inputs(
@@ -444,8 +472,20 @@ pub fn trial_to_target_bayesian_bootstrap(
     let _admitted = crate::util::admit_bound_array::<f64>(n_draws, 1)?;
     let mut draws = Vec::with_capacity(n_draws);
     for _ in 0..n_draws {
-        let weights =
-            antecedent_kernels::bayesian_bootstrap_weights(&mut rng, source_rows.len(), false);
+        let weights = match block {
+            None => {
+                antecedent_kernels::bayesian_bootstrap_weights(&mut rng, source_rows.len(), false)
+            }
+            Some(block) => {
+                let block = block.clamp(1, outcome.len().max(1));
+                let blocks = antecedent_kernels::bayesian_bootstrap_weights(
+                    &mut rng,
+                    outcome.len().div_ceil(block),
+                    false,
+                );
+                source_rows.iter().map(|&row| blocks[row / block]).collect()
+            }
+        };
         let normalizer: f64 = weights.iter().sum();
         if !normalizer.is_finite() || normalizer <= 0.0 {
             return Err(EstimationError::stats_msg(
@@ -534,7 +574,6 @@ pub fn trial_to_target_ipw_se(
     treatment_probability: &[f64],
     ipw: f64,
 ) -> Result<f64, EstimationError> {
-    let n = outcome.len();
     let target_n = validate_trial_to_target_inputs(
         outcome,
         treatment,
@@ -545,20 +584,71 @@ pub fn trial_to_target_ipw_se(
     if !ipw.is_finite() {
         return Err(EstimationError::data_msg("transport IPW estimate must be finite"));
     }
-    let mut sum_sq = 0.0;
-    for i in 0..n {
-        let influence = if trial[i] {
-            let s = selection_probability[i];
-            let e = treatment_probability[i];
-            let arm = if treatment[i] { e } else { 1.0 - e };
-            let sign = if treatment[i] { 1.0 } else { -1.0 };
-            sign * (1.0 - s) / s / arm * outcome[i]
-        } else {
-            -ipw
-        };
-        sum_sq += influence * influence;
-    }
+    let influence =
+        ipw_influence(outcome, treatment, trial, selection_probability, treatment_probability, ipw);
+    let sum_sq: f64 = influence.iter().map(|value| value * value).sum();
     Ok(sum_sq.sqrt() / target_n as f64)
+}
+
+/// Per-row influence of the ratio-of-means IPW contrast (unscaled by the target count).
+fn ipw_influence(
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    ipw: f64,
+) -> Vec<f64> {
+    (0..outcome.len())
+        .map(|i| {
+            if trial[i] {
+                let s = selection_probability[i];
+                let e = treatment_probability[i];
+                let arm = if treatment[i] { e } else { 1.0 - e };
+                let sign = if treatment[i] { 1.0 } else { -1.0 };
+                sign * (1.0 - s) / s / arm * outcome[i]
+            } else {
+                -ipw
+            }
+        })
+        .collect()
+}
+
+/// [`trial_to_target_ipw_se`] when the rows are the consecutive times of one dependent
+/// series: the Newey–West (Bartlett) long-run variance of the per-row influence at lag
+/// `lag`, `Σψ² + 2 Σ_{k ≤ lag} (1 − k/(lag + 1)) Σ ψ_t ψ_{t+k}`, floored at zero.
+///
+/// # Errors
+///
+/// As [`trial_to_target_ipw_se`].
+pub fn trial_to_target_ipw_hac_se(
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    (ipw, lag): (f64, usize),
+) -> Result<f64, EstimationError> {
+    let target_n = validate_trial_to_target_inputs(
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+    )?;
+    if !ipw.is_finite() {
+        return Err(EstimationError::data_msg("transport IPW estimate must be finite"));
+    }
+    let influence =
+        ipw_influence(outcome, treatment, trial, selection_probability, treatment_probability, ipw);
+    let n = influence.len();
+    let mut variance: f64 = influence.iter().map(|value| value * value).sum();
+    for k in 1..=lag.min(n.saturating_sub(1)) {
+        let weight = 1.0 - k as f64 / (lag as f64 + 1.0);
+        let cross: f64 = influence.iter().zip(&influence[k..]).map(|(a, b)| a * b).sum();
+        variance += 2.0 * weight * cross;
+    }
+    Ok(variance.max(0.0).sqrt() / target_n as f64)
 }
 
 /// The stable transport outcome kind of an exact-evaluation failure. Callers

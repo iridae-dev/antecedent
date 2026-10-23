@@ -1860,6 +1860,7 @@ pub const fn circular_block_dependence(
         antecedent_estimate::CircularBlockFamily::Mediation => "circular_block:mediation",
         antecedent_estimate::CircularBlockFamily::Sequential => "circular_block:sequential",
         antecedent_estimate::CircularBlockFamily::Mixture => "circular_block:mixture",
+        antecedent_estimate::CircularBlockFamily::RowBlock => "circular_block:row_block",
     }
 }
 

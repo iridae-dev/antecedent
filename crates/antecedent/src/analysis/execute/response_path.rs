@@ -966,8 +966,14 @@ impl super::Study {
         let ExecuteRun { physical, ctx, started, identify_cached } = run;
         let IdentifiedClaim { identification, estimand } = claim;
         let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
-        let (response, _) =
-            estimate_general_id_response(data, query, &identification, &estimand, 0, ctx)?;
+        let (response, _) = estimate_general_id_response(
+            data,
+            query,
+            &identification,
+            &estimand,
+            FunctionalBootstrap::rows(0),
+            ctx,
+        )?;
         let (scalar, standard_error) = response_scalar_summary(&response);
         let estimate = EffectEstimate::new(
             scalar,
@@ -2281,7 +2287,7 @@ impl ClassResponseAtoms {
             inputs.query,
             result,
             &estimand,
-            0,
+            FunctionalBootstrap::rows(0),
             inputs.ctx,
         ) {
             Ok((response, scores)) => {
@@ -2905,12 +2911,39 @@ fn general_id_bootstrap_interval(
     uncertainty
 }
 
+/// The replicate budget and row resampling of a general-ID functional's bootstrap.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FunctionalBootstrap {
+    pub(super) replicates: u32,
+    pub(super) resampling: antecedent_estimate::RowResampling,
+    pub(super) design: antecedent_estimate::util::SamplingDeclaration,
+}
+
+impl FunctionalBootstrap {
+    /// Independent rows, no declared design: the static default.
+    pub(super) const fn rows(replicates: u32) -> Self {
+        Self {
+            replicates,
+            resampling: antecedent_estimate::RowResampling::Rows,
+            design: antecedent_estimate::util::SamplingDeclaration::Undeclared,
+        }
+    }
+}
+
+impl super::Study {
+    /// The functional bootstrap of this study with `replicates` replicates.
+    pub(super) fn functional_bootstrap(&self, replicates: u32) -> FunctionalBootstrap {
+        let (resampling, design) = self.functional_row_resampling();
+        FunctionalBootstrap { replicates, resampling, design }
+    }
+}
+
 pub(super) fn estimate_general_id_response(
     data: &TabularData,
     query: &ResponseQuery,
     identification: &antecedent_identify::IdentificationResult,
     estimand: &IdentifiedEstimand,
-    bootstrap_replicates: u32,
+    bootstrap: FunctionalBootstrap,
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, Option<antecedent_estimate::ResponseInfluence>), CausalError> {
     if !matches!(query.functional, ResponseFunctional::InterventionResponse { .. }) {
@@ -2937,7 +2970,9 @@ pub(super) fn estimate_general_id_response(
         outcome,
         &query.outcome_functional,
     )?;
-    let est = FunctionalEffect { bootstrap_replicates, ..FunctionalEffect::new() };
+    let bootstrap_replicates = bootstrap.replicates;
+    let est = FunctionalEffect { bootstrap_replicates, ..FunctionalEffect::new() }
+        .with_row_resampling(bootstrap.resampling, bootstrap.design);
     let prepared = est
         .prepare(
             &data_est,

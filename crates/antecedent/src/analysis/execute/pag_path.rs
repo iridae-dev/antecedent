@@ -669,7 +669,7 @@ impl super::Study {
                 level_query,
                 level_id,
                 level_est,
-                self.bootstrap_replicates,
+                self.functional_bootstrap(self.bootstrap_replicates),
                 run.ctx,
             )?;
             fits.extra_diagnostics.extend(response.support.warnings.iter().cloned());

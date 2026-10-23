@@ -921,10 +921,12 @@ impl super::Study {
                 Ok((identification, estimand))
             })?;
 
+        let (row_resampling, sampling_design) = self.functional_row_resampling();
         let est = FunctionalDistribution {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalDistribution::new()
-        };
+        }
+        .with_row_resampling(row_resampling, sampling_design);
         let prepared = Self::prepare_distribution_problem(
             &est,
             data,
