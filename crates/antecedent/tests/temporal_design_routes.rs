@@ -631,3 +631,63 @@ fn a_misclassified_binary_outcome_is_corrected_with_its_validation_uncertainty()
     let posterior = run(&data, query, bayesian(300), 0, &ctx);
     assert!((section(&posterior).estimate[0] - 0.25).abs() < 0.08);
 }
+
+#[test]
+fn the_exported_artifact_carries_the_section_and_a_fresh_consumer_rejects_forgeries() {
+    let panel = two_arm_panel(120, 6, 0.9, 71);
+    let data = table(&[("y", panel.outcome.as_slice())]);
+    let ctx = ExecutionContext::for_tests(73);
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::TemporalDesign(two_arm_query(&panel, TemporalDesignFunctional::Mean)))
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = section(&result).clone();
+    let bytes = prepared.encode_contracted_result(&result, "temporal-design", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let wire = body.temporal_design.as_ref().expect("the section is exported");
+    assert!(!wire.licensed && wire.calibration == "unmeasured");
+    assert_eq!(wire.design, "two_arm");
+    assert_eq!(wire.estimate, fit.estimate.to_vec());
+    assert_eq!(wire.lower, fit.lower.to_vec());
+    // The untampered body re-encodes; the forgeries below are refused.
+    antecedent_io::encode_analysis_result_artifact(
+        &body,
+        header.variable_names.clone(),
+        "temporal-design-again",
+    )
+    .unwrap();
+    let mut licensed = body.clone();
+    licensed.temporal_design.as_mut().unwrap().licensed = true;
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &licensed,
+            header.variable_names.clone(),
+            "forged-license"
+        )
+        .is_err()
+    );
+    let mut reversed = body.clone();
+    let section = reversed.temporal_design.as_mut().unwrap();
+    section.lower[0] = section.upper[0] + 1.0;
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &reversed,
+            header.variable_names.clone(),
+            "forged-interval"
+        )
+        .is_err()
+    );
+    let mut stripped = body;
+    stripped.temporal_design = None;
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &stripped,
+            header.variable_names,
+            "missing-section"
+        )
+        .is_err()
+    );
+}

@@ -15,8 +15,9 @@
 
 use antecedent_io::IoError;
 use antecedent_io::dose_grid_functional_artifact::{
-    DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_CLOSED, DOSE_GRID_CALIBRATION,
-    DOSE_GRID_INFERENCE_CLAIM, DoseClaimsWire, DoseFunctionalWire, DoseGridArtifactError,
+    DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_BIAS_AWARE, DOSE_GRID_BAND_CLOSED,
+    DOSE_GRID_BIAS_AWARE_FEATURE, DOSE_GRID_CALIBRATION, DOSE_GRID_INFERENCE_CLAIM,
+    DoseBiasAwareRequestWire, DoseClaimsWire, DoseFunctionalWire, DoseGridArtifactError,
     DoseGridArtifactWire, DoseGridConsumeLimits, DoseGridRequestWire, dose_support_table,
 };
 
@@ -63,6 +64,7 @@ fn request(kind: &str, noise: f64) -> DoseGridRequestWire {
         },
         dose,
         outcome,
+        bias_aware: None,
     }
 }
 
@@ -389,4 +391,68 @@ fn context_cancellation_during_grid_work_never_seals_a_partial_artifact() {
     ));
     assert!(ctx.cancellation.is_requested());
     assert_eq!(ctx.admission.available(), available);
+}
+
+fn bias_aware(kind: &str, noise: f64) -> DoseGridRequestWire {
+    let mut declared = request(kind, noise);
+    declared.bias_aware = Some(DoseBiasAwareRequestWire {
+        curvature_bound: 0.5,
+        band_replicates: 400,
+        band_seed: 11,
+    });
+    declared
+}
+
+#[test]
+fn a_declared_curvature_bound_seals_bias_aware_intervals_and_the_band() {
+    let mut declared = bias_aware("level", 0.1);
+    declared.claims.simultaneous_band = true;
+    let sealed = DoseGridArtifactWire::seal(declared).unwrap();
+    assert!(sealed.required_features.iter().any(|f| f == DOSE_GRID_BIAS_AWARE_FEATURE));
+    assert_eq!(sealed.result.simultaneous_band, DOSE_GRID_BAND_BIAS_AWARE);
+    let section = sealed.result.bias_aware.as_ref().unwrap();
+    let band_lower = section.band_lower.as_ref().unwrap();
+    let band_upper = section.band_upper.as_ref().unwrap();
+    for (j, point) in sealed.result.levels.iter().enumerate() {
+        assert!(section.smoothing_bias_bound[j] > 0.0);
+        assert!(section.lower[j] <= point.lower && point.upper <= section.upper[j]);
+        assert!(band_lower[j] <= section.lower[j] && section.upper[j] <= band_upper[j]);
+        assert!(
+            band_lower[j] <= truth_level(point.dose) && truth_level(point.dose) <= band_upper[j]
+        );
+    }
+    // A fresh consumer replays the band from the stored seed, whatever its own context.
+    let bytes = sealed.export().unwrap();
+    let consumed = DoseGridArtifactWire::consume_typed_with_context(
+        &bytes,
+        DoseGridConsumeLimits::default(),
+        &antecedent_core::ExecutionContext::for_tests(99),
+    )
+    .unwrap();
+    assert_eq!(consumed, sealed);
+
+    let mut widened = sealed.clone();
+    widened.result.bias_aware.as_mut().unwrap().band_upper.as_mut().unwrap()[0] += 1.0;
+    assert!(matches!(consume(&reseal(widened)), Err(DoseGridArtifactError::ResultMismatch)));
+    let mut stripped = sealed.clone();
+    stripped.result.bias_aware = None;
+    assert!(matches!(
+        consume(&reseal(stripped)),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
+    let mut closed = sealed;
+    closed.result.simultaneous_band = DOSE_GRID_BAND_CLOSED.to_owned();
+    assert!(matches!(
+        consume(&reseal(closed)),
+        Err(DoseGridArtifactError::UnsupportedSemantics(_))
+    ));
+}
+
+#[test]
+fn a_contrast_under_a_curvature_bound_keeps_its_band_closed() {
+    let sealed = DoseGridArtifactWire::seal(bias_aware("contrast", 0.1)).unwrap();
+    assert_eq!(sealed.result.simultaneous_band, DOSE_GRID_BAND_CLOSED);
+    let section = sealed.result.bias_aware.as_ref().unwrap();
+    assert!(section.band_lower.is_none() && section.band_replicates == 0);
+    assert_eq!(consume(&sealed.export().unwrap()).unwrap(), sealed);
 }

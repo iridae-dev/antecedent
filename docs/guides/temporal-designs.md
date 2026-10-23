@@ -54,7 +54,8 @@ folded-normal critical value of Armstrong and Kolesar, doi:10.3982/QE1199) and i
 band half-width. Without a bound the frequentist grid is refused (`required_option_missing`)
 and the smoothed curve, whose bandwidth is part of the estimand, is the next attempt. The same
 construction is available for the static randomized-dose grid as
-`antecedent_estimate::dose_grid_functional::estimate_dose_grid_bias_aware`.
+`antecedent_estimate::dose_grid_functional::estimate_dose_grid_bias_aware`, in its sealed artifact
+and in Python as `antecedent.dose_grid.dose_functional(..., curvature_bound=M)`.
 
 ### Misclassified binary outcomes
 

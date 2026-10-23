@@ -122,6 +122,8 @@ struct Carry {
     selection_targets: Option<Arc<[VariableId]>>,
     transport_trial: Option<TransportTrialSpec>,
     interference: Option<InterferenceSpec>,
+    /// The requested `AverageEffect` when it was compiled as its lag-0 pulse contrast.
+    lag_zero_average_effect: Option<antecedent_core::AverageEffectQuery>,
 }
 
 /// Graph and query slot shared by every phase after the schema is bound.
@@ -298,6 +300,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
             selection_targets,
             transport_trial,
             interference,
+            lag_zero_average_effect: None,
         },
         graph,
         graph_posterior,
@@ -441,6 +444,7 @@ fn budget_inference(bound: BoundSchema) -> Result<BudgetedInference, CausalError
 fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalError> {
     let BudgetedInference(Spine { mut carry, graph, graph_posterior, query }) = budget;
     let query = query.ok_or(CausalError::Missing { field: "query" })?;
+    let query = lag_zero_average_effect(query, &mut carry, &graph, graph_posterior.is_some())?;
     if matches!(
         query,
         CausalQuery::Discover(_) | CausalQuery::Attribute(_) | CausalQuery::Simulate(_)
@@ -478,6 +482,76 @@ fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalEr
         }
     }
     Ok(ContractedQuery(Spine { carry, graph, graph_posterior, query }))
+}
+
+/// An `AverageEffect` on one series (or event series) under a `TemporalDag`, `TemporalCpdag` or
+/// `TemporalPag` denotes the lag-0 contrast `E[Y_t | do(X_t = active)] - E[Y_t | do(X_t =
+/// control)]`: the pulse at offset 0 read at horizon 1. On a class the envelope identifies it on
+/// every completion (temporal backdoor adjustment for the parents of `X_t` on a `TemporalCpdag`
+/// completion, visibility-aware MAG adjustment on a `TemporalPag` completion) and its Bayesian
+/// reading is the per-completion conjugate posterior with draw-wise identified-set bounds; a
+/// `TemporalDag` (or a class whose matrix reading collapses to one) is the single completion. The query is
+/// compiled as that pulse; the requested query is kept so the support cell stays the
+/// `AverageEffect` cell (executing, unlicensed) and every result discloses the reading.
+///
+/// Effect modifiers, a non-mean outcome functional and a graph posterior are refused with the
+/// next attempt named. Every other query passes through unchanged.
+fn lag_zero_average_effect(
+    query: CausalQuery,
+    carry: &mut Carry,
+    graph: &AcceptedGraph,
+    graph_posterior: bool,
+) -> Result<CausalQuery, CausalError> {
+    let CausalQuery::AverageEffect(average) = &query else {
+        return Ok(query);
+    };
+    if !matches!(carry.data, DataInput::Temporal(_) | DataInput::Event(_))
+        || !matches!(
+            graph.class(),
+            GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+        )
+    {
+        return Ok(query);
+    }
+    if graph_posterior || carry.tiered.is_some() {
+        return Err(crate::unsupported_reason!(
+            "route_not_supported",
+            "a lag-0 AverageEffect on a temporal graph reads one supplied TemporalDag, \
+             TemporalCpdag or TemporalPag. Next attempt: a PulseEffect over the graph posterior"
+        ));
+    }
+    if !average.effect_modifiers.is_empty()
+        || average.outcome_functional != antecedent_core::OutcomeFunctional::Mean
+        || average.target_population != antecedent_core::TargetPopulation::AllObserved
+    {
+        return Err(crate::unsupported_reason!(
+            "route_not_supported",
+            "a lag-0 AverageEffect on a temporal graph is the mean contrast over all observed \
+             periods, without modifiers. Next attempt: a TemporalConditionalPulse for a \
+             modifier, or a temporal ResponseCurve for another functional"
+        ));
+    }
+    let lag_zero = antecedent_core::TemporalEffectQuery {
+        treatment: average.treatment,
+        outcome: average.outcome,
+        policy: antecedent_core::TemporalPolicy::pulse(0),
+        control: average.control.clone(),
+        active: average.active.clone(),
+        horizon_steps: 1,
+        max_history_lag: None,
+        target_population: antecedent_core::TargetPopulation::AllObserved,
+        effect_modifiers: Arc::from([]),
+    };
+    lag_zero.validate().map_err(|error| CausalError::Compile {
+        message: format!("lag-0 AverageEffect: {error}"),
+    })?;
+    // `StudyBuilder::inference` binds the static Bayesian g-computation to every
+    // AverageEffect; the temporal class envelope selects its own estimator.
+    if carry.estimator_spec.is_none() && carry.estimator == Some(EstimatorId::BayesianGcomp) {
+        carry.estimator = None;
+    }
+    carry.lag_zero_average_effect = Some(average.clone());
+    Ok(CausalQuery::TemporalEffect(lag_zero))
 }
 
 /// Refuses the options a structure-discovery, attribution or simulation study
@@ -1437,6 +1511,11 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
     {
         let Spine { carry, graph, query, graph_posterior: _ } = &mut chosen.classified.spine;
         if !carry.refute_explicit && carry.refute_default_downgrade.is_none() {
+            let support_query = carry
+                .lag_zero_average_effect
+                .clone()
+                .map_or_else(|| query.clone(), CausalQuery::AverageEffect);
+            let query = &support_query;
             let requested = crate::support::support_cell_named(
                 query,
                 matrix_class,
@@ -1523,8 +1602,9 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         if !carry.inspect_only {
             crate::support::refuse_undeclared_off_axis(query)?;
         }
+        let requested = carry.lag_zero_average_effect.clone().map(CausalQuery::AverageEffect);
         let mut support_status = if let Some(cell) = crate::support::support_cell_named(
-            query,
+            requested.as_ref().unwrap_or(query),
             matrix_class,
             structure,
             &carry.inference,
@@ -1729,6 +1809,8 @@ fn into_study(exposure: BoundExposure) -> Study {
             transport_identification_cache: None,
             discovery: None,
             mechanisms: None,
+            posterior_provenance: None,
+            lag_zero_average_effect: carry.lag_zero_average_effect,
         }),
         data: carry.data,
         graph: Arc::new(graph),

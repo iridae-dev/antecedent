@@ -23,8 +23,16 @@ Every requested dose is labelled ``supported`` / ``weak_overlap`` / ``outside_em
 is not supported; it never extrapolates. Intervals are pointwise normal intervals from a
 heteroskedasticity-robust standard error with calibration ``"unmeasured"``: no coverage claim is
 made. Level/contrast claims, derivative claims and the simultaneous band are separate
-(:class:`DoseClaims`); a simultaneous band is a different claim whose calibration is unmeasured,
-so requesting it refuses (``dose_grid.simultaneous_band_closed``) and no band is ever returned.
+(:class:`DoseClaims`). Without a declared smoothness bound a simultaneous band refuses
+(``dose_grid.simultaneous_band_closed``).
+
+Passing ``curvature_bound`` (a declared bound ``B`` on ``|m'''|``) to :func:`dose_functional`
+adds bias-aware intervals (:class:`DoseBiasAware`): each level or derivative interval is widened
+by the worst-case smoothing bias the bound allows, using the folded-normal critical value, and a
+level or derivative grid of two or more doses also carries a Gaussian-multiplier sup-t band over
+the grid, widened by the same bias bound. The band is drawn from ``band_seed`` and replayed from it
+when the artifact is consumed. Its calibration is unmeasured. The bound is a declaration, not
+something the data establish.
 
 Optional ``threads`` bounds grid workers, ``max_bytes`` bounds execution scratch, and
 ``cancel`` accepts a cancellation token. Independent grid fits preserve request order;
@@ -61,6 +69,7 @@ from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
     "DoseGridPosteriorResult",
+    "DoseBiasAware",
     "DoseClaims",
     "DoseContrast",
     "DoseFunctionalResult",
@@ -115,7 +124,8 @@ class DoseClaims:
     """Which inference claims the caller declares. Each is separate; none implies another.
 
     ``pointwise_level`` licenses a level or contrast, ``derivative`` licenses a derivative, and
-    ``simultaneous_band`` asks for a band over the grid, which is always refused (closed).
+    ``simultaneous_band`` asks for a band over the grid; it refuses unless a curvature bound is
+    declared.
     """
 
     pointwise_level: bool = False
@@ -183,6 +193,56 @@ class DoseContrast:
 
 
 @dataclass(frozen=True, slots=True)
+class DoseBiasAware:
+    """Bias-aware intervals and the optional band under a declared curvature bound.
+
+    ``smoothing_bias_bound``, ``lower`` and ``upper`` align with the reported coordinates (the
+    levels, the derivatives, or the one contrast). The band fields are ``None`` unless a level or
+    derivative grid of two or more doses was requested. Calibration is unmeasured.
+    """
+
+    curvature_bound: float
+    smoothing_bias_bound: tuple[float, ...]
+    lower: tuple[float, ...]
+    upper: tuple[float, ...]
+    band_lower: tuple[float, ...] | None
+    band_upper: tuple[float, ...] | None
+    band_critical_value: float | None
+    band_replicates: int
+
+    def to_dict(self) -> dict[str, Any]:
+        """A JSON-ready mapping."""
+        return {
+            "curvature_bound": self.curvature_bound,
+            "smoothing_bias_bound": list(self.smoothing_bias_bound),
+            "lower": list(self.lower),
+            "upper": list(self.upper),
+            "band_lower": None if self.band_lower is None else list(self.band_lower),
+            "band_upper": None if self.band_upper is None else list(self.band_upper),
+            "band_critical_value": self.band_critical_value,
+            "band_replicates": self.band_replicates,
+        }
+
+
+def _bias_aware(section: Mapping[str, Any] | None) -> DoseBiasAware | None:
+    if section is None:
+        return None
+    band_lower = section.get("band_lower")
+    band_upper = section.get("band_upper")
+    critical = section.get("band_critical_value")
+    return DoseBiasAware(
+        curvature_bound=float(section["curvature_bound"]),
+        smoothing_bias_bound=tuple(float(x) for x in section["smoothing_bias_bound"]),
+        lower=tuple(float(x) for x in section["lower"]),
+        upper=tuple(float(x) for x in section["upper"]),
+        band_lower=None if band_lower is None else tuple(float(x) for x in band_lower),
+        band_upper=None if band_upper is None else tuple(float(x) for x in band_upper),
+        band_critical_value=None if critical is None else float(critical),
+        band_replicates=int(section["band_replicates"]),
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class DoseFunctionalResult:
     """One named functional of the dose response, its support, claims and artifact."""
 
@@ -199,7 +259,7 @@ class DoseFunctionalResult:
     max_abs_influence_sum: float
     calibration: str
     smoothing_bias_included: bool
-    #: Always ``"closed"``: no simultaneous band is ever produced.
+    #: ``"closed"``, or ``"bias_aware"`` when a curvature bound produced a band.
     simultaneous_band: str
     inference_claim: str
     claims: DoseClaims
@@ -210,6 +270,8 @@ class DoseFunctionalResult:
     artifact: bytes = field(repr=False, compare=False)
     #: Caller attests an exact quadratic conditional mean; smoothing bias is zero under it.
     quadratic_mean: bool = False
+    #: Bias-aware intervals and band under a declared curvature bound, when one was declared.
+    bias_aware: DoseBiasAware | None = None
 
     def export(self) -> bytes:
         """The artifact: premises, compact dose/outcome table, result and both digests."""
@@ -240,6 +302,18 @@ class DoseFunctionalResult:
             f"simultaneous band is {self.simultaneous_band}; inference claim "
             f"{self.inference_claim!r}."
         )
+        if self.bias_aware is not None:
+            text += (
+                f" Under the declared bound {self.bias_aware.curvature_bound:g} on |m'''|, "
+                f"bias-aware intervals add a worst-case smoothing bias of up to "
+                f"{max(self.bias_aware.smoothing_bias_bound, default=0.0):.4g}"
+            )
+            if self.bias_aware.band_critical_value is not None:
+                text += (
+                    f" and a simultaneous band uses critical value "
+                    f"{self.bias_aware.band_critical_value:.4g}"
+                )
+            text += " (calibration unmeasured)."
         return text
 
     def __repr__(self) -> str:
@@ -276,6 +350,7 @@ class DoseFunctionalResult:
             "simultaneous_band": self.simultaneous_band,
             "inference_claim": self.inference_claim,
             "quadratic_mean": self.quadratic_mean,
+            "bias_aware": None if self.bias_aware is None else self.bias_aware.to_dict(),
         }
 
 
@@ -378,6 +453,7 @@ def _result(report_json: str, artifact: bytes) -> DoseFunctionalResult:
         data_digest=report["data_digest"],
         artifact=artifact,
         quadratic_mean=bool(request.get("quadratic_mean", False)),
+        bias_aware=_bias_aware(result.get("bias_aware")),
     )
 
 
@@ -394,6 +470,9 @@ def _dose_functional(
     claims: DoseClaims | None = None,
     design: Design = "randomized_dose",
     quadratic_mean: bool = False,
+    curvature_bound: float | None = None,
+    band_replicates: int = 2000,
+    band_seed: int = 1,
     threads: int | None = None,
     max_bytes: int | None = None,
     cancel: Any = None,
@@ -408,7 +487,10 @@ def _dose_functional(
     smallest admissible Kish effective sample size at any requested dose. ``claims`` defaults to
     the one pointwise claim the functional needs (a derivative claim for ``"derivative"``, a
     pointwise-level claim otherwise); a level without a level claim, a derivative without a
-    derivative claim and any simultaneous band refuse.
+    derivative claim and a simultaneous band without ``curvature_bound`` refuse.
+    ``curvature_bound`` declares a bound on ``|m'''|`` and adds :class:`DoseBiasAware` intervals
+    and, on a grid of two or more doses, a band of ``band_replicates`` multiplier draws seeded by
+    ``band_seed``.
 
     Raises :class:`DoseGridRefusal` (a :class:`~antecedent.errors.CausalUnsupportedError`) with
     ``detail`` one of ``dose_grid.graph_not_certified`` (observational design),
@@ -460,6 +542,18 @@ def _dose_functional(
     }
     if quadratic_mean:
         request["quadratic_mean"] = True
+    if curvature_bound is not None:
+        if isinstance(band_replicates, bool) or not isinstance(band_replicates, int):
+            raise CausalTypeError("band_replicates must be an int")
+        if isinstance(band_seed, bool) or not isinstance(band_seed, int):
+            raise CausalTypeError("band_seed must be an int")
+        if band_replicates < 0 or band_seed < 0:
+            raise CausalValueError("band_replicates and band_seed must be non-negative")
+        request["bias_aware"] = {
+            "curvature_bound": _number(curvature_bound, "curvature_bound"),
+            "band_replicates": band_replicates,
+            "band_seed": band_seed,
+        }
     report, artifact, refusal = _evaluate(
         json.dumps(request, allow_nan=False),
         _column(dose, "dose"),
@@ -486,14 +580,20 @@ def dose_functional(
     minimum_local_ess: float = DEFAULT_MINIMUM_LOCAL_ESS,
     claims: DoseClaims | None = None,
     design: Design = "randomized_dose",
+    curvature_bound: float | None = None,
+    band_replicates: int = 2000,
+    band_seed: int = 1,
     threads: int | None = None,
     max_bytes: int | None = None,
     cancel: Any = None,
 ) -> DoseFunctionalResult:
-    """Estimate a randomized-dose smoother functional with unmeasured smoothing bias.
+    """Estimate a randomized-dose smoother functional.
 
     Level, derivative and contrast claims, fixed bandwidth and support refusals are
-    described in the module documentation. Sampling calibration remains unmeasured.
+    described in the module documentation. Without ``curvature_bound`` the smoothing bias
+    is not included; with it, :attr:`DoseFunctionalResult.bias_aware` carries bias-aware
+    intervals and, on a grid of two or more doses, a simultaneous band. Sampling calibration
+    remains unmeasured.
     """
     return _dose_functional(
         dose,
@@ -506,6 +606,9 @@ def dose_functional(
         minimum_local_ess=minimum_local_ess,
         claims=claims,
         design=design,
+        curvature_bound=curvature_bound,
+        band_replicates=band_replicates,
+        band_seed=band_seed,
         threads=threads,
         max_bytes=max_bytes,
         cancel=cancel,

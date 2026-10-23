@@ -339,7 +339,9 @@ fn validate_claims(request: &DoseGridRequest<'_>) -> Result<(), EstimationError>
         return Err(refuse(
             antecedent_core::reason_code!("route_not_supported"),
             "dose_grid.simultaneous_band_closed",
-            "a simultaneous band is a separate claim whose calibration is unmeasured",
+            "a simultaneous band is a separate claim: without a smoothing-bias bound it would \
+             exclude the bias. Next attempt: estimate_dose_grid_bias_aware, or a sealed \
+             request that declares bias_aware with a curvature bound",
         ));
     }
     match request.functional {
@@ -938,6 +940,14 @@ pub fn estimate_dose_grid_bias_aware(
         DoseFunctional::Contrast { from, to } => (vec![to, from], true),
         DoseFunctional::Level | DoseFunctional::Derivative => (request.grid.to_vec(), false),
     };
+    if request.claims.simultaneous_band && (contrast || points.len() < 2) {
+        return Err(refuse(
+            antecedent_core::reason_code!("route_not_supported"),
+            "dose_grid.simultaneous_band_closed",
+            "a simultaneous band covers a level or derivative grid of two or more doses. Next \
+             attempt: request a grid, or drop the band claim",
+        ));
+    }
     let n = request.dose.len();
     let _lease = crate::util::admit_array::<f64>(ctx, n, points.len() + 2)?;
     let mut columns: Vec<(Vec<f64>, f64)> = Vec::with_capacity(points.len());

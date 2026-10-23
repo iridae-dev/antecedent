@@ -24,8 +24,14 @@
 //!
 //! Scope. Pointwise intervals are normal intervals around the smoother's level,
 //! derivative or contrast with calibration unmeasured: no coverage claim is made.
-//! A simultaneous band is a different claim and is closed; an artifact for it is
-//! never produced and a stored band marker other than `closed` is refused.
+//! Without a declared curvature bound the simultaneous band is closed and a stored band
+//! marker other than `closed` is refused. A request that declares `bias_aware` (a bound on
+//! the absolute third derivative of the dose response, the multiplier replicates and the
+//! band's seed) requires `dose_grid_bias_aware_band_v1` and stores, beside the unchanged
+//! row, the bias-aware intervals and, for a grid of two or more doses, the simultaneous band
+//! (`simultaneous_band = "bias_aware"`). The band is replayed from the stored seed, so a
+//! consumer recomputes it bit for bit. Omitting the declaration preserves the historical
+//! format and digests.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -33,8 +39,8 @@ use antecedent_core::{IdentityDomain, SupportReport, SupportStatus};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::dose_grid_functional::{
     ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, DoseGridRow, IntervalCalibration,
-    PointwiseInterval, dose_support_report, estimate_dose_grid_functional_with_context,
-    estimate_dose_grid_quadratic_mean_with_context,
+    PointwiseInterval, dose_support_report, estimate_dose_grid_bias_aware,
+    estimate_dose_grid_functional_with_context, estimate_dose_grid_quadratic_mean_with_context,
 };
 use serde::{Deserialize, Serialize};
 
@@ -52,6 +58,10 @@ pub const DOSE_GRID_CALIBRATION: &str = "unmeasured";
 pub const DOSE_GRID_BAND_CLOSED: &str = "closed";
 /// The only inference claim of this row.
 pub const DOSE_GRID_INFERENCE_CLAIM: &str = "pointwise_calibration_unmeasured";
+/// Additional required semantics: bias-aware intervals and band under a curvature bound.
+pub const DOSE_GRID_BIAS_AWARE_FEATURE: &str = "dose_grid_bias_aware_band_v1";
+/// State of a simultaneous band built under the declared curvature bound.
+pub const DOSE_GRID_BAND_BIAS_AWARE: &str = "bias_aware";
 
 const DESIGN_RANDOMIZED: &str = "randomized_dose";
 const DESIGN_OBSERVATIONAL: &str = "observational";
@@ -215,6 +225,46 @@ pub struct DoseGridRequestWire {
     pub dose: Vec<f64>,
     /// Observed outcomes, aligned with `dose`.
     pub outcome: Vec<f64>,
+    /// Declared curvature bound, band replicates and band seed of the bias-aware claims.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bias_aware: Option<DoseBiasAwareRequestWire>,
+}
+
+/// The declaration of the bias-aware intervals and band.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DoseBiasAwareRequestWire {
+    /// Bound on the absolute third derivative of the dose response.
+    pub curvature_bound: f64,
+    /// Gaussian multiplier replicates of the band.
+    pub band_replicates: u64,
+    /// Seed of the band's multiplier stream.
+    pub band_seed: u64,
+}
+
+/// The stored bias-aware intervals and band, beside the unchanged row.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DoseBiasAwareResultWire {
+    /// Declared curvature bound.
+    pub curvature_bound: f64,
+    /// Worst-case smoothing bias of each reported coordinate.
+    pub smoothing_bias_bound: Vec<f64>,
+    /// Bias-aware pointwise lower endpoints.
+    pub lower: Vec<f64>,
+    /// Bias-aware pointwise upper endpoints.
+    pub upper: Vec<f64>,
+    /// Lower band envelope (a grid of two or more doses only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub band_lower: Option<Vec<f64>>,
+    /// Upper band envelope.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub band_upper: Option<Vec<f64>>,
+    /// Sup-t critical value of the band.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub band_critical_value: Option<f64>,
+    /// Multiplier replicates behind the band (zero without a band).
+    pub band_replicates: u64,
 }
 
 /// One pointwise value (a level or a derivative) on the wire.
@@ -317,6 +367,9 @@ pub struct DoseGridResultWire {
     pub simultaneous_band: String,
     /// The only inference claim of this row.
     pub inference_claim: String,
+    /// Bias-aware intervals and band under the declared curvature bound.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bias_aware: Option<DoseBiasAwareResultWire>,
 }
 
 /// Versioned dose-grid result with every premise needed for replay.
@@ -352,6 +405,8 @@ struct PremisesView<'a> {
     minimum_local_ess: u64,
     claims: &'a DoseClaimsWire,
     rows: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bias_aware: Option<(u64, u64, u64)>,
 }
 
 #[derive(Serialize)]
@@ -370,10 +425,13 @@ const fn is_false(value: &bool) -> bool {
     !*value
 }
 
-fn required_features(quadratic_mean: bool) -> Vec<String> {
+fn required_features(quadratic_mean: bool, bias_aware: bool) -> Vec<String> {
     let mut features = vec![DOSE_GRID_ARTIFACT_FEATURE.to_owned()];
     if quadratic_mean {
         features.push(DOSE_GRID_QUADRATIC_FEATURE.to_owned());
+    }
+    if bias_aware {
+        features.push(DOSE_GRID_BIAS_AWARE_FEATURE.to_owned());
     }
     features
 }
@@ -454,6 +512,9 @@ impl DoseGridRequestWire {
             minimum_local_ess: self.minimum_local_ess.to_bits(),
             claims: &self.claims,
             rows: self.dose.len(),
+            bias_aware: self.bias_aware.map(|declared| {
+                (declared.curvature_bound.to_bits(), declared.band_replicates, declared.band_seed)
+            }),
         }
     }
 
@@ -499,13 +560,52 @@ impl DoseGridRequestWire {
             },
             design,
         };
-        let row = if self.quadratic_mean {
-            estimate_dose_grid_quadratic_mean_with_context(&request, ctx)?
-        } else {
-            estimate_dose_grid_functional_with_context(&request, ctx)?
+        let (row, bias_aware) = match self.bias_aware {
+            Some(declared) => {
+                if self.quadratic_mean {
+                    return Err(DoseGridArtifactError::UnsupportedSemantics(
+                        "the exact-quadratic premise and a curvature bound are separate rows",
+                    ));
+                }
+                let replicates = usize::try_from(declared.band_replicates)
+                    .map_err(|_| DoseGridArtifactError::LimitsExceeded("band replicates"))?;
+                if replicates > 100_000 {
+                    return Err(DoseGridArtifactError::LimitsExceeded("band replicates"));
+                }
+                // The band is replayed from its own seed, whatever the caller's context.
+                let mut band_ctx = ctx.clone();
+                band_ctx.rng = antecedent_core::RngFactory::from_seed(declared.band_seed);
+                let fit = estimate_dose_grid_bias_aware(
+                    &request,
+                    declared.curvature_bound,
+                    replicates,
+                    &band_ctx,
+                )?;
+                let section = DoseBiasAwareResultWire {
+                    curvature_bound: fit.curvature_bound,
+                    smoothing_bias_bound: fit.smoothing_bias_bound.clone(),
+                    lower: fit.intervals.iter().map(|interval| interval.lower).collect(),
+                    upper: fit.intervals.iter().map(|interval| interval.upper).collect(),
+                    band_lower: fit.band.as_ref().map(|band| band.lower.clone()),
+                    band_upper: fit.band.as_ref().map(|band| band.upper.clone()),
+                    band_critical_value: fit.band_critical_value,
+                    band_replicates: fit.band_replicates as u64,
+                };
+                (fit.row, Some(section))
+            }
+            None if self.quadratic_mean => {
+                (estimate_dose_grid_quadratic_mean_with_context(&request, ctx)?, None)
+            }
+            None => (estimate_dose_grid_functional_with_context(&request, ctx)?, None),
         };
         let points = self.evaluation_points(functional);
-        let result = self.render(&row, &points, design);
+        let mut result = self.render(&row, &points, design);
+        if let Some(section) = bias_aware {
+            if section.band_lower.is_some() {
+                result.simultaneous_band = DOSE_GRID_BAND_BIAS_AWARE.to_owned();
+            }
+            result.bias_aware = Some(section);
+        }
         if !result_is_finite(&result) {
             return Err(DoseGridArtifactError::Refused {
                 code: antecedent_core::reason_code!("transport_numerical_failure"),
@@ -579,6 +679,7 @@ impl DoseGridRequestWire {
                 "open".to_owned()
             },
             inference_claim: DOSE_GRID_INFERENCE_CLAIM.to_owned(),
+            bias_aware: None,
         }
     }
 
@@ -645,6 +746,16 @@ fn result_is_finite(result: &DoseGridResultWire) -> bool {
         && result.support.iter().all(|s| s.dose.is_finite() && s.local_ess.is_finite())
         && result.bandwidth.is_finite()
         && result.max_abs_influence_sum.is_finite()
+        && result.bias_aware.as_ref().is_none_or(|section| {
+            section
+                .smoothing_bias_bound
+                .iter()
+                .chain(&section.lower)
+                .chain(&section.upper)
+                .chain(section.band_lower.iter().flatten())
+                .chain(section.band_upper.iter().flatten())
+                .all(|v| v.is_finite())
+        })
 }
 
 impl DoseGridArtifactWire {
@@ -669,7 +780,10 @@ impl DoseGridArtifactWire {
         let undecodable = |e: IoError| DoseGridArtifactError::Undecodable(e.to_string());
         let wire = Self {
             version: DOSE_GRID_ARTIFACT_VERSION,
-            required_features: required_features(request.quadratic_mean),
+            required_features: required_features(
+                request.quadratic_mean,
+                request.bias_aware.is_some(),
+            ),
             premises_digest: request.premises_digest().map_err(undecodable)?,
             data_digest: request.data_digest().map_err(undecodable)?,
             request,
@@ -698,7 +812,9 @@ impl DoseGridArtifactWire {
 
     fn validate_shape(&self) -> Result<(), DoseGridArtifactError> {
         let unsupported = DoseGridArtifactError::UnsupportedSemantics;
-        if self.required_features != required_features(self.request.quadratic_mean) {
+        if self.required_features
+            != required_features(self.request.quadratic_mean, self.request.bias_aware.is_some())
+        {
             return Err(unsupported("required features"));
         }
         if self.result.calibration != DOSE_GRID_CALIBRATION
@@ -707,10 +823,16 @@ impl DoseGridArtifactWire {
         {
             return Err(unsupported("this row publishes pointwise unmeasured intervals only"));
         }
-        if self.result.simultaneous_band != DOSE_GRID_BAND_CLOSED
-            || self.request.claims.simultaneous_band
+        let band_open = self.result.bias_aware.as_ref().is_some_and(|s| s.band_lower.is_some());
+        let expected_band =
+            if band_open { DOSE_GRID_BAND_BIAS_AWARE } else { DOSE_GRID_BAND_CLOSED };
+        if self.result.simultaneous_band != expected_band
+            || self.request.bias_aware.is_some() != self.result.bias_aware.is_some()
+            || (self.request.claims.simultaneous_band && !band_open)
         {
-            return Err(unsupported("the simultaneous band is closed"));
+            return Err(unsupported(
+                "the simultaneous band is closed without a declared curvature bound",
+            ));
         }
         if self.request.dose.len() != self.request.outcome.len() {
             return Err(unsupported("dose and outcome tables must align"));

@@ -143,6 +143,9 @@ __all__ = [
     "prepare_measurement_model",
     "transport_measurement_model",
     "verify_measurement_transport",
+    "PopulationValidationCounts",
+    "PooledDifferentialCorrection",
+    "transport_pooled_differential",
 ]
 
 #: Downstream operations a route may license or refuse.
@@ -1793,3 +1796,87 @@ def verify_measurement_transport(
     raise_refusal(refusal, MeasurementModelRefusal)
     assert text is not None
     return MeasurementTransportReceipt._from_wire(json.loads(text))
+
+
+# --------------------------------------------------------------------------- pooled differential
+
+
+@dataclass(frozen=True, slots=True)
+class PopulationValidationCounts:
+    """One population's validation counts of a misclassified binary indicator."""
+
+    population: str
+    true_positive: int
+    false_negative: int
+    true_negative: int
+    false_positive: int
+
+    def __post_init__(self) -> None:
+        _name(self.population, "population")
+        for count_name in ("true_positive", "false_negative", "true_negative", "false_positive"):
+            _count(getattr(self, count_name), count_name)
+
+    def _counts(self) -> tuple[int, int, int, int]:
+        return (self.true_positive, self.false_negative, self.true_negative, self.false_positive)
+
+
+@dataclass(frozen=True, slots=True)
+class PooledDifferentialCorrection:
+    """The target's corrected prevalence with differential error pooled across populations.
+
+    ``sensitivity`` and ``specificity`` are ``(pooled mean logit, its variance,
+    between-population variance, target rate mean, target rate standard deviation)``. The
+    interval is an uncalibrated simulation interval (``calibration == "unmeasured"``).
+    """
+
+    target_population: str
+    prevalence: float
+    interval: tuple[float, float]
+    sensitivity: tuple[float, float, float, float, float]
+    specificity: tuple[float, float, float, float, float]
+    discarded_draws: int
+    truncated_draws: int
+    draws: tuple[float, ...]
+    calibration: str
+
+
+def transport_pooled_differential(
+    sources: Sequence[PopulationValidationCounts],
+    target_population: str,
+    observed_positive: int,
+    observed_total: int,
+    *,
+    target_validation: PopulationValidationCounts | None = None,
+    draws: int = 4000,
+    seed: int = 1,
+    threads: int | None = None,
+) -> PooledDifferentialCorrection:
+    """Correct the target's recorded prevalence with error rates that differ by population.
+
+    The sensitivity and specificity logits of two or more validated ``sources`` are pooled by
+    random effects; the between-population variance (the uncertainty of an invariance premise)
+    is propagated with the target's own validation sample, when supplied, and the recorded
+    prevalence into the Rogan-Gladen correction. Fewer than two sources, or pooled rates that
+    leave the target unidentified, are refused (``differential_error_not_pooled``).
+    """
+    section = _native.measurement_pooled_differential_transport(
+        [(source.population, *source._counts()) for source in sources],
+        _name(target_population, "target_population"),
+        _count(observed_positive, "observed_positive"),
+        _count(observed_total, "observed_total"),
+        target_validation=None if target_validation is None else target_validation._counts(),
+        draws=_count(draws, "draws"),
+        seed=seed,
+        threads=threads,
+    )
+    return PooledDifferentialCorrection(
+        target_population=section.target_population,
+        prevalence=section.prevalence,
+        interval=section.interval,
+        sensitivity=section.sensitivity,
+        specificity=section.specificity,
+        discarded_draws=section.discarded_draws,
+        truncated_draws=section.truncated_draws,
+        draws=tuple(section.draws),
+        calibration=section.calibration,
+    )

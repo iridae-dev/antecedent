@@ -32,6 +32,10 @@ pub use antecedent_io::dose_grid_functional_artifact::{
     DoseGridConsumeLimits, DoseGridRequestWire, DoseGridResultWire, DosePointWire, DoseSupportWire,
     dose_support_table,
 };
+pub use antecedent_io::dose_grid_functional_artifact::{
+    DOSE_GRID_BAND_BIAS_AWARE, DOSE_GRID_BIAS_AWARE_FEATURE, DoseBiasAwareRequestWire,
+    DoseBiasAwareResultWire,
+};
 
 use crate::error::CausalError;
 

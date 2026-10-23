@@ -85,8 +85,8 @@ Rogan-Gladen correction of the target's recorded prevalence is propagated by sim
 the target's rates and the recorded prevalence's Beta posterior. A draw with a non-positive
 Youden index is discarded and counted; more than five percent refuse
 (`differential_error_not_pooled`, next attempt: validate in the target). The interval is an
-uncalibrated simulation interval. Binary sensitivity and specificity only; no Python entry
-point yet.
+uncalibrated simulation interval. Binary sensitivity and specificity only. Python:
+`antecedent.measurement_models.transport_pooled_differential`.
 
 ## What is refused, and the remedy
 

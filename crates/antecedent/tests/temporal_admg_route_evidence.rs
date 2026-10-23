@@ -707,8 +707,14 @@ fn response_curve_refuters_are_not_applicable_on_temporal_admg() {
         "a function-valued curve has no ATE refuter: {status:?}"
     );
     let static_on_temporal_dag = antecedent::support::classify(
-        SupportCell::from_labels("AverageEffect", "TemporalDag", "explicit", "Frequentist", "none")
-            .expect("support axis"),
+        SupportCell::from_labels(
+            "ConditionalEffect",
+            "TemporalDag",
+            "explicit",
+            "Frequentist",
+            "none",
+        )
+        .expect("support axis"),
     );
     assert!(matches!(static_on_temporal_dag, CellStatus::NotApplicable { .. }));
     let distribution_cheap = antecedent::support::classify(
