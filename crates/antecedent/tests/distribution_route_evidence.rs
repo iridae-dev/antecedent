@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite,
     StructureSource, Study,
@@ -115,7 +116,9 @@ fn verify_distribution_coordinate(
         ),
         other => panic!("{coordinate} support slot unavailable: {other:?}"),
     }
-    let program = prepared.checked_distribution_program().expect("retained checked program");
+    let RetainedOperation::Distribution(program) = prepared.retained_operation() else {
+        panic!("retained checked program")
+    };
     assert_eq!(program.mapping().source, program.mapping().executable, "{coordinate}");
     assert!(!program.factor_requirements().is_empty(), "{coordinate}");
     assert_eq!(prepared.plan().logical.record.identifier.as_deref(), Some("general.id"));
@@ -174,7 +177,10 @@ fn verify_distribution_coordinate(
         "{coordinate}: refreshed mean {}",
         refreshed_distribution.mean
     );
-    assert!(prepared.checked_distribution_program().is_some(), "{coordinate} retained program");
+    assert!(
+        matches!(prepared.retained_operation(), RetainedOperation::Distribution(..)),
+        "{coordinate} retained program"
+    );
 
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("distribution-{coordinate}"), &ctx)

@@ -271,7 +271,7 @@ fn quoted_design_width_counts_contrast_columns_the_planner_sizing_misses() {
     assert_eq!(design.source(), crate::planner::lowered::WidthSource::Quoted);
     assert!(!design.direct());
     assert_eq!(plan.choice.selected(), PhysicalAlternative::MaterializedDesign);
-    let built = prepared.checked_linear_adjustment().unwrap().problem().design.ncols;
+    let built = prepared.execution().checked_linear().unwrap().problem().design.ncols;
     assert_eq!(design.columns(), Some(built as u64), "the quoted width is the built width");
 }
 

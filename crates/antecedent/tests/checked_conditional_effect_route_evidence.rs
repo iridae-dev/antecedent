@@ -1,6 +1,7 @@
 //! Builder-independent execution evidence for the checked DAG conditional-effect family.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, OutcomeFunctional,
@@ -135,9 +136,9 @@ fn frequentist_conditional_effect_keeps_six_dag_choices_sealed_through_refresh()
             let one_shot = builder.run(&ctx).unwrap();
             let mut prepared = builder.prepare(&ctx).unwrap();
             drop(builder);
-            let plan = prepared
-                .checked_conditional_effect_info()
-                .expect("retained conditional target and lowering");
+            let RetainedOperation::CheckedConditional(plan) = prepared.retained_operation() else {
+                panic!("retained conditional target and lowering")
+            };
             assert_eq!(plan.identifier, IdentifierId::BackdoorAdjustment);
             assert_eq!(plan.estimator, EstimatorId::ConditionalLinearAdjustment);
             assert_eq!(plan.procedure.as_ref(), "linear_interaction_plugin");
@@ -154,12 +155,19 @@ fn frequentist_conditional_effect_keeps_six_dag_choices_sealed_through_refresh()
             assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
             let refreshed = prepared.refresh(data(0.4), &ctx).unwrap();
             assert!((refreshed.effect() - 3.0).abs() < 1e-9);
-            let rebound = prepared.checked_conditional_effect_info().unwrap();
+            let RetainedOperation::CheckedConditional(rebound) = prepared.retained_operation()
+            else {
+                panic!("retained conditional operation after refresh")
+            };
             assert_eq!(rebound.query, plan.query);
             assert_eq!(rebound.procedure, plan.procedure);
             let smaller = prepared.refresh(data_n(200, 0.4), &ctx).unwrap();
             assert!((smaller.effect() - 3.0).abs() < 1e-9);
-            assert_eq!(prepared.checked_conditional_effect_info().unwrap().source_rows.len(), 200);
+            let RetainedOperation::CheckedConditional(resized) = prepared.retained_operation()
+            else {
+                panic!("retained conditional operation after resized refresh")
+            };
+            assert_eq!(resized.source_rows.len(), 200);
             let artifact =
                 prepared.encode_contracted_result(&smaller, "checked-conditional", &ctx).unwrap();
             let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
@@ -218,7 +226,9 @@ fn conditional_grid_and_quantile_retain_distribution_score_procedure() {
             .unwrap();
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
-        let plan = prepared.checked_conditional_effect_info().unwrap();
+        let RetainedOperation::CheckedConditional(plan) = prepared.retained_operation() else {
+            panic!("retained conditional distribution operation")
+        };
         assert_eq!(plan.procedure.as_ref(), "crossfit_aipw_distribution_scores");
         assert_eq!(plan.query.inner.outcome_functional, functional);
         let result = prepared.estimate(&route_data, &ctx).unwrap();
@@ -230,7 +240,10 @@ fn conditional_grid_and_quantile_retain_distribution_score_procedure() {
             data(0.2)
         };
         let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
-        assert_eq!(prepared.checked_conditional_effect_info().unwrap().query, plan.query);
+        let RetainedOperation::CheckedConditional(rebound) = prepared.retained_operation() else {
+            panic!("retained conditional distribution operation after refresh")
+        };
+        assert_eq!(rebound.query, plan.query);
         assert!(refreshed.estimate.as_effect().unwrap().joint.exceedance_cdf.is_some());
     }
 }
@@ -265,9 +278,10 @@ fn fully_identified_class_conditional_effect_is_sealed_across_lifecycle() {
                 let one_shot = builder.clone().run(&ctx).unwrap();
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
-                let plan = prepared
-                    .checked_conditional_effect_info()
-                    .expect("fully identified class conditional operation is sealed");
+                let RetainedOperation::CheckedConditional(plan) = prepared.retained_operation()
+                else {
+                    panic!("fully identified class conditional operation is sealed")
+                };
                 assert_eq!(plan.graph_class, expected_class);
                 assert_eq!(plan.identifier, IdentifierId::GeneralizedAdjustment);
                 assert_eq!(plan.estimator, EstimatorId::ConditionalLinearAdjustment);
@@ -286,7 +300,10 @@ fn fully_identified_class_conditional_effect_is_sealed_across_lifecycle() {
 
                 let refreshed = prepared.refresh(class_data(0.35), &ctx).unwrap();
                 assert!((refreshed.effect() - 3.0).abs() < 1e-9);
-                let rebound = prepared.checked_conditional_effect_info().unwrap();
+                let RetainedOperation::CheckedConditional(rebound) = prepared.retained_operation()
+                else {
+                    panic!("retained class conditional operation after refresh")
+                };
                 assert_eq!(rebound.graph_class, expected_class);
                 assert_eq!(rebound.query, plan.query);
                 assert_eq!(rebound.identifier, plan.identifier);
@@ -327,5 +344,5 @@ fn partially_identified_cpdag_conditional_effect_is_not_sealed_as_a_point_plan()
         .unwrap()
         .prepare(&ExecutionContext::for_tests(912))
         .unwrap();
-    assert!(prepared.checked_conditional_effect_info().is_none());
+    assert!(!matches!(prepared.retained_operation(), RetainedOperation::CheckedConditional(..)));
 }

@@ -406,6 +406,7 @@ pub use batch_retarget::{max_t_critical_value, simultaneous_band_unpublished};
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};
 pub use contract::CausalContract;
+pub(crate) use contract::assumption_label;
 pub use decision_contract_facade::{
     ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
     AdmissibilityRules, AdmissibleContractArtifact, AdmissibleDecisionContract, AtomSupport,
@@ -448,6 +449,10 @@ pub use prepared::{
 };
 pub use prepared::{
     CheckedBayesianTemporalClassEffectInfo, CheckedTemporalGraphPosteriorEffectInfo,
+};
+pub use prepared::{
+    CheckedDerivativeResponseInfo, CheckedPropensityInfo, CheckedStaticDagResponseInfo,
+    RetainedOperation,
 };
 pub use prepared::{CheckedTemporalClassResponseInfo, CheckedTemporalGraphPosteriorResponseInfo};
 pub use stage::{StageEvent, StageResultSink};

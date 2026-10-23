@@ -40,6 +40,19 @@ evidence_assertion = "inspect_does_not_identify"
 notes = "Identification-product and uncertainty slots stay Unavailable. Parent: estimate.model.workflow."
 
 [[capabilities]]
+id = "compiler.plan_view_every_route"
+group = "inspect"
+description = "Every compiled route has one plan view of its lowered program, read without identifying, fitting, scanning or simulating"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/plan_view.rs"
+evidence_assertion = "a_compiled_plan_views_every_layer_without_doing_work"
+composition_filter = "plan_view|views_|a_graph_posterior_is_one_mixture|inspect_stays_the_non_identifying"
+limitations = "Structural agreement and zero-work evidence only; no numerical truth backs a view. Byte counts are planner estimates, not measurements."
+notes = "Study::plan_view compiles (identification retained at compile runs once); PreparedStudy::plan_view and PhysicalExecutionPlan::plan_view read only. Study::inspect stays non-identifying (compiler.inspect_does_not_identify). Per-cell agreement runs in each family's lowering coverage test and in licensed_compiler consume_setup."
+
+[[capabilities]]
 id = "compiler.metadata_read_no_identify"
 group = "inspect"
 description = "Metadata-only artifact reads do not identify"

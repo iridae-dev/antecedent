@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite,
     StructureSource, Study,
@@ -128,9 +129,11 @@ fn verify_functional_effect_coordinate(
         "{coordinate} validation choice"
     );
 
-    let program = prepared
-        .checked_functional_effect_program()
-        .unwrap_or_else(|| panic!("{coordinate} omitted checked functional-effect program"));
+    let (RetainedOperation::FunctionalEffect(program)
+    | RetainedOperation::PathSpecificEffect(program)) = prepared.retained_operation()
+    else {
+        panic!("{coordinate} omitted checked functional-effect program")
+    };
     assert_eq!(program.mapping().source, program.mapping().executable, "{coordinate}");
 
     let result =
@@ -148,7 +151,10 @@ fn verify_functional_effect_coordinate(
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
     assert!(
-        prepared.checked_functional_effect_program().is_some(),
+        matches!(
+            prepared.retained_operation(),
+            RetainedOperation::FunctionalEffect(..) | RetainedOperation::PathSpecificEffect(..)
+        ),
         "{coordinate} lost program on refresh"
     );
 

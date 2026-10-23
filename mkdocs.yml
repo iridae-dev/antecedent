@@ -69,6 +69,7 @@ nav:
     - Configured batches and batch retarget: guides/batch-retarget.md
     - Cross-fitted DML scores and retarget covariance: guides/dml-scores.md
     - Staleness and drift diagnostics: guides/staleness.md
+    - Plan view: guides/plan-view.md
     - Sequentially randomized designs and regime survival: guides/temporal-designs.md
     - Rollout designs: guides/rollout-designs.md
     - Target-native validation and sensitivity ranges: guides/target-native-validation.md

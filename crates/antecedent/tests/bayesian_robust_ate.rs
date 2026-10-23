@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, CausalQuery as CoreCausalQuery, VariableId};
 use antecedent_data::{TableView, TabularData};
@@ -57,9 +58,9 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
     let ctx = antecedent_core::ExecutionContext::for_tests(22);
     let one_shot = builder.run(&ctx).unwrap();
     let mut prepared = builder.prepare(&ctx).unwrap();
-    let plan = prepared
-        .checked_bayesian_robust_ate_info()
-        .expect("checked robust ATE plan survives builder disposal");
+    let RetainedOperation::BayesianRobustAte(plan) = prepared.retained_operation() else {
+        panic!("checked robust ATE plan survives builder disposal")
+    };
     assert_eq!(plan.query, query);
     assert_eq!(plan.posterior_draws, 80);
     assert_eq!(plan.adjustment_set.as_ref(), &[VariableId::from_raw(0)]);
@@ -89,7 +90,10 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
         refreshed.estimate.as_effect().unwrap().ate.to_bits(),
         result.estimate.as_effect().unwrap().ate.to_bits()
     );
-    assert_eq!(prepared.checked_bayesian_robust_ate_info().unwrap(), plan);
+    let RetainedOperation::BayesianRobustAte(retained) = prepared.retained_operation() else {
+        panic!("checked robust ATE plan survives refresh")
+    };
+    assert_eq!(retained, plan);
     let x = data.float64_values(VariableId::from_raw(0)).unwrap();
     let treatment = data.float64_values(VariableId::from_raw(1)).unwrap();
     let outcome = data.float64_values(VariableId::from_raw(2)).unwrap();

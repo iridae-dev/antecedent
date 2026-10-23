@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, GridSpec, Intervention, Lag, ResponseFunctional,
@@ -87,7 +88,9 @@ fn temporal_mean_curve_is_sealed_refreshable_and_has_precise_artifact_dependency
         .unwrap();
         let one_shot = builder.run(&context).unwrap();
         let mut prepared = builder.prepare(&context).unwrap();
-        let info = prepared.checked_temporal_response_info().expect("sealed temporal plan");
+        let RetainedOperation::TemporalDagResponse(info) = prepared.retained_operation() else {
+            panic!("sealed temporal plan")
+        };
         assert_eq!(info.query, query);
         assert_eq!(info.identifier, IdentifierId::TemporalBackdoorUnfolded);
         assert_eq!(info.estimator, EstimatorId::TemporalResponseGcomp);
@@ -144,7 +147,9 @@ fn temporal_intervention_response_is_sealed_refreshable_and_has_precise_artifact
         .unwrap();
         let one_shot = builder.run(&context).unwrap();
         let mut prepared = builder.prepare(&context).unwrap();
-        let info = prepared.checked_temporal_response_info().expect("sealed temporal plan");
+        let RetainedOperation::TemporalDagResponse(info) = prepared.retained_operation() else {
+            panic!("sealed temporal plan")
+        };
         assert_eq!(info.query, query);
         assert_eq!(info.identifier, IdentifierId::TemporalBackdoorUnfolded);
         assert_eq!(info.estimator, EstimatorId::TemporalResponseGcomp);

@@ -53,6 +53,10 @@ pub use info::{
     CheckedTemporalGraphPosteriorEffectInfo, CheckedTemporalGraphPosteriorResponseInfo,
     CheckedTemporalMediationInfo, CheckedTemporalMediationTargetInfo,
 };
+pub use info::{
+    CheckedDerivativeResponseInfo, CheckedPropensityInfo, CheckedStaticDagResponseInfo,
+    RetainedOperation,
+};
 pub(crate) use operations::{
     CheckedAdmgResponseCurveOperation, CheckedAipwOperation, CheckedDistributionOperation,
     CheckedFrontDoorOperation, CheckedFunctionalEffectOperation, CheckedGlmAdjustmentOperation,
@@ -195,7 +199,7 @@ impl PreparedStudy {
     pub fn compiled_linear_program(
         &self,
     ) -> Option<&crate::analysis::compiled_linear::CompiledLinearProgram> {
-        self.checked_linear_operation().map(|operation| operation.compiled.as_ref())
+        self.execution.linear_operation().map(|operation| operation.compiled.as_ref())
     }
 }
 

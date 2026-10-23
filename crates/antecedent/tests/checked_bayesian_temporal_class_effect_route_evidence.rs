@@ -7,6 +7,7 @@
 #[path = "fixtures_common/mod.rs"]
 mod common;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, ClassPrior, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, TemporalEffectQuery, TemporalPolicy, VariableId,
@@ -123,9 +124,11 @@ fn all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_p
                     let mut prepared = builder.prepare(&ctx).unwrap();
                     drop(builder);
 
-                    let plan = prepared
-                        .checked_bayesian_temporal_class_effect_info()
-                        .expect("Bayesian class effect must retain its complete execution plan");
+                    let RetainedOperation::BayesianTemporalClassEffect(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("Bayesian class effect must retain its complete execution plan")
+                    };
                     assert_eq!(plan.query, query);
                     assert_eq!(plan.graph_class.as_str(), graph_class(&graph));
                     assert_eq!(plan.identifier.as_str(), "generalized.adjustment");
@@ -142,8 +145,14 @@ fn all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_p
                     assert!(!plan.class_prior_supplied);
                     assert!(plan.completion_count > 0);
                     assert!(plan.identified_mass > 0.0);
-                    assert!(prepared.checked_bayesian_temporal_dag_effect_info().is_none());
-                    assert!(prepared.checked_temporal_class_effect_info().is_none());
+                    assert!(!matches!(
+                        prepared.retained_operation(),
+                        RetainedOperation::BayesianTemporalDagEffect(..)
+                    ));
+                    assert!(!matches!(
+                        prepared.retained_operation(),
+                        RetainedOperation::TemporalClassEffect(..)
+                    ));
 
                     let result = prepared.estimate_series(&data, &ctx).unwrap();
                     let (lower, upper) = envelope_bounds(&result);
@@ -183,10 +192,12 @@ fn all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_p
                         refreshed_lower - 0.1 <= true_effect
                             && true_effect <= refreshed_upper + 0.1
                     );
-                    assert_eq!(
-                        prepared.checked_bayesian_temporal_class_effect_info().unwrap().query,
-                        query
-                    );
+                    let RetainedOperation::BayesianTemporalClassEffect(retained) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("Bayesian class effect retains its plan")
+                    };
+                    assert_eq!(retained.query, query);
                     let narrowed = TimeSeriesData::from_f64_columns(
                         [("x", &[0.0, 1.0, 0.0, 1.0][..]), ("y", &[0.0, 1.0, 1.0, 0.0][..])],
                         1,
@@ -196,10 +207,12 @@ fn all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_p
                         prepared.refresh_series(narrowed, &ctx).is_err(),
                         "schema-changed data must be refused"
                     );
-                    assert_eq!(
-                        prepared.checked_bayesian_temporal_class_effect_info().unwrap().query,
-                        query
-                    );
+                    let RetainedOperation::BayesianTemporalClassEffect(retained) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("Bayesian class effect retains its plan")
+                    };
+                    assert_eq!(retained.query, query);
 
                     let artifact = prepared
                         .encode_contracted_result(
@@ -240,7 +253,9 @@ fn bayesian_temporal_class_effect_retains_a_caller_supplied_class_mass() {
         .unwrap();
     let prepared = builder.prepare(&ctx).unwrap();
     drop(builder);
-    let plan = prepared.checked_bayesian_temporal_class_effect_info().expect("sealed plan");
+    let RetainedOperation::BayesianTemporalClassEffect(plan) = prepared.retained_operation() else {
+        panic!("sealed plan")
+    };
     assert!(plan.class_prior_supplied);
     assert_eq!(plan.completion_count, 2);
     let result = prepared.estimate_series(&data, &ctx).unwrap();

@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
 };
@@ -106,7 +107,9 @@ fn bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_
             .unwrap();
             let one_shot = builder.run(&context).unwrap();
             let mut prepared = builder.prepare(&context).unwrap();
-            let info = prepared.checked_temporal_response_info().expect("sealed temporal plan");
+            let RetainedOperation::TemporalDagResponse(info) = prepared.retained_operation() else {
+                panic!("sealed temporal plan")
+            };
             assert_eq!(info.query, query);
             assert_eq!(info.identifier, IdentifierId::TemporalBackdoorUnfolded);
             assert_eq!(info.estimator, EstimatorId::TemporalResponseBayesian);

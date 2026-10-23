@@ -565,7 +565,7 @@ impl PreparedStudy {
         let compiled = Arc::new(program_payloads_for(
             self.study(),
             self.plan().logical.record.estimator.as_deref(),
-            self.checked_program_binding(),
+            self.program_binding(),
         )?);
         Ok(Arc::clone(self.program_cache().get_or_init(|| compiled)))
     }
@@ -607,7 +607,7 @@ impl PreparedStudy {
                 &study,
                 self.plan().logical.record.estimator.as_deref(),
                 if population.is_none() {
-                    self.checked_program_binding()
+                    self.program_binding()
                 } else {
                     CheckedProgramBinding::None
                 },
@@ -639,11 +639,11 @@ impl PreparedStudy {
                         .map_err(|err| io_err(&err))?,
                 );
             }
-            if let Some(operation) = self.checked_nested_counterfactual_operation() {
+            if let Some(operation) = self.execution().nested_counterfactual() {
                 snapshot.nested_counterfactual_fit =
                     Some(nested_counterfactual_fit_wire(tabular, operation)?);
             }
-            if let Some(operation) = self.checked_linear_operation() {
+            if let Some(operation) = self.execution().linear_operation() {
                 snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
             }
         }
@@ -817,7 +817,7 @@ impl PreparedStudy {
                 values: binding.weights.to_vec(),
             });
         }
-        if let Some(checked) = self.checked_aipw_ate() {
+        if let Some(checked) = self.execution().checked_aipw() {
             // The cross-fitted procedure publishes its complete-case rows on the
             // score table; the trimmed common-support procedure has no table and
             // binds the rows its preparation retained.
@@ -1811,11 +1811,11 @@ fn contract_payloads(
                     .map_err(|err| io_err(&err))?,
             );
         }
-        if let Some(operation) = prepared.checked_nested_counterfactual_operation() {
+        if let Some(operation) = prepared.execution().nested_counterfactual() {
             data_snapshot.nested_counterfactual_fit =
                 Some(nested_counterfactual_fit_wire(tabular, operation)?);
         }
-        if let Some(operation) = prepared.checked_linear_operation() {
+        if let Some(operation) = prepared.execution().linear_operation() {
             data_snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
         }
     }
@@ -2038,7 +2038,7 @@ fn compile_with_payloads(
             resolved_estimator.as_deref(),
             prepared
                 .filter(|prepared| study.query == *prepared.query())
-                .map_or(CheckedProgramBinding::None, PreparedStudy::checked_program_binding),
+                .map_or(CheckedProgramBinding::None, PreparedStudy::program_binding),
         )?),
     };
     let mut payloads = contract_payloads(program, study, prepared)?;
@@ -3311,7 +3311,8 @@ fn obligations_from_set(set: Option<&AssumptionSet>) -> Vec<ObligationRecord> {
         .collect()
 }
 
-fn assumption_label(assumption: &Assumption) -> String {
+/// Stable label of an assumption, as contracts and plan views write it.
+pub(crate) fn assumption_label(assumption: &Assumption) -> String {
     match assumption {
         Assumption::CausalMarkov => "causal_markov".into(),
         Assumption::Faithfulness => "faithfulness".into(),
@@ -4317,7 +4318,9 @@ mod frontdoor_artifact_tests {
         let wrong_binding = program_payloads_for(
             prepared.study(),
             Some(crate::EstimatorId::Aipw.as_str()),
-            CheckedProgramBinding::FrontDoor(prepared.checked_frontdoor_linear().unwrap()),
+            CheckedProgramBinding::FrontDoor(
+                &prepared.execution().frontdoor_linear().unwrap().preparation,
+            ),
         );
         assert!(matches!(wrong_binding, Err(CausalError::Compile { .. })));
         let result = prepared.estimate(&data, &context).unwrap();

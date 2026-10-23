@@ -1,6 +1,7 @@
 //! Builder-independent checked GCM counterfactual lifecycle.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CounterfactualQuery, ExecutionContext, Intervention, Value, VariableId,
@@ -34,7 +35,9 @@ fn checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portabl
         .unwrap();
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
-        let plan = prepared.checked_counterfactual_operation().expect("retained checked plan");
+        let RetainedOperation::Counterfactual(plan) = prepared.retained_operation() else {
+            panic!("retained checked plan")
+        };
         assert_eq!(plan.query(), &query);
         assert_eq!(plan.graph().node_count(), graph.node_count());
         let result = prepared.estimate(&data, &ctx).unwrap();

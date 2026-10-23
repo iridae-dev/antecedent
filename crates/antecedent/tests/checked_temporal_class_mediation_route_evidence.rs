@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, MediationContrast,
@@ -208,9 +209,10 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                 let mut prepared = builder.prepare(&context).unwrap();
                 drop(builder);
 
-                let plan = prepared
-                    .checked_temporal_class_mediation_info()
-                    .expect("TemporalCpdag mediation must retain its checked operation");
+                let RetainedOperation::TemporalClassMediation(plan) = prepared.retained_operation()
+                else {
+                    panic!("TemporalCpdag mediation must retain its checked operation")
+                };
                 assert_eq!(plan.query, query, "{case}");
                 assert_theorem_targets(&plan, &query);
                 assert_eq!(plan.graph_class, antecedent::GraphClass::TemporalCpdag, "{case}");
@@ -265,11 +267,12 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                         < tolerance,
                     "{case}: intercept shift must not change the mediated contrast"
                 );
-                assert_eq!(
-                    prepared.checked_temporal_class_mediation_info().unwrap().proof_signature,
-                    plan.proof_signature,
-                    "{case}"
-                );
+                let RetainedOperation::TemporalClassMediation(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("{case}: temporal class mediation retained after refresh")
+                };
+                assert_eq!(retained.proof_signature, plan.proof_signature, "{case}");
 
                 let artifact = prepared
                     .encode_contracted_result(
@@ -429,9 +432,10 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                 let mut prepared = builder.prepare(&context).unwrap();
                 drop(builder);
 
-                let plan = prepared
-                    .checked_temporal_class_mediation_info()
-                    .expect("graph-posterior mediation must retain its checked operation");
+                let RetainedOperation::TemporalClassMediation(plan) = prepared.retained_operation()
+                else {
+                    panic!("graph-posterior mediation must retain its checked operation")
+                };
                 assert_eq!(plan.query, query, "{case}");
                 assert_theorem_targets(&plan, &query);
                 assert_eq!(plan.graph_class, graph_class, "{case}");
@@ -513,11 +517,12 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                         < pin.tolerance,
                     "{case}: intercept shift must not change the mediated contrast"
                 );
-                assert_eq!(
-                    prepared.checked_temporal_class_mediation_info().unwrap().proof_signature,
-                    plan.proof_signature,
-                    "{case}"
-                );
+                let RetainedOperation::TemporalClassMediation(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("{case}: temporal class mediation retained after refresh")
+                };
+                assert_eq!(retained.proof_signature, plan.proof_signature, "{case}");
 
                 let artifact = prepared
                     .encode_contracted_result(
@@ -557,7 +562,9 @@ fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structu
         .unwrap()
         .prepare(&context)
         .unwrap();
-    let plan = prepared.checked_temporal_class_mediation_info().unwrap();
+    let RetainedOperation::TemporalClassMediation(plan) = prepared.retained_operation() else {
+        panic!("temporal class mediation retained")
+    };
     assert!(prepared.refresh_series(confounded_series(0.0, true), &context).is_err());
     let other = Study::series(initial.clone())
         .graph(changed_cpdag())
@@ -568,9 +575,11 @@ fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structu
         .unwrap()
         .prepare(&context)
         .unwrap();
+    let RetainedOperation::TemporalClassMediation(other_plan) = other.retained_operation() else {
+        panic!("temporal class mediation retained")
+    };
     assert_ne!(
-        plan.proof_signature,
-        other.checked_temporal_class_mediation_info().unwrap().proof_signature,
+        plan.proof_signature, other_plan.proof_signature,
         "the retained proof identity must include disconnected lagged nodes"
     );
     let other_result = other.estimate_series(&initial, &context).unwrap();
@@ -592,7 +601,9 @@ fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structu
             .unwrap()
             .prepare(&context)
             .unwrap();
-        let plan = prepared.checked_temporal_class_mediation_info().unwrap();
+        let RetainedOperation::TemporalClassMediation(plan) = prepared.retained_operation() else {
+            panic!("{kind:?}: temporal class mediation retained")
+        };
         assert!(prepared.refresh_series(posterior_series(0.0, true), &context).is_err());
         let other = Study::series(series.clone())
             .graph_posterior(changed_posterior(&pin, kind))
@@ -603,9 +614,12 @@ fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structu
             .unwrap()
             .prepare(&context)
             .unwrap();
+        let RetainedOperation::TemporalClassMediation(other_plan) = other.retained_operation()
+        else {
+            panic!("{kind:?}: temporal class mediation retained")
+        };
         assert_ne!(
-            plan.proof_signature,
-            other.checked_temporal_class_mediation_info().unwrap().proof_signature,
+            plan.proof_signature, other_plan.proof_signature,
             "{kind:?}: the retained proof identity must include the frozen posterior weights"
         );
     }
@@ -621,9 +635,8 @@ fn checked_temporal_class_mediation_refuses_schema_changes_and_binds_its_structu
         .build()
         .unwrap();
     assert!(multi.run(&context).is_err());
-    assert!(
-        multi
-            .prepare(&context)
-            .map_or(true, |prepared| prepared.checked_temporal_class_mediation_info().is_none())
-    );
+    assert!(multi.prepare(&context).map_or(true, |prepared| !matches!(
+        prepared.retained_operation(),
+        RetainedOperation::TemporalClassMediation(..)
+    )));
 }

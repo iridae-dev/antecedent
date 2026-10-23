@@ -65,7 +65,7 @@ Logical compile writes a route record. It does not build an
 
 ## Compile
 
-`Study::route_input` (`crates/antecedent/src/analysis/execute/route_input.rs`) admits one `RouteInput` cell. `Study::compile_logical` and `Study::compile` (`crates/antecedent/src/analysis/execute/compile.rs`) dispatch that cell. A graph posterior has no single logical plan: `compile_logical` returns `CausalError::Unsupported`; `compile` calls `compile_graph_posterior`.
+`Study::route_input` (`crates/antecedent/src/analysis/execute/route_input.rs`) admits one `RouteInput` cell. `Study::compile_logical` and `Study::compile` (`crates/antecedent/src/analysis/execute/compile.rs`) dispatch that cell. A graph posterior has no single structure: `compile_logical` returns `CausalError::Unsupported` and `compile` calls `compile_graph_posterior`. Its single logical plan is the mixture section of its [plan view](#the-plan-view).
 
 | Type or function | Path | Layer | Crate | Notes |
 | --- | --- | --- | --- | --- |
@@ -93,18 +93,20 @@ Logical compile writes a route record. It does not build an
 | `PreparedStudy::retarget` | `crates/antecedent/src/analysis/prepared/retarget.rs` | 1 | `antecedent` | Exists today. Row-weight population on a prepared score table. Identification is unchanged. |
 | `PreparedStudy::refute` | `crates/antecedent/src/analysis/prepared/lifecycle.rs` | 4 | `antecedent` | Exists today. Same frozen estimand. `CausalQuery::AverageEffect` only. |
 | `PreparedStudy::contract` | `crates/antecedent/src/analysis/contract.rs` | 6 | `antecedent` | Exists today. Builds `CausalContract` from cached identification products. |
-| `Study::inspect` | `crates/antecedent/src/analysis/contract.rs` | 1 | `antecedent` | Exists today. Cheap structural inspection. Identification slot and program identity are absent. |
+| `Study::inspect` | `crates/antecedent/src/analysis/contract.rs` | 1 | `antecedent` | Exists today. Cheap structural inspection. Identification slot and program identity are absent. It does not identify (`compiler.inspect_does_not_identify`); the [plan view](#the-plan-view) is where identification is shown. |
 | `CachedStaticIdentification`, `CachedTemporalIdentification`, `CachedTemporalHorizonIdentification` | `crates/antecedent/src/analysis/prepared/cached.rs` | 2 | `antecedent` | Exists today. Public cached products. |
 | `CachedPagIdentification`, `CachedCpdagIdentification`, `CachedTemporalClassIdentification` | `crates/antecedent/src/analysis/prepared/cached.rs` | 2 | `antecedent` | Exists today. Crate-private class caches. |
-| `CachedGraphPosteriorIdentification`, `CachedGraphPosteriorAtomIdentification`, `CachedClassPosteriorAtomIdentification`, `CachedClassPosteriorCase` | `crates/antecedent/src/analysis/identification_cache/graph_posterior.rs` | 2 | `antecedent` | Exists today. Per-atom identification. Not one logical plan. |
+| `CachedGraphPosteriorIdentification`, `CachedGraphPosteriorAtomIdentification`, `CachedClassPosteriorAtomIdentification`, `CachedClassPosteriorCase` | `crates/antecedent/src/analysis/identification_cache/graph_posterior.rs` | 2 | `antecedent` | Exists today. Per-atom identification. The plan view's `MixtureView` reads it as one logical plan. |
 | `CachedDbnPosteriorIdentification`, `CachedDbnPosteriorAtomIdentification` | `crates/antecedent/src/analysis/identification_cache/dbn.rs` | 2 | `antecedent` | Exists today. |
 | `CachedTemporalClassPosteriorIdentification`, `CachedTemporalClassPosteriorAtomIdentification` | `crates/antecedent/src/analysis/identification_cache/temporal_class.rs` | 2 | `antecedent` | Exists today. |
 | `PreparedExecution`, `ExecutionKind` | `crates/antecedent/src/analysis/prepared/execution.rs` | 3 | `antecedent` | Exists today. Sealed operation or `OrdinaryDispatch`. |
 | `CheckedProgramBinding` | `crates/antecedent/src/analysis/prepared/execution.rs` | 2 | `antecedent` | Exists today. One of AIPW, front-door, IV, linear, `FunctionalProgram`, functional-response members, distribution program, or nested counterfactual. |
+| `RetainedOperation`, `PreparedStudy::retained_operation` | `crates/antecedent/src/analysis/prepared/info.rs` | 3 | `antecedent` | Exists today. One variant per `PreparedExecution` variant, matched exhaustively: the operation's public inspection record, the checked lowering or functional program it retains, or its name. It replaces the per-route `checked_*` and `has_checked_*_operation` accessors. |
+| `PlanView`, `PreparedStudy::plan_view`, `Study::plan_view`, `PhysicalExecutionPlan::plan_view` | `crates/antecedent/src/planner/plan_view.rs` | 1 to 6 | `antecedent` | Exists today. See [The plan view](#the-plan-view). |
 
 `PreparedExecution` variants, all in `crates/antecedent/src/analysis/prepared/execution.rs`, crate `antecedent`, layer 3 (each retains a checked operation and calls estimators on the estimate click): `FunctionalEffect`, `PathSpecificEffect`, `AdmgResponseCurve`, `AdmgGraphPosteriorResponse`, `CheckedLinear`, `CheckedGlmAdjustment`, `CheckedRd`, `CheckedPropensity`, `CheckedConditional`, `BayesianConditional`, `GraphPosteriorEffect`, `ClassGraphPosteriorEffect`, `BayesianGraphPosteriorAte`, `StaticClassEffect`, `CheckedAipw`, `Counterfactual`, `NestedCounterfactual`, `DerivativeResponse`, `CellAipwResponse`, `StaticDagResponse`, `StaticMediation`, `BayesianStaticMediation`, `Attribution`, `TemporalDagResponse`, `TemporalDagEffect`, `BayesianTemporalDagEffect`, `TemporalMediation`, `Interference`, `Randomized`, `PolicyValue`, `ContinuousDoseResponse`, `PanelDid`, `SyntheticControl`, `LocalPolynomialRatio`, `Survival`, `LongitudinalRegime`, `TemporalClassEffect`, `Distribution`, `BayesianGcomp`, `BayesianBasisAte`, `BayesianBasisCate`, `BayesianRobustAte`, `StaticResponseCurve`, `FrontDoorLinear`, `Iv`, `UnknownTieredAverage`, `BayesianClassConditional`, `TemporalClassResponse`, `TemporalGraphPosteriorResponse`, `TemporalClassMediation`, `BayesianTemporalClassEffect`, `TemporalGraphPosteriorEffect`, `StaticClassResponse`, `GraphPosteriorResponse`, `BayesianSpecialist`, `TransportTrial`.
 
-Python `PreparedAnalysis` (`python/antecedent/estimation.py`) is the same handle: `inspect`, `inspect_plan`, `estimate`, `retarget`, `refresh`, `refute`.
+Python `PreparedAnalysis` (`python/antecedent/estimation.py`) is the same handle: `inspect`, `inspect_plan`, `plan_view`, `estimate`, `retarget`, `refresh`, `refute`.
 
 ## Scientific problem
 
@@ -202,6 +204,30 @@ Exists today in `antecedent-core` unless noted. These types are the problem stat
 | 6. Claim | `ClaimDemand` | The uncertainty reading and claim kind the execution must publish. The measured receipt stays on the result. |
 
 Preparation installs a retained identification instead of identifying again. Every executor (static, class, mixed-graph, temporal and temporal-class, structural and attribution, transport, design and graph-posterior) takes its identification in one order: the prepared cache, then the product the plan's lowered program retained, then a fresh identification. A retained product is taken only when the study's retention key matches the one compile recorded. The key digests every input identification reads: the query (with its effect modifiers), the data modality and schema variables, the structure of any graph class or the atoms and weights of a graph posterior, the tier background, the completion cap and class prior, the selection diagram and transport trial, the identifier, estimator and discontinuity design, and the inference mode. A reused product that did not come from a prepared handle publishes the diagnostics of a fresh identification (no `exec.identify.cached`). Compile reports `identify.compute` once when it retains a product, so a one-shot run reports exactly one identification. `scripts/gate_checked_execution.py` fails on a licensed route without a registered `lowering` cell, a surviving partial lowering, library code that re-enters the public builder, or an `ExecutionContext` literal outside `antecedent-core`.
+
+## The plan view
+
+`PlanView` (`crates/antecedent/src/planner/plan_view.rs`) is one view over every layer of a lowered program. It is built from the program, before execution. Building it does not identify, fit, scan rows, enumerate graphs, simulate or lease from the admission pool. Its identity is the lowered program's identity. Every route a view describes is a `PlanRoute`. The route table in `registry.rs` generates `PlanRoute` and each cell's `RouteFamily` from the same rows that dispatch the lowering. The view also matches every `RouteFamily` exhaustively. So a route cell, or a family, added without a view does not compile. The guide is [Plan view](../guides/plan-view.md).
+
+| Stage | Entry | Work done | Shown |
+| --- | --- | --- | --- |
+| Preflight | `Study::inspect`, `PreparedStudy::inspect` | None beyond the structural record; no identification. | No view. Identification and uncertainty slots stay `Unavailable` (`compiler.inspect_does_not_identify`). |
+| Compiled | `Study::plan_view(ctx)` | `Study::compile`. Identification retained with the program runs once, and a linear adjustment quotes its design width. No fit, sample, simulation or estimate. | Every layer, the physical record, the support status and the compile context's kernel policy. A graph posterior's atoms come from the study's posterior. |
+| Compiled | `PhysicalExecutionPlan::plan_view()` | None. | Every layer and the physical record. No support status, and no graph-posterior atom kind. |
+| Prepared | `PreparedStudy::plan_view()` | None. | The compiled view, the identification preparation installed (`installed_at_prepare`), and the name of the sealed operation it retained. `retained_operation()` returns that operation as a typed `RetainedOperation`. |
+| Prepared | `plan_view()` on a cyclic family handle; `PlanningPlan::plan_view()` | None. | Every layer of the cyclic or planning program. There is no physical record. |
+
+| View section | Reads | Notes |
+| --- | --- | --- |
+| `scientific()` | Layer 1 | Target, plan id, modality, graph class, query variables. |
+| `identification()` | Layer 2, or what preparation installed | Kind (`retained`, `deferred`, `per_execution`, `non_graphical`) with its reason; the checked product (outcome, claim class, estimands, assumptions, required factors, unresolved obligations); one `RetainedProductView` per installed product (status, estimands with adjustment sets, assumptions, horizons, completions, masses, transport outcome); the retention key. |
+| `statistical()` | Layer 3 | `StatisticalProgram` itself. |
+| `evidence()` | Layer 4 | `EvidenceDecisionProgram` itself: sources, composition, decision with carrier and EVSI, planning request. |
+| `physical()` | Layer 5 and the physical record | Operators and their summed scratch, retained and output byte estimates; the quoted design width or the not-design-based reason; the materializations, kernels, batch, workspace, peak and copy bytes, task schedule and workers; the kernel policy. |
+| `uncertainty()`, `claim()` | Layers 3, 4 and 6 | Uncertainty reading, claim kind, realization, resampling and posterior plans, the decision's evidence-port request. |
+| `support()` | Layer 1 and the study | Coordinate, licensed flag, cell status. |
+| `mixture()` | Layer 2 and 4 of a graph-posterior program | One atom per distinct structure: key, weight, samples, identified flag, status, estimand, class completions and envelope mass; total, identified and unidentified mass; the atom mixture composition. This is the single logical plan of a graph-posterior analysis. |
+| `to_json()` | All of the above | Python `prepared.plan_view()` decodes it into `ProgramPlanView` with variables named. |
 
 ## Remaining gaps
 

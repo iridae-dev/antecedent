@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, Intervention, ResponseFunctional, ResponseIdentification, ResponseQuery,
@@ -93,9 +94,9 @@ fn accepted_and_explicit_dag_cell_aipw_body() {
             let one_shot = builder.run(&context).unwrap();
             let mut prepared = builder.prepare(&context).unwrap();
             drop(builder);
-            let plan = prepared
-                .checked_cell_aipw_response_info()
-                .expect("preparation retains the checked cell AIPW route");
+            let RetainedOperation::CellAipwResponse(plan) = prepared.retained_operation() else {
+                panic!("preparation retains the checked cell AIPW route")
+            };
             assert_eq!(plan.estimator, EstimatorId::CellAipw);
             assert_eq!(plan.requested_arm, 3);
             assert_eq!(
@@ -125,7 +126,10 @@ fn accepted_and_explicit_dag_cell_aipw_body() {
                 .retarget(&vec![1.0; refreshed_scores.n_rows], &[], &context)
                 .expect("refresh must rebuild the scores used for retargeting");
             assert!((result_value(&refreshed_retargeted) - result_value(&refreshed)).abs() < 1e-12);
-            assert!(prepared.checked_cell_aipw_response_info().is_some());
+            assert!(matches!(
+                prepared.retained_operation(),
+                RetainedOperation::CellAipwResponse(..)
+            ));
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "checked-cell-aipw", &context)
                 .unwrap();
@@ -146,7 +150,7 @@ fn checked_cell_aipw_quantile_is_sealed_and_executes() {
     let context = antecedent_core::ExecutionContext::for_tests(822);
     let mut prepared = study.prepare(&context).unwrap();
     drop(study);
-    assert!(prepared.checked_cell_aipw_response_info().is_some());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::CellAipwResponse(..)));
     assert!(prepared.score_table().is_some());
 
     let result = prepared.estimate(&data(0.0), &context).unwrap();

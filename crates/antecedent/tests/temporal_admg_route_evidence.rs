@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     RefuteSuite, Study, SupportCell, TransportTrialSpec,
@@ -181,9 +182,11 @@ fn temporal_admg_average_effect_explicit_and_accepted() {
                 drop(builder);
                 drop(study);
                 assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
-                let program = prepared
-                    .checked_functional_effect_program()
-                    .unwrap_or_else(|| panic!("{coordinate} omitted the functional program"));
+                let (RetainedOperation::FunctionalEffect(program)
+                | RetainedOperation::PathSpecificEffect(program)) = prepared.retained_operation()
+                else {
+                    panic!("{coordinate} omitted the functional program")
+                };
                 assert_eq!(program.mapping().source, program.mapping().executable);
                 assert_eq!(
                     prepared.plan().logical.record.identifier.as_deref(),
@@ -236,9 +239,10 @@ fn temporal_admg_average_effect_graph_posterior() {
             let mut prepared =
                 builder.prepare(&ctx).unwrap_or_else(|error| panic!("{coordinate}: {error}"));
             drop(builder);
-            let plan = prepared
-                .checked_graph_posterior_effect_info()
-                .unwrap_or_else(|| panic!("{coordinate} omitted the posterior plan"));
+            let RetainedOperation::GraphPosteriorEffect(plan) = prepared.retained_operation()
+            else {
+                panic!("{coordinate} omitted the posterior plan")
+            };
             assert_eq!(plan.estimator.as_str(), "functional.effect");
             assert_eq!(plan.validation, suite_of(validation));
             let result = prepared
@@ -326,9 +330,11 @@ fn temporal_admg_intervention_response_explicit_and_accepted() {
                         Some(CellStatus::Licensed),
                         "{coordinate}"
                     );
-                    let members = prepared
-                        .checked_functional_effect_response_members()
-                        .unwrap_or_else(|| panic!("{coordinate} omitted response members"));
+                    let RetainedOperation::AdmgResponseCurve(members) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("{coordinate} omitted response members")
+                    };
                     assert_eq!(
                         members[0].program().mapping().source,
                         members[0].program().mapping().executable
@@ -391,8 +397,14 @@ fn temporal_admg_intervention_response_graph_posterior() {
             let mut prepared =
                 builder.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
             drop(builder);
-            assert!(prepared.has_checked_admg_graph_posterior_response_operation());
-            let plan = prepared.checked_admg_graph_posterior_response_info().unwrap();
+            assert!(matches!(
+                prepared.retained_operation(),
+                RetainedOperation::AdmgGraphPosteriorResponse(..)
+            ));
+            let RetainedOperation::AdmgGraphPosteriorResponse(plan) = prepared.retained_operation()
+            else {
+                panic!("{coordinate} omitted the ADMG graph-posterior response plan")
+            };
             assert_eq!(plan.validation, suite_of(validation));
             let result =
                 prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
@@ -460,7 +472,10 @@ fn temporal_admg_response_curve_explicit_and_accepted() {
             drop(builder);
             drop(study);
             assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
-            assert!(prepared.checked_functional_effect_response_members().is_some());
+            assert!(matches!(
+                prepared.retained_operation(),
+                RetainedOperation::AdmgResponseCurve(..)
+            ));
             assert_eq!(
                 prepared.plan().logical.record.estimator.as_deref(),
                 Some("functional.effect")
@@ -504,7 +519,10 @@ fn temporal_admg_response_curve_graph_posterior() {
         let ctx = ExecutionContext::for_tests(11_016);
         let mut prepared = builder.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
         drop(builder);
-        let plan = prepared.checked_admg_graph_posterior_response_info().unwrap();
+        let RetainedOperation::AdmgGraphPosteriorResponse(plan) = prepared.retained_operation()
+        else {
+            panic!("{coordinate} omitted the ADMG graph-posterior response plan")
+        };
         assert_eq!(plan.validation, RefuteSuite::None);
         let result = prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
         for (actual, truth) in curve_means(&result).iter().zip([0.314, 0.596]) {
@@ -560,8 +578,9 @@ fn temporal_admg_interventional_distribution_explicit_and_accepted() {
                 drop(builder);
                 drop(study);
                 assert_eq!(prepared.support_status(), Some(CellStatus::Licensed), "{coordinate}");
-                let program =
-                    prepared.checked_distribution_program().expect("distribution program");
+                let RetainedOperation::Distribution(program) = prepared.retained_operation() else {
+                    panic!("distribution program")
+                };
                 assert_eq!(program.mapping().source, program.mapping().executable);
                 let result =
                     prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
@@ -638,7 +657,9 @@ fn temporal_admg_transport_explicit() {
         let ctx = ExecutionContext::for_tests(11_018);
         let prepared = builder.prepare(&ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
         drop(builder);
-        let plan = prepared.checked_transport_trial_info().expect("transport plan");
+        let RetainedOperation::TransportTrial(plan) = prepared.retained_operation() else {
+            panic!("transport plan")
+        };
         assert_eq!(plan.identifier, IdentifierId::TransportSid);
         let result = prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
         if bayesian {

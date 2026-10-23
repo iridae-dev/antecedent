@@ -377,6 +377,27 @@ fn every_graph_posterior_cell_lowers_a_complete_program_that_execution_stamps() 
             let name = RouteCell::GraphPosterior(cell).as_str();
             let plan = study.compile(&ctx).unwrap();
             let lowered = plan.lowered().expect("compile attaches a lowered program");
+            let view = crate::planner::plan_view::checks::assert_view_agrees(name, &plan);
+            assert!(view.mixture().is_some(), "{name}: a graph-posterior view states its mixture");
+            let with_study = study.plan_view(&ctx).unwrap();
+            assert_eq!(with_study.identity(), view.identity(), "{name}: one program");
+            let mixture = with_study.mixture().expect("a graph-posterior view states its mixture");
+            let posterior = study.graph_posterior.as_ref().expect("a graph-posterior study");
+            assert_eq!(mixture.atom_kind(), Some(posterior.atom_kind.as_str()), "{name}");
+            assert!(!mixture.atoms().is_empty(), "{name}: the mixture names its atoms");
+            if mixture.identification_retained() {
+                let identified = mixture.identified_mass().unwrap();
+                let unidentified = mixture.unidentified_mass().unwrap();
+                assert!(
+                    (identified + unidentified - mixture.total_weight()).abs() < 1e-9,
+                    "{name}: the mixture keeps every atom's mass"
+                );
+            } else {
+                assert!(
+                    (mixture.total_weight() - posterior.weights.iter().sum::<f64>()).abs() < 1e-9,
+                    "{name}: the mixture carries the posterior's whole weight"
+                );
+            }
             assert_eq!(lowered.route(), name);
             assert_eq!(lowered.depth(), LoweringDepth::Complete, "{name} lowers completely");
             match (cell, lowered.scientific().target()) {

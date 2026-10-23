@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, ResponseFunctional, ResponseIdentification,
@@ -116,9 +117,9 @@ fn codetermined_joint_cell_aipw_response_body() {
     let mut prepared = builder.prepare(&context).unwrap();
     drop(builder);
 
-    let plan = prepared
-        .checked_cell_aipw_response_info()
-        .expect("preparation retains the checked CoDetermined joint cell route");
+    let RetainedOperation::CellAipwResponse(plan) = prepared.retained_operation() else {
+        panic!("preparation retains the checked CoDetermined joint cell route")
+    };
     assert_eq!(plan.query, query());
     assert_eq!(plan.identifier, IdentifierId::GeneralizedAdjustment);
     assert_eq!(plan.estimator, EstimatorId::CellAipw);
@@ -148,7 +149,9 @@ fn codetermined_joint_cell_aipw_response_body() {
 
     let refreshed = prepared.refresh(data(0.4), &context).unwrap();
     assert!((value(&refreshed) - truth(0.4)).abs() < 0.05, "refreshed {}", value(&refreshed));
-    let retained = prepared.checked_cell_aipw_response_info().unwrap();
+    let RetainedOperation::CellAipwResponse(retained) = prepared.retained_operation() else {
+        panic!("refresh retains the checked CoDetermined joint cell route")
+    };
     assert_eq!(retained.within_tier, Some(WithinTier::CoDetermined));
     assert_eq!(retained.adjustment_set, plan.adjustment_set);
 

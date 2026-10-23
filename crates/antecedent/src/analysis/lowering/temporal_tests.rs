@@ -227,6 +227,7 @@ fn every_temporal_cell_lowers_completely() {
         let study = builder.build().unwrap_or_else(|error| panic!("{name}: {error}"));
         let plan = study.compile(&ctx()).unwrap_or_else(|error| panic!("{name}: {error}"));
         let program = plan.lowered().expect("compile attaches a lowered program");
+        crate::planner::plan_view::checks::assert_view_agrees(name, &plan);
         assert_eq!(program.route(), name);
         assert_eq!(program.depth(), LoweringDepth::Complete, "{name}");
         assert!(program.claim().kind().is_some(), "{name} states its claim");

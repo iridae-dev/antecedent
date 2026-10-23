@@ -6,6 +6,7 @@ mod binding;
 mod logical;
 pub mod lowered;
 mod plan;
+pub mod plan_view;
 pub mod statistical;
 
 pub(crate) use binding::{PlanBinding, RouteDefaults};
@@ -25,6 +26,7 @@ pub(crate) use lowered::{
     linear_gaussian_scientific_problem,
 };
 pub use plan::{LogicalAnalysisPlan, PhysicalExecutionPlan, reject_dag_only_on_pag};
+pub use plan_view::{PlanRoute, PlanStage, PlanView, RouteFamily};
 
 #[cfg(test)]
 mod tests;

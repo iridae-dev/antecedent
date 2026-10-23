@@ -7,6 +7,7 @@
 #[path = "fixtures_common/mod.rs"]
 mod common;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, TemporalEffectQuery, TemporalPolicy, VariableId,
@@ -219,9 +220,11 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
 
-                let plan = prepared
-                    .checked_temporal_graph_posterior_effect_info()
-                    .expect("temporal graph-posterior effect must retain its execution plan");
+                let RetainedOperation::TemporalGraphPosteriorEffect(plan) =
+                    prepared.retained_operation()
+                else {
+                    panic!("temporal graph-posterior effect must retain its execution plan")
+                };
                 assert_eq!(plan.query, route.query);
                 assert_eq!(plan.atom_kind, kind);
                 assert_eq!(plan.identifier.as_str(), "temporal.backdoor.unfolded");
@@ -279,10 +282,12 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                     "refreshed {refreshed_estimate} vs {}",
                     route.truth
                 );
-                assert_eq!(
-                    prepared.checked_temporal_graph_posterior_effect_info().unwrap().query,
-                    route.query
-                );
+                let RetainedOperation::TemporalGraphPosteriorEffect(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("temporal graph-posterior effect must retain its execution plan")
+                };
+                assert_eq!(retained.query, route.query);
                 let narrowed = TimeSeriesData::from_f64_columns(
                     [("t", &[0.0, 1.0, 0.0, 1.0][..]), ("y", &[0.0, 1.0, 1.0, 0.0][..])],
                     1,
@@ -292,10 +297,12 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                     prepared.refresh_series(narrowed, &ctx).is_err(),
                     "schema-changed data must be refused"
                 );
-                assert_eq!(
-                    prepared.checked_temporal_graph_posterior_effect_info().unwrap().query,
-                    route.query
-                );
+                let RetainedOperation::TemporalGraphPosteriorEffect(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("temporal graph-posterior effect must retain its execution plan")
+                };
+                assert_eq!(retained.query, route.query);
 
                 let artifact = prepared
                     .encode_contracted_result(

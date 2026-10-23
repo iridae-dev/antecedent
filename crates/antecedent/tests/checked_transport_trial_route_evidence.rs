@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
     TransportTrialSpec,
@@ -104,7 +105,9 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
         } else {
             EstimatorId::TransportTrialIpw
         };
-        let plan = prepared.checked_transport_trial_info().expect("retained transport plan");
+        let RetainedOperation::TransportTrial(plan) = prepared.retained_operation() else {
+            panic!("retained transport plan")
+        };
         assert_eq!(plan.query, query());
         assert_eq!(plan.identifier, IdentifierId::TransportSid);
         assert_eq!(plan.estimator, expected_estimator);
@@ -170,7 +173,7 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
         if !bayesian {
             assert!((refreshed.transport().unwrap().ipw - ipw).abs() <= ipw_tolerance);
         }
-        assert!(prepared.has_checked_transport_trial_operation());
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::TransportTrial(..)));
         assert!(prepared.refresh(widened(), &ctx).is_err());
     }
 }

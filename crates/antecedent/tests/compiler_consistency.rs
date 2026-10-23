@@ -6,6 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     BayesianConfig, CausalError, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
 };
@@ -37,13 +38,15 @@ fn checked_adjustment_executes_after_builder_discard_and_refresh() {
     drop(builder);
     drop(study);
 
-    let plan = prepared.checked_linear_adjustment().expect("checked lowering retained");
+    let RetainedOperation::CheckedLinear(plan) = prepared.retained_operation() else {
+        panic!("checked lowering retained")
+    };
     assert_eq!(plan.source_functional(), plan.program().mapping().source);
     assert_eq!(plan.executable_functional(), plan.program().mapping().executable);
     assert_eq!(plan.lowering().population, antecedent_core::TargetPopulation::AllObserved);
     let first = prepared.estimate(&data, &ctx).unwrap();
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-    assert!(prepared.checked_linear_adjustment().is_some());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::CheckedLinear(..)));
     let second_refresh = prepared.refresh(data, &ctx).unwrap();
     assert!((first.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2);
     assert!(
@@ -79,7 +82,9 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
     drop(aipw_builder);
     drop(study);
 
-    let lowering = prepared.checked_aipw_ate().expect("checked AIPW lowering retained");
+    let RetainedOperation::CheckedAipw(lowering) = prepared.retained_operation() else {
+        panic!("checked AIPW lowering retained")
+    };
     assert_eq!(lowering.program().mapping().source, lowering.target().functional);
     assert_eq!(lowering.lowering().population, antecedent_core::TargetPopulation::AllObserved);
     assert_eq!(lowering.lowering().rows.len(), 512);
@@ -91,7 +96,10 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
             .abs()
             < 1e-10
     );
-    assert_eq!(prepared.checked_aipw_ate().unwrap().lowering().rows.len(), 512);
+    let RetainedOperation::CheckedAipw(retained) = prepared.retained_operation() else {
+        panic!("checked AIPW lowering retained after refresh")
+    };
+    assert_eq!(retained.lowering().rows.len(), 512);
     let bytes = prepared.encode_contracted_result(&refreshed, "checked-aipw", &ctx).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
     assert!(consumed.acceptance.accepts_as_verified_program());
@@ -108,7 +116,10 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
         .unwrap()
         .prepare(&ctx)
         .unwrap();
-    assert_eq!(prepared.checked_aipw_ate().unwrap().lowering().bootstrap_replicates, 8);
+    let RetainedOperation::CheckedAipw(retained) = prepared.retained_operation() else {
+        panic!("checked AIPW lowering retained")
+    };
+    assert_eq!(retained.lowering().bootstrap_replicates, 8);
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_some());
     let bytes = prepared.encode_contracted_result(&result, "checked-aipw-bootstrap", &ctx).unwrap();

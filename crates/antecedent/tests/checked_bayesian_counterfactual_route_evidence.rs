@@ -1,6 +1,7 @@
 //! Builder-independent checked Bayesian GCM counterfactual lifecycle.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CounterfactualQuery, ExecutionContext, IntervalMethod, Intervention, Value,
@@ -53,9 +54,9 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
 
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
-        let plan = prepared
-            .checked_counterfactual_operation()
-            .expect("prepared Bayesian route retains its typed operation");
+        let RetainedOperation::Counterfactual(plan) = prepared.retained_operation() else {
+            panic!("prepared Bayesian route retains its typed operation")
+        };
         assert_eq!(plan.query().outcomes.as_ref(), &[VariableId::from_raw(1)]);
         assert_eq!(plan.query().interventions.len(), 1);
         assert_eq!(plan.graph().edges().count(), 1);
@@ -84,7 +85,7 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
         let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
         let refreshed_mean = refreshed.counterfactual().unwrap().mean_ite;
         assert!((refreshed_mean - 2.5).abs() < 0.12, "mean_ite={refreshed_mean}");
-        assert!(prepared.checked_counterfactual_operation().is_some());
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::Counterfactual(..)));
 
         let artifact = prepared
             .encode_contracted_result(&refreshed, "checked-bayesian-counterfactual", &ctx)

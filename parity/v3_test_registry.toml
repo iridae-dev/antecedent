@@ -801,3 +801,24 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_lag_zero_average_effect.py"
 gates = ["inventory"]
+
+[[test]]
+id = "plan-view"
+crate = "antecedent"
+cargo_target = "plan_view"
+path = "crates/antecedent/tests/plan_view.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "plan-view-route-coverage"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/planner/plan_view.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "plan-view-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_plan_view.py"
+gates = ["inventory"]

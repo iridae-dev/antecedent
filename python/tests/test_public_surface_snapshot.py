@@ -575,13 +575,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "structure_source",
         # Posterior / response payload for prior transfer
         "export_artifact",
-        "checked_conditional_effect_info",
-        "checked_static_mediation_info",
-        "checked_bayesian_dag_ate_info",
-        "checked_static_dag_response_info",
-        "checked_graph_posterior_effect_info",
-        "checked_temporal_effect_info",
-        "checked_temporal_response_info",
+        # One view over every layer of the prepared program
+        "plan_view",
     },
     "LoadedResult": {
         "decoded_artifact",

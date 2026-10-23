@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
 };
@@ -154,9 +155,9 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
             let context = ExecutionContext::for_tests(803);
             let mut prepared =
                 builder.prepare(&context).unwrap_or_else(|error| panic!("{case}: {error:?}"));
-            let plan = prepared
-                .checked_derivative_response_info()
-                .unwrap_or_else(|| panic!("{case}: missing retained checked operation"));
+            let RetainedOperation::DerivativeResponse(plan) = prepared.retained_operation() else {
+                panic!("{case}: missing retained checked operation")
+            };
             assert_eq!(plan.query, query, "{case}");
             assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor, "{case}");
             assert_eq!(plan.estimator, *expected_estimator, "{case}");
@@ -376,9 +377,9 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
             let mut prepared = builder
                 .prepare(&context)
                 .unwrap_or_else(|error| panic!("{case} accepted={accepted}: {error:?}"));
-            let plan = prepared
-                .checked_derivative_response_info()
-                .unwrap_or_else(|| panic!("{case}: missing retained checked operation"));
+            let RetainedOperation::DerivativeResponse(plan) = prepared.retained_operation() else {
+                panic!("{case}: missing retained checked operation")
+            };
             assert_eq!(plan.query, query, "{case}");
             assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor, "{case}");
             assert_eq!(plan.estimator, *expected_estimator, "{case}");

@@ -1,7 +1,6 @@
 //! Shared-plan recalculation of checked IV, sharp RD and linear front-door effects.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::PreparedStudy;
 use super::recalc_common::{
     Fields, dag_from_edges, float_bytes, identity, literal, table_from_columns,
 };
@@ -9,6 +8,7 @@ use super::recalc_receipt::{
     Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder, UtilitySpec,
     decide,
 };
+use super::{PreparedStudy, RetainedOperation};
 use crate::{CausalError, IdentifierId, RefuteSuite, Study, StudyResult};
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
@@ -205,22 +205,22 @@ impl DesignRequest {
         Ok(builder.build()?)
     }
     fn check_design(&self, prepared: &PreparedStudy) -> Result<(), RecalcRunError> {
-        let matches = match self.model {
-            DesignModel::Iv2Sls { instrument } => prepared.checked_iv().is_some_and(|p| {
-                p.lowering().instruments.as_ref() == [VariableId::from_raw(instrument)]
-            }),
-            DesignModel::Rd { running_variable, cutoff, bandwidth } => {
-                prepared.checked_rd_preparation().is_some_and(|p| {
-                    p.lowering().running_variable.raw() == running_variable
-                        && p.lowering().cutoff.to_bits() == cutoff.to_bits()
-                        && p.lowering().bandwidth.to_bits() == bandwidth.to_bits()
-                })
+        let matches = match (&self.model, prepared.retained_operation()) {
+            (DesignModel::Iv2Sls { instrument }, RetainedOperation::Iv(p)) => {
+                p.lowering().instruments.as_ref() == [VariableId::from_raw(*instrument)]
             }
-            DesignModel::Frontdoor { mediator } => {
-                prepared.checked_frontdoor_linear().is_some_and(|p| {
-                    p.lowering().mediators.as_ref() == [VariableId::from_raw(mediator)]
-                })
+            (
+                DesignModel::Rd { running_variable, cutoff, bandwidth },
+                RetainedOperation::CheckedRd(p),
+            ) => {
+                p.lowering().running_variable.raw() == *running_variable
+                    && p.lowering().cutoff.to_bits() == cutoff.to_bits()
+                    && p.lowering().bandwidth.to_bits() == bandwidth.to_bits()
             }
+            (DesignModel::Frontdoor { mediator }, RetainedOperation::FrontDoorLinear(p)) => {
+                p.lowering().mediators.as_ref() == [VariableId::from_raw(*mediator)]
+            }
+            _ => false,
         };
         if matches { Ok(()) } else { Err(RecalcRunError::Request("recalc.design_not_checked")) }
     }

@@ -5,6 +5,7 @@
 #[path = "fixtures_common/mod.rs"]
 mod common;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, TemporalEffectQuery, TemporalPolicy, VariableId,
@@ -101,9 +102,11 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
                         .unwrap();
                     let mut prepared = builder.prepare(&ctx).unwrap();
                     drop(builder);
-                    let plan = prepared
-                        .checked_temporal_class_effect_info()
-                        .expect("class effect must retain its complete execution plan");
+                    let RetainedOperation::TemporalClassEffect(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("class effect must retain its complete execution plan")
+                    };
                     assert_eq!(plan.query, query);
                     assert_eq!(plan.graph_class.as_str(), graph_class(&graph));
                     assert_eq!(plan.identifier.as_str(), "generalized.adjustment");
@@ -165,7 +168,12 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
                         refreshed_envelope.lower[0] - 0.08 <= refreshed_truth
                             && refreshed_truth <= refreshed_envelope.upper[0] + 0.08
                     );
-                    assert_eq!(prepared.checked_temporal_class_effect_info().unwrap().query, query);
+                    let RetainedOperation::TemporalClassEffect(rebound) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("class effect must retain its plan after refresh")
+                    };
+                    assert_eq!(rebound.query, query);
                     let artifact = prepared
                         .encode_contracted_result(&refreshed, "checked-temporal-class-effect", &ctx)
                         .unwrap();

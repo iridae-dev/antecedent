@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, MediationContrast, MediationQuery, Value,
@@ -91,7 +92,9 @@ fn static_mediation_preserves_declared_nonbinary_levels_and_default_validation()
                 .unwrap();
             let mut prepared = builder.prepare(&context).unwrap();
             drop(builder);
-            let plan = prepared.checked_static_mediation_info().unwrap();
+            let RetainedOperation::StaticMediation(plan) = prepared.retained_operation() else {
+                panic!("sealed mediation plan")
+            };
             assert_eq!(plan.query, query);
             assert_scientific_mediation_target(&plan.scientific_target, &query);
             assert_eq!(plan.validation, RefuteSuite::PlaceboAndRcc);
@@ -114,7 +117,10 @@ fn static_mediation_preserves_declared_nonbinary_levels_and_default_validation()
                     .abs()
                     < 1e-10
             );
-            assert_eq!(prepared.checked_static_mediation_info().unwrap().query, query);
+            let RetainedOperation::StaticMediation(retained) = prepared.retained_operation() else {
+                panic!("sealed mediation plan after refresh")
+            };
+            assert_eq!(retained.query, query);
         }
     });
 }
@@ -220,7 +226,9 @@ fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_i
                 );
                 let mut prepared = builder.prepare(&context).unwrap();
                 drop(builder);
-                let plan = prepared.checked_static_mediation_info().expect("sealed mediation plan");
+                let RetainedOperation::StaticMediation(plan) = prepared.retained_operation() else {
+                    panic!("sealed mediation plan")
+                };
                 assert_eq!(plan.query, query);
                 assert_scientific_mediation_target(&plan.scientific_target, &query);
                 assert_eq!(plan.identifier.as_str(), "path_specific.natural");
@@ -260,7 +268,11 @@ fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_i
                 assert!(
                     (refreshed.estimate.as_effect().unwrap().ate - refreshed_truth).abs() < 1e-10
                 );
-                assert_eq!(prepared.checked_static_mediation_info().unwrap().query, query);
+                let RetainedOperation::StaticMediation(retained) = prepared.retained_operation()
+                else {
+                    panic!("sealed mediation plan after refresh")
+                };
+                assert_eq!(retained.query, query);
                 let artifact = prepared
                     .encode_contracted_result(&refreshed, "checked-mediation", &context)
                     .unwrap();
@@ -309,9 +321,11 @@ fn bayesian_static_mediation_plan_body() {
                 .build()
                 .unwrap();
                 let mut prepared = builder.prepare(&context).unwrap();
-                let plan = prepared
-                    .checked_bayesian_static_mediation_info()
-                    .expect("sealed Bayesian mediation plan");
+                let RetainedOperation::BayesianStaticMediation(plan) =
+                    prepared.retained_operation()
+                else {
+                    panic!("sealed Bayesian mediation plan")
+                };
                 assert_eq!(plan.query, query);
                 assert_eq!(plan.validation, suite);
                 assert_eq!(plan.identifier.as_str(), "path_specific.natural");
@@ -346,7 +360,12 @@ fn bayesian_static_mediation_plan_body() {
                         .abs()
                         < 1e-10
                 );
-                assert_eq!(prepared.checked_bayesian_static_mediation_info().unwrap().query, query);
+                let RetainedOperation::BayesianStaticMediation(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("sealed Bayesian mediation plan after refresh")
+                };
+                assert_eq!(retained.query, query);
                 let artifact = prepared
                     .encode_contracted_result(&refreshed, "checked-bayesian-mediation", &context)
                     .unwrap();

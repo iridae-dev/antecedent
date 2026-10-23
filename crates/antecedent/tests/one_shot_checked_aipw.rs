@@ -1,6 +1,7 @@
 //! One-shot AIPW uses its complete prepared operation on the licensed slice.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{EstimatorId, EstimatorSpec, RefuteSuite, Study};
 use antecedent_core::ExecutionContext;
 
@@ -70,7 +71,10 @@ fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise()
         // A trimming policy lowers to the common-support procedure and is
         // sealed like the untrimmed one ...
         let prepared = study.prepare(&ctx).unwrap();
-        let lowering = prepared.checked_aipw_ate().expect("trimmed AIPW is sealed").lowering();
+        let RetainedOperation::CheckedAipw(aipw) = prepared.retained_operation() else {
+            panic!("trimmed AIPW is sealed")
+        };
+        let lowering = aipw.lowering();
         assert_eq!(
             lowering.procedure,
             antecedent_estimate::CheckedAipwProcedure::TrimmedLogisticOls

@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
@@ -148,7 +149,9 @@ fn verify_frontdoor(accepted: bool, validation: &str) {
         Some("frontdoor.linear_two_stage"),
         "{coordinate}"
     );
-    let checked = prepared.checked_frontdoor_linear().expect("checked front-door plan");
+    let RetainedOperation::FrontDoorLinear(checked) = prepared.retained_operation() else {
+        panic!("checked front-door plan")
+    };
     assert_eq!(
         checked.lowering().procedure,
         antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::LinearPathProduct,
@@ -216,7 +219,9 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
         Some(estimator_name),
         "{coordinate}"
     );
-    let checked = prepared.checked_iv().expect("checked IV plan");
+    let RetainedOperation::Iv(checked) = prepared.retained_operation() else {
+        panic!("checked IV plan")
+    };
     assert_eq!(
         checked.lowering().procedure,
         if wald {

@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -226,9 +227,11 @@ fn static_class_responses_body() {
                     } else {
                         EstimatorId::ResponseInterventionGcomp
                     };
-                    let plan = prepared
-                        .checked_static_class_response_info()
-                        .unwrap_or_else(|| panic!("{label}: retained checked class response plan"));
+                    let RetainedOperation::StaticClassResponse(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("{label}: retained checked class response plan")
+                    };
                     assert_eq!(plan.query, query, "{label}");
                     assert_eq!(plan.graph_class, class, "{label}");
                     assert_eq!(plan.identifier, IdentifierId::GeneralizedAdjustment, "{label}");
@@ -360,7 +363,13 @@ fn static_class_responses_body() {
 
                     let refreshed = prepared.refresh(shifted.clone(), &context).unwrap();
                     assert_levels(&refreshed, 0.5, "refresh");
-                    assert!(prepared.checked_static_class_response_info().is_some(), "{label}");
+                    assert!(
+                        matches!(
+                            prepared.retained_operation(),
+                            RetainedOperation::StaticClassResponse(..)
+                        ),
+                        "{label}"
+                    );
 
                     let two_columns = TabularData::from_f64_columns([
                         ("t", vec![0.0; 8].as_slice()),

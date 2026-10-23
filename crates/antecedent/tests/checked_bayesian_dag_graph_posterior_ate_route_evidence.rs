@@ -1,6 +1,7 @@
 //! Builder independent evidence for Bayesian DAG graph-posterior ATE execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -77,9 +78,10 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
         let mut prepared = builder.prepare(&context).unwrap();
         drop(builder);
 
-        let plan = prepared
-            .checked_bayesian_graph_posterior_ate_info()
-            .expect("sealed Bayesian graph-posterior operation");
+        let RetainedOperation::BayesianGraphPosteriorAte(plan) = prepared.retained_operation()
+        else {
+            panic!("sealed Bayesian graph-posterior operation")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.estimator.as_str(), "bayesian.gcomp");
         assert_eq!(plan.validation, suite);
@@ -111,7 +113,10 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
                 .abs()
                 < 1e-10
         );
-        let retained = prepared.checked_bayesian_graph_posterior_ate_info().unwrap();
+        let RetainedOperation::BayesianGraphPosteriorAte(retained) = prepared.retained_operation()
+        else {
+            panic!("retained Bayesian graph-posterior operation")
+        };
         assert_eq!(retained.graph_keys, plan.graph_keys);
         assert_eq!(retained.weights, plan.weights);
 

@@ -18,6 +18,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::discovery::{BayesianDiscoverParams, DiscoverParams, StaticDiscoverParams};
 use antecedent::discovery_defaults::resolve_ci;
 use antecedent::planner::lowered::{LoweringDepth, ProblemTarget};
@@ -153,6 +154,11 @@ fn compiled(study: &Study, route: &str) -> CompiledExecution {
     assert_eq!(lowered.route(), route);
     assert_eq!(lowered.depth(), LoweringDepth::Complete);
     let identity = lowered.identity();
+    let view = study.plan_view(&ctx).unwrap();
+    assert_eq!(view.identity(), identity, "the plan view reads the lowered program");
+    assert_eq!(view.route().as_str(), route);
+    assert_eq!(view.statistical().identity(), lowered.statistical().identity());
+    assert_eq!(view.evidence(), lowered.evidence());
     let again = study.compile(&ctx).unwrap();
     assert_eq!(again.lowered_program_identity(), Some(identity), "stable identity");
     let execution = CompiledExecution::run(study, &ctx).unwrap();
@@ -520,7 +526,7 @@ fn mechanism_and_unit_change_run_on_the_retained_path() {
             .unwrap();
         let execution = compiled(&study, "GcmDag");
         assert!(
-            execution.prepared().checked_attribution_info().is_some(),
+            matches!(execution.prepared().retained_operation(), RetainedOperation::Attribution(_)),
             "mechanism-change detection is sealed on the retained path"
         );
         let direct = antecedent::gcm::mechanism_change_detection(
@@ -540,7 +546,10 @@ fn mechanism_and_unit_change_run_on_the_retained_path() {
             .build()
             .unwrap();
         let unit_execution = compiled(&unit_study, "GcmDag");
-        assert!(unit_execution.prepared().checked_attribution_info().is_some());
+        assert!(matches!(
+            execution.prepared().retained_operation(),
+            RetainedOperation::Attribution(_)
+        ));
         let direct_unit =
             antecedent::gcm::attribute_unit_change(&fitted.model, &data, &unit, &ctx()).unwrap();
         assert_eq!(

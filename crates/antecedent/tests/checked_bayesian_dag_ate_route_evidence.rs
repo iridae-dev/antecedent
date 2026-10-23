@@ -3,6 +3,7 @@
 
 #![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, StructureSource, Study,
 };
@@ -65,10 +66,12 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                 }
                 other => panic!("{coordinate}: support was not available: {other:?}"),
             }
-            let plan = prepared
-                .checked_bayesian_gcomp_operation()
-                .expect("retained Bayesian DAG operation");
-            assert_eq!(prepared.checked_bayesian_gcomp_validation(), Some(suite));
+            let RetainedOperation::BayesianGcomp { operation: plan, validation } =
+                prepared.retained_operation()
+            else {
+                panic!("retained Bayesian DAG operation")
+            };
+            assert_eq!(validation, suite);
             assert_eq!(plan.query(), &query);
             assert_eq!(plan.identification().average_effect(), Some(&query));
             assert!(
@@ -118,7 +121,11 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                 refreshed.estimate.as_effect().unwrap().ate.to_bits(),
                 result.estimate.as_effect().unwrap().ate.to_bits()
             );
-            assert_eq!(prepared.checked_bayesian_gcomp_operation().unwrap().query(), &query);
+            let RetainedOperation::BayesianGcomp { operation, .. } = prepared.retained_operation()
+            else {
+                panic!("retained Bayesian DAG operation after refresh")
+            };
+            assert_eq!(operation.query(), &query);
 
             let artifact = prepared
                 .encode_contracted_result(
@@ -176,7 +183,11 @@ fn bayesian_dag_ate_keeps_non_gaussian_likelihood_on_outcome_scale() {
             .unwrap();
         let prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
-        let plan = prepared.checked_bayesian_gcomp_operation().unwrap();
+        let RetainedOperation::BayesianGcomp { operation: plan, .. } =
+            prepared.retained_operation()
+        else {
+            panic!("retained Bayesian DAG operation")
+        };
         assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
         let result = prepared.estimate(&data, &ctx).unwrap();
         assert!(result.estimate.as_effect().unwrap().ate.is_finite());
@@ -216,7 +227,10 @@ fn bayesian_dag_ate_poisson_mean_contrast_uses_the_count_scale() {
         .unwrap();
     let prepared = builder.prepare(&ExecutionContext::for_tests(309)).unwrap();
     drop(builder);
-    let plan = prepared.checked_bayesian_gcomp_operation().unwrap();
+    let RetainedOperation::BayesianGcomp { operation: plan, .. } = prepared.retained_operation()
+    else {
+        panic!("retained Bayesian DAG operation")
+    };
     assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
     let result = prepared.estimate(&data, &ExecutionContext::for_tests(309)).unwrap();
     assert!(
@@ -241,10 +255,10 @@ fn bayesian_dag_ate_hmc_draw_floor_and_population_refusal_keep_scope_visible() {
         .unwrap();
     let prepared = builder.prepare(&ctx).unwrap();
     drop(builder);
-    assert_eq!(
-        prepared.checked_bayesian_gcomp_operation().unwrap().inference(),
-        &InferenceMode::Bayesian(config)
-    );
+    let RetainedOperation::BayesianGcomp { operation, .. } = prepared.retained_operation() else {
+        panic!("retained Bayesian DAG operation")
+    };
+    assert_eq!(operation.inference(), &InferenceMode::Bayesian(config));
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(), "hmc");
     assert!(result.posterior.as_ref().unwrap().draws.n_draws >= 3_000);

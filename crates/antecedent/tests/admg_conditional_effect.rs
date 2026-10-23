@@ -16,6 +16,7 @@
     reason = "test scaffolding compares constants computed by counting small contingency tables"
 )]
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, StructureSource, Study,
 };
@@ -140,7 +141,10 @@ fn a_latent_confounded_modifier_gives_the_stratified_difference() {
     );
     // The prepared handle retains the checked program and reuses the identification.
     let prepared = study.prepare(&ctx).unwrap();
-    assert!(prepared.checked_functional_effect_program().is_some());
+    assert!(matches!(
+        prepared.retained_operation(),
+        RetainedOperation::FunctionalEffect(..) | RetainedOperation::PathSpecificEffect(..)
+    ));
     let click = prepared.estimate(&data, &ctx).unwrap();
     assert!((ate(&click) - expected).abs() < 1e-12);
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));

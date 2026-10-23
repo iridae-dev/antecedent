@@ -10,6 +10,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, ResponseFunctional,
@@ -231,10 +232,11 @@ fn graph_posterior_responses_body() {
                     let one_shot = builder.run(&context).unwrap();
                     let mut prepared = builder.prepare(&context).unwrap();
                     drop(builder);
-                    let plan =
-                        prepared.checked_graph_posterior_response_info().unwrap_or_else(|| {
-                            panic!("{label}: retained checked posterior response plan")
-                        });
+                    let RetainedOperation::GraphPosteriorResponse(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("{label}: retained checked posterior response plan")
+                    };
                     assert_eq!(plan.query, query, "{label}");
                     assert_eq!(plan.atom_kind, kind, "{label}");
                     assert_eq!(plan.identifier, expected_identifier, "{label}");
@@ -283,7 +285,11 @@ fn graph_posterior_responses_body() {
 
                     let refreshed = prepared.refresh(shifted.clone(), &context).unwrap();
                     assert_identified_atoms_match_truth(&refreshed, 0.5, curve, tolerance, &label);
-                    let retained = prepared.checked_graph_posterior_response_info().unwrap();
+                    let RetainedOperation::GraphPosteriorResponse(retained) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("{label}: retained checked posterior response plan after refresh")
+                    };
                     assert_eq!(retained.graph_keys, plan.graph_keys, "{label}");
                     assert_eq!(retained.weights, plan.weights, "{label}");
 
@@ -336,7 +342,11 @@ fn graph_posterior_responses_body() {
                     );
                     let mut prepared = builder.prepare(&context).unwrap();
                     drop(builder);
-                    let plan = prepared.checked_graph_posterior_response_info().unwrap();
+                    let RetainedOperation::GraphPosteriorResponse(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("{mixed_label}: retained checked posterior response plan")
+                    };
                     assert_eq!(plan.weights.as_ref(), &[0.8, 0.2], "{mixed_label}");
                     assert_eq!(
                         plan.identified.as_ref(),

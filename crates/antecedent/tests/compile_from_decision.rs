@@ -168,6 +168,15 @@ fn bayesian_cell_compiles_from_a_decision_with_the_posterior_carrier() {
     assert_eq!(decision.contract_identity(), Some("launch-decision"));
     assert_eq!(decision.utility().coefficients(), Some(&[(0.0, 0.0), (-0.5, 2.0)][..]));
     assert!(decision.information_value().is_none());
+    let view = plan.plan_view().unwrap();
+    assert_eq!(view.identity(), lowered.identity(), "the plan view reads the decision program");
+    assert_eq!(
+        view.uncertainty().decision_request(),
+        Some(antecedent_contract::DecisionRequest::ParameterPosterior)
+    );
+    let json = view.to_json();
+    assert_eq!(json["evidence"]["decision"]["carrier"], "parameter_posterior");
+    assert_eq!(json["evidence"]["decision"]["actions"], 2);
 
     // A decision changes layer four, so the program identity differs from the estimate's.
     let estimate = study.compile(&ctx).unwrap();

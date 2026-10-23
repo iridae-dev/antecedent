@@ -61,6 +61,8 @@ fn panel_did_refuses_a_forged_plan_or_structure_source() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, study) = panel_did();
     let physical = Arc::new(study.plan(&ctx).unwrap());
+    let view = crate::planner::plan_view::checks::assert_view_agrees("PanelDid", &physical);
+    assert_eq!(view.family(), crate::planner::RouteFamily::DesignBased);
     assert!(CheckedPanelDidOperation::checked(&study, &data, &physical).is_ok());
     let CausalQuery::PanelDid(mut other) = study.query.clone() else { unreachable!() };
     other.clusters = other.clusters.iter().map(|_| Arc::<str>::from("c0")).collect();
@@ -95,6 +97,8 @@ fn synthetic_control_refuses_a_forged_plan() {
     );
     let study = Study::tabular(data.clone()).query(query).build().unwrap();
     let physical = Arc::new(study.plan(&ctx).unwrap());
+    let view = crate::planner::plan_view::checks::assert_view_agrees("SyntheticControl", &physical);
+    assert_eq!(view.family(), crate::planner::RouteFamily::DesignBased);
     assert!(CheckedSyntheticControlOperation::checked(&study, &data, &physical).is_ok());
     let CausalQuery::SyntheticControl(mut other) = study.query.clone() else { unreachable!() };
     other.treated_unit = Arc::from("a");
@@ -135,6 +139,9 @@ fn local_polynomial_ratio_refuses_a_forged_plan() {
     };
     let study = Study::tabular(data.clone()).query(query).build().unwrap();
     let physical = Arc::new(study.plan(&ctx).unwrap());
+    let view =
+        crate::planner::plan_view::checks::assert_view_agrees("LocalPolynomialRatio", &physical);
+    assert_eq!(view.family(), crate::planner::RouteFamily::DesignBased);
     assert!(CheckedLocalPolynomialRatioOperation::checked(&study, &data, &physical).is_ok());
     let CausalQuery::LocalPolynomialRatio(mut other) = study.query.clone() else { unreachable!() };
     other.bandwidth = 0.5;

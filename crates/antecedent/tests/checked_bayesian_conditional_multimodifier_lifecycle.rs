@@ -1,6 +1,7 @@
 //! Public lifecycle evidence for three-modifier Bayesian DAG CATE execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, StructureSource, Study,
 };
@@ -120,9 +121,9 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
                 }
                 other => panic!("{coordinate}: support not available: {other:?}"),
             }
-            let plan = prepared
-                .checked_bayesian_conditional_operation()
-                .expect("prepared route retains its full conditional target and prior");
+            let RetainedOperation::BayesianConditional(plan) = prepared.retained_operation() else {
+                panic!("prepared route retains its full conditional target and prior")
+            };
             assert_eq!(plan.query(), &query);
             assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
             assert_eq!(plan.validation(), suite);
@@ -162,7 +163,11 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
             ])
             .unwrap();
             let refreshed = prepared.refresh(shifted, &context).unwrap();
-            assert_eq!(prepared.checked_bayesian_conditional_operation().unwrap().query(), &query);
+            let RetainedOperation::BayesianConditional(retained) = prepared.retained_operation()
+            else {
+                panic!("refreshed route retains its conditional plan")
+            };
+            assert_eq!(retained.query(), &query);
             assert!(
                 (refreshed.estimate.as_effect().unwrap().ate
                     - result.estimate.as_effect().unwrap().ate)

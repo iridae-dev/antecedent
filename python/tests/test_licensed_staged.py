@@ -589,8 +589,9 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
         latency="interactive",
     )
     click = prepared.estimate(data, seed=1)
-    plan = prepared.checked_graph_posterior_effect_info()
+    plan = prepared.plan_view().operation
     assert plan is not None
+    assert plan["kind"] == "graph_posterior_effect"
     assert plan["estimator"] == "linear.adjustment.ate"
     assert plan["validation"] == "none"
     assert plan["weights"] == pytest.approx(
@@ -623,8 +624,9 @@ def test_checked_static_mediation_retains_contrast_and_refresh(accepted: bool):
         data, graph=builder_graph, query=builder_query, refute=False, bootstrap=0, seed=11
     )
     del builder_graph, builder_query
-    plan = prepared.checked_static_mediation_info()
+    plan = prepared.plan_view().operation
     assert plan is not None
+    assert plan["kind"] == "static_mediation"
     assert (plan["treatment"], plan["outcome"], plan["mediators"]) == ("a", "y", ["m"])
     assert plan["contrast"] == "NaturalDirect"
     assert plan["estimator"] == "mediation.linear"
@@ -660,8 +662,9 @@ def test_checked_bayesian_dag_ate_retains_prior_and_refresh(accepted: bool):
         seed=12,
     )
     del builder_graph, builder_query
-    plan = prepared.checked_bayesian_dag_ate_info()
+    plan = prepared.plan_view().operation
     assert plan is not None
+    assert plan["kind"] == "bayesian_gcomp"
     assert (plan["treatment"], plan["outcome"]) == ("t", "y")
     assert plan["estimator"] == "bayesian.gcomp"
     assert plan["n_draws"] == 64
@@ -701,8 +704,9 @@ def test_checked_conditional_effect_retains_interaction_target_and_refresh(
         seed=7,
     )
     del builder_graph, builder_query
-    plan = prepared.checked_conditional_effect_info()
+    plan = prepared.plan_view().operation
     assert plan is not None
+    assert plan["kind"] == "conditional_effect"
     assert (plan["treatment"], plan["outcome"], plan["modifiers"]) == ("t", "y", ["w"])
     assert plan["estimator"] == "conditional.linear.adjustment"
     assert plan["procedure"] == "linear_interaction_plugin"
@@ -718,7 +722,7 @@ def test_checked_conditional_effect_retains_interaction_target_and_refresh(
     changed = {**data, "y": data["y"] + 0.4 * data["t"]}
     refreshed = prepared.refresh(changed, seed=7)
     assert refreshed.ate == pytest.approx(3.4, abs=1e-8)
-    assert prepared.checked_conditional_effect_info()["source_rows"] == plan["source_rows"]
+    assert prepared.plan_view().operation["source_rows"] == plan["source_rows"]
     consumed = antecedent.artifacts.accept(refreshed.export())
     assert consumed["accepts_as_verified_program"] == "false"
     assert "dependencies.checked_conditional_effect_operation" in consumed["unresolved"]
@@ -743,8 +747,9 @@ def test_checked_temporal_effect_retains_policy_and_refresh(accepted, query, pol
         seed=9,
     )
     del builder_graph, builder_query
-    plan = prepared.checked_temporal_effect_info()
+    plan = prepared.plan_view().operation
     assert plan is not None
+    assert plan["kind"] == "temporal_dag_effect"
     assert policy in plan["policy"]
     assert plan["horizon_steps"] == 1
     assert plan["estimator"] == "temporal.linear.adjustment"
@@ -778,8 +783,9 @@ def test_checked_temporal_response_grid_survives_preparation_and_refresh(accepte
         seed=8,
     )
     del builder_query, graph
-    plan = prepared.checked_temporal_response_info()
+    plan = prepared.plan_view().operation
     assert plan is not None
+    assert plan["kind"] == "temporal_dag_response"
     assert plan["grid_members"] == pytest.approx([-0.5, 0.0, 0.5])
     assert plan["horizons"] == [1]
     assert plan["estimator"] == "temporal.response.gcomp"

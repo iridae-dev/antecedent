@@ -13,6 +13,7 @@
 
 mod common;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     Assumption, CausalQuery, ExecutionContext, IdentificationStatus, Lag, TemporalEffectQuery,
@@ -118,7 +119,10 @@ fn every_fixed_structure_pulse_coordinate_uses_parent_adjustment() {
                     .unwrap();
                 if bayesian {
                     assert!(
-                        prepared.checked_bayesian_temporal_dag_effect_info().is_some(),
+                        matches!(
+                            prepared.retained_operation(),
+                            RetainedOperation::BayesianTemporalDagEffect(..)
+                        ),
                         "the parent-adjustment Bayesian route must retain its checked temporal plan"
                     );
                 }

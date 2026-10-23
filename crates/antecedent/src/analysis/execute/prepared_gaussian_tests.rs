@@ -67,7 +67,7 @@ fn prepared_gaussian_retains_the_compiled_program_after_builder_drop() {
         antecedent_core::physical_choice::PhysicalAlternative::DirectPreparedNumericViews
     );
     assert_eq!(
-        prepared.checked_linear_adjustment().unwrap().physical_backend(),
+        prepared.execution().checked_linear().unwrap().physical_backend(),
         prepared.plan().choice.selected()
     );
     let program = prepared.compiled_linear_program().unwrap();
@@ -88,7 +88,7 @@ fn prepared_gaussian_retains_the_compiled_program_after_builder_drop() {
     program.identification().validate_target(program.target()).unwrap();
     assert_eq!(
         program.identification().assumptions(),
-        prepared.checked_linear_adjustment().unwrap().required_assumptions()
+        prepared.execution().checked_linear().unwrap().required_assumptions()
     );
     assert_eq!(program.operators().len(), 3);
     assert_eq!(program.physical_operators().len(), 3);
@@ -277,7 +277,7 @@ fn prepared_gaussian_materializes_the_actual_categorical_design() {
         .unwrap();
     assert_eq!(prepared.plan().choice.selected(), PhysicalAlternative::MaterializedDesign);
     assert_eq!(prepared.plan().logical.design_columns_hint, 5);
-    let checked = prepared.checked_linear_adjustment().unwrap();
+    let checked = prepared.execution().checked_linear().unwrap();
     assert_eq!(checked.physical_backend(), prepared.plan().choice.selected());
     assert_eq!(checked.problem().design.ncols, 5);
     assert_eq!(checked.problem().preparation.categories()[0].n_columns, 3);

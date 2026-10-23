@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, ResponseFunctional,
@@ -311,9 +312,11 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                     let one_shot = builder.run(&ctx).unwrap();
                     let mut prepared = builder.prepare(&ctx).unwrap();
                     drop(builder);
-                    let plan = prepared
-                        .checked_temporal_graph_posterior_response_info()
-                        .expect("graph-posterior response must retain its complete execution plan");
+                    let RetainedOperation::TemporalGraphPosteriorResponse(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("graph-posterior response must retain its complete execution plan")
+                    };
                     assert_eq!(plan.query, query);
                     assert_eq!(plan.atom_kind, fixture.kind);
                     assert_eq!(plan.weights.as_ref(), fixture.posterior.weights.as_ref());
@@ -398,10 +401,12 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                         prepared.refresh_series(fixture.widened.clone(), &ctx).is_err(),
                         "{label}: schema-changing refresh must be refused"
                     );
-                    assert_eq!(
-                        prepared.checked_temporal_graph_posterior_response_info().unwrap().query,
-                        query
-                    );
+                    let RetainedOperation::TemporalGraphPosteriorResponse(retained) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("graph-posterior response retains its plan")
+                    };
+                    assert_eq!(retained.query, query);
                     let artifact = prepared
                         .encode_contracted_result(
                             &refreshed,

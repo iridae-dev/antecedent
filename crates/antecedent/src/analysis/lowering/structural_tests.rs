@@ -25,6 +25,7 @@ fn v(raw: u32) -> VariableId {
 
 fn lowered(study: &Study) -> LoweredProgram {
     let plan = study.compile(&ExecutionContext::for_tests(5)).unwrap();
+    crate::planner::plan_view::checks::assert_view_agrees("structural", &plan);
     plan.lowered().cloned().expect("compile attaches a lowered program")
 }
 
@@ -110,7 +111,14 @@ fn mediation_lowers_the_theorem_target_the_executor_checks() {
 
         let prepared = study.prepare(&ctx).unwrap();
         assert_eq!(prepared.plan().lowered_program_identity(), Some(program.identity()));
-        let info = prepared.checked_static_mediation_info().expect("sealed mediation");
+        let crate::analysis::RetainedOperation::StaticMediation(info) =
+            prepared.retained_operation()
+        else {
+            panic!("sealed mediation")
+        };
+        let view = prepared.plan_view().unwrap();
+        assert_eq!(view.identity(), program.identity(), "the prepared view reads the same program");
+        assert_eq!(view.operation(), Some("static_mediation"));
         assert_eq!(info.scientific_target.identity(), target.identity());
         let result = prepared.estimate(&mediation_data(), &ctx).unwrap();
         assert_eq!(result.lowered_program_identity(), Some(program.identity()));

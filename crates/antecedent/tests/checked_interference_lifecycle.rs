@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     BayesianConfig, EstimatorId, IdentifierId, InferenceMode, InterferenceSpec, RefuteSuite,
     StructureSource, Study,
@@ -79,11 +80,11 @@ fn cluster_partial_interference_total_effect_passes_public_prepare_estimate_arti
     let ctx = ExecutionContext::for_tests(6194);
     let direct = study.run(&ctx).unwrap();
     let prepared = study.prepare(&ctx).unwrap();
-    assert_eq!(prepared.checked_interference_info().unwrap().query, cluster_query());
-    assert_eq!(
-        prepared.checked_interference_info().unwrap().estimator,
-        EstimatorId::InterferenceClusterNeyman
-    );
+    let RetainedOperation::Interference(info) = prepared.retained_operation() else {
+        panic!("prepared cluster interference operation")
+    };
+    assert_eq!(info.query, cluster_query());
+    assert_eq!(info.estimator, EstimatorId::InterferenceClusterNeyman);
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!(
         (direct.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate).abs()
@@ -219,8 +220,9 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
     let mut prepared = builder.prepare(&context).unwrap();
     drop(builder);
 
-    let plan =
-        prepared.checked_interference_info().expect("prepared design-based interference operation");
+    let RetainedOperation::Interference(plan) = prepared.retained_operation() else {
+        panic!("prepared design-based interference operation")
+    };
     assert_eq!(prepared.structure_source(), StructureSource::Explicit);
     assert_eq!(plan.query, query());
     assert_eq!(plan.identifier, IdentifierId::InterferenceDesign);
@@ -266,7 +268,10 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
             .abs()
             <= tolerance
     );
-    assert_eq!(prepared.checked_interference_info().unwrap().network_edge_count, 2);
+    let RetainedOperation::Interference(retained) = prepared.retained_operation() else {
+        panic!("refreshed interference operation")
+    };
+    assert_eq!(retained.network_edge_count, 2);
     let refreshed_artifact = prepared
         .encode_contracted_result(&refreshed, "checked-interference-design-refresh", &context)
         .unwrap();
@@ -289,8 +294,9 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
     let mut prepared = builder.prepare(&context).unwrap();
     drop(builder);
 
-    let plan =
-        prepared.checked_interference_info().expect("prepared Bayesian interference operation");
+    let RetainedOperation::Interference(plan) = prepared.retained_operation() else {
+        panic!("prepared Bayesian interference operation")
+    };
     assert_eq!(prepared.structure_source(), StructureSource::Explicit);
     assert_eq!(plan.query, query());
     assert_eq!(plan.identifier, IdentifierId::InterferenceDesign);
@@ -328,7 +334,10 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
             .abs()
             < tolerance
     );
-    assert_eq!(prepared.checked_interference_info().unwrap().unit_count, 4);
+    let RetainedOperation::Interference(retained) = prepared.retained_operation() else {
+        panic!("refreshed interference operation")
+    };
+    assert_eq!(retained.unit_count, 4);
     let refreshed_artifact = prepared
         .encode_contracted_result(&refreshed, "checked-interference-bayesian-refresh", &context)
         .unwrap();

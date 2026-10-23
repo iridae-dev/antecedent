@@ -9814,55 +9814,6 @@ pub fn <antecedent::PreparedStudy>::fn apply_refresh(&mut self, preview: &antece
 pub fn <antecedent::PreparedStudy>::fn apply_retarget(&self, preview: &antecedent_contract::transform::TransformationReport, weights: &[f64], depends_on: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn batch_share_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn capability(&self) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::CausalError>
-pub fn <antecedent::PreparedStudy>::fn checked_admg_graph_posterior_response_info(&self) -> core::option::Option<antecedent::CheckedAdmgGraphPosteriorResponseInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_aipw_ate(&self) -> core::option::Option<&antecedent_estimate::aipw::CheckedAipwPreparation>
-pub fn <antecedent::PreparedStudy>::fn checked_attribution_info(&self) -> core::option::Option<antecedent::analysis::CheckedAttributionInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_basis_ate_info(&self) -> core::option::Option<antecedent::analysis::CheckedBayesianBasisAteInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_basis_cate_query(&self) -> core::option::Option<&antecedent_core::query::mediation::ConditionalEffectQuery>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_class_conditional_info(&self) -> core::option::Option<antecedent::analysis::CheckedBayesianClassConditionalInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_conditional_operation(&self) -> core::option::Option<CheckedBayesianConditionalInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_gcomp_operation(&self) -> core::option::Option<&CheckedBayesianGcompOperation>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_gcomp_validation(&self) -> core::option::Option<antecedent::RefuteSuite>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_graph_posterior_ate_info(&self) -> core::option::Option<antecedent::analysis::CheckedBayesianGraphPosteriorAteInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_robust_ate_info(&self) -> core::option::Option<antecedent::analysis::CheckedBayesianRobustAteInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_specialist_info(&self) -> core::option::Option<antecedent::CheckedBayesianSpecialistInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_static_mediation_info(&self) -> core::option::Option<antecedent::analysis::CheckedStaticMediationInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_temporal_class_effect_info(&self) -> core::option::Option<antecedent::analysis::CheckedBayesianTemporalClassEffectInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_bayesian_temporal_dag_effect_info(&self) -> core::option::Option<antecedent::analysis::CheckedBayesianTemporalDagEffectInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_cell_aipw_response_info(&self) -> core::option::Option<antecedent::analysis::CheckedCellAipwResponseInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_class_graph_posterior_effect_info(&self) -> core::option::Option<antecedent::analysis::CheckedClassGraphPosteriorEffectInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_conditional_effect_info(&self) -> core::option::Option<antecedent::analysis::CheckedConditionalEffectInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_counterfactual_operation(&self) -> core::option::Option<&antecedent::gcm::CheckedCounterfactualOperation>
-pub fn <antecedent::PreparedStudy>::fn checked_derivative_response_info(&self) -> core::option::Option<CheckedDerivativeResponseInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_distribution_program(&self) -> core::option::Option<&antecedent_expr::program::FunctionalProgram>
-pub fn <antecedent::PreparedStudy>::fn checked_frontdoor_linear(&self) -> core::option::Option<&antecedent_estimate::frontdoor::CheckedFrontDoorPreparation>
-pub fn <antecedent::PreparedStudy>::fn checked_functional_effect_program(&self) -> core::option::Option<&antecedent_expr::program::FunctionalProgram>
-pub fn <antecedent::PreparedStudy>::fn checked_functional_effect_response_members(&self) -> core::option::Option<&[CheckedFunctionalEffectResponseMember]>
-pub fn <antecedent::PreparedStudy>::fn checked_glm_adjustment(&self) -> core::option::Option<&antecedent_estimate::glm_adjustment::PreparedGlmProblem>
-pub fn <antecedent::PreparedStudy>::fn checked_graph_posterior_effect_info(&self) -> core::option::Option<antecedent::analysis::CheckedGraphPosteriorEffectInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_graph_posterior_response_info(&self) -> core::option::Option<antecedent::CheckedGraphPosteriorResponseInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_interference_info(&self) -> core::option::Option<antecedent::CheckedInterferenceInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_iv(&self) -> core::option::Option<&antecedent_estimate::iv::CheckedIvPreparation>
-pub fn <antecedent::PreparedStudy>::fn checked_linear_adjustment(&self) -> core::option::Option<&antecedent_estimate::adjustment::CheckedLinearAdjustmentAte>
-pub fn <antecedent::PreparedStudy>::fn checked_nested_counterfactual_operation(&self) -> core::option::Option<&antecedent::gcm::NestedCounterfactualOperation>
-pub fn <antecedent::PreparedStudy>::fn checked_propensity_info(&self) -> core::option::Option<CheckedPropensityInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_rd_preparation(&self) -> core::option::Option<&antecedent_estimate::rd::CheckedRdPreparation>
-pub fn <antecedent::PreparedStudy>::fn checked_static_class_effect_info(&self) -> core::option::Option<antecedent::analysis::CheckedStaticClassEffectInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_static_class_response_info(&self) -> core::option::Option<antecedent::CheckedStaticClassResponseInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_static_dag_response_info(&self) -> core::option::Option<CheckedStaticDagResponseInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_static_mediation_info(&self) -> core::option::Option<antecedent::analysis::CheckedStaticMediationInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_temporal_class_effect_info(&self) -> core::option::Option<antecedent::analysis::CheckedTemporalClassEffectInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_temporal_class_mediation_info(&self) -> core::option::Option<antecedent::CheckedTemporalClassMediationInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_temporal_class_response_info(&self) -> core::option::Option<antecedent::analysis::CheckedTemporalClassResponseInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_temporal_dag_effect_info(&self) -> core::option::Option<antecedent::analysis::CheckedTemporalDagEffectInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_temporal_dag_response_info(&self) -> core::option::Option<antecedent::analysis::CheckedTemporalDagResponseInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_temporal_effect_info(&self) -> core::option::Option<antecedent::analysis::CheckedTemporalDagEffectInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_temporal_graph_posterior_effect_info(&self) -> core::option::Option<antecedent::analysis::CheckedTemporalGraphPosteriorEffectInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_temporal_graph_posterior_response_info(&self) -> core::option::Option<antecedent::analysis::CheckedTemporalGraphPosteriorResponseInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_temporal_mediation_info(&self) -> core::option::Option<antecedent::CheckedTemporalMediationInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_temporal_response_info(&self) -> core::option::Option<antecedent::analysis::CheckedTemporalDagResponseInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_transport_trial_info(&self) -> core::option::Option<antecedent::CheckedTransportTrialInfo>
-pub fn <antecedent::PreparedStudy>::fn checked_unknown_tiered_average_info(&self) -> core::option::Option<antecedent::CheckedUnknownTieredAverageInfo>
 pub fn <antecedent::PreparedStudy>::fn compile_joint_response(&self, target: &antecedent_core::scientific_target::ScientificTarget, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::PreparedJointResponse, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn compiled_linear_program(&self) -> core::option::Option<&antecedent::analysis::compiled_linear::CompiledLinearProgram>
 pub fn <antecedent::PreparedStudy>::fn contract(&self) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
@@ -9880,19 +9831,11 @@ pub fn <antecedent::PreparedStudy>::fn estimate_retained(&self, ctx: &antecedent
 pub fn <antecedent::PreparedStudy>::fn estimate_retained_observed(&self, ctx: &antecedent_core::execution::ExecutionContext) -> antecedent_core::execution_attempt::ExecutionAttempt<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn estimate_series(&self, data: &antecedent_data::dataset::TimeSeriesData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn execution_contract(&self, result: &antecedent::StudyResult, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent::CausalContract, antecedent_contract::claim::ClaimEnvelope), antecedent::CausalError>
-pub fn <antecedent::PreparedStudy>::fn has_checked_admg_graph_posterior_response_operation(&self) -> bool
-pub fn <antecedent::PreparedStudy>::fn has_checked_bayesian_specialist_operation(&self) -> bool
-pub fn <antecedent::PreparedStudy>::fn has_checked_bayesian_temporal_class_effect_operation(&self) -> bool
-pub fn <antecedent::PreparedStudy>::fn has_checked_class_graph_posterior_effect_operation(&self) -> bool
-pub fn <antecedent::PreparedStudy>::fn has_checked_graph_posterior_effect_operation(&self) -> bool
-pub fn <antecedent::PreparedStudy>::fn has_checked_graph_posterior_response_operation(&self) -> bool
-pub fn <antecedent::PreparedStudy>::fn has_checked_static_class_effect_operation(&self) -> bool
-pub fn <antecedent::PreparedStudy>::fn has_checked_static_class_response_operation(&self) -> bool
-pub fn <antecedent::PreparedStudy>::fn has_checked_temporal_graph_posterior_effect_operation(&self) -> bool
-pub fn <antecedent::PreparedStudy>::fn has_checked_transport_trial_operation(&self) -> bool
 pub fn <antecedent::PreparedStudy>::fn identification_details(&self) -> core::result::Result<serde_json::value::Value, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn inspect(&self) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn plan(&self) -> &antecedent::planner::PhysicalExecutionPlan
+pub fn <antecedent::PreparedStudy>::fn plan_view(&self) -> core::result::Result<antecedent::planner::PlanView, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn retained_operation(&self) -> antecedent::analysis::RetainedOperation<'_>
 pub fn <antecedent::PreparedStudy>::fn plan_rank_drop(&self, policy: &antecedent::RankDropPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::RankDropPlan, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn population_registry(&self) -> core::option::Option<&antecedent_core::query::population::PopulationRegistry>
 pub fn <antecedent::PreparedStudy>::fn preview_rank_designs<A, O>(&self, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::DesignRankPreview, antecedent::CausalError> where A: core::clone::Clone, O: core::clone::Clone
@@ -10038,6 +9981,7 @@ pub fn <antecedent::Study>::const fn structure_source(&self) -> antecedent::Stru
 pub fn <antecedent::Study>::const fn support_status(&self) -> core::option::Option<antecedent::CellStatus>
 pub fn <antecedent::Study>::fn capability(&self) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
+pub fn <antecedent::Study>::fn plan_view(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::planner::PlanView, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_logical(&self) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn events(data: &antecedent_data::event::EventData, align_interval_ns: u64) -> core::result::Result<antecedent::StudyBuilder, antecedent::CausalError>
 pub fn <antecedent::Study>::fn execute(&self, physical: &antecedent::planner::PhysicalExecutionPlan, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
@@ -12203,6 +12147,10 @@ pub struct antecedent::period_refresh::SummaryOnlyFit has private fields
 pub struct antecedent::planner::LogicalAnalysisPlan
 pub struct antecedent::planner::PhysicalExecutionPlan
 pub struct antecedent::planner::PhysicalExecutionPlan has private fields
+pub struct antecedent::planner::PlanView
+pub enum antecedent::planner::PlanRoute
+pub enum antecedent::planner::PlanStage
+pub enum antecedent::planner::RouteFamily
 pub struct antecedent::result::InterferenceInference
 pub struct antecedent::result::InterferencePointwiseInterval
 pub struct antecedent::result::StructuralResponseAtom

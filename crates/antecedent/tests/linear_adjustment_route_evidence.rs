@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, StructureSource, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::ExecutionContext;
@@ -60,9 +61,9 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
         "{coordinate} validation choice"
     );
 
-    let lowering = prepared
-        .checked_linear_adjustment()
-        .unwrap_or_else(|| panic!("{coordinate} omitted its checked linear-adjustment lowering"));
+    let RetainedOperation::CheckedLinear(lowering) = prepared.retained_operation() else {
+        panic!("{coordinate} omitted its checked linear-adjustment lowering")
+    };
     assert_eq!(lowering.source_functional(), lowering.program().mapping().source);
     assert_eq!(lowering.executable_functional(), lowering.program().mapping().executable);
     assert_eq!(lowering.lowering().population, antecedent_core::TargetPopulation::AllObserved);
@@ -87,7 +88,7 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
         refreshed.estimate.as_effect().unwrap().ate.to_bits()
     );
     assert!(
-        prepared.checked_linear_adjustment().is_some(),
+        matches!(prepared.retained_operation(), RetainedOperation::CheckedLinear(..)),
         "{coordinate} lost its checked lowering after refresh"
     );
 

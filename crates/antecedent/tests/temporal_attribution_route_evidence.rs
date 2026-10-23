@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     RefuteSuite, Study, SupportCell, classify, refused_message,
@@ -90,7 +91,9 @@ fn frequentist_body() {
         .build()
         .unwrap();
     let mut anomaly_prepared = anomaly_builder.prepare(&ctx).unwrap();
-    let plan = anomaly_prepared.checked_attribution_info().expect("sealed anomaly operation");
+    let RetainedOperation::Attribution(plan) = anomaly_prepared.retained_operation() else {
+        panic!("sealed anomaly operation")
+    };
     assert_eq!(plan.query, anomaly_query);
     assert_eq!(plan.identifier, IdentifierId::GcmParametric);
     assert_eq!(plan.estimator, EstimatorId::GcmFit);
@@ -146,7 +149,9 @@ fn frequentist_body() {
         .build()
         .unwrap();
     let mut change_prepared = change_builder.prepare(&ctx).unwrap();
-    let plan = change_prepared.checked_attribution_info().expect("sealed change operation");
+    let RetainedOperation::Attribution(plan) = change_prepared.retained_operation() else {
+        panic!("sealed change operation")
+    };
     assert_eq!(plan.query, change_target);
     assert_eq!(plan.identifier, IdentifierId::GcmParametric);
     assert_eq!(plan.estimator, EstimatorId::GcmFit);
@@ -259,7 +264,9 @@ fn bayesian_body() {
         .build()
         .unwrap();
     let anomaly_prepared = anomaly_builder.prepare(&ctx).unwrap();
-    let plan = anomaly_prepared.checked_attribution_info().expect("sealed anomaly operation");
+    let RetainedOperation::Attribution(plan) = anomaly_prepared.retained_operation() else {
+        panic!("sealed anomaly operation")
+    };
     assert_eq!(plan.identifier, IdentifierId::GcmParametric);
     assert_eq!(plan.estimator, EstimatorId::GcmFitBayesian);
     drop(anomaly_builder);
@@ -311,7 +318,9 @@ fn bayesian_body() {
         .build()
         .unwrap();
     let change_prepared = change_builder.prepare(&ctx).unwrap();
-    let plan = change_prepared.checked_attribution_info().expect("sealed change operation");
+    let RetainedOperation::Attribution(plan) = change_prepared.retained_operation() else {
+        panic!("sealed change operation")
+    };
     assert_eq!(plan.estimator, EstimatorId::GcmAttributionBayesian);
     drop(change_builder);
     let result = change_prepared.estimate_series(&change, &ctx).unwrap();

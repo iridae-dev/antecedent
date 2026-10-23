@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     RefuteSuite, StructureSource, Study,
@@ -135,9 +136,10 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                     }
                     other => panic!("{coordinate}: support unavailable: {other:?}"),
                 }
-                let members = prepared
-                    .checked_functional_effect_response_members()
-                    .expect("sealed response operation retains its scalar member");
+                let RetainedOperation::AdmgResponseCurve(members) = prepared.retained_operation()
+                else {
+                    panic!("sealed response operation retains its scalar member")
+                };
                 assert_eq!(members.len(), 1);
                 assert_eq!(members[0].grid_value(), level);
                 assert_eq!(
@@ -195,7 +197,10 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                     (response_value(&refreshed) - (truth + 0.4)).abs()
                         < if bayesian { 0.06 } else { 1e-12 }
                 );
-                assert!(prepared.checked_functional_effect_response_members().is_some());
+                assert!(matches!(
+                    prepared.retained_operation(),
+                    RetainedOperation::AdmgResponseCurve(..)
+                ));
                 let artifact =
                     prepared.encode_contracted_result(&refreshed, &coordinate, &context).unwrap();
                 let consumed = consume_analysis_result(&artifact).unwrap();
@@ -271,9 +276,10 @@ fn explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters() {
                     }
                     other => panic!("{coordinate}: support unavailable: {other:?}"),
                 }
-                let members = prepared
-                    .checked_functional_effect_response_members()
-                    .expect("sealed response operation retains its scalar member");
+                let RetainedOperation::AdmgResponseCurve(members) = prepared.retained_operation()
+                else {
+                    panic!("sealed response operation retains its scalar member")
+                };
                 assert_eq!(members.len(), 1);
                 assert_eq!(members[0].grid_value(), 1.0);
                 assert_eq!(
@@ -345,8 +351,14 @@ fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
             let mut prepared = study.prepare(&context).unwrap();
             drop(builder);
             drop(study);
-            assert!(prepared.has_checked_admg_graph_posterior_response_operation());
-            let plan = prepared.checked_admg_graph_posterior_response_info().unwrap();
+            assert!(matches!(
+                prepared.retained_operation(),
+                RetainedOperation::AdmgGraphPosteriorResponse(..)
+            ));
+            let RetainedOperation::AdmgGraphPosteriorResponse(plan) = prepared.retained_operation()
+            else {
+                panic!("sealed ADMG graph-posterior response operation")
+            };
             assert_eq!(plan.query, query);
             assert_eq!(plan.weights.as_ref(), &[0.8, 0.2]);
             assert_eq!(plan.identified.len(), 2);

@@ -1,8 +1,10 @@
 //! Route cells and the table that maps each to its family's lowering.
 //!
 //! One row per `RouteInput` variant. The table generates the cell enum, the
-//! classifier from a parsed route, and the dispatch to a family lowering, so a
-//! route added to `RouteInput` without a row here does not compile.
+//! classifier from a parsed route, the dispatch to a family lowering, and the
+//! public [`PlanRoute`] a plan view names the cell by, with the cell's family. A
+//! route added to `RouteInput` without a row here does not compile, and a row
+//! always has a plan route.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,17 +19,25 @@ use crate::analysis::builder::DataInput;
 use crate::analysis::execute::{RouteInput, is_class_atom};
 use crate::error::CausalError;
 use crate::planner::lowered::LoweredProgram;
+use crate::planner::plan_view::RouteFamily;
 
 /// One compiled graph-posterior cell, mirroring the compile-time classification of
 /// a study that carries a graph posterior instead of one graph.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub(crate) enum GraphPosteriorCell {
+pub enum GraphPosteriorCell {
+    /// Static response curve or intervention response over the atoms.
     StaticResponse,
+    /// Static average effect over the atoms.
     AverageEffect,
+    /// Static conditional effect over the atoms.
     ConditionalEffect,
+    /// Temporal pulse or sustained effect over the atoms.
     TemporalEffect,
+    /// Temporal response over the atoms.
     TemporalResponse,
+    /// Temporal mediation over the atoms.
     TemporalMediation,
+    /// A cross-world query over the atoms of a temporal class posterior.
     CrossWorld,
 }
 
@@ -43,7 +53,9 @@ impl GraphPosteriorCell {
         Self::CrossWorld,
     ];
 
-    pub(crate) const fn as_str(self) -> &'static str {
+    /// Stable name, written to the licensed-route record.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::StaticResponse => "GraphPosteriorStaticResponse",
             Self::AverageEffect => "GraphPosteriorAverageEffect",
@@ -85,7 +97,7 @@ impl GraphPosteriorCell {
 }
 
 macro_rules! route_lowerings {
-    ($($cell:ident => $family:ident),+ $(,)?) => {
+    ($($cell:ident => $family:ident as $kind:ident),+ $(,)?) => {
         /// One compiled route cell: a `RouteInput` variant, or a graph-posterior cell.
         #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
         pub(crate) enum RouteCell {
@@ -106,6 +118,74 @@ macro_rules! route_lowerings {
                 match self {
                     $(Self::$cell => stringify!($cell),)+
                     Self::GraphPosterior(cell) => cell.as_str(),
+                }
+            }
+
+            /// The family that lowers this cell.
+            #[allow(
+                clippy::match_same_arms,
+                reason = "one arm per route cell so the table reads cell by cell"
+            )]
+            pub(crate) const fn family(self) -> RouteFamily {
+                match self {
+                    $(Self::$cell => RouteFamily::$kind,)+
+                    Self::GraphPosterior(_) => RouteFamily::GraphPosterior,
+                }
+            }
+
+            /// The route a plan view names this cell by.
+            pub(crate) const fn plan_route(self) -> PlanRoute {
+                match self {
+                    $(Self::$cell => PlanRoute::$cell,)+
+                    Self::GraphPosterior(cell) => PlanRoute::GraphPosterior(cell),
+                }
+            }
+        }
+
+        /// One compiled route a plan view describes: every registered route cell,
+        /// every graph-posterior cell, a cyclic family and a standalone experiment
+        /// plan. Generated from the route table, so a registered cell always has a
+        /// route here.
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+        #[non_exhaustive]
+        pub enum PlanRoute {
+            $(
+                #[doc = concat!("The `", stringify!($cell), "` route cell.")]
+                $cell,
+            )+
+            /// A graph-posterior cell.
+            GraphPosterior(GraphPosteriorCell),
+            /// A cyclic family, by its stable family name.
+            CyclicFamily(&'static str),
+            /// A standalone experiment plan, by its design name.
+            Planning(&'static str),
+        }
+
+        impl PlanRoute {
+            /// Stable name; for a route cell, the `lowering` column of the
+            /// licensed-route record.
+            #[must_use]
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$cell => stringify!($cell),)+
+                    Self::GraphPosterior(cell) => cell.as_str(),
+                    Self::CyclicFamily(_) => "CyclicFamily",
+                    Self::Planning(_) => "ExperimentPlanning",
+                }
+            }
+
+            /// The family that lowered the route.
+            #[must_use]
+            #[allow(
+                clippy::match_same_arms,
+                reason = "one arm per route cell so the table reads cell by cell"
+            )]
+            pub const fn family(self) -> RouteFamily {
+                match self {
+                    $(Self::$cell => RouteFamily::$kind,)+
+                    Self::GraphPosterior(_) => RouteFamily::GraphPosterior,
+                    Self::CyclicFamily(_) => RouteFamily::Cyclic,
+                    Self::Planning(_) => RouteFamily::Planning,
                 }
             }
         }
@@ -130,54 +210,54 @@ macro_rules! route_lowerings {
 }
 
 route_lowerings! {
-    StaticAteDag => static_effect,
-    StaticAtePag => static_effect,
-    StaticAteCpdag => static_effect,
-    StaticAteMixed => static_effect,
-    ConditionalDag => static_effect,
-    ConditionalCpdag => static_effect,
-    ConditionalPag => static_effect,
-    ConditionalMixed => static_effect,
-    DistributionDag => static_effect,
-    DistributionMixed => static_effect,
-    PathSpecificDag => static_effect,
-    StaticResponseDag => static_response,
-    StaticResponsePag => static_response,
-    StaticResponseCpdag => static_response,
-    CodeterminedJoint => static_response,
-    MixedAdmgResponse => static_response,
-    StaticMediationDag => structural,
-    GcmDag => structural,
-    GcmTemporal => structural,
-    TemporalEffectDag => temporal,
-    TemporalEffectClass => temporal,
-    TemporalResponseDag => temporal,
-    TemporalResponseClass => temporal,
-    TemporalMediationDag => temporal,
-    TemporalMediationPag => temporal,
-    TemporalMediationCpdag => temporal,
-    TemporalCrossWorldDag => temporal,
-    TemporalCrossWorldClass => temporal,
-    MultiEnvTemporalEffect => temporal,
-    PanelTemporalEffectDag => temporal,
-    PanelTemporalEffectClass => temporal,
-    PanelTemporalResponseDag => temporal,
-    PanelTemporalResponseClass => temporal,
-    TransportMixed => design_based,
-    InterferenceDag => design_based,
-    RandomizedEffect => design_based,
-    PolicyValue => design_based,
-    PanelDid => design_based,
-    SyntheticControl => design_based,
-    ContinuousDoseResponse => design_based,
-    LocalPolynomialRatio => design_based,
-    Survival => design_based,
-    LongitudinalRegime => design_based,
-    SequentialContrast => design_based,
-    HistoryMatch => design_based,
-    TemporalDesign => design_based,
-    DiscoverStatic => discovery,
-    DiscoverTemporal => discovery,
-    GcmAttributeDag => structural,
-    GcmSimulateDag => structural,
+    StaticAteDag => static_effect as StaticEffect,
+    StaticAtePag => static_effect as StaticEffect,
+    StaticAteCpdag => static_effect as StaticEffect,
+    StaticAteMixed => static_effect as StaticEffect,
+    ConditionalDag => static_effect as StaticEffect,
+    ConditionalCpdag => static_effect as StaticEffect,
+    ConditionalPag => static_effect as StaticEffect,
+    ConditionalMixed => static_effect as StaticEffect,
+    DistributionDag => static_effect as StaticEffect,
+    DistributionMixed => static_effect as StaticEffect,
+    PathSpecificDag => static_effect as StaticEffect,
+    StaticResponseDag => static_response as StaticResponse,
+    StaticResponsePag => static_response as StaticResponse,
+    StaticResponseCpdag => static_response as StaticResponse,
+    CodeterminedJoint => static_response as StaticResponse,
+    MixedAdmgResponse => static_response as StaticResponse,
+    StaticMediationDag => structural as Structural,
+    GcmDag => structural as Structural,
+    GcmTemporal => structural as Structural,
+    TemporalEffectDag => temporal as Temporal,
+    TemporalEffectClass => temporal as Temporal,
+    TemporalResponseDag => temporal as Temporal,
+    TemporalResponseClass => temporal as Temporal,
+    TemporalMediationDag => temporal as Temporal,
+    TemporalMediationPag => temporal as Temporal,
+    TemporalMediationCpdag => temporal as Temporal,
+    TemporalCrossWorldDag => temporal as Temporal,
+    TemporalCrossWorldClass => temporal as Temporal,
+    MultiEnvTemporalEffect => temporal as Temporal,
+    PanelTemporalEffectDag => temporal as Temporal,
+    PanelTemporalEffectClass => temporal as Temporal,
+    PanelTemporalResponseDag => temporal as Temporal,
+    PanelTemporalResponseClass => temporal as Temporal,
+    TransportMixed => design_based as DesignBased,
+    InterferenceDag => design_based as DesignBased,
+    RandomizedEffect => design_based as DesignBased,
+    PolicyValue => design_based as DesignBased,
+    PanelDid => design_based as DesignBased,
+    SyntheticControl => design_based as DesignBased,
+    ContinuousDoseResponse => design_based as DesignBased,
+    LocalPolynomialRatio => design_based as DesignBased,
+    Survival => design_based as DesignBased,
+    LongitudinalRegime => design_based as DesignBased,
+    SequentialContrast => design_based as DesignBased,
+    HistoryMatch => design_based as DesignBased,
+    TemporalDesign => design_based as DesignBased,
+    DiscoverStatic => discovery as Discovery,
+    DiscoverTemporal => discovery as Discovery,
+    GcmAttributeDag => structural as Structural,
+    GcmSimulateDag => structural as Structural,
 }

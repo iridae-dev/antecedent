@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, GridSpec, Intervention, ResponseFunctional,
@@ -75,8 +76,9 @@ fn mean_curve_explicit_and_accepted_keep_ordered_grid_through_refresh_and_export
             route_builder.run(&antecedent_core::ExecutionContext::for_tests(991)).unwrap();
         let context = antecedent_core::ExecutionContext::for_tests(991);
         let mut prepared = route_builder.prepare(&context).unwrap();
-        let plan =
-            prepared.checked_static_dag_response_info().expect("retained checked MeanCurve plan");
+        let RetainedOperation::StaticDagResponse(plan) = prepared.retained_operation() else {
+            panic!("retained checked MeanCurve plan")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor);
         assert_eq!(plan.estimator, EstimatorId::ResponseKennedyDr);
@@ -133,9 +135,9 @@ fn intervention_gcomp_explicit_and_accepted_cover_each_validation_suite() {
                 route_builder.run(&antecedent_core::ExecutionContext::for_tests(992)).unwrap();
             let context = antecedent_core::ExecutionContext::for_tests(992);
             let mut prepared = route_builder.prepare(&context).unwrap();
-            let plan = prepared
-                .checked_static_dag_response_info()
-                .expect("retained checked intervention g-computation plan");
+            let RetainedOperation::StaticDagResponse(plan) = prepared.retained_operation() else {
+                panic!("retained checked intervention g-computation plan")
+            };
             assert_eq!(plan.query, query);
             assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor);
             assert_eq!(plan.estimator, EstimatorId::ResponseInterventionGcomp);

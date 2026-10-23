@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -79,9 +80,9 @@ fn frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass() {
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
 
-        let plan = prepared
-            .checked_graph_posterior_effect_info()
-            .expect("prepared graph-posterior operation retained");
+        let RetainedOperation::GraphPosteriorEffect(plan) = prepared.retained_operation() else {
+            panic!("prepared graph-posterior operation retained")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.estimator.as_str(), "linear.adjustment.ate");
         assert_eq!(plan.validation, suite);
@@ -112,9 +113,10 @@ fn frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass() {
 
         let shifted = prepared.refresh(data(4.0), &ctx).unwrap();
         assert!(shifted.estimate.as_effect().unwrap().ate.is_nan());
-        let refreshed_plan = prepared
-            .checked_graph_posterior_effect_info()
-            .expect("checked graph-posterior plan remains after refresh");
+        let RetainedOperation::GraphPosteriorEffect(refreshed_plan) = prepared.retained_operation()
+        else {
+            panic!("checked graph-posterior plan remains after refresh")
+        };
         assert_eq!(refreshed_plan.graph_keys, plan.graph_keys);
         assert_eq!(refreshed_plan.weights, plan.weights);
         let shifted_mix = shifted.structural_response.as_ref().unwrap();

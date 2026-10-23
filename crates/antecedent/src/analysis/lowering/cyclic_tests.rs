@@ -280,6 +280,19 @@ fn every_cyclic_family_lowers_to_a_complete_program_with_a_stable_identity() {
         assert_eq!(first.cyclic_family(), Some(family));
         assert_eq!(first.route(), "CyclicFamily");
         assert_eq!(first.identity(), again.identity(), "{family}: identity is not stable");
+        let view = crate::planner::PlanView::of_program(
+            std::sync::Arc::new(first.clone()),
+            crate::planner::PlanStage::Compiled,
+        );
+        assert_eq!(view.identity(), first.identity(), "{family}: the view reads the program");
+        assert_eq!(view.route(), crate::planner::PlanRoute::CyclicFamily(family));
+        assert_eq!(view.family(), crate::planner::RouteFamily::Cyclic);
+        assert_eq!(
+            view.identification().kind(),
+            crate::planner::plan_view::IdentificationKind::NonGraphical
+        );
+        assert!(view.identification().non_graphical().is_some(), "{family}");
+        assert!(view.mixture().is_none(), "{family}");
         assert!(
             first.non_graphical_identification().is_some(),
             "{family}: a feedback program carries no graphical identification product"

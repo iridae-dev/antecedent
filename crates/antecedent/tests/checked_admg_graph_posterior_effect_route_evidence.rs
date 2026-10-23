@@ -1,6 +1,7 @@
 //! Builder-independent evidence for ADMG graph-posterior average effects.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -98,9 +99,10 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             let context = ExecutionContext::for_tests(84_004);
             let mut prepared = builder.prepare(&context).unwrap();
             drop(builder);
-            let plan = prepared
-                .checked_graph_posterior_effect_info()
-                .expect("prepared ADMG graph-posterior plan");
+            let RetainedOperation::GraphPosteriorEffect(plan) = prepared.retained_operation()
+            else {
+                panic!("prepared ADMG graph-posterior plan")
+            };
             assert_eq!(plan.query, query);
             assert_eq!(plan.estimator.as_str(), "functional.effect");
             assert_eq!(plan.validation, suite);
@@ -142,7 +144,10 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
                     .abs()
                     < 1e-9
             );
-            let retained = prepared.checked_graph_posterior_effect_info().unwrap();
+            let RetainedOperation::GraphPosteriorEffect(retained) = prepared.retained_operation()
+            else {
+                panic!("retained ADMG graph-posterior plan")
+            };
             assert_eq!(retained.weights, plan.weights);
             assert_eq!(retained.graph_keys, plan.graph_keys);
             let artifact = prepared

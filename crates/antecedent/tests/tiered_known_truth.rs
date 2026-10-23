@@ -10,6 +10,7 @@
 
 mod common;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{CausalError, EstimatorId, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext};
 use antecedent_data::{TableView, TabularData};
@@ -173,9 +174,10 @@ fn codetermined_average_effect_known_truth() {
             .unwrap();
         let fresh = builder.clone().run(&ctx).unwrap();
         let mut prepared = builder.prepare(&ctx).unwrap();
-        let retained_lowering = prepared
-            .checked_aipw_ate()
-            .expect("CoDetermined AIPW must retain its checked closure and row design");
+        let RetainedOperation::CheckedAipw(retained_lowering) = prepared.retained_operation()
+        else {
+            panic!("CoDetermined AIPW must retain its checked closure and row design")
+        };
         let lowering = retained_lowering.lowering();
         assert_eq!(
             lowering.procedure,

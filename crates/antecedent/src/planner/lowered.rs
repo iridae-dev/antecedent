@@ -768,6 +768,11 @@ impl LoweredProgram {
         }
     }
 
+    /// Layer two as compile lowered it.
+    pub(crate) const fn identification_layer(&self) -> &IdentificationLayer {
+        &self.identification
+    }
+
     /// Identification of a feedback program, when layer two carries one.
     pub(crate) fn non_graphical_identification(&self) -> Option<&NonGraphicalIdentification> {
         match &self.identification {
@@ -815,7 +820,8 @@ impl LoweredProgram {
     }
 }
 
-const fn data_classification_name(data: DataClassification) -> &'static str {
+/// Stable `snake_case` name of a data classification.
+pub(crate) const fn data_classification_name(data: DataClassification) -> &'static str {
     match data {
         DataClassification::Tabular => "tabular",
         DataClassification::Temporal => "temporal",

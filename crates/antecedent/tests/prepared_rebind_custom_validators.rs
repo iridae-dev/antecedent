@@ -6,6 +6,7 @@ mod common;
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, TemporalEffectQuery,
@@ -74,7 +75,7 @@ fn rebound_validators_reach_the_sealed_bayesian_dag_effect() {
         .unwrap()
         .prepare(&ctx)
         .unwrap();
-    assert!(prepared.checked_bayesian_gcomp_operation().is_some());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::BayesianGcomp { .. }));
     assert!(verdict(&prepared.estimate(&data, &ctx).unwrap()));
     prepared.rebind_custom_validators(validator(false)).unwrap();
     assert!(!verdict(&prepared.estimate(&data, &ctx).unwrap()));
@@ -102,7 +103,7 @@ fn rebound_validators_reach_the_sealed_temporal_class_effect() {
         .unwrap()
         .prepare(&ctx)
         .unwrap();
-    assert!(prepared.checked_temporal_class_effect_info().is_some());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::TemporalClassEffect(..)));
     assert!(verdict(&prepared.estimate_series(&data, &ctx).unwrap()));
     prepared.rebind_custom_validators(validator(false)).unwrap();
     assert!(!verdict(&prepared.estimate_series(&data, &ctx).unwrap()));
@@ -150,7 +151,7 @@ fn rebound_validators_reach_the_dispatched_bayesian_conditional_effect() {
         .unwrap();
     // Caller validators keep the Bayesian conditional effect off the sealed
     // operation, so the rebound set must reach the dispatched route instead.
-    assert!(prepared.checked_bayesian_conditional_operation().is_none());
+    assert!(!matches!(prepared.retained_operation(), RetainedOperation::BayesianConditional(..)));
     let first = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(first.logical_plan().estimator.as_deref(), Some("conditional.bayesian"));
     assert!(verdict(&first));

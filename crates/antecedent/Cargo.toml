@@ -746,6 +746,10 @@ path = "tests/structure_compiler_routes.rs"
 name = "quasi_rollout_routes"
 path = "tests/quasi_rollout_routes.rs"
 
+[[test]]
+name = "plan_view"
+path = "tests/plan_view.rs"
+
 [[example]]
 name = "joint_panel_workflow"
 path = "../../examples/rust/joint_panel_workflow.rs"

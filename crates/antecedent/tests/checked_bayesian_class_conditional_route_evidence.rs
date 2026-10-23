@@ -3,6 +3,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -175,12 +176,23 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                     let mut prepared = builder.prepare(&ctx).unwrap();
                     drop(builder);
 
-                    let plan = prepared
-                        .checked_bayesian_class_conditional_info()
-                        .expect("fully identified Bayesian class conditional operation is sealed");
-                    assert!(prepared.checked_conditional_effect_info().is_none(), "{coordinate}");
+                    let RetainedOperation::BayesianClassConditional(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("fully identified Bayesian class conditional operation is sealed")
+                    };
                     assert!(
-                        prepared.checked_bayesian_conditional_operation().is_none(),
+                        !matches!(
+                            prepared.retained_operation(),
+                            RetainedOperation::CheckedConditional(..)
+                        ),
+                        "{coordinate}"
+                    );
+                    assert!(
+                        !matches!(
+                            prepared.retained_operation(),
+                            RetainedOperation::BayesianConditional(..)
+                        ),
                         "{coordinate}"
                     );
                     assert_eq!(plan.graph_class, expected_class, "{coordinate}");
@@ -246,7 +258,11 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
 
                     let refreshed = prepared.refresh(class_data(0.35), &ctx).unwrap();
                     assert!((refreshed.effect() - 3.0).abs() < 0.2, "{coordinate}");
-                    let rebound = prepared.checked_bayesian_class_conditional_info().unwrap();
+                    let RetainedOperation::BayesianClassConditional(rebound) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("retained Bayesian class conditional operation after refresh")
+                    };
                     assert_eq!(rebound.graph_class, plan.graph_class);
                     assert_eq!(rebound.query, plan.query);
                     assert_eq!(rebound.inference, plan.inference);
@@ -301,9 +317,12 @@ fn partially_identified_bayesian_class_conditional_effect_is_not_sealed() {
         .unwrap();
     let prepared = builder.prepare(&ctx).unwrap();
     drop(builder);
-    assert!(prepared.checked_bayesian_class_conditional_info().is_none());
-    assert!(prepared.checked_conditional_effect_info().is_none());
-    assert!(prepared.checked_bayesian_conditional_operation().is_none());
+    assert!(!matches!(
+        prepared.retained_operation(),
+        RetainedOperation::BayesianClassConditional(..)
+    ));
+    assert!(!matches!(prepared.retained_operation(), RetainedOperation::CheckedConditional(..)));
+    assert!(!matches!(prepared.retained_operation(), RetainedOperation::BayesianConditional(..)));
 }
 
 /// Class envelopes execute through deep prepare/estimate frames in debug builds.

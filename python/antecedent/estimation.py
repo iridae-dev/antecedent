@@ -146,6 +146,7 @@ from .results import (
     PosteriorView,
     PredictiveCheckReport,
     PriorSensitivityReport,
+    ProgramPlanView,
     ReasoningSlots,
     RefutationReport,
     ResponseEnvelopeView,
@@ -1805,44 +1806,27 @@ class PreparedAnalysis(Generic[ResultT]):
         """Support-matrix structure axis frozen at prepare (`explicit` or `accepted`)."""
         return str(self._native.plan_summary().get("structure_source", "explicit"))
 
-    def checked_static_dag_response_info(self) -> dict[str, Any] | None:
-        """Inspect the frozen checked DAG response query and procedure, if present.
+    def plan_view(self) -> ProgramPlanView:
+        """Every layer of the program this handle executes, read before any estimate.
 
-        The returned mapping is read-only evidence from the prepared native handle;
-        it remains available after the original query and graph objects are dropped.
+        The view states the scientific problem, the identification product
+        (status, assumptions, estimand and adjustment set, unresolved
+        obligations, retained products), the statistical program, the evidence
+        and decision program, the physical plan (operators, quoted design width
+        or why there is none, byte estimates) and the uncertainty and claim the
+        execution must publish, with the lowered program identity and the
+        support cell. ``operation`` names the sealed operation preparation
+        retained and carries its inspection record. Reading it identifies, fits
+        and scans nothing; :meth:`inspect` and :meth:`preflight` are unchanged.
         """
-        info = self._native.checked_static_dag_response_info()
-        return None if info is None else dict(info)
-
-    def checked_conditional_effect_info(self) -> dict[str, Any] | None:
-        """Inspect the retained DAG conditional target, procedure, and bound rows."""
-        info = self._native.checked_conditional_effect_info()
-        return None if info is None else dict(info)
-
-    def checked_static_mediation_info(self) -> dict[str, Any] | None:
-        """Inspect the retained static mediation contrast, graph, and procedure."""
-        info = self._native.checked_static_mediation_info()
-        return None if info is None else dict(info)
-
-    def checked_bayesian_dag_ate_info(self) -> dict[str, Any] | None:
-        """Inspect the retained Bayesian DAG ATE target, backend, and prior source."""
-        info = self._native.checked_bayesian_dag_ate_info()
-        return None if info is None else dict(info)
-
-    def checked_graph_posterior_effect_info(self) -> dict[str, Any] | None:
-        """Inspect frozen graph atoms, weights, and the selected effect procedure."""
-        info = self._native.checked_graph_posterior_effect_info()
-        return None if info is None else dict(info)
-
-    def checked_temporal_effect_info(self) -> dict[str, Any] | None:
-        """Inspect the retained temporal contrast, graph, and estimator choice."""
-        info = self._native.checked_temporal_effect_info()
-        return None if info is None else dict(info)
-
-    def checked_temporal_response_info(self) -> dict[str, Any] | None:
-        """Inspect the frozen temporal response grid, horizons, and uncertainty method."""
-        info = self._native.checked_temporal_response_info()
-        return None if info is None else dict(info)
+        native = getattr(self, "_native", None)
+        transport = getattr(self, "_transport", None)
+        if transport is not None or native is None or not hasattr(native, "plan_view_json"):
+            raise CausalUnsupportedError(
+                "This handle executes no lowered study program, so it has no plan view.",
+                reason_code="plan_view_unavailable",
+            )
+        return ProgramPlanView.from_json(native.plan_view_json())
 
     @property
     def evidence_status(self) -> str | None:
@@ -2734,6 +2718,7 @@ __all__ = [
     "PhysicalPlanView",
     "PlanView",
     "PosteriorView",
+    "ProgramPlanView",
     "PredictiveCheckReport",
     "PreparedAnalysis",
     "PreparedBatch",

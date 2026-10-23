@@ -2,6 +2,7 @@
 
 #![allow(clippy::float_cmp, reason = "plan pins compare exact literal constants")]
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::{
@@ -141,9 +142,9 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
     let mut prepared = builder.prepare(&context).unwrap();
     drop(builder);
 
-    let plan = prepared
-        .checked_bayesian_basis_ate_info()
-        .expect("basis ATE plan survives builder disposal");
+    let RetainedOperation::BayesianBasisAte(plan) = prepared.retained_operation() else {
+        panic!("basis ATE plan survives builder disposal")
+    };
     assert_eq!(plan.query, query);
     assert_eq!(plan.adjustment_set.as_ref(), &[v(2)]);
     assert_eq!(plan.posterior_draws, 192);
@@ -183,7 +184,10 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
     ])
     .unwrap();
     let refreshed = prepared.refresh(shifted, &context).unwrap();
-    assert_eq!(prepared.checked_bayesian_basis_ate_info().unwrap(), plan);
+    let RetainedOperation::BayesianBasisAte(rebound) = prepared.retained_operation() else {
+        panic!("basis ATE plan survives refresh")
+    };
+    assert_eq!(rebound, plan);
     assert!((refreshed.estimate.as_effect().unwrap().ate - 0.5).abs() < 0.08);
 
     let bytes = prepared
@@ -227,9 +231,9 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
     let one_shot = builder.run(&context).unwrap();
     let mut prepared = builder.prepare(&context).unwrap();
     drop(builder);
-    let retained_plan = prepared
-        .checked_bayesian_basis_cate_query()
-        .expect("checked CATE plan survives builder disposal");
+    let RetainedOperation::BayesianBasisCate(retained_plan) = prepared.retained_operation() else {
+        panic!("checked CATE plan survives builder disposal")
+    };
     assert_eq!(retained_plan, &query);
     assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
     let result = prepared.estimate(&data, &context).unwrap();

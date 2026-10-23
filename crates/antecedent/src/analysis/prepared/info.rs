@@ -1,12 +1,12 @@
-//! Read-only inspection records and accessors for a prepared handle.
+//! Read-only inspection of a prepared handle: the retained operation, the plan
+//! view, and the frozen study, schema and plan.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CachedTemporalIdentification, CheckedAipwOperation, CheckedBayesianGcompOperation,
-    CheckedFunctionalEffectResponseMember, CheckedIvOperation, CheckedLinearOperation,
-    CheckedProgramBinding, CheckedUnknownTieredAverageInfo, ExecutionKind, Inspect,
-    PreparedExecution, PreparedStudy,
+    CheckedFunctionalEffectResponseMember, CheckedProgramBinding, CheckedUnknownTieredAverageInfo,
+    ExecutionKind, Inspect, PreparedExecution, PreparedStudy,
 };
 use crate::accepted::GraphClass;
 use crate::analysis::builder::{DataInput, RefuteSuite};
@@ -44,103 +44,342 @@ pub use crate::analysis::execute::{
     CheckedTemporalMediationTargetInfo,
 };
 
-/// Binds each public `checked_*_info` accessor to the sealed route whose
-/// operation builds the record ([`Inspect`]). The route and the record type are
-/// tied by the trait, so an accessor cannot read another route's operation.
-macro_rules! inspection_accessors {
-    ($($(#[doc = $doc:literal])* $name:ident -> $info:ty = $variant:ident;)+) => {
-        impl PreparedStudy {
-            $(
-                $(#[doc = $doc])*
-                #[must_use]
-                pub fn $name(&self) -> Option<$info> {
-                    match &self.execution {
-                        PreparedExecution::$variant(operation) => Some(operation.info()),
-                        _ => None,
-                    }
-                }
-            )+
-        }
-    };
+/// The sealed operation a prepared handle retained, read without executing it.
+///
+/// One variant per sealed route. A route with a public inspection record carries
+/// that record, built by the operation from the state it retains; a route that
+/// retains a checked lowering or functional program borrows it; the remaining
+/// design routes name themselves. [`PreparedStudy::plan_view`] names the variant
+/// on the plan view; this enum is its typed detail.
+#[non_exhaustive]
+pub enum RetainedOperation<'a> {
+    /// No sealed operation admits the configuration; execution goes through the
+    /// ordinary dispatcher.
+    OrdinaryDispatch,
+    /// Checked general-ID functional program of an ADMG effect.
+    FunctionalEffect(&'a antecedent_expr::FunctionalProgram),
+    /// Checked functional program of a path-specific effect.
+    PathSpecificEffect(&'a antecedent_expr::FunctionalProgram),
+    /// Ordered checked members of an ADMG mean response curve or intervention response.
+    AdmgResponseCurve(&'a [CheckedFunctionalEffectResponseMember]),
+    /// ADMG graph-posterior response.
+    AdmgGraphPosteriorResponse(CheckedAdmgGraphPosteriorResponseInfo),
+    /// Checked linear adjustment lowering.
+    CheckedLinear(&'a antecedent_estimate::CheckedLinearAdjustmentAte),
+    /// Retained GLM target design of the checked DAG adjustment route.
+    CheckedGlmAdjustment(&'a antecedent_estimate::PreparedGlmProblem),
+    /// Retained local boundary and design of the checked sharp RD route.
+    CheckedRd(&'a antecedent_estimate::CheckedRdPreparation),
+    /// Target, row binding and uncertainty selected for propensity estimation.
+    CheckedPropensity(CheckedPropensityInfo),
+    /// Conditional target, procedure and bound design.
+    CheckedConditional(CheckedConditionalEffectInfo),
+    /// Bayesian conditional-effect plan.
+    BayesianConditional(CheckedBayesianConditionalInfo),
+    /// Frozen graph-posterior atoms and estimator procedure.
+    GraphPosteriorEffect(CheckedGraphPosteriorEffectInfo),
+    /// Frozen sample masses and completion envelopes of a class graph-posterior effect.
+    ClassGraphPosteriorEffect(CheckedClassGraphPosteriorEffectInfo),
+    /// Bayesian DAG posterior target, atoms and validation suite.
+    BayesianGraphPosteriorAte(CheckedBayesianGraphPosteriorAteInfo),
+    /// Static CPDAG/PAG average-effect target, procedure and completion envelope masses.
+    StaticClassEffect(CheckedStaticClassEffectInfo),
+    /// Checked AIPW lowering of a supported mean ATE.
+    CheckedAipw(&'a antecedent_estimate::CheckedAipwPreparation),
+    /// Retained graph and cross-world target of a checked counterfactual.
+    Counterfactual(&'a crate::gcm::CheckedCounterfactualOperation),
+    /// Checked shared-exogenous natural direct effect.
+    NestedCounterfactual(&'a crate::gcm::NestedCounterfactualOperation),
+    /// Static derivative response.
+    DerivativeResponse(CheckedDerivativeResponseInfo),
+    /// Cell AIPW intervention response.
+    CellAipwResponse(CheckedCellAipwResponseInfo),
+    /// Static DAG response.
+    StaticDagResponse(CheckedStaticDagResponseInfo),
+    /// Static DAG mediation target and procedure.
+    StaticMediation(CheckedStaticMediationInfo),
+    /// Bayesian DAG mediation target, model and validation.
+    BayesianStaticMediation(CheckedStaticMediationInfo),
+    /// Frequentist attribution target and supplied DAG.
+    Attribution(CheckedAttributionInfo),
+    /// Temporal DAG response.
+    TemporalDagResponse(CheckedTemporalDagResponseInfo),
+    /// Temporal DAG effect.
+    TemporalDagEffect(CheckedTemporalDagEffectInfo),
+    /// Bayesian temporal DAG target and model settings.
+    BayesianTemporalDagEffect(CheckedBayesianTemporalDagEffectInfo),
+    /// Temporal mediation target.
+    TemporalMediation(CheckedTemporalMediationInfo),
+    /// Fixed-network interference target and procedure.
+    Interference(CheckedInterferenceInfo),
+    /// Randomized assignment contrast.
+    Randomized,
+    /// Fixed policy value.
+    PolicyValue,
+    /// Continuous dose response.
+    ContinuousDoseResponse,
+    /// Panel difference in differences.
+    PanelDid,
+    /// Synthetic control.
+    SyntheticControl,
+    /// Local-polynomial ratio (fuzzy RD or regression kink).
+    LocalPolynomialRatio,
+    /// Survival contrast.
+    Survival,
+    /// Longitudinal regime value.
+    LongitudinalRegime,
+    /// Sequential regime contrast.
+    SequentialContrast,
+    /// History matching.
+    HistoryMatch,
+    /// Temporal design-based assignment contrast.
+    TemporalDesign,
+    /// Source graph and complete temporal class envelope.
+    TemporalClassEffect(CheckedTemporalClassEffectInfo),
+    /// Checked functional program of an interventional distribution.
+    Distribution(&'a antecedent_expr::FunctionalProgram),
+    /// Bayesian g-computation of a static mean ATE, with its frozen validation.
+    BayesianGcomp {
+        /// The checked operation.
+        operation: &'a CheckedBayesianGcompOperation,
+        /// Validation procedure frozen with the route.
+        validation: RefuteSuite,
+    },
+    /// Bayesian quadratic-basis ATE plan.
+    BayesianBasisAte(CheckedBayesianBasisAteInfo),
+    /// Target of the Bayesian basis CATE route.
+    BayesianBasisCate(&'a antecedent_core::ConditionalEffectQuery),
+    /// Target and row/fold plan of the Bayesian robust ATE.
+    BayesianRobustAte(CheckedBayesianRobustAteInfo),
+    /// Static response curve.
+    StaticResponseCurve,
+    /// Checked linear two-stage front-door lowering.
+    FrontDoorLinear(&'a antecedent_estimate::CheckedFrontDoorPreparation),
+    /// Checked Wald or single-binary-instrument 2SLS lowering.
+    Iv(&'a antecedent_estimate::CheckedIvPreparation),
+    /// Two-scenario Unknown-tier average effect.
+    UnknownTieredAverage(CheckedUnknownTieredAverageInfo),
+    /// Bayesian class conditional target, prior and completion proof.
+    BayesianClassConditional(CheckedBayesianClassConditionalInfo),
+    /// Source graph and per-horizon temporal class response envelopes.
+    TemporalClassResponse(CheckedTemporalClassResponseInfo),
+    /// Temporal graph-posterior response.
+    TemporalGraphPosteriorResponse(CheckedTemporalGraphPosteriorResponseInfo),
+    /// Class-envelope or graph-posterior temporal mediation target, proof mass and procedure.
+    TemporalClassMediation(CheckedTemporalClassMediationInfo),
+    /// Source class, completion proof and Bayesian settings.
+    BayesianTemporalClassEffect(CheckedBayesianTemporalClassEffectInfo),
+    /// Frozen temporal posterior samples, atom proofs and procedure.
+    TemporalGraphPosteriorEffect(CheckedTemporalGraphPosteriorEffectInfo),
+    /// Explicit or accepted CPDAG or PAG response.
+    StaticClassResponse(CheckedStaticClassResponseInfo),
+    /// DAG, CPDAG or PAG graph-posterior response.
+    GraphPosteriorResponse(CheckedGraphPosteriorResponseInfo),
+    /// Bayesian IV or sharp-RD model.
+    BayesianSpecialist(crate::analysis::execute::CheckedBayesianSpecialistInfo),
+    /// Certified trial-to-target transport.
+    TransportTrial(crate::analysis::execute::CheckedTransportTrialInfo),
 }
 
-inspection_accessors! {
-    /// Checked Bayesian quadratic-basis ATE plan, when this handle owns one.
-    checked_bayesian_basis_ate_info -> CheckedBayesianBasisAteInfo = BayesianBasisAte;
-    /// Inspect the retained target and row/fold plan for Bayesian robust ATE.
-    checked_bayesian_robust_ate_info -> CheckedBayesianRobustAteInfo = BayesianRobustAte;
-    /// Checked Bayesian conditional-effect plan, when this handle owns one.
-    checked_bayesian_conditional_operation -> CheckedBayesianConditionalInfo = BayesianConditional;
-    /// Inspect the sealed static DAG mediation target and procedure.
-    checked_static_mediation_info -> CheckedStaticMediationInfo = StaticMediation;
-    /// Inspect the retained Bayesian DAG mediation target, model, and validation.
-    checked_bayesian_static_mediation_info -> CheckedStaticMediationInfo = BayesianStaticMediation;
-    /// Inspect the sealed frequentist attribution target and supplied DAG.
-    checked_attribution_info -> CheckedAttributionInfo = Attribution;
-    /// Inspect the retained static CPDAG/PAG average-effect target, procedure,
-    /// inference settings, and completion envelope masses.
-    checked_static_class_effect_info -> CheckedStaticClassEffectInfo = StaticClassEffect;
-    /// Inspect the retained Bayesian class conditional target, prior, and completion proof.
-    checked_bayesian_class_conditional_info -> CheckedBayesianClassConditionalInfo = BayesianClassConditional;
-    /// Inspect the frozen graph-posterior atoms and estimator procedure.
-    checked_graph_posterior_effect_info -> CheckedGraphPosteriorEffectInfo = GraphPosteriorEffect;
-    /// Inspect the frozen sample masses and completion envelopes for a class
-    /// graph-posterior average effect.
-    checked_class_graph_posterior_effect_info -> CheckedClassGraphPosteriorEffectInfo = ClassGraphPosteriorEffect;
-    /// Inspect the retained Bayesian DAG posterior target, atoms, and validation suite.
-    checked_bayesian_graph_posterior_ate_info -> CheckedBayesianGraphPosteriorAteInfo = BayesianGraphPosteriorAte;
-    /// Inspect the retained ADMG graph-posterior response operation.
-    checked_admg_graph_posterior_response_info -> CheckedAdmgGraphPosteriorResponseInfo = AdmgGraphPosteriorResponse;
-    /// Inspect the retained explicit/accepted CPDAG or PAG response operation.
-    checked_static_class_response_info -> CheckedStaticClassResponseInfo = StaticClassResponse;
-    /// Inspect the retained DAG, CPDAG, or PAG graph-posterior response operation.
-    checked_graph_posterior_response_info -> CheckedGraphPosteriorResponseInfo = GraphPosteriorResponse;
-    /// Read-only target, row binding, and uncertainty selected for propensity estimation.
-    checked_propensity_info -> CheckedPropensityInfo = CheckedPropensity;
-    /// Inspect the retained conditional target, procedure, and bound design.
-    checked_conditional_effect_info -> CheckedConditionalEffectInfo = CheckedConditional;
-    /// Read-only view of the checked static derivative-response route, when
-    /// preparation retained one.
-    checked_derivative_response_info -> CheckedDerivativeResponseInfo = DerivativeResponse;
-    /// Read-only view of the retained checked static DAG response route.
-    checked_static_dag_response_info -> CheckedStaticDagResponseInfo = StaticDagResponse;
-    /// Read-only view of the sealed Cell AIPW intervention-response route.
-    checked_cell_aipw_response_info -> CheckedCellAipwResponseInfo = CellAipwResponse;
-    /// Read-only view of the retained TemporalDag response route.
-    checked_temporal_dag_response_info -> CheckedTemporalDagResponseInfo = TemporalDagResponse;
-    /// Inspect the retained checked temporal mediation target before execution.
+impl RetainedOperation<'_> {
+    /// Stable `snake_case` name of the sealed route.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::OrdinaryDispatch => "ordinary_dispatch",
+            Self::FunctionalEffect(_) => "functional_effect",
+            Self::PathSpecificEffect(_) => "path_specific_effect",
+            Self::AdmgResponseCurve(_) => "admg_response_curve",
+            Self::AdmgGraphPosteriorResponse(_) => "admg_graph_posterior_response",
+            Self::CheckedLinear(_) => "linear_adjustment",
+            Self::CheckedGlmAdjustment(_) => "glm_adjustment",
+            Self::CheckedRd(_) => "sharp_rd",
+            Self::CheckedPropensity(_) => "propensity",
+            Self::CheckedConditional(_) => "conditional_effect",
+            Self::BayesianConditional(_) => "bayesian_conditional",
+            Self::GraphPosteriorEffect(_) => "graph_posterior_effect",
+            Self::ClassGraphPosteriorEffect(_) => "class_graph_posterior_effect",
+            Self::BayesianGraphPosteriorAte(_) => "bayesian_graph_posterior_ate",
+            Self::StaticClassEffect(_) => "static_class_effect",
+            Self::CheckedAipw(_) => "aipw",
+            Self::Counterfactual(_) => "counterfactual",
+            Self::NestedCounterfactual(_) => "nested_counterfactual",
+            Self::DerivativeResponse(_) => "derivative_response",
+            Self::CellAipwResponse(_) => "cell_aipw_response",
+            Self::StaticDagResponse(_) => "static_dag_response",
+            Self::StaticMediation(_) => "static_mediation",
+            Self::BayesianStaticMediation(_) => "bayesian_static_mediation",
+            Self::Attribution(_) => "attribution",
+            Self::TemporalDagResponse(_) => "temporal_dag_response",
+            Self::TemporalDagEffect(_) => "temporal_dag_effect",
+            Self::BayesianTemporalDagEffect(_) => "bayesian_temporal_dag_effect",
+            Self::TemporalMediation(_) => "temporal_mediation",
+            Self::Interference(_) => "interference",
+            Self::Randomized => "randomized",
+            Self::PolicyValue => "policy_value",
+            Self::ContinuousDoseResponse => "continuous_dose_response",
+            Self::PanelDid => "panel_did",
+            Self::SyntheticControl => "synthetic_control",
+            Self::LocalPolynomialRatio => "local_polynomial_ratio",
+            Self::Survival => "survival",
+            Self::LongitudinalRegime => "longitudinal_regime",
+            Self::SequentialContrast => "sequential_contrast",
+            Self::HistoryMatch => "history_match",
+            Self::TemporalDesign => "temporal_design",
+            Self::TemporalClassEffect(_) => "temporal_class_effect",
+            Self::Distribution(_) => "distribution",
+            Self::BayesianGcomp { .. } => "bayesian_gcomp",
+            Self::BayesianBasisAte(_) => "bayesian_basis_ate",
+            Self::BayesianBasisCate(_) => "bayesian_basis_cate",
+            Self::BayesianRobustAte(_) => "bayesian_robust_ate",
+            Self::StaticResponseCurve => "static_response_curve",
+            Self::FrontDoorLinear(_) => "frontdoor_linear",
+            Self::Iv(_) => "iv",
+            Self::UnknownTieredAverage(_) => "unknown_tiered_average",
+            Self::BayesianClassConditional(_) => "bayesian_class_conditional",
+            Self::TemporalClassResponse(_) => "temporal_class_response",
+            Self::TemporalGraphPosteriorResponse(_) => "temporal_graph_posterior_response",
+            Self::TemporalClassMediation(_) => "temporal_class_mediation",
+            Self::BayesianTemporalClassEffect(_) => "bayesian_temporal_class_effect",
+            Self::TemporalGraphPosteriorEffect(_) => "temporal_graph_posterior_effect",
+            Self::StaticClassResponse(_) => "static_class_response",
+            Self::GraphPosteriorResponse(_) => "graph_posterior_response",
+            Self::BayesianSpecialist(_) => "bayesian_specialist",
+            Self::TransportTrial(_) => "transport_trial",
+        }
+    }
+}
+
+impl std::fmt::Debug for RetainedOperation<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("RetainedOperation").field(&self.name()).finish()
+    }
+}
+
+impl PreparedStudy {
+    /// The sealed operation preparation retained, read without executing it.
+    ///
+    /// Inspection records are built from the retained state; nothing is
+    /// identified, fitted or scanned.
     ///
     /// # Panics
     ///
-    /// Panics only if the sealed operation contains a temporal lag that cannot
-    /// be represented as an `i32`; preparation rejects such lags.
-    checked_temporal_mediation_info -> CheckedTemporalMediationInfo = TemporalMediation;
-    /// Inspect the retained checked class-envelope or graph-posterior temporal
-    /// mediation target, proof mass, and procedure before execution.
-    checked_temporal_class_mediation_info -> CheckedTemporalClassMediationInfo = TemporalClassMediation;
-    /// Inspect the retained fixed-network interference target and procedure.
-    checked_interference_info -> CheckedInterferenceInfo = Interference;
-    /// Inspect the sealed two-scenario Unknown-tier average-effect operation.
-    checked_unknown_tiered_average_info -> CheckedUnknownTieredAverageInfo = UnknownTieredAverage;
-    /// Inspect the retained Bayesian IV or sharp-RD model before execution.
-    checked_bayesian_specialist_info -> crate::analysis::execute::CheckedBayesianSpecialistInfo = BayesianSpecialist;
-    /// Inspect the retained certified trial-to-target transport operation.
-    checked_transport_trial_info -> crate::analysis::execute::CheckedTransportTrialInfo = TransportTrial;
-    /// Inspect the retained checked temporal effect before execution.
-    checked_temporal_dag_effect_info -> CheckedTemporalDagEffectInfo = TemporalDagEffect;
-    /// Inspect the retained Bayesian temporal DAG target and model settings.
-    checked_bayesian_temporal_dag_effect_info -> CheckedBayesianTemporalDagEffectInfo = BayesianTemporalDagEffect;
-    /// Inspect the retained source graph and complete temporal class envelope.
-    checked_temporal_class_effect_info -> CheckedTemporalClassEffectInfo = TemporalClassEffect;
-    /// Inspect the retained source class, completion proof, and Bayesian settings.
-    checked_bayesian_temporal_class_effect_info -> CheckedBayesianTemporalClassEffectInfo = BayesianTemporalClassEffect;
-    /// Inspect the frozen temporal posterior samples, atom proofs, and procedure.
-    checked_temporal_graph_posterior_effect_info -> CheckedTemporalGraphPosteriorEffectInfo = TemporalGraphPosteriorEffect;
-    /// Inspect the retained source graph and per-horizon temporal class
-    /// response envelopes.
-    checked_temporal_class_response_info -> CheckedTemporalClassResponseInfo = TemporalClassResponse;
-    /// Inspect the retained temporal graph-posterior response operation.
-    checked_temporal_graph_posterior_response_info -> CheckedTemporalGraphPosteriorResponseInfo = TemporalGraphPosteriorResponse;
+    /// Panics only if a sealed temporal mediation operation holds a lag that does
+    /// not fit an `i32`; preparation rejects such lags.
+    #[must_use]
+    pub fn retained_operation(&self) -> RetainedOperation<'_> {
+        use PreparedExecution as E;
+        use RetainedOperation as R;
+        match &self.execution {
+            E::OrdinaryDispatch => R::OrdinaryDispatch,
+            E::FunctionalEffect(operation) => R::FunctionalEffect(operation.prepared.program()),
+            E::PathSpecificEffect(operation) => R::PathSpecificEffect(operation.prepared.program()),
+            E::AdmgResponseCurve(operation) => R::AdmgResponseCurve(operation.members.as_ref()),
+            E::AdmgGraphPosteriorResponse(operation) => {
+                R::AdmgGraphPosteriorResponse(operation.info())
+            }
+            E::CheckedLinear(operation) => R::CheckedLinear(&operation.preparation),
+            E::CheckedGlmAdjustment(operation) => R::CheckedGlmAdjustment(&operation.preparation),
+            E::CheckedRd(operation) => R::CheckedRd(&operation.preparation),
+            E::CheckedPropensity(operation) => R::CheckedPropensity(operation.info()),
+            E::CheckedConditional(operation) => R::CheckedConditional(operation.info()),
+            E::BayesianConditional(operation) => R::BayesianConditional(operation.info()),
+            E::GraphPosteriorEffect(operation) => R::GraphPosteriorEffect(operation.info()),
+            E::ClassGraphPosteriorEffect(operation) => {
+                R::ClassGraphPosteriorEffect(operation.info())
+            }
+            E::BayesianGraphPosteriorAte(operation) => {
+                R::BayesianGraphPosteriorAte(operation.info())
+            }
+            E::StaticClassEffect(operation) => R::StaticClassEffect(operation.info()),
+            E::CheckedAipw(operation) => R::CheckedAipw(&operation.preparation),
+            E::Counterfactual(plan) => R::Counterfactual(plan.operation()),
+            E::NestedCounterfactual(operation) => R::NestedCounterfactual(operation),
+            E::DerivativeResponse(operation) => R::DerivativeResponse(operation.info()),
+            E::CellAipwResponse(operation) => R::CellAipwResponse(operation.info()),
+            E::StaticDagResponse(operation) => R::StaticDagResponse(operation.info()),
+            E::StaticMediation(operation) => R::StaticMediation(operation.info()),
+            E::BayesianStaticMediation(operation) => R::BayesianStaticMediation(operation.info()),
+            E::Attribution(operation) => R::Attribution(operation.info()),
+            E::TemporalDagResponse(operation) => R::TemporalDagResponse(operation.info()),
+            E::TemporalDagEffect(operation) => R::TemporalDagEffect(operation.info()),
+            E::BayesianTemporalDagEffect(operation) => {
+                R::BayesianTemporalDagEffect(operation.info())
+            }
+            E::TemporalMediation(operation) => R::TemporalMediation(operation.info()),
+            E::Interference(operation) => R::Interference(operation.info()),
+            E::Randomized(_) => R::Randomized,
+            E::PolicyValue(_) => R::PolicyValue,
+            E::ContinuousDoseResponse(_) => R::ContinuousDoseResponse,
+            E::PanelDid(_) => R::PanelDid,
+            E::SyntheticControl(_) => R::SyntheticControl,
+            E::LocalPolynomialRatio(_) => R::LocalPolynomialRatio,
+            E::Survival(_) => R::Survival,
+            E::LongitudinalRegime(_) => R::LongitudinalRegime,
+            E::SequentialContrast(_) => R::SequentialContrast,
+            E::HistoryMatch(_) => R::HistoryMatch,
+            E::TemporalDesign(_) => R::TemporalDesign,
+            E::TemporalClassEffect(operation) => R::TemporalClassEffect(operation.info()),
+            E::Distribution(operation) => R::Distribution(operation.prepared.program()),
+            E::BayesianGcomp(operation) => R::BayesianGcomp {
+                operation: operation.operation(),
+                validation: operation.validation(),
+            },
+            E::BayesianBasisAte(operation) => R::BayesianBasisAte(operation.info()),
+            E::BayesianBasisCate(operation) => R::BayesianBasisCate(operation.query()),
+            E::BayesianRobustAte(operation) => R::BayesianRobustAte(operation.info()),
+            E::StaticResponseCurve(_) => R::StaticResponseCurve,
+            E::FrontDoorLinear(operation) => R::FrontDoorLinear(&operation.preparation),
+            E::Iv(operation) => R::Iv(operation.preparation()),
+            E::UnknownTieredAverage(operation) => R::UnknownTieredAverage(operation.info()),
+            E::BayesianClassConditional(operation) => R::BayesianClassConditional(operation.info()),
+            E::TemporalClassResponse(operation) => R::TemporalClassResponse(operation.info()),
+            E::TemporalGraphPosteriorResponse(operation) => {
+                R::TemporalGraphPosteriorResponse(operation.info())
+            }
+            E::TemporalClassMediation(operation) => R::TemporalClassMediation(operation.info()),
+            E::BayesianTemporalClassEffect(operation) => {
+                R::BayesianTemporalClassEffect(operation.info())
+            }
+            E::TemporalGraphPosteriorEffect(operation) => {
+                R::TemporalGraphPosteriorEffect(operation.info())
+            }
+            E::StaticClassResponse(operation) => R::StaticClassResponse(operation.info()),
+            E::GraphPosteriorResponse(operation) => R::GraphPosteriorResponse(operation.info()),
+            E::BayesianSpecialist(operation) => R::BayesianSpecialist(operation.info()),
+            E::TransportTrial(operation) => R::TransportTrial(operation.info()),
+        }
+    }
+
+    /// One view over every layer of the program this handle executes: the lowered
+    /// program compile attached, the identification preparation installed, the
+    /// physical plan and the sealed operation preparation retained.
+    ///
+    /// Reading the view identifies, fits, scans and samples nothing and leases
+    /// nothing from an admission pool.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered` when the handle's plan carries no lowered program.
+    pub fn plan_view(&self) -> Result<crate::planner::PlanView, CausalError> {
+        crate::planner::PlanView::of_plan(
+            &self.plan,
+            crate::planner::PlanStage::Prepared,
+            Some(&self.analysis),
+            None,
+            Some(self.retained_operation().name()),
+        )
+    }
+
+    /// The sealed route this handle retained.
+    pub(crate) fn execution(&self) -> &PreparedExecution {
+        &self.execution
+    }
+
+    /// Whether preparation retained the sealed operation of `kind`.
+    pub(crate) fn retains(&self, kind: ExecutionKind) -> bool {
+        self.execution.kind() == kind
+    }
 }
 
 impl PreparedStudy {
@@ -213,36 +452,12 @@ impl PreparedStudy {
         Ok(next)
     }
 
-    pub(crate) fn checked_program_binding(&self) -> CheckedProgramBinding<'_> {
+    pub(crate) fn program_binding(&self) -> CheckedProgramBinding<'_> {
         self.execution.program_binding()
-    }
-
-    /// Retained GLM target design for the checked DAG adjustment route.
-    #[must_use]
-    pub fn checked_glm_adjustment(&self) -> Option<&antecedent_estimate::PreparedGlmProblem> {
-        if let PreparedExecution::CheckedGlmAdjustment(operation) = &self.execution {
-            Some(&operation.preparation)
-        } else {
-            None
-        }
-    }
-
-    /// Retained local boundary and design for the checked sharp RD route.
-    #[must_use]
-    pub fn checked_rd_preparation(&self) -> Option<&antecedent_estimate::CheckedRdPreparation> {
-        if let PreparedExecution::CheckedRd(operation) = &self.execution {
-            Some(&operation.preparation)
-        } else {
-            None
-        }
     }
 
     pub(crate) fn has_sealed_glm_operation(&self) -> bool {
         matches!(&self.execution, PreparedExecution::CheckedGlmAdjustment(op) if op.sealed_for_direct_execution())
-    }
-
-    pub(crate) fn has_checked_rd_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::CheckedRd
     }
 
     /// Whether this prepared handle owns the complete operation for a family
@@ -259,231 +474,10 @@ impl PreparedStudy {
         )
     }
 
-    /// Retained checked shared-exogenous natural direct effect operation.
-    #[must_use]
-    pub fn checked_nested_counterfactual_operation(
-        &self,
-    ) -> Option<&crate::gcm::NestedCounterfactualOperation> {
-        self.execution.nested_counterfactual()
-    }
-
-    /// Retained static linear fit inputs for portable result replay.
-    pub(crate) fn checked_linear_operation(&self) -> Option<&CheckedLinearOperation> {
-        self.execution.linear_operation()
-    }
-
-    /// Checked Bayesian g-computation receipt for a static mean ATE, when this
-    /// prepared handle uses that licensed route.
-    #[must_use]
-    pub fn checked_bayesian_gcomp_operation(&self) -> Option<&CheckedBayesianGcompOperation> {
-        self.execution.bayesian_gcomp()
-    }
-
-    /// Inspect the retained target for the checked Bayesian basis CATE route.
-    #[must_use]
-    pub fn checked_bayesian_basis_cate_query(
-        &self,
-    ) -> Option<&antecedent_core::ConditionalEffectQuery> {
-        match &self.execution {
-            PreparedExecution::BayesianBasisCate(operation) => Some(operation.query()),
-            _ => None,
-        }
-    }
-
-    /// Validation procedure frozen with the checked Bayesian DAG effect route.
-    #[must_use]
-    pub fn checked_bayesian_gcomp_validation(&self) -> Option<RefuteSuite> {
-        match &self.execution {
-            PreparedExecution::BayesianGcomp(operation) => Some(operation.validation()),
-            _ => None,
-        }
-    }
-
-    /// Checked linear adjustment lowering retained by this prepared handle.
-    ///
-    /// `None` means this route carries no checked adjustment lowering;
-    /// it does not imply that another estimator is unsupported.
-    #[must_use]
-    pub fn checked_linear_adjustment(
-        &self,
-    ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {
-        self.execution.checked_linear()
-    }
-
-    /// Checked AIPW lowering retained for a supported mean ATE.
-    #[must_use]
-    pub fn checked_aipw_ate(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
-        self.execution.checked_aipw()
-    }
-
     pub(crate) fn has_sealed_aipw_operation(&self) -> bool {
         self.execution
             .aipw_operation()
             .is_some_and(CheckedAipwOperation::sealed_for_direct_execution)
-    }
-
-    pub(crate) fn has_checked_counterfactual_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::Counterfactual
-    }
-
-    /// The retained graph and cross-world target for a checked counterfactual route.
-    #[must_use]
-    pub fn checked_counterfactual_operation(
-        &self,
-    ) -> Option<&crate::gcm::CheckedCounterfactualOperation> {
-        if let PreparedExecution::Counterfactual(plan) = &self.execution {
-            Some(plan.operation())
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn has_checked_derivative_response_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::DerivativeResponse
-    }
-
-    pub(crate) fn has_checked_static_dag_response_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::StaticDagResponse
-    }
-
-    pub(crate) fn has_checked_temporal_dag_response_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::TemporalDagResponse
-    }
-
-    pub(crate) fn has_checked_temporal_class_response_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::TemporalClassResponse
-    }
-
-    pub(crate) fn has_checked_temporal_graph_posterior_response_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::TemporalGraphPosteriorResponse
-    }
-
-    pub(crate) fn has_checked_temporal_dag_effect_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::TemporalDagEffect
-    }
-
-    pub(crate) fn has_checked_propensity_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::CheckedPropensity
-    }
-
-    /// Whether preparation retained the frequentist DAG graph-posterior effect plan.
-    #[must_use]
-    pub fn has_checked_graph_posterior_effect_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::GraphPosteriorEffect
-    }
-
-    /// Whether preparation retained a frequentist CPDAG/PAG graph-posterior ATE plan.
-    #[must_use]
-    pub fn has_checked_class_graph_posterior_effect_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::ClassGraphPosteriorEffect
-    }
-
-    /// Returns whether the static CPDAG/PAG average effect is bound to a
-    /// completion envelope retained at preparation time.
-    #[must_use]
-    pub fn has_checked_static_class_effect_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::StaticClassEffect
-    }
-
-    /// Whether preparation retained an ADMG graph-posterior response operation.
-    #[must_use]
-    pub fn has_checked_admg_graph_posterior_response_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::AdmgGraphPosteriorResponse
-    }
-
-    /// Whether preparation retained an explicit/accepted class response operation.
-    #[must_use]
-    pub fn has_checked_static_class_response_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::StaticClassResponse
-    }
-
-    /// Whether preparation retained a DAG, CPDAG, or PAG graph-posterior
-    /// response operation.
-    #[must_use]
-    pub fn has_checked_graph_posterior_response_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::GraphPosteriorResponse
-    }
-
-    pub(crate) fn has_checked_temporal_class_mediation_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::TemporalClassMediation
-    }
-
-    /// Whether preparation retained the complete Bayesian IV or sharp-RD operation.
-    #[must_use]
-    pub fn has_checked_bayesian_specialist_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::BayesianSpecialist
-    }
-
-    /// Whether preparation retained the complete trial-to-target transport operation.
-    #[must_use]
-    pub fn has_checked_transport_trial_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::TransportTrial
-    }
-
-    /// Whether preparation retained a Bayesian TemporalCpdag/TemporalPag effect plan.
-    #[must_use]
-    pub fn has_checked_bayesian_temporal_class_effect_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::BayesianTemporalClassEffect
-    }
-
-    /// Whether preparation retained a temporal graph-posterior effect plan.
-    #[must_use]
-    pub fn has_checked_temporal_graph_posterior_effect_operation(&self) -> bool {
-        self.execution.kind() == ExecutionKind::TemporalGraphPosteriorEffect
-    }
-
-    /// Compatibility spelling emphasizing the temporal effect operation family.
-    #[must_use]
-    pub fn checked_temporal_effect_info(&self) -> Option<CheckedTemporalDagEffectInfo> {
-        self.checked_temporal_dag_effect_info()
-    }
-
-    /// Compatibility spelling emphasizing the response operation family.
-    #[must_use]
-    pub fn checked_temporal_response_info(&self) -> Option<CheckedTemporalDagResponseInfo> {
-        self.checked_temporal_dag_response_info()
-    }
-
-    /// Checked linear two-stage front-door lowering retained by this handle.
-    #[must_use]
-    pub fn checked_frontdoor_linear(
-        &self,
-    ) -> Option<&antecedent_estimate::CheckedFrontDoorPreparation> {
-        self.execution.frontdoor_linear().map(|operation| &operation.preparation)
-    }
-
-    /// Checked Wald or single-binary-instrument 2SLS lowering retained by this handle.
-    #[must_use]
-    pub fn checked_iv(&self) -> Option<&antecedent_estimate::CheckedIvPreparation> {
-        self.execution.iv().map(CheckedIvOperation::preparation)
-    }
-
-    /// Checked functional program retained for a prepared distribution query.
-    #[must_use]
-    pub fn checked_distribution_program(&self) -> Option<&antecedent_expr::FunctionalProgram> {
-        self.execution.distribution().map(|operation| operation.prepared.program())
-    }
-
-    /// Checked functional program retained for an ADMG general-ID effect.
-    #[must_use]
-    pub fn checked_functional_effect_program(&self) -> Option<&antecedent_expr::FunctionalProgram> {
-        self.execution
-            .functional_effect_operation()
-            .map(|operation| operation.prepared.program())
-            .or_else(|| {
-                self.execution
-                    .path_specific_effect_operation()
-                    .map(|operation| operation.prepared.program())
-            })
-    }
-
-    /// Ordered checked members for a prepared ADMG mean response curve or
-    /// scalar intervention response.
-    #[must_use]
-    pub fn checked_functional_effect_response_members(
-        &self,
-    ) -> Option<&[CheckedFunctionalEffectResponseMember]> {
-        self.execution.admg_response_curve().map(|operation| operation.members.as_ref())
     }
 
     /// Export the complete empirical factor laws for the retained effect program.

@@ -4,6 +4,7 @@
 
 #![allow(clippy::float_cmp, reason = "lifecycle pins compare bitwise-identical replayed estimates")]
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext};
 use antecedent_data::{TableView, TabularData};
@@ -70,7 +71,9 @@ fn unknown_tiered_average_lifecycle_body() {
         .build()
         .unwrap();
     let mut prepared = builder.prepare(&ctx).unwrap();
-    let plan = prepared.checked_unknown_tiered_average_info().expect("sealed two-scenario plan");
+    let RetainedOperation::UnknownTieredAverage(plan) = prepared.retained_operation() else {
+        panic!("sealed two-scenario plan")
+    };
     assert_eq!(plan.query, query(&data));
     assert_eq!(plan.tier_count, 3);
     assert_eq!(plan.scenario_count, 2);

@@ -49,8 +49,9 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
     prepared = builder
     del builder, query, graph, dag
 
-    info = prepared.checked_static_dag_response_info()
+    info = prepared.plan_view().operation
     assert info is not None
+    assert info["kind"] == "static_dag_response"
     assert (
         info["query"].startswith("MeanCurve")
         if kind == "curve"

@@ -23,190 +23,16 @@ impl PyPreparedAnalysis {
         serde_json::to_string(&details).map_err(|error| crate::value_err(error.to_string()))
     }
 
-    /// Inspect the checked conditional target and its bound scalar procedure.
-    fn checked_conditional_effect_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_conditional_effect_info() else {
-            return Ok(None);
-        };
-        let name = |id: antecedent_core::VariableId| {
-            self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query))?;
-        descriptor.set_item("treatment", name(info.query.inner.treatment))?;
-        descriptor.set_item("outcome", name(info.query.inner.outcome))?;
-        descriptor.set_item(
-            "modifiers",
-            info.query.inner.effect_modifiers.iter().copied().map(&name).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("control", format!("{:?}", info.query.inner.control))?;
-        descriptor.set_item("active", format!("{:?}", info.query.inner.active))?;
-        descriptor.set_item("functional", format!("{:?}", info.query.inner.outcome_functional))?;
-        descriptor.set_item("population", format!("{:?}", info.query.inner.target_population))?;
-        descriptor.set_item("identifier", info.identifier.as_str())?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor.set_item("procedure", info.procedure.as_ref())?;
-        descriptor
-            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
-        descriptor.set_item(
-            "design_roles",
-            info.design_roles.iter().copied().map(&name).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("source_rows", info.source_rows.as_ref())?;
-        Ok(Some(descriptor.unbind()))
-    }
-
-    /// Inspect the retained static mediation contrast, graph, and procedure.
-    fn checked_static_mediation_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_static_mediation_info() else {
-            return Ok(None);
-        };
-        let name = |id: antecedent_core::VariableId| {
-            self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query))?;
-        descriptor.set_item("treatment", name(info.query.treatment))?;
-        descriptor.set_item("outcome", name(info.query.outcome))?;
-        descriptor.set_item(
-            "mediators",
-            info.query.mediators.iter().copied().map(&name).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("contrast", format!("{:?}", info.query.contrast))?;
-        descriptor.set_item("control", format!("{:?}", info.query.control))?;
-        descriptor.set_item("active", format!("{:?}", info.query.active))?;
-        descriptor.set_item("population", format!("{:?}", info.query.target_population))?;
-        descriptor.set_item("identifier", info.identifier.as_str())?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor
-            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
-        descriptor.set_item("bootstrap_replicates", info.bootstrap_replicates)?;
-        descriptor.set_item(
-            "adjustment_set",
-            info.adjustment_set.iter().copied().map(&name).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("functional_roots", info.functional_roots)?;
-        descriptor.set_item("graph_edges", info.graph_edges.as_ref())?;
-        Ok(Some(descriptor.unbind()))
-    }
-
-    /// Inspect the retained DAG Bayesian ATE target, prior source, and validation.
-    fn checked_bayesian_dag_ate_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(operation) = self.inner.checked_bayesian_gcomp_operation() else {
-            return Ok(None);
-        };
-        let antecedent::InferenceMode::Bayesian(config) = operation.inference() else {
-            return Ok(None);
-        };
-        let name = |id: antecedent_core::VariableId| {
-            self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
-        };
-        let query = operation.query();
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{query:?}"))?;
-        descriptor.set_item("treatment", name(query.treatment))?;
-        descriptor.set_item("outcome", name(query.outcome))?;
-        descriptor.set_item("population", format!("{:?}", query.target_population))?;
-        descriptor.set_item("identifier", "backdoor.adjustment")?;
-        descriptor.set_item("estimator", "bayesian.gcomp")?;
-        descriptor.set_item("backend", format!("{:?}", config.backend))?;
-        descriptor.set_item("likelihood", format!("{:?}", config.likelihood))?;
-        descriptor.set_item("n_draws", config.n_draws)?;
-        descriptor.set_item("prior_scale", config.prior_scale)?;
-        descriptor.set_item("transferred_prior", config.prior_artifact.is_some())?;
-        descriptor.set_item("composed_prior", config.external_compose.is_some())?;
-        descriptor.set_item(
-            "validation",
-            self.inner
-                .checked_bayesian_gcomp_validation()
-                .and_then(antecedent::RefuteSuite::validation_suite_id)
-                .unwrap_or("none"),
-        )?;
-        descriptor.set_item(
-            "adjustment_set",
-            operation.estimand().adjustment_set.iter().copied().map(&name).collect::<Vec<_>>(),
-        )?;
-        Ok(Some(descriptor.unbind()))
-    }
-
-    /// Read-only inspection of a retained checked static DAG response operation.
-    ///
-    /// The descriptor is built from the prepared handle rather than the Python
-    /// query object, so callers can inspect the exact functional, procedure,
-    /// validation suite, and frozen curve members after discarding their builder.
-    fn checked_static_dag_response_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_static_dag_response_info() else {
-            return Ok(None);
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query.functional))?;
-        descriptor.set_item("identifier", info.identifier.as_str())?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor
-            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
-        descriptor.set_item("grid_members", info.grid_members.as_ref())?;
-        Ok(Some(descriptor.unbind()))
-    }
-
-    /// Inspect frozen DAG graph-posterior atoms and the selected frequentist procedure.
-    fn checked_graph_posterior_effect_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_graph_posterior_effect_info() else {
-            return Ok(None);
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query))?;
-        descriptor.set_item("conditional", info.conditional)?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor
-            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
-        descriptor.set_item("graph_keys", info.graph_keys.as_ref())?;
-        descriptor.set_item("weights", info.weights.as_ref())?;
-        descriptor.set_item(
-            "identified",
-            info.identified.iter().map(|flag| format!("{flag:?}")).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("bootstrap_replicates", info.bootstrap_replicates)?;
-        Ok(Some(descriptor.unbind()))
-    }
-
-    /// Inspect the frozen temporal contrast, proof binding, and estimator choice.
-    fn checked_temporal_effect_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_temporal_effect_info() else {
-            return Ok(None);
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query))?;
-        descriptor.set_item("policy", format!("{:?}", info.query.policy))?;
-        descriptor.set_item("control", format!("{:?}", info.query.control))?;
-        descriptor.set_item("active", format!("{:?}", info.query.active))?;
-        descriptor.set_item("horizon_steps", info.query.horizon_steps)?;
-        descriptor.set_item("population", format!("{:?}", info.query.target_population))?;
-        descriptor.set_item("identifier", info.identifier.as_str())?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor
-            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
-        descriptor.set_item("bootstrap_replicates", info.bootstrap_replicates)?;
-        descriptor.set_item(
-            "adjustment_set",
-            info.adjustment_set.iter().map(|key| format!("{key:?}")).collect::<Vec<_>>(),
-        )?;
-        descriptor.set_item("graph_signature", info.graph_signature.as_ref())?;
-        Ok(Some(descriptor.unbind()))
-    }
-
-    /// Inspect a fixed temporal DAG response grid and its frozen procedure.
-    fn checked_temporal_response_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
-        let Some(info) = self.inner.checked_temporal_response_info() else {
-            return Ok(None);
-        };
-        let descriptor = PyDict::new(py);
-        descriptor.set_item("query", format!("{:?}", info.query.functional))?;
-        descriptor.set_item("identifier", info.identifier.as_str())?;
-        descriptor.set_item("estimator", info.estimator.as_str())?;
-        descriptor.set_item("uncertainty", info.uncertainty.as_ref())?;
-        descriptor.set_item("grid_members", info.grid_members.as_ref())?;
-        descriptor.set_item("horizons", info.horizons.as_ref())?;
-        Ok(Some(descriptor.unbind()))
+    /// One view over every layer of the prepared program as JSON: the lowered
+    /// program, the identification preparation installed, the physical plan and
+    /// the sealed operation retained, with that operation's inspection record
+    /// under `operation_detail`. Never identifies, fits or scans.
+    fn plan_view_json(&self) -> PyResult<String> {
+        let view = self.inner.plan_view().map_err(py_err)?;
+        let mut json = view.to_json();
+        json["names"] = serde_json::json!(self.names);
+        json["operation_detail"] = self.operation_detail();
+        serde_json::to_string(&json).map_err(|error| crate::value_err(error.to_string()))
     }
 
     /// Inspection of the frozen execution, using the executed reasoning slots.
@@ -452,5 +278,121 @@ impl PyPreparedAnalysis {
     /// Attested custom-validator names frozen at prepare, in order.
     fn validator_names(&self) -> Vec<String> {
         self.inner.custom_validator_names().iter().map(|name| (*name).to_string()).collect()
+    }
+}
+
+impl PyPreparedAnalysis {
+    fn variable_name(&self, id: antecedent_core::VariableId) -> String {
+        self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
+    }
+
+    /// The retained operation's inspection record, by its stable name.
+    fn operation_detail(&self) -> serde_json::Value {
+        use antecedent::analysis::RetainedOperation as R;
+        use serde_json::json;
+        let operation = self.inner.retained_operation();
+        let name = |id: antecedent_core::VariableId| self.variable_name(id);
+        let names = |ids: &[antecedent_core::VariableId]| {
+            ids.iter().copied().map(|id| self.variable_name(id)).collect::<Vec<_>>()
+        };
+        let mut detail = match &operation {
+            R::CheckedConditional(info) => json!({
+                "query": format!("{:?}", info.query),
+                "treatment": name(info.query.inner.treatment),
+                "outcome": name(info.query.inner.outcome),
+                "modifiers": names(&info.query.inner.effect_modifiers[..]),
+                "control": format!("{:?}", info.query.inner.control),
+                "active": format!("{:?}", info.query.inner.active),
+                "functional": format!("{:?}", info.query.inner.outcome_functional),
+                "population": format!("{:?}", info.query.inner.target_population),
+                "identifier": info.identifier.as_str(),
+                "estimator": info.estimator.as_str(),
+                "procedure": info.procedure.as_ref(),
+                "validation": info.validation.validation_suite_id().unwrap_or("none"),
+                "design_roles": names(&info.design_roles[..]),
+                "source_rows": info.source_rows.as_ref(),
+            }),
+            R::StaticMediation(info) | R::BayesianStaticMediation(info) => json!({
+                "query": format!("{:?}", info.query),
+                "treatment": name(info.query.treatment),
+                "outcome": name(info.query.outcome),
+                "mediators": names(&info.query.mediators[..]),
+                "contrast": format!("{:?}", info.query.contrast),
+                "control": format!("{:?}", info.query.control),
+                "active": format!("{:?}", info.query.active),
+                "population": format!("{:?}", info.query.target_population),
+                "identifier": info.identifier.as_str(),
+                "estimator": info.estimator.as_str(),
+                "validation": info.validation.validation_suite_id().unwrap_or("none"),
+                "bootstrap_replicates": info.bootstrap_replicates,
+                "adjustment_set": names(&info.adjustment_set[..]),
+                "functional_roots": info.functional_roots,
+                "graph_edges": info.graph_edges.as_ref(),
+            }),
+            R::BayesianGcomp { operation, validation } => {
+                let query = operation.query();
+                let mut detail = json!({
+                    "query": format!("{query:?}"),
+                    "treatment": name(query.treatment),
+                    "outcome": name(query.outcome),
+                    "population": format!("{:?}", query.target_population),
+                    "identifier": "backdoor.adjustment",
+                    "estimator": "bayesian.gcomp",
+                    "validation": validation.validation_suite_id().unwrap_or("none"),
+                    "adjustment_set": names(&operation.estimand().adjustment_set[..]),
+                });
+                if let antecedent::InferenceMode::Bayesian(config) = operation.inference() {
+                    detail["backend"] = json!(format!("{:?}", config.backend));
+                    detail["likelihood"] = json!(format!("{:?}", config.likelihood));
+                    detail["n_draws"] = json!(config.n_draws);
+                    detail["prior_scale"] = json!(config.prior_scale);
+                    detail["transferred_prior"] = json!(config.prior_artifact.is_some());
+                    detail["composed_prior"] = json!(config.external_compose.is_some());
+                }
+                detail
+            }
+            R::StaticDagResponse(info) => json!({
+                "query": format!("{:?}", info.query.functional),
+                "identifier": info.identifier.as_str(),
+                "estimator": info.estimator.as_str(),
+                "validation": info.validation.validation_suite_id().unwrap_or("none"),
+                "grid_members": info.grid_members.as_ref(),
+            }),
+            R::GraphPosteriorEffect(info) => json!({
+                "query": format!("{:?}", info.query),
+                "conditional": info.conditional,
+                "estimator": info.estimator.as_str(),
+                "validation": info.validation.validation_suite_id().unwrap_or("none"),
+                "graph_keys": info.graph_keys.as_ref(),
+                "weights": info.weights.as_ref(),
+                "identified": info.identified.iter().map(|flag| format!("{flag:?}")).collect::<Vec<_>>(),
+                "bootstrap_replicates": info.bootstrap_replicates,
+            }),
+            R::TemporalDagEffect(info) => json!({
+                "query": format!("{:?}", info.query),
+                "policy": format!("{:?}", info.query.policy),
+                "control": format!("{:?}", info.query.control),
+                "active": format!("{:?}", info.query.active),
+                "horizon_steps": info.query.horizon_steps,
+                "population": format!("{:?}", info.query.target_population),
+                "identifier": info.identifier.as_str(),
+                "estimator": info.estimator.as_str(),
+                "validation": info.validation.validation_suite_id().unwrap_or("none"),
+                "bootstrap_replicates": info.bootstrap_replicates,
+                "adjustment_set": info.adjustment_set.iter().map(|key| format!("{key:?}")).collect::<Vec<_>>(),
+                "graph_signature": info.graph_signature.as_ref(),
+            }),
+            R::TemporalDagResponse(info) => json!({
+                "query": format!("{:?}", info.query.functional),
+                "identifier": info.identifier.as_str(),
+                "estimator": info.estimator.as_str(),
+                "uncertainty": info.uncertainty.as_ref(),
+                "grid_members": info.grid_members.as_ref(),
+                "horizons": info.horizons.as_ref(),
+            }),
+            _ => json!({}),
+        };
+        detail["kind"] = json!(operation.name());
+        detail
     }
 }

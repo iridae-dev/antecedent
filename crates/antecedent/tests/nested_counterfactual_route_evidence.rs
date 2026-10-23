@@ -1,6 +1,7 @@
 //! Checked natural-direct-effect operation and detached numeric replay.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{CausalQuery, ExecutionContext, NestedCounterfactualQuery, VariableId};
 use antecedent_data::TabularData;
@@ -44,7 +45,9 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     let mut prepared = study.prepare(&ctx).unwrap();
     drop(builder);
     drop(study);
-    let retained = prepared.checked_nested_counterfactual_operation().unwrap();
+    let RetainedOperation::NestedCounterfactual(retained) = prepared.retained_operation() else {
+        panic!("retained checked nested counterfactual operation")
+    };
     assert_eq!(retained.query(), &query);
     assert_eq!(retained.graph().node_count(), 3);
     let first = prepared.estimate(&data, &ctx).unwrap();
@@ -214,7 +217,9 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
     let prepared = study.prepare(&ctx).unwrap();
     drop(builder);
     drop(study);
-    let retained = prepared.checked_nested_counterfactual_operation().unwrap();
+    let RetainedOperation::NestedCounterfactual(retained) = prepared.retained_operation() else {
+        panic!("retained checked nested counterfactual operation")
+    };
     assert_eq!(retained.query(), &query);
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(

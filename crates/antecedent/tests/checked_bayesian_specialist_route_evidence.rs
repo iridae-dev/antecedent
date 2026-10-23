@@ -1,6 +1,7 @@
 //! Builder independent execution evidence for the Bayesian IV and sharp-RD specialists.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, CausalQuery, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
@@ -126,8 +127,9 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
 
-        let plan =
-            prepared.checked_bayesian_specialist_info().expect("retained Bayesian specialist plan");
+        let RetainedOperation::BayesianSpecialist(plan) = prepared.retained_operation() else {
+            panic!("retained Bayesian specialist plan")
+        };
         // The sharp design binds its target to the cutoff population at build.
         assert_eq!(CausalQuery::AverageEffect(plan.query.clone()), *prepared.query());
         assert_eq!(plan.query.treatment, fixture.query.treatment);
@@ -171,7 +173,7 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
                 .abs()
                 < 1e-12
         );
-        assert!(prepared.has_checked_bayesian_specialist_operation());
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::BayesianSpecialist(..)));
 
         let bytes = prepared
             .encode_contracted_result(&refreshed, "checked-bayesian-specialist", &ctx)

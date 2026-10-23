@@ -73,6 +73,7 @@ fn dag_study(query: ResponseQuery, inference: InferenceMode) -> Study {
 
 fn lowered(study: &Study) -> LoweredProgram {
     let plan = study.compile(&ExecutionContext::for_tests(7)).unwrap();
+    crate::planner::plan_view::checks::assert_view_agrees("static response", &plan);
     plan.lowered().cloned().expect("compile attaches a lowered program")
 }
 

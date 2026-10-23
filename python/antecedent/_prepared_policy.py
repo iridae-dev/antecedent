@@ -387,11 +387,6 @@ class PreparedPolicyAnalysis(PreparedAnalysis[PolicyProgramResult]):
         )
 
 
-def _no_info(self: Any) -> None:
-    """The retained-plan summaries of the estimand routes: none for a policy question."""
-    return None
-
-
 for _name in (
     "export_artifact",
     "export",
@@ -405,6 +400,7 @@ for _name in (
     "preview_transform",
     "replace_snapshot",
     "mechanism_sensitivity",
+    "plan_view",
     "identification",
     "plan",
 ):
@@ -413,17 +409,6 @@ for _name in (
         _name,
         property(_refusal(_name)) if _name in ("identification", "plan") else _refusal(_name),
     )
-del _name
-for _name in (
-    "checked_static_dag_response_info",
-    "checked_conditional_effect_info",
-    "checked_static_mediation_info",
-    "checked_bayesian_dag_ate_info",
-    "checked_graph_posterior_effect_info",
-    "checked_temporal_effect_info",
-    "checked_temporal_response_info",
-):
-    setattr(PreparedPolicyAnalysis, _name, _no_info)
 del _name
 
 __all__ = ["PreparedPolicyAnalysis"]

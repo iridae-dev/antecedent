@@ -1,6 +1,7 @@
 //! Builder independent evidence for frequentist explicit DAG attribution plans.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AnomalyAttributionQuery, CausalQuery, ChangeAttributionQuery, ExecutionContext,
@@ -57,7 +58,9 @@ fn frequentist_static_dag_attribution_plans_body() {
         .build()
         .unwrap();
     let mut anomaly_prepared = anomaly_builder.prepare(&ctx).unwrap();
-    let plan = anomaly_prepared.checked_attribution_info().expect("sealed anomaly operation");
+    let RetainedOperation::Attribution(plan) = anomaly_prepared.retained_operation() else {
+        panic!("sealed anomaly operation")
+    };
     assert_eq!(plan.query, anomaly_query);
     assert_eq!(plan.identifier, IdentifierId::GcmParametric);
     assert_eq!(plan.estimator, EstimatorId::GcmFit);
@@ -98,7 +101,9 @@ fn frequentist_static_dag_attribution_plans_body() {
         .build()
         .unwrap();
     let mut change_prepared = change_builder.prepare(&ctx).unwrap();
-    let plan = change_prepared.checked_attribution_info().expect("sealed change operation");
+    let RetainedOperation::Attribution(plan) = change_prepared.retained_operation() else {
+        panic!("sealed change operation")
+    };
     assert_eq!(plan.query, change_target);
     assert_eq!(plan.identifier, IdentifierId::GcmParametric);
     assert_eq!(plan.estimator, EstimatorId::GcmFit);
@@ -158,7 +163,9 @@ fn bayesian_static_dag_attribution_plans_body() {
         .build()
         .unwrap();
     let mut anomaly_prepared = anomaly_builder.prepare(&ctx).unwrap();
-    let plan = anomaly_prepared.checked_attribution_info().expect("sealed anomaly operation");
+    let RetainedOperation::Attribution(plan) = anomaly_prepared.retained_operation() else {
+        panic!("sealed anomaly operation")
+    };
     assert_eq!(plan.query, anomaly_query);
     assert_eq!(plan.identifier, IdentifierId::GcmParametric);
     assert_eq!(plan.estimator, EstimatorId::GcmFitBayesian);
@@ -199,7 +206,9 @@ fn bayesian_static_dag_attribution_plans_body() {
         .build()
         .unwrap();
     let mut change_prepared = change_builder.prepare(&ctx).unwrap();
-    let plan = change_prepared.checked_attribution_info().expect("sealed change operation");
+    let RetainedOperation::Attribution(plan) = change_prepared.retained_operation() else {
+        panic!("sealed change operation")
+    };
     assert_eq!(plan.query, change_target);
     assert_eq!(plan.identifier, IdentifierId::GcmParametric);
     assert_eq!(plan.estimator, EstimatorId::GcmAttributionBayesian);

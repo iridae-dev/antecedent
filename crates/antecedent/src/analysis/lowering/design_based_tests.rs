@@ -43,6 +43,7 @@ fn every_design_cell_is_lowered_by_its_family() {
 fn compiled(study: &Study) -> LoweredProgram {
     let ctx = ExecutionContext::for_tests(5);
     let plan = study.compile(&ctx).unwrap();
+    crate::planner::plan_view::checks::assert_view_agrees("design", &plan);
     plan.lowered().expect("compile attaches a lowered program").clone()
 }
 

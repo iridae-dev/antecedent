@@ -1,6 +1,7 @@
 //! Builder-independent evidence for fixed-graph frequentist temporal contrasts.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
@@ -76,7 +77,10 @@ fn fixed_temporal_contrasts_execute_from_retained_proof_and_procedure() {
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
 
-                let plan = prepared.checked_temporal_dag_effect_info().expect("checked plan");
+                let RetainedOperation::TemporalDagEffect(plan) = prepared.retained_operation()
+                else {
+                    panic!("checked plan")
+                };
                 assert_eq!(plan.query, query);
                 assert_eq!(plan.identifier.as_str(), "temporal.backdoor.unfolded");
                 assert_eq!(
@@ -104,7 +108,11 @@ fn fixed_temporal_contrasts_execute_from_retained_proof_and_procedure() {
 
                 let scaled = prepared.refresh_series(series(1.2), &ctx).unwrap();
                 assert!((scaled.estimate.as_effect().unwrap().ate - 1.2 * expected).abs() < 0.1);
-                assert_eq!(prepared.checked_temporal_dag_effect_info().unwrap().query, plan.query);
+                let RetainedOperation::TemporalDagEffect(retained) = prepared.retained_operation()
+                else {
+                    panic!("checked plan after refresh")
+                };
+                assert_eq!(retained.query, plan.query);
 
                 let artifact = prepared
                     .encode_contracted_result(&scaled, "checked-temporal-effect", &ctx)

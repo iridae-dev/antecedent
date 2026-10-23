@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
@@ -143,11 +144,18 @@ fn bayesian_class_graph_posterior_effect_body() {
                 }
                 other => panic!("{coordinate}: support was not available: {other:?}"),
             }
-            let plan = prepared
-                .checked_class_graph_posterior_effect_info()
-                .expect("Bayesian class graph-posterior operation retained");
-            assert!(prepared.has_checked_class_graph_posterior_effect_operation());
-            assert!(prepared.checked_bayesian_graph_posterior_ate_info().is_none());
+            let RetainedOperation::ClassGraphPosteriorEffect(plan) = prepared.retained_operation()
+            else {
+                panic!("Bayesian class graph-posterior operation retained")
+            };
+            assert!(matches!(
+                prepared.retained_operation(),
+                RetainedOperation::ClassGraphPosteriorEffect(..)
+            ));
+            assert!(!matches!(
+                prepared.retained_operation(),
+                RetainedOperation::BayesianGraphPosteriorAte(..)
+            ));
             assert_eq!(plan.query, query, "{coordinate}");
             assert!(!plan.conditional, "{coordinate}");
             assert!(plan.inference.starts_with("bayesian:"), "{coordinate}: {}", plan.inference);
@@ -215,7 +223,11 @@ fn bayesian_class_graph_posterior_effect_body() {
             );
 
             let refreshed = prepared.refresh(shifted.clone(), &ctx).unwrap();
-            let retained = prepared.checked_class_graph_posterior_effect_info().unwrap();
+            let RetainedOperation::ClassGraphPosteriorEffect(retained) =
+                prepared.retained_operation()
+            else {
+                panic!("class graph-posterior operation retained after refresh")
+            };
             assert_eq!(retained.graph_keys, plan.graph_keys);
             assert_eq!(retained.weights, plan.weights);
             assert_eq!(retained.inference, plan.inference);

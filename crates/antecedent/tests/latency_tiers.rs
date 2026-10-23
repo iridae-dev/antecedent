@@ -9,6 +9,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{LatencyMode, RefuteSuite, StageEvent, StageResultSink, Study};
 use antecedent_core::{ExecutionContext, ProgressSink, VariableId};
 
@@ -580,9 +581,12 @@ fn configured_estimator_bootstrap_beside_a_tier_is_reported_on_every_sealed_stat
         let study = build(LatencyMode::Interactive, 12);
         let one_shot = study.run(&ctx).unwrap();
         let prepared = study.prepare(&ctx).unwrap();
-        let sealed = prepared.checked_glm_adjustment().is_some()
-            || prepared.checked_propensity_info().is_some()
-            || prepared.checked_aipw_ate().is_some();
+        let sealed = matches!(
+            prepared.retained_operation(),
+            RetainedOperation::CheckedGlmAdjustment(..)
+                | RetainedOperation::CheckedPropensity(..)
+                | RetainedOperation::CheckedAipw(..)
+        );
         assert!(sealed, "{label}: the route must retain its checked operation");
         let clicked = prepared.estimate(&data, &ctx).unwrap();
         for result in [&one_shot, &clicked] {

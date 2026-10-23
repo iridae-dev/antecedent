@@ -154,6 +154,16 @@ impl PreparedStudy<CyclicPreparedState> {
         &self.state.lowered
     }
 
+    /// One view over every layer of the lowered program this handle executes.
+    /// Reading it fits, samples and solves nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> crate::planner::PlanView {
+        crate::planner::PlanView::of_program(
+            Arc::clone(&self.state.lowered),
+            crate::planner::PlanStage::Prepared,
+        )
+    }
+
     /// Contract of this handle, derived through the `system` family the request is
     /// carried as. Deriving it compiles schedules and does not fit.
     ///
@@ -507,6 +517,16 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
     #[must_use]
     pub fn lowered(&self) -> &LoweredProgram {
         &self.state.lowered
+    }
+
+    /// One view over every layer of the lowered program this handle executes.
+    /// Reading it fits, samples and solves nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> crate::planner::PlanView {
+        crate::planner::PlanView::of_program(
+            Arc::clone(&self.state.lowered),
+            crate::planner::PlanStage::Prepared,
+        )
     }
 
     /// Contract of this handle: layered identities over payloads derived from the

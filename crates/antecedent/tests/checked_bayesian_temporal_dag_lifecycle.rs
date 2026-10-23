@@ -1,6 +1,7 @@
 //! Builder-independent evidence for Bayesian fixed-DAG temporal effects.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
@@ -127,9 +128,11 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
 
-                let plan = prepared
-                    .checked_bayesian_temporal_dag_effect_info()
-                    .expect("sealed Bayesian temporal DAG plan");
+                let RetainedOperation::BayesianTemporalDagEffect(plan) =
+                    prepared.retained_operation()
+                else {
+                    panic!("sealed Bayesian temporal DAG plan")
+                };
                 assert_eq!(plan.query, target);
                 assert_eq!(plan.identifier.as_str(), "temporal.backdoor.unfolded");
                 assert_eq!(
@@ -157,10 +160,12 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
                     "refresh estimate={}",
                     refreshed.estimate.as_effect().unwrap().ate
                 );
-                assert_eq!(
-                    prepared.checked_bayesian_temporal_dag_effect_info().unwrap().query,
-                    target
-                );
+                let RetainedOperation::BayesianTemporalDagEffect(retained) =
+                    prepared.retained_operation()
+                else {
+                    panic!("sealed Bayesian temporal DAG plan after refresh")
+                };
+                assert_eq!(retained.query, target);
 
                 let bytes = prepared
                     .encode_contracted_result(&refreshed, "checked-bayesian-temporal-dag", &ctx)
@@ -199,10 +204,15 @@ fn checked_bayesian_temporal_dag_route_does_not_claim_class_plans() {
         .unwrap();
     let class_prepared = class_builder.prepare(&ctx).unwrap();
     // The class plan is sealed by its own route, never by the fixed-DAG kernel.
-    assert!(class_prepared.checked_bayesian_temporal_dag_effect_info().is_none());
-    let class_plan = class_prepared
-        .checked_bayesian_temporal_class_effect_info()
-        .expect("class route retains the Bayesian class plan");
+    assert!(!matches!(
+        class_prepared.retained_operation(),
+        RetainedOperation::BayesianTemporalDagEffect(..)
+    ));
+    let RetainedOperation::BayesianTemporalClassEffect(class_plan) =
+        class_prepared.retained_operation()
+    else {
+        panic!("class route retains the Bayesian class plan")
+    };
     assert_eq!(class_plan.query, pulse);
     assert_eq!(class_plan.graph_class, antecedent::GraphClass::TemporalCpdag);
     assert_eq!(class_plan.estimator.as_str(), "bayesian.temporal.gcomp");

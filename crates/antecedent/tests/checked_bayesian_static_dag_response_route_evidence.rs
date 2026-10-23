@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
 };
@@ -116,9 +117,9 @@ fn bayesian_static_dag_responses_body() {
             let mut prepared = builder.prepare(&context).unwrap();
             drop(builder);
 
-            let plan = prepared
-                .checked_static_dag_response_info()
-                .unwrap_or_else(|| panic!("{label}: retained checked Bayesian response plan"));
+            let RetainedOperation::StaticDagResponse(plan) = prepared.retained_operation() else {
+                panic!("{label}: retained checked Bayesian response plan")
+            };
             assert_eq!(plan.query, query, "{label}");
             assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor, "{label}");
             assert_eq!(plan.estimator, EstimatorId::ResponseBayesian, "{label}");
@@ -160,7 +161,10 @@ fn bayesian_static_dag_responses_body() {
                 let truth = 0.7 + 1.7 * dose;
                 assert!((estimate - truth).abs() < 0.12, "{label}: refreshed dose {dose}");
             }
-            assert!(prepared.checked_static_dag_response_info().is_some(), "{label}");
+            assert!(
+                matches!(prepared.retained_operation(), RetainedOperation::StaticDagResponse(..)),
+                "{label}"
+            );
 
             let treatment: Vec<f64> = (0..800).map(|i| f64::from(i) / 799.0).collect();
             let renamed = TabularData::from_f64_columns([("dose", treatment.as_slice())]).unwrap();

@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, StructureSource, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::ExecutionContext;
@@ -69,7 +70,9 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("aipw"));
     assert_eq!(prepared.plan().logical.record.identifier.as_deref(), Some("backdoor.adjustment"));
 
-    let lowering = prepared.checked_aipw_ate().expect("retained checked AIPW operation");
+    let RetainedOperation::CheckedAipw(lowering) = prepared.retained_operation() else {
+        panic!("retained checked AIPW operation")
+    };
     assert_eq!(lowering.program().mapping().source, lowering.target().functional, "{coordinate}");
     assert_eq!(
         lowering.lowering().procedure,
@@ -94,7 +97,10 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
     );
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{coordinate} refresh");
-    assert!(prepared.checked_aipw_ate().is_some(), "{coordinate} retained operation after refresh");
+    assert!(
+        matches!(prepared.retained_operation(), RetainedOperation::CheckedAipw(..)),
+        "{coordinate} retained operation after refresh"
+    );
 
     let artifact =
         prepared.encode_contracted_result(&refreshed, &format!("aipw-{coordinate}"), &ctx).unwrap();
@@ -134,7 +140,9 @@ fn dag_explicit_frequentist_trimmed_aipw_lifecycle() {
 
     assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("aipw"));
-    let retained = prepared.checked_aipw_ate().expect("retained checked trimmed AIPW operation");
+    let RetainedOperation::CheckedAipw(retained) = prepared.retained_operation() else {
+        panic!("retained checked trimmed AIPW operation")
+    };
     assert_eq!(retained.program().mapping().source, retained.target().functional);
     let lowering = retained.lowering();
     assert_eq!(lowering.procedure, antecedent_estimate::CheckedAipwProcedure::TrimmedLogisticOls);
@@ -159,7 +167,10 @@ fn dag_explicit_frequentist_trimmed_aipw_lifecycle() {
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
     assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "refresh");
     assert_eq!(
-        prepared.checked_aipw_ate().map(|checked| checked.lowering().procedure),
+        match prepared.retained_operation() {
+            RetainedOperation::CheckedAipw(checked) => Some(checked.lowering().procedure),
+            _ => None,
+        },
         Some(antecedent_estimate::CheckedAipwProcedure::TrimmedLogisticOls),
         "retained operation after refresh"
     );

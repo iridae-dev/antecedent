@@ -335,6 +335,7 @@ fn every_cell_of_the_family_lowers_completely() {
             panic!("{name}: {error}");
         });
         let program = lowered(&plan);
+        crate::planner::plan_view::checks::assert_view_agrees(name, &plan);
         assert_eq!(program.route(), name, "the representative of {name} compiles as another cell");
         assert_eq!(program.depth(), LoweringDepth::Complete, "{name} lowers completely");
         assert!(program.statistical().estimator().is_some(), "{name} names no estimator");

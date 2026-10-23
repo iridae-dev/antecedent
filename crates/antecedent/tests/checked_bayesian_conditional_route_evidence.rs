@@ -1,6 +1,7 @@
 //! Builder-independent evidence for Bayesian DAG conditional effects.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, StructureSource, Study,
 };
@@ -74,7 +75,7 @@ fn sealed_and_one_shot_bayesian_conditional_agree_on_a_wide_table() {
             .unwrap()
     };
     let prepared = study(RefuteSuite::None).prepare(&ctx).unwrap();
-    assert!(prepared.checked_bayesian_conditional_operation().is_some());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::BayesianConditional(..)));
     let sealed = prepared.estimate(&data, &ctx).unwrap();
     // Placebo-and-RCC is not a sealed suite, so this runs the one-shot path.
     let one_shot = study(RefuteSuite::PlaceboAndRcc).run(&ctx).unwrap();
@@ -108,7 +109,7 @@ fn bayesian_conditional_default_estimator_ignores_builder_call_order() {
     for (label, builder) in [("inference-first", inference_first), ("query-first", query_first)] {
         let prepared = builder.build().unwrap().prepare(&ctx).unwrap();
         assert!(
-            prepared.checked_bayesian_conditional_operation().is_some(),
+            matches!(prepared.retained_operation(), RetainedOperation::BayesianConditional(..)),
             "{label}: expected the sealed Bayesian conditional operation"
         );
         assert_eq!(
@@ -167,9 +168,9 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
                 }
                 other => panic!("{coordinate}: support was not available: {other:?}"),
             }
-            let plan = prepared
-                .checked_bayesian_conditional_operation()
-                .expect("retained Bayesian conditional operation");
+            let RetainedOperation::BayesianConditional(plan) = prepared.retained_operation() else {
+                panic!("retained Bayesian conditional operation")
+            };
             assert_eq!(plan.query(), &query);
             assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
             assert_eq!(plan.validation(), suite);

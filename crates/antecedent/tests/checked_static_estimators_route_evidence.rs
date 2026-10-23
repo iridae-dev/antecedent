@@ -3,6 +3,7 @@
 
 #![allow(clippy::float_cmp, reason = "plan pins compare exact literal constants")]
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, ExecutionContext, PopulationRegistry, PredicateExpr, TargetPopulation,
@@ -63,7 +64,10 @@ fn checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal() {
                 let one_shot = builder.run(&ctx).unwrap();
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
-                let plan = prepared.checked_glm_adjustment().expect("retained checked GLM plan");
+                let RetainedOperation::CheckedGlmAdjustment(plan) = prepared.retained_operation()
+                else {
+                    panic!("retained checked GLM plan")
+                };
                 assert_eq!(plan.active, 1.0);
                 assert_eq!(plan.control, 0.0);
                 assert_eq!(plan.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
@@ -125,7 +129,9 @@ fn checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal() {
             let one_shot = builder.run(&ctx).unwrap();
             let mut prepared = builder.prepare(&ctx).unwrap();
             drop(builder);
-            let plan = prepared.checked_rd_preparation().expect("retained checked RD plan");
+            let RetainedOperation::CheckedRd(plan) = prepared.retained_operation() else {
+                panic!("retained checked RD plan")
+            };
             assert_eq!(plan.lowering().bandwidth, 0.8);
             assert_eq!(plan.lowering().cutoff, 0.0);
             let result = prepared.estimate(&data, &ctx).unwrap();

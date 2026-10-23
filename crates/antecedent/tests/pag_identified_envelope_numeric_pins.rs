@@ -18,6 +18,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
@@ -139,7 +140,7 @@ fn run_prepared(
     if matches!(prepared.query(), CausalQuery::AverageEffect(_))
         && prepared.plan().logical.record.estimator.as_deref() == Some("linear.adjustment.ate")
     {
-        assert!(prepared.has_checked_static_class_effect_operation());
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::StaticClassEffect(..)));
     }
     let click = prepared.estimate(data, &ctx).unwrap();
     if matches!(prepared.query(), CausalQuery::AverageEffect(_))
@@ -297,7 +298,7 @@ fn pag_effect_executes_from_retained_plan_after_builder_is_dropped() {
         RefuteSuite::None,
     );
     let prepared = builder.prepare(&context).unwrap();
-    assert!(prepared.has_checked_static_class_effect_operation());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::StaticClassEffect(..)));
     drop(builder);
 
     let result = prepared.estimate(&data, &context).unwrap();

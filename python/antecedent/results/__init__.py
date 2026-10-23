@@ -4,6 +4,7 @@ from typing import TypeAlias
 
 from . import _html  # noqa: F401 — side effect: attaches _repr_html_ to the views below
 from ._execution import Answer, CalibrationInfo
+from ._plan_view import ProgramPlanView
 from ._report import InspectionReport
 from ._slots import ReasoningSlots, SlotView
 from ._views import (
@@ -81,6 +82,7 @@ __all__ = [
     "PerformanceView",
     "PlanView",
     "PhysicalPlanView",
+    "ProgramPlanView",
     "MissingVariableView",
     "DropReasonView",
     "GroupAccountingView",

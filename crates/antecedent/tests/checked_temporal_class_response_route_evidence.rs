@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -176,9 +177,11 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                     let one_shot = builder.run(&ctx).unwrap();
                     let mut prepared = builder.prepare(&ctx).unwrap();
                     drop(builder);
-                    let plan = prepared
-                        .checked_temporal_class_response_info()
-                        .expect("class response must retain its complete execution plan");
+                    let RetainedOperation::TemporalClassResponse(plan) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("class response must retain its complete execution plan")
+                    };
                     assert_eq!(plan.query, query);
                     assert_eq!(plan.graph_class, class);
                     assert_eq!(plan.identifier, IdentifierId::GeneralizedAdjustment);
@@ -244,10 +247,12 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                         prepared.refresh_series(widened, &ctx).is_err(),
                         "{label}: schema-changing refresh must be refused"
                     );
-                    assert_eq!(
-                        prepared.checked_temporal_class_response_info().unwrap().query,
-                        query
-                    );
+                    let RetainedOperation::TemporalClassResponse(retained) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("class response retains its plan")
+                    };
+                    assert_eq!(retained.query, query);
                     let artifact = prepared
                         .encode_contracted_result(
                             &refreshed,

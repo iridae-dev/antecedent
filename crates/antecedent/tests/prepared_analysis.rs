@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, LatencyMode,
     PreparedStudy, RefuteSuite, Study,
@@ -52,7 +53,7 @@ fn prepared_reestimate_matches_fresh_analyze() {
 
     let prepared = build_analysis(data.clone(), dag, query).prepare(&ctx).unwrap();
     assert!(
-        prepared.checked_bayesian_gcomp_operation().is_none(),
+        !matches!(prepared.retained_operation(), RetainedOperation::BayesianGcomp { .. }),
         "frequentist mean ATE must not claim the Bayesian g-computation route"
     );
     let first = prepared.estimate(&data, &ctx).unwrap();
@@ -243,9 +244,10 @@ fn prepared_bayesian_reestimate_matches_fresh_analyze() {
     let study = build_bayesian_analysis(data.clone(), dag, query.clone());
     let prepared = study.prepare(&ctx).unwrap();
     drop(study);
-    let checked = prepared
-        .checked_bayesian_gcomp_operation()
-        .expect("static Bayesian mean ATE retains its checked route receipt");
+    let RetainedOperation::BayesianGcomp { operation: checked, .. } = prepared.retained_operation()
+    else {
+        panic!("static Bayesian mean ATE retains its checked route receipt")
+    };
     assert_eq!(checked.query(), &query);
     let first = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(checked.estimand().adjustment_set, first.estimand.adjustment_set);
@@ -836,7 +838,9 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
         }
         other => panic!("prepared distribution has no identification product: {other:?}"),
     }
-    let plan = prepared.checked_distribution_program().expect("retained distribution program");
+    let RetainedOperation::Distribution(plan) = prepared.retained_operation() else {
+        panic!("retained distribution program")
+    };
     assert_eq!(plan.mapping().source, plan.mapping().executable);
     assert!(!plan.factor_requirements().is_empty());
     let first = prepared.estimate(&data, &ctx).unwrap();

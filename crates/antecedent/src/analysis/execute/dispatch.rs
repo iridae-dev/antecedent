@@ -15,6 +15,7 @@ use super::{
     graph_posterior_response_supported, is_class_atom, reject_dag_only_on_pag,
     response_functional_is_derivative, temporal_admg_projection,
 };
+use crate::analysis::prepared::ExecutionKind;
 use crate::analysis::route_guards::{
     complete_mean_response, distinct_numeric_arms, mean_all_observed,
 };
@@ -1567,7 +1568,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        |prepared| prepared.checked_bayesian_basis_ate_info().is_some(),
+                        |prepared| prepared.retains(ExecutionKind::BayesianBasisAte),
                         "one-shot Bayesian basis ATE did not retain its checked operation",
                     );
                 }
@@ -1585,7 +1586,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        |prepared| prepared.checked_bayesian_robust_ate_info().is_some(),
+                        |prepared| prepared.retains(ExecutionKind::BayesianRobustAte),
                         "one-shot Bayesian robust ATE did not retain its checked operation",
                     );
                 }
@@ -1606,7 +1607,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        |prepared| prepared.checked_bayesian_basis_cate_query().is_some(),
+                        |prepared| prepared.retains(ExecutionKind::BayesianBasisCate),
                         "one-shot Bayesian basis CATE did not retain its checked operation",
                     );
                 }
@@ -1636,7 +1637,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        |prepared| prepared.checked_bayesian_gcomp_operation().is_some(),
+                        |prepared| prepared.retains(ExecutionKind::BayesianGcomp),
                         "one-shot Bayesian DAG effect did not retain its checked operation",
                     );
                 }
@@ -1655,7 +1656,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        |prepared| prepared.checked_bayesian_conditional_operation().is_some(),
+                        |prepared| prepared.retains(ExecutionKind::BayesianConditional),
                         "one-shot Bayesian DAG conditional effect did not retain its checked operation",
                     );
                 }
@@ -1681,7 +1682,7 @@ impl super::Study {
                 return self.admit_sealed_tabular(
                     data,
                     ctx,
-                    |prepared| prepared.checked_static_mediation_info().is_some(),
+                    |prepared| prepared.retains(ExecutionKind::StaticMediation),
                     "one-shot mediation did not retain its checked operation",
                 );
             }
@@ -1700,7 +1701,7 @@ impl super::Study {
                     return self.admit_sealed_series(
                         data,
                         ctx,
-                        crate::PreparedStudy::has_checked_temporal_dag_effect_operation,
+                        |prepared| prepared.retains(ExecutionKind::TemporalDagEffect),
                         "one-shot temporal DAG effect did not retain its checked operation",
                     );
                 }
@@ -1721,7 +1722,7 @@ impl super::Study {
                     return self.admit_sealed_series(
                         data,
                         ctx,
-                        crate::PreparedStudy::has_checked_temporal_dag_response_operation,
+                        |prepared| prepared.retains(ExecutionKind::TemporalDagResponse),
                         "one-shot temporal DAG response did not retain its checked operation",
                     );
                 }
@@ -1748,7 +1749,7 @@ impl super::Study {
                 return self.admit_sealed_tabular(
                     data,
                     ctx,
-                    crate::PreparedStudy::has_checked_graph_posterior_effect_operation,
+                    |prepared| prepared.retains(ExecutionKind::GraphPosteriorEffect),
                     "one-shot graph-posterior effect did not retain its checked operation",
                 );
             }
@@ -1766,7 +1767,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        crate::PreparedStudy::has_checked_class_graph_posterior_effect_operation,
+                        |prepared| prepared.retains(ExecutionKind::ClassGraphPosteriorEffect),
                         "one-shot class graph-posterior effect did not retain its checked operation",
                     );
                 }
@@ -1792,7 +1793,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        |prepared| prepared.checked_conditional_effect_info().is_some(),
+                        |prepared| prepared.retains(ExecutionKind::CheckedConditional),
                         "one-shot conditional effect did not retain its checked operation",
                     );
                 }
@@ -1844,7 +1845,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        crate::PreparedStudy::has_checked_static_dag_response_operation,
+                        |prepared| prepared.retains(ExecutionKind::StaticDagResponse),
                         "one-shot static DAG response did not retain its checked operation",
                     );
                 }
@@ -1880,7 +1881,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        crate::PreparedStudy::has_checked_derivative_response_operation,
+                        |prepared| prepared.retains(ExecutionKind::DerivativeResponse),
                         "one-shot derivative response did not retain its checked operation",
                     );
                 }
@@ -1893,7 +1894,7 @@ impl super::Study {
                 return self.admit_sealed_tabular(
                     data,
                     ctx,
-                    crate::PreparedStudy::has_checked_counterfactual_operation,
+                    |prepared| prepared.retains(ExecutionKind::Counterfactual),
                     "one-shot counterfactual route did not retain its checked operation",
                 );
             }
@@ -2015,7 +2016,7 @@ impl super::Study {
                 // ordinary dispatch below then reports that refusal at execute,
                 // as the route always did.
                 let prepared = self.prepare(ctx)?;
-                if prepared.has_checked_rd_operation() {
+                if prepared.retains(ExecutionKind::CheckedRd) {
                     return prepared.estimate(data, ctx).map(Box::new).map(Some);
                 }
             }
@@ -2028,7 +2029,7 @@ impl super::Study {
                         if checked_glm {
                             prepared.has_sealed_glm_operation()
                         } else {
-                            prepared.has_checked_propensity_operation()
+                            prepared.retains(ExecutionKind::CheckedPropensity)
                         }
                     },
                     "one-shot static estimator route did not retain its checked operation",
@@ -2054,7 +2055,7 @@ impl super::Study {
                 return self.admit_sealed_tabular(
                     data,
                     ctx,
-                    crate::PreparedStudy::has_checked_static_class_response_operation,
+                    |prepared| prepared.retains(ExecutionKind::StaticClassResponse),
                     "one-shot static class response did not retain its checked operation",
                 );
             }
@@ -2097,7 +2098,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        crate::PreparedStudy::has_checked_graph_posterior_response_operation,
+                        |prepared| prepared.retains(ExecutionKind::GraphPosteriorResponse),
                         "one-shot graph-posterior response did not retain its checked operation",
                     );
                 }
@@ -2132,7 +2133,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        |prepared| prepared.checked_cell_aipw_response_info().is_some(),
+                        |prepared| prepared.retains(ExecutionKind::CellAipwResponse),
                         "one-shot CoDetermined joint cell response did not retain its checked operation",
                     );
                 }
@@ -2159,7 +2160,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        crate::PreparedStudy::has_checked_static_class_effect_operation,
+                        |prepared| prepared.retains(ExecutionKind::StaticClassEffect),
                         "one-shot Bayesian static class effect did not retain its checked operation",
                     );
                 }
@@ -2205,11 +2206,11 @@ impl super::Study {
                     ctx,
                     |prepared| {
                         if class_atoms {
-                            prepared.has_checked_class_graph_posterior_effect_operation()
+                            prepared.retains(ExecutionKind::ClassGraphPosteriorEffect)
                         } else if bayesian {
-                            prepared.checked_bayesian_graph_posterior_ate_info().is_some()
+                            prepared.retains(ExecutionKind::BayesianGraphPosteriorAte)
                         } else {
-                            prepared.has_checked_graph_posterior_effect_operation()
+                            prepared.retains(ExecutionKind::GraphPosteriorEffect)
                         }
                     },
                     "one-shot graph-posterior effect did not retain its checked operation",
@@ -2242,7 +2243,7 @@ impl super::Study {
                     return self.admit_sealed_series(
                         data,
                         ctx,
-                        crate::PreparedStudy::has_checked_temporal_class_response_operation,
+                        |prepared| prepared.retains(ExecutionKind::TemporalClassResponse),
                         "one-shot temporal class response did not retain its checked operation",
                     );
                 }
@@ -2253,7 +2254,7 @@ impl super::Study {
                 return self.admit_sealed_series(
                     data,
                     ctx,
-                    crate::PreparedStudy::has_checked_temporal_graph_posterior_response_operation,
+                    |prepared| prepared.retains(ExecutionKind::TemporalGraphPosteriorResponse),
                     "one-shot temporal graph-posterior response did not retain its checked operation",
                 );
             }
@@ -2263,7 +2264,7 @@ impl super::Study {
                 return self.admit_sealed_series(
                     data,
                     ctx,
-                    crate::PreparedStudy::has_checked_temporal_class_mediation_operation,
+                    |prepared| prepared.retains(ExecutionKind::TemporalClassMediation),
                     "one-shot temporal class mediation did not retain its checked operation",
                 );
             }
@@ -2273,7 +2274,7 @@ impl super::Study {
                 return self.admit_sealed_series(
                     data,
                     ctx,
-                    crate::PreparedStudy::has_checked_bayesian_temporal_class_effect_operation,
+                    |prepared| prepared.retains(ExecutionKind::BayesianTemporalClassEffect),
                     "one-shot Bayesian temporal class effect did not retain its checked operation",
                 );
             }
@@ -2283,7 +2284,7 @@ impl super::Study {
                 return self.admit_sealed_series(
                     data,
                     ctx,
-                    crate::PreparedStudy::has_checked_temporal_graph_posterior_effect_operation,
+                    |prepared| prepared.retains(ExecutionKind::TemporalGraphPosteriorEffect),
                     "one-shot temporal graph-posterior effect did not retain its checked operation",
                 );
             }
@@ -2328,7 +2329,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        crate::PreparedStudy::has_checked_bayesian_specialist_operation,
+                        |prepared| prepared.retains(ExecutionKind::BayesianSpecialist),
                         "one-shot Bayesian specialist route did not retain its checked operation",
                     );
                 }
@@ -2346,7 +2347,7 @@ impl super::Study {
                 return self.admit_sealed_tabular(
                     data,
                     ctx,
-                    crate::PreparedStudy::has_checked_transport_trial_operation,
+                    |prepared| prepared.retains(ExecutionKind::TransportTrial),
                     "one-shot transport route did not retain its checked operation",
                 );
             }
@@ -2372,7 +2373,7 @@ impl super::Study {
                     return self.admit_sealed_tabular(
                         data,
                         ctx,
-                        |prepared| prepared.checked_linear_operation().is_some(),
+                        |prepared| prepared.retains(ExecutionKind::CheckedLinear),
                         "one-shot linear adjustment did not retain its checked operation",
                     );
                 }
@@ -2417,7 +2418,7 @@ impl super::Study {
                     .run_sealed_tabular(
                         data,
                         ctx,
-                        |prepared| prepared.checked_functional_effect_response_members().is_some(),
+                        |prepared| prepared.retains(ExecutionKind::AdmgResponseCurve),
                         "one-shot ADMG response did not retain its checked operation",
                     )
                     .map(Box::new)
@@ -2442,7 +2443,7 @@ impl super::Study {
                     .run_sealed_tabular(
                         data,
                         ctx,
-                        |prepared| prepared.checked_bayesian_static_mediation_info().is_some(),
+                        |prepared| prepared.retains(ExecutionKind::BayesianStaticMediation),
                         "one-shot Bayesian mediation did not retain its checked operation",
                     )
                     .map(Box::new)

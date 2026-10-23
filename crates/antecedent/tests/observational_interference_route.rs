@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{EstimatorId, InterferenceSpec, RefuteSuite, Study};
 use antecedent_core::{
     AssignmentDesign, CausalQuery, ExecutionContext, ExposureLevel, ExposureMapping,
@@ -62,10 +63,10 @@ fn observational_network_contrast_retains_truth_assumptions_and_artifact() {
         .unwrap();
     let ctx = ExecutionContext::for_tests(352);
     let prepared = study.prepare(&ctx).unwrap();
-    assert_eq!(
-        prepared.checked_interference_info().unwrap().estimator,
-        EstimatorId::InterferenceObservationalIpw
-    );
+    let RetainedOperation::Interference(info) = prepared.retained_operation() else {
+        panic!("prepared observational interference operation")
+    };
+    assert_eq!(info.estimator, EstimatorId::InterferenceObservationalIpw);
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.support_status, None);
     assert!((result.estimate.as_effect().unwrap().ate - 6.0).abs() < 1e-12);

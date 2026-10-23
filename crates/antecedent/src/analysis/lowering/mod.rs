@@ -37,7 +37,10 @@ use antecedent_identify::{
 };
 
 pub(crate) use decision::CompileGoal;
-pub(crate) use registry::{GraphPosteriorCell, RouteCell};
+#[cfg(test)]
+pub(crate) use registry::REGISTERED;
+pub(crate) use registry::RouteCell;
+pub use registry::{GraphPosteriorCell, PlanRoute};
 pub(crate) use static_response::{response_world, response_world_binding};
 pub(crate) use structural::theorem_mediation_target;
 pub(crate) use temporal::history_window;

@@ -9,6 +9,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -242,10 +243,17 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                     let mut prepared = builder.prepare(&ctx).unwrap();
                     drop(builder);
 
-                    assert!(prepared.has_checked_static_class_effect_operation(), "{coordinate}");
-                    let plan = prepared
-                        .checked_static_class_effect_info()
-                        .expect("retained Bayesian static class effect operation");
+                    assert!(
+                        matches!(
+                            prepared.retained_operation(),
+                            RetainedOperation::StaticClassEffect(..)
+                        ),
+                        "{coordinate}"
+                    );
+                    let RetainedOperation::StaticClassEffect(plan) = prepared.retained_operation()
+                    else {
+                        panic!("retained Bayesian static class effect operation")
+                    };
                     assert_eq!(plan.graph_class, fixture.graph_class, "{coordinate}");
                     assert_eq!(plan.query, query, "{coordinate}");
                     assert_eq!(
@@ -322,7 +330,11 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                         refreshed.estimate.as_effect().unwrap().ate.to_bits(),
                         result.estimate.as_effect().unwrap().ate.to_bits()
                     );
-                    let rebound = prepared.checked_static_class_effect_info().unwrap();
+                    let RetainedOperation::StaticClassEffect(rebound) =
+                        prepared.retained_operation()
+                    else {
+                        panic!("retained Bayesian static class effect operation after refresh")
+                    };
                     assert_eq!(rebound.query, plan.query);
                     assert_eq!(rebound.inference, plan.inference);
                     assert_eq!(rebound.completion_count, plan.completion_count);

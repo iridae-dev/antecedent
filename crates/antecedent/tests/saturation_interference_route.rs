@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{EstimatorId, InterferenceSpec, RefuteSuite, Study};
 use antecedent_core::{
     AssignmentDesign, CausalQuery, ExecutionContext, ExposureLevel, ExposureMapping,
@@ -90,10 +91,10 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
             .build()
             .unwrap();
         let prepared = study.prepare(&ctx).unwrap();
-        assert_eq!(
-            prepared.checked_interference_info().unwrap().estimator,
-            EstimatorId::InterferenceSaturationExact
-        );
+        let RetainedOperation::Interference(info) = prepared.retained_operation() else {
+            panic!("retained checked interference plan")
+        };
+        assert_eq!(info.estimator, EstimatorId::InterferenceSaturationExact);
         let result = prepared.estimate(&data, &ctx).unwrap();
         assert_eq!(result.support_status, None);
         assert!((result.interference().unwrap().contrast.hajek - truth).abs() < 1e-12);

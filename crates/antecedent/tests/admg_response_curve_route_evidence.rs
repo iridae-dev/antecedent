@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     RefuteSuite, StructureSource, Study,
@@ -124,9 +125,9 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("functional.effect"));
     assert_eq!(prepared.plan().logical.record.validation_suite, None);
 
-    let members = prepared
-        .checked_functional_effect_response_members()
-        .unwrap_or_else(|| panic!("{coordinate} omitted retained checked grid members"));
+    let RetainedOperation::AdmgResponseCurve(members) = prepared.retained_operation() else {
+        panic!("{coordinate} omitted retained checked grid members")
+    };
     assert_eq!(members.len(), 2, "{coordinate} member count");
     for (member, expected_level) in members.iter().zip([0.0_f64, 1.0_f64]) {
         assert_eq!(member.grid_value().to_bits(), expected_level.to_bits(), "{coordinate} order");
@@ -236,7 +237,7 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
     assert_eq!(means(&refreshed), means(&result), "{coordinate} refresh");
     assert!(
-        prepared.checked_functional_effect_response_members().is_some(),
+        matches!(prepared.retained_operation(), RetainedOperation::AdmgResponseCurve(..)),
         "{coordinate} refresh discarded members"
     );
 
@@ -323,8 +324,14 @@ fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
         let mut prepared = study.prepare(&ctx).unwrap();
         drop(builder);
         drop(study);
-        assert!(prepared.has_checked_admg_graph_posterior_response_operation());
-        let plan = prepared.checked_admg_graph_posterior_response_info().unwrap();
+        assert!(matches!(
+            prepared.retained_operation(),
+            RetainedOperation::AdmgGraphPosteriorResponse(..)
+        ));
+        let RetainedOperation::AdmgGraphPosteriorResponse(plan) = prepared.retained_operation()
+        else {
+            panic!("{coordinate}: retained ADMG graph-posterior response plan")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.graph_keys.as_ref(), posterior.graph_keys.as_ref());
         assert_eq!(plan.weights.as_ref(), &[0.65, 0.35]);

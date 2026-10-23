@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -136,9 +137,10 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
 
-        let plan = prepared
-            .checked_class_graph_posterior_effect_info()
-            .expect("prepared class graph-posterior operation retained");
+        let RetainedOperation::ClassGraphPosteriorEffect(plan) = prepared.retained_operation()
+        else {
+            panic!("prepared class graph-posterior operation retained")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.estimator.as_str(), "linear.adjustment.ate");
         assert_eq!(plan.validation, suite);
@@ -170,9 +172,11 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
 
         let shifted = prepared.refresh(data(4.0), &ctx).unwrap();
         assert!(shifted.estimate.as_effect().unwrap().ate.is_nan());
-        let refreshed_plan = prepared
-            .checked_class_graph_posterior_effect_info()
-            .expect("checked class graph-posterior plan remains after refresh");
+        let RetainedOperation::ClassGraphPosteriorEffect(refreshed_plan) =
+            prepared.retained_operation()
+        else {
+            panic!("checked class graph-posterior plan remains after refresh")
+        };
         assert_eq!(refreshed_plan.graph_keys, plan.graph_keys);
         assert_eq!(refreshed_plan.weights, plan.weights);
         let shifted_mix = shifted.structural_response.as_ref().unwrap();
@@ -223,9 +227,10 @@ fn frequentist_pag_graph_posterior_effect_body() {
         let one_shot = builder.run(&ctx).unwrap();
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
-        let plan = prepared
-            .checked_class_graph_posterior_effect_info()
-            .expect("prepared PAG graph-posterior operation retained");
+        let RetainedOperation::ClassGraphPosteriorEffect(plan) = prepared.retained_operation()
+        else {
+            panic!("prepared PAG graph-posterior operation retained")
+        };
         assert_eq!(plan.query, query);
         assert_eq!(plan.validation, suite);
         assert_eq!(plan.weights.as_ref(), &[0.8, 0.2]);
@@ -247,7 +252,10 @@ fn frequentist_pag_graph_posterior_effect_body() {
 
         let shifted = prepared.refresh(pag_data(4.0), &ctx).unwrap();
         assert!((shifted.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06);
-        let refreshed = prepared.checked_class_graph_posterior_effect_info().unwrap();
+        let RetainedOperation::ClassGraphPosteriorEffect(refreshed) = prepared.retained_operation()
+        else {
+            panic!("checked class graph-posterior plan remains after refresh")
+        };
         assert_eq!(refreshed.graph_keys, plan.graph_keys);
         assert_eq!(refreshed.weights, plan.weights);
         let artifact = prepared

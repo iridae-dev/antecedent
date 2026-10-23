@@ -49,6 +49,11 @@ mod common;
 // The pinned temporal-PAG law and structure, in one owner.
 use common::fixtures::{pinned_pag as identified_pag, pinned_pag_series as identified_pag_series};
 
+/// Whether the prepared handle's plan view names the retained sealed operation `name`.
+fn retains(prepared: &antecedent::PreparedStudy, name: &str) -> bool {
+    prepared.plan_view().is_ok_and(|view| view.operation() == Some(name))
+}
+
 fn vid(raw: u32) -> VariableId {
     VariableId::from_raw(raw)
 }
@@ -1385,6 +1390,13 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
         return Err(format!("{expected}: {lowering} did not lower every layer"));
     }
     let lowered_identity = lowered.identity();
+    let view = prepared.plan_view().map_err(|e| format!("{expected}: plan view {e}"))?;
+    if view.identity() != lowered_identity || view.route().as_str() != lowering {
+        return Err(format!("{expected}: the plan view does not read the lowered program"));
+    }
+    if view.stage() != antecedent::planner::PlanStage::Prepared || view.operation().is_none() {
+        return Err(format!("{expected}: the prepared plan view names no retained operation"));
+    }
     let contract = prepared.contract().map_err(|e| format!("{expected}: contract {e}"))?;
     let preview = prepared
         .preview_transform(TransformIntent::CompatibleDataReplace)
@@ -1559,19 +1571,14 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
             let estimator =
                 prepared.plan().logical.record.estimator.as_deref().unwrap_or("-").to_owned();
             let checked_status = match estimator.as_str() {
-                "functional.distribution" => Some((
-                    "checked_distribution_program",
-                    prepared.checked_distribution_program().is_some(),
-                )),
-                "linear.adjustment.ate" => Some((
-                    "checked_linear_adjustment",
-                    prepared.checked_linear_adjustment().is_some(),
-                )),
-                "aipw" => Some(("checked_aipw_ate", prepared.checked_aipw_ate().is_some())),
-                "bayesian.gcomp" => Some((
-                    "checked_bayesian_gcomp_operation",
-                    prepared.checked_bayesian_gcomp_operation().is_some(),
-                )),
+                "functional.distribution" => {
+                    Some(("distribution", retains(&prepared, "distribution")))
+                }
+                "linear.adjustment.ate" => {
+                    Some(("linear_adjustment", retains(&prepared, "linear_adjustment")))
+                }
+                "aipw" => Some(("aipw", retains(&prepared, "aipw"))),
+                "bayesian.gcomp" => Some(("bayesian_gcomp", retains(&prepared, "bayesian_gcomp"))),
                 _ => None,
             };
             if let Some((inspector, present)) = checked_status {
@@ -1581,7 +1588,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
                 }
             } else {
                 not_inspectable.push(format!(
-                    "{coordinate}: no public checked-plan inspector (estimator={estimator})"
+                    "{coordinate}: no retained checked operation (estimator={estimator})"
                 ));
             }
 
@@ -1710,24 +1717,18 @@ fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
             }
 
             let checked_status = match estimator.as_str() {
-                "functional.distribution" => Some((
-                    "checked_distribution_program",
-                    prepared.checked_distribution_program().is_some(),
-                )),
-                "linear.adjustment.ate" => Some((
-                    "checked_linear_adjustment",
-                    prepared.checked_linear_adjustment().is_some(),
-                )),
-                "aipw" => Some(("checked_aipw_ate", prepared.checked_aipw_ate().is_some())),
-                "frontdoor.linear_two_stage" => Some((
-                    "checked_frontdoor_linear",
-                    prepared.checked_frontdoor_linear().is_some(),
-                )),
-                "iv.2sls" | "iv.wald" => Some(("checked_iv", prepared.checked_iv().is_some())),
-                "bayesian.gcomp" => Some((
-                    "checked_bayesian_gcomp_operation",
-                    prepared.checked_bayesian_gcomp_operation().is_some(),
-                )),
+                "functional.distribution" => {
+                    Some(("distribution", retains(&prepared, "distribution")))
+                }
+                "linear.adjustment.ate" => {
+                    Some(("linear_adjustment", retains(&prepared, "linear_adjustment")))
+                }
+                "aipw" => Some(("aipw", retains(&prepared, "aipw"))),
+                "frontdoor.linear_two_stage" => {
+                    Some(("frontdoor_linear", retains(&prepared, "frontdoor_linear")))
+                }
+                "iv.2sls" | "iv.wald" => Some(("iv", retains(&prepared, "iv"))),
+                "bayesian.gcomp" => Some(("bayesian_gcomp", retains(&prepared, "bayesian_gcomp"))),
                 _ => None,
             };
             match checked_status {
@@ -1735,9 +1736,7 @@ fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
                 Some((inspector, false)) => {
                     checked_plan_gaps.push(format!("{coordinate}: {inspector} absent"))
                 }
-                None => {
-                    uninspectable.push(format!("{coordinate}: no public checked-plan inspector"))
-                }
+                None => uninspectable.push(format!("{coordinate}: no retained checked operation")),
             }
 
             drop(builder);

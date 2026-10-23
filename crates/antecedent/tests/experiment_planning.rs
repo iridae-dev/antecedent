@@ -74,6 +74,14 @@ fn compiled_plan_carries_every_assumption_in_its_identity() {
     assert_eq!(lowered.planned_design(), Some("cluster"));
     let carried = lowered.evidence().planning().expect("layer four carries the request");
     assert_eq!(carried.request_identity(), request.identity());
+    let view = plan.plan_view();
+    assert_eq!(view.identity(), plan.identity(), "the plan view reads the planning program");
+    assert_eq!(view.route(), antecedent::planner::PlanRoute::Planning("cluster"));
+    assert_eq!(view.family(), antecedent::planner::RouteFamily::Planning);
+    assert_eq!(
+        view.to_json()["evidence"]["planning"]["request_identity"],
+        request.identity().to_hex()
+    );
     assert_eq!(compile_planning(&request, &ctx).unwrap().identity(), plan.identity());
     let changed = [
         PlanningRequest { assumptions: request.assumptions.with_attrition(0.2), ..request.clone() },

@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -209,7 +210,7 @@ fn run_prepared(
         "prepared plan must record the pinned estimator"
     );
     if expected_estimator == "linear.adjustment.ate" {
-        assert!(prepared.has_checked_static_class_effect_operation());
+        assert!(matches!(prepared.retained_operation(), RetainedOperation::StaticClassEffect(..)));
     }
     let click = prepared.estimate(data, &ctx).unwrap();
     if expected_estimator == "linear.adjustment.ate" {
@@ -360,7 +361,7 @@ fn cpdag_effect_executes_from_retained_plan_after_builder_is_dropped() {
         .build()
         .unwrap();
     let prepared = builder.prepare(&context).unwrap();
-    assert!(prepared.has_checked_static_class_effect_operation());
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::StaticClassEffect(..)));
     let plan = prepared.plan().clone();
     assert_eq!(plan.logical.record.identifier.as_deref(), Some("generalized.adjustment"));
     drop(builder);

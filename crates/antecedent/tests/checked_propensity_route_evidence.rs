@@ -1,6 +1,7 @@
 //! Checked propensity lifecycle across licensed DAG estimator choices.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, ExecutionContext, PopulationRegistry, PredicateExpr, TargetPopulation,
@@ -85,8 +86,10 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
                 let one_shot = builder.run(&ctx).unwrap();
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
-                let plan =
-                    prepared.checked_propensity_info().expect("retained checked propensity plan");
+                let RetainedOperation::CheckedPropensity(plan) = prepared.retained_operation()
+                else {
+                    panic!("retained checked propensity plan")
+                };
                 let bound_source_rows = plan.source_rows.clone();
                 assert_eq!(plan.estimator, estimator);
                 assert_eq!(plan.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
@@ -128,8 +131,11 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
                 let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
                 assert!((refreshed.effect() - 2.0).abs() < 0.45);
                 assert!((refreshed.effect() - result.effect()).abs() < 0.2);
-                let rebound_plan =
-                    prepared.checked_propensity_info().expect("checked plan remains after refresh");
+                let RetainedOperation::CheckedPropensity(rebound_plan) =
+                    prepared.retained_operation()
+                else {
+                    panic!("checked plan remains after refresh")
+                };
                 assert_eq!(rebound_plan.source_rows, bound_source_rows);
                 let bytes = prepared
                     .encode_contracted_result(&refreshed, "checked-propensity", &ctx)

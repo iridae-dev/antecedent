@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::{
@@ -176,10 +177,14 @@ fn retained_plan(
 ) -> RetainedPlan {
     match (graph_class, bayesian) {
         ("Dag", false) => {
-            let info = prepared
-                .checked_graph_posterior_effect_info()
-                .expect("frequentist DAG graph-posterior operation retained");
-            assert!(prepared.checked_bayesian_graph_posterior_ate_info().is_none());
+            let RetainedOperation::GraphPosteriorEffect(info) = prepared.retained_operation()
+            else {
+                panic!("frequentist DAG graph-posterior operation retained")
+            };
+            assert!(!matches!(
+                prepared.retained_operation(),
+                RetainedOperation::BayesianGraphPosteriorAte(..)
+            ));
             RetainedPlan {
                 query: info.query,
                 conditional: info.conditional,
@@ -191,11 +196,15 @@ fn retained_plan(
             }
         }
         ("Dag", true) => {
-            let info = prepared
-                .checked_bayesian_graph_posterior_ate_info()
-                .expect("Bayesian DAG graph-posterior operation retained");
+            let RetainedOperation::BayesianGraphPosteriorAte(info) = prepared.retained_operation()
+            else {
+                panic!("Bayesian DAG graph-posterior operation retained")
+            };
             assert!(info.inference.starts_with("bayesian:"));
-            assert!(!prepared.has_checked_graph_posterior_effect_operation());
+            assert!(!matches!(
+                prepared.retained_operation(),
+                RetainedOperation::GraphPosteriorEffect(..)
+            ));
             RetainedPlan {
                 query: info.query,
                 conditional: info.conditional,
@@ -207,10 +216,14 @@ fn retained_plan(
             }
         }
         _ => {
-            let info = prepared
-                .checked_class_graph_posterior_effect_info()
-                .expect("class graph-posterior operation retained");
-            assert!(prepared.has_checked_class_graph_posterior_effect_operation());
+            let RetainedOperation::ClassGraphPosteriorEffect(info) = prepared.retained_operation()
+            else {
+                panic!("class graph-posterior operation retained")
+            };
+            assert!(matches!(
+                prepared.retained_operation(),
+                RetainedOperation::ClassGraphPosteriorEffect(..)
+            ));
             assert_eq!(
                 info.inference.starts_with("bayesian:"),
                 bayesian,
