@@ -180,10 +180,16 @@ def test_second_click_refuter_suite_refuses(query):
 
 
 @pytest.mark.parametrize("query", [_anomaly_query(), _change_query()], ids=["anomaly", "change"])
-def test_bootstrap_and_cheap_full_refuse(query):
+def test_bootstrap_runs_unlicensed_and_cheap_full_refuse(query):
     data = _outlier_chain() if isinstance(query, ant.AnomalyAttribution) else _two_period_chain()
+    # A Frequentist replicate count runs the mechanism-refit row bootstrap: it publishes
+    # a bootstrap standard error and the result is unlicensed.
+    bootstrapped = ant.analyze(data, graph=_dag(), query=query, bootstrap=50)
+    assert bootstrapped.evidence_status != "licensed"
+    assert any("gcm.frequentist_bootstrap" in note for note in bootstrapped.diagnostics)
+    # The Bayesian cell keeps its Bayesian-bootstrap posterior and refuses bootstrap=.
     with pytest.raises(CausalUnsupportedError) as raised:
-        ant.analyze(data, graph=_dag(), query=query, bootstrap=50)
+        ant.analyze(data, graph=_dag(), query=query, bootstrap=50, inference=ant.Bayesian())
     assert raised.value.reason_code == "option_not_applicable"
     with pytest.raises(CausalUnsupportedError) as raised:
         ant.analyze(data, graph=_dag(), query=query, refute="full")

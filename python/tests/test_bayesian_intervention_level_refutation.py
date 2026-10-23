@@ -24,6 +24,17 @@ def _data(seed: int = 5, n: int = 1500):
     return {"t": t, "y": y, "z": z}, float(z.mean())
 
 
+def _refuter_names(result) -> list[str]:
+    """Refuter ids of a result: ATE-style reports or response-view checks."""
+    validation = result.validation
+    if validation is None:
+        return []
+    reports = getattr(validation, "reports", None)
+    if reports is not None:
+        return [report.refuter for report in reports]
+    return [check.id for check in validation.checks]
+
+
 def _level_query():
     return antecedent.InterventionResponse("y", intervention=antecedent.intervention.Set("t", 1.0))
 
@@ -40,7 +51,7 @@ def test_bayesian_level_refuter_state_runs_and_is_unlicensed(suite):
         seed=3,
     )
     assert result.evidence_status != "licensed"
-    refuters = [report.refuter for report in result.validation.reports]
+    refuters = _refuter_names(result)
     assert any(name.startswith("overlap") for name in refuters), refuters
     assert "prior_predictive" in refuters and "posterior_predictive" in refuters, refuters
     assert any(name.startswith("prior_sensitivity") for name in refuters) == (suite == "full")
@@ -58,7 +69,8 @@ def test_bayesian_level_without_refute_stays_licensed():
         seed=3,
     )
     assert result.evidence_status == "licensed"
-    assert result.validation.count == 0
+    # No suite ran: the result carries no refuter reports (no view, or an empty one).
+    assert _refuter_names(result) == []
 
 
 def test_derivative_cheap_runs_its_refuter_state():
@@ -74,5 +86,5 @@ def test_derivative_cheap_runs_its_refuter_state():
         seed=3,
     )
     assert result.evidence_status != "licensed"
-    refuters = [report.refuter for report in result.validation.reports]
+    refuters = _refuter_names(result)
     assert "derivative.support" in refuters and "derivative.finite_difference" in refuters

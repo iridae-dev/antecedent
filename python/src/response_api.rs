@@ -179,6 +179,29 @@ type CoordinateSkeleton = Result<
 
 #[pymethods]
 impl ResponseAnalysisResult {
+    /// Refuter reports the study's validation stage produced for this response, one
+    /// `(refuter, passed, informative, original, refuted, failure)` per report; empty
+    /// when no suite ran or the result carries no study authority.
+    fn refutation_reports(&self) -> Vec<(String, bool, bool, f64, f64, Option<String>)> {
+        self.authority.as_ref().map_or_else(Vec::new, |authority| {
+            authority
+                .result
+                .refutations
+                .iter()
+                .map(|report| {
+                    (
+                        report.refuter.to_string(),
+                        report.passed,
+                        report.informative,
+                        report.original_ate,
+                        report.refuted_ate,
+                        report.failure_condition.as_deref().map(str::to_owned),
+                    )
+                })
+                .collect()
+        })
+    }
+
     fn program_basis_json(&self) -> PyResult<Option<String>> {
         let Some(authority) = &self.authority else {
             return Ok(None);

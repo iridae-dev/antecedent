@@ -202,12 +202,15 @@ def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
     assert got == pytest.approx(want, abs=pin["tolerance"])
     fresh = ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="none")
     np.testing.assert_array_equal(np.asarray(fresh.estimate, dtype=float).ravel(), got)
-    with pytest.raises(
-        CausalUnsupportedError, match="function-valued response has no ATE-shaped state"
-    ):
-        PreparedAnalysis.prepare(
-            data, graph=graph, query=query, estimator_config=config, refute="full"
-        )
+    # cheap/full run the derivative refuter state, which is unlicensed.
+    refuted = ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="cheap")
+    assert refuted.evidence_status != "licensed"
+    assert refuted.validation is not None
+    checks = [check.id for check in refuted.validation.checks]
+    assert "derivative.support" in checks, checks
+    assert np.asarray(refuted.estimate, dtype=float).ravel() == pytest.approx(
+        want, abs=pin["tolerance"]
+    )
 
 
 @pytest.mark.parametrize("kind", ["jacobian", "directional"])

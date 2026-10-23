@@ -300,6 +300,9 @@ class AteAnalysisResult:
     allowlist_parent: str | None
 
 class ResponseAnalysisResult:
+    def refutation_reports(
+        self,
+    ) -> list[tuple[str, bool, bool, float, float, str | None]]: ...
     def program_basis_json(self) -> str | None: ...
     certificate_json: str | None
     treatments: list[str]

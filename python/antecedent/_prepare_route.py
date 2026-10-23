@@ -2119,7 +2119,15 @@ class _PrepareRoute:
         if isinstance(graph, Admg) and isinstance(query, (ResponseCurve, InterventionResponse)):
             response_options = _parse_response_estimator_config(query, self.estimator_config)
             return self._admg_response(response_options)
-        scalar_dag_response = isinstance(query, InterventionResponse) and isinstance(graph, Dag)
+        # A plain edge list is a supplied Dag here, as it is for every other static route.
+        edge_list = (
+            isinstance(graph, Sequence)
+            and not isinstance(graph, (str, bytes))
+            and all(isinstance(item, Sequence) and len(item) == 2 for item in graph)
+        )
+        scalar_dag_response = isinstance(query, InterventionResponse) and (
+            isinstance(graph, Dag) or edge_list
+        )
         if self._explicit_refute() and scalar_dag_response:
             # The response executor has no validation stage; the study runs the
             # suite as the second click of every estimate.

@@ -422,6 +422,25 @@ def _wrap_prepared_response(
         method = "response.backdoor"
         identify_op = "identify.response"
         validation = None
+    # Refuter states that ran on this response (derivative, temporal or class-aware
+    # intervention level, all unlicensed) replace the "skipped" placeholder.
+    reports = raw.refutation_reports() if hasattr(raw, "refutation_reports") else []
+    if reports:
+        import math
+
+        validation = ResponseValidationView(
+            checks=tuple(
+                ResponseValidationCheck(
+                    id=name,
+                    status="passed" if passed else "failed",
+                    statistic=float(refuted) if math.isfinite(refuted) else None,
+                    threshold=None,
+                    detail=failure
+                    or ("informative check" if informative else "uninformative check"),
+                )
+                for name, passed, informative, _original, refuted, failure in reports
+            )
+        )
     certificate_json = getattr(raw, "certificate_json", None)
     envelope = None
     if getattr(raw, "identified_mass", None) is not None:
