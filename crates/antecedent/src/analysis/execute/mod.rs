@@ -181,6 +181,9 @@ pub struct Study {
     pub(crate) query: CausalQuery,
     pub(crate) refute: RefuteSuite,
     pub(crate) bootstrap_replicates: u32,
+    /// Retain the joint replicates of a temporal response surface (see
+    /// [`crate::StudyBuilder::retain_joint_horizons`]).
+    pub(crate) retain_joint_horizons: bool,
     pub(crate) split: Option<DiscoveryEstimationSplit>,
     pub(crate) identifier: Option<IdentifierId>,
     pub(crate) estimator: Option<EstimatorId>,
@@ -244,7 +247,11 @@ mod attribution_path;
 mod checked_attribution;
 mod temporal_attribution;
 pub(crate) use attribution_path::{CheckedCounterfactualPlan, CounterfactualProcedure};
-pub(crate) use checked_attribution::CheckedAttributionOperation;
+pub(crate) use checked_attribution::{
+    CheckedAttributionOperation, attribute_bootstrap_supported, attribute_posterior_draws,
+    attribute_posterior_supported,
+    attribute_runs_checked,
+};
 mod bayesian_basis_path;
 mod checked_bayesian_basis_ate;
 mod checked_bayesian_basis_cate;
@@ -308,8 +315,12 @@ pub(crate) use checked_longitudinal_regime::CheckedLongitudinalRegimeOperation;
 mod checked_sequential_contrast;
 pub(crate) use checked_sequential_contrast::CheckedSequentialContrastOperation;
 mod checked_history_match;
+mod checked_route;
 pub(crate) use checked_history_match::CheckedHistoryMatchOperation;
+pub(crate) use checked_route::CheckedRouteOperation;
+mod checked_iv_bounds;
 mod checked_temporal_design;
+pub(crate) use checked_iv_bounds::CheckedIvBoundsOperation;
 pub(crate) use checked_panel_did::CheckedPanelDidOperation;
 pub(crate) use checked_panel_did::panel_did_graphless_key;
 pub(crate) use checked_panel_did::panel_did_identification;
@@ -387,6 +398,7 @@ mod static_missing;
 mod static_path;
 #[cfg(test)]
 mod study_clone_tests;
+mod temporal_admg_path;
 mod temporal_class_effect_core;
 mod temporal_class_mediation_posterior;
 mod temporal_class_point;
@@ -434,8 +446,8 @@ pub(super) use tuple_bootstrap::{
 pub(crate) use dispatch::push_gaussian_likelihood_disclosure;
 pub(crate) use dispatch::push_lag_zero_average_effect_disclosure;
 pub(crate) use dispatch::{
-    ANOMALY_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND, COUNTERFACTUAL_DIRICHLET_BACKEND,
-    ROBUST_ATE_BOOTSTRAP_BACKEND,
+    ANOMALY_DIRICHLET_BACKEND, ATTRIBUTE_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND,
+    COUNTERFACTUAL_DIRICHLET_BACKEND, ROBUST_ATE_BOOTSTRAP_BACKEND,
 };
 pub(crate) use static_path::{CheckedUnknownTiered, DistributionGraph};
 pub(crate) use transport_interference_path::live_transport_identification;

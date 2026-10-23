@@ -272,7 +272,8 @@ pub(super) fn temporal_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                     estimator,
                     analysis.bootstrap_replicates,
                     &analysis.inference,
-                )?;
+                )?
+                .with_joint_horizons(analysis.retain_joint_horizons);
                 let execution =
                     crate::analysis::execute::CheckedTemporalResponseExecution::checked(
                         operation,

@@ -10,7 +10,17 @@ from ._temporal_design import TemporalDesignQuery
 from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
 from .extensibility import ProviderQuery
 from .extensibility import providers as _providers
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
+from .graph import (
+    Admg,
+    Cpdag,
+    Dag,
+    Pag,
+    TemporalAdmg,
+    TemporalCpdag,
+    TemporalDag,
+    TemporalPag,
+    TieredBackground,
+)
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
@@ -21,6 +31,7 @@ from .quasi import (
     AugmentedPanelDiD,
     CovariateAdjustedDiD,
     FuzzyRegressionDiscontinuity,
+    IvBounds,
     PanelDifferenceInDifferences,
     PeriodHistoryMatch,
     RegressionKink,
@@ -117,6 +128,7 @@ def analyze(
         | LongitudinalRegime
         | SequentialContrast
         | PeriodHistoryMatch
+        | IvBounds
         | AnomalyAttribution
         | ChangeAttribution
         | TemporalDesignQuery
@@ -129,6 +141,7 @@ def analyze(
         | TemporalDag
         | TemporalCpdag
         | TemporalPag
+        | TemporalAdmg
         | TieredBackground
         | Sequence[tuple[str, str]]
         | Sequence[tuple[str, int, str, int]]
@@ -218,7 +231,8 @@ def analyze(
           ``RegimeSurvivalContrast`` (sequentially randomized unit-period designs and
           regime survival; ``result.temporal_design``),
         - ``regimes.LongitudinalRegime``.
-        - ``regimes.SequentialContrast`` and ``quasi.PeriodHistoryMatch``.
+        - ``regimes.SequentialContrast``, ``quasi.PeriodHistoryMatch`` and ``quasi.IvBounds``
+          (an identified set; ``result.iv_bounds``).
 
         Transport: ``transport.Transport`` (the compiler on an ``Admg``, with
         ``provider=`` / ``TransportInference`` / ``controls=``) and the licensed
@@ -232,13 +246,18 @@ def analyze(
         narrow when the kind must be exact.
     graph:
         ``Dag`` / ``Cpdag`` / ``Pag`` / ``Admg`` / ``TemporalDag`` /
-        ``TemporalCpdag`` / ``TemporalPag``, or an edge list. Lagged edges
+        ``TemporalCpdag`` / ``TemporalPag`` / ``TemporalAdmg``, or an edge list. Lagged edges
         ``(from, from_lag, to, to_lag)`` are required for temporal queries
         without ``discovery``. Incomplete ``Cpdag`` / ``TemporalCpdag`` /
         ``TemporalPag`` keep their class. Completing those graphs yourself is
         still the ``Dag`` / ``TemporalDag`` cell. ADMGs without bidirected
         edges coerce to DAGs; ADMGs with latents use general ID + functional
-        effect.
+        effect. A ``TemporalAdmg`` serves ``PulseEffect`` / ``SustainedEffect`` /
+        ``TemporalConditionalPulse`` / ``TemporalConditionalSustained`` over one series: the
+        contrast is identified on the unrolled window of the template and evaluated on its
+        lag-aligned window table, resampled in blocks of consecutive windows; it runs
+        unlicensed (``support_status`` ``"refused"``) and a window that holds a hedge is
+        refused with the variables and periods that carry it.
     discovery:
         Static: ``PC`` / ``GES`` / ``LiNGAM`` / ``NOTEARS`` / ``FCI`` / ``RFCI``.
         Temporal: ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI``.

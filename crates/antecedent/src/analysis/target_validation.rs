@@ -30,9 +30,9 @@ use std::sync::Arc;
 
 use antecedent_contract::DataClassification;
 use antecedent_core::{
-    CausalQuery, CausalRng, ContinuousDomain, DerivativeScale, ExecutionContext, GridSpec, Lag,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    VariableId,
+    CausalQuery, CausalRng, ContinuousDomain, DerivativeScale, DerivativeWeighting,
+    ExecutionContext, GridSpec, Lag, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, VariableId,
 };
 use antecedent_data::{
     OwnedColumn, PanelData, PanelUnit, TableView, TabularData, TimeSeriesData, ValidityBitmap,
@@ -551,8 +551,8 @@ struct PreparedRefit<'a> {
     options: TargetRefitOptions,
     replicates: u32,
     alpha: f64,
-    /// Fitted response curve of a point derivative, `(point, value)`, computed once.
-    curve: std::cell::OnceCell<Vec<(f64, f64)>>,
+    /// Fitted response curve of a derivative, `(point, value per horizon)`, computed once.
+    curve: std::cell::OnceCell<Vec<(f64, Vec<f64>)>>,
 }
 
 fn unsupported(reason: impl Into<Arc<str>>, next_attempt: &str) -> TargetRefitError {
@@ -925,6 +925,89 @@ impl PreparedRefit<'_> {
         ))
     }
 
+    /// The graph posterior with a simulated common cause `u` declared in every atom.
+    ///
+    /// Each DAG atom is repacked onto one more node, `u`, which is made a parent of the
+    /// treatment and of the outcome; the atom weights are unchanged, so the posterior is the
+    /// same mixture over structures with one root cause added to each. A class atom (CPDAG or
+    /// PAG) is refused, because a new parent can create a collider with a parent the treatment
+    /// already has and so change the class, and so is a lagged template posterior.
+    fn posterior_with_common_cause(
+        &self,
+        posterior: &antecedent_discovery::GraphPosterior,
+        u: VariableId,
+    ) -> Result<antecedent_discovery::GraphPosterior, TargetRefitError> {
+        use antecedent_discovery::adjacency_mask::{has_edge, set_edge};
+        let n = posterior.n_vars;
+        if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Dag
+            || posterior.max_lag.is_some()
+        {
+            return Err(unsupported(
+                "a class or lagged template posterior can change its classes when a parent is \
+                 declared in every atom",
+                "refute one accepted structure of the posterior",
+            ));
+        }
+        if u.as_usize() != n || n + 1 > antecedent_discovery::MAX_POSTERIOR_NODES {
+            return Err(unsupported(
+                "the posterior's nodes are not the study's columns, or the added node does not \
+                 fit the atom packing",
+                "refute one accepted structure of the posterior",
+            ));
+        }
+        let (t, y) = (self.treatment.as_usize(), self.outcome.as_usize());
+        if t >= n || y >= n {
+            return Err(unsupported(
+                "the treatment or outcome is not a node of the posterior",
+                "a posterior that names both",
+            ));
+        }
+        let m = n + 1;
+        let atoms: Vec<antecedent_discovery::AdjacencyMask> = posterior
+            .atoms
+            .iter()
+            .map(|&atom| {
+                let mut packed = antecedent_discovery::AdjacencyMask::EMPTY;
+                for i in 0..n {
+                    for j in 0..n {
+                        if i != j && has_edge(atom, n, i, j) {
+                            packed = set_edge(packed, m, i, j, true);
+                        }
+                    }
+                }
+                packed = set_edge(packed, m, n, t, true);
+                set_edge(packed, m, n, y, true)
+            })
+            .collect();
+        let mut edge = vec![0.0; m * m];
+        for (&atom, &weight) in atoms.iter().zip(posterior.weights.iter()) {
+            for i in 0..m {
+                for j in 0..m {
+                    if i != j && has_edge(atom, m, i, j) {
+                        edge[i * m + j] += weight;
+                    }
+                }
+            }
+        }
+        let rebuilt = antecedent_discovery::GraphPosterior::from_atoms(
+            m,
+            posterior.weights.to_vec(),
+            atoms,
+            edge.clone(),
+            edge,
+            antecedent_discovery::SamplingSummary {
+                ess: posterior.ess,
+                diagnostics: posterior.diagnostics.clone(),
+                rejected_invalid: posterior.rejected_invalid,
+            },
+        )
+        .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
+        Ok(match &posterior.algorithm {
+            Some(algorithm) => rebuilt.with_algorithm(Arc::clone(algorithm)),
+            None => rebuilt,
+        })
+    }
+
     /// The graph with a simulated common cause `u` of treatment and outcome declared.
     fn graph_with_common_cause(
         &self,
@@ -1079,7 +1162,11 @@ impl PreparedRefit<'_> {
             }
         };
         let mut study = self.study().clone();
-        study.graph = Arc::new(self.graph_with_common_cause(u_id)?);
+        if let Some(posterior) = &self.study().graph_posterior {
+            study.graph_posterior = Some(self.posterior_with_common_cause(posterior, u_id)?);
+        } else {
+            study.graph = Arc::new(self.graph_with_common_cause(u_id)?);
+        }
         let refitted = Self::compile_and_run(study, &data, ctx).map_err(|error| {
             unsupported(
                 format!("the study with the simulated common cause declared did not run: {error}"),
@@ -1294,6 +1381,56 @@ impl PreparedRefit<'_> {
         }
     }
 
+    /// The pre-trend, anticipation and lagged-placebo series as an explicit window: the shifted
+    /// column cut to the design rows that have a value, with the lag history kept in front of
+    /// them, and a gathered circular-block resample of that window for replicates after the
+    /// first. This is what the weighted construction means for a route that reads no row
+    /// weights; `None` for any other perturbation.
+    fn materialised_window(
+        &self,
+        series: &TimeSeriesData,
+        perturbation: TargetPerturbation,
+        rng: &mut CausalRng,
+    ) -> Result<Option<TimeSeriesData>, TargetRefitError> {
+        let storage = series.storage();
+        let n = series.row_count();
+        let span = max_graph_lag(self.study()) + 1;
+        let back = isize::try_from(span).unwrap_or(isize::MAX);
+        let (replacement, from, to, replicate) = match perturbation {
+            TargetPerturbation::PreTrend { replicate, lead } => {
+                let lead_rows = lead as usize;
+                let lead = isize::try_from(lead).unwrap_or(isize::MAX);
+                let (values, _) = shifted(Self::column_of(storage, self.treatment)?, lead);
+                ((self.treatment, values), 0, n.saturating_sub(lead_rows), replicate)
+            }
+            TargetPerturbation::Anticipation { replicate } => {
+                let (values, _) = shifted(Self::column_of(storage, self.outcome)?, -back);
+                ((self.outcome, values), 2 * span, n, replicate)
+            }
+            TargetPerturbation::NegativeControlOutcome { replicate }
+                if self.options.negative_control_outcome.is_none() =>
+            {
+                let (values, _) = shifted(Self::column_of(storage, self.outcome)?, -back);
+                ((self.outcome, values), 2 * span, n, replicate)
+            }
+            _ => return Ok(None),
+        };
+        let base = series_with(series, &[replacement], None, None)?;
+        let Some(window) = truncated_series(&base, from.saturating_sub(span), to)? else {
+            return Ok(None);
+        };
+        if replicate == 0 {
+            return Ok(Some(window));
+        }
+        let plan = antecedent_data::ResamplingPlan::CircularBlock {
+            length: antecedent_data::circular_block_length(span, window.row_count()),
+        };
+        let mut scratch = Vec::new();
+        antecedent_data::resample_timeseries(&window, plan, rng, &mut scratch)
+            .map(Some)
+            .map_err(data_failed)
+    }
+
     fn series_refit(
         &self,
         series: &TimeSeriesData,
@@ -1330,6 +1467,32 @@ impl PreparedRefit<'_> {
             self.options.negative_control_outcome,
         )?;
         let refit = self.reestimate(&Modal::Series(perturbed), ctx);
+        // A route that reads no row weights cannot take the block resample as multiplicities;
+        // the bootstrap is then drawn as a gathered circular-block series, whose lag windows
+        // that straddle a block junction pair values observed apart (the block length keeps
+        // their share small).
+        if refit.is_err() {
+            if let Some(window) = self.materialised_window(series, perturbation, rng)? {
+                if let Ok(values) = self.reestimate(&Modal::Series(window), ctx) {
+                    return Ok(values);
+                }
+            }
+        }
+        if matches!(perturbation, TargetPerturbation::Bootstrap { .. }) && refit.is_err() {
+            let rows = series.row_count();
+            let span = max_graph_lag(self.study()) + 1;
+            let plan = antecedent_data::ResamplingPlan::CircularBlock {
+                length: antecedent_data::circular_block_length(span, rows),
+            };
+            let mut scratch = Vec::new();
+            if let Ok(gathered) =
+                antecedent_data::resample_timeseries(series, plan, rng, &mut scratch)
+            {
+                if let Ok(values) = self.reestimate(&Modal::Series(gathered), ctx) {
+                    return Ok(values);
+                }
+            }
+        }
         match refit {
             // The circular-block resample is carried as row multiplicities; a route without a
             // weighted construction refuses them, and the refuter is recorded with its reason.
@@ -1662,10 +1825,7 @@ impl PreparedRefit<'_> {
         ctx: &ExecutionContext,
     ) -> Result<TargetRefutationReport, TargetRefitError> {
         let PreparedTargetData::Tabular(data) = self.data else {
-            return Err(unsupported(
-                "the reference outcome model replicates independent rows",
-                "on series, the route's own posterior-predictive check of the outcome",
-            ));
+            return self.posterior_predictive_lagged(ctx);
         };
         let storage = data.storage();
         if storage.analysis_mask().is_some() || storage.weights().is_some() {
@@ -1785,39 +1945,286 @@ impl PreparedRefit<'_> {
         .map_err(TargetRefitError::Failed)
     }
 
-    /// The fitted response curve of a point derivative at the five points the derivative
-    /// diagnostics read, through the compiler: the study's mean-curve query on the same data.
+    /// Posterior-predictive check on a series or the units of a panel, under a reference outcome
+    /// model that carries the lag structure the route's graph declares: the outcome regressed on
+    /// the treatment, the adjustment set and its own `L` previous values (`L` the longest lag of
+    /// the graph, at least one), pooled over units. Each draw of its reference posterior replaces
+    /// every unit's outcome by the model's recursion with no noise (the target of the draw) and
+    /// with simulated noise (a replicate), the first `L` periods of a unit staying as observed,
+    /// and the compiled program is re-run on both.
     #[allow(
         clippy::too_many_lines,
-        reason = "one check that classifies the derivative, picks its step and fits its curve once"
+        clippy::needless_range_loop,
+        clippy::cast_precision_loss,
+        reason = "the pooled lagged design, its Cholesky factor and the recursive draws share one reference model in sequence"
     )]
-    fn response_curve(&self, ctx: &ExecutionContext) -> Result<(f64, f64, f64), TargetRefitError> {
+    fn posterior_predictive_lagged(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<TargetRefutationReport, TargetRefitError> {
+        let units: Vec<&TimeSeriesData> = match self.data {
+            PreparedTargetData::Series(series) => vec![series],
+            PreparedTargetData::Panel(panel) => panel.units().iter().map(|u| &u.series).collect(),
+            PreparedTargetData::Tabular(_) => {
+                return Err(unsupported("a table has no lag structure", "a series or panel"));
+            }
+        };
+        let lags = max_graph_lag(self.study()).max(1);
+        let mut ids = vec![self.treatment];
+        ids.extend(self.adjustment());
+        let p = ids.len() + 1 + lags;
+        let mut outcomes: Vec<&[f64]> = Vec::with_capacity(units.len());
+        let mut covariates: Vec<Vec<&[f64]>> = Vec::with_capacity(units.len());
+        let mut rows = 0_usize;
+        for unit in &units {
+            let storage = unit.storage();
+            if storage.analysis_mask().is_some() || storage.weights().is_some() {
+                return Err(unsupported(
+                    "the reference outcome model replicates unmasked, unweighted series",
+                    "refute the unmasked series",
+                ));
+            }
+            let y = Self::column_of(storage, self.outcome)?;
+            let mut columns = Vec::with_capacity(ids.len());
+            for id in &ids {
+                columns.push(Self::column_of(storage, *id)?);
+            }
+            if y.len() <= lags
+                || y.iter().chain(columns.iter().copied().flatten()).any(|v| !v.is_finite())
+            {
+                return Err(unsupported(
+                    "the reference outcome model needs complete float columns longer than the lag",
+                    "resolve missing values first",
+                ));
+            }
+            rows += y.len() - lags;
+            outcomes.push(y);
+            covariates.push(columns);
+        }
+        if rows <= p + 2 {
+            return Err(unsupported(
+                "the reference outcome model needs more lag-aligned rows than parameters",
+                "a longer series",
+            ));
+        }
+        // Column-major design over the lag-aligned rows of every unit.
+        let mut design = vec![0.0; rows * p];
+        let mut response = Vec::with_capacity(rows);
+        let mut row = 0;
+        for (u, y) in outcomes.iter().enumerate() {
+            for t in lags..y.len() {
+                design[row] = 1.0;
+                for (c, column) in covariates[u].iter().enumerate() {
+                    design[(1 + c) * rows + row] = column[t];
+                }
+                for j in 1..=lags {
+                    design[(ids.len() + j) * rows + row] = y[t - j];
+                }
+                response.push(y[t]);
+                row += 1;
+            }
+        }
+        let fit = FaerBackend
+            .least_squares(&design, rows, p, &response, &mut LeastSquaresWorkspace::default())
+            .map_err(|error| TargetRefitError::Failed(ValidationError::from(error)))?;
+        let mut l = vec![0.0; p * p];
+        for i in 0..p {
+            for j in 0..=i {
+                let mut acc: f64 =
+                    (0..rows).map(|r| design[i * rows + r] * design[j * rows + r]).sum();
+                for q in 0..j {
+                    acc -= l[i * p + q] * l[j * p + q];
+                }
+                if i == j {
+                    if acc.partial_cmp(&0.0) != Some(Ordering::Greater) {
+                        return Err(unsupported(
+                            "the lagged reference design is rank deficient",
+                            "a full-rank adjustment",
+                        ));
+                    }
+                    l[i * p + i] = acc.sqrt();
+                } else {
+                    l[i * p + j] = acc / l[j * p + j];
+                }
+            }
+        }
+        let k = self.target.dimension();
+        let draws_wanted = (self.replicates as usize).max(k + 2);
+        let _lease = admit_target_cells(ctx, draws_wanted.saturating_mul(2), rows)?;
+        let mut thetas = Vec::with_capacity(draws_wanted * k);
+        let mut replicated = Vec::with_capacity(draws_wanted * k);
+        let dof = (rows - p) as f64;
+        for s in 0..draws_wanted {
+            if ctx.cancellation.is_cancelled() {
+                return Err(TargetRefitError::Failed(ValidationError::Cancelled));
+            }
+            let mut rng = target_refuter_stream(
+                TargetRefuterKind::PosteriorPredictive,
+                u32::try_from(s).unwrap_or(u32::MAX),
+                ctx,
+            );
+            let chi2 = sample_gamma(dof / 2.0, 0.5, &mut rng);
+            let sigma = (fit.rss / chi2.max(f64::MIN_POSITIVE)).sqrt();
+            let mut w: Vec<f64> =
+                (0..p).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+            for i in (0..p).rev() {
+                let mut acc = w[i];
+                for q in (i + 1)..p {
+                    acc -= l[q * p + i] * w[q];
+                }
+                w[i] = acc / l[i * p + i];
+            }
+            let beta: Vec<f64> =
+                fit.coefficients.iter().zip(&w).map(|(b, w)| b + sigma * w).collect();
+            let simulate = |noisy: bool, rng: &mut CausalRng| -> Vec<Arc<[f64]>> {
+                outcomes
+                    .iter()
+                    .enumerate()
+                    .map(|(u, y)| {
+                        let mut path = y.to_vec();
+                        for t in lags..y.len() {
+                            let mut mean = beta[0];
+                            for (c, column) in covariates[u].iter().enumerate() {
+                                mean += beta[1 + c] * column[t];
+                            }
+                            for j in 1..=lags {
+                                mean += beta[ids.len() + j] * path[t - j];
+                            }
+                            path[t] = if noisy {
+                                mean + sigma * antecedent_kernels::standard_normal(rng)
+                            } else {
+                                mean
+                            };
+                        }
+                        Arc::from(path)
+                    })
+                    .collect()
+            };
+            let mean_paths = simulate(false, &mut rng);
+            let noisy_paths = simulate(true, &mut rng);
+            let run = |paths: Vec<Arc<[f64]>>| -> Result<Vec<f64>, TargetRefitError> {
+                let mut replaced = Vec::with_capacity(units.len());
+                for (unit, path) in units.iter().zip(paths) {
+                    replaced.push(series_with(unit, &[(self.outcome, path)], None, None)?);
+                }
+                let modal = match self.data {
+                    PreparedTargetData::Panel(panel) => {
+                        let mut members = Vec::with_capacity(replaced.len());
+                        for (unit, series) in panel.units().iter().zip(replaced) {
+                            members.push(PanelUnit { unit_id: unit.unit_id, series });
+                        }
+                        Modal::Panel(PanelData::try_new(members).map_err(data_failed)?)
+                    }
+                    _ => Modal::Series(replaced.remove(0)),
+                };
+                self.reestimate(&modal, ctx).map_err(|error| match error {
+                    TargetRefitError::Failed(error) => unsupported(
+                        format!("the program did not run on a reference-model replicate: {error}"),
+                        "a route that admits replicated outcomes",
+                    ),
+                    other @ TargetRefitError::Unsupported { .. } => other,
+                })
+            };
+            thetas.extend(run(mean_paths)?);
+            replicated.extend(run(noisy_paths)?);
+        }
+        posterior_predictive_target_check(&PosteriorPredictiveTarget {
+            target: &self.target,
+            observed: &self.original,
+            draws: &thetas,
+            replicated: &replicated,
+            alpha: self.alpha,
+        })
+        .map_err(TargetRefitError::Failed)
+    }
+
+    /// The fitted response curve of a derivative at the points the derivative diagnostics read,
+    /// through the compiler: the study's mean-curve query, under its own temporal
+    /// specification, on the same data.
+    ///
+    /// A point derivative is read at its evaluation point. An average derivative is read at
+    /// seven nodes of its weighting law (quantiles of the observed treatment, or midpoints of
+    /// the uniform interval), so its finite difference is the mean of the nodes' point
+    /// differences. Each node contributes the five grid points `x`, `x +- step / 2` and
+    /// `x +- step`. A multi-horizon specification reads one curve column per horizon.
+    ///
+    /// Returns the nodes, the reported value of each horizon and the step.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::cast_precision_loss,
+        reason = "one check that classifies the derivative, picks its nodes and step and fits its curve once"
+    )]
+    fn response_curve(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<f64>, Vec<f64>, f64), TargetRefitError> {
+        const NODES: usize = 7;
         let Some(response) = self.result.response() else {
             return Err(unsupported(
                 "the derivative diagnostics read a response result",
                 "a derivative response query",
             ));
         };
-        let (outcome, treatment, at) = match &response.estimand {
+        let treatment_column = || -> Vec<f64> {
+            let mut column: Vec<f64> = match self.data {
+                PreparedTargetData::Panel(panel) => panel
+                    .units()
+                    .iter()
+                    .filter_map(|unit| float_column(unit.series.storage(), self.treatment))
+                    .flatten()
+                    .copied()
+                    .collect(),
+                _ => float_column(self.storage(), self.treatment)
+                    .map(<[f64]>::to_vec)
+                    .unwrap_or_default(),
+            };
+            column.retain(|value| value.is_finite());
+            column
+        };
+        let (outcome, treatment, nodes) = match &response.estimand {
             ResponseFunctional::PointDerivative {
                 outcome,
                 treatment,
                 at,
                 order: 1,
                 scale: DerivativeScale::Identity,
-            } => (*outcome, *treatment, *at),
+            } => (*outcome, *treatment, vec![*at]),
             ResponseFunctional::PointDerivative { .. } => {
                 return Err(unsupported(
                     "the consistency check compares a first derivative on the identity scale",
                     "query the first derivative on the identity scale",
                 ));
             }
-            ResponseFunctional::AverageDerivative { .. } => {
-                return Err(unsupported(
-                    "an average derivative weights the whole curve; its finite difference is an \
-                     average of point differences under the weighting law",
-                    "check point derivatives at the weighting law's support points",
-                ));
+            ResponseFunctional::AverageDerivative { outcome, treatment, weighting } => {
+                let nodes: Vec<f64> = match weighting {
+                    DerivativeWeighting::Observed => {
+                        let mut column = treatment_column();
+                        column.sort_by(f64::total_cmp);
+                        if column.len() < NODES {
+                            return Err(unsupported(
+                                "the observed treatment has too few values to place the nodes \
+                                 of the weighting law",
+                                "more data",
+                            ));
+                        }
+                        (0..NODES)
+                            .map(|k| {
+                                let rank = ((2 * k + 1) * column.len()) / (2 * NODES);
+                                column[rank.min(column.len() - 1)]
+                            })
+                            .collect()
+                    }
+                    DerivativeWeighting::Uniform { lower, upper } => (0..NODES)
+                        .map(|k| lower + (upper - lower) * (k as f64 + 0.5) / NODES as f64)
+                        .collect(),
+                    DerivativeWeighting::Custom(_) => {
+                        return Err(unsupported(
+                            "caller-supplied row weights have no support points to place nodes at",
+                            "check point derivatives at chosen points",
+                        ));
+                    }
+                };
+                (*outcome, *treatment, nodes)
             }
             _ => {
                 return Err(unsupported(
@@ -1827,23 +2234,31 @@ impl PreparedRefit<'_> {
                 ));
             }
         };
-        let reported = *self.original.first().ok_or_else(|| unsupported("no value", "a target"))?;
+        let horizons = match &self.study().query {
+            CausalQuery::Response(original) => {
+                original.temporal.as_ref().map_or(1, |spec| spec.horizons.len())
+            }
+            _ => 1,
+        };
+        if horizons != 1 {
+            return Err(unsupported(
+                "a derivative report binds one coordinate to one evaluation point, so a \
+                 multi-horizon specification would need one report per horizon, which no single \
+                 target identity certifies",
+                "refute one horizon per study",
+            ));
+        }
+        if self.original.len() != horizons {
+            return Err(unsupported(
+                "the reported derivative does not have one value per horizon of the specification",
+                "a derivative query with one value per horizon",
+            ));
+        }
+        let reported = self.original.clone();
         let step = if let Some(step) = self.options.derivative_step {
             step
         } else {
-            let column: Vec<f64> = match self.data {
-                PreparedTargetData::Panel(panel) => panel
-                    .units()
-                    .iter()
-                    .filter_map(|u| float_column(u.series.storage(), treatment))
-                    .flatten()
-                    .copied()
-                    .collect(),
-                _ => {
-                    float_column(self.storage(), treatment).map(<[f64]>::to_vec).unwrap_or_default()
-                }
-            };
-            0.25 * sample_sd(&column)
+            0.25 * sample_sd(&treatment_column())
         };
         if !(step.is_finite() && step > 0.0) {
             return Err(unsupported(
@@ -1853,11 +2268,22 @@ impl PreparedRefit<'_> {
         }
         if self.curve.get().is_none() {
             let half = 0.5 * step;
-            let points = [at - step, at - half, at, at + half, at + step];
-            let query = CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
+            let points: Vec<f64> = nodes
+                .iter()
+                .flat_map(|&node| [-step, -half, 0.0, half, step].map(|offset| node + offset))
+                .collect();
+            let mut curve_query = ResponseQuery::new(ResponseFunctional::MeanCurve {
                 outcome,
-                treatment: ContinuousDomain::new(treatment, GridSpec::Values(Arc::from(points))),
-            }));
+                treatment: ContinuousDomain::new(
+                    treatment,
+                    GridSpec::Values(Arc::from(points.clone())),
+                ),
+            });
+            // A temporal derivative's curve is fit under the same temporal specification.
+            if let CausalQuery::Response(original) = &self.study().query {
+                curve_query.temporal.clone_from(&original.temporal);
+            }
+            let query = CausalQuery::Response(curve_query);
             let mut study = self.study().clone();
             study.query = query;
             let refitted =
@@ -1881,9 +2307,16 @@ impl PreparedRefit<'_> {
                     ResponseIdentification::PointIdentified(ResponseValue::Surface {
                         mean,
                         ..
-                    }) if mean.len() == points.len() => {
-                        Some(points.iter().copied().zip(mean.iter().copied()).collect::<Vec<_>>())
-                    }
+                    }) if mean.len() == points.len() * horizons => Some(
+                        points
+                            .iter()
+                            .copied()
+                            .enumerate()
+                            .map(|(dose, point)| {
+                                (point, mean[dose * horizons..(dose + 1) * horizons].to_vec())
+                            })
+                            .collect::<Vec<_>>(),
+                    ),
                     _ => None,
                 })
                 .ok_or_else(|| {
@@ -1894,15 +2327,31 @@ impl PreparedRefit<'_> {
                 })?;
             let _ = self.curve.set(curve);
         }
-        Ok((at, reported, step))
+        Ok((nodes, reported, step))
     }
 
-    fn curve_value(&self, x: f64) -> Result<f64, ValidationError> {
+    fn curve_value(&self, x: f64, horizon: usize) -> Result<f64, ValidationError> {
         self.curve
             .get()
             .and_then(|curve| curve.iter().find(|(p, _)| p.to_bits() == x.to_bits()))
-            .map(|(_, v)| *v)
+            .and_then(|(_, values)| values.get(horizon).copied())
             .ok_or_else(|| ValidationError::estimation_msg("response curve read off its grid"))
+    }
+
+    /// The mean over the nodes of the curve shifted by `offset`: its derivative at zero is the
+    /// mean of the nodes' derivatives, which for an average derivative is the finite
+    /// difference of the weighted average.
+    fn node_mean(
+        &self,
+        nodes: &[f64],
+        offset: f64,
+        horizon: usize,
+    ) -> Result<f64, ValidationError> {
+        let mut total = 0.0;
+        for &node in nodes {
+            total += self.curve_value(node + offset, horizon)?;
+        }
+        Ok(total / nodes.len() as f64)
     }
 
     fn derivative_check(
@@ -1910,25 +2359,40 @@ impl PreparedRefit<'_> {
         kind: TargetRefuterKind,
         ctx: &ExecutionContext,
     ) -> Result<TargetRefutationReport, TargetRefitError> {
-        let (at, reported, step) = self.response_curve(ctx)?;
-        if kind == TargetRefuterKind::FiniteDifferenceConsistency {
-            let check = finite_difference_consistency(
-                |x| self.curve_value(x),
-                &[DerivativeCheckPoint { x: at, reported }],
-                step,
-                self.options.derivative_tolerance,
-            )?;
-            Ok(check.to_report(&self.target)?)
-        } else {
-            let check = local_linearity(
-                |x| self.curve_value(x),
-                &[at],
-                step,
-                self.options.linearity_tolerance,
-                1e-9,
-            )?;
-            Ok(check.to_report(&self.target)?)
+        let (nodes, reported, step) = self.response_curve(ctx)?;
+        let mut worst: Option<TargetRefutationReport> = None;
+        for (horizon, &value) in reported.iter().enumerate() {
+            let report = if kind == TargetRefuterKind::FiniteDifferenceConsistency {
+                finite_difference_consistency(
+                    |offset| self.node_mean(&nodes, offset, horizon),
+                    &[DerivativeCheckPoint { x: 0.0, reported: value }],
+                    step,
+                    self.options.derivative_tolerance,
+                )?
+                .to_report(&self.target)?
+            } else {
+                local_linearity(
+                    |offset| self.node_mean(&nodes, offset, horizon),
+                    &[0.0],
+                    step,
+                    self.options.linearity_tolerance,
+                    1e-9,
+                )?
+                .to_report(&self.target)?
+            };
+            // The report of the worst horizon speaks for the vector: a failing horizon, else
+            // the largest statistic.
+            worst = Some(match worst {
+                None => report,
+                Some(current) => {
+                    let replace = (current.passed && !report.passed)
+                        || (current.passed == report.passed
+                            && report.statistic.value > current.statistic.value);
+                    if replace { report } else { current }
+                }
+            });
         }
+        worst.ok_or_else(|| unsupported("no value", "a target"))
     }
 
     fn mediation_check(&self) -> Result<TargetRefutationReport, TargetRefitError> {

@@ -229,6 +229,50 @@ fn counterfactual_lowers_its_functional_mechanisms_and_row_weight_posterior() {
     assert_ne!(bayesian.identity(), frequentist.identity());
 }
 
+/// A fitted-model attribution lowers to the Dirichlet row-weight posterior over the mechanisms
+/// under Bayesian inference, whatever its target, and stays a point answer under Frequentist.
+#[test]
+fn a_fitted_model_attribution_lowers_its_posterior_over_the_mechanisms() {
+    let change = |rooted: bool| {
+        let change = ChangeAttributionQuery::new(v(1), first_half(), second_half());
+        let estimator = antecedent_core::ChangeEstimator::Sampled {
+            measure: antecedent_core::ChangeMeasure::MeanDifference,
+            n_samples: 100,
+            seed: 1,
+        };
+        CausalQuery::Attribute(antecedent_core::AttributeQuery::new(if rooted {
+            antecedent_core::AttributeTarget::RootCauses { change, estimator }
+        } else {
+            antecedent_core::AttributeTarget::DistributionChange { change, estimator }
+        }))
+    };
+    let paths = CausalQuery::Attribute(antecedent_core::AttributeQuery::new(
+        antecedent_core::AttributeTarget::Paths {
+            sources: std::sync::Arc::from([v(0)]),
+            outcome: v(1),
+            max_paths: 8,
+            max_len: 4,
+            through: std::sync::Arc::from([]),
+        },
+    ));
+    let bayesian = |draws| InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(draws));
+    for rooted in [false, true] {
+        let point = lowered(&gcm_study(shifted(), change(rooted), InferenceMode::Frequentist));
+        assert_eq!(point.claim().uncertainty(), UncertaintyReading::None);
+        let program = lowered(&gcm_study(shifted(), change(rooted), bayesian(32)));
+        let posterior = program.statistical().posterior().expect("row-weight posterior");
+        assert_eq!(posterior.draws(), 32);
+        assert_eq!(posterior.prior().name(), "dirichlet_row_weights(1)");
+        assert!(matches!(program.statistical().realization(), Realization::Bayesian(_)));
+        assert_eq!(program.claim().uncertainty(), UncertaintyReading::Posterior);
+        assert_ne!(program.identity(), point.identity());
+    }
+    let program = lowered(&gcm_study(shifted(), paths, bayesian(32)));
+    let posterior = program.statistical().posterior().expect("paths have a posterior too");
+    assert_eq!(posterior.draws(), 32);
+    assert_eq!(program.claim().uncertainty(), UncertaintyReading::Posterior);
+}
+
 #[test]
 fn anomaly_prepare_and_estimate_stamp_the_compiled_identity() {
     on_large_stack("anomaly-lowering", || {

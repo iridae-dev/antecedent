@@ -992,6 +992,9 @@ pub enum ResultPayload {
     HistoryMatch(HistoryMatchEstimate),
     /// Excursion contrasts of a sequentially randomized design, or regime survival.
     TemporalDesign(Box<TemporalDesignEstimate>),
+    /// Sharp bounds on the average effect under a binary instrument: an identified set, never a
+    /// point.
+    IvBounds(Box<antecedent_estimate::IvBoundsEstimate>),
     /// Rollout design effects with whole-procedure uncertainty.
     QuasiRollout(Box<QuasiRolloutEstimate>),
     /// Structure, structure class or structure posterior a compiled search returned.
@@ -1266,6 +1269,15 @@ impl ResultPayload {
         }
     }
 
+    /// The `iv_bounds` payload by value.
+    #[must_use]
+    pub fn into_iv_bounds(self) -> Option<antecedent_estimate::IvBoundsEstimate> {
+        match self {
+            Self::IvBounds(value) => Some(*value),
+            _ => None,
+        }
+    }
+
     /// The `quasi_rollout` payload by value.
     #[must_use]
     pub fn into_quasi_rollout(self) -> Option<QuasiRolloutEstimate> {
@@ -1525,6 +1537,15 @@ impl ResultPayload {
         }
     }
 
+    /// Sharp bounds on the average effect under a binary instrument.
+    #[must_use]
+    pub fn iv_bounds(&self) -> Option<&antecedent_estimate::IvBoundsEstimate> {
+        match self {
+            Self::IvBounds(value) => Some(value),
+            _ => None,
+        }
+    }
+
     /// Rollout design effects with whole-procedure uncertainty.
     #[must_use]
     pub fn quasi_rollout(&self) -> Option<&QuasiRolloutEstimate> {
@@ -1561,6 +1582,7 @@ impl ResultPayload {
                 | Self::SequentialContrast(_)
                 | Self::HistoryMatch(_)
                 | Self::TemporalDesign(_)
+                | Self::IvBounds(_)
                 | Self::QuasiRollout(_)
         )
     }
@@ -1699,6 +1721,7 @@ payload_accessors! {
     sequential_contrast, into_sequential_contrast: SequentialContrastEstimate,
     history_match, into_history_match: HistoryMatchEstimate,
     temporal_design, into_temporal_design: TemporalDesignEstimate,
+    iv_bounds, into_iv_bounds: antecedent_estimate::IvBoundsEstimate,
     quasi_rollout, into_quasi_rollout: QuasiRolloutEstimate,
 }
 

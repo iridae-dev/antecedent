@@ -1,0 +1,27 @@
+feature_id = "discovery.exact_pag_posterior"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Ancestral graph Markov models", sections = ["maximal ancestral graphs and their m-separation", "ancestral and maximal conditions", "Markov equivalence of maximal ancestral graphs"] },
+ { title = "Iterative conditional fitting for Gaussian ancestral graph models", sections = ["residual iterative conditional fitting of the coefficients and the residual covariance"] },
+ { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty applied to the maximised Gaussian likelihood"] },
+]
+
+implementation_deviations = [
+ "The maximal ancestral graphs of at most four variables are enumerated, not sampled: each pair is non-adjacent, directed either way or bidirected, and a candidate is kept when it is ancestral and every non-adjacent pair is m-separated by some set. Above four variables the search refuses; the next attempt is structure MCMC over these graphs.",
+ "Each graph is fitted by alternating the exact generalised-least-squares update of the free coefficients given the residual covariance with one sweep of iterative conditional fitting of the residual covariance, to a relative log-likelihood change of 1e-10 or 500 sweeps; the first local optimum reached from the diagonal start is taken, and a graph whose fit is degenerate has no score and is excluded and counted.",
+ "The weights are exp(BIC) with a uniform prior over the graphs, the BIC approximation to the marginal likelihood; the free parameters counted are the coefficients, the variances and the bidirected covariances, and the intercepts are common to every graph.",
+ "Markov equivalence is read off the sets of m-separation statements, not from the characterisation by discriminating paths; the PAG of a class keeps an endpoint mark only where every graph of the class agrees and is a circle otherwise, the definition of the partial ancestral graph of a class. Selection variables are not modelled, so no undirected edges arise.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/exact_pag_posterior.rs unit tests (graph counts, ancestral and maximal invariants, the empty-graph likelihood in closed form, saturated two-node graphs tying, a chain and a collider of known classes)",
+ "crates/antecedent/tests/structure_uncertainty_routes.rs (compiled PAG posterior equals the engine; five variables refuse)",
+ "python/tests/test_structure_uncertainty_routes.py",
+]

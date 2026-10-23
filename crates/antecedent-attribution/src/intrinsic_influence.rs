@@ -235,6 +235,97 @@ pub enum ShapleyMethod {
     },
 }
 
+/// How the mechanism-fit replicates are drawn.
+///
+/// Both resamplings refit every mechanism on the supplied rows and repeat the whole attribution
+/// on each refit; they differ in the law the rows are weighted by. The row bootstrap draws
+/// multinomial row counts, reselects the mechanism families on each resample and reports a
+/// sampling spread. The Dirichlet row weights are the Bayesian bootstrap: one
+/// Dirichlet(1, ..., 1) weight vector per refit, the mechanism families held at the ones
+/// selected on the original rows, so the replicates are draws from the posterior over the
+/// mechanisms given the empirical row law.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum FitResampling {
+    /// Multinomial row counts with the mechanism families reselected on each resample.
+    #[default]
+    RowBootstrap,
+    /// One Dirichlet(1, ..., 1) weight vector per refit over the original rows, with the
+    /// mechanism families held at the ones selected on the original rows.
+    DirichletRowWeights,
+    /// Circular blocks of `block` consecutive rows drawn with replacement, for rows that are
+    /// consecutive times of one dependent series; families reselected on each resample.
+    BlockBootstrap {
+        /// Rows per block (at least 1).
+        block: usize,
+    },
+    /// One Exp(1) weight per block of `block` consecutive rows, shared by every row of the
+    /// block (the block Bayesian bootstrap), with the families held at the ones selected on
+    /// the original rows.
+    DirichletBlockWeights {
+        /// Rows per block (at least 1).
+        block: usize,
+    },
+}
+
+impl FitResampling {
+    /// Stable name of the resampling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::RowBootstrap => "row_bootstrap",
+            Self::DirichletRowWeights => "dirichlet_row_weights",
+            Self::BlockBootstrap { .. } => "block_bootstrap",
+            Self::DirichletBlockWeights { .. } => "dirichlet_block_weights",
+        }
+    }
+
+    /// Whether the refits are draws of weights with the families held fixed.
+    const fn holds_families(self) -> bool {
+        matches!(self, Self::DirichletRowWeights | Self::DirichletBlockWeights { .. })
+    }
+
+    /// The rows of one resample of `n` rows, for the resamplings that resample rows.
+    fn resample_rows(self, n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<usize> {
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "next_f64() is in [0, 1), so the scaled draw is a non-negative index below n"
+        )]
+        let mut draw = |limit: usize| ((rng.next_f64() * limit as f64) as usize).min(limit - 1);
+        match self {
+            Self::BlockBootstrap { block } => {
+                let block = block.clamp(1, n);
+                let mut rows = Vec::with_capacity(n + block);
+                while rows.len() < n {
+                    let start = draw(n);
+                    rows.extend((0..block).map(|k| (start + k) % n));
+                }
+                rows.truncate(n);
+                rows
+            }
+            _ => (0..n).map(|_| draw(n)).collect(),
+        }
+    }
+
+    /// The weights of one refit of `n` rows, for the resamplings that hold the families.
+    fn refit_weights(self, n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
+        match self {
+            Self::DirichletBlockWeights { block } => {
+                let block = block.clamp(1, n);
+                let mut weights = Vec::with_capacity(n);
+                while weights.len() < n {
+                    let weight = antecedent_kernels::bayesian_bootstrap_weights(rng, 1, false)[0];
+                    let take = block.min(n - weights.len());
+                    weights.extend(std::iter::repeat_n(weight, take));
+                }
+                weights
+            }
+            _ => antecedent_kernels::bayesian_bootstrap_weights(rng, n, false),
+        }
+    }
+}
+
 /// Method record of an intrinsic-influence run.
 #[derive(Clone, Debug, PartialEq)]
 pub struct IntrinsicMethod {
@@ -252,6 +343,8 @@ pub struct IntrinsicMethod {
     pub replicates: usize,
     /// Bootstrap refits requested for mechanism-fit uncertainty (`0` when none).
     pub fit_bootstrap_replicates: u32,
+    /// How those refits weighted the rows.
+    pub fit_resampling: FitResampling,
 }
 
 /// Compute consumed by an intrinsic-influence run.
@@ -295,6 +388,10 @@ pub struct IntrinsicInfluenceResult {
     pub budget: IntrinsicBudget,
     /// Coalition cache statistics of the point run.
     pub cache_stats: CacheStats,
+    /// The attribution of every completed mechanism refit, one row per refit and one entry per
+    /// source in [`Self::sources`] order. Under [`FitResampling::DirichletRowWeights`] these
+    /// are draws from the posterior over the mechanisms; empty when no refit ran.
+    pub fit_draws: Arc<[Vec<f64>]>,
 }
 
 impl IntrinsicInfluenceResult {
@@ -353,6 +450,8 @@ pub struct IntrinsicInfluenceQuery {
     /// Row-bootstrap refits for mechanism-fitting uncertainty; `0` for none, otherwise at
     /// least [`MIN_FIT_BOOTSTRAP_REPLICATES`]. Needs data passed to [`intrinsic_influence`].
     pub fit_bootstrap_replicates: u32,
+    /// How the mechanism-fit refits weight the rows.
+    pub fit_resampling: FitResampling,
     /// Two-sided level of every reported interval, in `(0, 1)`.
     pub level: f64,
     /// Most sources accepted (hard size guard).
@@ -373,6 +472,7 @@ impl IntrinsicInfluenceQuery {
             inner_draws: 40,
             replicates: 4,
             fit_bootstrap_replicates: 0,
+            fit_resampling: FitResampling::RowBootstrap,
             level: 0.95,
             max_sources: 64,
             seed: 0,
@@ -404,6 +504,13 @@ impl IntrinsicInfluenceQuery {
     #[must_use]
     pub const fn with_fit_bootstrap(mut self, replicates: u32) -> Self {
         self.fit_bootstrap_replicates = replicates;
+        self
+    }
+
+    /// Set how the mechanism-fit refits weight the rows.
+    #[must_use]
+    pub const fn with_fit_resampling(mut self, resampling: FitResampling) -> Self {
+        self.fit_resampling = resampling;
         self
     }
 
@@ -574,7 +681,7 @@ pub fn intrinsic_influence(
                 None => ComponentStatus::NotApplicable { reason: REASON_EXACT },
             };
             let (mechanism_fit, whole_procedure) = match &fit {
-                FitComponent::Quantified { stderr, whole, t, df } => (
+                FitComponent::Quantified { stderr, whole, t, df, .. } => (
                     quantified(contribution, stderr[i], *t, *df),
                     quantified(contribution, whole[i], *t, *df),
                 ),
@@ -609,6 +716,10 @@ pub fn intrinsic_influence(
         FitComponent::Quantified { .. } => query.fit_bootstrap_replicates,
         FitComponent::Unquantified(_) => 0,
     };
+    let fit_draws: Arc<[Vec<f64>]> = match fit {
+        FitComponent::Quantified { draws, .. } => Arc::from(draws),
+        FitComponent::Unquantified(_) => Arc::from(Vec::<Vec<f64>>::new()),
+    };
     Ok(IntrinsicInfluenceResult {
         target: query.target,
         sources: Arc::from(sources),
@@ -625,6 +736,7 @@ pub fn intrinsic_influence(
             inner_draws: query.inner_draws,
             replicates: query.replicates,
             fit_bootstrap_replicates: query.fit_bootstrap_replicates,
+            fit_resampling: query.fit_resampling,
         },
         budget: IntrinsicBudget {
             coalition_evaluations: evaluations,
@@ -636,6 +748,7 @@ pub fn intrinsic_influence(
             refits,
         },
         cache_stats,
+        fit_draws,
     })
 }
 
@@ -1040,12 +1153,19 @@ enum FitComponent {
         whole: Vec<f64>,
         t: f64,
         df: f64,
+        /// The attribution of every refit, one row per refit.
+        draws: Vec<Vec<f64>>,
     },
     Unquantified(&'static str),
 }
 
 /// Mechanism-fitting uncertainty: refit the mechanisms on row-bootstrap resamples of `data`
-/// and repeat the attribution on each refit.
+/// (or under Dirichlet row weights, for the posterior over the mechanisms) and repeat the
+/// attribution on each refit.
+///
+/// Under [`FitResampling::DirichletRowWeights`] the standard errors are the posterior standard
+/// deviations of the contributions and the interval their normal approximation; the draws
+/// themselves are returned for the caller to summarise as a posterior.
 ///
 /// Each refit's contributions carry the same Monte Carlo noise as the point estimate, so the
 /// bootstrap variance is reduced by the noise variance of one estimate (the pooled
@@ -1078,45 +1198,72 @@ fn fit_component(
     if n_rows == 0 {
         return Ok(FitComponent::Unquantified(REASON_NOT_QUANTIFIED_NO_DATA));
     }
-    let outcomes = ctx.map_indexed(replicates as usize, |r, worker| -> Result<Option<Vec<f64>>, AttributionError> {
-        if worker.cancellation.is_cancelled() {
-            return Err(AttributionError::Cancelled);
+    // The posterior over the mechanisms holds the families at the ones selected on the
+    // original rows, so they are selected once here.
+    let held_assignments = if query.fit_resampling.holds_families() {
+        match MechanismRegistry::standard().assign_and_fit_polled(
+            model,
+            data,
+            SelectionPolicy::BestScore,
+            &|| ctx.cancellation.is_cancelled(),
+        ) {
+            Ok((_, assignments)) => Some(assignments),
+            Err(ModelError::Cancelled) => return Err(AttributionError::Cancelled),
+            Err(_) => return Ok(FitComponent::Unquantified(REASON_REFIT_FAILED)),
         }
-        let mut rng = worker
-            .rng
-            .stream_for(
+    } else {
+        None
+    };
+    let outcomes = ctx.map_indexed(
+        replicates as usize,
+        |r, worker| -> Result<Option<Vec<f64>>, AttributionError> {
+            if worker.cancellation.is_cancelled() {
+                return Err(AttributionError::Cancelled);
+            }
+            let mut rng = worker.rng.stream_for(
                 StreamDomain::Attribution,
                 stream_tag(FIT_STREAM, antecedent_core::derive_stream(query.seed, r as u64)),
             );
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "next_f64() is in [0, 1), so the scaled draw is a non-negative index below n"
-        )]
-        let rows: Vec<usize> = (0..n_rows)
-            .map(|_| ((rng.next_f64() * n_rows as f64) as usize).min(n_rows - 1))
-            .collect();
-        let attempt = (|| -> Result<Vec<f64>, AttributionError> {
-            let resample = subset_table(data, &rows)?;
-            let (store, _) = MechanismRegistry::standard().assign_and_fit_polled(
-                model,
-                &resample,
-                SelectionPolicy::BestScore,
-                &|| worker.cancellation.is_cancelled(),
-            )?;
-            let refit = model.clone().with_mechanisms(store);
-            require_noise_support(&refit, DenseNodeId::from_index(spec.target), spec.player_nodes)?;
-            let first = (r as u64 + 1) * spec.replicates as u64;
-            run_game(&refit, spec, first, false, worker).map(|d| d.pooled.values)
-        })();
-        match attempt {
-            Ok(values) => Ok(Some(values)),
-            Err(AttributionError::Cancelled | AttributionError::Model(ModelError::Cancelled)) => {
-                Err(AttributionError::Cancelled)
+            let attempt = (|| -> Result<Vec<f64>, AttributionError> {
+                let store = if let Some(assignments) = &held_assignments {
+                    let weights = query.fit_resampling.refit_weights(n_rows, &mut rng);
+                    MechanismRegistry::standard().refit_weighted_polled(
+                        model,
+                        data,
+                        assignments,
+                        &weights,
+                        &|| worker.cancellation.is_cancelled(),
+                    )?
+                } else {
+                    let rows = query.fit_resampling.resample_rows(n_rows, &mut rng);
+                    let resample = subset_table(data, &rows)?;
+                    MechanismRegistry::standard()
+                        .assign_and_fit_polled(
+                            model,
+                            &resample,
+                            SelectionPolicy::BestScore,
+                            &|| worker.cancellation.is_cancelled(),
+                        )?
+                        .0
+                };
+                let refit = model.clone().with_mechanisms(store);
+                require_noise_support(
+                    &refit,
+                    DenseNodeId::from_index(spec.target),
+                    spec.player_nodes,
+                )?;
+                let first = (r as u64 + 1) * spec.replicates as u64;
+                run_game(&refit, spec, first, false, worker).map(|d| d.pooled.values)
+            })();
+            match attempt {
+                Ok(values) => Ok(Some(values)),
+                Err(
+                    AttributionError::Cancelled | AttributionError::Model(ModelError::Cancelled),
+                ) => Err(AttributionError::Cancelled),
+                Err(_) => Ok(None),
             }
-            Err(_) => Ok(None),
-        }
-    })?;
+        },
+    )?;
     if outcomes.iter().any(Option::is_none) {
         return Ok(FitComponent::Unquantified(REASON_REFIT_FAILED));
     }
@@ -1144,10 +1291,12 @@ fn fit_component(
         })
         .collect();
     let df = f64::from(replicates) - 1.0;
+    let draws: Vec<Vec<f64>> = draws.into_iter().cloned().collect();
     Ok(FitComponent::Quantified {
         stderr,
         whole,
         t: student_t_ppf(0.5 + 0.5 * query.level, df),
         df,
+        draws,
     })
 }

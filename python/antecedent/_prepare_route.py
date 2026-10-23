@@ -29,7 +29,17 @@ from .experiment import (
     SwitchbackEffect,
     TreatmentOnTreated,
 )
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
+from .graph import (
+    Admg,
+    Cpdag,
+    Dag,
+    Pag,
+    TemporalAdmg,
+    TemporalCpdag,
+    TemporalDag,
+    TemporalPag,
+    TieredBackground,
+)
 from .inference import (
     Bayesian,
     ClassPrior,
@@ -55,6 +65,7 @@ from .quasi import (
     AugmentedPanelDiD,
     CovariateAdjustedDiD,
     FuzzyRegressionDiscontinuity,
+    IvBounds,
     PanelDifferenceInDifferences,
     PeriodHistoryMatch,
     RegressionKink,
@@ -306,6 +317,7 @@ _COMPILE_ROUTES: tuple[tuple[tuple[type, ...], str, str], ...] = (
     ((LongitudinalRegime,), "_longitudinal_regime", "pre"),
     ((SequentialContrast,), "_sequential_contrast", "pre"),
     ((PeriodHistoryMatch,), "_history_match", "pre"),
+    ((IvBounds,), "_iv_bounds", "pre"),
     ((SurvivalOutcome, CompetingRisksOutcome), "_survival", "pre"),
     (TEMPORAL_DESIGN_QUERIES, "_temporal_design", "pre"),
     ((TransportQuery,), "_transport", "post_temporal"),
@@ -672,7 +684,11 @@ class _PrepareRoute:
     def _temporal(self) -> tuple[Any, Any]:
         query, graph = self.query, self.graph
         self._refuse_estimator_config(f"{type(query).__name__} (fixed temporal estimator)")
-        class_graph = graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None
+        # A temporal ADMG travels beside the equivalence classes: the compiler identifies a
+        # pulse, sustained or conditional contrast on its unrolled window.
+        class_graph = (
+            graph if isinstance(graph, (TemporalCpdag, TemporalPag, TemporalAdmg)) else None
+        )
         lagged = (
             []
             if class_graph is not None
@@ -1492,6 +1508,50 @@ class _PrepareRoute:
             list(design["periods"]),
             design["spec"],
             **temporal_design_keywords(query),
+            seed=self.seed,
+            threads=self.threads,
+            options={**self.options, "inference": inference},
+        )
+        return native, "average"
+
+    def _iv_bounds(self) -> tuple[Any, Literal["average"]]:
+        """Bounds on the average effect under a binary instrument, as an identified set.
+
+        The estimator follows the inference (the Imbens-Manski row-bootstrap interval, or the
+        Bayesian-bootstrap posterior of the endpoints); ``bootstrap=`` adds the frequentist
+        interval.
+        """
+        query = cast(IvBounds, self.query)
+        route = "IvBounds"
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", route)
+        self._refuse_ids(route)
+        self._refuse_estimator_config(route)
+        if self._explicit_refute():
+            raise CausalUnsupportedError(
+                f"{route} has no refutation suite; it reports an identified set",
+                reason_code="option_not_applicable",
+            )
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
+            raise _not_applicable("inference", route)
+        declared = self.options.get("inference") or {}
+        if isinstance(self.inference, Bayesian):
+            if declared.get("prior_artifact") is not None or declared.get("composed_prior"):
+                raise _not_applicable("prior_from / composed prior", route)
+            inference = {
+                "mode": "conjugate",
+                "n_draws": declared.get("n_draws"),
+                "prior_scale": float(declared.get("prior_scale", 10.0)),
+            }
+        else:
+            inference = {"mode": "frequentist", "prior_scale": 10.0}
+        native = _NativePreparedAnalysis.prepare_iv_bounds(
+            self.names,
+            self.columns,
+            query.outcome,
+            query.treatment,
+            query.instrument,
+            query.weight,
             seed=self.seed,
             threads=self.threads,
             options={**self.options, "inference": inference},

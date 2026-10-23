@@ -19,9 +19,10 @@ use crate::workspace::GraphWorkspace;
 
 /// A finite window of a [`TemporalAdmg`] template as one static [`Admg`].
 ///
-/// Coordinate `period * variable_count + index` is the template variable of dense `index` in
-/// that period. Template edges are replicated at their delay (the lag of the cause minus the
-/// lag of the effect) wherever both endpoints fall in the window. A cause that falls before
+/// Coordinate `period * variable_count + variable` is the variable `variable` in that period
+/// (the layout of a `TemporalIndexer` over the same variable count). Template edges are
+/// replicated at their delay (the lag of the cause minus the lag of the effect) wherever both
+/// endpoints fall in the window. A cause that falls before
 /// the window is an observed variable the window does not contain: it is treated as a latent
 /// common cause of its in-window effects (and of its in-window bidirected partners), so a
 /// confounding path through the truncated history is kept, never dropped. History deeper than
@@ -47,7 +48,7 @@ impl UnrolledTemporalAdmg {
         self.periods
     }
 
-    /// Template variables, in coordinate order within a period.
+    /// The variable ids of one period, in coordinate order (`0 .. variable_count`).
     #[must_use]
     pub fn variables(&self) -> &[VariableId] {
         &self.variables
@@ -315,25 +316,56 @@ impl TemporalAdmg {
         Ok(admg)
     }
 
-    /// Unroll the template over `periods` consecutive periods into one static [`Admg`].
+    /// Unroll the template over `periods` consecutive periods into one static [`Admg`], numbering
+    /// each period over the variable ids `0 ..= largest id in the template`.
     ///
     /// # Errors
     ///
-    /// No periods, a non-lagged node, a window too large to number, or an edge the window
-    /// cannot hold (a same-period cycle).
+    /// As [`Self::unroll_window_over`].
     pub fn unroll_window(&self, periods: u32) -> Result<UnrolledTemporalAdmg, GraphError> {
-        let mut variables = Vec::new();
+        let largest = self
+            .nodes
+            .iter()
+            .filter_map(|node| match node {
+                NodeRef::Lagged { variable, .. } => Some(variable.raw()),
+                _ => None,
+            })
+            .max()
+            .ok_or(GraphError::InvalidEndpoints {
+                message: "TemporalAdmg unrolling needs at least one period and one variable",
+            })?;
+        self.unroll_window_over(periods, largest + 1)
+    }
+
+    /// Unroll the template over `periods` consecutive periods into one static [`Admg`], with
+    /// `variable_count` coordinates per period: the variable ids `0 .. variable_count`, whether
+    /// or not the template names them. A variable the template does not name is isolated in the
+    /// window, and a window numbered over a schema's variable count has the layout of the
+    /// schema's own unfolding (`period * variable_count + variable`).
+    ///
+    /// # Errors
+    ///
+    /// No periods, a non-lagged node, a template variable outside `0 .. variable_count`, a window
+    /// too large to number, or an edge the window cannot hold (a same-period cycle).
+    pub fn unroll_window_over(
+        &self,
+        periods: u32,
+        variable_count: u32,
+    ) -> Result<UnrolledTemporalAdmg, GraphError> {
         for node in &self.nodes {
             let NodeRef::Lagged { variable, .. } = node else {
                 return Err(GraphError::InvalidEndpoints {
                     message: "TemporalAdmg unrolling requires lagged nodes",
                 });
             };
-            variables.push(*variable);
+            if variable.raw() >= variable_count {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "a template variable lies outside the window's variable count",
+                });
+            }
         }
-        variables.sort_unstable();
-        variables.dedup();
-        let count = u32::try_from(variables.len()).map_err(|_| GraphError::TooManyNodes)?;
+        let variables: Vec<VariableId> = (0..variable_count).map(VariableId::from_raw).collect();
+        let count = variable_count;
         let total = periods.checked_mul(count).ok_or(GraphError::TooManyNodes)?;
         if periods == 0 || count == 0 {
             return Err(GraphError::InvalidEndpoints {
@@ -343,10 +375,7 @@ impl TemporalAdmg {
         let template = |id: DenseNodeId| -> Result<(usize, i64), GraphError> {
             match self.nodes[id.as_usize()] {
                 NodeRef::Lagged { variable, lag } => {
-                    let index = variables.iter().position(|v| *v == variable).ok_or(
-                        GraphError::InvalidEndpoints { message: "unknown template variable" },
-                    )?;
-                    Ok((index, i64::from(lag.raw())))
+                    Ok((variable.as_usize(), i64::from(lag.raw())))
                 }
                 _ => Err(GraphError::InvalidEndpoints {
                     message: "TemporalAdmg unrolling requires lagged nodes",

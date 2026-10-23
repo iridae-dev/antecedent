@@ -500,6 +500,16 @@ pub enum RowResampling {
     /// (Bayesian). The block length is the structural rule over the rows for a lag span
     /// of one, since a contemporaneous functional reads every variable at lag 0.
     SeriesBlocks,
+    /// The rows are overlapping windows of one dependent series: row `i` holds the series
+    /// times `i .. i + span`, so neighbouring rows share `span - 1` times and a row-level
+    /// draw would treat shared observations as independent. Circular blocks of consecutive
+    /// windows are resampled (frequentist), or share one Dirichlet weight (Bayesian), and a
+    /// block is at least as long as the window, so the windows inside one block are the
+    /// intact stretch of the series they came from.
+    WindowBlocks {
+        /// Series times one row spans.
+        span: u32,
+    },
 }
 
 impl RowResampling {
@@ -510,6 +520,9 @@ impl RowResampling {
             Self::Rows => None,
             Self::SeriesBlocks => {
                 Some(antecedent_data::circular_block_length(1, n).clamp(1, n.max(1)))
+            }
+            Self::WindowBlocks { span } => {
+                Some(antecedent_data::circular_block_length(span as usize, n).clamp(1, n.max(1)))
             }
         }
     }
@@ -1344,7 +1357,9 @@ impl FunctionalEffect {
         .with_bootstrap(boot);
         // Blocks of one series' consecutive rows: the SE is a row-block bootstrap SE.
         Ok(match self.row_resampling {
-            RowResampling::SeriesBlocks if self.bootstrap_replicates > 0 => {
+            RowResampling::SeriesBlocks | RowResampling::WindowBlocks { .. }
+                if self.bootstrap_replicates > 0 =>
+            {
                 estimate.with_block_family(crate::temporal_block::CircularBlockFamily::RowBlock)
             }
             _ => estimate,
@@ -2297,6 +2312,22 @@ mod tests {
 
     fn f(x: f64) -> Value {
         Value::f64(x)
+    }
+
+    #[test]
+    fn window_blocks_are_never_shorter_than_the_window_they_resample() {
+        // Row i of a window table holds the series times i..i+span, so a block shorter than
+        // the span would split two windows that share observations.
+        for (span, n) in [(3_u32, 8_usize), (3, 200), (40, 100), (7, 1_000_000)] {
+            let block = RowResampling::WindowBlocks { span }.block_length(n).unwrap();
+            assert!(block >= (span as usize).min(n), "span {span} over {n} rows gave {block}");
+            assert!(block <= n);
+        }
+        assert_eq!(RowResampling::Rows.block_length(50), None);
+        assert!(
+            RowResampling::WindowBlocks { span: 1 }.block_length(1000)
+                >= RowResampling::SeriesBlocks.block_length(1000)
+        );
     }
 
     #[test]

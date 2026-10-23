@@ -23,6 +23,18 @@ use super::{
     bootstrap::SurfaceBootstrap, bootstrap::sample_std_cell,
 };
 
+/// Support-diagnostic id carrying the joint replicates of the whole dose × horizon surface,
+/// replicate-major: `values[r * cells + c]` is cell `c` of replicate `r`, in the cell layout of
+/// the mean surface. Each replicate refits every horizon on the same time-aligned blocks (or
+/// under one block-weight vector), so a row is one realization coupled across horizons. Published
+/// only when the estimator is asked to retain them.
+pub const JOINT_HORIZON_REPLICATES: &str = "response.joint_horizon.replicates";
+
+/// Support-diagnostic id carrying `[replicates, cells, horizon index of cell 0, …]`: the shape
+/// of [`JOINT_HORIZON_REPLICATES`] and, for each cell, the index (into the requested horizons)
+/// of the horizon it reads. Its detail names the resampling that drew the replicates.
+pub const JOINT_HORIZON_LAYOUT: &str = "response.joint_horizon.layout";
+
 /// Index of the treatment column in the compiled design (col0 = intercept, col1 = treatment).
 /// Verified against `CompiledDesign::linear_adjustment`.
 pub(super) const TREATMENT_COL: usize = 1;
@@ -43,6 +55,11 @@ pub(super) struct FittedSurface {
     pub(super) bootstrap: Option<SurfaceBootstrap>,
     pub(super) se_provenance: SeProvenance,
     pub(super) block: ResponseBlockLength,
+    /// The replicates are Dirichlet block-weight draws (the posterior over the surface), not
+    /// bootstrap counts.
+    pub(super) weighted: bool,
+    /// Publish the joint replicates behind the band as support diagnostics.
+    pub(super) retain_joint: bool,
 }
 
 /// Where a surface's pointwise SEs came from, so the band can say so.
@@ -97,6 +114,8 @@ pub(super) enum CellEval {
 pub(super) struct SurfaceCells {
     pub(super) mean: Vec<f64>,
     pub(super) band: Option<CellBand>,
+    /// Index of the horizon each cell reads.
+    pub(super) cell_horizon: Vec<usize>,
 }
 
 /// Pointwise band and the joint replicate draws behind it.
@@ -107,6 +126,9 @@ pub(super) struct CellBand {
     pub(super) draws: Vec<Vec<f64>>,
     /// Each cell's kernel-bias factor and effective rows.
     pub(super) dispersion: CellDispersion,
+    /// What the band's level means: sampling coverage of a bootstrap, or posterior mass of the
+    /// block-weight draws.
+    pub(super) interpretation: antecedent_core::IntervalInterpretation,
 }
 
 impl SurfaceCells {
@@ -122,7 +144,7 @@ impl SurfaceCells {
                 level: 0.95,
                 lower: Arc::from(band.lower.as_slice()),
                 upper: Arc::from(band.upper.as_slice()),
-                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                interpretation: band.interpretation,
                 draws: None,
             }
         })
@@ -179,9 +201,14 @@ impl FittedSurface {
                 upper: mean.iter().zip(&se).map(|(m, s)| m + z * s).collect(),
                 draws,
                 dispersion,
+                interpretation: if self.weighted {
+                    antecedent_core::IntervalInterpretation::Credible
+                } else {
+                    antecedent_core::IntervalInterpretation::Confidence
+                },
             }
         });
-        SurfaceCells { mean, band }
+        SurfaceCells { mean, band, cell_horizon: cells.iter().map(|&(h, _)| h).collect() }
     }
 
     /// Record how the band was built and publish (or withhold) the simultaneous band.
@@ -208,6 +235,9 @@ impl FittedSurface {
                 max_deviation_band(&cells.mean, &band.draws, 0.95),
                 BLOCK_BOOTSTRAP_CONSTRUCTION,
             );
+            if self.retain_joint {
+                self.publish_joint_replicates(support, cells, band);
+            }
         } else {
             if replicates == 0 {
                 support.warnings.push(Diagnostic::new(
@@ -231,6 +261,48 @@ impl FittedSurface {
             );
         }
         assumptions
+    }
+}
+
+impl FittedSurface {
+    /// Publish the joint replicates of the surface (see [`JOINT_HORIZON_REPLICATES`]).
+    fn publish_joint_replicates(
+        &self,
+        support: &mut SupportReport,
+        cells: &SurfaceCells,
+        band: &CellBand,
+    ) {
+        use antecedent_core::{DiagnosticScope, SupportDiagnostic};
+        let n_cells = cells.mean.len();
+        let mut layout = vec![band.draws.len() as f64, n_cells as f64];
+        layout.extend(cells.cell_horizon.iter().map(|&h| h as f64));
+        let values: Vec<f64> = band.draws.iter().flat_map(|draw| draw.iter().copied()).collect();
+        let resampling = if self.weighted {
+            "Dirichlet block weights: one Exp(1) weight per block of consecutive series times, \
+             shared by every horizon, with a weighted least-squares refit of each horizon (draws \
+             of the posterior over the surface given the empirical law of the lag windows)"
+        } else {
+            "circular-block bootstrap: every horizon refit on the same resampled series times \
+             (replicates of the estimator's sampling law)"
+        };
+        support.diagnostics.push(SupportDiagnostic {
+            id: Arc::from(JOINT_HORIZON_LAYOUT),
+            values: Arc::from(layout),
+            detail: Arc::from(format!(
+                "[replicates, cells, horizon index of each cell] of the joint replicates; drawn \
+                 by a {resampling}; replicate deviations carry the published dispersion factors"
+            )),
+            scope: DiagnosticScope::Global,
+        });
+        support.diagnostics.push(SupportDiagnostic {
+            id: Arc::from(JOINT_HORIZON_REPLICATES),
+            values: Arc::from(values),
+            detail: Arc::from(
+                "replicate-major joint replicates of the whole dose × horizon surface in the cell \
+                 layout of the mean surface; a row is one realization coupled across horizons",
+            ),
+            scope: DiagnosticScope::Global,
+        });
     }
 }
 

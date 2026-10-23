@@ -5300,6 +5300,7 @@ pub field antecedent_contract::ClaimFreshness::historically_valid: bool
 pub field antecedent_contract::ClaimFreshness::locally_ready: bool
 pub field antecedent_contract::ClaimFreshness::superseded_by: core::option::Option<antecedent_core::identity::SemanticDigest>
 pub field antecedent_contract::ClaimFreshness::withdrawn: bool
+pub field antecedent_contract::ComposedCoordinate::horizons: alloc::vec::Vec<u32>
 pub field antecedent_contract::ComposedCoordinate::operation: antecedent_contract::PropagationOperation
 pub field antecedent_contract::ComposedCoordinate::roles: alloc::vec::Vec<&'static str>
 pub field antecedent_contract::ComposedCoordinate::route: antecedent_contract::PropagationRoute
@@ -6177,6 +6178,7 @@ pub fn <antecedent_contract::ColumnClaim>::fn support_counts(&self) -> &[(antece
 pub fn <antecedent_contract::ColumnClaim>::fn values_blake3(&self) -> &str
 pub fn <antecedent_contract::ComposedCoordinate>::fn id(&self) -> alloc::string::String
 pub fn <antecedent_contract::ComposedCoordinate>::fn of(request: &antecedent_contract::PropagationRequest, plan: &antecedent_contract::PropagationPlan) -> Self
+pub fn <antecedent_contract::ComposedCoordinate>::fn over_horizons(self, horizons: &[u32]) -> Self
 pub fn <antecedent_contract::CompositionStage>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::CompositionStage>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::ConsumerProfile>::fn forwarding() -> Self
@@ -7028,6 +7030,7 @@ pub fn antecedent_contract::capability_from_name(name: &str) -> core::option::Op
 pub fn antecedent_contract::check_composed_interval(request: &antecedent_contract::PropagationRequest, record: core::option::Option<&antecedent_contract::CoverageRecord>, construction: &str) -> core::result::Result<antecedent_contract::ComposedIntervalPlan, antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_declared_independence_against_ledger(decl: &antecedent_contract::MechanismCompositionDeclaration, ledger: &antecedent_contract::evidence_ledger::EvidenceLedger) -> core::result::Result<(), alloc::vec::Vec<antecedent_contract::ExternalRefusal>>
 pub fn antecedent_contract::check_external_against_program(binding: &antecedent_contract::ProgramBinding, claim: &antecedent_contract::ExternalProgramClaim) -> core::result::Result<antecedent_contract::ProgramCheck, antecedent_contract::ExternalRefusal>
+pub fn antecedent_contract::check_horizon_composition(operation: antecedent_contract::PropagationOperation, horizons: &[u32], evidence_id: &str, alignment_id: &str, reading: antecedent_contract::RequestedReading) -> core::result::Result<(antecedent_contract::PropagationPlan, antecedent_contract::ComposedCoordinate), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_mechanism_composition(decl: &antecedent_contract::MechanismCompositionDeclaration) -> core::result::Result<antecedent_contract::MechanismCompositionPlan, alloc::vec::Vec<antecedent_contract::ExternalRefusal>>
 pub fn antecedent_contract::check_observation_slots(request: &antecedent_contract::ObservationSlotsRequest<'_>) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_propagation(request: &antecedent_contract::PropagationRequest) -> core::result::Result<antecedent_contract::PropagationPlan, antecedent_contract::ExternalRefusal>
@@ -7047,6 +7050,7 @@ pub fn antecedent_contract::evidence_ledger::parse_digest_hex(text: &str) -> cor
 pub fn antecedent_contract::evidence_obligation::unresolved_assumption_obligations(records: &[antecedent_contract::ObligationRecord]) -> alloc::vec::Vec<antecedent_contract::EvidenceObligation>
 pub fn antecedent_contract::external_binding::external_values_digest(values: &[f64]) -> alloc::string::String
 pub fn antecedent_contract::external_refusal::probe_from_name(name: &str) -> core::option::Option<antecedent_contract::VerificationProbeKind>
+pub fn antecedent_contract::horizon_inputs(horizons: &[u32], evidence_id: &str, alignment_id: &str) -> alloc::vec::Vec<antecedent_contract::PropagationInput>
 pub fn antecedent_contract::intent_effects(intent: antecedent_contract::TransformIntent) -> alloc::sync::Arc<[antecedent_contract::LayerEffect]>
 pub fn antecedent_contract::interface_contract::check_composition(components: &[antecedent_contract::interface_contract::InterfaceContract], connections: &[antecedent_contract::interface_contract::ComponentConnection]) -> core::result::Result<antecedent_contract::interface_contract::ComposedInterfaces, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
 pub fn antecedent_contract::interface_contract::check_composition_with_cyclic_components(components: &[antecedent_contract::interface_contract::InterfaceContract], connections: &[antecedent_contract::interface_contract::ComponentConnection], cyclic: &[antecedent_contract::interface_contract::CyclicComponentDeclaration], ledger: core::option::Option<&antecedent_contract::evidence_ledger::EvidenceLedger>) -> core::result::Result<antecedent_contract::interface_contract::ComposedInterfaces, alloc::vec::Vec<antecedent_contract::interface_contract::InterfaceRefusal>>
@@ -7558,10 +7562,12 @@ pub use antecedent_contract::joint_law_rule::RequestedReading = antecedent_contr
 pub use antecedent_contract::joint_law_rule::STRUCTURAL_ENVELOPE_LABEL = antecedent_core::STRUCTURAL_ENVELOPE_LABEL
 pub use antecedent_contract::joint_law_rule::UNCALIBRATED_SPREAD_LABEL = antecedent_contract::UNCALIBRATED_SPREAD_LABEL
 pub use antecedent_contract::joint_law_rule::check_composed_interval = antecedent_contract::check_composed_interval
+pub use antecedent_contract::joint_law_rule::check_horizon_composition = antecedent_contract::check_horizon_composition
 pub use antecedent_contract::joint_law_rule::check_propagation = antecedent_contract::check_propagation
 pub use antecedent_contract::joint_law_rule::check_propagation_with_ledger = antecedent_contract::check_propagation_with_ledger
 pub use antecedent_contract::joint_law_rule::check_rows_pairable = antecedent_contract::check_rows_pairable
 pub use antecedent_contract::joint_law_rule::check_rows_pairable_across = antecedent_contract::check_rows_pairable_across
+pub use antecedent_contract::joint_law_rule::horizon_inputs = antecedent_contract::horizon_inputs
 pub use antecedent_contract::mechanism_composition::AdmissionBasis = antecedent_contract::AdmissionBasis
 pub use antecedent_contract::mechanism_composition::AdmissionCoordinate = antecedent_contract::AdmissionCoordinate
 pub use antecedent_contract::mechanism_composition::DependenceDeclaration = antecedent_contract::DependenceDeclaration

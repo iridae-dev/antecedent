@@ -31,6 +31,9 @@ from .policy import (
 from .quasi import (
     AugmentedPanelDiD,
     AugmentedPanelDiDEstimate,
+    IvBoundsEstimate,
+    IvBoundsInterval,
+    IvBoundsPosterior,
     LocalPolynomialRatioEstimate,
     PanelDifferenceInDifferences,
     PanelDifferenceInDifferencesEstimate,
@@ -885,6 +888,49 @@ def _history_match_from_raw(raw: Any) -> PeriodHistoryMatchEstimate | None:
     )
 
 
+def _iv_bounds_from_raw(raw: Any) -> IvBoundsEstimate | None:
+    section = getattr(raw, "iv_bounds", None)
+    if section is None:
+        return None
+    interval = section.interval
+    posterior = section.posterior
+    return IvBoundsEstimate(
+        lower=section.lower,
+        upper=section.upper,
+        cells=tuple(section.cells),
+        arm_weights=tuple(section.arm_weights),
+        rows=section.rows,
+        rows_dropped=section.rows_dropped,
+        uncertainty=interval.method
+        if interval is not None
+        else "identified_set_without_sampling_interval",
+        interval=None
+        if interval is None
+        else IvBoundsInterval(
+            level=interval.level,
+            lower=interval.lower,
+            upper=interval.upper,
+            lower_se=interval.lower_se,
+            upper_se=interval.upper_se,
+            critical_value=interval.critical_value,
+            width_retained=interval.width_retained,
+            replicates=interval.replicates,
+            infeasible=interval.infeasible,
+            method=interval.method,
+        ),
+        posterior=None
+        if posterior is None
+        else IvBoundsPosterior(
+            n_draws=posterior.n_draws,
+            infeasible_draws=posterior.infeasible_draws,
+            lower_mean=posterior.lower_mean,
+            upper_mean=posterior.upper_mean,
+            lower_sd=posterior.lower_sd,
+            upper_sd=posterior.upper_sd,
+        ),
+    )
+
+
 def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None:
     section = getattr(raw, "longitudinal_regime", None)
     if section is None:
@@ -1498,6 +1544,7 @@ def _wrap_ate(
         longitudinal_regime=_longitudinal_regime_from_raw(raw),
         sequential_contrast=_sequential_contrast_from_raw(raw),
         history_match=_history_match_from_raw(raw),
+        iv_bounds=_iv_bounds_from_raw(raw),
         quasi_rollout=_quasi_rollout_from_raw(raw),
         temporal_design=_temporal_design_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),

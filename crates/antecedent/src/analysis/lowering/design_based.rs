@@ -50,7 +50,7 @@ use crate::accepted::GraphClass;
 use crate::analysis::IdentificationCache;
 use crate::analysis::execute::{
     CheckedContinuousDoseOperation, CheckedHistoryMatchOperation, CheckedInterferenceOperation,
-    CheckedLongitudinalRegimeOperation, CheckedPolicyValueOperation,
+    CheckedIvBoundsOperation, CheckedLongitudinalRegimeOperation, CheckedPolicyValueOperation,
     CheckedSequentialContrastOperation, CheckedTemporalDesignOperation, RouteInput,
     local_polynomial_ratio_identification, panel_did_graphless_key, panel_did_identification,
     randomized_identification, survival_identification, synthetic_control_identification,
@@ -68,7 +68,7 @@ use crate::planner::statistical::{
 use crate::{EstimatorId, IdentifierId, InferenceMode, Study};
 
 /// Every cell this family lowers completely.
-pub(super) const LOWERED: [RouteCell; 13] = [
+pub(super) const LOWERED: [RouteCell; 14] = [
     RouteCell::TransportMixed,
     RouteCell::InterferenceDag,
     RouteCell::RandomizedEffect,
@@ -82,6 +82,7 @@ pub(super) const LOWERED: [RouteCell; 13] = [
     RouteCell::SequentialContrast,
     RouteCell::HistoryMatch,
     RouteCell::TemporalDesign,
+    RouteCell::IvBounds,
 ];
 
 /// Replicates of a randomization test that enumerates every admissible reassignment
@@ -166,7 +167,17 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         support_coordinate: crate::analysis::contract::matrix_coordinate(study).map(Arc::from),
         licensed: matches!(study.support_status, Some(crate::support::CellStatus::Licensed)),
     };
-    let claim = ClaimDemand { uncertainty: uncertainty(&study.inference), kind: Some(cell.claim) };
+    // An identified set is read as an envelope under frequentist inference: the sampling
+    // interval is about the set, not a replacement for it.
+    let envelope = cell.claim == ClaimKind::Bounds && !study.inference.is_bayesian();
+    let claim = ClaimDemand {
+        uncertainty: if envelope {
+            UncertaintyReading::Envelope
+        } else {
+            uncertainty(&study.inference)
+        },
+        kind: Some(cell.claim),
+    };
     let evidence = super::decision::evidence_program(cx, None, &statistical)?;
     Ok(LoweredParts {
         cell: cx.cell,
@@ -787,6 +798,28 @@ fn design_cell(
             }
         }
         RouteInput::TemporalDesign { query, .. } => temporal_design_cell(study, query),
+        RouteInput::IvBounds { query, .. } => {
+            let (identification, _) = CheckedIvBoundsOperation::design_identification(query);
+            let mut inputs = vec![query.treatment, query.instrument];
+            inputs.extend(query.weight);
+            DesignCell {
+                target: functional(study, FunctionalKind::IdentifiedSet, query.outcome),
+                identification,
+                models: vec![slot(
+                    ModelRole::Outcome,
+                    "binary_instrument_response_types",
+                    &inputs,
+                    Some(query.outcome),
+                )],
+                folds: None,
+                randomization_test: None,
+                basis: SamplingBasis::Superpopulation,
+                width: WidthSource::NotDesignBased(
+                    "the observed cell law of a binary instrument fits no design matrix",
+                ),
+                claim: ClaimKind::Bounds,
+            }
+        }
         _ => return Err(not_lowered(cx)),
     })
 }
@@ -912,7 +945,15 @@ fn statistical_program(
         design,
         operators: Vec::new(),
     })?;
-    if matches!(statistical.realization, Realization::Frequentist(_)) {
+    if cell.claim == ClaimKind::Bounds
+        && matches!(statistical.realization, Realization::Frequentist(_))
+    {
+        let name = estimator.map_or(UNNAMED_ESTIMATOR, |estimator| estimator.as_str());
+        statistical.realization = Realization::Envelope(
+            antecedent_core::PartialIdentificationEnvelope::new(format!("identified_set.{name}"))
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?,
+        );
+    } else if matches!(statistical.realization, Realization::Frequentist(_)) {
         let name = estimator.map_or(UNNAMED_ESTIMATOR, |estimator| estimator.as_str());
         let score = ScoreModel::new(format!("{name}.{}", cell.basis.as_str()))
             .map_err(|error| CausalError::Compile { message: error.to_string() })?;

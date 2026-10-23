@@ -483,7 +483,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "closed"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
-notes = "Denoting coordinates refused: 18. n_a coordinates: 0. The contemporaneous projection of a TemporalAdmg answers a different target, and the Pulse/Sustained contrast on a TemporalAdmg is not identified. The typed refusal names the next attempts: TemporalConditionalPulse or TemporalConditionalSustained on a TemporalDag when the lag structure has no latent confounding, or the static Admg for the contemporaneous conditional effect."
+notes = "Denoting coordinates refused: 18. n_a coordinates: 0. A ConditionalEffect on a TemporalAdmg reads tabular rows as the contemporaneous projection, which answers a different target than the temporal conditional contrast. The temporal conditional contrast is TemporalConditionalPulse or TemporalConditionalSustained on one series, identified by IDC on the unrolled window of the template, which executes unlicensed (closed.TemporalConditionalPulse.TemporalAdmg). The typed refusal names the next attempts: that temporal query, TemporalConditionalPulse or TemporalConditionalSustained on a TemporalDag when the lag structure has no latent confounding, or the static Admg for the contemporaneous conditional effect."
 
 [[route]]
 id = "licensed.Counterfactual.Dag"
@@ -1081,7 +1081,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "closed"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
-notes = "Denoting coordinates refused: 18. n_a coordinates: 0. MediationEffect requires a supplied static Dag."
+notes = "Denoting coordinates refused: 18. n_a coordinates: 0. MediationEffect requires a supplied static Dag. The temporal counterpart is TemporalMediationEffect on a TemporalDag or TemporalCpdag, which executes under both inference modes. On a TemporalAdmg the refusal is a boundary of the identification attempt, not a proof of impossibility: the window-unrolled identification of the contrast identifies no nested counterfactual, and a natural direct or indirect effect needs a recanting-district condition on the unrolled graph that has not been derived for the time-indexed latent common cause. Next attempt: apply the recanting-district criterion for path-specific effects to the unrolled window (a cause before the window is a latent common cause of its in-window effects) and lower the identified functional through the compiler, or record the counterexample where a latent confounder of mediator and outcome is also a recanting witness."
 
 [[route]]
 id = "licensed.NestedCounterfactualEffect.Dag"
@@ -1438,14 +1438,14 @@ notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequent
 id = "closed.PulseEffect.TemporalAdmg"
 target = "PulseEffect"
 graph_class = "TemporalAdmg"
-design_time_model = "temporal; refused structure=explicit,accepted,graph_posterior"
-inference = "refused:Frequentist,Bayesian"
-uncertainty = "refused validation=none,cheap,full"
+design_time_model = "temporal; one series or event series under a TemporalAdmg; the template is unrolled over the periods the policy needs and the contrast is identified on that window (general.id; IDC with the modifiers read at the first treated period for a conditional contrast), then evaluated by the functional plug-in on the lag-aligned window table; refused structure=graph_posterior"
+inference = "Frequentist,Bayesian"
+uncertainty = "validation=none; Frequentist: circular-block bootstrap of the whole plug-in over blocks of consecutive windows, never shorter than the window, estimator_grid_not_measured; Bayesian: one Dirichlet weight shared per block of consecutive windows, estimator_grid_not_measured; no boundary record; cheap/full refused (no native refuter suite); no coverage record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "closed"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
-notes = "Denoting coordinates refused: 18. n_a coordinates: 0. A temporal contrast on TemporalAdmg is not identified. The licensed TemporalAdmg functional is the contemporaneous ADMG projection. Pulse, sustained, temporal conditional, and temporal mediation stay on TemporalDag, TemporalCpdag, or TemporalPag."
+notes = "Executing unlicensed coordinates (4): explicit and accepted, Frequentist and Bayesian, validation none. graph_posterior, cheap and full coordinates are refused (next attempts: validation none over a supplied TemporalAdmg, or a TemporalDag when the lag structure has no latent confounding). The result keeps support status refused and discloses estimate.temporal_admg.window; no evidence row or coverage record names the cell. A window that holds a hedge is refused with the variables and periods that carry it; a modifier a treated period can reach is refused; the series is read as stationary over the template; discrete data only. Python: analyze(series, graph=TemporalAdmg, query=PulseEffect(...))."
 
 [[route]]
 id = "licensed.ResponseCurve.Dag"
@@ -1802,14 +1802,14 @@ notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequent
 id = "closed.SustainedEffect.TemporalAdmg"
 target = "SustainedEffect"
 graph_class = "TemporalAdmg"
-design_time_model = "temporal; refused structure=explicit,accepted,graph_posterior"
-inference = "refused:Frequentist,Bayesian"
-uncertainty = "refused validation=none,cheap,full"
+design_time_model = "temporal; one series or event series under a TemporalAdmg; the template is unrolled over the periods the policy needs and the contrast is identified on that window (general.id; IDC with the modifiers read at the first treated period for a conditional contrast), then evaluated by the functional plug-in on the lag-aligned window table; refused structure=graph_posterior"
+inference = "Frequentist,Bayesian"
+uncertainty = "validation=none; Frequentist: circular-block bootstrap of the whole plug-in over blocks of consecutive windows, never shorter than the window, estimator_grid_not_measured; Bayesian: one Dirichlet weight shared per block of consecutive windows, estimator_grid_not_measured; no boundary record; cheap/full refused (no native refuter suite); no coverage record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "closed"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
-notes = "Denoting coordinates refused: 18. n_a coordinates: 0. A temporal contrast on TemporalAdmg is not identified. The licensed TemporalAdmg functional is the contemporaneous ADMG projection. Pulse, sustained, temporal conditional, and temporal mediation stay on TemporalDag, TemporalCpdag, or TemporalPag."
+notes = "Executing unlicensed coordinates (4): explicit and accepted, Frequentist and Bayesian, validation none. graph_posterior, cheap and full coordinates are refused (next attempts: validation none over a supplied TemporalAdmg, or a TemporalDag when the lag structure has no latent confounding). The result keeps support status refused and discloses estimate.temporal_admg.window; no evidence row or coverage record names the cell. A window that holds a hedge is refused with the variables and periods that carry it; a modifier a treated period can reach is refused; the series is read as stationary over the template; discrete data only. Python: analyze(series, graph=TemporalAdmg, query=SustainedEffect(...))."
 
 [[route]]
 id = "licensed.TemporalConditionalPulse.TemporalDag"
@@ -1823,6 +1823,7 @@ artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: temporal.linear.adjustment. Refused coordinates: 14. n_a coordinates: 0. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Refused, not n_a: A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed. | Graph-posterior temporal conditional effects on a TemporalDag are not licensed."
+counterpart_targets = ["ConditionalEffect"]
 
 [[route]]
 id = "licensed.TemporalConditionalPulse.TemporalCpdag"
@@ -1836,6 +1837,7 @@ artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 notes = "Licensed coordinates (6): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none, graph_posterior:Frequentist:none, graph_posterior:Bayesian:none. Estimators: temporal.linear.adjustment. Refused coordinates: 12. n_a coordinates: 0. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Refused, not n_a: A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed. | Graph-posterior temporal conditional effects on TemporalCpdag and TemporalPag are licensed at validation none. A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed."
+counterpart_targets = ["ConditionalEffect"]
 
 [[route]]
 id = "licensed.TemporalConditionalPulse.TemporalPag"
@@ -1849,19 +1851,20 @@ artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 notes = "Licensed coordinates (6): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none, graph_posterior:Frequentist:none, graph_posterior:Bayesian:none. Estimators: temporal.linear.adjustment. Refused coordinates: 12. n_a coordinates: 0. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Refused, not n_a: A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed. | Graph-posterior temporal conditional effects on TemporalCpdag and TemporalPag are licensed at validation none. A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed."
+counterpart_targets = ["ConditionalEffect"]
 
 [[route]]
 id = "closed.TemporalConditionalPulse.TemporalAdmg"
 target = "TemporalConditionalPulse"
 graph_class = "TemporalAdmg"
-design_time_model = "temporal; refused structure=explicit,accepted,graph_posterior"
-inference = "refused:Frequentist,Bayesian"
-uncertainty = "refused validation=none,cheap,full"
+design_time_model = "temporal; one series or event series under a TemporalAdmg; the template is unrolled over the periods the policy needs and the contrast is identified on that window (general.id; IDC with the modifiers read at the first treated period for a conditional contrast), then evaluated by the functional plug-in on the lag-aligned window table; refused structure=graph_posterior"
+inference = "Frequentist,Bayesian"
+uncertainty = "validation=none; Frequentist: circular-block bootstrap of the whole plug-in over blocks of consecutive windows, never shorter than the window, estimator_grid_not_measured; Bayesian: one Dirichlet weight shared per block of consecutive windows, estimator_grid_not_measured; no boundary record; cheap/full refused (no native refuter suite); no coverage record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "closed"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
-notes = "Denoting coordinates refused: 18. n_a coordinates: 0. A temporal contrast on TemporalAdmg is not identified. The licensed TemporalAdmg functional is the contemporaneous ADMG projection. Pulse, sustained, temporal conditional, and temporal mediation stay on TemporalDag, TemporalCpdag, or TemporalPag."
+notes = "Executing unlicensed coordinates (4): explicit and accepted, Frequentist and Bayesian, validation none. graph_posterior, cheap and full coordinates are refused (next attempts: validation none over a supplied TemporalAdmg, or a TemporalDag when the lag structure has no latent confounding). The result keeps support status refused and discloses estimate.temporal_admg.window; no evidence row or coverage record names the cell. A window that holds a hedge is refused with the variables and periods that carry it; a modifier a treated period can reach is refused; the series is read as stationary over the template; discrete data only. Python: analyze(series, graph=TemporalAdmg, query=TemporalConditionalPulse(...))."
 
 [[route]]
 id = "licensed.TemporalConditionalSustained.TemporalDag"
@@ -1875,6 +1878,7 @@ artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 notes = "Licensed coordinates (4): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none. Estimators: temporal.linear.adjustment. Refused coordinates: 14. n_a coordinates: 0. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Refused, not n_a: A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed. | Graph-posterior temporal conditional effects on a TemporalDag are not licensed."
+counterpart_targets = ["ConditionalEffect"]
 
 [[route]]
 id = "licensed.TemporalConditionalSustained.TemporalCpdag"
@@ -1888,6 +1892,7 @@ artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 notes = "Licensed coordinates (6): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none, graph_posterior:Frequentist:none, graph_posterior:Bayesian:none. Estimators: temporal.linear.adjustment. Refused coordinates: 12. n_a coordinates: 0. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Refused, not n_a: A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed. | Graph-posterior temporal conditional effects on TemporalCpdag and TemporalPag are licensed at validation none. A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed."
+counterpart_targets = ["ConditionalEffect"]
 
 [[route]]
 id = "licensed.TemporalConditionalSustained.TemporalPag"
@@ -1901,19 +1906,20 @@ artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 notes = "Licensed coordinates (6): explicit:Frequentist:none, explicit:Bayesian:none, accepted:Frequentist:none, accepted:Bayesian:none, graph_posterior:Frequentist:none, graph_posterior:Bayesian:none. Estimators: temporal.linear.adjustment. Refused coordinates: 12. n_a coordinates: 0. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml. Refused, not n_a: A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed. | Graph-posterior temporal conditional effects on TemporalCpdag and TemporalPag are licensed at validation none. A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed."
+counterpart_targets = ["ConditionalEffect"]
 
 [[route]]
 id = "closed.TemporalConditionalSustained.TemporalAdmg"
 target = "TemporalConditionalSustained"
 graph_class = "TemporalAdmg"
-design_time_model = "temporal; refused structure=explicit,accepted,graph_posterior"
-inference = "refused:Frequentist,Bayesian"
-uncertainty = "refused validation=none,cheap,full"
+design_time_model = "temporal; one series or event series under a TemporalAdmg; the template is unrolled over the periods the policy needs and the contrast is identified on that window (general.id; IDC with the modifiers read at the first treated period for a conditional contrast), then evaluated by the functional plug-in on the lag-aligned window table; refused structure=graph_posterior"
+inference = "Frequentist,Bayesian"
+uncertainty = "validation=none; Frequentist: circular-block bootstrap of the whole plug-in over blocks of consecutive windows, never shorter than the window, estimator_grid_not_measured; Bayesian: one Dirichlet weight shared per block of consecutive windows, estimator_grid_not_measured; no boundary record; cheap/full refused (no native refuter suite); no coverage record"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "closed"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
-notes = "Denoting coordinates refused: 18. n_a coordinates: 0. A temporal contrast on TemporalAdmg is not identified. The licensed TemporalAdmg functional is the contemporaneous ADMG projection. Pulse, sustained, temporal conditional, and temporal mediation stay on TemporalDag, TemporalCpdag, or TemporalPag."
+notes = "Executing unlicensed coordinates (4): explicit and accepted, Frequentist and Bayesian, validation none. graph_posterior, cheap and full coordinates are refused (next attempts: validation none over a supplied TemporalAdmg, or a TemporalDag when the lag structure has no latent confounding). The result keeps support status refused and discloses estimate.temporal_admg.window; no evidence row or coverage record names the cell. A window that holds a hedge is refused with the variables and periods that carry it; a modifier a treated period can reach is refused; the series is read as stationary over the template; discrete data only. Python: analyze(series, graph=TemporalAdmg, query=TemporalConditionalSustained(...))."
 
 [[route]]
 id = "licensed.TemporalMediationEffect.TemporalDag"
@@ -1927,6 +1933,7 @@ artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: temporal.mediation, temporal.mediation.bayesian. Refused coordinates: 0. n_a coordinates: 0. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml."
+counterpart_targets = ["MediationEffect"]
 
 [[route]]
 id = "licensed.TemporalMediationEffect.TemporalCpdag"
@@ -1940,6 +1947,7 @@ artifact_consumer = "unlisted"
 status = "licensed"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 notes = "Licensed coordinates (18): explicit:Frequentist:none, explicit:Frequentist:cheap, explicit:Frequentist:full, explicit:Bayesian:none, explicit:Bayesian:cheap, explicit:Bayesian:full, accepted:Frequentist:none, accepted:Frequentist:cheap, accepted:Frequentist:full, accepted:Bayesian:none, accepted:Bayesian:cheap, accepted:Bayesian:full, graph_posterior:Frequentist:none, graph_posterior:Frequentist:cheap, graph_posterior:Frequentist:full, graph_posterior:Bayesian:none, graph_posterior:Bayesian:cheap, graph_posterior:Bayesian:full. Estimators: temporal.mediation, temporal.mediation.bayesian. Refused coordinates: 0. n_a coordinates: 0. Full coordinates and estimator wire-ids: parity/licensed_routes.toml and parity/support_licensed.toml."
+counterpart_targets = ["MediationEffect"]
 
 [[route]]
 id = "closed.TemporalMediationEffect.TemporalPag"
@@ -1965,7 +1973,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "closed"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
-notes = "Denoting coordinates refused: 18. n_a coordinates: 0. A temporal contrast on TemporalAdmg is not identified. The licensed TemporalAdmg functional is the contemporaneous ADMG projection. Pulse, sustained, temporal conditional, and temporal mediation stay on TemporalDag, TemporalCpdag, or TemporalPag."
+notes = "Denoting coordinates refused: 18. n_a coordinates: 0. A temporal mediation contrast on TemporalAdmg is a cross-world contrast: the window-unrolled identification covers interventional contrasts only, and the recanting-district criterion for path-specific effects has not been derived on the unrolled window. Next attempts: TemporalMediationEffect on a TemporalDag or TemporalCpdag, or the pulse or sustained contrast on the TemporalAdmg, which executes unlicensed."
 
 [[route]]
 id = "closed.TransportQuery.Dag"
@@ -2095,7 +2103,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "closed"
 owning_module = "crates/antecedent/src/analysis/query_license.rs"
-notes = "Denoting coordinates refused: 18. n_a coordinates: 0. Licensed InterferenceQuery is Dag-only; the graph binds schema/outcome, it does not identify the contrast."
+notes = "Denoting coordinates refused: 18. n_a coordinates: 0. Licensed InterferenceQuery is Dag-only; the graph binds schema/outcome, it does not identify the contrast. Temporal interference executes through the sequential assignment design (temporal_design.excursion.interference, both inference modes); a TemporalAdmg adds no identification because the design, not the graph, identifies the exposure contrast. The narrowed claim and its next attempt are recorded on that route."
 
 [[route]]
 id = "graphless.interference.cluster_randomization_total.cluster_total_neyman_welch"
@@ -2707,6 +2715,60 @@ owning_module = "crates/antecedent-attribution/src/intrinsic_influence.rs"
 notes = "Executes through the compiled GcmAttributeDag route (CausalQuery::Attribute with AttributeTarget::IntrinsicInfluence; noise declaration Undeclared, Independent, or a bidirected Structure); the free function crates/antecedent/src/gcm.rs attribute_intrinsic_influence is a hidden engine. The former fitting gap (no whole-procedure uncertainty) is closed: SourceInfluence.whole_procedure reports the bootstrap spread of the entire procedure under the declared independent-rows design, unquantified without fit_bootstrap or data. Explicitly unlicensed: the interval awaits a known-truth coverage record; no licensed_routes.toml row. Bidirected edges, latent confounding, unfitted mechanisms, and serially dependent noise are refused. Python: SourceInfluence.whole_procedure."
 
 [[route]]
+id = "gcm.attribute.bayesian"
+target = "Attribute"
+graph_class = "Dag"
+design_time_model = "supplied or accepted static Dag; independent subjects (one row, one subject); mechanisms fitted by the study's MechanismProgram with the families held at the ones selected on the data; targets=intrinsic_influence,distribution_change,root_causes,paths,feature_relevance,anomaly,unit_change,structure_change"
+inference = "Bayesian"
+uncertainty = "uncalibrated posterior over the mechanisms: Dirichlet(1,...,1) row-weight refits (one weight vector per population for a change target) of the attribution, published as a posterior of its quantities (the total and components of a change, the path shares, the feature scores, the mean anomaly scores, the mean unit contributions, each source's variance share); no coverage record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "execution_only"
+owning_module = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
+retained_operation = "attribution"
+notes = "Bayesian counterpart of gcm.attribute and gcm.attribution.intrinsic_influence: the sealed attribution operation (estimator gcm.fit.bayesian) refits every mechanism per draw under shared Dirichlet row weights and recomputes the attribution; backend gcm.attribution.attribute_dirichlet_row_weights. Change, root-cause (sampled and robust estimators) and structure-change targets refit both populations through the engine's weighted entries (PopulationRefit); paths, feature relevance, anomaly and unit change refit the whole table and rerun the engine; intrinsic influence draws its refits inside the engine (FitResampling) and returns them (IntrinsicInfluenceResult.fit_draws). A target whose draw reruns a nested simulation or a Shapley game runs at most 100 draws unless the draw count is set. The data references an attribution reads (feature means, parent means, the anomaly reference) stay at their observed values. The posterior is conditional on mechanism-family selection from the original rows and does not address misspecification or identification; the prior supplies no identifying premise and a coefficient prior is refused. Mechanism-change detection and simulation have no posterior: a detection is a two-sample test whose p-value is a tail probability of a null law of its statistic, not a smooth functional of the refitted mechanisms. Python: intrinsic_influence(posterior_draws=...) and the posterior_draws / bootstrap_replicates options of antecedent.attribution (attribute_distribution_change, attribute_root_causes, attribute_distribution_change_robust, attribute_structure_change, attribute_path_specific, attribute_feature_relevance, anomaly_attribution, attribute_unit_change). Explicitly unlicensed."
+license_exit = "Retained checked route. License exit by 2027-03-31: needs a known-truth coverage record of the posterior interval of the change total and of the intrinsic-influence shares at eighty independent rows."
+counterpart_design = "static"
+narrowed_reason = "mechanism-change detection has no posterior over the mechanisms: it is a two-sample test whose p-value is a tail probability of a null law of its statistic, not a smooth functional of the refitted mechanisms, so the study is refused under Bayesian inference with that reason; its Bayesian counterpart is the posterior probability of a change under a declared prior over the change indicator, which no route yet carries"
+narrowed_next_attempt = "declare a prior over the per-node change indicator and take the posterior probability of a mechanism change from the Dirichlet-weighted residual law of each population"
+
+[[route]]
+id = "gcm.attribute.temporal.frequentist"
+target = "Attribute"
+graph_class = "TemporalDag"
+design_time_model = "supplied TemporalDag unfolded to its lag-aligned static graph; one dependent series; refits resample or weight blocks of consecutive times (at least the lag span plus one rows)"
+inference = "Frequentist"
+uncertainty = "circular-block mechanism-refit bootstrap standard error of the primary quantity (uncalibrated); no coverage record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "execution_only"
+owning_module = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
+retained_operation = "attribution"
+notes = "The fitted-model attribution on a TemporalDag runs on the lag-aligned unfolding (route cell GcmTemporal) with the circular-block mechanism-refit bootstrap: blocks of consecutive times start at uniform positions and wrap, every mechanism refit under the block counts (families held), the attribution recomputed. The series is declared dependent, so a declared independent-subject design is refused. Intrinsic influence resamples blocks inside the engine (FitResampling::BlockBootstrap) and its noise-independence premise is the caller's declaration about the unfolded innovations. A simulation, a mechanism change and a unit change as queries of their own stay on a static Dag. Explicitly unlicensed. Standalone queries on the unfolding: a temporal rollout of the fitted dynamics (the contemporaneous mechanisms stepped forward, each lagged node assigned the history of the rollout by a value program, the history starting at the last rows of the series) with its block-count bootstrap; a unit change as the fitted-model point answer; a mechanism change whose null law is a circular-block permutation of the residuals (detect_mechanism_changes_block)."
+license_exit = "Retained checked route. License exit by 2027-03-31: needs a known-truth coverage record of the block interval of the change total on a serially dependent series."
+counterpart_design = "temporal"
+narrowed_reason = "block refits keep the serial dependence of consecutive times inside a block but not across blocks; a rollout reports the mean of each variable at each step, and a simulation other than a temporal rollout (draws, policy values, counterfactuals) reports the fitted model's answer; mechanism-change detection on a series uses the likelihood-ratio and mean-difference statistics only (a block permutation null), and its Bayesian reading is a unit-information (BIC) approximation of the posterior probability of a change under the prior the query declares, not a calibrated posterior"
+narrowed_next_attempt = "measure the whole-procedure coverage of the block interval of the change total and of the rollout means on a serially dependent series, and extend the block-permutation null to the kernel and classifier statistics"
+
+[[route]]
+id = "gcm.attribute.temporal.bayesian"
+target = "Attribute"
+graph_class = "TemporalDag"
+design_time_model = "supplied TemporalDag unfolded to its lag-aligned static graph; one dependent series; refits resample or weight blocks of consecutive times (at least the lag span plus one rows)"
+inference = "Bayesian"
+uncertainty = "uncalibrated block-weight posterior over the mechanisms; no coverage record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "execution_only"
+owning_module = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
+retained_operation = "attribution"
+notes = "The fitted-model attribution on a TemporalDag runs on the lag-aligned unfolding (route cell GcmTemporal) with one Exp(1) weight per block of consecutive times shared by every row of the block, every mechanism refit under those weights (families held) and the attribution recomputed; intrinsic influence uses the block weights inside the engine (FitResampling::DirichletBlockWeights). The posterior is conditional on the family selection and on the unfolded regression, and does not address misspecification or identification. Mechanism-change detection has no posterior (a two-sample test, not a smooth functional of the refitted mechanisms). Explicitly unlicensed. Standalone queries on the unfolding: the temporal rollout with block-weight draws of the dynamics (the means of every variable at every step as the posterior), and the posterior probability of a mechanism change under the prior over the change indicator the query declares (mechanism_change_posterior; the prior is never assumed)."
+license_exit = "Retained checked route. License exit by 2027-03-31: needs a known-truth coverage record of the block interval of the change total on a serially dependent series."
+counterpart_design = "temporal"
+narrowed_reason = "block refits keep the serial dependence of consecutive times inside a block but not across blocks; a rollout reports the mean of each variable at each step, and a simulation other than a temporal rollout (draws, policy values, counterfactuals) reports the fitted model's answer; mechanism-change detection on a series uses the likelihood-ratio and mean-difference statistics only (a block permutation null), and its Bayesian reading is a unit-information (BIC) approximation of the posterior probability of a change under the prior the query declares, not a calibrated posterior"
+narrowed_next_attempt = "measure the whole-procedure coverage of the block interval of the change total and of the rollout means on a serially dependent series, and extend the block-permutation null to the kernel and classifier statistics"
+
+[[route]]
 id = "quasi.synthetic_control"
 target = "SyntheticControl"
 graph_class = "RandomizedTrial"
@@ -3050,6 +3112,32 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_history_match.rs
 notes = "Plan id bayesian.period_history_outcome_model; estimator bayesian.period_history_outcome_model, selected explicitly under Bayesian inference. The posterior of a Gaussian outcome model with calendar-period effects, the history-mean score and a treatment-by-score interaction centred at the treated mean; the treatment coefficient is the model-based effect on the treated units of the periods that hold both arms. It is a different estimand from the matched contrast (no donor pairing) and reads equal sampling weights only. Explicitly unlicensed and uncalibrated: the prior supplies no identifying premise."
 
 [[route]]
+id = "iv_bounds.balke_pearl"
+target = "IvBounds"
+graph_class = "RandomizedTrial"
+design_time_model = "graphless binary-instrument bounds"
+inference = "Frequentist"
+uncertainty = "identified set with an optional Imbens-Manski row-bootstrap interval; no coverage record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "execution_only"
+owning_module = "crates/antecedent/src/analysis/execute/checked_iv_bounds.rs"
+notes = "CausalQuery::IvBounds (append-only tag 30); plan id iv_bounds.balke_pearl; estimator iv_bounds.balke_pearl. Executes under Frequentist inference: the sharp Balke-Pearl bounds on the average effect of a binary treatment under a binary instrument, read from three 0/1 columns and an optional weight column. The result is an identified set (claim kind bounds, identification status partially_identified), never a point; bootstrap_replicates adds an Imbens-Manski interval about the set from row-bootstrap endpoint replicates, and a declared dependent-series, trajectory or clustered design refuses the row-level draw. Awaits calibration: explicitly unlicensed, no coverage record."
+
+[[route]]
+id = "bayesian.iv_bounds.endpoint_bootstrap"
+target = "IvBounds"
+graph_class = "RandomizedTrial"
+design_time_model = "graphless binary-instrument bounds"
+inference = "Bayesian"
+uncertainty = "Bayesian-bootstrap posterior of the bounds' endpoints; no coverage record"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "execution_only"
+owning_module = "crates/antecedent/src/analysis/execute/checked_iv_bounds.rs"
+notes = "Plan id bayesian.iv_bounds.endpoint_bootstrap; estimator bayesian.iv_bounds.endpoint_bootstrap. The Bayesian bootstrap reweights the rows with exponential weights and reports the posterior of each endpoint with the Imbens-Manski tail rule; a draw whose law violates the instrumental inequality has no bounds and is counted, never replaced. The prior supplies no identifying premise, so the result is still an identified set. Explicitly unlicensed and uncalibrated."
+
+[[route]]
 id = "bayesian.randomized_finite_population"
 target = "RandomizedEffect"
 graph_class = "RandomizedTrial"
@@ -3138,7 +3226,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
-notes = "Retained compiler path: sealed by the static-query sealer as a checked attribution operation on a supplied or accepted static Dag (route cell GcmDag), fit and detected at estimate (likelihood-ratio method) with a stamped lowered identity, contract and claim. Explicitly unlicensed: no coverage license and no licensed_routes.toml row. Declared off-axis in crates/antecedent/src/support/bridge.rs; kind_license admits a Dag for preparation only. Not n_a. Methods in parity/attribution.toml: attribution.mechanism_change_detection, attribution.mechanism_change_kernel, attribution.mechanism_change_change_point. Cross-fit baseline is for residual detection, not a licensed causal mechanism-fit interval."
+notes = "Retained compiler path: sealed by the static-query sealer as a checked attribution operation on a supplied or accepted static Dag (route cell GcmDag), fit and detected at estimate (likelihood-ratio method) with a stamped lowered identity, contract and claim. Explicitly unlicensed: no coverage license and no licensed_routes.toml row. Declared off-axis in crates/antecedent/src/support/bridge.rs; kind_license admits a Dag for preparation only. Not n_a. Methods in parity/attribution.toml: attribution.mechanism_change_detection, attribution.mechanism_change_kernel, attribution.mechanism_change_change_point. Cross-fit baseline is for residual detection, not a licensed causal mechanism-fit interval. On a TemporalDag the test runs on the lag-aligned unfolding with a block-permutation null (likelihood-ratio statistic), and under Bayesian inference reads as the posterior probability of a change under MechanismChangeQuery::with_change_prior."
 
 [[route]]
 id = "attribution.unit_change"
@@ -3157,27 +3245,27 @@ notes = "Retained compiler path: sealed as a checked attribution operation on a 
 id = "discovery.static"
 target = "Discover"
 graph_class = "Dag,Cpdag,Pag"
-design_time_model = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian)"
+design_time_model = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables"
 inference = "Frequentist,Bayesian (declared by the method)"
-uncertainty = "frequentist: none (exact evaluation of the search's decision rule); Bayesian: structure posterior under the declared prior and Gaussian BIC score, enumeration or MCMC with the schedule's draws; no coverage record"
+uncertainty = "frequentist: none (exact evaluation of the search's decision rule) unless wrapped by bootstrap_stability, which re-runs the search on row resamples drawn under the declared sampling design and tabulates per-pair, per-mark and per-structure selection frequencies (a bootstrap distribution of the search, not a posterior); Bayesian: structure posterior under the declared prior and Gaussian BIC score (order MCMC may declare the Laplace-noise BIC score), enumeration or MCMC with the schedule's draws, or, through class_posterior, the same posterior over Markov equivalence classes (DAG mass summed per CPDAG); no coverage record"
 decision_ports = "unlisted"
 artifact_consumer = "crates/antecedent/src/accepted.rs (StructureProvenance via accept_discovered)"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
-notes = "A structure posterior is accepted with accept_discovered_posterior into an AcceptedPosterior: as a graph posterior through StudyBuilder::accepted_graph_posterior (provenance in contract and program identity) or its MAP DAG through AcceptedPosterior::map_dag. CausalQuery::Discover (append-only tag 26) built with StudyBuilder::discovery(DiscoverySpec, variables); route cell DiscoverStatic lowered by crates/antecedent/src/analysis/lowering/discovery.rs to a complete program keyed by the query digest (variables, method, bounds, configuration digest). Admission lease before the search, cancellation checked before and after. The payload is the engine's own result (DiscoveryPayload). A CPDAG or PAG stays a class. accept_discovered gates the review and records method, inference, class, query digest, bounds, data snapshot, lowered program and claim; a downstream study carries that record in its contract and program identity, never in its identification digest. Explicitly unlicensed: no coverage license, no support-matrix cell, no licensed_routes.toml row. The free discover_* functions are hidden engines."
+notes = "A structure posterior is accepted with accept_discovered_posterior into an AcceptedPosterior: as a graph posterior through StudyBuilder::accepted_graph_posterior (provenance in contract and program identity) or its MAP DAG through AcceptedPosterior::map_dag. CausalQuery::Discover (append-only tag 26) built with StudyBuilder::discovery(DiscoverySpec, variables); route cell DiscoverStatic lowered by crates/antecedent/src/analysis/lowering/discovery.rs to a complete program keyed by the query digest (variables, method, bounds, configuration digest). Admission lease before the search, cancellation checked before and after. The payload is the engine's own result (DiscoveryPayload). A CPDAG or PAG stays a class. DiscoveryMethod::ClassPosterior (append-only tag 18) wraps order_mcmc, structure_mcmc, ci_screened_posterior or exact_dag_posterior, returns a GraphPosterior whose atoms are CPDAGs (accepted with accept_discovered_posterior, never as one DAG), and refuses a base that lists no static graphs when the study compiles. DiscoveryMethod::BootstrapStability (append-only tag 19) wraps pc, fci, rfci, ges, direct_lingam or notears, runs the lowered program with a Resampling::Plan at the replicate count, returns a StructureStability table with no review gate, keeps failed resamples as failed mass and publishes nothing when fewer than half succeed; rows with a missing searched value, masked or weighted tables and a declared design that does not sample independent rows are typed refusals. Python: discover_bootstrap_stability, the equivalence_classes keyword of the four posterior searches, BootstrapStability and EquivalenceClassPosterior. accept_discovered gates the review and records method, inference, class, query digest, bounds, data snapshot, lowered program and claim; a downstream study carries that record in its contract and program identity, never in its identification digest. Explicitly unlicensed: no coverage license, no support-matrix cell, no licensed_routes.toml row. The free discover_* functions are hidden engines."
 
 [[route]]
 id = "discovery.temporal"
 target = "Discover"
 graph_class = "TemporalDag,TemporalCpdag,TemporalPag"
-design_time_model = "series, panel units, event or multi-environment data; methods=pcmci,pcmci_plus,lpcmci,jpcmci_plus,rpcmci (frequentist) and dbn_posterior (Bayesian)"
+design_time_model = "series, panel units, event or multi-environment data; methods=pcmci,pcmci_plus,lpcmci,jpcmci_plus,rpcmci (frequentist) and dbn_posterior (Bayesian); bootstrap_stability over pcmci, pcmci_plus, lpcmci, jpcmci_plus or rpcmci (circular blocks of one series, whole units of a panel, every environment's series in blocks)"
 inference = "Frequentist,Bayesian (declared by the method)"
-uncertainty = "frequentist: none; Bayesian: DBN structure posterior, enumeration or MCMC; no coverage record"
+uncertainty = "frequentist: none unless wrapped by bootstrap_stability over pcmci, pcmci_plus, lpcmci or jpcmci_plus, which re-runs the search on circular-block resamples of a dependent series or whole-unit resamples of a panel and tabulates lagged-link selection frequencies; Bayesian: DBN structure posterior, enumeration or MCMC; no coverage record"
 decision_ports = "unlisted"
 artifact_consumer = "crates/antecedent/src/accepted.rs (StructureProvenance via accept_discovered)"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
-notes = "Route cell DiscoverTemporal; panels run per unit with no lag window crossing a unit boundary; RPCMCI returns one temporal CPDAG per regime. Same lowering, admission, cancellation, payload and provenance contract as discovery.static. Explicitly unlicensed: no coverage license, no support-matrix cell, no licensed_routes.toml row."
+notes = "Route cell DiscoverTemporal; panels run per unit with no lag window crossing a unit boundary; RPCMCI returns one temporal CPDAG per regime. A stability search over a single series needs a declared dependent-series design (the default) and over a panel independent subject trajectories or a clustered panel; Regime PCMCI is re-run on block resamples that carry their regime labels and returns one table per regime; a class posterior over a DBN base collapses each template onto its one-step window. Same lowering, admission, cancellation, payload and provenance contract as discovery.static. Explicitly unlicensed: no coverage license, no support-matrix cell, no licensed_routes.toml row."
 
 [[route]]
 id = "gcm.attribute"
@@ -3185,12 +3273,13 @@ target = "Attribute"
 graph_class = "Dag"
 design_time_model = "supplied or accepted static Dag; mechanisms fitted by the study's MechanismProgram; targets=intrinsic_influence,root_causes,distribution_change,paths,feature_relevance,anomaly,unit_change,mechanism_change,structure_change"
 inference = "Frequentist"
-uncertainty = "point answer of the fitted model; mechanism-fit uncertainty unquantified; no interval"
+uncertainty = "point answer of the fitted model; a replicate count publishes the mechanism-refit row-bootstrap standard error of the primary quantity and of every quantity of change, root-cause, structure-change, path, feature, anomaly and unit-change targets (uncalibrated), intrinsic_influence carries fit_bootstrap; mechanism-change detection reports a test sampling law"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
 notes = "CausalQuery::Attribute (append-only tag 27); route cell GcmAttributeDag lowered by crates/antecedent/src/analysis/lowering/structural.rs (FunctionalKind::Attribution); sealed as a checked attribution operation; admission lease, cancellation, stamped lowered identity, contract and claim; payload AttributionPayload with the per-node selection record. On an accepted discovered graph the contract carries its StructureProvenance. Explicitly unlicensed: no coverage license, no support-matrix cell, no licensed_routes.toml row. The gcm attribute_* and anomaly_attribution* free functions are hidden engines."
+counterpart_design = "static"
 
 [[route]]
 id = "gcm.simulate"
@@ -3203,7 +3292,7 @@ decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
-notes = "CausalQuery::Simulate (append-only tag 28); route cell GcmSimulateDag (FunctionalKind::Simulation); seeded draws (the query's seed), admission lease sized by rows, nodes and draws, cancellation, stamped lowered identity, contract and claim; payload SimulationPayload. Caller-wrapped mechanisms run as a named prefit (gcm.registry.wrapped.<digest>), never refitted. Explicitly unlicensed: no coverage license, no support-matrix cell, no licensed_routes.toml row. sample_do, policy_value, counterfactual_ite, sample_with_noise, replay_noise, noise_table_from_columns, counterfactual_policy, sample_temporal_policy and counterfactual_temporal_policy are hidden engines; every Python simulation, replay, counterfactual-policy, temporal-policy and PreparedPolicy value runs this route."
+notes = "CausalQuery::Simulate (append-only tag 28); route cell GcmSimulateDag (FunctionalKind::Simulation); seeded draws (the query's seed), admission lease sized by rows, nodes and draws, cancellation, stamped lowered identity, contract and claim; payload SimulationPayload. Caller-wrapped mechanisms run as a named prefit (gcm.registry.wrapped.<digest>), never refitted. Explicitly unlicensed: no coverage license, no support-matrix cell, no licensed_routes.toml row. sample_do, policy_value, counterfactual_ite, sample_with_noise, replay_noise, noise_table_from_columns, counterfactual_policy, sample_temporal_policy and counterfactual_temporal_policy are hidden engines; every Python simulation, replay, counterfactual-policy, temporal-policy and PreparedPolicy value runs this route. On a TemporalDag a temporal rollout steps the fitted dynamics forward from the last rows of the series (lagged nodes read the rollout history), with the block-weight posterior or block-count bootstrap of the dynamics over the per-step means."
 
 [[route]]
 id = "temporal_design.excursion.two_arm"
@@ -3321,6 +3410,10 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 notes = "Design interference. Inference clusters are the interference clusters; direct, spillover and total excursions. The Dag-only InterferenceQuery stays closed on TemporalAdmg: this is the design-identified temporal counterpart. CausalQuery::TemporalDesign (append-only tag 29); route cell TemporalDesign lowered by crates/antecedent/src/analysis/lowering/design_based.rs; sealed as CheckedTemporalDesignOperation; estimator temporal_design.excursion; result section TemporalDesignEstimate. Explicitly unlicensed: no coverage record, calibration unmeasured, no support-matrix cell, no licensed_routes.toml row."
+counterpart_targets = ["InterferenceQuery"]
+counterpart_design = "temporal"
+counterpart_reason = "temporal interference is identified by the declared sequential assignment design of a unit-period panel, not by a graph: the route reports the exposure contrast the design identifies and none of a TemporalAdmg or an observational temporal exposure. Whether interference is carried between periods (carryover through the exposure) is declared by the design, not tested."
+counterpart_next_attempt = "identify an observational temporal exposure contrast by a declared exposure mapping and interference graph over the unit-period panel, or record the counterexample where the exposure and the unit history are confounded"
 
 [[route]]
 id = "bayesian.temporal_design.excursion.interference"
@@ -3334,6 +3427,10 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 notes = "Design interference. CausalQuery::TemporalDesign (append-only tag 29); estimator bayesian.temporal_design.excursion: Dirichlet weights over independent units re-evaluate the frequentist functional, the recorded assignment law held fixed. Explicitly unlicensed: no coverage record, and the prior supplies no identifying premise."
+counterpart_targets = ["InterferenceQuery"]
+counterpart_design = "temporal"
+counterpart_reason = "temporal interference is identified by the declared sequential assignment design of a unit-period panel, not by a graph: the route reports the exposure contrast the design identifies and none of a TemporalAdmg or an observational temporal exposure. Whether interference is carried between periods (carryover through the exposure) is declared by the design, not tested."
+counterpart_next_attempt = "identify an observational temporal exposure contrast by a declared exposure mapping and interference graph over the unit-period panel, or record the counterexample where the exposure and the unit history are confounded"
 
 [[route]]
 id = "temporal_design.excursion.continuous_dose"
@@ -3503,6 +3600,9 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent-estimate/src/temporal_design/misclassification.rs"
 notes = "TemporalDesignQuery.outcome_misclassification: contrasts divide by the Youden index se + sp - 1 and arm means are shifted then divided; a Youden index below 0.1 refuses (route_not_supported, next attempt a more accurate measurement or a larger validation sample). Non-differential error is declared. Estimator temporal_design.excursion. Explicitly unlicensed."
+counterpart_targets = ["MeasurementCorrectedFunctional"]
+counterpart_reason = "the temporal correction covers a misclassified binary outcome in a sequentially randomized unit-period panel with an independent validation sample of sensitivity and specificity, non-differential by declaration; the static route's categorical confusion matrix, classical linear moment, repeated measurements, regression calibration and SIMEX corrections, a misclassified treatment or covariate, and differential error pooled across populations have no temporal counterpart, and no extension has been attempted"
+counterpart_next_attempt = "carry the validation sample's delta-method contribution through the cluster-robust period variance for a misclassified exposure and for a continuous error, then measure the whole-procedure coverage of the corrected interval"
 
 [[route]]
 id = "measurement.temporal.bayesian"
@@ -3516,6 +3616,9 @@ artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent-estimate/src/temporal_design/misclassification.rs"
 notes = "Estimator bayesian.temporal_design.excursion with the outcome misclassification correction applied draw by draw. Explicitly unlicensed; the prior supplies no identifying premise."
+counterpart_targets = ["MeasurementCorrectedFunctional"]
+counterpart_reason = "the temporal correction covers a misclassified binary outcome in a sequentially randomized unit-period panel with an independent validation sample of sensitivity and specificity, non-differential by declaration; the static route's categorical confusion matrix, classical linear moment, repeated measurements, regression calibration and SIMEX corrections, a misclassified treatment or covariate, and differential error pooled across populations have no temporal counterpart, and no extension has been attempted"
+counterpart_next_attempt = "carry the validation sample's delta-method contribution through the cluster-robust period variance for a misclassified exposure and for a continuous error, then measure the whole-procedure coverage of the corrected interval"
 
 [[route]]
 id = "measurement.transport.pooled_differential"
@@ -3560,27 +3663,35 @@ notes = "The same joint-law propagation reads aligned posterior draws; unaligned
 id = "composition.temporal.frequentist"
 target = "ComposedQuantity"
 graph_class = "TemporalDag"
-design_time_model = "composition across horizons of a temporal claim"
+design_time_model = "composition across the horizons of one temporal claim; joint circular-block bootstrap replicates, every horizon refit on the same time-aligned blocks (one realization per replicate)"
 inference = "Frequentist"
-uncertainty = "refused"
+uncertainty = "uncalibrated_spread of the composed replicates; no interval without a coverage record at the horizon-indexed coordinate"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
-status = "closed"
-owning_module = "crates/antecedent-contract/src/joint_law_rule.rs"
-notes = "Unbuilt, not impossible: ComposedCoordinate carries (operation, route, input roles) and no horizon axis, so a composed coordinate over horizon-indexed claims cannot be stated or measured. Next attempt: a horizon-indexed composed coordinate whose inputs are the aligned joint draws of one temporal route's horizons (coupled across horizons, never independent per-horizon marginals), executing unlicensed until a coverage record exists. A bundle may still carry a temporal artifact as a verified node."
+status = "execution_only"
+retained_operation = "temporal_dag_response"
+owning_module = "crates/antecedent/src/analysis/horizon_composition.rs"
+notes = "Producer: the joint surface bootstrap of the temporal response (crates/antecedent-estimate/src/temporal_response/bootstrap.rs) publishes its replicates as response.joint_horizon.replicates and response.joint_horizon.layout when asked; a row is one realization of every horizon. Consumer: horizon_draws and compose_horizons check the composition at a ComposedCoordinate carrying the horizon axis (check_horizon_composition) and form the composed draws; horizons fit one by one (the Bayesian conjugate curve) retain no joint replicates and are refused, never paired by draw index. Explicitly unlicensed."
+narrowed_reason = "the composition is a linear combination (compose_horizons) or an arbitrary nonlinear map (compose_horizons_with) of the horizons of one dose of a mean curve, reached from Study::compile with retain_joint_horizons (the option enters the contract inference binding, and the Bayesian program lowers to the block-weight posterior); it is a labelled uncalibrated spread, and no coverage record measures an interval at a horizon-indexed coordinate (the interval reading stays closed); gapped series, intervention responses and derivative responses retain no joint replicates"
+narrowed_next_attempt = "measure the coverage of the composed interval at its horizon-indexed coordinate, and extend the joint replicates to intervention-level responses and series with gaps"
+counterpart_design = "temporal"
 
 [[route]]
 id = "composition.temporal.bayesian"
 target = "ComposedQuantity"
 graph_class = "TemporalDag"
-design_time_model = "composition across horizons of a temporal posterior"
+design_time_model = "composition across the horizons of one temporal claim; joint Dirichlet block-weight draws, one Exp(1) weight per block of consecutive series times shared by every horizon, each horizon refit by weighted least squares (one realization per draw)"
 inference = "Bayesian"
-uncertainty = "refused"
+uncertainty = "uncalibrated_spread of the composed block-weight draws; no posterior statement without calibration at the horizon-indexed coordinate"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
-status = "closed"
-owning_module = "crates/antecedent-contract/src/joint_law_rule.rs"
-notes = "Unbuilt, not impossible: same missing horizon axis as composition.temporal.frequentist. Next attempt: compose the aligned per-horizon draws of one temporal posterior (one draw index across horizons) at a horizon-indexed coordinate."
+status = "execution_only"
+retained_operation = "temporal_dag_response"
+owning_module = "crates/antecedent/src/analysis/horizon_composition.rs"
+notes = "Producer: TemporalResponseEstimator::with_block_weight_posterior and with_joint_replicates (crates/antecedent-estimate/src/temporal_response/bootstrap.rs bayesian_bootstrap_surface): the posterior over the whole dose-by-horizon surface given the empirical law of the lag windows, conditional on the declared design and the unfolded regression; the band reads as credible. Consumer as composition.temporal.frequentist. The prior supplies no identifying premise. Explicitly unlicensed."
+narrowed_reason = "the composition is a linear combination (compose_horizons) or an arbitrary nonlinear map (compose_horizons_with) of the horizons of one dose of a mean curve, reached from Study::compile with retain_joint_horizons (the option enters the contract inference binding, and the Bayesian program lowers to the block-weight posterior); it is a labelled uncalibrated spread, and no coverage record measures an interval at a horizon-indexed coordinate (the interval reading stays closed); gapped series, intervention responses and derivative responses retain no joint replicates"
+narrowed_next_attempt = "measure the coverage of the composed interval at its horizon-indexed coordinate, and extend the joint replicates to intervention-level responses and series with gaps"
+counterpart_design = "temporal"
 
 [[route]]
 id = "graphless.dose_grid.randomized_dose.local_quadratic"

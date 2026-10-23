@@ -54,6 +54,7 @@ pub mod error;
 pub mod evidence;
 pub mod exact_enumeration;
 pub mod exact_marginals;
+pub mod exact_pag_posterior;
 pub mod fci;
 pub mod ges;
 pub mod graph_mcmc;
@@ -80,6 +81,7 @@ pub mod rfci;
 pub mod rpcmci;
 pub mod rule_scheduling;
 pub mod selective;
+pub mod stability;
 mod static_skeleton;
 pub mod structure_mcmc;
 #[cfg(test)]
@@ -111,6 +113,7 @@ pub use error::DiscoveryError;
 pub use evidence::threshold_scored_links;
 pub use exact_enumeration::ExactDagPosterior;
 pub use exact_marginals::{EXACT_MARGINAL_MAX_NODES, ExactDagMarginals, exact_dag_marginals};
+pub use exact_pag_posterior::{PAG_ENUM_MAX_NODES, exact_pag_posterior};
 pub use fci::{Fci, StaticPagDiscoveryResult};
 pub use ges::Ges;
 pub use graph_posterior::{
@@ -145,6 +148,7 @@ pub use rule_scheduling::{
     LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciOrientationRule, LpcmciR1,
     run_lpcmci_orientation,
 };
+pub use stability::{EdgeSelection, MarkSelection, StructureSelection, StructureStability};
 pub use structure_mcmc::StructureMcmc;
 
 // Additional orientation helpers stay under their modules for advanced callers:

@@ -27,7 +27,10 @@ python3 scripts/test_check_acceptance_manifest.py
 python3 scripts/test_check_release_closure.py
 python3 scripts/check_counterparts.py --self-test
 python3 scripts/test_check_counterparts.py
+python3 scripts/test_joint_panel_reference.py
+python3 scripts/reconcile_release_scope.py --self-test
 python3 scripts/test_gate_compiler_bypass.py
+python3 scripts/test_gate_retained_routes.py
 python3 scripts/test_calibration_recipe_receipts.py
 python3 scripts/test_generate_calibration_backlog.py
 python3 scripts/test_ci_workflow.py

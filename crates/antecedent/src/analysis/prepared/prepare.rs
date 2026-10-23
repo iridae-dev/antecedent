@@ -11,7 +11,7 @@ use super::{
     build_temporal_class_posterior_identification_cache, ensure_prepared_supported,
     multi_env_regularity,
 };
-use crate::accepted::GraphClass;
+use crate::accepted::{GraphClass, GraphRef};
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;
 use crate::analysis::query_license::{graphless_design, is_graphless_design};
@@ -75,6 +75,26 @@ impl Study {
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         ensure_prepared_supported(self)?;
         let plan = Arc::new(self.compile(ctx)?);
+        self.prepare_on(plan, ctx)
+    }
+
+    /// Prepare the study on a plan the caller already compiled.
+    ///
+    /// This is the retained path of `Study::execute`: the plan must carry the program
+    /// lowered for the route this study executes as, and the execution it seals is the
+    /// one `prepare` would seal.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered` when the plan carries no lowered program or one lowered for
+    /// another route; the refusals of [`Self::prepare`].
+    pub(crate) fn prepare_on(
+        &self,
+        plan: Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy, CausalError> {
+        ensure_prepared_supported(self)?;
+        plan.require_lowered(crate::analysis::lowering::expected_cell(self))?;
         let counterfactual = self.compile_counterfactual()?;
         let nested_counterfactual = self.compile_nested_counterfactual()?;
         let (schema, modality, time_regularity) = self.prepared_modality()?;
@@ -344,6 +364,13 @@ impl Study {
                 push(temporal(self.prepare_temporal_mediation_identification()?));
                 push(temporal_class(self.prepare_temporal_class_identification()?));
             }
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(query))
+                if matches!(self.graph.graph_ref(), GraphRef::TemporalAdmg(_)) =>
+            {
+                // A temporal ADMG contrast is identified once on its unrolled window; the
+                // functional over the window coordinates is the claim execution reads.
+                push(temporal(Some(self.prepare_temporal_admg_identification(query)?)));
+            }
             (DataInput::Tabular(_), CausalQuery::Transport(query)) => {
                 let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
                     message: "TransportQuery prepare requires a selection diagram",
@@ -385,7 +412,12 @@ impl Study {
             }
             (
                 DataInput::Temporal(_) | DataInput::Event(_),
-                CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+                CausalQuery::AnomalyAttribution(_)
+                | CausalQuery::ChangeAttribution(_)
+                | CausalQuery::Attribute(_)
+                | CausalQuery::UnitChange(_)
+                | CausalQuery::MechanismChange(_)
+                | CausalQuery::Simulate(_),
             ) => {
                 push(static_cache(self.prepare_static_identification(plan)?));
             }

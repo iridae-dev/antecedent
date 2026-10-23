@@ -18,6 +18,7 @@ mod error;
 mod functional;
 mod history_match;
 mod interference;
+mod iv_bounds;
 mod local_polynomial_ratio;
 mod longitudinal_regime;
 mod mediation;
@@ -79,6 +80,7 @@ pub use interference::{
     AssignmentDesign, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
     ExposurePropensityProvenance, InterferenceFunctional, InterferenceQuery,
 };
+pub use iv_bounds::IvBoundsQuery;
 pub use local_polynomial_ratio::{
     LocalBandwidthRule, LocalPolynomialRatioQuery, LocalRatioOptions,
 };
@@ -191,6 +193,9 @@ pub enum CausalQuery {
     /// Excursion effects of a sequentially randomized unit-period design, or regime survival
     /// on subject trajectories.
     TemporalDesign(TemporalDesignQuery),
+    /// Sharp partial-identification bounds on the average effect of a binary treatment under a
+    /// binary instrument.
+    IvBounds(IvBoundsQuery),
 }
 
 /// The variant tag, then the payload's own canonical encoding.
@@ -317,6 +322,10 @@ impl CanonicalEncode for CausalQuery {
                 writer.word(29);
                 query.encode(writer);
             }
+            Self::IvBounds(query) => {
+                writer.word(30);
+                query.encode(writer);
+            }
         }
     }
 }
@@ -388,6 +397,8 @@ pub enum CausalQueryKind {
     Simulate,
     /// [`CausalQuery::TemporalDesign`].
     TemporalDesign,
+    /// [`CausalQuery::IvBounds`].
+    IvBounds,
 }
 
 impl CausalQuery {
@@ -424,6 +435,7 @@ impl CausalQuery {
             Self::Attribute(_) => CausalQueryKind::Attribute,
             Self::Simulate(_) => CausalQueryKind::Simulate,
             Self::TemporalDesign(_) => CausalQueryKind::TemporalDesign,
+            Self::IvBounds(_) => CausalQueryKind::IvBounds,
         }
     }
 }
@@ -596,6 +608,12 @@ impl CausalQuery {
     pub fn temporal_design(query: TemporalDesignQuery) -> Self {
         Self::TemporalDesign(query)
     }
+
+    /// Construct an instrumental-variable bounds query.
+    #[must_use]
+    pub fn iv_bounds(query: IvBoundsQuery) -> Self {
+        Self::IvBounds(query)
+    }
 }
 
 impl From<AverageEffectQuery> for CausalQuery {
@@ -760,6 +778,12 @@ impl From<TemporalDesignQuery> for CausalQuery {
     }
 }
 
+impl From<IvBoundsQuery> for CausalQuery {
+    fn from(query: IvBoundsQuery) -> Self {
+        Self::IvBounds(query)
+    }
+}
+
 impl CausalQuery {
     /// Target population of a population-scoped query.
     ///
@@ -797,7 +821,8 @@ impl CausalQuery {
             | Self::Discover(_)
             | Self::Attribute(_)
             | Self::Simulate(_)
-            | Self::TemporalDesign(_) => None,
+            | Self::TemporalDesign(_)
+            | Self::IvBounds(_) => None,
         }
     }
 
@@ -832,7 +857,8 @@ impl CausalQuery {
             | Self::Discover(_)
             | Self::Attribute(_)
             | Self::Simulate(_)
-            | Self::TemporalDesign(_) => None,
+            | Self::TemporalDesign(_)
+            | Self::IvBounds(_) => None,
         }
     }
 
@@ -872,6 +898,7 @@ impl CausalQuery {
             Self::Attribute(q) => q.validate(),
             Self::Simulate(q) => q.validate(),
             Self::TemporalDesign(q) => q.validate(),
+            Self::IvBounds(q) => q.validate(),
         }
     }
 }

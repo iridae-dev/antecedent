@@ -9,11 +9,11 @@ use crate::analysis::execute::{
     CheckedAttributionOperation, CheckedBayesianStaticMediationOperation,
     CheckedCellAipwResponseOperation, CheckedContinuousDoseOperation, CheckedCounterfactualPlan,
     CheckedDerivativeResponseOperation, CheckedHistoryMatchOperation, CheckedInterferenceOperation,
-    CheckedLocalPolynomialRatioOperation, CheckedLongitudinalRegimeOperation,
-    CheckedPanelDidOperation, CheckedPolicyValueOperation, CheckedRandomizedOperation,
-    CheckedSequentialContrastOperation, CheckedStaticDagResponseOperation,
-    CheckedStaticMediationOperation, CheckedSurvivalOperation, CheckedSyntheticControlOperation,
-    CheckedTemporalDesignOperation,
+    CheckedIvBoundsOperation, CheckedLocalPolynomialRatioOperation,
+    CheckedLongitudinalRegimeOperation, CheckedPanelDidOperation, CheckedPolicyValueOperation,
+    CheckedRandomizedOperation, CheckedRouteOperation, CheckedSequentialContrastOperation,
+    CheckedStaticDagResponseOperation, CheckedStaticMediationOperation, CheckedSurvivalOperation,
+    CheckedSyntheticControlOperation, CheckedTemporalDesignOperation,
 };
 use crate::analysis::prepared::estimate::{ClickNotes, Rebound};
 use crate::analysis::prepared::{
@@ -63,6 +63,7 @@ executes_as_prepared!(
     CheckedSequentialContrastOperation,
     CheckedHistoryMatchOperation,
     CheckedTemporalDesignOperation,
+    CheckedIvBoundsOperation,
 );
 
 impl SealedOperation for CheckedAttributionOperation {
@@ -183,4 +184,37 @@ impl SealedOperation for CheckedStaticResponseCurve {
     unbound_program!();
     study_owned_stage_sink!();
     study_owned_validators!();
+}
+
+/// A route sealed to its lowered program: structure discovery, panel and
+/// multi-environment temporal effects, temporal cross-world queries and temporal
+/// ADMG effects. Each execution requires the plan to still carry the program the
+/// operation retained; the click then runs inside that program's dispatch scope.
+impl SealedOperation for CheckedRouteOperation {
+    unbound_program!();
+    study_owned_stage_sink!();
+    study_owned_validators!();
+
+    fn require_retained_program(
+        &self,
+        plan: &crate::planner::PhysicalExecutionPlan,
+    ) -> Result<(), CausalError> {
+        self.require_program(plan)
+    }
+
+    fn estimate_tabular(
+        &self,
+        handle: &PreparedStudy,
+        _data: &TabularData,
+        _ctx: &ExecutionContext,
+        _notes: &mut ClickNotes,
+    ) -> Result<Option<StudyResult>, CausalError> {
+        self.require_program(&handle.plan)?;
+        Ok(None)
+    }
+
+    fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
+        self.require_program(&call.handle.plan)?;
+        Ok(None)
+    }
 }

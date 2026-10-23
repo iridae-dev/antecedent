@@ -230,6 +230,7 @@ pub(super) fn validate_result(
     validate_history_match_graphless(result)?;
     super::quasi_rollout::validate_quasi_rollout(result)?;
     super::temporal_design::validate_temporal_design(result)?;
+    super::iv_bounds::validate_iv_bounds(result)?;
     crate::causal_query_from_wire(&result.query)?;
     let identification_count = match &result.identification_variables {
         Some(variables) => {

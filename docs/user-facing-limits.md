@@ -74,13 +74,21 @@ applicable, with the reason each one does not denote:
 - ResponseCurve cheap and full: a function-valued curve has no ATE-shaped
   refuter state.
 
-Some contrasts denote but are not identified in either inference mode. They
-are refused with the identification reason rather than recorded as n/a:
-pulse, sustained, temporal-conditional and temporal-mediation contrasts and
-ConditionalEffect on a TemporalAdmg (the licensed TemporalAdmg functional is
-the contemporaneous projection, which answers a different target), and
-TemporalMediationEffect on a TemporalPag (latent-confounded natural mediation
-is outside the cross-world identification theory). The static switchback and
+Some contrasts denote but are not licensed in either inference mode. They
+are refused with the reason rather than recorded as n/a. Pulse, sustained and
+temporal-conditional contrasts on one series under a TemporalAdmg are
+identified on the unrolled window of the template (the complete ID algorithm,
+IDC for the conditional contrast) and execute unlicensed on the lag-aligned
+window table: support status `refused`, diagnostic `estimate.temporal_admg.window`,
+block resampling with a block never shorter than the window, a series read as
+stationary over the template, and discrete data only. A window that holds a
+hedge is refused with the variables and periods that carry it. Temporal
+mediation and ConditionalEffect on a TemporalAdmg are refused (the tabular
+ConditionalEffect is the contemporaneous projection, which answers a different
+target; mediation needs the recanting-district criterion, which has not been
+derived on the unrolled window), and so is TemporalMediationEffect on a
+TemporalPag (latent-confounded natural mediation is outside the cross-world
+identification theory). The static switchback and
 the static analogues of the dose-grid, sequential and experiment-bridge
 designs are temporal by construction and have no static cell.
 

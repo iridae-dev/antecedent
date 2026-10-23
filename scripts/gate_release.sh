@@ -152,6 +152,8 @@ echo "== acceptance manifest: every case bound to a live test =="
 python3 scripts/check_acceptance_manifest.py --require-bound
 echo "== counterpart inventory: every method records all four quadrants =="
 python3 scripts/check_counterparts.py
+echo "== release scope: every row matched to its route, owner, fixtures and consumer =="
+python3 scripts/reconcile_release_scope.py --check
 echo "== published docs links resolve =="
 python3 scripts/check_doc_links.py
 

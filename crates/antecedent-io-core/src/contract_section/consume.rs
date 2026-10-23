@@ -153,6 +153,10 @@ pub fn claim_kind_name(
     if body.response.is_some() {
         return "response";
     }
+    // An identified set is never a point, whatever status the identification slot carries.
+    if body.iv_bounds.is_some() {
+        return "bounds";
+    }
     let Some(slot) = identification else {
         return "point";
     };

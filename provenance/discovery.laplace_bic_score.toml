@@ -1,0 +1,24 @@
+feature_id = "discovery.laplace_bic_score"
+implementation_crate = "antecedent-state"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term applied to a maximised likelihood"] },
+ { title = "A linear non-Gaussian acyclic model for causal discovery", sections = ["non-Gaussian noise makes the causal direction of a linear model identifiable from the likelihood"] },
+]
+
+implementation_deviations = [
+ "The local score is the Laplace-noise log likelihood at the least-absolute-deviations fit (iteratively reweighted least squares, 60 sweeps from unit weights) with the scale set to the mean absolute residual, penalised by (|Pa| + 2) / 2 times ln n; it is a pseudo-likelihood under a declared heavy-tailed noise family, not the non-Gaussian likelihood the cited paper analyses, and it is misspecified when the noise has another non-Gaussian shape.",
+ "Order MCMC over this score is a pseudo-posterior over DAGs: it orients an edge only to the degree the noise is non-Gaussian and carries no calibration claim. Exact enumeration, structure MCMC and the exact marginals refuse the score.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-state/src/graph_score.rs unit test the_laplace_score_prefers_the_causal_direction_under_laplace_noise (Laplace cause and noise; the Gaussian score ties the two directions)",
+ "crates/antecedent/tests/structure_uncertainty_routes.rs (order MCMC under Laplace noise orients x to y)",
+ "python/tests/test_structure_uncertainty_routes.py",
+]

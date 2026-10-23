@@ -29,8 +29,9 @@ use super::static_response::{
     inference_selection, record_estimator, retain_or_defer, retained_static, slot, union,
 };
 use crate::analysis::execute::{
-    ANOMALY_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND, COUNTERFACTUAL_DIRICHLET_BACKEND,
-    RouteInput, StaticMediationSource,
+    ANOMALY_DIRICHLET_BACKEND, ATTRIBUTE_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND,
+    COUNTERFACTUAL_DIRICHLET_BACKEND, RouteInput, StaticMediationSource, attribute_posterior_draws,
+    attribute_posterior_supported,
 };
 use crate::error::CausalError;
 use crate::planner::lowered::{
@@ -55,6 +56,11 @@ const HETEROGENEITY_REGISTRY: &str = "gcm.registry.heterogeneity.best_score";
 /// Prior of the Bayesian structural-model procedures: one shared Dirichlet(1, …, 1)
 /// weight vector over the observed rows per draw (a Bayesian bootstrap).
 const DIRICHLET_ROW_PRIOR: &str = "dirichlet_row_weights(1)";
+/// Backend of the posterior probability of a mechanism change: the Gaussian likelihood-ratio
+/// statistic of the residuals, deflated for serial dependence, as a unit-information Bayes factor.
+const MECHANISM_CHANGE_POSTERIOR_BACKEND: &str = "gcm.mechanism_change.bic_posterior";
+/// Prior of that posterior: the probability of a change the query declares.
+const CHANGE_INDICATOR_PRIOR: &str = "declared_change_indicator_prior";
 /// Score of mechanism-change detection.
 const MECHANISM_CHANGE_SCORE: &str = "gcm.mechanism_change.likelihood_ratio";
 
@@ -175,13 +181,37 @@ fn lower_structural(
         FunctionalKind::Counterfactual => Some(COUNTERFACTUAL_DIRICHLET_BACKEND),
         FunctionalKind::AnomalyAttribution => Some(ANOMALY_DIRICHLET_BACKEND),
         FunctionalKind::ChangeAttribution => Some(CHANGE_DIRICHLET_BACKEND),
+        // The fitted-model attribution has a posterior over the mechanisms for intrinsic
+        // influence, distribution change and root causes; its other targets are point answers.
+        FunctionalKind::Attribution | FunctionalKind::Simulation
+            if attribute_posterior_supported(&study.query) =>
+        {
+            Some(ATTRIBUTE_DIRICHLET_BACKEND)
+        }
         _ => None,
     };
     let (realization, posterior, uncertainty) = match (kind, backend, &study.inference) {
         (_, Some(backend), InferenceMode::Bayesian(config)) => {
-            let (realization, posterior) = dirichlet_row_weights(backend, config.n_draws)?;
+            let draws = if matches!(kind, FunctionalKind::Attribution | FunctionalKind::Simulation)
+            {
+                attribute_posterior_draws(&study.query, config)
+            } else {
+                config.n_draws
+            };
+            let (realization, posterior) = dirichlet_row_weights(backend, draws)?;
             (realization, Some(posterior), UncertaintyReading::Posterior)
         }
+        // Under Bayesian inference a detection reads as the posterior probability of a change
+        // under the prior the query declares over the change indicator.
+        (FunctionalKind::MechanismChange, _, InferenceMode::Bayesian(_)) => (
+            Realization::Bayesian(OrdinaryBayesianLikelihood::new(
+                LikelihoodModel::new(MECHANISM_CHANGE_POSTERIOR_BACKEND)
+                    .map_err(declaration_error)?,
+                Prior::new(CHANGE_INDICATOR_PRIOR).map_err(declaration_error)?,
+            )),
+            None,
+            UncertaintyReading::Posterior,
+        ),
         // Detection is a likelihood-ratio test with a sampling law, whatever the
         // study's inference mode.
         (FunctionalKind::MechanismChange, _, _) => (

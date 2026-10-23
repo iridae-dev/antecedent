@@ -1005,6 +1005,7 @@ pub fn <antecedent_graph::TemporalAdmg>::fn parents(&self, id: antecedent_graph:
 pub fn <antecedent_graph::TemporalAdmg>::fn project_preserving_functional(&self) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalAdmg>::fn temporal_key(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_core::temporal::TemporalNodeKey>
 pub fn <antecedent_graph::TemporalAdmg>::fn unroll_window(&self, periods: u32) -> core::result::Result<antecedent_graph::UnrolledTemporalAdmg, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalAdmg>::fn unroll_window_over(&self, periods: u32, variable_count: u32) -> core::result::Result<antecedent_graph::UnrolledTemporalAdmg, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalCpdag>::fn add_context(&mut self, variable: antecedent_core::ids::VariableId, environment: core::option::Option<antecedent_core::ids::EnvironmentId>) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalCpdag>::fn add_lagged(&mut self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalCpdag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>

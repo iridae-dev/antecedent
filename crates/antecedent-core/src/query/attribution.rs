@@ -544,6 +544,10 @@ pub struct MechanismChangeQuery {
     pub significance_level: OrderedFloatBits,
     /// Maximum targets to test.
     pub max_targets: usize,
+    /// Declared prior probability that a tested mechanism changed, for the posterior
+    /// probability of a change under Bayesian inference. `None` declares none, and a Bayesian
+    /// study then refuses: a prior over the change indicator is never assumed.
+    pub change_prior: Option<OrderedFloatBits>,
 }
 
 /// Bit-pattern wrapper so [`MechanismChangeQuery`] stays `Eq`/`Hash` with an f64 level.
@@ -572,6 +576,10 @@ impl CanonicalEncode for MechanismChangeQuery {
         self.baseline.encode(writer);
         self.comparison.encode(writer);
         writer.real(self.significance_level.to_f64()).word(count(self.max_targets));
+        // Appended only when declared, so a query without a prior keeps the identity it had.
+        if let Some(prior) = self.change_prior {
+            writer.word(1).real(prior.to_f64());
+        }
     }
 }
 
@@ -591,14 +599,23 @@ impl MechanismChangeQuery {
             comparison,
             significance_level: OrderedFloatBits::from_f64(significance_level),
             max_targets,
+            change_prior: None,
         }
+    }
+
+    /// Declare the prior probability that a tested mechanism changed (the prior over the change
+    /// indicator), which the posterior probability of a change under Bayesian inference needs.
+    #[must_use]
+    pub fn with_change_prior(mut self, prior: f64) -> Self {
+        self.change_prior = Some(OrderedFloatBits::from_f64(prior));
+        self
     }
 
     /// Validate.
     ///
     /// # Errors
     ///
-    /// Empty targets, invalid α, or bad populations.
+    /// Empty targets, invalid α, a change prior outside (0, 1), or bad populations.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.targets.is_empty() {
             return Err(QueryError::EmptyMechanismChangeTargets);
@@ -608,6 +625,9 @@ impl MechanismChangeQuery {
         }
         let alpha = self.significance_level.to_f64();
         if !(alpha > 0.0 && alpha < 1.0) {
+            return Err(QueryError::InvalidSignificanceLevel);
+        }
+        if self.change_prior.is_some_and(|p| !(p.to_f64() > 0.0 && p.to_f64() < 1.0)) {
             return Err(QueryError::InvalidSignificanceLevel);
         }
         self.baseline.validate()?;

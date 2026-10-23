@@ -196,6 +196,22 @@ pub(super) fn temporal_design(cx: &SealContext<'_>) -> SealOutcome {
     Ok(sealed.map(PreparedExecution::TemporalDesign))
 }
 
+pub(super) fn iv_bounds(cx: &SealContext<'_>) -> SealOutcome {
+    let SealContext { analysis, plan, .. } = *cx;
+    let sealed = match cx.route {
+        Some(RouteInput::IvBounds { data, .. })
+            if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none() =>
+        {
+            Some(crate::analysis::execute::CheckedIvBoundsOperation::checked(analysis, data, plan)?)
+        }
+        _ => None,
+    };
+    Ok(sealed.map(PreparedExecution::IvBounds))
+}
+
 pub(super) fn sequential_contrast(cx: &SealContext<'_>) -> SealOutcome {
     let SealContext { analysis, plan, .. } = *cx;
     let sealed = match cx.route {

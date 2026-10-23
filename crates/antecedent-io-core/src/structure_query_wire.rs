@@ -91,6 +91,20 @@ pub enum DiscoveryMethodWire {
         /// Force MCMC.
         force_mcmc: bool,
     },
+    /// Exact posterior over PAG classes of Gaussian maximal ancestral graphs.
+    ExactPagPosterior,
+    /// Posterior over Markov equivalence classes of a DAG posterior.
+    ClassPosterior {
+        /// The DAG-posterior method whose graphs are collapsed.
+        base: Box<DiscoveryMethodWire>,
+    },
+    /// Sampling distribution of a frequentist search over resamples.
+    BootstrapStability {
+        /// The frequentist search that is re-run.
+        base: Box<DiscoveryMethodWire>,
+        /// Resamples drawn.
+        replicates: u32,
+    },
 }
 
 impl DiscoveryMethodWire {
@@ -127,6 +141,14 @@ impl DiscoveryMethodWire {
             DiscoveryMethod::DbnPosterior { force_mcmc } => {
                 Self::DbnPosterior { force_mcmc: *force_mcmc }
             }
+            DiscoveryMethod::ExactPagPosterior => Self::ExactPagPosterior,
+            DiscoveryMethod::ClassPosterior { base } => {
+                Self::ClassPosterior { base: Box::new(Self::from_domain(base)) }
+            }
+            DiscoveryMethod::BootstrapStability { base, replicates } => Self::BootstrapStability {
+                base: Box::new(Self::from_domain(base)),
+                replicates: *replicates,
+            },
         }
     }
 
@@ -174,6 +196,14 @@ impl DiscoveryMethodWire {
             Self::DbnPosterior { force_mcmc } => {
                 DiscoveryMethod::DbnPosterior { force_mcmc: *force_mcmc }
             }
+            Self::ExactPagPosterior => DiscoveryMethod::ExactPagPosterior,
+            Self::ClassPosterior { base } => {
+                DiscoveryMethod::ClassPosterior { base: Box::new(base.to_domain()?) }
+            }
+            Self::BootstrapStability { base, replicates } => DiscoveryMethod::BootstrapStability {
+                base: Box::new(base.to_domain()?),
+                replicates: *replicates,
+            },
         })
     }
 }
@@ -1230,6 +1260,31 @@ mod tests {
                 max_lag: 0,
                 schedule: Some(SearchSchedule { chains: 2, warmup: 5, draws: 10, thin: 1 }),
                 configuration: [3; 32],
+            },
+        )));
+        round_trip(&CausalQuery::Discover(DiscoverQuery::new(
+            vec![v(0), v(1), v(2)],
+            DiscoveryMethod::BootstrapStability {
+                base: Box::new(DiscoveryMethod::Ges { screen_pc: false, max_subset: None }),
+                replicates: 40,
+            },
+            SearchBounds {
+                alpha: 0.05,
+                max_cond_size: 2,
+                max_lag: 0,
+                schedule: None,
+                configuration: [4; 32],
+            },
+        )));
+        round_trip(&CausalQuery::Discover(DiscoverQuery::new(
+            vec![v(0), v(1), v(2)],
+            DiscoveryMethod::ClassPosterior { base: Box::new(DiscoveryMethod::StructureMcmc) },
+            SearchBounds {
+                alpha: 0.0,
+                max_cond_size: 0,
+                max_lag: 0,
+                schedule: Some(SearchSchedule { chains: 2, warmup: 5, draws: 10, thin: 1 }),
+                configuration: [5; 32],
             },
         )));
         round_trip(&CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::Anomaly(

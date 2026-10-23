@@ -654,6 +654,14 @@ name = "white_innovation_route"
 path = "tests/white_innovation_route.rs"
 
 [[test]]
+name = "horizon_composition"
+path = "tests/horizon_composition.rs"
+
+[[test]]
+name = "attribute_mechanism_posterior"
+path = "tests/attribute_mechanism_posterior.rs"
+
+[[test]]
 name = "bayesian_arm_effect_routes"
 path = "tests/bayesian_arm_effect_routes.rs"
 
@@ -753,6 +761,14 @@ required-features = ["file-source"]
 [[test]]
 name = "structure_compiler_routes"
 path = "tests/structure_compiler_routes.rs"
+
+[[test]]
+name = "target_refuter_extensions"
+path = "tests/target_refuter_extensions.rs"
+
+[[test]]
+name = "structure_uncertainty_routes"
+path = "tests/structure_uncertainty_routes.rs"
 
 [[test]]
 name = "quasi_rollout_routes"

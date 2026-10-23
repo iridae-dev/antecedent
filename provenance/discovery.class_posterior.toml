@@ -1,0 +1,27 @@
+feature_id = "discovery.class_posterior"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A characterization of Markov equivalence classes for acyclic digraphs", sections = ["Markov equivalence of acyclic digraphs: same skeleton and same unshielded colliders", "essential graph as the representative of an equivalence class"] },
+ { title = "Causal inference and causal explanation with background knowledge", sections = ["orientation rules that complete a partially directed graph to the essential graph"] },
+ { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC score, equal for Markov-equivalent Gaussian DAGs"] },
+]
+
+implementation_deviations = [
+ "The class posterior is not a separate sampler: it runs the exact, order-MCMC, structure-MCMC or CI-screened DAG posterior unchanged and sums the posterior mass of DAGs that share an essential graph, so every guarantee and limit of the wrapped sampler carries over and none is added.",
+ "The essential graph of each DAG atom is computed by the skeleton, the DAG's unshielded colliders and Meek's rules R1 to R4 run to a fixed point, the construction GES already uses; the class of a score-equivalent Gaussian BIC posterior is therefore identified exactly, and orientation beyond the class is not read from the data.",
+ "The per-edge Monte-Carlo errors, split R-hat and bulk ESS of the DAG indicators are dropped because they describe DAG edge bits, not class bits; the chain diagnostics of the DAG draws stay on the result and the Kish count is recomputed on the class weights.",
+ "A bounded-lag template posterior is collapsed onto the essential graph of its one-step window: lagged edges start directed by time, the unshielded colliders of the window and Meek's rules R1 to R4 orient the rest, and lagged parents are treated as exogenous roots, so a collider between lagged parents that the stationary unrolling would shield through earlier lags counts as unshielded.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/graph_posterior.rs unit test dags_of_one_equivalence_class_pool_their_mass (hand-built chain and collider atoms with known classes and summed mass)",
+ "crates/antecedent/tests/structure_uncertainty_routes.rs (compiled class posterior equals the engine collapse bit for bit on three variables)",
+ "python/tests/test_structure_uncertainty_routes.py (a chain without a collider pools three DAGs into one class)",
+]

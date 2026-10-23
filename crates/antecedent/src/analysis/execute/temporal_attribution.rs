@@ -159,6 +159,90 @@ impl LagAlignedScm {
         block_bootstrap_counts(n, self.block_length(n), rng)
     }
 
+    /// Number of contemporaneous nodes (one per series variable): the nodes `0..count` are the
+    /// slice a rollout steps, the rest are lagged copies tied to the rollout's history.
+    pub(super) fn contemporaneous_count(&self) -> usize {
+        self.columns.iter().filter(|(_, lag)| *lag == 0).count()
+    }
+
+    /// The assignments that tie every lagged node `(v, L)` of the unfolding to the rollout's
+    /// history: `v@L := v` read `L` steps back, active at every step of an `n_steps` rollout.
+    /// Contemporaneous nodes keep their fitted mechanisms, so stepping the unfolded model
+    /// rolls the dynamics forward instead of sampling the lagged copies as exogenous columns.
+    pub(super) fn lag_assignments(
+        &self,
+        n_steps: usize,
+    ) -> Vec<antecedent_core::SequencedIntervention> {
+        let node_of_variable = |variable: VariableId| {
+            self.columns
+                .iter()
+                .position(|&(v, lag)| v == variable && lag == 0)
+                .and_then(|index| u32::try_from(index).ok())
+                .map(VariableId::from_raw)
+        };
+        let until = i32::try_from(n_steps.saturating_sub(1)).unwrap_or(i32::MAX);
+        self.columns
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, lag))| *lag > 0)
+            .filter_map(|(index, &(variable, lag))| {
+                let node = VariableId::from_raw(u32::try_from(index).ok()?);
+                let source = node_of_variable(variable)?;
+                Some(antecedent_core::SequencedIntervention::new(
+                    antecedent_core::Intervention::assign(
+                        node,
+                        antecedent_core::ValueExpr::lag(source, lag),
+                    ),
+                    antecedent_core::TemporalPolicy::Sustained { from: 0, until },
+                ))
+            })
+            .collect()
+    }
+
+    /// Longest template lag of the unfolding: the history a rollout reads.
+    pub(super) const fn history(&self) -> u32 {
+        self.history
+    }
+
+    /// The last `history` rows of `table` as the steps before time zero of a rollout of `n_rows`
+    /// parallel paths, most recent first, one batch per step over every node.
+    ///
+    /// # Errors
+    ///
+    /// A table with fewer rows than the history, or a missing column.
+    pub(super) fn initial_history(
+        &self,
+        table: &TabularData,
+        n_rows: usize,
+    ) -> Result<Vec<antecedent_model::ValueBatch>, CausalError> {
+        let n = table.row_count();
+        let history = usize::try_from(self.history).unwrap_or(usize::MAX);
+        if history > n {
+            return Err(CausalError::Compile {
+                message: "the rollout history is longer than the series".into(),
+            });
+        }
+        let nodes = self.columns.len();
+        let mut batches = Vec::with_capacity(history);
+        for step in 1..=history {
+            let row = n - step;
+            let mut values = Vec::with_capacity(nodes * n_rows);
+            for node in 0..nodes {
+                let id = VariableId::from_raw(u32::try_from(node).map_err(|_| {
+                    CausalError::Compile { message: "lag-aligned SCM exceeds u32 nodes".into() }
+                })?);
+                let value = table.float64_values(id)?[row];
+                values.extend(std::iter::repeat_n(value, n_rows));
+            }
+            batches.push(antecedent_model::ValueBatch {
+                n_rows,
+                n_nodes: nodes,
+                values: Arc::from(values),
+            });
+        }
+        Ok(batches)
+    }
+
     /// Block length of the unfolding's block resamples over `n` rows.
     pub(super) fn block_length(&self, n: usize) -> usize {
         let span = usize::try_from(self.history).unwrap_or(usize::MAX).saturating_add(1);

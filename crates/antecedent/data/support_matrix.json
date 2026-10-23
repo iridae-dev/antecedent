@@ -679,7 +679,7 @@
       "structures": null,
       "inferences": null,
       "validations": null,
-      "reason": "A contrast on a TemporalAdmg is not identified: the contemporaneous projection answers a different target than the Pulse/Sustained contrast, so ConditionalEffect on TemporalAdmg is refused. The typed refusal names the next attempts: TemporalConditionalPulse or TemporalConditionalSustained on a TemporalDag when the lag structure has no latent confounding, or the static Admg for the contemporaneous conditional effect."
+      "reason": "A ConditionalEffect on a TemporalAdmg reads tabular rows as the contemporaneous projection, which answers a different target than the temporal conditional contrast, so it is refused. The temporal conditional contrast is TemporalConditionalPulse or TemporalConditionalSustained on one series: it is identified by IDC on the unrolled window of the template and executes unlicensed (the TemporalAdmg rule below). The typed refusal names the next attempts: that temporal query on the series, TemporalConditionalPulse or TemporalConditionalSustained on a TemporalDag when the lag structure has no latent confounding, or the static Admg for the contemporaneous conditional effect."
     },
     {
       "queries": [
@@ -993,7 +993,39 @@
         "PulseEffect",
         "SustainedEffect",
         "TemporalConditionalPulse",
-        "TemporalConditionalSustained",
+        "TemporalConditionalSustained"
+      ],
+      "graph_classes": [
+        "TemporalAdmg"
+      ],
+      "structures": [
+        "explicit",
+        "accepted"
+      ],
+      "inferences": null,
+      "validations": [
+        "none"
+      ],
+      "reason": "A pulse, sustained or conditional contrast on one series under a TemporalAdmg is identified on the unrolled window of its template: the template is unrolled over the periods the policy needs (a cause that precedes the window is a latent common cause of its in-window effects), the complete ID algorithm identifies both sides of the contrast (IDC with the modifiers read at the first treated period for a conditional contrast), and the identified functional is evaluated by the discrete plug-in on the lag-aligned window table. Frequentist uncertainty resamples circular blocks of consecutive windows and Bayesian uncertainty shares one Dirichlet weight per block, never shorter than the window, because overlapping windows invalidate a row-level draw; the series is read as stationary over the template. The result keeps support status refused and discloses estimate.temporal_admg.window; no evidence row or coverage record names the cell. A window that holds a hedge is refused with the variables and periods that carry it, and a modifier a treated period can reach is refused. Discrete data only.",
+      "executes_unlicensed": true
+    },
+    {
+      "queries": [
+        "PulseEffect",
+        "SustainedEffect",
+        "TemporalConditionalPulse",
+        "TemporalConditionalSustained"
+      ],
+      "graph_classes": [
+        "TemporalAdmg"
+      ],
+      "structures": null,
+      "inferences": null,
+      "validations": null,
+      "reason": "The window contrast on a TemporalAdmg (the rule above) runs at validation none over one supplied or accepted graph. No native refuter suite exists for it, so cheap and full are refused, and a graph posterior over TemporalAdmg atoms has no window route. Next attempts: validation none, a supplied TemporalAdmg, or a TemporalDag when the lag structure has no latent confounding."
+    },
+    {
+      "queries": [
         "TemporalMediationEffect"
       ],
       "graph_classes": [
@@ -1002,7 +1034,7 @@
       "structures": null,
       "inferences": null,
       "validations": null,
-      "reason": "A temporal contrast on TemporalAdmg is not identified. The licensed TemporalAdmg functional is the contemporaneous ADMG projection. Pulse, sustained, temporal conditional, and temporal mediation stay on TemporalDag, TemporalCpdag, or TemporalPag."
+      "reason": "A temporal mediation contrast on TemporalAdmg is a cross-world contrast: the window-unrolled identification covers interventional contrasts only, and the recanting-district criterion for path-specific effects has not been derived on the unrolled window. Next attempts: TemporalMediationEffect on a TemporalDag or TemporalCpdag, or the pulse or sustained contrast on the TemporalAdmg, which executes unlicensed."
     },
     {
       "queries": [

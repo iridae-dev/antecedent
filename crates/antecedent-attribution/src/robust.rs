@@ -69,6 +69,36 @@ pub fn distribution_change_robust(
     options: &RobustChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    robust_impl(graph_model, data, query, options, None, ctx)
+}
+
+/// [`distribution_change_robust`] after refitting both populations under `refit`, the
+/// mechanism families held at the ones selected on the unweighted populations: one replicate
+/// of the row bootstrap (counts) or one draw of the posterior over the mechanisms (row
+/// weights).
+///
+/// # Errors
+///
+/// As [`distribution_change_robust`], and weights that do not match the resolved populations.
+pub fn distribution_change_robust_with_refit(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &RobustChangeOptions,
+    refit: &crate::distribution_change::PopulationRefit<'_>,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    robust_impl(graph_model, data, query, options, Some(refit), ctx)
+}
+
+fn robust_impl(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &RobustChangeOptions,
+    refit: Option<&crate::distribution_change::PopulationRefit<'_>>,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
     query.validate()?;
     require_mechanism_components(
         query.components,
@@ -90,16 +120,28 @@ pub fn distribution_change_robust(
     let outcome_dense = resolve_outcome_dense(graph_model, query.outcome)?;
     let players = mechanism_players(graph_model, outcome_dense, query.max_components)?;
 
-    let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
-        graph_model,
-        &baseline_data,
-        SelectionPolicy::BestScore,
-    )?;
-    let (comparison_mechs, _) = MechanismRegistry::standard().assign_and_fit(
-        graph_model,
-        &comparison_data,
-        SelectionPolicy::BestScore,
-    )?;
+    let (baseline_mechs, comparison_mechs) = match refit {
+        None => {
+            let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+                graph_model,
+                &baseline_data,
+                SelectionPolicy::BestScore,
+            )?;
+            let (comparison_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+                graph_model,
+                &comparison_data,
+                SelectionPolicy::BestScore,
+            )?;
+            (baseline_mechs, comparison_mechs)
+        }
+        Some(refit) => crate::distribution_change::refit_populations(
+            graph_model,
+            &baseline_data,
+            &comparison_data,
+            refit,
+            ctx,
+        )?,
+    };
 
     let all_linear = players.iter().all(|c| {
         model_slot_is_linear(&baseline_mechs, graph_model, c.variable())

@@ -202,6 +202,111 @@ pub(crate) fn distribution_change_with_fit_uncertainty(
     Ok(point)
 }
 
+/// Row weights for refitting both populations of a change attribution with the mechanism
+/// families held at the ones selected on the unweighted populations.
+#[derive(Clone, Copy, Debug)]
+pub enum PopulationRefit<'a> {
+    /// One continuous (Dirichlet) weight vector per population: the Bayesian bootstrap.
+    RowWeights {
+        /// Weights of the resolved baseline rows.
+        baseline: &'a [f64],
+        /// Weights of the resolved comparison rows.
+        comparison: &'a [f64],
+    },
+    /// One vector of bootstrap counts per population: the multinomial or block bootstrap.
+    Counts {
+        /// Counts of the resolved baseline rows.
+        baseline: &'a [f64],
+        /// Counts of the resolved comparison rows.
+        comparison: &'a [f64],
+    },
+}
+
+impl PopulationRefit<'_> {
+    fn parts(&self) -> (&[f64], &[f64], bool) {
+        match self {
+            Self::RowWeights { baseline, comparison } => (baseline, comparison, false),
+            Self::Counts { baseline, comparison } => (baseline, comparison, true),
+        }
+    }
+
+    /// Weights of the baseline population.
+    pub(crate) fn baseline(&self) -> &[f64] {
+        self.parts().0
+    }
+
+    /// Weights of the comparison population.
+    pub(crate) fn comparison(&self) -> &[f64] {
+        self.parts().1
+    }
+
+    /// Whether the weights are counts (zero allowed) rather than positive row weights.
+    pub(crate) fn is_counts(&self) -> bool {
+        self.parts().2
+    }
+}
+
+/// Refit `model` on `data` under `weights`, holding the selected `assignments`.
+pub(crate) fn refit_under_weights(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    assignments: &[antecedent_model::MechanismAssignment],
+    weights: &[f64],
+    counts: bool,
+    ctx: &ExecutionContext,
+) -> Result<CompiledMechanismStore, AttributionError> {
+    let registry = MechanismRegistry::standard();
+    Ok(if counts {
+        registry.refit_frequency_weighted_polled(model, data, assignments, weights, &|| {
+            ctx.cancellation.is_cancelled()
+        })?
+    } else {
+        registry.refit_weighted_polled(model, data, assignments, weights, &|| {
+            ctx.cancellation.is_cancelled()
+        })?
+    })
+}
+
+/// The mechanisms of both populations refit under `refit`, families held at the ones selected
+/// on the unweighted populations.
+pub(crate) fn refit_populations(
+    graph_model: &CompiledCausalModel,
+    baseline_data: &TabularData,
+    comparison_data: &TabularData,
+    refit: &PopulationRefit<'_>,
+    ctx: &ExecutionContext,
+) -> Result<(CompiledMechanismStore, CompiledMechanismStore), AttributionError> {
+    if refit.baseline().len() != baseline_data.row_count()
+        || refit.comparison().len() != comparison_data.row_count()
+    {
+        return Err(AttributionError::invalid_input(
+            "attribution refit weights must match resolved population sizes",
+        ));
+    }
+    let registry = MechanismRegistry::standard();
+    let (_, baseline_assignments) =
+        registry.assign_and_fit(graph_model, baseline_data, SelectionPolicy::BestScore)?;
+    let (_, comparison_assignments) =
+        registry.assign_and_fit(graph_model, comparison_data, SelectionPolicy::BestScore)?;
+    let baseline = refit_under_weights(
+        graph_model,
+        baseline_data,
+        &baseline_assignments,
+        refit.baseline(),
+        refit.is_counts(),
+        ctx,
+    )?;
+    let comparison = refit_under_weights(
+        graph_model,
+        comparison_data,
+        &comparison_assignments,
+        refit.comparison(),
+        refit.is_counts(),
+        ctx,
+    )?;
+    Ok((baseline, comparison))
+}
+
 fn distribution_change_on_populations(
     graph_model: &CompiledCausalModel,
     baseline_data: &TabularData,

@@ -298,6 +298,9 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
             }
         ),
     ),
+    # The live dataclass and the wire body spell every field alike (the interval and the
+    # posterior are nested records); an identified set carries its recomputable observed law.
+    "iv_bounds": _FamilySpec(),
     "history_match": _FamilySpec(
         exclude=frozenset({"calibration", "licensed", "calibration_measured", "support_status"}),
     ),

@@ -186,6 +186,8 @@ def route_method(route: dict) -> str:
 
 
 def route_design(route: dict) -> str:
+    if "counterpart_design" in route:
+        return route["counterpart_design"]
     named = id_design(route)
     if named is not None:
         return named
@@ -202,7 +204,19 @@ def route_inferences(route: dict) -> list[str]:
 
 
 def route_rows(routes: list[dict], lowerings: dict[str, str]) -> list[dict]:
-    """One row per quadrant of each licensed or closed route, grouped by its target."""
+    """One row per quadrant of each licensed or closed route, grouped by its target.
+
+    A route outside the dotted ``static``/``temporal`` id scheme is included when it declares its
+    ``counterpart_design``. ``narrowed_reason`` and ``narrowed_next_attempt`` narrow the rows of
+    the route's own target the way ``counterpart_reason`` narrows a counterpart's.
+
+    A route may also be the counterpart of another target (``counterpart_targets``): the
+    temporal side of mediation is the temporal mediation route, and a measurement correction on
+    a sequentially randomized panel is the temporal side of the measurement-corrected
+    functional. Each such target gets a row of its own, narrowed when the route declares a
+    ``counterpart_reason`` and a ``counterpart_next_attempt`` (the reduced claim, and what to
+    attempt next).
+    """
     rows = []
     for route in routes:
         if route["status"] not in ("licensed", "closed", "execution_only"):
@@ -210,8 +224,14 @@ def route_rows(routes: list[dict], lowerings: dict[str, str]) -> list[dict]:
         design = route_design(route)
         closed = route["status"] == "closed"
         inferences = route_inferences(route)
-        if route["status"] == "execution_only" and id_design(route) is None:
+        counterparts = route.get("counterpart_targets", [])
+        if (
+            route["status"] == "execution_only"
+            and id_design(route) is None
+            and "counterpart_design" not in route
+        ):
             continue
+        targets = [route_method(route), *counterparts]
         for inference in inferences:
             segment = uncertainty_segment(route["uncertainty"], inference)
             status = (
@@ -220,27 +240,40 @@ def route_rows(routes: list[dict], lowerings: dict[str, str]) -> list[dict]:
             )
             reason = route["notes"] if closed else ""
             weak = NO_INTERVAL.search(segment) is not None
-            rows.append(
-                {
-                    "id": f"{route['id']}#{design}.{inference}",
-                    "kind": "route",
-                    "method": route_method(route),
-                    "design": design,
-                    "inference": inference,
-                    "route": route["id"],
-                    "status": status,
-                    "uncertainty": uncertainty_kind(inference, status, "", segment, route["id"]),
-                    "sampling_design": route["design_time_model"],
-                    "reuse_key": lowerings.get(route["id"], route["id"]),
-                    "decision_port": route["decision_ports"],
-                    "artifact": route["artifact_consumer"],
-                    "closure": "narrowed_promise" if closed or weak else "delivered",
-                    "scope_status": "mandatory",
-                    "gap": "target" if closed else ("validation" if weak else "none"),
-                    "reason": reason or (segment.strip()[:300] if weak else ""),
-                    "next_attempt": CLOSED_ROUTE_NEXT if closed else (NEXT_ATTEMPT["validation"] if weak else ""),
-                }
-            )
+            for target in targets:
+                derived = target != route_method(route)
+                reason_key = "counterpart_reason" if derived else "narrowed_reason"
+                attempt_key = "counterpart_next_attempt" if derived else "narrowed_next_attempt"
+                narrowed = reason_key in route
+                suffix = f">{target}" if derived else ""
+                rows.append(
+                    {
+                        "id": f"{route['id']}#{design}.{inference}{suffix}",
+                        "kind": "route",
+                        "method": target,
+                        "design": design,
+                        "inference": inference,
+                        "route": route["id"],
+                        "status": status,
+                        "uncertainty": uncertainty_kind(inference, status, "", segment, route["id"]),
+                        "sampling_design": route["design_time_model"],
+                        "reuse_key": lowerings.get(route["id"], route["id"]),
+                        "decision_port": route["decision_ports"],
+                        "artifact": route["artifact_consumer"],
+                        "closure": "narrowed_promise" if closed or weak or narrowed else "delivered",
+                        "scope_status": "mandatory",
+                        "gap": "target" if closed else ("validation" if weak or narrowed else "none"),
+                        "reason": (
+                            route[reason_key] if narrowed
+                            else reason or (segment.strip()[:300] if weak else "")
+                        ),
+                        "next_attempt": (
+                            route[attempt_key] if narrowed
+                            else CLOSED_ROUTE_NEXT if closed
+                            else (NEXT_ATTEMPT["validation"] if weak else "")
+                        ),
+                    }
+                )
     return rows + static_boundaries(rows)
 
 
@@ -394,12 +427,12 @@ def main() -> int:
     rows = build()
     toml_text, doc_text = render_toml(rows), render_doc(rows)
     if "--check" in sys.argv[1:]:
-        stale = [p for p, t in ((OUT_TOML, toml_text), (OUT_DOC, doc_text)) if not p.exists() or p.read_text() != t]
+        stale = [p for p, t in ((OUT_TOML, toml_text), (OUT_DOC, doc_text)) if not p.exists() or p.read_text(encoding="utf-8") != t]
         for path in stale:
             print(f"{path.relative_to(ROOT)} is stale; run python3 scripts/generate_counterparts.py")
         return 1 if stale else 0
-    OUT_TOML.write_text(toml_text)
-    OUT_DOC.write_text(doc_text)
+    OUT_TOML.write_text(toml_text, encoding="utf-8")
+    OUT_DOC.write_text(doc_text, encoding="utf-8")
     print(f"wrote {len(rows)} rows to {OUT_TOML.relative_to(ROOT)} and {OUT_DOC.relative_to(ROOT)}")
     return 0
 

@@ -1,0 +1,28 @@
+feature_id = "discovery.bootstrap_stability"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Bootstrap methods: another look at the jackknife", sections = ["the nonparametric bootstrap of an arbitrary statistic by resampling the observed rows with replacement"] },
+ { title = "A circular block-resampling procedure for stationary data", sections = ["resampling a stationary dependent series in circular blocks to keep its serial dependence"] },
+ { title = "Stability selection", sections = ["selection frequencies of a procedure across subsamples as a measure of the stability of what it selects"] },
+]
+
+implementation_deviations = [
+ "The frequencies are a bootstrap distribution of the search over resamples of the whole data, not stability selection over half-size subsamples with a selection threshold and an error-control bound; no threshold is applied and no finite-sample error bound is claimed.",
+ "The resample follows the declared sampling design: rows with replacement for independent subjects, circular blocks (length the larger of the lag span and the cube root of the series length) for a dependent series, whole units with replacement for a panel; a clustered design on a single table, a dependent-series design on a table and an independent-subject design on one series are refused rather than resampled as rows.",
+ "A circular-block resample of a lagged search joins blocks at seams, so a lag window that straddles a seam pairs values that were not observed together; the block length keeps that share of windows small and the share is not corrected.",
+ "A resample on which the search fails is counted as failed mass and never redrawn; the table is published only when at least half the requested resamples and at least two returned a structure.",
+ "The coverage of the frequencies as an estimate of the search's sampling law is not measured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/stability.rs unit tests (hand-built CPDAG resamples with known pair, mark and whole-structure frequencies)",
+ "crates/antecedent/tests/structure_uncertainty_routes.rs (compiled stability searches over a table, a series and a panel against the engines on the same fixtures)",
+ "python/tests/test_structure_uncertainty_routes.py",
+]

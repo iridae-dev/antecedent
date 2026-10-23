@@ -12,7 +12,8 @@
 
 use antecedent_core::{CanonicalWriter, NodeRef, VariableId};
 use antecedent_graph::{
-    Cpdag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TemporalDag,
+    Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TemporalDag,
+    TemporalPag,
 };
 
 use super::identity::Digest;
@@ -31,6 +32,8 @@ pub enum StructureClass {
     TemporalDag,
     /// Temporal CPDAG (contemporaneous links oriented up to equivalence).
     TemporalCpdag,
+    /// Temporal partial ancestral graph (latent confounding allowed).
+    TemporalPag,
 }
 
 named_variants! {
@@ -39,6 +42,7 @@ named_variants! {
         Pag => "pag",
         TemporalDag => "temporal_dag",
         TemporalCpdag => "temporal_cpdag",
+        TemporalPag => "temporal_pag",
     }
 }
 
@@ -49,6 +53,7 @@ impl StructureClass {
             Self::Pag => 1,
             Self::TemporalDag => 2,
             Self::TemporalCpdag => 3,
+            Self::TemporalPag => 4,
         }
     }
 
@@ -286,6 +291,13 @@ impl DiscoveredStructure {
         Self::finish(StructureClass::Cpdag, graph.nodes(), edges)
     }
 
+    /// From a static DAG, held as the CPDAG whose every edge is directed: a DAG search names
+    /// one graph, and this form tabulates its edges with the classes' canonical identity.
+    #[must_use]
+    pub fn from_dag(graph: &Dag) -> Self {
+        Self::from_cpdag(&Cpdag::from_dag(graph))
+    }
+
     /// From a static PAG.
     #[must_use]
     pub fn from_pag(graph: &Pag) -> Self {
@@ -315,6 +327,23 @@ impl DiscoveredStructure {
     pub fn from_temporal_cpdag(graph: &TemporalCpdag) -> Self {
         let edges = collect_edges(graph.nodes(), graph.edges());
         Self::finish(StructureClass::TemporalCpdag, graph.nodes(), edges)
+    }
+
+    /// From a temporal PAG.
+    #[must_use]
+    pub fn from_temporal_pag(graph: &TemporalPag) -> Self {
+        let nodes = graph.nodes();
+        let mut collected = Vec::new();
+        for i in 0..graph.node_count() {
+            for j in (i + 1)..graph.node_count() {
+                if let Some(edge) =
+                    graph.edge_between(DenseNodeId::from_index(i), DenseNodeId::from_index(j))
+                {
+                    collected.push(edge);
+                }
+            }
+        }
+        Self::finish(StructureClass::TemporalPag, nodes, collect_edges(nodes, collected))
     }
 
     /// Rebuild from parts already in canonical order (an artifact consumer).

@@ -22,6 +22,7 @@ COPIED = (
     "parity/python_facade_surface.toml",
     "python/antecedent/estimation.py",
     "python/antecedent/identify.py",
+    "python/src/bounds_api.rs",
 )
 
 
@@ -98,9 +99,31 @@ def main() -> None:
         other.write_text("from ._native import _identify_structure\n", encoding="utf-8")
         if not compiler_bypass_problems(destination):
             failures.append("python native imported outside its wrapper")
+    with tempfile.TemporaryDirectory() as scratch:
+        destination = Path(scratch)
+        overlay(destination)
+        wrapper = destination / "python/antecedent/identify.py"
+        wrapper.write_text(
+            wrapper.read_text(encoding="utf-8")
+            + "\nfrom ._native import _binary_iv_ate_bounds\n",
+            encoding="utf-8",
+        )
+        if not compiler_bypass_problems(destination):
+            failures.append("retired binary-IV native named again in its wrapper")
+    with tempfile.TemporaryDirectory() as scratch:
+        destination = Path(scratch)
+        overlay(destination)
+        native = destination / "python/src/bounds_api.rs"
+        native.write_text(
+            native.read_text(encoding="utf-8")
+            + '\n#[pyfunction(name = "_binary_iv_ate_bounds")]\nfn again() {}\n',
+            encoding="utf-8",
+        )
+        if not compiler_bypass_problems(destination):
+            failures.append("retired binary-IV native exported again by the extension")
     if failures:
         raise SystemExit("FAIL: the bypass check missed: " + ", ".join(failures))
-    print(f"ok: compiler-bypass check passes on the repo and catches {len(cases) + 1} reopenings")
+    print(f"ok: compiler-bypass check passes on the repo and catches {len(cases) + 3} reopenings")
 
 
 if __name__ == "__main__":

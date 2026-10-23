@@ -27,7 +27,9 @@ from .graph_falsification import GraphFalsification, MarkovImplicationTest, eval
 from .intrinsic_influence import (
     ComponentUncertainty,
     IntrinsicInfluence,
+    MechanismPosterior,
     SourceInfluence,
+    SourcePosterior,
     fitted_intrinsic_influence,
     intrinsic_influence,
 )
@@ -152,7 +154,9 @@ __all__ = [
     "GraphFalsification",
     "IntrinsicInfluence",
     "MarkovImplicationTest",
+    "MechanismPosterior",
     "SourceInfluence",
+    "SourcePosterior",
     "anomaly_attribution_discovered",
     "attribute_distribution_change_discovered",
     "attribute_paths_discovered",

@@ -42,12 +42,12 @@ use crate::discovery::{
     BayesianDiscoverParams, CiSoftWeight, CpdagDiscoveryResult, DagDiscoveryResult, DiscoverParams,
     ExactDagMarginals, GraphMcmcSchedule, GraphPosterior, NotearsDiscoveryResult,
     PagDiscoveryResult, RegimeAssignment, RpcmciDiscoveryResult, StaticCpdagDiscoveryResult,
-    StaticDagDiscoveryResult, StaticDiscoverParams, StaticPagDiscoveryResult,
+    StaticDagDiscoveryResult, StaticDiscoverParams, StaticPagDiscoveryResult, StructureStability,
 };
 use crate::error::CausalError;
 use crate::gcm::{
     AnomalyScores, ChangeAttributionResult, DifferenceMeasure, DistributionChangeOptions,
-    FeatureRelevance, FittedGcm, IntrinsicAllocation, IntrinsicInfluenceQuery,
+    FeatureRelevance, FitResampling, FittedGcm, IntrinsicAllocation, IntrinsicInfluenceQuery,
     IntrinsicInfluenceResult, IteResult, MechanismAssignment, MechanismChangeDetection,
     MechanismChangeMethod, MechanismRegistry, NoiseIndependence, PolicyValue, RobustChangeOptions,
     RootCauseRank, SelectionOptions, UnitChangeResult,
@@ -234,6 +234,13 @@ impl DiscoverySpec {
         Self::new(DiscoveryMethod::ExactDagPosterior, SearchParams::Bayesian(params), "none")
     }
 
+    /// Exact posterior over PAG classes of the Gaussian maximal ancestral graphs of at most four
+    /// variables (latent confounding allowed), the Bayesian counterpart of FCI and RFCI.
+    #[must_use]
+    pub fn exact_pag_posterior(params: BayesianDiscoverParams) -> Self {
+        Self::new(DiscoveryMethod::ExactPagPosterior, SearchParams::Bayesian(params), "none")
+    }
+
     /// Exact DAG posterior edge marginals.
     #[must_use]
     pub fn exact_dag_marginals(params: BayesianDiscoverParams) -> Self {
@@ -306,10 +313,87 @@ impl DiscoverySpec {
         spec
     }
 
+    /// The posterior over Markov equivalence classes this DAG-posterior search induces.
+    ///
+    /// The search runs unchanged; every DAG it lists is replaced by its CPDAG and the mass
+    /// of the DAGs that share one is summed, so the answer is a posterior whose atoms are
+    /// classes. The base must list its graphs: an exact, order-MCMC, structure-MCMC or
+    /// CI-screened posterior. Any other base is refused when the study compiles.
+    #[must_use]
+    pub fn equivalence_classes(self) -> Self {
+        let method = DiscoveryMethod::ClassPosterior { base: Box::new(self.method.clone()) };
+        Self { method, ..self }
+    }
+
+    /// The sampling distribution of this frequentist search over `replicates` resamples.
+    ///
+    /// The search is re-run on resamples drawn under the study's declared sampling design
+    /// (independent subjects: rows; a dependent series: circular blocks; a panel: whole
+    /// units), and the answer tabulates how often each node pair was adjacent, carried each
+    /// pair of endpoint marks, and how often each whole structure came back. The base is PC,
+    /// FCI, RFCI, GES, `DirectLiNGAM`, NOTEARS, PCMCI or PCMCI+; any other base is refused
+    /// when the study compiles.
+    #[must_use]
+    pub fn bootstrap_stability(self, replicates: u32) -> Self {
+        let method =
+            DiscoveryMethod::BootstrapStability { base: Box::new(self.method.clone()), replicates };
+        Self { method, ..self }
+    }
+
     /// The search method.
     #[must_use]
     pub const fn method(&self) -> &DiscoveryMethod {
         &self.method
+    }
+
+    /// The same configuration with the wrapper removed: the search a class posterior
+    /// collapses or a stability search re-runs.
+    pub(crate) fn unwrapped(&self) -> Option<Self> {
+        match &self.method {
+            DiscoveryMethod::ClassPosterior { base }
+            | DiscoveryMethod::BootstrapStability { base, .. } => {
+                Some(Self { method: (**base).clone(), ..self.clone() })
+            }
+            _ => None,
+        }
+    }
+
+    /// The regime labels of a regime-PCMCI search.
+    pub(crate) fn regime_assignment(&self) -> Option<&RegimeAssignment> {
+        self.regimes.as_ref()
+    }
+
+    /// The same search over other regime labels.
+    pub(crate) fn with_regime_assignment(&self, regimes: RegimeAssignment) -> Self {
+        Self { regimes: Some(regimes), ..self.clone() }
+    }
+
+    /// Resamples a stability search draws, or `None` for any other search.
+    pub(crate) const fn stability_replicates(&self) -> Option<u32> {
+        match &self.method {
+            DiscoveryMethod::BootstrapStability { replicates, .. } => Some(*replicates),
+            _ => None,
+        }
+    }
+
+    /// The marginal-likelihood name a Bayesian search's program declares: the Gaussian BIC
+    /// score unless the posterior was built under the Laplace-noise score.
+    pub(crate) fn score_label(&self) -> &'static str {
+        let family = match &self.search {
+            SearchParams::Bayesian(params) | SearchParams::Screened { bayesian: params, .. } => {
+                Some(params.score_family)
+            }
+            _ => None,
+        };
+        if matches!(self.method, DiscoveryMethod::ExactPagPosterior) {
+            return "discovery.gaussian_mag_bic_marginal";
+        }
+        match family {
+            Some(antecedent_state::GraphScoreFamily::LaplaceBic) => {
+                "discovery.laplace_bic_marginal"
+            }
+            _ => "discovery.gaussian_bic_marginal",
+        }
     }
 
     /// The label of the conditional-independence test (`none` for a search that tests nothing).
@@ -624,6 +708,10 @@ pub enum DiscoveredStructure {
     Posterior(GraphPosterior),
     /// Exact posterior edge marginals.
     EdgeMarginals(ExactDagMarginals),
+    /// The sampling distribution of a frequentist search over resamples.
+    Stability(StructureStability),
+    /// The sampling distribution of regime PCMCI: one table per labelled regime.
+    RegimeStability(Vec<(antecedent_core::RegimeId, StructureStability)>),
 }
 
 impl DiscoveredStructure {
@@ -641,6 +729,7 @@ impl DiscoveredStructure {
             Self::Regimes(result) => Some(&*result.algorithm.id),
             Self::Posterior(posterior) => posterior.algorithm.as_deref(),
             Self::EdgeMarginals(_) => Some("exact_dag_marginals"),
+            Self::Stability(_) | Self::RegimeStability(_) => Some("bootstrap_stability"),
         }
     }
 
@@ -655,7 +744,11 @@ impl DiscoveredStructure {
             Self::TemporalDag(result) => result.review.pending_edges.len(),
             Self::TemporalCpdag(result) => result.review.pending_edges.len(),
             Self::TemporalPag(result) => result.review.pending_circles.len(),
-            Self::Regimes(_) | Self::Posterior(_) | Self::EdgeMarginals(_) => 0,
+            Self::Regimes(_)
+            | Self::Posterior(_)
+            | Self::EdgeMarginals(_)
+            | Self::Stability(_)
+            | Self::RegimeStability(_) => 0,
         };
         count as u64
     }
@@ -721,6 +814,14 @@ impl DiscoveredStructure {
                     "a regime collection, structure posterior or edge marginals is not one \
                      structure; analyse a posterior with StudyBuilder::graph_posterior, or \
                      accept one regime's graph"
+                ));
+            }
+            Self::Stability(_) | Self::RegimeStability(_) => {
+                return Err(crate::unsupported_reason!(
+                    "route_not_supported",
+                    "a stability table is the sampling distribution of a search, not one \
+                     structure; accept the structure the search returns on the full sample by \
+                     running that search itself, and read this table beside it"
                 ));
             }
         };
@@ -928,9 +1029,30 @@ pub(crate) fn run_discovery(
     spec: &DiscoverySpec,
     query: &DiscoverQuery,
     data: &DiscoverData<'_>,
+    design: Option<antecedent_core::DeclaredSamplingDesign>,
     ctx: &ExecutionContext,
 ) -> Result<DiscoveredStructure, CausalError> {
     use crate::discovery as engine;
+    if let Some(inner) = spec.unwrapped() {
+        // A wrapper runs the search it wraps and reads its answer.
+        return match spec.stability_replicates() {
+            Some(replicates) => super::structure_stability::run_stability(
+                &inner, replicates, query, data, design, ctx,
+            ),
+            None => match run_discovery(&inner, query, data, design, ctx)? {
+                DiscoveredStructure::Posterior(posterior) => {
+                    Ok(DiscoveredStructure::Posterior(posterior.to_equivalence_classes()?))
+                }
+                other => Err(crate::compile_reason!(
+                    "route_not_supported",
+                    "the {} search returned no listed graphs to collapse into equivalence \
+                     classes (it returned {})",
+                    spec.method().id(),
+                    other.algorithm_id().unwrap_or("no structure")
+                )),
+            },
+        };
+    }
     let vars: &[VariableId] = &query.variables;
     Ok(match (&spec.method, &spec.search, data) {
         (DiscoveryMethod::Pc, SearchParams::Static(p), DiscoverData::Tabular(d)) => {
@@ -1028,6 +1150,11 @@ pub(crate) fn run_discovery(
             DiscoverData::Tabular(d),
         ) => DiscoveredStructure::Posterior(engine::discover_exact_dag_posterior(d, vars, b, ctx)?),
         (
+            DiscoveryMethod::ExactPagPosterior,
+            SearchParams::Bayesian(_),
+            DiscoverData::Tabular(d),
+        ) => DiscoveredStructure::Posterior(engine::discover_exact_pag_posterior(d, vars, ctx)?),
+        (
             DiscoveryMethod::ExactDagMarginals,
             SearchParams::Bayesian(b),
             DiscoverData::Tabular(d),
@@ -1110,7 +1237,7 @@ pub(crate) fn model_quote(target_rows: u64, nodes: u64, draws: u64) -> u64 {
     target_rows.max(draws).saturating_mul(nodes.max(1)).saturating_mul(CELL_BYTES).saturating_mul(3)
 }
 
-fn difference_measure(measure: ChangeMeasure) -> DifferenceMeasure {
+pub(crate) fn difference_measure(measure: ChangeMeasure) -> DifferenceMeasure {
     match measure {
         ChangeMeasure::MeanDifference => DifferenceMeasure::MeanDiff,
         ChangeMeasure::VarianceDifference => DifferenceMeasure::VarianceDiff,
@@ -1172,14 +1299,144 @@ fn noise_structure(
     Ok(admg)
 }
 
-/// Run the attribution `query` states on `fitted`, with the engine every
-/// `attribute_*` entry runs.
+/// The mechanism-fit refits an attribution carries: how many and how they weight the rows.
+///
+/// The study's inference mode sets it (a posterior over the mechanisms under Bayesian
+/// inference), so the query itself, whose identity is canonical, does not change with it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct AttributionFit {
+    /// Refits to run.
+    pub(crate) replicates: u32,
+    /// The row weighting of each refit.
+    pub(crate) resampling: FitResampling,
+}
+
+/// The named scalar quantities of a change attribution: its total, one entry per component, and
+/// one per path when it decomposes along paths.
+pub(crate) fn change_quantities(result: &ChangeAttributionResult) -> Vec<(String, f64)> {
+    let mut values = vec![("total_change".to_owned(), result.total_change)];
+    values.extend(
+        result
+            .contributions
+            .iter()
+            .map(|c| (format!("component[{}]", c.component.variable().raw()), c.contribution)),
+    );
+    values.extend(result.path_breakdown.iter().map(|path| {
+        let nodes: Vec<String> = path.path.iter().map(|v| v.raw().to_string()).collect();
+        (format!("path[{}]", nodes.join(">")), path.contribution)
+    }));
+    values
+}
+
+/// The named scalar quantities of a temporal rollout: the mean over its paths of each of the first
+/// `nodes` variables at each step, in step-major order. `None` for the other simulation outcomes.
+pub(crate) fn simulation_quantities(
+    outcome: &SimulationOutcome,
+    nodes: usize,
+) -> Option<Vec<(String, f64)>> {
+    let SimulationOutcome::Temporal(path) = outcome else {
+        return None;
+    };
+    let limit = nodes.min(path.n_nodes);
+    let mut out = Vec::with_capacity(path.steps.len() * limit);
+    for (step, batch) in path.steps.iter().enumerate() {
+        for node in 0..limit {
+            let column = batch.column(node).ok()?;
+            let mean = column.iter().sum::<f64>() / column.len().max(1) as f64;
+            out.push((format!("step[{step}].node[{node}]"), mean));
+        }
+    }
+    Some(out)
+}
+
+/// The named scalar quantities of an attribution under the row `weights` of a replicate (the
+/// anomaly scores average under them), or `None` for an outcome without scalar quantities
+/// (intrinsic influence returns its own refits; a detection is a test).
+pub(crate) fn attribution_quantities_weighted(
+    outcome: &AttributionOutcome,
+    weights: &[f64],
+) -> Option<Vec<(String, f64)>> {
+    Some(match outcome {
+        AttributionOutcome::Change(result) => change_quantities(result),
+        AttributionOutcome::RootCauses { attribution, .. } => change_quantities(attribution),
+        AttributionOutcome::FeatureRelevance(features) => {
+            features.iter().map(|f| (format!("feature[{}]", f.feature.raw()), f.score)).collect()
+        }
+        AttributionOutcome::Anomaly(scores) => scores
+            .iter()
+            .map(|s| {
+                let (mut numerator, mut denominator) = (0.0_f64, 0.0_f64);
+                for (score, &row) in s.scores.iter().zip(s.rows.iter()) {
+                    let weight = weights.get(row).copied().unwrap_or(0.0);
+                    numerator += weight * score;
+                    denominator += weight;
+                }
+                let mean = if denominator > 0.0 { numerator / denominator } else { f64::NAN };
+                (format!("mean_anomaly_score[{}]", s.target.raw()), mean)
+            })
+            .collect(),
+        AttributionOutcome::UnitChange(result) => result
+            .components
+            .iter()
+            .zip(result.mean_contributions.iter())
+            .map(|(component, mean)| (format!("unit_mean[{}]", component.raw()), *mean))
+            .collect(),
+        AttributionOutcome::IntrinsicInfluence(result) => result
+            .sources
+            .iter()
+            .map(|source| (format!("source[{}]", source.source.raw()), source.contribution))
+            .collect(),
+        _ => return None,
+    })
+}
+
+/// The named scalar quantities of an attribution at its point answer, in the order its posterior
+/// and bootstrap columns use: a change's total, components and paths; feature scores; the mean
+/// anomaly score per target; the mean unit contributions; each source's variance share. `None`
+/// for a mechanism-change detection, which is a test and has no scalar quantities.
+#[must_use]
+pub fn attribution_quantities(outcome: &AttributionOutcome) -> Option<Vec<(String, f64)>> {
+    let rows = match outcome {
+        AttributionOutcome::Anomaly(scores) => {
+            scores.iter().flat_map(|s| s.rows.iter().copied()).max().map_or(0, |max| max + 1)
+        }
+        _ => 0,
+    };
+    attribution_quantities_weighted(outcome, &vec![1.0; rows])
+}
+
+/// The compiled model of the comparison structure a structure-change attribution declares, over
+/// the variables of `graph`.
+///
+/// # Errors
+///
+/// A model with more nodes than a node id holds, or a comparison edge the graph refuses.
+pub(crate) fn structure_comparison_model(
+    graph: &Dag,
+    comparison: &[(VariableId, VariableId)],
+) -> Result<crate::gcm::CompiledCausalModel, CausalError> {
+    let nodes = u32::try_from(graph.node_count()).map_err(|_| CausalError::Resource {
+        message: "the model has more nodes than a node id holds".into(),
+    })?;
+    let mut comparison_graph = Dag::with_variables(nodes);
+    for (from, to) in comparison {
+        comparison_graph
+            .insert_directed(DenseNodeId::from_raw(from.raw()), DenseNodeId::from_raw(to.raw()))
+            .map_err(CausalError::rejected)?;
+    }
+    Ok(crate::gcm::CompiledCausalModel::compile(comparison_graph)?)
+}
+
+/// Run the attribution `query` states on `fitted`, with the engine every `attribute_*` entry
+/// runs. The mechanism-fit refits of an intrinsic-influence target are the query's own unless
+/// `fit` sets them.
 #[allow(clippy::too_many_lines, reason = "one exhaustive match over every attribution target")]
-pub(crate) fn run_attribute(
+pub(crate) fn run_attribute_with_fit(
     fitted: &FittedGcm,
     graph: &Dag,
     data: &TabularData,
     query: &AttributeQuery,
+    fit: Option<AttributionFit>,
     ctx: &ExecutionContext,
 ) -> Result<AttributionOutcome, CausalError> {
     Ok(match &query.target {
@@ -1205,7 +1462,8 @@ pub(crate) fn run_attribute(
             let engine_query = IntrinsicInfluenceQuery::new(target.target)
                 .with_allocation(allocation)
                 .with_simulation(target.outer_draws, target.inner_draws, target.replicates)
-                .with_fit_bootstrap(target.fit_bootstrap_replicates)
+                .with_fit_bootstrap(fit.map_or(target.fit_bootstrap_replicates, |f| f.replicates))
+                .with_fit_resampling(fit.map_or(FitResampling::RowBootstrap, |f| f.resampling))
                 .with_level(target.level)
                 .with_max_sources(target.max_sources)
                 .with_seed(target.seed);
@@ -1268,19 +1526,7 @@ pub(crate) fn run_attribute(
             crate::gcm::attribute_unit_change(&fitted.model, data, unit, ctx)?,
         ),
         AttributeTarget::StructureChange { change, comparison, measure, n_samples, seed } => {
-            let nodes = u32::try_from(graph.node_count()).map_err(|_| CausalError::Resource {
-                message: "the model has more nodes than a node id holds".into(),
-            })?;
-            let mut comparison_graph = Dag::with_variables(nodes);
-            for (from, to) in comparison.iter() {
-                comparison_graph
-                    .insert_directed(
-                        DenseNodeId::from_raw(from.raw()),
-                        DenseNodeId::from_raw(to.raw()),
-                    )
-                    .map_err(CausalError::rejected)?;
-            }
-            let comparison_model = crate::gcm::CompiledCausalModel::compile(comparison_graph)?;
+            let comparison_model = structure_comparison_model(graph, comparison)?;
             AttributionOutcome::Change(crate::gcm::attribute_structure_change(
                 &fitted.model,
                 &comparison_model,

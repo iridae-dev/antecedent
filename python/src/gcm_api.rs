@@ -796,7 +796,7 @@ impl PyFittedGcm {
     /// Intrinsic causal influence of the noise terms upstream of `target` on its variance, from
     /// this fitted model (nothing is refitted, except the row-bootstrap refits `fit_bootstrap`
     /// asks for). Returns the result as JSON; see `antecedent.intrinsic_influence`.
-    #[pyo3(signature = (target, *, independent_noise=false, bidirected_edges=None, allocation="auto", n_permutations=200, outer_draws=200, inner_draws=40, replicates=4, fit_bootstrap=0, level=0.95, max_sources=64, seed=0, threads=None, cancel=None))]
+    #[pyo3(signature = (target, *, independent_noise=false, bidirected_edges=None, allocation="auto", n_permutations=200, outer_draws=200, inner_draws=40, replicates=4, fit_bootstrap=0, posterior_draws=0, level=0.95, max_sources=64, seed=0, threads=None, cancel=None))]
     #[allow(clippy::too_many_arguments, reason = "keyword options of one Python call")]
     fn attribute_intrinsic_influence(
         &self,
@@ -810,6 +810,7 @@ impl PyFittedGcm {
         inner_draws: usize,
         replicates: usize,
         fit_bootstrap: u32,
+        posterior_draws: usize,
         level: f64,
         max_sources: usize,
         seed: u64,
@@ -828,6 +829,7 @@ impl PyFittedGcm {
                 inner_draws,
                 replicates,
                 fit_bootstrap,
+                posterior_draws,
                 level,
                 max_sources,
                 seed,

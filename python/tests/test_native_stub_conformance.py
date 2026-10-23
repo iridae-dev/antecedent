@@ -229,7 +229,6 @@ _WRAPPED_PRIVATE_NATIVES = {
     "_identify_ate",
     "_identify_ate_admg",
     "_identify_structure",
-    "_binary_iv_ate_bounds",
 }
 
 def test_wrapped_private_natives_exist_and_are_stubbed():

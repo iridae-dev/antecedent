@@ -832,8 +832,20 @@ fn repeated_variable_temporal_admg_is_refused() {
 
 #[test]
 fn temporal_admg_temporal_contrasts_are_typed_boundaries() {
-    // A pulse, sustained or temporal conditional contrast on a TemporalAdmg is closed in every
-    // structure and inference coordinate, while the contemporaneous projection is licensed.
+    // A pulse, sustained or temporal conditional contrast on a TemporalAdmg executes on its
+    // unrolled window but is never licensed (the `window_contrast` tests run it), while the
+    // contemporaneous projection is licensed. Temporal mediation stays a refusal.
+    let mediation = antecedent::support::classify(
+        SupportCell::from_labels(
+            "TemporalMediationEffect",
+            "TemporalAdmg",
+            "explicit",
+            "Frequentist",
+            "none",
+        )
+        .expect("support axis"),
+    );
+    assert!(matches!(mediation, CellStatus::Refused), "{mediation:?}");
     for query in ["PulseEffect", "SustainedEffect", "TemporalConditionalPulse"] {
         for structure in ["explicit", "accepted"] {
             for inference in ["Frequentist", "Bayesian"] {
@@ -1032,5 +1044,305 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
         assert!(bayesian_refused.to_string().contains("Next attempt"), "{bayesian_refused}");
         let point = projected_ate(&data, &temporal, (false, 0), Some(design), &ctx).unwrap();
         assert!((point.effect() - expected).abs() < 1e-9);
+    }
+}
+
+/// Pulse, sustained and conditional contrasts on one series under a `TemporalAdmg`: the template
+/// is unrolled over the periods the policy needs, the contrast is identified on that window, and
+/// the identified functional is evaluated on the lag-aligned window table. The cell executes
+/// unlicensed; the expected values below are counted from the series, not from the engine.
+mod window_contrast {
+    use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study, StudyResult};
+    use antecedent_core::{
+        DeclaredSamplingDesign, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy,
+        VariableId,
+    };
+    use antecedent_data::TimeSeriesData;
+    use antecedent_graph::TemporalAdmg;
+    use antecedent_io::consume_analysis_result;
+
+    const DISCLOSURE: &str = "estimate.temporal_admg.window";
+
+    fn v(raw: u32) -> VariableId {
+        VariableId::from_raw(raw)
+    }
+
+    /// `x(t-1) -> y(t)` and `w(t-1) -> y(t)`; optionally `x(t-1) <-> y(t)`.
+    fn template(confounded: bool) -> TemporalAdmg {
+        let mut graph = TemporalAdmg::empty();
+        let x1 = graph.add_lagged(v(0), Lag::from_raw(1)).unwrap();
+        let w1 = graph.add_lagged(v(2), Lag::from_raw(1)).unwrap();
+        let y0 = graph.add_lagged(v(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(x1, y0).unwrap();
+        graph.insert_directed(w1, y0).unwrap();
+        if confounded {
+            graph.insert_bidirected(x1, y0).unwrap();
+        }
+        graph
+    }
+
+    /// A deterministic bit stream.
+    fn bits(len: usize, seed: u32) -> Vec<f64> {
+        let mut state = seed;
+        (0..len)
+            .map(|_| {
+                state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                f64::from((state >> 16) & 1)
+            })
+            .collect()
+    }
+
+    /// `y(t) = x(t-1)` where `w(t-1) = 1` and `0` elsewhere, flipped at four times.
+    fn series(len: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>, TimeSeriesData) {
+        let x = bits(len, 0x9E37_79B9);
+        let w = bits(len, 0x85EB_CA6B);
+        let y: Vec<f64> = (0..len)
+            .map(|t| {
+                let drive = if t > 0 && w[t - 1] == 1.0 { x[t - 1] } else { 0.0 };
+                if [9, 33, 71, 120].contains(&t) { 1.0 - drive } else { drive }
+            })
+            .collect();
+        let data = TimeSeriesData::from_f64_columns(
+            [("x", x.as_slice()), ("y", y.as_slice()), ("w", w.as_slice())],
+            1,
+        )
+        .unwrap();
+        (x, y, w, data)
+    }
+
+    /// The treatment at time `t` on the outcome at time `t + 1`.
+    fn next_period() -> TemporalEffectQuery {
+        TemporalEffectQuery::pulse(v(0), v(1), 1.0).with_horizon_steps(2)
+    }
+
+    fn study(
+        data: &TimeSeriesData,
+        graph: TemporalAdmg,
+        query: TemporalEffectQuery,
+        inference: InferenceMode,
+        replicates: u32,
+    ) -> Study {
+        Study::series(data.clone())
+            .graph(graph)
+            .temporal_query(query)
+            .inference(inference)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(replicates)
+            .build()
+            .unwrap()
+    }
+
+    /// `E[y(t+1) | x(t) = 1] - E[y(t+1) | x(t) = 0]` over the window positions.
+    fn counted_contrast(x: &[f64], y: &[f64]) -> f64 {
+        let mean = |level: f64| {
+            let rows: Vec<f64> =
+                (1..x.len() - 1).filter(|t| x[*t] == level).map(|t| y[t + 1]).collect();
+            rows.iter().sum::<f64>() / rows.len() as f64
+        };
+        mean(1.0) - mean(0.0)
+    }
+
+    /// The same contrast within each level of the modifier read at the treated time, averaged
+    /// over the modifier's law across the window positions.
+    fn counted_conditional(x: &[f64], y: &[f64], w: &[f64]) -> f64 {
+        let positions: Vec<usize> = (1..x.len() - 1).collect();
+        let mean = |level: f64, stratum: f64| {
+            let rows: Vec<f64> = positions
+                .iter()
+                .filter(|t| x[**t] == level && w[**t] == stratum)
+                .map(|t| y[*t + 1])
+                .collect();
+            rows.iter().sum::<f64>() / rows.len() as f64
+        };
+        [0.0, 1.0]
+            .into_iter()
+            .map(|stratum| {
+                let weight = positions.iter().filter(|t| w[**t] == stratum).count() as f64
+                    / positions.len() as f64;
+                weight * (mean(1.0, stratum) - mean(0.0, stratum))
+            })
+            .sum()
+    }
+
+    fn discloses(result: &StudyResult) -> bool {
+        result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == DISCLOSURE)
+    }
+
+    #[test]
+    fn a_pulse_is_the_counted_contrast_and_stays_unlicensed() {
+        let (x, y, _, data) = series(300);
+        let counted = counted_contrast(&x, &y);
+        assert!(counted > 0.2 && counted < 0.8, "{counted}");
+        let built = study(&data, template(false), next_period(), InferenceMode::Frequentist, 0);
+        assert_eq!(built.support_status(), Some(CellStatus::Refused));
+        let ctx = ExecutionContext::for_tests(31_001);
+        let plan = built.compile(&ctx).unwrap();
+        assert_eq!(plan.lowered().unwrap().route(), "TemporalEffectAdmg");
+        let result = built.run(&ctx).unwrap();
+        assert!((result.effect() - counted).abs() < 1e-12, "{} vs {counted}", result.effect());
+        assert_eq!(result.support_status, Some(CellStatus::Refused));
+        assert!(discloses(&result));
+        assert_eq!(result.lowered_program_identity(), plan.lowered_program_identity());
+        // The prepared handle freezes the identification and reproduces the point; the artifact
+        // names the unfolded window coordinates and survives a round trip.
+        let prepared = built.prepare(&ctx).unwrap();
+        let again = prepared.estimate_series(&data, &ctx).unwrap();
+        assert!((again.effect() - counted).abs() < 1e-12);
+        assert!(again.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+        let artifact =
+            prepared.encode_contracted_result(&again, "temporal_admg_pulse", &ctx).unwrap();
+        let consumed = consume_analysis_result(&artifact).unwrap();
+        assert_eq!(consumed.body.estimate, Some(again.effect()));
+    }
+
+    #[test]
+    fn overlapping_windows_are_resampled_in_blocks_and_never_row_by_row() {
+        let (x, y, _, data) = series(300);
+        let counted = counted_contrast(&x, &y);
+        let ctx = ExecutionContext::for_tests(31_002);
+        let result = study(&data, template(false), next_period(), InferenceMode::Frequentist, 60)
+            .run(&ctx)
+            .unwrap();
+        assert!((result.effect() - counted).abs() < 1e-12);
+        let effect = result.estimate.as_effect().unwrap();
+        assert_eq!(
+            effect.uncertainty.block.family,
+            Some(antecedent_estimate::CircularBlockFamily::RowBlock)
+        );
+        let se = effect.se_bootstrap().expect("a block bootstrap standard error");
+        assert!(se.is_finite() && se > 0.0, "{se}");
+        // The window spans three times, so a block is at least three windows long.
+        let disclosure = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_ref() == DISCLOSURE)
+            .expect("the window disclosure");
+        let block: usize = disclosure
+            .fields
+            .iter()
+            .find(|(key, _)| key.as_ref() == "block_length")
+            .map(|(_, value)| value.parse().unwrap())
+            .expect("the block length is disclosed");
+        assert!(block >= 3, "{block}");
+        // A declared independent-subject or clustered design refuses a row-level draw.
+        for design in [
+            DeclaredSamplingDesign::IndependentSubjectTrajectories,
+            DeclaredSamplingDesign::ClusteredPanel,
+        ] {
+            let refused = Study::series(data.clone())
+                .graph(template(false))
+                .temporal_query(next_period())
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(20)
+                .sampling_design(design)
+                .build()
+                .unwrap()
+                .run(&ctx)
+                .unwrap_err()
+                .to_string();
+            assert!(refused.contains("Next attempt"), "{design:?}: {refused}");
+        }
+    }
+
+    #[test]
+    fn the_bayesian_form_shares_one_dirichlet_weight_per_block() {
+        let (x, y, _, data) = series(300);
+        let counted = counted_contrast(&x, &y);
+        let ctx = ExecutionContext::for_tests(31_003);
+        let inference = InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400));
+        let result = study(&data, template(false), next_period(), inference, 0).run(&ctx).unwrap();
+        let posterior = result.posterior.as_ref().expect("a block Bayesian-bootstrap posterior");
+        let column = posterior.effect_column().expect("an effect column");
+        assert!((posterior.summaries.mean[column] - counted).abs() < 0.1);
+        assert!(posterior.summaries.sd[column] > 0.0);
+        assert!(discloses(&result));
+        assert_eq!(result.support_status, Some(CellStatus::Refused));
+    }
+
+    #[test]
+    fn a_conditional_contrast_is_idc_on_the_same_window() {
+        let (x, y, w, data) = series(400);
+        let counted = counted_conditional(&x, &y, &w);
+        let unconditional = counted_contrast(&x, &y);
+        assert!((counted - unconditional).abs() > 1e-3, "the modifier must matter");
+        let query = next_period().with_effect_modifiers([v(2)]);
+        let ctx = ExecutionContext::for_tests(31_004);
+        let built = study(&data, template(false), query, InferenceMode::Frequentist, 0);
+        assert_eq!(built.support_status(), Some(CellStatus::Refused));
+        let result = built.run(&ctx).unwrap();
+        assert!((result.effect() - counted).abs() < 1e-12, "{} vs {counted}", result.effect());
+        assert!(discloses(&result));
+    }
+
+    #[test]
+    fn a_sustained_contrast_sets_every_treated_period() {
+        let (x, y, _, data) = series(300);
+        // x(t-1) -> y(t) only: treating x at t and t+1 and reading y at t+1 equals the pulse at t,
+        // and the treatment at t+1 does not reach y(t+1).
+        let query = TemporalEffectQuery::pulse(v(0), v(1), 1.0)
+            .with_policy(TemporalPolicy::sustained(0, 1))
+            .with_horizon_steps(2);
+        let ctx = ExecutionContext::for_tests(31_005);
+        let result =
+            study(&data, template(false), query, InferenceMode::Frequentist, 0).run(&ctx).unwrap();
+        assert!(result.effect().is_finite());
+        assert!((result.effect() - counted_contrast(&x, &y)).abs() < 0.5);
+        assert!(discloses(&result));
+    }
+
+    #[test]
+    fn a_window_that_holds_a_hedge_is_refused_with_the_variables_and_the_next_attempts() {
+        let (_, _, _, data) = series(200);
+        let built = study(&data, template(true), next_period(), InferenceMode::Frequentist, 0);
+        let ctx = ExecutionContext::for_tests(31_006);
+        for refusal in
+            [built.run(&ctx).unwrap_err().to_string(), built.prepare(&ctx).unwrap_err().to_string()]
+        {
+            assert!(refusal.contains("effect_not_identified"), "{refusal}");
+            assert!(refusal.contains("hedge") && refusal.contains('@'), "{refusal}");
+            assert!(refusal.contains("next attempts"), "{refusal}");
+        }
+    }
+
+    #[test]
+    fn a_modifier_the_treatment_reaches_is_refused_with_its_next_attempt() {
+        let (_, _, _, data) = series(200);
+        let mut graph = template(false);
+        // x(t) -> w(t): the modifier read at the treated time is a consequence of the treatment.
+        let x0 = graph.add_lagged(v(0), Lag::CONTEMPORANEOUS).unwrap();
+        let w0 = graph.add_lagged(v(2), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(x0, w0).unwrap();
+        let query = next_period().with_effect_modifiers([v(2)]);
+        let ctx = ExecutionContext::for_tests(31_007);
+        let refusal = study(&data, graph, query, InferenceMode::Frequentist, 0)
+            .run(&ctx)
+            .unwrap_err()
+            .to_string();
+        assert!(refusal.contains("descendant") && refusal.contains("next attempt"), "{refusal}");
+    }
+
+    #[test]
+    fn a_graph_the_series_does_not_describe_and_a_history_cap_are_refused_at_compile() {
+        let (_, _, _, data) = series(100);
+        let ctx = ExecutionContext::for_tests(31_008);
+        let capped = study(
+            &data,
+            template(false),
+            next_period().with_max_history_lag(Some(1)),
+            InferenceMode::Frequentist,
+            0,
+        );
+        let refusal = capped.compile(&ctx).unwrap_err().to_string();
+        assert!(refusal.contains("option_not_applicable"), "{refusal}");
+        let mut outside = TemporalAdmg::empty();
+        let a = outside.add_lagged(v(0), Lag::from_raw(1)).unwrap();
+        let b = outside.add_lagged(v(7), Lag::CONTEMPORANEOUS).unwrap();
+        outside.insert_directed(a, b).unwrap();
+        let query = TemporalEffectQuery::pulse(v(0), v(7), 1.0).with_horizon_steps(2);
+        let refusal = study(&data, outside, query, InferenceMode::Frequentist, 0)
+            .compile(&ctx)
+            .unwrap_err()
+            .to_string();
+        assert!(refusal.contains("unknown_variable"), "{refusal}");
     }
 }

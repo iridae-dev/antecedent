@@ -51,10 +51,10 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P13.attribution` | licensed | licensed | licensed | licensed |
 | `P13.refuter` | executing | executing | executing | executing |
 | `P14` | licensed | licensed | licensed | licensed |
-| `P15.conditional` | executing | executing | closed | closed |
+| `P15.conditional` | licensed | licensed | executing | executing |
 | `P15.projection` | licensed | licensed | licensed | licensed |
-| `P15.pulse` | n/a (theory) | n/a (theory) | closed | closed |
-| `P15.sustained` | n/a (theory) | n/a (theory) | closed | closed |
+| `P15.pulse` | n/a (theory) | n/a (theory) | executing | executing |
+| `P15.sustained` | n/a (theory) | n/a (theory) | executing | executing |
 | `P16` | executing | executing | executing | executing |
 | `P17` | executing | executing | executing | executing |
 | `P18` | executing | executing | executing | executing |
@@ -74,19 +74,20 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | Method | static / frequentist | static / bayesian | temporal / frequentist | temporal / bayesian |
 | --- | --- | --- | --- | --- |
 | `AnomalyAttribution` | licensed | licensed | licensed | licensed |
+| `Attribute` | executing | executing | executing | executing |
 | `AverageDerivative` | licensed | licensed | licensed | licensed |
 | `AverageEffect` | licensed | licensed | licensed | licensed |
 | `ChangeAttribution` | licensed | licensed | licensed | licensed |
-| `ComposedQuantity` | executing | executing | closed | closed |
-| `ConditionalEffect` | licensed | licensed | closed | closed |
+| `ComposedQuantity` | executing | executing | executing | executing |
+| `ConditionalEffect` | licensed | licensed | licensed | licensed |
 | `Counterfactual` | licensed | licensed | licensed | licensed |
 | `DirectionalDerivative` | licensed | licensed | licensed | licensed |
 | `Elasticity` | licensed | licensed | licensed | licensed |
-| `InterferenceQuery` | licensed | licensed | closed | closed |
+| `InterferenceQuery` | licensed | licensed | executing | executing |
 | `InterventionResponse` | licensed | licensed | licensed | licensed |
 | `InterventionalDistribution` | licensed | licensed | licensed | licensed |
-| `MeasurementCorrectedFunctional` | executing | executing | **missing** | **missing** |
-| `MediationEffect` | licensed | licensed | closed | closed |
+| `MeasurementCorrectedFunctional` | executing | executing | executing | executing |
+| `MediationEffect` | licensed | licensed | licensed | licensed |
 | `NestedCounterfactualEffect` | licensed | licensed | licensed | licensed |
 | `PathSpecificEffect` | licensed | licensed | licensed | licensed |
 | `PointDerivative` | licensed | licensed | licensed | licensed |
@@ -100,12 +101,15 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `TemporalDesign` | n/a (theory) | n/a (theory) | executing | executing |
 | `TemporalMediationEffect` | n/a (theory) | n/a (theory) | licensed | licensed |
 | `TransportQuery` | licensed | licensed | licensed | licensed |
-| `temporal_effect` | n/a (theory) | n/a (theory) | **missing** | executing |
+| `temporal_effect` | n/a (theory) | n/a (theory) | executing | executing |
 
 ## Narrowed promises
 
 | Row | Status | Next attempt |
 | --- | --- | --- |
+| `P05.static.bayesian` | executing | build the missing route through the compiler with the same uncertainty ports |
+| `P05.temporal.frequentist` | executing | build the missing route through the compiler with the same uncertainty ports |
+| `P05.temporal.bayesian` | executing | build the missing route through the compiler with the same uncertainty ports |
 | `P07.derivative.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P07.derivative.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P07.dose_grid.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
@@ -122,12 +126,12 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P13.refuter.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P14.temporal.frequentist` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
 | `P14.temporal.bayesian` | licensed | measure the whole-procedure coverage of this interval and record its boundary |
-| `P15.conditional.temporal.frequentist` | closed | build the missing route through the compiler with the same uncertainty ports |
-| `P15.conditional.temporal.bayesian` | closed | build the missing route through the compiler with the same uncertainty ports |
-| `P15.pulse.temporal.frequentist` | closed | build the missing route through the compiler with the same uncertainty ports |
-| `P15.pulse.temporal.bayesian` | closed | build the missing route through the compiler with the same uncertainty ports |
-| `P15.sustained.temporal.frequentist` | closed | build the missing route through the compiler with the same uncertainty ports |
-| `P15.sustained.temporal.bayesian` | closed | build the missing route through the compiler with the same uncertainty ports |
+| `P15.conditional.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.conditional.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.pulse.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.pulse.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.sustained.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
+| `P15.sustained.temporal.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.static.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.static.bayesian` | executing | measure the whole-procedure coverage of this interval and record its boundary |
 | `P16.temporal.frequentist` | executing | measure the whole-procedure coverage of this interval and record its boundary |

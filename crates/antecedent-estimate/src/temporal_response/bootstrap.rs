@@ -1,7 +1,7 @@
 //! Joint circular-block bootstrap of the response surface.
 
 use crate::temporal_block::{
-    AlignedRows, GappedAlignedRows, RowBlockDraws, aligned_block_bootstrap,
+    AlignedRows, GappedAlignedRows, RowBlockDraws, aligned_block_bootstrap, common_time_window,
     gapped_aligned_block_bootstrap,
 };
 use crate::util::BOOTSTRAP_MAX_FAILURE_FRAC;
@@ -93,6 +93,65 @@ pub(super) fn bootstrap_surface(
     refit.finish(boot)
 }
 
+/// Resample stream base of the Bayesian block-weight draws of the joint surface.
+const HORIZON_BAYES_STREAM: u64 = 0x7E51_u64;
+
+/// Joint Bayesian block bootstrap of the whole dose × horizon surface: the posterior over the
+/// surface given the empirical law of the time-aligned lag windows.
+///
+/// Each replicate draws one Exp(1) weight per block of `block_length` consecutive series times
+/// of the window every horizon can evaluate, shared by every horizon, and refits every horizon
+/// by weighted least squares on its own lag-aligned rows at those times (the row weights and
+/// the weighted design column means). A kept replicate is therefore one draw of the whole
+/// surface under one weight vector, coupled across horizons, which independent per-horizon
+/// fits are not. Returns `None` on the conditions [`bootstrap_surface`] does.
+pub(super) fn bayesian_bootstrap_surface(
+    horizons: &[FittedHorizon],
+    rows: &[AlignedRows],
+    block_length: usize,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Option<SurfaceBootstrap> {
+    if replicates == 0 || horizons.is_empty() || rows.iter().any(|r| r.rows == 0) {
+        return None;
+    }
+    let (start, len) = common_time_window(rows)?;
+    let block = block_length.clamp(1, len);
+    let mut refit = SurfaceRefit::new(horizons);
+    let mut draws = Vec::with_capacity(replicates as usize);
+    let (mut attempted, mut cancelled) = (0u32, false);
+    let mut weights = Vec::with_capacity(len);
+    for replicate in 0..replicates {
+        if ctx.cancellation.is_cancelled() {
+            cancelled = true;
+            break;
+        }
+        attempted += 1;
+        let mut rng = ctx.rng.stream_for(
+            antecedent_core::StreamDomain::TemporalBlock,
+            antecedent_core::derive_stream(HORIZON_BAYES_STREAM, u64::from(replicate)),
+        );
+        weights.clear();
+        while weights.len() < len {
+            let weight = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, 1, false)[0];
+            weights.extend(std::iter::repeat_n(weight, block.min(len - weights.len())));
+        }
+        if let Some(flat) = refit.run_weighted(horizons, rows, start, &weights) {
+            if flat.iter().all(|x| x.is_finite()) {
+                draws.push(flat);
+            }
+        }
+    }
+    if draws.len() < 2 {
+        return None;
+    }
+    let failed = f64::from(attempted) - draws.len() as f64;
+    if failed / f64::from(attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
+        return None;
+    }
+    Some(SurfaceBootstrap { draws, ncols: refit.ncols, cancelled })
+}
+
 /// [`bootstrap_surface`] for horizons fit on a series with missing time points: one block plan
 /// on the original window axis over the windows every horizon reads, keeping the times intact
 /// in every horizon, with every horizon refit on those same times
@@ -164,6 +223,58 @@ impl SurfaceRefit {
             flat.extend(
                 (0..p).map(|c| self.x_boot[c * m..(c + 1) * m].iter().sum::<f64>() / m as f64),
             );
+        }
+        Some(flat)
+    }
+
+    /// Every horizon's weighted-least-squares coefficients and weighted design column means,
+    /// the lag-aligned rows at series times `start..start + weights.len()` weighted by
+    /// `weights`.
+    fn run_weighted(
+        &mut self,
+        horizons: &[FittedHorizon],
+        rows: &[AlignedRows],
+        start: usize,
+        weights: &[f64],
+    ) -> Option<Vec<f64>> {
+        let m = weights.len();
+        let total: f64 = weights.iter().sum();
+        if !(total.is_finite() && total > 0.0) {
+            return None;
+        }
+        let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+        let mut flat = Vec::new();
+        for (fitted, aligned) in horizons.iter().zip(rows) {
+            let design = &fitted.prepared.design;
+            let (n, p) = (design.nrows, design.ncols);
+            if m <= p {
+                return None;
+            }
+            let offset = start.checked_sub(aligned.first_time)?;
+            if offset + m > n {
+                return None;
+            }
+            self.x_boot.resize(m * p, 0.0);
+            self.y_boot.resize(m, 0.0);
+            for (i, &r) in root.iter().enumerate() {
+                self.y_boot[i] = design.outcome[offset + i] * r;
+            }
+            let mut means = Vec::with_capacity(p);
+            for c in 0..p {
+                let column = &design.matrix[c * n..(c + 1) * n];
+                let mut weighted_sum = 0.0;
+                for (i, &r) in root.iter().enumerate() {
+                    let value = column[offset + i];
+                    self.x_boot[c * m + i] = value * r;
+                    weighted_sum += weights[i] * value;
+                }
+                means.push(weighted_sum / total);
+            }
+            let fit = FaerBackend
+                .least_squares(&self.x_boot, m, p, &self.y_boot, &mut self.ols_ws)
+                .ok()?;
+            flat.extend(fit.coefficients);
+            flat.extend(means);
         }
         Some(flat)
     }

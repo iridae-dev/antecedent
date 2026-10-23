@@ -161,6 +161,7 @@ impl antecedent_core::CanonicalEncode for antecedent_core::InterventionContrast
 impl antecedent_core::CanonicalEncode for antecedent_core::InterventionWorld
 impl antecedent_core::CanonicalEncode for antecedent_core::InterventionalDistributionQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::IntrinsicInfluenceTarget
+impl antecedent_core::CanonicalEncode for antecedent_core::IvBoundsQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::KnownCensoringSurvival
 impl antecedent_core::CanonicalEncode for antecedent_core::LawOrigin
 impl antecedent_core::CanonicalEncode for antecedent_core::LicensedWeights
@@ -391,6 +392,7 @@ impl core::clone::Clone for antecedent_core::InterventionSequence
 impl core::clone::Clone for antecedent_core::InterventionWorld
 impl core::clone::Clone for antecedent_core::InterventionalDistributionQuery
 impl core::clone::Clone for antecedent_core::IntrinsicInfluenceTarget
+impl core::clone::Clone for antecedent_core::IvBoundsQuery
 impl core::clone::Clone for antecedent_core::KernelPolicy
 impl core::clone::Clone for antecedent_core::KnownCensoringSurvival
 impl core::clone::Clone for antecedent_core::Lag
@@ -1321,6 +1323,7 @@ impl core::cmp::PartialEq for antecedent_core::InterventionSequence
 impl core::cmp::PartialEq for antecedent_core::InterventionWorld
 impl core::cmp::PartialEq for antecedent_core::InterventionalDistributionQuery
 impl core::cmp::PartialEq for antecedent_core::IntrinsicInfluenceTarget
+impl core::cmp::PartialEq for antecedent_core::IvBoundsQuery
 impl core::cmp::PartialEq for antecedent_core::KernelPolicy
 impl core::cmp::PartialEq for antecedent_core::KnownCensoringSurvival
 impl core::cmp::PartialEq for antecedent_core::Lag
@@ -1695,6 +1698,7 @@ impl core::convert::From<antecedent_core::HistoryMatchQuery> for antecedent_core
 impl core::convert::From<antecedent_core::InterferenceQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::InterventionError> for antecedent_core::intervention::AdmitError
 impl core::convert::From<antecedent_core::InterventionalDistributionQuery> for antecedent_core::CausalQuery
+impl core::convert::From<antecedent_core::IvBoundsQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::LocalPolynomialRatioQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::LongitudinalRegimeQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::MechanismChangeQuery> for antecedent_core::CausalQuery
@@ -1954,6 +1958,7 @@ impl core::fmt::Debug for antecedent_core::InterventionSequence
 impl core::fmt::Debug for antecedent_core::InterventionWorld
 impl core::fmt::Debug for antecedent_core::InterventionalDistributionQuery
 impl core::fmt::Debug for antecedent_core::IntrinsicInfluenceTarget
+impl core::fmt::Debug for antecedent_core::IvBoundsQuery
 impl core::fmt::Debug for antecedent_core::KernelPolicy
 impl core::fmt::Debug for antecedent_core::KnownCensoringSurvival
 impl core::fmt::Debug for antecedent_core::Lag
@@ -3145,6 +3150,7 @@ impl core::marker::Freeze for antecedent_core::InterventionSequence [auto]
 impl core::marker::Freeze for antecedent_core::InterventionWorld [auto]
 impl core::marker::Freeze for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::marker::Freeze for antecedent_core::IntrinsicInfluenceTarget [auto]
+impl core::marker::Freeze for antecedent_core::IvBoundsQuery [auto]
 impl core::marker::Freeze for antecedent_core::KernelPolicy [auto]
 impl core::marker::Freeze for antecedent_core::KnownCensoringSurvival [auto]
 impl core::marker::Freeze for antecedent_core::Lag [auto]
@@ -3641,6 +3647,7 @@ impl core::marker::Send for antecedent_core::InterventionSequence [auto]
 impl core::marker::Send for antecedent_core::InterventionWorld [auto]
 impl core::marker::Send for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::marker::Send for antecedent_core::IntrinsicInfluenceTarget [auto]
+impl core::marker::Send for antecedent_core::IvBoundsQuery [auto]
 impl core::marker::Send for antecedent_core::KernelPolicy [auto]
 impl core::marker::Send for antecedent_core::KnownCensoringSurvival [auto]
 impl core::marker::Send for antecedent_core::Lag [auto]
@@ -4134,6 +4141,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::InterventionSequence
 impl core::marker::StructuralPartialEq for antecedent_core::InterventionWorld
 impl core::marker::StructuralPartialEq for antecedent_core::InterventionalDistributionQuery
 impl core::marker::StructuralPartialEq for antecedent_core::IntrinsicInfluenceTarget
+impl core::marker::StructuralPartialEq for antecedent_core::IvBoundsQuery
 impl core::marker::StructuralPartialEq for antecedent_core::KernelPolicy
 impl core::marker::StructuralPartialEq for antecedent_core::KnownCensoringSurvival
 impl core::marker::StructuralPartialEq for antecedent_core::Lag
@@ -4619,6 +4627,7 @@ impl core::marker::Sync for antecedent_core::InterventionSequence [auto]
 impl core::marker::Sync for antecedent_core::InterventionWorld [auto]
 impl core::marker::Sync for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::marker::Sync for antecedent_core::IntrinsicInfluenceTarget [auto]
+impl core::marker::Sync for antecedent_core::IvBoundsQuery [auto]
 impl core::marker::Sync for antecedent_core::KernelPolicy [auto]
 impl core::marker::Sync for antecedent_core::KnownCensoringSurvival [auto]
 impl core::marker::Sync for antecedent_core::Lag [auto]
@@ -5120,6 +5129,7 @@ impl core::marker::Unpin for antecedent_core::InterventionSequence [auto]
 impl core::marker::Unpin for antecedent_core::InterventionWorld [auto]
 impl core::marker::Unpin for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::marker::Unpin for antecedent_core::IntrinsicInfluenceTarget [auto]
+impl core::marker::Unpin for antecedent_core::IvBoundsQuery [auto]
 impl core::marker::Unpin for antecedent_core::KernelPolicy [auto]
 impl core::marker::Unpin for antecedent_core::KnownCensoringSurvival [auto]
 impl core::marker::Unpin for antecedent_core::Lag [auto]
@@ -5624,6 +5634,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterventionSe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterventionWorld [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::IntrinsicInfluenceTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::IvBoundsQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::KernelPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::KnownCensoringSurvival [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Lag [auto]
@@ -6124,6 +6135,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterventionSeque
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterventionWorld [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::IntrinsicInfluenceTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::IvBoundsQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::KernelPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::KnownCensoringSurvival [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Lag [auto]
@@ -6985,6 +6997,10 @@ pub field antecedent_core::IntrinsicInfluenceTarget::outer_draws: usize
 pub field antecedent_core::IntrinsicInfluenceTarget::replicates: usize
 pub field antecedent_core::IntrinsicInfluenceTarget::seed: u64
 pub field antecedent_core::IntrinsicInfluenceTarget::target: antecedent_core::VariableId
+pub field antecedent_core::IvBoundsQuery::instrument: antecedent_core::VariableId
+pub field antecedent_core::IvBoundsQuery::outcome: antecedent_core::VariableId
+pub field antecedent_core::IvBoundsQuery::treatment: antecedent_core::VariableId
+pub field antecedent_core::IvBoundsQuery::weight: core::option::Option<antecedent_core::VariableId>
 pub field antecedent_core::KernelPolicy::allow_arch_simd: bool
 pub field antecedent_core::KernelPolicy::allow_portable_optimized: bool
 pub field antecedent_core::KernelPolicy::force_scalar: bool
@@ -7028,6 +7044,7 @@ pub field antecedent_core::LongitudinalRegimeQuery::treatment_probabilities: all
 pub field antecedent_core::MeasurementSpec::description: core::option::Option<alloc::sync::Arc<str>>
 pub field antecedent_core::MeasurementSpec::noisy: bool
 pub field antecedent_core::MechanismChangeQuery::baseline: antecedent_core::PopulationSelector
+pub field antecedent_core::MechanismChangeQuery::change_prior: core::option::Option<antecedent_core::OrderedFloatBits>
 pub field antecedent_core::MechanismChangeQuery::comparison: antecedent_core::PopulationSelector
 pub field antecedent_core::MechanismChangeQuery::max_targets: usize
 pub field antecedent_core::MechanismChangeQuery::significance_level: antecedent_core::OrderedFloatBits
@@ -7518,6 +7535,7 @@ pub fn <antecedent_core::CausalQuery>::fn discover(query: antecedent_core::Disco
 pub fn <antecedent_core::CausalQuery>::fn distribution(query: antecedent_core::InterventionalDistributionQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn history_match(query: antecedent_core::HistoryMatchQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn interference(query: antecedent_core::InterferenceQuery) -> Self
+pub fn <antecedent_core::CausalQuery>::fn iv_bounds(query: antecedent_core::IvBoundsQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn local_polynomial_ratio(query: antecedent_core::LocalPolynomialRatioQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn longitudinal_regime(query: antecedent_core::LongitudinalRegimeQuery) -> Self
 pub fn <antecedent_core::CausalQuery>::fn mechanism_change(query: antecedent_core::MechanismChangeQuery) -> Self
@@ -7833,6 +7851,9 @@ pub fn <antecedent_core::InterventionalDistributionQuery>::fn validate(&self) ->
 pub fn <antecedent_core::InterventionalDistributionQuery>::fn with_conditioning(self, conditioning: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> Self
 pub fn <antecedent_core::InterventionalDistributionQuery>::fn with_outcomes(self, outcomes: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> Self
 pub fn <antecedent_core::InterventionalDistributionQuery>::fn with_target_population(self, population: antecedent_core::TargetPopulation) -> Self
+pub fn <antecedent_core::IvBoundsQuery>::const fn new(outcome: antecedent_core::VariableId, treatment: antecedent_core::VariableId, instrument: antecedent_core::VariableId) -> Self
+pub fn <antecedent_core::IvBoundsQuery>::const fn with_weight(self, weight: antecedent_core::VariableId) -> Self
+pub fn <antecedent_core::IvBoundsQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::KernelPolicy>::const fn arch_simd_effective(&self) -> bool
 pub fn <antecedent_core::KernelPolicy>::const fn default_policy() -> Self
 pub fn <antecedent_core::KernelPolicy>::const fn scalar_only() -> Self
@@ -7852,6 +7873,7 @@ pub fn <antecedent_core::LossModel>::fn name(&self) -> &str
 pub fn <antecedent_core::LossModel>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_core::DeclarationError>
 pub fn <antecedent_core::MechanismChangeQuery>::fn new(targets: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>, baseline: antecedent_core::PopulationSelector, comparison: antecedent_core::PopulationSelector, significance_level: f64, max_targets: usize) -> Self
 pub fn <antecedent_core::MechanismChangeQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::MechanismChangeQuery>::fn with_change_prior(self, prior: f64) -> Self
 pub fn <antecedent_core::MechanismOverride>::fn additive_shift(delta: f64) -> Self
 pub fn <antecedent_core::MechanismOverride>::fn constant(value: f64) -> Self
 pub fn <antecedent_core::MechanismOverride>::fn multiplicative(factor: f64) -> Self
@@ -8988,6 +9010,7 @@ pub struct antecedent_core::InterventionWorld
 pub struct antecedent_core::InterventionWorld has private fields
 pub struct antecedent_core::InterventionalDistributionQuery
 pub struct antecedent_core::IntrinsicInfluenceTarget
+pub struct antecedent_core::IvBoundsQuery
 pub struct antecedent_core::KernelPolicy
 pub struct antecedent_core::KnownCensoringSurvival
 pub struct antecedent_core::Lag
@@ -9541,6 +9564,7 @@ pub use antecedent_core::query::InterferenceQuery = antecedent_core::Interferenc
 pub use antecedent_core::query::InterventionAssignment = antecedent_core::InterventionAssignment
 pub use antecedent_core::query::InterventionalDistributionQuery = antecedent_core::InterventionalDistributionQuery
 pub use antecedent_core::query::IntrinsicInfluenceTarget = antecedent_core::IntrinsicInfluenceTarget
+pub use antecedent_core::query::IvBoundsQuery = antecedent_core::IvBoundsQuery
 pub use antecedent_core::query::KnownCensoringSurvival = antecedent_core::KnownCensoringSurvival
 pub use antecedent_core::query::LawOrigin = antecedent_core::LawOrigin
 pub use antecedent_core::query::LicensedWeights = antecedent_core::LicensedWeights
@@ -9840,6 +9864,7 @@ pub variant antecedent_core::CausalQuery::Discover(antecedent_core::DiscoverQuer
 pub variant antecedent_core::CausalQuery::Distribution(antecedent_core::InterventionalDistributionQuery)
 pub variant antecedent_core::CausalQuery::HistoryMatch(antecedent_core::HistoryMatchQuery)
 pub variant antecedent_core::CausalQuery::Interference(antecedent_core::InterferenceQuery)
+pub variant antecedent_core::CausalQuery::IvBounds(antecedent_core::IvBoundsQuery)
 pub variant antecedent_core::CausalQuery::LocalPolynomialRatio(antecedent_core::LocalPolynomialRatioQuery)
 pub variant antecedent_core::CausalQuery::LongitudinalRegime(antecedent_core::LongitudinalRegimeQuery)
 pub variant antecedent_core::CausalQuery::MechanismChange(antecedent_core::MechanismChangeQuery)
@@ -9869,6 +9894,7 @@ pub variant antecedent_core::CausalQueryKind::Discover
 pub variant antecedent_core::CausalQueryKind::Distribution
 pub variant antecedent_core::CausalQueryKind::HistoryMatch
 pub variant antecedent_core::CausalQueryKind::Interference
+pub variant antecedent_core::CausalQueryKind::IvBounds
 pub variant antecedent_core::CausalQueryKind::LocalPolynomialRatio
 pub variant antecedent_core::CausalQueryKind::LongitudinalRegime
 pub variant antecedent_core::CausalQueryKind::MechanismChange
@@ -9952,22 +9978,28 @@ pub variant antecedent_core::DidSamplingDesign::StaggeredEventStudy
 pub variant antecedent_core::DidSamplingDesign::StaggeredGroupTime
 pub variant antecedent_core::DidSamplingDesign::StaggeredHeterogeneityRobust
 pub variant antecedent_core::DiscoveredClass::Cpdag
+pub variant antecedent_core::DiscoveredClass::CpdagPosterior
 pub variant antecedent_core::DiscoveredClass::Dag
 pub variant antecedent_core::DiscoveredClass::DagEdgeMarginals
 pub variant antecedent_core::DiscoveredClass::DagPosterior
 pub variant antecedent_core::DiscoveredClass::Pag
+pub variant antecedent_core::DiscoveredClass::PagPosterior
 pub variant antecedent_core::DiscoveredClass::RegimeTemporalCpdags
+pub variant antecedent_core::DiscoveredClass::StructureStability
 pub variant antecedent_core::DiscoveredClass::TemporalCpdag
 pub variant antecedent_core::DiscoveredClass::TemporalDag
 pub variant antecedent_core::DiscoveredClass::TemporalDagPosterior
 pub variant antecedent_core::DiscoveredClass::TemporalPag
 pub variant antecedent_core::DiscoveryInference::Bayesian
 pub variant antecedent_core::DiscoveryInference::Frequentist
+pub variant antecedent_core::DiscoveryMethod::BootstrapStability { base: alloc::boxed::Box<antecedent_core::DiscoveryMethod>, replicates: u32 }
 pub variant antecedent_core::DiscoveryMethod::CiScreenedPosterior { weight: antecedent_core::ScreenWeight }
+pub variant antecedent_core::DiscoveryMethod::ClassPosterior { base: alloc::boxed::Box<antecedent_core::DiscoveryMethod> }
 pub variant antecedent_core::DiscoveryMethod::DbnPosterior { force_mcmc: bool }
 pub variant antecedent_core::DiscoveryMethod::DirectLingam { prune_threshold: f64 }
 pub variant antecedent_core::DiscoveryMethod::ExactDagMarginals
 pub variant antecedent_core::DiscoveryMethod::ExactDagPosterior
+pub variant antecedent_core::DiscoveryMethod::ExactPagPosterior
 pub variant antecedent_core::DiscoveryMethod::Fci
 pub variant antecedent_core::DiscoveryMethod::Ges { screen_pc: bool, max_subset: core::option::Option<u32> }
 pub variant antecedent_core::DiscoveryMethod::JpcmciPlus
@@ -10224,6 +10256,7 @@ pub variant antecedent_core::QueryError::InvalidDiscover(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidHistoryMatch(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidInterference(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidIntervention(alloc::string::String)
+pub variant antecedent_core::QueryError::InvalidIvBounds(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidLocalPolynomialRatio(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidLongitudinalRegime(alloc::string::String)
 pub variant antecedent_core::QueryError::InvalidOutcomeFunctional

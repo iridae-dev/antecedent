@@ -1216,6 +1216,19 @@ impl super::Study {
         }
         estimator.inner.bootstrap_replicates =
             if observation_adjusted.is_some() { 0 } else { self.bootstrap_replicates };
+        // Retain the joint replicates of the surface: the bootstrap's under Frequentist
+        // inference, the block-weight posterior's draws (which replace the per-horizon
+        // conjugate fits) under Bayesian inference.
+        let joint_horizons =
+            self.retain_joint_horizons && observation_adjusted.is_none() && !observed_bayes;
+        if joint_horizons {
+            estimator = estimator.with_joint_replicates(true);
+            if let InferenceMode::Bayesian(cfg) = &self.inference {
+                estimator = estimator
+                    .with_block_weight_posterior(true)
+                    .with_bootstrap_replicates(u32::try_from(cfg.n_draws).unwrap_or(u32::MAX));
+            }
+        }
         let mut conflict_summary = None;
         let mut observed_posterior = None;
         let mut response = if observed_bayes {
@@ -1230,7 +1243,7 @@ impl super::Study {
             let (response, posterior) = antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(data, graph, antecedent_estimate::TemporalIdentification { horizons: identifications, status: aggregate_status, assumptions: aggregate_assumptions.clone() }, query, &bayesian_gcomp(cfg, ctx), ctx).map_err(CausalError::from)?;
             observed_posterior = Some(posterior);
             Ok(response)
-        } else if let InferenceMode::Bayesian(cfg) = &self.inference {
+        } else if let (InferenceMode::Bayesian(cfg), false) = (&self.inference, joint_horizons) {
             let mut bayes = bayesian_gcomp(cfg, ctx);
             let (resolved, conflict) = resolve_temporal_response_prior(
                 cfg, data, temporal, aligned, treatment, outcome, ctx,

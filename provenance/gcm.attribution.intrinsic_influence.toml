@@ -23,6 +23,7 @@ implementation_deviations = [
  "Only independent-noise (Markovian) structural models are supported. Independence of the exogenous noise terms is a caller declaration (or a structure without bidirected edges); the compiled model, a DAG, cannot certify it. Bidirected edges, latent common causes, undeclared independence, unfitted mechanisms and mechanisms with serially dependent noise are refused.",
  "Players are the noise terms of the target's ancestors and the target itself, in topological order. Exact Shapley enumerates all coalitions up to a fixed bound on the source count and permutation sampling is used above it.",
  "Standard errors are reported per uncertainty component and never summed: permutation sampling (spread of per-permutation marginal contributions of the pooled coalition values, which contains the simulation noise those marginals carry and so slightly overstates the permutation component), simulation (spread of independent replicate batches run on the same permutations, a Student-t interval on the replicate count minus one), and mechanism fit (row bootstrap refits with the standard registry, spread reduced by the Monte Carlo variance of one estimate). The intervals are uncalibrated diagnostics with no coverage claim.",
+ "FitResampling::DirichletRowWeights replaces the multinomial row counts of the mechanism-fit refits by one Dirichlet(1,...,1) weight vector per refit with the mechanism families held at the ones selected on the original rows (Rubin's Bayesian bootstrap), so the refits are draws from the posterior over the mechanisms; the per-refit contributions are returned (IntrinsicInfluenceResult.fit_draws) and the whole-procedure standard error reads as their posterior standard deviation. Like the row bootstrap it is uncalibrated and conditional on the family selection.",
  "The target variance is estimated directly from the rows of the replicate batches with no coordinate fixed, so the allocation residual is that estimate minus the sum of contributions and measures estimation error in v(empty) and v(all).",
 ]
 
@@ -32,6 +33,7 @@ upstream_implementations_observed = [
 
 test_sources = [
  "crates/antecedent-attribution/tests/intrinsic_influence.rs (linear chain and collider with closed-form contributions, a product mechanism with interaction, moment closed form of a quadratic mechanism)",
+ "crates/antecedent/tests/attribute_mechanism_posterior.rs (an_intrinsic_influence_has_a_posterior_over_the_mechanisms)",
  "python/tests/test_intrinsic_influence.py",
  "python/tests/test_dowhy_comparison.py (per-source shares on a linear Gaussian chain against gcm.intrinsic_causal_influence; DoWhy values computed at test time by the pinned version, skipped when it is absent)",
 ]

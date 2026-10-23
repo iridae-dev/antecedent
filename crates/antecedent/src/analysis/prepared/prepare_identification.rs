@@ -279,6 +279,40 @@ impl Study {
         }
     }
 
+    /// Identification of a pulse, sustained or conditional contrast on a temporal ADMG: the
+    /// complete ID algorithm (IDC with modifiers) on the unrolled window of the template,
+    /// retained at the query's horizon with the indexer that names the window's coordinates.
+    ///
+    /// # Errors
+    ///
+    /// The contrast is not identified on the window (the refusal names the hedge by variable
+    /// and period), or the query is outside what the window route evaluates.
+    pub(crate) fn prepare_temporal_admg_identification(
+        &self,
+        query: &TemporalEffectQuery,
+    ) -> Result<CachedTemporalIdentification, CausalError> {
+        let (
+            GraphRef::TemporalAdmg(template),
+            DataInput::Temporal(series) | DataInput::Event(series),
+        ) = (self.graph.graph_ref(), &self.data)
+        else {
+            return Err(CausalError::Compile {
+                message: "temporal ADMG identification requires a supplied TemporalAdmg over \
+                          series data"
+                    .into(),
+            });
+        };
+        let variable_count = u32::try_from(series.schema().len()).map_err(|_| {
+            CausalError::Compile { message: "series schema exceeds the variable id range".into() }
+        })?;
+        let contrast = crate::analysis::temporal_admg_contrast::identify_window_contrast(
+            template,
+            query,
+            variable_count,
+        )?;
+        Ok(crate::analysis::temporal_admg_contrast::retained_identification(contrast, query))
+    }
+
     /// Static claims identified from the query alone, before any route is resolved.
     fn prepare_static_query_only_identification(
         &self,

@@ -1,0 +1,217 @@
+# Evidence for scope rows that have neither a route in the manifest nor a method child.
+# Read by scripts/reconcile_release_scope.py. Each row names its owner (a path that exists and
+# defines `owner_symbol` when one is given), the acceptance fixtures a registered test or gate
+# runs (`path` or `path::name`), and the consumer paths that read the artifact (each defines
+# `consumer_symbol` when one is given). The cyclic rows take their evidence from
+# parity/cyclic/acceptance.toml.
+
+schema = 1
+
+[[row]]
+id = "Y01"
+owner = ["crates/antecedent-graph/src/cyclic.rs"]
+fixtures = ["crates/antecedent-graph/src/cyclic.rs", "python/tests/test_cyclic.py"]
+consumer_paths = ["crates/antecedent-identify/src/cyclic_id.rs"]
+consumer_symbol = "CyclicMixedGraph"
+
+[[row]]
+id = "Y02"
+owner = ["crates/antecedent-graph/src/scc.rs"]
+fixtures = ["crates/antecedent-graph/src/scc.rs", "crates/antecedent-model/src/scc_compile.rs"]
+consumer_paths = ["crates/antecedent-model/src/scc_compile.rs"]
+consumer_symbol = "Condensation"
+
+[[row]]
+id = "Y03"
+owner = ["crates/antecedent-model/src/linear_solution.rs"]
+fixtures = ["crates/antecedent-model/src/linear_solution.rs", "python/tests/test_cyclic.py"]
+consumer_paths = ["crates/antecedent-model/src/cyclic_world.rs"]
+consumer_symbol = "linear_solution"
+
+[[row]]
+id = "Y09"
+owner = ["crates/antecedent-graph/src/sigma_separation.rs"]
+fixtures = ["crates/antecedent-graph/src/sigma_separation.rs", "crates/antecedent-discovery/src/cyclic_fci.rs"]
+consumer_paths = ["crates/antecedent-discovery/src/cyclic_fci.rs"]
+consumer_symbol = "SigmaSeparationWorkspace"
+
+[[row]]
+id = "Y10"
+owner = ["crates/antecedent-identify/src/experimental_recovery.rs"]
+fixtures = ["crates/antecedent-identify/src/experimental_recovery.rs", "crates/antecedent-estimate/src/experimental_fit_tests.rs"]
+consumer_paths = ["crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer_symbol = "DeclaredClampExperiment"
+
+[[row]]
+id = "Q04"
+owner = ["crates/antecedent/src/analysis/flagship_mixed.rs"]
+fixtures = ["crates/antecedent/tests/flagship_decision_fixture.rs", "crates/antecedent-io/tests/flagship_decision_artifact.rs"]
+consumer_paths = ["crates/antecedent-io/tests/flagship_decision_artifact.rs"]
+
+[[row]]
+id = "X01.licensed_contrast"
+owner = ["crates/antecedent/src/analysis/joint_contrast_binding.rs"]
+fixtures = [
+  "crates/antecedent/tests/numeric_pins.rs::batch_family_contrasts_retain_checked_worlds_after_builder_disposal",
+  "python/tests/test_functionals_retarget_tiered_background.py::test_prepared_batch_family_posterior_is_one_joint_interaction_draw_set",
+]
+consumer_paths = ["crates/antecedent/src/analysis/batch.rs"]
+consumer_symbol = "CellFamilyContrast"
+
+[[row]]
+id = "X02.gaussian_panel"
+owner = ["crates/antecedent-estimate/src/joint_panel.rs"]
+fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism"]
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel.rs"]
+
+[[row]]
+id = "X02.supported_worlds"
+owner = ["crates/antecedent/src/analysis/joint_panel/static_source.rs"]
+fixtures = [
+  "crates/antecedent/src/analysis/joint_panel/tests.rs::static_panel_reuses_independent_graph_proof_without_gaussian_restriction_or_extra_work",
+  "crates/antecedent/src/analysis/joint_panel/tests.rs::static_panel_refuses_source_proof_for_another_future_context_law",
+]
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel.rs"]
+
+[[row]]
+id = "X02.joint_assignment"
+owner = ["crates/antecedent/src/analysis/joint_panel/contracts.rs"]
+fixtures = [
+  "crates/antecedent/tests/joint_panel_workflow.rs::period_randomization_does_not_certify_the_held_out_whole_program",
+  "crates/antecedent/tests/joint_panel_workflow.rs::exact_whole_program_assignment_earns_the_world_claim_without_promoting_model_uncertainty",
+]
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel.rs"]
+
+[[row]]
+id = "X03.piecewise_constant"
+owner = ["crates/antecedent-estimate/src/joint_panel/time_varying.rs"]
+fixtures = [
+  "crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_public_preparation_retains_attempts_and_reuses_selected_mechanism",
+  "crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_bootstrap_reruns_mechanism_selection_per_replicate",
+]
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel.rs"]
+
+[[row]]
+id = "X03.smooth"
+owner = ["crates/antecedent-estimate/src/joint_panel/time_varying.rs"]
+fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::temporal_panel_public_preparation_retains_attempts_and_reuses_selected_mechanism"]
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel.rs"]
+
+[[row]]
+id = "X03.coarser_contrast"
+owner = ["crates/antecedent/src/analysis/joint_panel/explanation.rs"]
+fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs::static_panel_coarser_prefix_keeps_the_original_temporal_clock"]
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel.rs"]
+
+[[row]]
+id = "X04.finite_certificate"
+owner = ["crates/antecedent-design/src/program_search.rs"]
+fixtures = ["crates/antecedent-design/src/program_search.rs::finite_program_search_checks_budget_and_reuses_outputs_for_utility_changes"]
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel/search.rs"]
+
+[[row]]
+id = "X04.continuous_best_found"
+owner = ["crates/antecedent-design/src/program_search/continuous.rs"]
+fixtures = ["crates/antecedent/src/analysis/joint_panel/tests.rs::continuous_three_channel_search_reuses_fit_and_improves_a_budget_feasible_nonbinary_program"]
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel/search.rs"]
+
+[[row]]
+id = "X05.geo_translation"
+owner = ["crates/antecedent/src/analysis/joint_panel/experiment.rs"]
+fixtures = ["crates/antecedent/tests/joint_panel_experiment_chain.rs::verify_target_refusals"]
+consumer_paths = ["crates/antecedent-io/src/joint_panel_experiment_artifact.rs"]
+
+[[row]]
+id = "X05.weaker_conditional"
+owner = ["crates/antecedent/src/analysis/joint_panel/experiment.rs"]
+fixtures = ["crates/antecedent/tests/joint_panel_experiment_chain.rs::verify_current_authority"]
+consumer_paths = ["crates/antecedent-io/src/joint_panel_experiment_artifact.rs"]
+
+[[row]]
+id = "X05.smaller_ranking"
+owner = ["crates/antecedent/src/analysis/joint_panel/experiment.rs"]
+fixtures = ["crates/antecedent/tests/joint_panel_experiment_chain.rs::verify_decision_and_next_study"]
+consumer_paths = ["crates/antecedent-io/src/joint_panel_experiment_artifact.rs"]
+
+# Joint-panel children whose consumer was recorded as a ticket name: the fitted panel result is
+# read by the scheduled contrast.
+[[row]]
+id = "X02.static.frequentist"
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel/ports.rs"]
+consumer_symbol = "scheduled_contrast"
+
+[[row]]
+id = "X02.static.bayesian"
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel/ports.rs"]
+consumer_symbol = "scheduled_contrast"
+
+[[row]]
+id = "X02.temporal.frequentist"
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel/ports.rs"]
+consumer_symbol = "scheduled_contrast"
+
+[[row]]
+id = "X02.temporal.bayesian"
+consumer_paths = ["crates/antecedent/src/analysis/joint_panel/ports.rs"]
+consumer_symbol = "scheduled_contrast"
+
+# The independent reference generator's truth is read by its conformance test.
+[[row]]
+id = "X06.temporal.frequentist"
+consumer_paths = ["scripts/test_joint_panel_reference.py"]
+
+[[row]]
+id = "X06.temporal.bayesian"
+consumer_paths = ["scripts/test_joint_panel_reference.py"]
+
+# Rows with no evidence of their own that a later plan item owns. They stay unresolved for release;
+# --check accepts them only while the row really names no fixture or consumer. An entry for a row
+# that gains evidence must be removed (the check fails it as stale).
+
+[[awaiting]]
+id = "P19.static.frequentist"
+owner_item = "P19"
+reason = "licensed and graphless routes are not yet migrated onto the common contracts; the migration item records their fixtures and consumers"
+completes_when = "the migration item lands and the manifest diff names a fixture and a consumer for this axis"
+
+[[awaiting]]
+id = "P20.static.frequentist"
+owner_item = "P20"
+reason = "the closure audit owns this child and has no crate; it starts from this reconciliation report"
+completes_when = "the closure audit names its owner, the generated audit report as fixture and the release gate that reads it"
+
+[[awaiting]]
+id = "P19.static.bayesian"
+owner_item = "P19"
+reason = "licensed and graphless routes are not yet migrated onto the common contracts; the migration item records their fixtures and consumers"
+completes_when = "the migration item lands and the manifest diff names a fixture and a consumer for this axis"
+
+[[awaiting]]
+id = "P20.static.bayesian"
+owner_item = "P20"
+reason = "the closure audit owns this child and has no crate; it starts from this reconciliation report"
+completes_when = "the closure audit names its owner, the generated audit report as fixture and the release gate that reads it"
+
+[[awaiting]]
+id = "P19.temporal.frequentist"
+owner_item = "P19"
+reason = "licensed and graphless routes are not yet migrated onto the common contracts; the migration item records their fixtures and consumers"
+completes_when = "the migration item lands and the manifest diff names a fixture and a consumer for this axis"
+
+[[awaiting]]
+id = "P20.temporal.frequentist"
+owner_item = "P20"
+reason = "the closure audit owns this child and has no crate; it starts from this reconciliation report"
+completes_when = "the closure audit names its owner, the generated audit report as fixture and the release gate that reads it"
+
+[[awaiting]]
+id = "P19.temporal.bayesian"
+owner_item = "P19"
+reason = "licensed and graphless routes are not yet migrated onto the common contracts; the migration item records their fixtures and consumers"
+completes_when = "the migration item lands and the manifest diff names a fixture and a consumer for this axis"
+
+[[awaiting]]
+id = "P20.temporal.bayesian"
+owner_item = "P20"
+reason = "the closure audit owns this child and has no crate; it starts from this reconciliation report"
+completes_when = "the closure audit names its owner, the generated audit report as fixture and the release gate that reads it"

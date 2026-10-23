@@ -6,6 +6,13 @@ component that was not measured says so rather than reading zero. With ``fit_boo
 source also carries ``whole_procedure``: the spread of the full attribution across row-bootstrap
 refits with the fixed permutation variance added. It is uncalibrated and not a licensed
 interval.
+
+With ``posterior_draws`` the same attribution is run under Bayesian inference: every draw
+refits the mechanisms under one Dirichlet(1, ..., 1) row-weight vector (the mechanism families
+held at the ones selected on ``data``) and repeats the whole attribution, so ``posterior``
+carries the posterior mean, standard deviation and 95% credible interval of each source's
+share given the empirical row law. It is the counterpart of ``fit_bootstrap`` and, like it,
+uncalibrated and not a licensed interval.
 """
 
 from __future__ import annotations
@@ -61,6 +68,37 @@ class SourceInfluence:
 
 
 @dataclass(frozen=True)
+class SourcePosterior:
+    """Posterior of one source's variance share over the mechanisms' refits."""
+
+    source: str
+    mean: float
+    sd: float
+    ci_low: float
+    ci_high: float
+
+
+@dataclass(frozen=True)
+class MechanismPosterior:
+    """Posterior over the mechanisms of an intrinsic-influence attribution.
+
+    ``level`` is the nominal level of each source's credible interval (``ci_low`` to
+    ``ci_high``); ``draws`` is the number of Dirichlet-weighted refits.
+    """
+
+    draws: int
+    level: float
+    sources: tuple[SourcePosterior, ...]
+
+    def source(self, name: str) -> SourcePosterior:
+        """The posterior of ``name``."""
+        for entry in self.sources:
+            if entry.source == name:
+                return entry
+        raise KeyError(name)
+
+
+@dataclass(frozen=True)
 class IntrinsicInfluence:
     """Result of :func:`intrinsic_influence`.
 
@@ -79,6 +117,7 @@ class IntrinsicInfluence:
     level: float
     method: dict[str, Any]
     budget: dict[str, int]
+    posterior: MechanismPosterior | None = None
 
     @property
     def provenance_id(self) -> str:
@@ -99,6 +138,7 @@ def intrinsic_influence(
     inner_draws: int = 40,
     replicates: int = 4,
     fit_bootstrap: int = 0,
+    posterior_draws: int = 0,
     level: float = 0.95,
     max_sources: int = 64,
     seed: int = 0,
@@ -122,6 +162,8 @@ def intrinsic_influence(
     ``replicates`` size the nested simulation; ``fit_bootstrap`` (0 for none, otherwise at
     least 10) refits the mechanisms on that many row-bootstrap resamples of ``data`` to
     quantify mechanism-fitting uncertainty, which is otherwise reported ``unquantified``.
+    ``posterior_draws`` (0 for none, otherwise at least 10) instead runs that many
+    Dirichlet-weighted refits, the Bayesian counterpart, and returns their ``posterior``.
     """
     names, columns = as_columns(data)
     raw = json.loads(
@@ -142,6 +184,7 @@ def intrinsic_influence(
             inner_draws=inner_draws,
             replicates=replicates,
             fit_bootstrap=fit_bootstrap,
+            posterior_draws=posterior_draws,
             level=level,
             max_sources=max_sources,
             seed=seed,
@@ -166,7 +209,17 @@ def _influence(raw: dict[str, Any]) -> IntrinsicInfluence:
         )
         for s in raw.pop("sources")
     )
-    return IntrinsicInfluence(sources=sources, **raw)
+    posterior_raw = raw.pop("posterior", None)
+    posterior = (
+        None
+        if posterior_raw is None
+        else MechanismPosterior(
+            draws=posterior_raw["draws"],
+            level=posterior_raw["level"],
+            sources=tuple(SourcePosterior(**s) for s in posterior_raw["sources"]),
+        )
+    )
+    return IntrinsicInfluence(sources=sources, posterior=posterior, **raw)
 
 
 def fitted_intrinsic_influence(
@@ -181,6 +234,7 @@ def fitted_intrinsic_influence(
     inner_draws: int = 40,
     replicates: int = 4,
     fit_bootstrap: int = 0,
+    posterior_draws: int = 0,
     level: float = 0.95,
     max_sources: int = 64,
     seed: int = 0,
@@ -208,6 +262,7 @@ def fitted_intrinsic_influence(
             inner_draws=inner_draws,
             replicates=replicates,
             fit_bootstrap=fit_bootstrap,
+            posterior_draws=posterior_draws,
             level=level,
             max_sources=max_sources,
             seed=seed,
@@ -221,7 +276,9 @@ def fitted_intrinsic_influence(
 __all__ = [
     "ComponentUncertainty",
     "IntrinsicInfluence",
+    "MechanismPosterior",
     "SourceInfluence",
+    "SourcePosterior",
     "fitted_intrinsic_influence",
     "intrinsic_influence",
 ]

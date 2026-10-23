@@ -198,6 +198,9 @@ pub(crate) struct CheckedTemporalResponseOperation {
     fitter: antecedent_estimate::TemporalResponseEstimator,
     bootstrap_replicates: u32,
     grid: Arc<[f64]>,
+    /// The surface retains its joint horizon replicates (see
+    /// [`Self::with_joint_horizons`]).
+    retain_joint: bool,
 }
 
 /// The dose grid of a direct temporal response, refusing one that is empty or
@@ -325,7 +328,29 @@ impl CheckedTemporalResponseOperation {
             fitter,
             bootstrap_replicates,
             grid: grid.into(),
+            retain_joint: false,
         })
+    }
+
+    /// Retain the joint replicates of the surface for composition across horizons.
+    ///
+    /// A Frequentist operation publishes the replicates of its joint circular-block bootstrap.
+    /// A Bayesian one replaces its per-horizon conjugate fits, whose draws are independent
+    /// marginals, by the block-weight posterior over the whole surface with one draw per
+    /// posterior draw requested, and publishes those draws.
+    #[must_use]
+    pub(crate) fn with_joint_horizons(mut self, on: bool) -> Self {
+        self.retain_joint = on;
+        self.fitter = self.fitter.with_joint_replicates(on);
+        if on {
+            if let InferenceMode::Bayesian(config) = &self.inference {
+                self.fitter = self
+                    .fitter
+                    .with_block_weight_posterior(true)
+                    .with_bootstrap_replicates(u32::try_from(config.n_draws).unwrap_or(u32::MAX));
+            }
+        }
+        self
     }
 
     /// Frequentist or Bayesian inference fixed at preparation.
@@ -368,6 +393,7 @@ impl CheckedTemporalResponseOperation {
     #[must_use]
     pub(crate) fn procedure(&self) -> TemporalResponseProcedure {
         let uncertainty = match &self.inference {
+            InferenceMode::Bayesian(_) if self.retain_joint => "bayesian.block_weight_draws",
             InferenceMode::Bayesian(_) => "bayesian.posterior_draws",
             InferenceMode::Frequentist if self.bootstrap_replicates == 0 => {
                 "frequentist.no_interval"
@@ -434,6 +460,13 @@ impl CheckedTemporalResponseOperation {
         }
         let pairs = self.horizon_pairs();
         let status = self.primary()?.identification.status;
+        if self.retain_joint {
+            // The block-weight posterior over the whole surface: one draw refits every horizon.
+            return self
+                .fitter
+                .estimate(data, &pairs, &self.query, status, self.assumptions.clone(), ctx)
+                .map_err(CausalError::from);
+        }
         self.fitter
             .estimate_bayesian(
                 data,

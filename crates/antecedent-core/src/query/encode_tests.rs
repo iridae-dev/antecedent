@@ -1483,6 +1483,35 @@ fn every_discover_field_reaches_the_bytes() {
             &|q| q.method = DiscoveryMethod::Fci,
             &|q| q.method = DiscoveryMethod::Ges { screen_pc: true, max_subset: None },
             &|q| q.method = DiscoveryMethod::Ges { screen_pc: false, max_subset: Some(4) },
+            &|q| {
+                q.method = DiscoveryMethod::BootstrapStability {
+                    base: Box::new(DiscoveryMethod::Pc),
+                    replicates: 50,
+                };
+            },
+            &|q| {
+                q.method = DiscoveryMethod::BootstrapStability {
+                    base: Box::new(DiscoveryMethod::Pc),
+                    replicates: 51,
+                };
+            },
+            &|q| {
+                q.method = DiscoveryMethod::BootstrapStability {
+                    base: Box::new(DiscoveryMethod::Fci),
+                    replicates: 50,
+                };
+            },
+            &|q| q.method = DiscoveryMethod::ExactPagPosterior,
+            &|q| {
+                q.method = DiscoveryMethod::ClassPosterior {
+                    base: Box::new(DiscoveryMethod::StructureMcmc),
+                };
+            },
+            &|q| {
+                q.method = DiscoveryMethod::ClassPosterior {
+                    base: Box::new(DiscoveryMethod::OrderMcmc { diagnostics_gate: true }),
+                };
+            },
             &|q| q.bounds.alpha = 0.01,
             &|q| q.bounds.max_cond_size = 3,
             &|q| q.bounds.max_lag = 1,
@@ -1493,6 +1522,56 @@ fn every_discover_field_reaches_the_bytes() {
             &|q| q.bounds.configuration = [8; 32],
         ],
     );
+}
+
+#[test]
+fn a_wrapped_search_declares_what_it_wraps() {
+    let schedule = SearchSchedule { chains: 2, warmup: 10, draws: 20, thin: 1 };
+    let stability = |base: DiscoveryMethod, replicates: u32| {
+        let mut query = discover();
+        query.method = DiscoveryMethod::BootstrapStability { base: Box::new(base), replicates };
+        query
+    };
+    let stable = stability(DiscoveryMethod::Pc, 50);
+    assert!(stable.validate().is_ok());
+    assert_eq!(stable.inference(), DiscoveryInference::Frequentist);
+    assert_eq!(stable.output(), DiscoveredClass::StructureStability);
+    assert!(!stable.method.is_temporal());
+    assert!(stable.method.uses_independence_tests());
+    assert_eq!(stable.method.id(), "bootstrap_stability");
+    assert!(stability(DiscoveryMethod::Pc, 1).validate().is_err());
+    assert!(stability(DiscoveryMethod::Pc, 10_001).validate().is_err());
+    assert!(stability(DiscoveryMethod::Rpcmci { min_regime_len: None }, 50).validate().is_ok());
+    assert!(stability(DiscoveryMethod::StructureMcmc, 50).validate().is_err());
+    assert!(
+        stability(DiscoveryMethod::DirectLingam { prune_threshold: f64::NAN }, 50)
+            .validate()
+            .is_err()
+    );
+    let mut lagged = stability(DiscoveryMethod::PcmciPlus, 50);
+    lagged.bounds.max_lag = 2;
+    assert!(lagged.validate().is_ok());
+    assert!(lagged.method.is_temporal());
+    let mut static_lagged = stability(DiscoveryMethod::Pc, 50);
+    static_lagged.bounds.max_lag = 1;
+    assert!(static_lagged.validate().is_err());
+
+    let class = |base: DiscoveryMethod, scheduled: bool| {
+        let mut query = discover();
+        query.method = DiscoveryMethod::ClassPosterior { base: Box::new(base) };
+        query.bounds.schedule = scheduled.then_some(schedule);
+        query
+    };
+    let posterior = class(DiscoveryMethod::StructureMcmc, true);
+    assert!(posterior.validate().is_ok());
+    assert_eq!(posterior.inference(), DiscoveryInference::Bayesian);
+    assert_eq!(posterior.output(), DiscoveredClass::CpdagPosterior);
+    assert!(posterior.method.samples_posterior());
+    assert!(class(DiscoveryMethod::StructureMcmc, false).validate().is_err());
+    assert!(class(DiscoveryMethod::ExactDagPosterior, false).validate().is_ok());
+    assert!(class(DiscoveryMethod::ExactDagMarginals, false).validate().is_err());
+    assert!(class(DiscoveryMethod::DbnPosterior { force_mcmc: false }, true).validate().is_ok());
+    assert!(class(DiscoveryMethod::Pc, false).validate().is_err());
 }
 
 #[test]
@@ -1588,6 +1667,7 @@ fn the_new_kinds_validate_their_declarations() {
     assert_eq!(DiscoveryMethod::StructureMcmc.inference(), DiscoveryInference::Bayesian);
     assert_eq!(DiscoveryMethod::PcmciPlus.output(), DiscoveredClass::TemporalCpdag);
     assert!(DiscoveredClass::Pag.is_equivalence_class());
+    assert!(!DiscoveredClass::CpdagPosterior.is_equivalence_class());
     assert!(attribute().validate().is_ok());
     assert!(simulate().validate().is_ok());
     let same = SimulateQuery::new(SimulationTarget::UnitEffects {
@@ -1680,4 +1760,37 @@ fn the_temporal_design_kind_appends_its_tag_and_every_field_reaches_the_bytes() 
     let mut quantile_multi = temporal_design();
     quantile_multi.functional = TemporalDesignFunctional::Quantile { level: 1.5 };
     assert!(quantile_multi.validate().is_err());
+}
+
+fn iv_bounds() -> IvBoundsQuery {
+    IvBoundsQuery::new(v(2), v(1), v(0)).with_weight(v(3))
+}
+
+#[test]
+fn the_iv_bounds_kind_appends_its_tag_and_every_field_reaches_the_bytes() {
+    assert_eq!(digest(&CausalQuery::IvBounds(iv_bounds())), tagged(30, &iv_bounds()));
+    assert_eq!(CausalQuery::IvBounds(iv_bounds()).kind(), CausalQueryKind::IvBounds);
+    assert!(iv_bounds().validate().is_ok());
+    check(
+        CausalQuery::IvBounds,
+        &iv_bounds(),
+        &[
+            &|q| q.outcome = v(5),
+            &|q| q.treatment = v(5),
+            &|q| q.instrument = v(5),
+            &|q| q.weight = None,
+            &|q| q.weight = Some(v(4)),
+        ],
+    );
+    assert_distinct(&[
+        CausalQuery::HistoryMatch(history_match()),
+        CausalQuery::TemporalDesign(temporal_design()),
+        CausalQuery::IvBounds(iv_bounds()),
+    ]);
+    let mut repeated = iv_bounds();
+    repeated.instrument = v(1);
+    assert!(repeated.validate().is_err());
+    let mut weighted_as_outcome = iv_bounds();
+    weighted_as_outcome.weight = Some(v(2));
+    assert!(weighted_as_outcome.validate().is_err());
 }

@@ -13,6 +13,7 @@
 #[doc(hidden)] pub fn antecedent::discovery::discover_dbn_posterior_panel(units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::BayesianDiscoverParams, max_lag: u32, force_mcmc: bool, schedule: &antecedent::discovery::GraphMcmcSchedule, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::graph_posterior::GraphPosterior, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::discovery::discover_exact_dag_marginals(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::BayesianDiscoverParams, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::exact_marginals::ExactDagMarginals, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::discovery::discover_exact_dag_posterior(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::BayesianDiscoverParams, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::graph_posterior::GraphPosterior, antecedent::CausalError>
+#[doc(hidden)] pub fn antecedent::discovery::discover_exact_pag_posterior(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::graph_posterior::GraphPosterior, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::discovery::discover_fci(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::StaticDiscoverParams, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::fci::StaticPagDiscoveryResult, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::discovery::discover_ges(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::StaticDiscoverParams, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::pc::StaticCpdagDiscoveryResult, antecedent::CausalError>
 #[doc(hidden)] pub fn antecedent::discovery::discover_jpcmci_plus(data: &antecedent_data::multi_env::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], params: &antecedent::discovery::DiscoverParams, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::result::CpdagDiscoveryResult, antecedent::CausalError>
@@ -642,6 +643,8 @@ impl core::clone::Clone for antecedent::analysis::effect_constancy_consumers::Tr
 impl core::clone::Clone for antecedent::analysis::evidence_ledger::PooledIntervalCandidate
 impl core::clone::Clone for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::clone::Clone for antecedent::analysis::file_table::SummaryMissing
+impl core::clone::Clone for antecedent::analysis::horizon_composition::ComposedHorizons
+impl core::clone::Clone for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::clone::Clone for antecedent::analysis::inverse_sources::ComposedActionQuery
 impl core::clone::Clone for antecedent::analysis::inverse_sources::ComposedSourceRefusal
 impl core::clone::Clone for antecedent::analysis::inverse_sources::ForwardSourceInspection
@@ -1360,6 +1363,8 @@ impl core::cmp::PartialEq for antecedent::analysis::effect_constancy_consumers::
 impl core::cmp::PartialEq for antecedent::analysis::evidence_ledger::PooledIntervalCandidate
 impl core::cmp::PartialEq for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::cmp::PartialEq for antecedent::analysis::file_table::SummaryMissing
+impl core::cmp::PartialEq for antecedent::analysis::horizon_composition::ComposedHorizons
+impl core::cmp::PartialEq for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::cmp::PartialEq for antecedent::analysis::inverse_sources::ComposedActionQuery
 impl core::cmp::PartialEq for antecedent::analysis::inverse_sources::ComposedSourceRefusal
 impl core::cmp::PartialEq for antecedent::analysis::inverse_sources::ForwardSourceInspection
@@ -2177,6 +2182,8 @@ impl core::fmt::Debug for antecedent::analysis::file_table::FileGaussianSummary
 impl core::fmt::Debug for antecedent::analysis::file_table::FileTableError
 impl core::fmt::Debug for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::fmt::Debug for antecedent::analysis::file_table::SummaryMissing
+impl core::fmt::Debug for antecedent::analysis::horizon_composition::ComposedHorizons
+impl core::fmt::Debug for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::fmt::Debug for antecedent::analysis::inverse_sources::ComposedActionQuery
 impl core::fmt::Debug for antecedent::analysis::inverse_sources::ComposedSourceRefusal
 impl core::fmt::Debug for antecedent::analysis::inverse_sources::ForwardSourceInspection
@@ -3124,6 +3131,8 @@ impl core::marker::Freeze for antecedent::analysis::effect_constancy_consumers::
 impl core::marker::Freeze for antecedent::analysis::file_table::FileTableError [auto]
 impl core::marker::Freeze for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::marker::Freeze for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::marker::Freeze for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::marker::Freeze for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Freeze for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::marker::Freeze for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::inverse_sources::ForwardSourceInspection [auto]
@@ -3864,6 +3873,8 @@ impl core::marker::Send for antecedent::analysis::file_table::FileGaussianSummar
 impl core::marker::Send for antecedent::analysis::file_table::FileTableError [auto]
 impl core::marker::Send for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::marker::Send for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::marker::Send for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::marker::Send for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Send for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::marker::Send for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
 impl core::marker::Send for antecedent::analysis::inverse_sources::ForwardSourceInspection [auto]
@@ -4433,6 +4444,8 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::effect_constanc
 impl core::marker::StructuralPartialEq for antecedent::analysis::evidence_ledger::PooledIntervalCandidate
 impl core::marker::StructuralPartialEq for antecedent::analysis::file_table::GaussianSummarySpec
 impl core::marker::StructuralPartialEq for antecedent::analysis::file_table::SummaryMissing
+impl core::marker::StructuralPartialEq for antecedent::analysis::horizon_composition::ComposedHorizons
+impl core::marker::StructuralPartialEq for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::marker::StructuralPartialEq for antecedent::analysis::inverse_sources::ComposedActionQuery
 impl core::marker::StructuralPartialEq for antecedent::analysis::inverse_sources::ComposedSourceRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::inverse_sources::ForwardSourceInspection
@@ -5060,6 +5073,8 @@ impl core::marker::Sync for antecedent::analysis::file_table::FileGaussianSummar
 impl core::marker::Sync for antecedent::analysis::file_table::FileTableError [auto]
 impl core::marker::Sync for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::marker::Sync for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::marker::Sync for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::marker::Sync for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Sync for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::marker::Sync for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::inverse_sources::ForwardSourceInspection [auto]
@@ -5802,6 +5817,8 @@ impl core::marker::Unpin for antecedent::analysis::file_table::FileGaussianSumma
 impl core::marker::Unpin for antecedent::analysis::file_table::FileTableError [auto]
 impl core::marker::Unpin for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::marker::Unpin for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::marker::Unpin for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::marker::Unpin for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Unpin for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::marker::Unpin for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::inverse_sources::ForwardSourceInspection [auto]
@@ -6536,6 +6553,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::effect_co
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_table::FileGaussianSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::inverse_sources::ForwardSourceInspection [auto]
@@ -7248,6 +7267,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::effect_const
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::FileGaussianSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::GaussianSummarySpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::file_table::SummaryMissing [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::inverse_sources::ForwardSourceInspection [auto]
@@ -7870,7 +7891,7 @@ pub const antecedent::analysis::file_table::INTERCEPT_COLUMN: &str
 pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_LEVEL: f64
 pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_NORMAL_CONSTRUCTION: &str
 pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_QUERY: &str
-pub const antecedent::analysis::missing_support::ALL_QUERY_KINDS: [antecedent_core::query::CausalQueryKind; 29]
+pub const antecedent::analysis::missing_support::ALL_QUERY_KINDS: [antecedent_core::query::CausalQueryKind; 30]
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_ESTIMATOR: &str
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_INTERVAL_CALIBRATED: &str
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_INTERVAL_WITHHELD: &str
@@ -9683,6 +9704,16 @@ pub field antecedent::analysis::file_table::GaussianSummarySpec::intercept: bool
 pub field antecedent::analysis::file_table::GaussianSummarySpec::missing: antecedent::analysis::file_table::SummaryMissing
 pub field antecedent::analysis::file_table::GaussianSummarySpec::response: alloc::string::String
 pub field antecedent::analysis::file_table::GaussianSummarySpec::weight: core::option::Option<alloc::string::String>
+pub field antecedent::analysis::horizon_composition::ComposedHorizons::coordinate: antecedent_contract::joint_law_rule::ComposedCoordinate
+pub field antecedent::analysis::horizon_composition::ComposedHorizons::draws: alloc::vec::Vec<f64>
+pub field antecedent::analysis::horizon_composition::ComposedHorizons::label: &'static str
+pub field antecedent::analysis::horizon_composition::ComposedHorizons::plan: antecedent_contract::joint_law_rule::PropagationPlan
+pub field antecedent::analysis::horizon_composition::ComposedHorizons::spread: antecedent_stats::joint_law::DrawSpread
+pub field antecedent::analysis::horizon_composition::HorizonDraws::alignment_id: alloc::string::String
+pub field antecedent::analysis::horizon_composition::HorizonDraws::center: alloc::vec::Vec<f64>
+pub field antecedent::analysis::horizon_composition::HorizonDraws::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent::analysis::horizon_composition::HorizonDraws::evidence_id: alloc::string::String
+pub field antecedent::analysis::horizon_composition::HorizonDraws::horizons: alloc::vec::Vec<u32>
 pub field antecedent::analysis::inverse_sources::ComposedActionQuery::action_id: alloc::string::String
 pub field antecedent::analysis::inverse_sources::ComposedActionQuery::coordinate: antecedent_contract::quantity::ScientificQuantity
 pub field antecedent::analysis::inverse_sources::ComposedActionQuery::level_values: alloc::vec::Vec<(alloc::string::String, f64)>
@@ -10704,11 +10735,14 @@ pub fn <antecedent::DiscoveredStructure>::fn accept(&self, accept_discovered: bo
 pub fn <antecedent::DiscoveredStructure>::fn algorithm_id(&self) -> core::option::Option<&str>
 pub fn <antecedent::DiscoveredStructure>::fn pending_marks(&self) -> u64
 pub fn <antecedent::DiscoverySpec>::const fn method(&self) -> &antecedent_core::query::discover::DiscoveryMethod
+pub fn <antecedent::DiscoverySpec>::fn bootstrap_stability(self, replicates: u32) -> Self
 pub fn <antecedent::DiscoverySpec>::fn ci_label(&self) -> &str
 pub fn <antecedent::DiscoverySpec>::fn ci_screened_posterior(params: antecedent::discovery::BayesianDiscoverParams, screen: antecedent::discovery::StaticDiscoverParams, schedule: antecedent::discovery::GraphMcmcSchedule, soft_weight: antecedent_discovery::ci_screened_posterior::CiSoftWeight, ci_label: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent::DiscoverySpec>::fn dbn_posterior(params: antecedent::discovery::BayesianDiscoverParams, max_lag: u32, force_mcmc: bool, schedule: antecedent::discovery::GraphMcmcSchedule) -> Self
+pub fn <antecedent::DiscoverySpec>::fn equivalence_classes(self) -> Self
 pub fn <antecedent::DiscoverySpec>::fn exact_dag_marginals(params: antecedent::discovery::BayesianDiscoverParams) -> Self
 pub fn <antecedent::DiscoverySpec>::fn exact_dag_posterior(params: antecedent::discovery::BayesianDiscoverParams) -> Self
+pub fn <antecedent::DiscoverySpec>::fn exact_pag_posterior(params: antecedent::discovery::BayesianDiscoverParams) -> Self
 pub fn <antecedent::DiscoverySpec>::fn fci(params: antecedent::discovery::StaticDiscoverParams, ci_label: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent::DiscoverySpec>::fn ges(params: antecedent::discovery::StaticDiscoverParams, ci_label: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent::DiscoverySpec>::fn jpcmci_plus(params: antecedent::discovery::DiscoverParams, ci_label: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
@@ -11224,6 +11258,7 @@ pub fn <antecedent::ResultPayload>::fn into_counterfactual(self) -> core::option
 pub fn <antecedent::ResultPayload>::fn into_discovery(self) -> core::option::Option<antecedent::DiscoveryPayload>
 pub fn <antecedent::ResultPayload>::fn into_distribution(self) -> core::option::Option<antecedent_estimate::functional_distribution::InterventionalDistributionEstimate>
 pub fn <antecedent::ResultPayload>::fn into_history_match(self) -> core::option::Option<antecedent::HistoryMatchEstimate>
+pub fn <antecedent::ResultPayload>::fn into_iv_bounds(self) -> core::option::Option<antecedent_estimate::iv_bounds::IvBoundsEstimate>
 pub fn <antecedent::ResultPayload>::fn into_local_polynomial_ratio(self) -> core::option::Option<antecedent::LocalPolynomialRatioEstimate>
 pub fn <antecedent::ResultPayload>::fn into_longitudinal_regime(self) -> core::option::Option<antecedent::LongitudinalRegimeEstimate>
 pub fn <antecedent::ResultPayload>::fn into_mediation(self) -> core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationEstimate>
@@ -11242,6 +11277,7 @@ pub fn <antecedent::ResultPayload>::fn into_synthetic_did(self) -> core::option:
 pub fn <antecedent::ResultPayload>::fn into_temporal_design(self) -> core::option::Option<antecedent::TemporalDesignEstimate>
 pub fn <antecedent::ResultPayload>::fn into_transport(self) -> core::option::Option<antecedent_estimate::transport::TransportEffectEstimate>
 pub fn <antecedent::ResultPayload>::fn into_unit_change(self) -> core::option::Option<antecedent_attribution::result::UnitChangeResult>
+pub fn <antecedent::ResultPayload>::fn iv_bounds(&self) -> core::option::Option<&antecedent_estimate::iv_bounds::IvBoundsEstimate>
 pub fn <antecedent::ResultPayload>::fn mechanism_change(&self) -> core::option::Option<&[antecedent_attribution::result::MechanismChangeDetection]>
 pub fn <antecedent::ResultPayload>::fn quasi_rollout(&self) -> core::option::Option<&antecedent::QuasiRolloutEstimate>
 pub fn <antecedent::ResultPayload>::fn simulation(&self) -> core::option::Option<&antecedent::SimulationPayload>
@@ -11355,6 +11391,7 @@ pub fn <antecedent::StudyBuilder>::fn rd_config(self, running_variable: antecede
 pub fn <antecedent::StudyBuilder>::fn rd_design(self, config: antecedent::RdConfig) -> Self
 pub fn <antecedent::StudyBuilder>::fn refute(self, suite: antecedent::RefuteSuite) -> Self
 pub fn <antecedent::StudyBuilder>::fn response_options(self, options: antecedent_estimate::response::ContinuousResponseOptions) -> Self
+pub fn <antecedent::StudyBuilder>::fn retain_joint_horizons(self, on: bool) -> Self
 pub fn <antecedent::StudyBuilder>::fn sampling_design(self, design: antecedent_core::sampling_design::SamplingDesign) -> Self
 pub fn <antecedent::StudyBuilder>::fn scenario_shared_covariance(spec: &antecedent_io::scenario_covariance_artifact::CovarianceSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_io_core::error::IoError>
 pub fn <antecedent::StudyBuilder>::fn selection_targets(self, targets: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>) -> Self
@@ -11397,6 +11434,7 @@ pub fn <antecedent::StudyResult>::fn into_continuous_dose_response(self) -> core
 pub fn <antecedent::StudyResult>::fn into_counterfactual(self) -> core::option::Option<antecedent::gcm::IteResult>
 pub fn <antecedent::StudyResult>::fn into_distribution(self) -> core::option::Option<antecedent_estimate::functional_distribution::InterventionalDistributionEstimate>
 pub fn <antecedent::StudyResult>::fn into_history_match(self) -> core::option::Option<antecedent::HistoryMatchEstimate>
+pub fn <antecedent::StudyResult>::fn into_iv_bounds(self) -> core::option::Option<antecedent_estimate::iv_bounds::IvBoundsEstimate>
 pub fn <antecedent::StudyResult>::fn into_local_polynomial_ratio(self) -> core::option::Option<antecedent::LocalPolynomialRatioEstimate>
 pub fn <antecedent::StudyResult>::fn into_longitudinal_regime(self) -> core::option::Option<antecedent::LongitudinalRegimeEstimate>
 pub fn <antecedent::StudyResult>::fn into_mediation(self) -> core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationEstimate>
@@ -11414,6 +11452,7 @@ pub fn <antecedent::StudyResult>::fn into_synthetic_did(self) -> core::option::O
 pub fn <antecedent::StudyResult>::fn into_temporal_design(self) -> core::option::Option<antecedent::TemporalDesignEstimate>
 pub fn <antecedent::StudyResult>::fn into_transport(self) -> core::option::Option<antecedent_estimate::transport::TransportEffectEstimate>
 pub fn <antecedent::StudyResult>::fn into_unit_change(self) -> core::option::Option<antecedent_attribution::result::UnitChangeResult>
+pub fn <antecedent::StudyResult>::fn iv_bounds(&self) -> core::option::Option<&antecedent_estimate::iv_bounds::IvBoundsEstimate>
 pub fn <antecedent::StudyResult>::fn local_polynomial_ratio(&self) -> core::option::Option<&antecedent::LocalPolynomialRatioEstimate>
 pub fn <antecedent::StudyResult>::fn logical_plan(&self) -> &antecedent_contract::plan::LogicalAnalysisPlanRecord
 pub fn <antecedent::StudyResult>::fn longitudinal_regime(&self) -> core::option::Option<&antecedent::LongitudinalRegimeEstimate>
@@ -12710,6 +12749,9 @@ pub fn antecedent::analysis::export_callback_result(record: &antecedent_io_core:
 pub fn antecedent::analysis::export_interface_contract(contract: &antecedent_contract::interface_contract::declaration::InterfaceContract, artifact_id: &str) -> core::result::Result<antecedent::analysis::InterfaceContractExport, antecedent::analysis::InterfaceContractRefusal>
 pub fn antecedent::analysis::file_table::summarize_weighted_gaussian(file: &antecedent_data::file_source::TableFile, spec: &antecedent::analysis::file_table::GaussianSummarySpec, control: antecedent_io_core::capacity_account::weighted_gaussian_capacity::CapacityControl, options: &antecedent_io_core::capacity_account::weighted_gaussian_capacity::CapacityOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::file_table::FileGaussianSummary, antecedent::analysis::file_table::FileTableError>
 pub fn antecedent::analysis::forecast_law_from_sample(output: &antecedent_contract::callback_protocol::query::ValidatedOutput) -> core::result::Result<antecedent_validate::predictive_assessment::law::ForecastLaw, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent::analysis::horizon_composition::compose_horizons(draws: &antecedent::analysis::horizon_composition::HorizonDraws, coefficients: &[f64], operation: antecedent_contract::joint_law_rule::PropagationOperation) -> core::result::Result<antecedent::analysis::horizon_composition::ComposedHorizons, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent::analysis::horizon_composition::compose_horizons_with(draws: &antecedent::analysis::horizon_composition::HorizonDraws, operation: antecedent_contract::joint_law_rule::PropagationOperation, map: &dyn core::ops::function::Fn(&[f64]) -> f64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::horizon_composition::ComposedHorizons, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent::analysis::horizon_composition::horizon_draws(response: &antecedent_core::response::CausalResponse, dose_index: usize) -> core::result::Result<antecedent::analysis::horizon_composition::HorizonDraws, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::independent_product_table(columns: &[alloc::vec::Vec<f64>], max_rows: usize) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_contract::propagation_chain::ChainRefusal>
 pub fn antecedent::analysis::input_alignment(artifact: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent_contract::joint_law_rule::InputAlignment, antecedent::analysis::JointLawPropagationRefusal>
 pub fn antecedent::analysis::inspect_callback_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::callback_result_artifact::CallbackResultMeta, antecedent_io_core::callback_result_artifact::CallbackResultArtifactError>
@@ -12836,6 +12878,7 @@ pub fn antecedent::analysis::staleness::staleness_finding_json(finding: &anteced
 pub fn antecedent::analysis::staleness::staleness_policy_from_json(text: &str) -> core::result::Result<antecedent_validate::staleness::policy::StalenessPolicy, antecedent::CausalError>
 pub fn antecedent::analysis::staleness::staleness_policy_json(policy: &antecedent_validate::staleness::policy::StalenessPolicy) -> serde_json::value::Value
 pub fn antecedent::analysis::staleness::staleness_report_json(report: &antecedent_validate::staleness::report::StalenessReport) -> serde_json::value::Value
+pub fn antecedent::analysis::structure_route::attribution_quantities(outcome: &antecedent::AttributionOutcome) -> core::option::Option<alloc::vec::Vec<(alloc::string::String, f64)>>
 pub fn antecedent::analysis::target_validation::certify_result_refutations(result: &antecedent::StudyResult, reports: &[antecedent_validate::target_native::TargetRefutationReport]) -> core::result::Result<antecedent_validate::target_native::TargetCertificate, antecedent_validate::target_native::TargetCertificationError>
 pub fn antecedent::analysis::target_validation::refuse_scalar_refutations_for_result(result: &antecedent::StudyResult) -> core::result::Result<(), antecedent_validate::target_native::TargetCertificationError>
 pub fn antecedent::analysis::target_validation::refute_prepared_target(prepared: &antecedent::PreparedStudy, result: &antecedent::StudyResult, data: antecedent::analysis::target_validation::PreparedTargetData<'_>, suite: antecedent_validate::target_native::TargetSuite, config: &antecedent_validate::target_native::engine::TargetRefutationConfig, options: &antecedent::analysis::target_validation::TargetRefitOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::target_validation::TargetRefutationOutcome, antecedent::CausalError>
@@ -12992,6 +13035,7 @@ pub mod antecedent::analysis::effect_constancy
 pub mod antecedent::analysis::effect_constancy_consumers
 pub mod antecedent::analysis::evidence_ledger
 pub mod antecedent::analysis::file_table
+pub mod antecedent::analysis::horizon_composition
 pub mod antecedent::analysis::interface_contract
 pub mod antecedent::analysis::inverse_query
 pub mod antecedent::analysis::inverse_sources
@@ -13564,6 +13608,8 @@ pub struct antecedent::analysis::effect_constancy_consumers::PriorPartitionBindi
 pub struct antecedent::analysis::effect_constancy_consumers::TransportConstancyDiagnostic
 pub struct antecedent::analysis::file_table::FileGaussianSummary
 pub struct antecedent::analysis::file_table::GaussianSummarySpec
+pub struct antecedent::analysis::horizon_composition::ComposedHorizons
+pub struct antecedent::analysis::horizon_composition::HorizonDraws
 pub struct antecedent::analysis::inverse_sources::ComposedActionQuery
 pub struct antecedent::analysis::inverse_sources::ForwardSourceInspection
 pub struct antecedent::analysis::inverse_sources::ObservationalScenarioInspection
@@ -13943,6 +13989,10 @@ pub use antecedent::InputSupport = super::InputSupport
 pub use antecedent::InterferenceFunctional = query::InterferenceFunctional
 pub use antecedent::InterferenceQuery = query::InterferenceQuery
 pub use antecedent::InterventionalDistributionQuery = query::InterventionalDistributionQuery
+pub use antecedent::IvBoundsEstimate = antecedent_estimate::IvBoundsEstimate
+pub use antecedent::IvBoundsInterval = antecedent_estimate::IvBoundsInterval
+pub use antecedent::IvBoundsPosterior = antecedent_estimate::IvBoundsPosterior
+pub use antecedent::IvBoundsQuery = query::IvBoundsQuery
 pub use antecedent::LicensedNeighbor = super::LicensedNeighbor
 pub use antecedent::LocalPolynomialRatioQuery = query::LocalPolynomialRatioQuery
 pub use antecedent::LongitudinalRegimeQuery = query::LongitudinalRegimeQuery
@@ -16242,6 +16292,7 @@ pub use antecedent::discovery::StaticCpdagDiscoveryResult = antecedent_discovery
 pub use antecedent::discovery::StaticDagDiscoveryResult = antecedent_discovery::StaticDagDiscoveryResult
 pub use antecedent::discovery::StaticPagDiscoveryResult = antecedent_discovery::StaticPagDiscoveryResult
 pub use antecedent::discovery::StructureMcmc = antecedent_discovery::StructureMcmc
+pub use antecedent::discovery::StructureStability = antecedent_discovery::StructureStability
 pub use antecedent::discovery::TimeDummyCiMode = antecedent_discovery::TimeDummyCiMode
 pub use antecedent::discovery::adjacency_mask_from_cpdag = antecedent_discovery::adjacency_mask_from_cpdag
 pub use antecedent::discovery::adjacency_masks_from_pag = antecedent_discovery::adjacency_masks_from_pag
@@ -16317,6 +16368,7 @@ pub use antecedent::gcm::DoSampleResult = antecedent_model::DoSampleResult
 pub use antecedent::gcm::DynamicMechanism = antecedent_model::DynamicMechanism
 pub use antecedent::gcm::ExogenousPosterior = antecedent_counterfactual::ExogenousPosterior
 pub use antecedent::gcm::FeatureRelevance = antecedent_attribution::FeatureRelevance
+pub use antecedent::gcm::FitResampling = antecedent_attribution::FitResampling
 pub use antecedent::gcm::GraphFalsificationConfig = antecedent_model::GraphFalsificationConfig
 pub use antecedent::gcm::GraphFalsificationOutcome = antecedent_model::GraphFalsificationOutcome
 pub use antecedent::gcm::GraphFalsificationReport = antecedent_model::GraphFalsificationReport
@@ -16635,6 +16687,7 @@ pub use antecedent::query::InterferenceFunctional = antecedent_core::Interferenc
 pub use antecedent::query::InterferenceQuery = antecedent_core::InterferenceQuery
 pub use antecedent::query::InterventionalDistributionQuery = antecedent_core::InterventionalDistributionQuery
 pub use antecedent::query::IntrinsicInfluenceTarget = antecedent_core::IntrinsicInfluenceTarget
+pub use antecedent::query::IvBoundsQuery = antecedent_core::IvBoundsQuery
 pub use antecedent::query::LocalPolynomialRatioQuery = antecedent_core::LocalPolynomialRatioQuery
 pub use antecedent::query::LongitudinalRegimeQuery = antecedent_core::LongitudinalRegimeQuery
 pub use antecedent::query::MechanismChangeQuery = antecedent_core::MechanismChangeQuery
@@ -16939,7 +16992,9 @@ pub variant antecedent::DesignPosteriorModel::Switchback { model: antecedent_est
 pub variant antecedent::DiscoveredStructure::EdgeMarginals(antecedent_discovery::exact_marginals::ExactDagMarginals)
 pub variant antecedent::DiscoveredStructure::Notears(antecedent_discovery::notears::NotearsDiscoveryResult)
 pub variant antecedent::DiscoveredStructure::Posterior(antecedent_discovery::graph_posterior::GraphPosterior)
+pub variant antecedent::DiscoveredStructure::RegimeStability(alloc::vec::Vec<(antecedent_core::ids::RegimeId, antecedent_discovery::stability::StructureStability)>)
 pub variant antecedent::DiscoveredStructure::Regimes(antecedent_discovery::rpcmci::RpcmciDiscoveryResult)
+pub variant antecedent::DiscoveredStructure::Stability(antecedent_discovery::stability::StructureStability)
 pub variant antecedent::DiscoveredStructure::StaticCpdag(antecedent_discovery::pc::StaticCpdagDiscoveryResult)
 pub variant antecedent::DiscoveredStructure::StaticDag(antecedent_discovery::lingam::StaticDagDiscoveryResult)
 pub variant antecedent::DiscoveredStructure::StaticPag(antecedent_discovery::fci::StaticPagDiscoveryResult)
@@ -16956,6 +17011,7 @@ pub variant antecedent::EstimatorId::BayesianComplierEffect
 pub variant antecedent::EstimatorId::BayesianConditional
 pub variant antecedent::EstimatorId::BayesianDosePolicy
 pub variant antecedent::EstimatorId::BayesianGcomp
+pub variant antecedent::EstimatorId::BayesianIvBounds
 pub variant antecedent::EstimatorId::BayesianIvJointLinear
 pub variant antecedent::EstimatorId::BayesianLocalRatio
 pub variant antecedent::EstimatorId::BayesianPanelDid
@@ -16999,6 +17055,7 @@ pub variant antecedent::EstimatorId::InterferenceHtHajek
 pub variant antecedent::EstimatorId::InterferenceObservationalIpw
 pub variant antecedent::EstimatorId::InterferenceSaturationExact
 pub variant antecedent::EstimatorId::Iv2Sls
+pub variant antecedent::EstimatorId::IvBoundsSharp
 pub variant antecedent::EstimatorId::IvWald
 pub variant antecedent::EstimatorId::LinearAdjustmentAte
 pub variant antecedent::EstimatorId::LongitudinalGFormulaRegime
@@ -17154,6 +17211,7 @@ pub variant antecedent::ResultPayload::Discovery(alloc::boxed::Box<antecedent::D
 pub variant antecedent::ResultPayload::Distribution(antecedent_estimate::functional_distribution::InterventionalDistributionEstimate)
 pub variant antecedent::ResultPayload::HistoryMatch(antecedent::HistoryMatchEstimate)
 pub variant antecedent::ResultPayload::Interference { estimate: core::option::Option<antecedent_estimate::interference::InterferenceEstimate>, inference: core::option::Option<antecedent::result::InterferenceInference> }
+pub variant antecedent::ResultPayload::IvBounds(alloc::boxed::Box<antecedent_estimate::iv_bounds::IvBoundsEstimate>)
 pub variant antecedent::ResultPayload::LocalPolynomialRatio(antecedent::LocalPolynomialRatioEstimate)
 pub variant antecedent::ResultPayload::LongitudinalRegime(antecedent::LongitudinalRegimeEstimate)
 pub variant antecedent::ResultPayload::MechanismChange(alloc::vec::Vec<antecedent_attribution::result::MechanismChangeDetection>)
@@ -17348,6 +17406,7 @@ pub variant antecedent::analysis::RetainedOperation::ClassGraphPosteriorEffect(a
 pub variant antecedent::analysis::RetainedOperation::ContinuousDoseResponse
 pub variant antecedent::analysis::RetainedOperation::Counterfactual(&'a antecedent::gcm::CheckedCounterfactualOperation)
 pub variant antecedent::analysis::RetainedOperation::DerivativeResponse(antecedent::analysis::CheckedDerivativeResponseInfo)
+pub variant antecedent::analysis::RetainedOperation::Discovery
 pub variant antecedent::analysis::RetainedOperation::Distribution(&'a antecedent_expr::program::FunctionalProgram)
 pub variant antecedent::analysis::RetainedOperation::FrontDoorLinear(&'a antecedent_estimate::frontdoor::CheckedFrontDoorPreparation)
 pub variant antecedent::analysis::RetainedOperation::FunctionalEffect(&'a antecedent_expr::program::FunctionalProgram)
@@ -17356,11 +17415,14 @@ pub variant antecedent::analysis::RetainedOperation::GraphPosteriorResponse(ante
 pub variant antecedent::analysis::RetainedOperation::HistoryMatch
 pub variant antecedent::analysis::RetainedOperation::Interference(antecedent::CheckedInterferenceInfo)
 pub variant antecedent::analysis::RetainedOperation::Iv(&'a antecedent_estimate::iv::CheckedIvPreparation)
+pub variant antecedent::analysis::RetainedOperation::IvBounds
 pub variant antecedent::analysis::RetainedOperation::LocalPolynomialRatio
 pub variant antecedent::analysis::RetainedOperation::LongitudinalRegime
+pub variant antecedent::analysis::RetainedOperation::MultiEnvTemporal
 pub variant antecedent::analysis::RetainedOperation::NestedCounterfactual(&'a antecedent::gcm::NestedCounterfactualOperation)
 pub variant antecedent::analysis::RetainedOperation::OrdinaryDispatch
 pub variant antecedent::analysis::RetainedOperation::PanelDid
+pub variant antecedent::analysis::RetainedOperation::PanelTemporal
 pub variant antecedent::analysis::RetainedOperation::PathSpecificEffect(&'a antecedent_expr::program::FunctionalProgram)
 pub variant antecedent::analysis::RetainedOperation::PolicyValue
 pub variant antecedent::analysis::RetainedOperation::Randomized
@@ -17372,9 +17434,11 @@ pub variant antecedent::analysis::RetainedOperation::StaticMediation(antecedent:
 pub variant antecedent::analysis::RetainedOperation::StaticResponseCurve
 pub variant antecedent::analysis::RetainedOperation::Survival
 pub variant antecedent::analysis::RetainedOperation::SyntheticControl
+pub variant antecedent::analysis::RetainedOperation::TemporalAdmgEffect
 pub variant antecedent::analysis::RetainedOperation::TemporalClassEffect(antecedent::analysis::CheckedTemporalClassEffectInfo)
 pub variant antecedent::analysis::RetainedOperation::TemporalClassMediation(antecedent::CheckedTemporalClassMediationInfo)
 pub variant antecedent::analysis::RetainedOperation::TemporalClassResponse(antecedent::analysis::CheckedTemporalClassResponseInfo)
+pub variant antecedent::analysis::RetainedOperation::TemporalCrossWorld
 pub variant antecedent::analysis::RetainedOperation::TemporalDagEffect(antecedent::analysis::CheckedTemporalDagEffectInfo)
 pub variant antecedent::analysis::RetainedOperation::TemporalDagResponse(antecedent::analysis::CheckedTemporalDagResponseInfo)
 pub variant antecedent::analysis::RetainedOperation::TemporalDesign
@@ -17595,6 +17659,7 @@ pub variant antecedent::planner::PlanRoute::GcmTemporal
 pub variant antecedent::planner::PlanRoute::GraphPosterior(antecedent::planner::plan_view::GraphPosteriorCell)
 pub variant antecedent::planner::PlanRoute::HistoryMatch
 pub variant antecedent::planner::PlanRoute::InterferenceDag
+pub variant antecedent::planner::PlanRoute::IvBounds
 pub variant antecedent::planner::PlanRoute::LocalPolynomialRatio
 pub variant antecedent::planner::PlanRoute::LongitudinalRegime
 pub variant antecedent::planner::PlanRoute::MixedAdmgResponse
@@ -17623,6 +17688,7 @@ pub variant antecedent::planner::PlanRoute::SyntheticControl
 pub variant antecedent::planner::PlanRoute::TemporalCrossWorldClass
 pub variant antecedent::planner::PlanRoute::TemporalCrossWorldDag
 pub variant antecedent::planner::PlanRoute::TemporalDesign
+pub variant antecedent::planner::PlanRoute::TemporalEffectAdmg
 pub variant antecedent::planner::PlanRoute::TemporalEffectClass
 pub variant antecedent::planner::PlanRoute::TemporalEffectDag
 pub variant antecedent::planner::PlanRoute::TemporalMediationCpdag

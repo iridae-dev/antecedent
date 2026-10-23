@@ -290,9 +290,13 @@ pub(crate) struct AnalysisResult {
     pub(crate) structural_identified_set_interval_truncated: Option<bool>,
 }
 
+/// A supplied temporal structure that is not a `TemporalDag`: an equivalence class, or a
+/// temporal ADMG whose pulse, sustained and conditional contrasts are identified on its unrolled
+/// window.
 pub(crate) enum TemporalClassGraph {
     Cpdag(antecedent_graph::TemporalCpdag),
     Pag(antecedent_graph::TemporalPag),
+    Admg(antecedent_graph::TemporalAdmg),
 }
 
 pub(crate) fn temporal_query_from_policy(

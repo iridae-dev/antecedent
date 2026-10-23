@@ -525,7 +525,12 @@ Implemented identification strategies:
 * unfolded temporal backdoor;
 * temporal mediation;
 * pairwise backdoor identification for continuous-response functionals;
-* sharp binary-IV Balke–Pearl ATE bounds by response-type enumeration;
+* sharp binary-IV Balke–Pearl ATE bounds by response-type enumeration, run as the
+  compiled `IvBounds` study (`analyze(data, query=quasi.IvBounds(...))`): three 0/1
+  columns and an optional weight column give an identified set, never a point, with an
+  Imbens–Manski row-bootstrap interval (`bootstrap=`) or a Bayesian-bootstrap endpoint
+  posterior. It is partially identified (claim kind `bounds`), executes unlicensed, and no
+  coverage record measures its interval;
 * classical single-source sID (Bareinboim–Pearl Figure-5 recursion, access to
   all source experiments): an independently checked symbolic distribution, an
   independently verified s-hedge `ProvenNonTransportable` certificate, or

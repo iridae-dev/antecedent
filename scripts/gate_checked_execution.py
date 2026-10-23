@@ -30,6 +30,15 @@ any test binary starts, when:
   row in the Python facade registry, or is imported by a Python module other than its
   staged wrapper (`compiler_bypass_problems`).
 
+* the route set derived from the route manifest, the `route_lowerings!` registry and the
+  licensed routes (`gate_retained_routes.retained_route_problems`) has a route with no
+  lowered program entry, a registered cell no sealed operation serves (its prepared
+  execution is `OrdinaryDispatch`), a `retained_operation` that is not a sealed operation
+  serving the route's cell, a construction of `PreparedExecution::OrdinaryDispatch` outside
+  the sealer table, a dispatch entry that does not require the lowered program, a compile
+  or run entry that lost the `public_builder_reentry` refusal, or a caller that swallows
+  `route_not_lowered`.
+
 The evidence rows add the compiler-path, lowered-dispatch and lowering-registry
 assertions to the checked-execution citations.
 """
@@ -43,6 +52,7 @@ from pathlib import Path
 
 from _rust_source import rust_mask
 from gate_recipe_obligations import matrix_alignment_problems
+from gate_retained_routes import retained_route_problems
 from test_evidence import checked_execution_body_problems, closure
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -135,7 +145,7 @@ def route_cell_names() -> set[str]:
     text = REGISTRY.read_text(encoding="utf-8")
     table = text[text.index("route_lowerings! {"):]
     table = table[: table.index("}")]
-    names = set(re.findall(r"^\s*([A-Z][A-Za-z0-9]*)\s*=>\s*[a-z_]+\s*,", table, re.M))
+    names = set(re.findall(r"^\s*([A-Z][A-Za-z0-9]*)\s*=>\s*[a-z_]+\s+as\s+[A-Za-z]+\s*,", table, re.M))
     names |= set(re.findall(r'=>\s*"(GraphPosterior[A-Za-z]+)"', text))
     return names
 
@@ -285,8 +295,13 @@ BYPASS_REEXPORTS = (
 )
 # Python natives with no compiled twin. Only the staged wrapper that owns each may import it.
 BYPASS_PYTHON_NATIVES = (
-    "_identify_ate_admg", "_identify_ate", "_identify_structure", "_binary_iv_ate_bounds",
+    "_identify_ate_admg", "_identify_ate", "_identify_structure",
 )
+# Natives that had no compiled twin and were retired when the compiled study replaced them. No
+# Python module may name one again, the staged wrapper included: the wrapper goes through
+# `analyze` (the compiled `IvBounds` study), and a native entry of the same name reopens the bypass.
+RETIRED_PYTHON_NATIVES = ("_binary_iv_ate_bounds",)
+RETIRED_NATIVE_SOURCES = ("python/src",)
 BYPASS_PYTHON_WRAPPERS = ("estimation.py", "identify.py")
 _PUB_USE = re.compile(r"\bpub\s+use\b[^;]*;")
 
@@ -369,6 +384,20 @@ def compiler_bypass_problems(root: Path = ROOT) -> list[str]:
                         f"({pattern.search(line).group(0)}); only {', '.join(BYPASS_PYTHON_WRAPPERS)} "
                         "own the staged wrappers"
                     )
+    retired = re.compile(rf"(?<!\w)(?:{'|'.join(RETIRED_PYTHON_NATIVES)})\b")
+    for source in (*RETIRED_NATIVE_SOURCES, "python/antecedent"):
+        base = root / source
+        if not base.is_dir():
+            continue
+        for path in sorted([*base.rglob("*.py"), *base.rglob("*.rs"), *base.rglob("*.pyi")]):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                comment = "//" if path.suffix == ".rs" else "#"
+                if retired.search(line) and not line.lstrip().startswith(comment):
+                    problems.append(
+                        f"{path.relative_to(root)}:{number}: names the retired native "
+                        f"{retired.search(line).group(0)!r}; the compiled IvBounds study "
+                        "(analyze with quasi.IvBounds) is the entry"
+                    )
     return problems
 
 
@@ -379,6 +408,7 @@ def compiler_problems() -> list[str]:
         + reentry_problems()
         + context_literal_problems()
         + compiler_bypass_problems()
+        + retained_route_problems()
     )
 
 

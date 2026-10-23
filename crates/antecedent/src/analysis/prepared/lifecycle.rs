@@ -188,7 +188,7 @@ impl PreparedStudy {
                 Some(self.executed_contract(&self.analysis.data, self.analysis.refute, None)?);
             return Ok(result);
         }
-        let mut result = refreshed.execute_shared(&self.plan, ctx)?;
+        let mut result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
         let scores = refreshed.prepare_score_table(ctx)?;
         overlay_prepared_score_functional(&refreshed.query, scores.as_ref(), &mut result)?;
         self.replace_study(refreshed);
@@ -425,7 +425,12 @@ impl PreparedStudy {
         let started = Instant::now();
         let mut analysis = self.analysis.clone();
         analysis.refute = suite;
-        let validated = analysis.execute_on(&DataInput::Tabular(data.clone()), &self.plan, ctx)?;
+        let validated = analysis.execute_on(
+            &DataInput::Tabular(data.clone()),
+            &self.plan,
+            Some(&self.execution),
+            ctx,
+        )?;
         let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
         let mut out = prior.clone();
         out.refutations = validated.refutations;
@@ -564,7 +569,7 @@ impl PreparedStudy {
         let mut result =
             match self.run_sealed_series(&self.analysis, &input, ctx, SeriesEntry::Estimate)? {
                 Some(result) => result,
-                None => self.analysis.execute_on(&input, &self.plan, ctx)?,
+                None => self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?,
             };
         crate::analysis::execute::push_lag_zero_average_effect_disclosure(
             &self.analysis,
@@ -613,9 +618,10 @@ impl PreparedStudy {
         data: &PanelData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_panel_compatible(data)?;
         let input = DataInput::Panel(data.clone());
-        let result = self.analysis.execute_on(&input, &self.plan, ctx)?;
+        let result = self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?;
         self.stamp(&input, result)
     }
 
@@ -630,10 +636,11 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
+        self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_panel_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::Panel(data);
-        let result = refreshed.execute_shared(&self.plan, ctx)?;
+        let result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
         self.stamp(&data, result)
@@ -649,9 +656,10 @@ impl PreparedStudy {
         data: &antecedent_data::MultiEnvironmentData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_multi_env_compatible(data)?;
         let input = DataInput::MultiEnv(data.clone());
-        let result = self.analysis.execute_on(&input, &self.plan, ctx)?;
+        let result = self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?;
         self.stamp(&input, result)
     }
 
@@ -666,10 +674,11 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_contract::TransformIntent::CompatibleDataReplace)?;
+        self.execution.operation().require_retained_program(&self.plan)?;
         self.ensure_multi_env_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::MultiEnv(data);
-        let result = refreshed.execute_shared(&self.plan, ctx)?;
+        let result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
         self.stamp(&data, result)
@@ -750,7 +759,7 @@ impl PreparedStudy {
         let result =
             match self.run_sealed_series(&refreshed, &refreshed.data, ctx, SeriesEntry::Refresh)? {
                 Some(result) => result,
-                None => refreshed.execute_shared(&self.plan, ctx)?,
+                None => refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?,
             };
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();

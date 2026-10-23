@@ -1033,6 +1033,9 @@ impl TemporalPag {
 #[derive(Clone)]
 pub struct TemporalAdmg {
     pub(crate) graph: RustTemporalAdmg,
+    /// Variable names in the order the graph's variable ids were numbered, which must be the
+    /// data's column order for a study to read it.
+    pub(crate) names: Vec<String>,
 }
 
 #[pymethods]
@@ -1075,13 +1078,60 @@ impl TemporalAdmg {
             let right = ensure(&mut graph, &b, b_lag)?;
             graph.insert_bidirected(left, right).map_err(py_err)?;
         }
-        Ok(Self { graph })
+        Ok(Self { graph, names })
     }
 
     fn node_count(&self) -> usize {
         self.graph.node_count()
     }
+
+    /// Variable names in id order.
+    fn variable_names(&self) -> Vec<String> {
+        self.names.clone()
+    }
+
+    /// Directed and bidirected lagged edges as `(source, source_lag, target, target_lag)`.
+    fn edges(&self) -> PyResult<(Vec<LaggedEdge>, Vec<LaggedEdge>)> {
+        let label = |id: DenseNodeId| -> PyResult<(String, u32)> {
+            match self.graph.nodes().get(id.as_usize()) {
+                Some(NodeRef::Lagged { variable, lag }) => {
+                    let name = self.names.get(variable.as_usize()).cloned().ok_or_else(|| {
+                        CausalGraphError::new_err(format!(
+                            "variable id {} out of range",
+                            variable.raw()
+                        ))
+                    })?;
+                    Ok((name, lag.raw()))
+                }
+                _ => Err(CausalGraphError::new_err(format!(
+                    "temporal node {} is not lagged",
+                    id.raw()
+                ))),
+            }
+        };
+        let mut directed = Vec::new();
+        let mut bidirected = Vec::new();
+        for index in 0..self.graph.node_count() {
+            let from = dense_id(index)?;
+            for &to in self.graph.children(from) {
+                let (source, source_lag) = label(from)?;
+                let (target, target_lag) = label(to)?;
+                directed.push((source, source_lag, target, target_lag));
+            }
+            for &other in self.graph.bidirected_neighbors(from) {
+                if from < other {
+                    let (left, left_lag) = label(from)?;
+                    let (right, right_lag) = label(other)?;
+                    bidirected.push((left, left_lag, right, right_lag));
+                }
+            }
+        }
+        Ok((directed, bidirected))
+    }
 }
+
+/// A lagged edge as `(source, source_lag, target, target_lag)`.
+type LaggedEdge = (String, u32, String, u32);
 
 fn ensure_lagged_cpdag(
     g: &mut antecedent_graph::TemporalCpdag,

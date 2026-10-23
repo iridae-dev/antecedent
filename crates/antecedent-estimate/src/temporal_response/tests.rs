@@ -940,6 +940,88 @@ fn bootstrap_surface_publishes_simultaneous_band_alongside_pointwise() {
     );
 }
 
+/// Run the three-horizon surface of `synthetic_series` with joint replicates retained, under
+/// the bootstrap or the block-weight posterior.
+fn joint_surface(weighted: bool, retain: bool) -> CausalResponse {
+    let (data, graph) = synthetic_series(300);
+    let (estimand, indexer) = identify(&graph, 3);
+    let query = surface_query(&[-1.0, 0.0, 1.0, 2.0], vec![1u32, 2, 3]);
+    let ids = [(&estimand, &indexer), (&estimand, &indexer), (&estimand, &indexer)];
+    TemporalResponseEstimator::new()
+        .with_bootstrap_replicates(80)
+        .with_block_weight_posterior(weighted)
+        .with_joint_replicates(retain)
+        .estimate(
+            &data,
+            &ids,
+            &query,
+            IdentificationStatus::NonparametricallyIdentified,
+            AssumptionSet::new(),
+            &ExecutionContext::for_tests(3),
+        )
+        .unwrap()
+}
+
+/// The joint replicates are retained only on request, are replicate-major in the cell layout of
+/// the mean surface, and every row is one realization of all horizons: the weighted draws centre
+/// on the point surface and spread about as the bootstrap does, and their band reads as credible.
+#[test]
+fn joint_horizon_replicates_are_retained_on_request_and_couple_the_horizons() {
+    let off = joint_surface(false, false);
+    assert!(diagnostic(&off, JOINT_HORIZON_REPLICATES).is_none(), "nothing retained by default");
+
+    let boot = joint_surface(false, true);
+    let layout = diagnostic(&boot, JOINT_HORIZON_LAYOUT).expect("layout");
+    let values = diagnostic(&boot, JOINT_HORIZON_REPLICATES).expect("replicates");
+    let (replicates, cells) = (layout[0] as usize, layout[1] as usize);
+    assert_eq!(cells, 12, "four doses by three horizons");
+    assert!(replicates >= 40);
+    assert_eq!(values.len(), replicates * cells);
+    let horizon_of_cell: Vec<usize> = layout[2..].iter().map(|h| *h as usize).collect();
+    assert_eq!(horizon_of_cell, [0, 1, 2].repeat(4), "dose-major, then horizon");
+    let (mean, lower, upper) = pointwise(&boot);
+    let ResponseUncertainty::PointwiseBand { interpretation, .. } = &boot.uncertainty else {
+        panic!("expected a pointwise band");
+    };
+    assert_eq!(*interpretation, antecedent_core::IntervalInterpretation::Confidence);
+    for cell in 0..cells {
+        let column: Vec<f64> = (0..replicates).map(|r| values[r * cells + cell]).collect();
+        let centre = column.iter().sum::<f64>() / replicates as f64;
+        let sd = antecedent_stats::sample_std(&column);
+        let half = (upper[cell] - lower[cell]) / 2.0;
+        assert!((centre - mean[cell]).abs() <= sd + 1e-9, "cell {cell}: replicate centre {centre}");
+        assert!((half / (antecedent_stats::NORMAL_Q975 * sd) - 1.0).abs() < 1e-9, "cell {cell}");
+    }
+
+    let posterior = joint_surface(true, true);
+    let weighted = diagnostic(&posterior, JOINT_HORIZON_REPLICATES).expect("weighted replicates");
+    let weighted_layout = diagnostic(&posterior, JOINT_HORIZON_LAYOUT).expect("layout");
+    assert_eq!(weighted_layout[1] as usize, cells);
+    let ResponseUncertainty::PointwiseBand { interpretation, lower: wl, upper: wu, .. } =
+        &posterior.uncertainty
+    else {
+        panic!("expected a pointwise band");
+    };
+    assert_eq!(*interpretation, antecedent_core::IntervalInterpretation::Credible);
+    let (point, ..) = pointwise(&posterior);
+    for cell in 0..cells {
+        assert!((point[cell] - mean[cell]).abs() < 1e-12, "same full-sample point surface");
+        let ratio = (wu[cell] - wl[cell]) / (upper[cell] - lower[cell]);
+        assert!((0.3..3.0).contains(&ratio), "cell {cell}: weighted over bootstrap width {ratio}");
+    }
+    let n_weighted = weighted_layout[0] as usize;
+    // Replicates of one horizon pair across the other horizons of the same row: the rows of two
+    // different horizons at one dose are not an independent shuffle of each other.
+    let col = |cell: usize| (0..n_weighted).map(|r| weighted[r * cells + cell]).collect::<Vec<_>>();
+    let (a, b) = (col(0), col(1));
+    let (ma, mb) =
+        (a.iter().sum::<f64>() / n_weighted as f64, b.iter().sum::<f64>() / n_weighted as f64);
+    let cov: f64 =
+        a.iter().zip(&b).map(|(x, y)| (x - ma) * (y - mb)).sum::<f64>() / n_weighted as f64;
+    let (sa, sb) = (antecedent_stats::sample_std(&a), antecedent_stats::sample_std(&b));
+    assert!(cov.abs() <= sa * sb * 1.05, "a covariance is bounded by the product of spreads");
+}
+
 /// Every horizon of one replicate resamples the same calendar times, in circular
 /// runs of the block length over the common window, and every window time is an
 /// equally likely draw (no row gets a second chance to start a block).

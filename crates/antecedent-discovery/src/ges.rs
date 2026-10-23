@@ -1049,7 +1049,16 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
 }
 
 /// Essential graph: skeleton + DAG v-structures + Meek R1–R4.
-fn dag_to_cpdag(dag: &Dag) -> Result<Cpdag, DiscoveryError> {
+pub(crate) fn dag_to_cpdag(dag: &Dag) -> Result<Cpdag, DiscoveryError> {
+    dag_to_cpdag_with_known(dag, |_, _| false)
+}
+
+/// Essential graph under known orientations: the edges `known(from, to)` names start directed
+/// (time order, for an unrolled window), then v-structures and Meek R1–R4 orient the rest.
+pub(crate) fn dag_to_cpdag_with_known(
+    dag: &Dag,
+    known: impl Fn(DenseNodeId, DenseNodeId) -> bool,
+) -> Result<Cpdag, DiscoveryError> {
     let mut cpdag = Cpdag::empty();
     for node in dag.nodes() {
         cpdag.add_node(*node)?;
@@ -1057,7 +1066,11 @@ fn dag_to_cpdag(dag: &Dag) -> Result<Cpdag, DiscoveryError> {
     for e in dag.edges() {
         if let Some((from, to)) = e.parent_child() {
             if !cpdag.has_edge(from, to) {
-                cpdag.insert_undirected(from, to)?;
+                if known(from, to) {
+                    cpdag.insert_directed(from, to)?;
+                } else {
+                    cpdag.insert_undirected(from, to)?;
+                }
             }
         }
     }

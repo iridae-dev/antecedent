@@ -22,6 +22,7 @@
 #[doc(hidden)] pub fn antecedent_estimate::temporal_transport::history_support(decision: &antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision, data: &antecedent_expr::exact::ExactTransportData) -> antecedent_estimate::temporal_transport::HistorySupportReport
 #[doc(hidden)] pub struct antecedent_estimate::smoothed_dose::SmoothedDoseEvaluation
 #[non_exhaustive] pub enum antecedent_estimate::EstimationError
+#[non_exhaustive] pub enum antecedent_estimate::IvBoundsIntervalMethod
 #[non_exhaustive] pub enum antecedent_estimate::TemporalMediationUncertainty
 #[non_exhaustive] pub enum antecedent_estimate::adaptive_inference::PosteriorRule
 #[non_exhaustive] pub enum antecedent_estimate::experimental_fit::ExperimentalFitError
@@ -191,6 +192,11 @@ impl core::clone::Clone for antecedent_estimate::IndependenceUnit
 impl core::clone::Clone for antecedent_estimate::InterferenceEstimate
 impl core::clone::Clone for antecedent_estimate::InterventionalDistributionEstimate
 impl core::clone::Clone for antecedent_estimate::IpwTarget
+impl core::clone::Clone for antecedent_estimate::IvBoundsEstimate
+impl core::clone::Clone for antecedent_estimate::IvBoundsEstimator
+impl core::clone::Clone for antecedent_estimate::IvBoundsInterval
+impl core::clone::Clone for antecedent_estimate::IvBoundsIntervalMethod
+impl core::clone::Clone for antecedent_estimate::IvBoundsPosterior
 impl core::clone::Clone for antecedent_estimate::JointCellReport
 impl core::clone::Clone for antecedent_estimate::JointContrast
 impl core::clone::Clone for antecedent_estimate::JointCovariance
@@ -242,6 +248,7 @@ impl core::clone::Clone for antecedent_estimate::PreparedFrontDoorProblem
 impl core::clone::Clone for antecedent_estimate::PreparedFunctionalDistribution
 impl core::clone::Clone for antecedent_estimate::PreparedFunctionalEffect
 impl core::clone::Clone for antecedent_estimate::PreparedGlmProblem
+impl core::clone::Clone for antecedent_estimate::PreparedIvBounds
 impl core::clone::Clone for antecedent_estimate::PreparedIvProblem
 impl core::clone::Clone for antecedent_estimate::PreparedPropensityProblem
 impl core::clone::Clone for antecedent_estimate::PreparedRdProblem
@@ -1014,6 +1021,7 @@ impl core::cmp::Eq for antecedent_estimate::GappedAlignedRows
 impl core::cmp::Eq for antecedent_estimate::HydrateMapping
 impl core::cmp::Eq for antecedent_estimate::IndependenceUnit
 impl core::cmp::Eq for antecedent_estimate::IpwTarget
+impl core::cmp::Eq for antecedent_estimate::IvBoundsIntervalMethod
 impl core::cmp::Eq for antecedent_estimate::JointContrast
 impl core::cmp::Eq for antecedent_estimate::JointFitPlan
 impl core::cmp::Eq for antecedent_estimate::MatchedSetCounts
@@ -1305,6 +1313,10 @@ impl core::cmp::PartialEq for antecedent_estimate::HydrateMapping
 impl core::cmp::PartialEq for antecedent_estimate::IndependenceUnit
 impl core::cmp::PartialEq for antecedent_estimate::InterferenceEstimate
 impl core::cmp::PartialEq for antecedent_estimate::IpwTarget
+impl core::cmp::PartialEq for antecedent_estimate::IvBoundsEstimate
+impl core::cmp::PartialEq for antecedent_estimate::IvBoundsInterval
+impl core::cmp::PartialEq for antecedent_estimate::IvBoundsIntervalMethod
+impl core::cmp::PartialEq for antecedent_estimate::IvBoundsPosterior
 impl core::cmp::PartialEq for antecedent_estimate::JointCellReport
 impl core::cmp::PartialEq for antecedent_estimate::JointContrast
 impl core::cmp::PartialEq for antecedent_estimate::JointCovariance
@@ -2070,6 +2082,7 @@ impl core::default::Default for antecedent_estimate::FunctionalDistributionWorks
 impl core::default::Default for antecedent_estimate::FunctionalEffect
 impl core::default::Default for antecedent_estimate::GlmAdjustmentAte
 impl core::default::Default for antecedent_estimate::GlmAdjustmentWorkspace
+impl core::default::Default for antecedent_estimate::IvBoundsEstimator
 impl core::default::Default for antecedent_estimate::JointRecord
 impl core::default::Default for antecedent_estimate::LearnedContinuousOptions
 impl core::default::Default for antecedent_estimate::LinearAdjustmentAte
@@ -2266,6 +2279,11 @@ impl core::fmt::Debug for antecedent_estimate::IndependenceUnit
 impl core::fmt::Debug for antecedent_estimate::InterferenceEstimate
 impl core::fmt::Debug for antecedent_estimate::InterventionalDistributionEstimate
 impl core::fmt::Debug for antecedent_estimate::IpwTarget
+impl core::fmt::Debug for antecedent_estimate::IvBoundsEstimate
+impl core::fmt::Debug for antecedent_estimate::IvBoundsEstimator
+impl core::fmt::Debug for antecedent_estimate::IvBoundsInterval
+impl core::fmt::Debug for antecedent_estimate::IvBoundsIntervalMethod
+impl core::fmt::Debug for antecedent_estimate::IvBoundsPosterior
 impl core::fmt::Debug for antecedent_estimate::JointCellReport
 impl core::fmt::Debug for antecedent_estimate::JointContrast
 impl core::fmt::Debug for antecedent_estimate::JointCovariance
@@ -2317,6 +2335,7 @@ impl core::fmt::Debug for antecedent_estimate::PreparedFrontDoorProblem
 impl core::fmt::Debug for antecedent_estimate::PreparedFunctionalDistribution
 impl core::fmt::Debug for antecedent_estimate::PreparedFunctionalEffect
 impl core::fmt::Debug for antecedent_estimate::PreparedGlmProblem
+impl core::fmt::Debug for antecedent_estimate::PreparedIvBounds
 impl core::fmt::Debug for antecedent_estimate::PreparedIvProblem
 impl core::fmt::Debug for antecedent_estimate::PreparedPropensityProblem
 impl core::fmt::Debug for antecedent_estimate::PreparedRdProblem
@@ -3175,6 +3194,9 @@ impl core::marker::Copy for antecedent_estimate::ExactF64
 impl core::marker::Copy for antecedent_estimate::FrontDoorOutcomeModel
 impl core::marker::Copy for antecedent_estimate::IndependenceUnit
 impl core::marker::Copy for antecedent_estimate::IpwTarget
+impl core::marker::Copy for antecedent_estimate::IvBoundsInterval
+impl core::marker::Copy for antecedent_estimate::IvBoundsIntervalMethod
+impl core::marker::Copy for antecedent_estimate::IvBoundsPosterior
 impl core::marker::Copy for antecedent_estimate::JointContrast
 impl core::marker::Copy for antecedent_estimate::JointFitPlan
 impl core::marker::Copy for antecedent_estimate::LearnedContinuousOptions
@@ -3572,6 +3594,11 @@ impl core::marker::Freeze for antecedent_estimate::IndependenceUnit [auto]
 impl core::marker::Freeze for antecedent_estimate::InterferenceEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::InterventionalDistributionEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::IpwTarget [auto]
+impl core::marker::Freeze for antecedent_estimate::IvBoundsEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::IvBoundsEstimator [auto]
+impl core::marker::Freeze for antecedent_estimate::IvBoundsInterval [auto]
+impl core::marker::Freeze for antecedent_estimate::IvBoundsIntervalMethod [auto]
+impl core::marker::Freeze for antecedent_estimate::IvBoundsPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::JointCellReport [auto]
 impl core::marker::Freeze for antecedent_estimate::JointContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::JointCovariance [auto]
@@ -3621,6 +3648,7 @@ impl core::marker::Freeze for antecedent_estimate::PreparedBayesianProblem [auto
 impl core::marker::Freeze for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedFrontDoorProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedGlmProblem [auto]
+impl core::marker::Freeze for antecedent_estimate::PreparedIvBounds [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedIvProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedPropensityProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedRdProblem [auto]
@@ -4488,6 +4516,11 @@ impl core::marker::Send for antecedent_estimate::IndependenceUnit [auto]
 impl core::marker::Send for antecedent_estimate::InterferenceEstimate [auto]
 impl core::marker::Send for antecedent_estimate::InterventionalDistributionEstimate [auto]
 impl core::marker::Send for antecedent_estimate::IpwTarget [auto]
+impl core::marker::Send for antecedent_estimate::IvBoundsEstimate [auto]
+impl core::marker::Send for antecedent_estimate::IvBoundsEstimator [auto]
+impl core::marker::Send for antecedent_estimate::IvBoundsInterval [auto]
+impl core::marker::Send for antecedent_estimate::IvBoundsIntervalMethod [auto]
+impl core::marker::Send for antecedent_estimate::IvBoundsPosterior [auto]
 impl core::marker::Send for antecedent_estimate::JointCellReport [auto]
 impl core::marker::Send for antecedent_estimate::JointContrast [auto]
 impl core::marker::Send for antecedent_estimate::JointCovariance [auto]
@@ -4539,6 +4572,7 @@ impl core::marker::Send for antecedent_estimate::PreparedFrontDoorProblem [auto]
 impl core::marker::Send for antecedent_estimate::PreparedFunctionalDistribution [auto]
 impl core::marker::Send for antecedent_estimate::PreparedFunctionalEffect [auto]
 impl core::marker::Send for antecedent_estimate::PreparedGlmProblem [auto]
+impl core::marker::Send for antecedent_estimate::PreparedIvBounds [auto]
 impl core::marker::Send for antecedent_estimate::PreparedIvProblem [auto]
 impl core::marker::Send for antecedent_estimate::PreparedPropensityProblem [auto]
 impl core::marker::Send for antecedent_estimate::PreparedRdProblem [auto]
@@ -5364,6 +5398,10 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::HydrateMapping
 impl core::marker::StructuralPartialEq for antecedent_estimate::IndependenceUnit
 impl core::marker::StructuralPartialEq for antecedent_estimate::InterferenceEstimate
 impl core::marker::StructuralPartialEq for antecedent_estimate::IpwTarget
+impl core::marker::StructuralPartialEq for antecedent_estimate::IvBoundsEstimate
+impl core::marker::StructuralPartialEq for antecedent_estimate::IvBoundsInterval
+impl core::marker::StructuralPartialEq for antecedent_estimate::IvBoundsIntervalMethod
+impl core::marker::StructuralPartialEq for antecedent_estimate::IvBoundsPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::JointCellReport
 impl core::marker::StructuralPartialEq for antecedent_estimate::JointContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::JointCovariance
@@ -6164,6 +6202,11 @@ impl core::marker::Sync for antecedent_estimate::IndependenceUnit [auto]
 impl core::marker::Sync for antecedent_estimate::InterferenceEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::InterventionalDistributionEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::IpwTarget [auto]
+impl core::marker::Sync for antecedent_estimate::IvBoundsEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::IvBoundsEstimator [auto]
+impl core::marker::Sync for antecedent_estimate::IvBoundsInterval [auto]
+impl core::marker::Sync for antecedent_estimate::IvBoundsIntervalMethod [auto]
+impl core::marker::Sync for antecedent_estimate::IvBoundsPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::JointCellReport [auto]
 impl core::marker::Sync for antecedent_estimate::JointContrast [auto]
 impl core::marker::Sync for antecedent_estimate::JointCovariance [auto]
@@ -6215,6 +6258,7 @@ impl core::marker::Sync for antecedent_estimate::PreparedFrontDoorProblem [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedFunctionalDistribution [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedFunctionalEffect [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedGlmProblem [auto]
+impl core::marker::Sync for antecedent_estimate::PreparedIvBounds [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedIvProblem [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedPropensityProblem [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedRdProblem [auto]
@@ -7085,6 +7129,11 @@ impl core::marker::Unpin for antecedent_estimate::IndependenceUnit [auto]
 impl core::marker::Unpin for antecedent_estimate::InterferenceEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::InterventionalDistributionEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::IpwTarget [auto]
+impl core::marker::Unpin for antecedent_estimate::IvBoundsEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::IvBoundsEstimator [auto]
+impl core::marker::Unpin for antecedent_estimate::IvBoundsInterval [auto]
+impl core::marker::Unpin for antecedent_estimate::IvBoundsIntervalMethod [auto]
+impl core::marker::Unpin for antecedent_estimate::IvBoundsPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::JointCellReport [auto]
 impl core::marker::Unpin for antecedent_estimate::JointContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::JointCovariance [auto]
@@ -7136,6 +7185,7 @@ impl core::marker::Unpin for antecedent_estimate::PreparedFrontDoorProblem [auto
 impl core::marker::Unpin for antecedent_estimate::PreparedFunctionalDistribution [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedFunctionalEffect [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedGlmProblem [auto]
+impl core::marker::Unpin for antecedent_estimate::PreparedIvBounds [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedIvProblem [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedPropensityProblem [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedRdProblem [auto]
@@ -8006,6 +8056,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::Independen
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::InterferenceEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::InterventionalDistributionEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::IpwTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::IvBoundsEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::IvBoundsEstimator [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::IvBoundsInterval [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::IvBoundsIntervalMethod [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::IvBoundsPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::JointCellReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::JointContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::JointCovariance [auto]
@@ -8057,6 +8112,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedFr
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedFunctionalDistribution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedFunctionalEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedGlmProblem [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedIvBounds [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedIvProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedPropensityProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedRdProblem [auto]
@@ -8926,6 +8982,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::IndependenceU
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::InterferenceEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::InterventionalDistributionEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::IpwTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::IvBoundsEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::IvBoundsEstimator [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::IvBoundsInterval [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::IvBoundsIntervalMethod [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::IvBoundsPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::JointCellReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::JointContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::JointCovariance [auto]
@@ -8977,6 +9038,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedFront
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedFunctionalDistribution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedFunctionalEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedGlmProblem [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedIvBounds [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedIvProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedPropensityProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedRdProblem [auto]
@@ -10601,6 +10663,8 @@ pub const antecedent_estimate::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP: &str
 pub const antecedent_estimate::EMPIRICAL_TABLE_PLUGIN: &str
 pub const antecedent_estimate::GENERALIZED_PROPENSITY_PROVENANCE: &str
 pub const antecedent_estimate::INTERVAL_NUMERICAL_FAILURE: &str
+pub const antecedent_estimate::JOINT_HORIZON_LAYOUT: &str
+pub const antecedent_estimate::JOINT_HORIZON_REPLICATES: &str
 pub const antecedent_estimate::KNN_DISTANCE_MATCHING_CONSTRUCTION: &str
 pub const antecedent_estimate::LAGGED_OUTCOME_REGRESSOR_REFUSAL: &str
 pub const antecedent_estimate::LAPLACE_RANK_INTERVAL_BELOW_DRAWS: usize
@@ -11497,6 +11561,33 @@ pub field antecedent_estimate::InterventionalDistributionEstimate::overlap: ante
 pub field antecedent_estimate::InterventionalDistributionEstimate::retained_memory_bytes: core::option::Option<u64>
 pub field antecedent_estimate::InterventionalDistributionEstimate::se_analytic: f64
 pub field antecedent_estimate::InterventionalDistributionEstimate::se_bootstrap: core::option::Option<f64>
+pub field antecedent_estimate::IvBoundsEstimate::arm_weights: [f64; 2]
+pub field antecedent_estimate::IvBoundsEstimate::interval: core::option::Option<antecedent_estimate::IvBoundsInterval>
+pub field antecedent_estimate::IvBoundsEstimate::law: antecedent_identify::bounds::BinaryIvLaw
+pub field antecedent_estimate::IvBoundsEstimate::lower: f64
+pub field antecedent_estimate::IvBoundsEstimate::posterior: core::option::Option<antecedent_estimate::IvBoundsPosterior>
+pub field antecedent_estimate::IvBoundsEstimate::rows: usize
+pub field antecedent_estimate::IvBoundsEstimate::rows_dropped: usize
+pub field antecedent_estimate::IvBoundsEstimate::upper: f64
+pub field antecedent_estimate::IvBoundsEstimator::bootstrap_replicates: u32
+pub field antecedent_estimate::IvBoundsEstimator::level: f64
+pub field antecedent_estimate::IvBoundsEstimator::sampling_design: antecedent_estimate::util::SamplingDeclaration
+pub field antecedent_estimate::IvBoundsInterval::critical_value: f64
+pub field antecedent_estimate::IvBoundsInterval::infeasible: usize
+pub field antecedent_estimate::IvBoundsInterval::level: f64
+pub field antecedent_estimate::IvBoundsInterval::lower: f64
+pub field antecedent_estimate::IvBoundsInterval::lower_se: f64
+pub field antecedent_estimate::IvBoundsInterval::method: antecedent_estimate::IvBoundsIntervalMethod
+pub field antecedent_estimate::IvBoundsInterval::replicates: usize
+pub field antecedent_estimate::IvBoundsInterval::upper: f64
+pub field antecedent_estimate::IvBoundsInterval::upper_se: f64
+pub field antecedent_estimate::IvBoundsInterval::width_retained: bool
+pub field antecedent_estimate::IvBoundsPosterior::infeasible_draws: usize
+pub field antecedent_estimate::IvBoundsPosterior::lower_mean: f64
+pub field antecedent_estimate::IvBoundsPosterior::lower_sd: f64
+pub field antecedent_estimate::IvBoundsPosterior::n_draws: usize
+pub field antecedent_estimate::IvBoundsPosterior::upper_mean: f64
+pub field antecedent_estimate::IvBoundsPosterior::upper_sd: f64
 pub field antecedent_estimate::JointCellReport::cell: u32
 pub field antecedent_estimate::JointCellReport::levels: alloc::vec::Vec<u8>
 pub field antecedent_estimate::JointCellReport::rows: usize
@@ -12136,7 +12227,9 @@ pub field antecedent_estimate::TemporalMediationSlice::identified_set: core::opt
 pub field antecedent_estimate::TemporalMediationSlice::method: alloc::sync::Arc<str>
 pub field antecedent_estimate::TemporalMediationSlice::uncertainty: antecedent_estimate::TemporalMediationUncertainty
 pub field antecedent_estimate::TemporalResponseEstimator::allow_gaps: bool
+pub field antecedent_estimate::TemporalResponseEstimator::block_weight_posterior: bool
 pub field antecedent_estimate::TemporalResponseEstimator::inner: antecedent_estimate::LinearAdjustmentAte
+pub field antecedent_estimate::TemporalResponseEstimator::retain_joint_replicates: bool
 pub field antecedent_estimate::TemporalResponseEstimator::white_innovation: core::option::Option<antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate>
 pub field antecedent_estimate::TemporalSlopeSpec::contemporaneous: &'a [antecedent_core::ids::VariableId]
 pub field antecedent_estimate::TemporalSlopeSpec::outcome: antecedent_core::ids::VariableId
@@ -15188,6 +15281,13 @@ pub fn <antecedent_estimate::HydrateSource<'a>>::fn with_source_contrast(self, c
 pub fn <antecedent_estimate::IndependenceUnit>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::IpwTarget>::fn from_population(pop: &antecedent_core::query::target::TargetPopulation) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::IpwTarget>::fn weight(self, t: f64, e: f64) -> f64
+pub fn <antecedent_estimate::IvBoundsEstimator>::const fn new() -> Self
+pub fn <antecedent_estimate::IvBoundsEstimator>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
+pub fn <antecedent_estimate::IvBoundsEstimator>::const fn with_sampling_design(self, design: antecedent_estimate::util::SamplingDeclaration) -> Self
+pub fn <antecedent_estimate::IvBoundsEstimator>::fn estimate(&self, prepared: &antecedent_estimate::PreparedIvBounds, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::IvBoundsEstimate, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::IvBoundsEstimator>::fn estimate_bayesian(&self, prepared: &antecedent_estimate::PreparedIvBounds, n_draws: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::IvBoundsEstimate, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::IvBoundsEstimator>::fn prepare(&self, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::iv_bounds::IvBoundsQuery) -> core::result::Result<antecedent_estimate::PreparedIvBounds, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::IvBoundsIntervalMethod>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::JointCovariance>::fn get(&self, i: usize, j: usize) -> f64
 pub fn <antecedent_estimate::JointCovariance>::fn se(&self, i: usize) -> f64
 pub fn <antecedent_estimate::JointFitPlan>::const fn nuisance_fits(&self) -> u64
@@ -15257,6 +15357,8 @@ pub fn <antecedent_estimate::PreparedFunctionalEffect>::fn evaluate(&self, provi
 pub fn <antecedent_estimate::PreparedFunctionalEffect>::fn factor_snapshot(&self) -> core::result::Result<antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PreparedFunctionalEffect>::fn program(&self) -> &antecedent_expr::program::FunctionalProgram
 pub fn <antecedent_estimate::PreparedFunctionalEffect>::fn rebind_checked(&self, data: &antecedent_data::dataset::TabularData) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::PreparedIvBounds>::fn rows(&self) -> usize
+pub fn <antecedent_estimate::PreparedIvBounds>::fn rows_dropped(&self) -> usize
 pub fn <antecedent_estimate::PreparedSequenceLevel>::const fn first_anchor(&self) -> usize
 pub fn <antecedent_estimate::PreparedSequenceLevel>::const fn point(&self) -> f64
 pub fn <antecedent_estimate::PreparedSequenceLevel>::fn estimating_scores(&self) -> alloc::vec::Vec<alloc::vec::Vec<f64>>
@@ -15457,7 +15559,9 @@ pub fn <antecedent_estimate::TemporalMediationEstimator>::fn new() -> Self
 pub fn <antecedent_estimate::TemporalMediationEstimator>::fn prepare_shared(&self, data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::mediation::MediationQuery, adjustment: &[antecedent_data::sample::LaggedColumn], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::PreparedTemporalMediation, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::TemporalMediationEstimator>::fn window_selection(&self, data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::mediation::MediationQuery, adjustment: &[antecedent_data::sample::LaggedColumn], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::GapSelection, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::TemporalResponseEstimator>::const fn with_allow_gaps(self, allow_gaps: bool) -> Self
+pub fn <antecedent_estimate::TemporalResponseEstimator>::const fn with_block_weight_posterior(self, on: bool) -> Self
 pub fn <antecedent_estimate::TemporalResponseEstimator>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
+pub fn <antecedent_estimate::TemporalResponseEstimator>::const fn with_joint_replicates(self, on: bool) -> Self
 pub fn <antecedent_estimate::TemporalResponseEstimator>::const fn with_white_innovation(self, gate: antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate) -> Self
 pub fn <antecedent_estimate::TemporalResponseEstimator>::fn estimate(&self, data: &antecedent_data::dataset::TimeSeriesData, identifications: &[(&antecedent_expr::estimand::IdentifiedEstimand, &antecedent_core::temporal::TemporalIndexer)], query: &antecedent_core::query::response::ResponseQuery, identification_status: antecedent_core::identification::IdentificationStatus, assumptions: antecedent_core::assumption::AssumptionSet, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_core::response::CausalResponse, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::TemporalResponseEstimator>::fn estimate_bayesian(&self, data: &antecedent_data::dataset::TimeSeriesData, identified: antecedent_estimate::TemporalIdentification<'_>, query: &antecedent_core::query::response::ResponseQuery, estimator: &antecedent_estimate::BayesianGComputationAte, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_core::response::CausalResponse, antecedent_estimate::EstimationError>
@@ -16513,6 +16617,7 @@ pub mod antecedent_estimate::interference
 pub mod antecedent_estimate::interference_observational
 pub mod antecedent_estimate::interference_saturation
 pub mod antecedent_estimate::iv
+pub mod antecedent_estimate::iv_bounds
 pub mod antecedent_estimate::joint_bayesian_transport
 pub mod antecedent_estimate::joint_cell_factorized
 pub mod antecedent_estimate::joint_if
@@ -16721,6 +16826,10 @@ pub struct antecedent_estimate::HydrateSource<'a>
 pub struct antecedent_estimate::HydrateTarget<'a>
 pub struct antecedent_estimate::InterferenceEstimate
 pub struct antecedent_estimate::InterventionalDistributionEstimate
+pub struct antecedent_estimate::IvBoundsEstimate
+pub struct antecedent_estimate::IvBoundsEstimator
+pub struct antecedent_estimate::IvBoundsInterval
+pub struct antecedent_estimate::IvBoundsPosterior
 pub struct antecedent_estimate::JointCellReport
 pub struct antecedent_estimate::JointCovariance
 pub struct antecedent_estimate::JointFitPlan
@@ -16766,6 +16875,8 @@ pub struct antecedent_estimate::PreparedFunctionalDistribution has private field
 pub struct antecedent_estimate::PreparedFunctionalEffect
 pub struct antecedent_estimate::PreparedFunctionalEffect has private fields
 pub struct antecedent_estimate::PreparedGlmProblem
+pub struct antecedent_estimate::PreparedIvBounds
+pub struct antecedent_estimate::PreparedIvBounds has private fields
 pub struct antecedent_estimate::PreparedIvProblem
 pub struct antecedent_estimate::PreparedPropensityProblem
 pub struct antecedent_estimate::PreparedPropensityProblem has private fields
@@ -17739,6 +17850,12 @@ pub use antecedent_estimate::iv::PreparedIvProblem = antecedent_estimate::Prepar
 pub use antecedent_estimate::iv::TwoStageLeastSquares = antecedent_estimate::TwoStageLeastSquares
 pub use antecedent_estimate::iv::TwoStageLeastSquaresWorkspace = antecedent_estimate::TwoStageLeastSquaresWorkspace
 pub use antecedent_estimate::iv::WaldIv = antecedent_estimate::WaldIv
+pub use antecedent_estimate::iv_bounds::IvBoundsEstimate = antecedent_estimate::IvBoundsEstimate
+pub use antecedent_estimate::iv_bounds::IvBoundsEstimator = antecedent_estimate::IvBoundsEstimator
+pub use antecedent_estimate::iv_bounds::IvBoundsInterval = antecedent_estimate::IvBoundsInterval
+pub use antecedent_estimate::iv_bounds::IvBoundsIntervalMethod = antecedent_estimate::IvBoundsIntervalMethod
+pub use antecedent_estimate::iv_bounds::IvBoundsPosterior = antecedent_estimate::IvBoundsPosterior
+pub use antecedent_estimate::iv_bounds::PreparedIvBounds = antecedent_estimate::PreparedIvBounds
 pub use antecedent_estimate::joint_cell_factorized::CellEstimate = antecedent_estimate::CellEstimate
 pub use antecedent_estimate::joint_cell_factorized::CellOrderingSpread = antecedent_estimate::CellOrderingSpread
 pub use antecedent_estimate::joint_cell_factorized::CellRefusal = antecedent_estimate::CellRefusal
@@ -18009,6 +18126,8 @@ pub use antecedent_estimate::temporal_mediation::TemporalMediationIdentifiedSet 
 pub use antecedent_estimate::temporal_mediation::TemporalMediationSlice = antecedent_estimate::TemporalMediationSlice
 pub use antecedent_estimate::temporal_mediation::TemporalMediationUncertainty = antecedent_estimate::TemporalMediationUncertainty
 pub use antecedent_estimate::temporal_mediation::shared_mediation_block_bootstrap = antecedent_estimate::shared_mediation_block_bootstrap
+pub use antecedent_estimate::temporal_response::JOINT_HORIZON_LAYOUT = antecedent_estimate::JOINT_HORIZON_LAYOUT
+pub use antecedent_estimate::temporal_response::JOINT_HORIZON_REPLICATES = antecedent_estimate::JOINT_HORIZON_REPLICATES
 pub use antecedent_estimate::temporal_response::MaxDeviationBand = antecedent_estimate::MaxDeviationBand
 pub use antecedent_estimate::temporal_response::PreparedTemporalSurface = antecedent_estimate::PreparedTemporalSurface
 pub use antecedent_estimate::temporal_response::ResponseBlockLength = antecedent_estimate::ResponseBlockLength
@@ -18158,6 +18277,8 @@ pub variant antecedent_estimate::IpwTarget::Atc
 pub variant antecedent_estimate::IpwTarget::Ate
 pub variant antecedent_estimate::IpwTarget::Att
 pub variant antecedent_estimate::IpwTarget::Custom
+pub variant antecedent_estimate::IvBoundsIntervalMethod::ImbensManskiRowBootstrap
+pub variant antecedent_estimate::IvBoundsIntervalMethod::PosteriorEndpointQuantiles
 pub variant antecedent_estimate::JointContrast::CellMinusControl(u32)
 pub variant antecedent_estimate::JointContrast::Interaction
 pub variant antecedent_estimate::LinearFitKind::Huber { c: f64 }
@@ -18195,6 +18316,7 @@ pub variant antecedent_estimate::RetargetRefusal::UndeclaredNonconstantWeights
 pub variant antecedent_estimate::RetargetRefusal::WeightedOverlap
 pub variant antecedent_estimate::RowResampling::Rows
 pub variant antecedent_estimate::RowResampling::SeriesBlocks
+pub variant antecedent_estimate::RowResampling::WindowBlocks { span: u32 }
 pub variant antecedent_estimate::SampledRecoveryDetail::BoundsExceeded
 pub variant antecedent_estimate::SampledRecoveryDetail::Cancelled
 pub variant antecedent_estimate::SampledRecoveryDetail::ComponentVarianceOnly

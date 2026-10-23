@@ -85,6 +85,7 @@ mod execute;
 pub mod file_table;
 mod finite_discrete;
 pub(crate) mod four_way;
+pub mod horizon_composition;
 pub mod interface_contract;
 mod inverse_outcome;
 pub mod inverse_query;
@@ -150,6 +151,7 @@ mod smoothed_dose;
 pub mod staleness;
 mod statistical;
 pub mod structure_route;
+mod structure_stability;
 pub mod target_validation;
 pub mod temporal_counterfactual;
 mod temporal_extensions;
@@ -483,6 +485,7 @@ pub mod sensitivity_source;
 /// Independently retained original source diagnostics and contributor mappings.
 pub mod source_evidence;
 pub mod source_projection;
+mod temporal_admg_contrast;
 mod temporal_iv_identification;
 mod white_innovation_window;
 

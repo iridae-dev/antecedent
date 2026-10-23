@@ -123,6 +123,7 @@ sealed_executions! {
     SequentialContrast(crate::analysis::execute::CheckedSequentialContrastOperation),
     HistoryMatch(crate::analysis::execute::CheckedHistoryMatchOperation),
     TemporalDesign(Box<crate::analysis::execute::CheckedTemporalDesignOperation>),
+    IvBounds(crate::analysis::execute::CheckedIvBoundsOperation),
     TemporalClassEffect(crate::analysis::execute::CheckedTemporalClassEffectExecution),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(crate::analysis::execute::CheckedBayesianDagAteExecution),
@@ -142,6 +143,11 @@ sealed_executions! {
     StaticClassResponse(Box<crate::analysis::execute::CheckedStaticClassResponse>),
     GraphPosteriorResponse(Box<crate::analysis::execute::CheckedGraphPosteriorResponse>),
     BayesianSpecialist(Box<crate::analysis::execute::CheckedBayesianSpecialistOperation>),
+    Discovery(crate::analysis::execute::CheckedRouteOperation),
+    PanelTemporal(crate::analysis::execute::CheckedRouteOperation),
+    MultiEnvTemporal(crate::analysis::execute::CheckedRouteOperation),
+    TemporalCrossWorld(crate::analysis::execute::CheckedRouteOperation),
+    TemporalAdmgEffect(crate::analysis::execute::CheckedRouteOperation),
     TransportTrial(Box<crate::analysis::execute::CheckedTransportTrialOperation>),
 }
 

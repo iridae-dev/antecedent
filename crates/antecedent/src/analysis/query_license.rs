@@ -84,6 +84,14 @@ const STATIC_SUPPLIED: &[GraphClass] = &[
 ];
 const TEMPORAL_ENVELOPES: &[GraphClass] =
     &[GraphClass::TemporalDag, GraphClass::TemporalCpdag, GraphClass::TemporalPag];
+/// The classes a pulse, sustained or conditional contrast runs on over one series: the temporal
+/// envelopes, and a temporal ADMG identified on its unrolled window.
+const TEMPORAL_EFFECT_SERIES: &[GraphClass] = &[
+    GraphClass::TemporalDag,
+    GraphClass::TemporalCpdag,
+    GraphClass::TemporalPag,
+    GraphClass::TemporalAdmg,
+];
 const TEMPORAL_MEDIATION: &[GraphClass] = &[GraphClass::TemporalDag, GraphClass::TemporalCpdag];
 const DAG: &[GraphClass] = &[GraphClass::Dag];
 const TEMPORAL_DAG: &[GraphClass] = &[GraphClass::TemporalDag];
@@ -179,15 +187,11 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             ..UNLICENSED
         },
         K::TemporalEffect => KindLicense {
-            series: rule(TEMPORAL_ENVELOPES, || CausalError::Unsupported {
+            series: rule(TEMPORAL_EFFECT_SERIES, || CausalError::Unsupported {
                 message: "PreparedStudy supports TemporalEffect on TemporalDag, \
-                          TemporalCpdag, or TemporalPag. A pulse or sustained contrast on a \
-                          TemporalAdmg has no prepared route yet (identification on the \
-                          unrolled window is antecedent_identify::temporal_admg, and a hedge \
-                          there names the latent confounding that blocks it); next attempts: \
-                          lower the identified window as a prepared temporal route, the \
-                          contemporaneous projection (AverageEffect on the TemporalAdmg), or a \
-                          TemporalDag when the lag structure has no latent confounding",
+                          TemporalCpdag, TemporalPag, or TemporalAdmg (a contrast on a \
+                          TemporalAdmg is identified on the unrolled window of its template \
+                          and executes unlicensed)",
             }),
             panel: rule(TEMPORAL_ENVELOPES, panel_refusal),
             multi_env: rule(TEMPORAL_DAG, || {
@@ -227,9 +231,28 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
         },
         // Off the support matrix and without a coverage license; prepared on a
         // supplied or accepted Dag so the retained compiler path executes them.
-        K::MechanismChange | K::UnitChange => KindLicense {
+        // On a time series the null law is a block permutation of the residuals, and under
+        // Bayesian inference the answer is the posterior probability of a change under the
+        // prior the query declares.
+        K::MechanismChange => KindLicense {
             tabular: rule(DAG, || CausalError::Unsupported {
-                message: "MechanismChange and UnitChange require a supplied or accepted Dag",
+                message: "MechanismChange requires a supplied or accepted Dag, or a supplied \
+                          TemporalDag over a time series",
+            }),
+            series: rule(TEMPORAL_DAG, || CausalError::Unsupported {
+                message: "MechanismChange on a time series requires a supplied TemporalDag",
+            }),
+            ..UNLICENSED
+        },
+        // A unit change also runs on the lag-aligned unfolding of a supplied TemporalDag (the
+        // fitted-model point answer; its uncertainty is the Attribute unit-change target's).
+        K::UnitChange => KindLicense {
+            tabular: rule(DAG, || CausalError::Unsupported {
+                message: "UnitChange requires a supplied or accepted Dag, or a supplied \
+                          TemporalDag over a time series",
+            }),
+            series: rule(TEMPORAL_DAG, || CausalError::Unsupported {
+                message: "UnitChange on a time series requires a supplied TemporalDag",
             }),
             ..UNLICENSED
         },
@@ -239,9 +262,28 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             panel: rule(TEMPORAL_DISCOVERED, discovery_refusal),
             multi_env: rule(TEMPORAL_DISCOVERED, discovery_refusal),
         },
-        K::Attribute | K::Simulate => KindLicense {
+        // The fitted-model attribution also runs on the lag-aligned unfolding of a supplied
+        // TemporalDag, with block weights or block counts for its refits.
+        K::Attribute => KindLicense {
             tabular: rule(DAG, || CausalError::Unsupported {
-                message: "Attribute and Simulate fit mechanisms on a supplied or accepted Dag",
+                message: "Attribute fits mechanisms on a supplied or accepted Dag, or on the \
+                          lag-aligned unfolding of a supplied TemporalDag",
+            }),
+            series: rule(TEMPORAL_DAG, || CausalError::Unsupported {
+                message: "Attribute on a time series requires a supplied TemporalDag",
+            }),
+            ..UNLICENSED
+        },
+        // On a time series the rollout of a fitted TemporalDag steps the dynamics forward from the
+        // last rows of the series.
+        K::Simulate => KindLicense {
+            tabular: rule(DAG, || CausalError::Unsupported {
+                message: "Simulate fits mechanisms on a supplied or accepted Dag, or rolls out \
+                          the dynamics of a supplied TemporalDag",
+            }),
+            series: rule(TEMPORAL_DAG, || CausalError::Unsupported {
+                message: "Simulate on a time series is a temporal rollout on a supplied \
+                          TemporalDag",
             }),
             ..UNLICENSED
         },
@@ -378,6 +420,17 @@ fn kind_license(kind: CausalQueryKind) -> KindLicense {
             tabular: design(false, || CausalError::Unsupported {
                 message: "TemporalDesign requires a graphless unit-period table with its recorded \
                           assignment design",
+            }),
+            ..UNLICENSED
+        },
+        // Off the support matrix and without a coverage license: a binary instrument that the
+        // caller declares independent of the potential outcomes and excluded from the outcome
+        // partially identifies the average effect, so the study is a graphless table of the
+        // three coded columns and the answer is an identified set.
+        K::IvBounds => KindLicense {
+            tabular: design(false, || CausalError::Unsupported {
+                message: "IvBounds requires a graphless table of a binary instrument, a binary \
+                          treatment and a binary outcome",
             }),
             ..UNLICENSED
         },

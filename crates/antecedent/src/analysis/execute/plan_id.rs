@@ -74,6 +74,8 @@ pub(crate) enum PlanId {
     TemporalCrossWorldLinear,
     /// Static ADMG average effect.
     StaticAdmgAte,
+    /// Pulse, sustained or conditional contrast on a temporal ADMG, on its unrolled window.
+    TemporalAdmgContrast,
     /// Temporal CPDAG effect.
     TemporalCpdagEffect,
     /// Temporal PAG effect.
@@ -108,6 +110,10 @@ pub(crate) enum PlanId {
     TemporalRegimeSurvival,
     /// Joint-likelihood posterior of regime survival on subject trajectories.
     BayesianTemporalRegimeSurvival,
+    /// Sharp bounds on the average effect under a binary instrument.
+    IvBoundsSharp,
+    /// Bayesian-bootstrap posterior of the same bounds' endpoints.
+    BayesianIvBounds,
 }
 
 impl PlanId {
@@ -148,6 +154,7 @@ impl PlanId {
             Self::TemporalPagCrossWorld => "temporal_pag_cross_world",
             Self::TemporalCrossWorldLinear => "temporal.cross_world.linear",
             Self::StaticAdmgAte => "static_admg_ate",
+            Self::TemporalAdmgContrast => "temporal_admg_contrast",
             Self::TemporalCpdagEffect => "temporal_cpdag_effect",
             Self::TemporalPagEffect => "temporal_pag_effect",
             Self::PanelCpdagEffect => "panel_cpdag_effect",
@@ -165,6 +172,8 @@ impl PlanId {
             Self::BayesianTemporalDesignExcursion => "bayesian.temporal_design.excursion",
             Self::TemporalRegimeSurvival => "temporal_design.regime_survival",
             Self::BayesianTemporalRegimeSurvival => "bayesian.temporal_design.regime_survival",
+            Self::IvBoundsSharp => "iv_bounds.balke_pearl",
+            Self::BayesianIvBounds => "bayesian.iv_bounds.endpoint_bootstrap",
         }
     }
 }

@@ -119,6 +119,8 @@ class Estimator(StrEnum):
     BAYESIAN_TEMPORAL_DESIGN_EXCURSION = "bayesian.temporal_design.excursion"
     TEMPORAL_REGIME_SURVIVAL = "temporal_design.regime_survival"
     BAYESIAN_TEMPORAL_REGIME_SURVIVAL = "bayesian.temporal_design.regime_survival"
+    IV_BOUNDS_SHARP = "iv_bounds.balke_pearl"
+    BAYESIAN_IV_BOUNDS = "bayesian.iv_bounds.endpoint_bootstrap"
 
 
 class Latency(StrEnum):

@@ -13,6 +13,122 @@ use super::{
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::proof_supplies_method_and_functional;
+use crate::analysis::structure_route::{
+    AttributionFit, AttributionOutcome, attribution_quantities_weighted, change_quantities,
+    difference_measure,
+};
+use crate::gcm::FitResampling;
+
+/// Refits an intrinsic-influence attribution runs for its posterior over the mechanisms when
+/// the study does not set the draw count: each refit is a full nested attribution.
+const INTRINSIC_POSTERIOR_DRAWS: usize = 100;
+
+/// Whether `query` is an intrinsic-influence attribution.
+fn attribute_intrinsic_target(query: &CausalQuery) -> bool {
+    matches!(
+        query,
+        CausalQuery::Attribute(attribute)
+            if matches!(attribute.target, antecedent_core::AttributeTarget::IntrinsicInfluence(_))
+    )
+}
+
+/// Whether `query` is an attribution of a kind the mechanism-refit resamplings cover: every
+/// target of the fitted-model attribution except mechanism-change detection. A detection is a
+/// two-sample test whose p-value is a tail probability of a null law of its statistic, not a
+/// smooth functional of the refitted mechanisms, so it has neither a posterior over the
+/// mechanisms nor a refit bootstrap; its Bayesian counterpart is the posterior probability of a
+/// change under a declared prior.
+fn attribute_refit_covered(query: &CausalQuery) -> bool {
+    matches!(
+        query,
+        CausalQuery::Attribute(attribute)
+            if !matches!(attribute.target, antecedent_core::AttributeTarget::MechanismChange { .. })
+    ) || rollout_query(query)
+}
+
+/// Whether `query` is a temporal rollout of the fitted dynamics: the one simulation target whose
+/// quantities (the mean of each variable at each step) are smooth functionals of the refit
+/// mechanisms. Draws, policy values and counterfactuals of the other targets are not summarized
+/// by a refit.
+fn rollout_query(query: &CausalQuery) -> bool {
+    matches!(
+        query,
+        CausalQuery::Simulate(simulate)
+            if matches!(simulate.target, antecedent_core::SimulationTarget::TemporalRollout { .. })
+    )
+}
+
+/// Whether a fitted-model target runs on the lag-aligned unfolding of a `TemporalDag`: every
+/// attribution target the refit resamplings cover, with block weights or block counts keeping
+/// the serial dependence of consecutive times inside each block. A simulation, a mechanism
+/// change and a unit change as queries of their own stay on a static DAG.
+fn attribute_on_unfolding(query: &CausalQuery) -> bool {
+    attribute_refit_covered(query)
+        || matches!(query, CausalQuery::UnitChange(_) | CausalQuery::MechanismChange(_))
+}
+
+/// Whether the fitted-model target `query` has a posterior over the mechanisms: every
+/// attribution target except mechanism-change detection (see [`attribute_refit_covered`]).
+/// A simulation reports the fitted model's answer.
+pub(crate) fn attribute_posterior_supported(query: &CausalQuery) -> bool {
+    attribute_refit_covered(query)
+}
+
+/// Whether a replicate count gives `query` the mechanism-refit row bootstrap: every covered
+/// target but intrinsic influence, which carries its own `fit_bootstrap`.
+pub(crate) fn attribute_bootstrap_supported(query: &CausalQuery) -> bool {
+    attribute_refit_covered(query) && !attribute_intrinsic_target(query)
+}
+
+/// Whether a draw of `query` is dear: it reruns a nested simulation, a Shapley game over
+/// features or units, or a hybrid refit per coalition, rather than reading the refit
+/// mechanisms once.
+fn attribute_draw_is_dear(query: &CausalQuery) -> bool {
+    use antecedent_core::{AttributeTarget, ChangeEstimator};
+    let CausalQuery::Attribute(attribute) = query else {
+        return rollout_query(query);
+    };
+    !matches!(
+        &attribute.target,
+        AttributeTarget::Paths { .. }
+            | AttributeTarget::Anomaly(_)
+            | AttributeTarget::DistributionChange {
+                estimator: ChangeEstimator::Sampled { .. },
+                ..
+            }
+            | AttributeTarget::RootCauses { estimator: ChangeEstimator::Sampled { .. }, .. }
+    )
+}
+
+/// Posterior draws of a fitted-model attribution: the study's draw count, except that a target
+/// whose every draw is a full nested attribution or Shapley game runs a bounded number of
+/// refits unless the caller set the count.
+pub(crate) fn attribute_posterior_draws(
+    query: &CausalQuery,
+    config: &crate::BayesianConfig,
+) -> usize {
+    if attribute_draw_is_dear(query) && !config.n_draws_explicit {
+        config.n_draws.min(INTRINSIC_POSTERIOR_DRAWS)
+    } else {
+        config.n_draws
+    }
+}
+
+/// Whether an attribution entry runs the sealed operation for the uncertainty it carries: the
+/// posterior over the mechanisms under Bayesian inference, and the mechanism-refit row
+/// bootstrap when replicates are requested.
+pub(crate) fn attribute_runs_checked(
+    query: &CausalQuery,
+    inference: &InferenceMode,
+    bootstrap_replicates: u32,
+) -> bool {
+    match inference {
+        InferenceMode::Bayesian(_) => attribute_posterior_supported(query),
+        InferenceMode::Frequentist => {
+            bootstrap_replicates > 0 && attribute_bootstrap_supported(query)
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 enum AttributionTarget {
@@ -109,7 +225,7 @@ impl CheckedAttributionOperation {
             || (fitted_model
                 && study.structure_source == crate::support::StructureSource::Accepted);
         if !structure_ok
-            || (fitted_model && lag_aligned.is_some())
+            || (fitted_model && lag_aligned.is_some() && !attribute_on_unfolding(&target_query))
             || cache.identification.query != target_query
             || physical.logical.query != target_query
             || !physical.binding().names(IdentifierId::GcmParametric, estimator)
@@ -193,7 +309,10 @@ impl CheckedAttributionOperation {
         }
     }
 
-    /// Fit the program's mechanisms and run the fitted-model target on them.
+    /// Fit the program's mechanisms and run the fitted-model target on them, with the
+    /// uncertainty its procedure carries: the posterior over the mechanisms under Bayesian
+    /// inference, the mechanism-refit row (or block) bootstrap when replicates are requested,
+    /// and the fitted model's point answer otherwise.
     fn execute_model(
         &self,
         query: &CausalQuery,
@@ -201,13 +320,62 @@ impl CheckedAttributionOperation {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let answer = super::structural_route::run_model_query(
+        let fit = self.model_fit(query, data.row_count());
+        let reading = super::structural_route::ChangeReading {
+            block: self.lag_aligned.as_ref().map(|aligned| aligned.block_length(data.row_count())),
+            bayesian: self.inference.is_bayesian()
+                && matches!(query, CausalQuery::MechanismChange(_)),
+        };
+        let mut answer = super::structural_route::run_model_query_with_fit(
             &self.mechanisms,
             &self.graph,
             data,
             query,
+            fit,
+            super::structural_route::ModelRun { reading, unfolding: self.lag_aligned.as_ref() },
             ctx,
         )?;
+        let mut posterior = None;
+        match self.procedure {
+            AttributionProcedure::SharedDirichletRowWeights { draws } => {
+                let built = self.model_posterior(query, data, &answer, draws, ctx)?;
+                if let Some(index) = built.effect_column() {
+                    answer.estimate.ate = built.summaries.mean[index];
+                    answer.estimate.uncertainty.analytic.se = built.summaries.sd[index];
+                }
+                posterior = Some(built);
+                answer.diagnostics.push(bayesian_attribution_diagnostic(&format!(
+                    "Each draw refits every mechanism under {} (one weight vector per population \
+                     for a change target), with the mechanism families held at the ones selected \
+                     on the original rows, and recomputes the attribution on the refit: the \
+                     posterior is over the mechanisms, given the empirical row law. The data \
+                     references an attribution reads (feature means, parent means, anomaly \
+                     reference) stay at their observed values. No coverage record measures this \
+                     interval.",
+                    self.weights_description(data.row_count()),
+                )));
+            }
+            AttributionProcedure::RowBootstrap { replicates } => {
+                self.model_bootstrap(query, data, replicates, &mut answer, ctx)?;
+            }
+            AttributionProcedure::Point => {
+                if self.inference.is_bayesian()
+                    && !attribute_posterior_supported(query)
+                    && !matches!(query, CausalQuery::MechanismChange(_))
+                {
+                    answer.diagnostics.push(Diagnostic::new(
+                        "gcm.attribution.posterior_not_built",
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Warning,
+                        "this target reports the fitted model's answer under Bayesian \
+                         inference: it is a test or a simulation, not a smooth functional of \
+                         the refitted mechanisms. Next attempt: declare a prior over the change \
+                         indicator for the posterior probability of a mechanism change, or use \
+                         the counterfactual for a simulation.",
+                    ));
+                }
+            }
+        }
         let (treatment, outcome) = super::gcm_query_vars(query)?;
         Ok(finish_identified_execute_with_context(
             &self.result_context,
@@ -225,11 +393,460 @@ impl CheckedAttributionOperation {
             .wall_time_ns(elapsed_ns(started))
             .extras(IdentifiedExecuteExtras {
                 diagnostics: Some(answer.diagnostics),
+                posterior,
+                n_draws: self.published_draws(),
                 gcm: Some(answer.slot),
                 empty_provenance: true,
                 ..Default::default()
             }),
         ))
+    }
+
+    /// The weights one draw puts on the rows, in words.
+    fn weights_description(&self, n: usize) -> String {
+        match &self.lag_aligned {
+            Some(aligned) => format!(
+                "one Exp(1) weight per block of {} consecutive lag-aligned times, shared by \
+                 every row of the block",
+                aligned.block_length(n)
+            ),
+            None => "one Dirichlet(1,…,1) row-weight vector".to_owned(),
+        }
+    }
+
+    /// The mechanism-fit refits an intrinsic-influence target runs under this procedure.
+    ///
+    /// On a lag-aligned unfolding the refits resample or weight blocks of consecutive times, so
+    /// the serial dependence of the series is kept inside each block.
+    fn model_fit(&self, query: &CausalQuery, n: usize) -> Option<AttributionFit> {
+        if !attribute_intrinsic_target(query) {
+            return None;
+        }
+        let block = self.lag_aligned.as_ref().map(|aligned| aligned.block_length(n));
+        match (self.procedure.clone(), block) {
+            (AttributionProcedure::SharedDirichletRowWeights { draws }, block) => {
+                Some(AttributionFit {
+                    replicates: u32::try_from(draws).unwrap_or(u32::MAX),
+                    resampling: block.map_or(FitResampling::DirichletRowWeights, |block| {
+                        FitResampling::DirichletBlockWeights { block }
+                    }),
+                })
+            }
+            (_, Some(block)) => match query {
+                CausalQuery::Attribute(attribute) => match &attribute.target {
+                    antecedent_core::AttributeTarget::IntrinsicInfluence(target)
+                        if target.fit_bootstrap_replicates > 0 =>
+                    {
+                        Some(AttributionFit {
+                            replicates: target.fit_bootstrap_replicates,
+                            resampling: FitResampling::BlockBootstrap { block },
+                        })
+                    }
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// The posterior over the mechanisms of a fitted-model target: the Dirichlet-weighted
+    /// refits of the attribution, or the refit contributions the intrinsic-influence engine
+    /// returned.
+    fn model_posterior(
+        &self,
+        query: &CausalQuery,
+        data: &TabularData,
+        answer: &super::structural_route::ModelAnswer,
+        draws: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalPosterior, CausalError> {
+        let (columns, has_primary_effect) = if attribute_intrinsic_target(query) {
+            (intrinsic_posterior_columns(&answer.slot)?, false)
+        } else {
+            let replicates = self.attribute_replicates(query, data, draws, true, ctx)?;
+            let primary = replicates.names.first().is_some_and(|name| name == "total_change");
+            (replicates.columns(), primary)
+        };
+        super::attribution_path::attribution_posterior(
+            columns,
+            self.cache.identification.required_assumptions.clone(),
+            self.cache.identification.status,
+            super::ATTRIBUTE_DIRICHLET_BACKEND,
+            has_primary_effect,
+        )
+    }
+
+    /// The mechanism-refit bootstrap of a fitted-model target: the standard error of the
+    /// primary quantity on the estimate, and every quantity's standard error in a diagnostic.
+    fn model_bootstrap(
+        &self,
+        query: &CausalQuery,
+        data: &TabularData,
+        replicates: u32,
+        answer: &mut super::structural_route::ModelAnswer,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        let draws = usize::try_from(replicates).unwrap_or(usize::MAX);
+        let outcome = self.attribute_replicates(query, data, draws, false, ctx)?;
+        let columns = outcome.columns();
+        let accounted: Vec<_> = columns
+            .iter()
+            .map(|(_, values)| super::gcm_bootstrap::accounting(values, outcome.failed, replicates))
+            .collect();
+        let Some(primary) = accounted.first().copied() else {
+            return Ok(());
+        };
+        answer.estimate.uncertainty.bootstrap = primary;
+        let target = columns.first().map_or("the attribution", |(name, _)| name.as_str());
+        let mut diagnostic = self.bootstrap_disclosure(
+            &format!("{target} of the fitted-model attribution"),
+            data.row_count(),
+            &mut answer.estimate,
+        );
+        let fields: Vec<(String, String)> = columns
+            .iter()
+            .zip(&accounted)
+            .map(|((name, _), accounting)| {
+                (
+                    format!("bootstrap_se.{name}"),
+                    accounting
+                        .se
+                        .map_or_else(|| "unquantified".to_owned(), |se| format!("{se:.6e}")),
+                )
+            })
+            .chain([
+                ("replicates_ok".to_owned(), primary.replicates_ok.unwrap_or(0).to_string()),
+                (
+                    "replicates_failed".to_owned(),
+                    primary.replicates_failed.unwrap_or(0).to_string(),
+                ),
+                ("calibration".to_owned(), "unmeasured".to_owned()),
+            ])
+            .collect();
+        diagnostic = diagnostic.with_fields(fields);
+        answer.diagnostics.push(diagnostic);
+        Ok(())
+    }
+
+    /// Recompute a fitted-model attribution on `replicates` refits of the mechanisms: each
+    /// under fresh Dirichlet (row or block) weights when `bayesian`, else fresh bootstrap
+    /// counts. The mechanism families are the ones selected on the original rows, as on the
+    /// anomaly and change cells.
+    ///
+    /// A failed replicate is an error under weights and failed mass under counts; it is never
+    /// redrawn.
+    fn attribute_replicates(
+        &self,
+        query: &CausalQuery,
+        data: &TabularData,
+        replicates: usize,
+        bayesian: bool,
+        ctx: &ExecutionContext,
+    ) -> Result<Replicates, CausalError> {
+        let (attribute, simulate) = match query {
+            CausalQuery::Attribute(attribute) => (Some(attribute), None),
+            CausalQuery::Simulate(simulate) => (None, Some(simulate)),
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "a mechanism-refit replicate needs an attribution or rollout query"
+                        .into(),
+                });
+            }
+        };
+        let fitted = self.mechanisms.fit(&self.graph, data)?;
+        let mut stream =
+            ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, 0xA77B_7A7E);
+        let mut out = Replicates { names: Vec::new(), rows: Vec::new(), failed: 0 };
+        let mut admitted = None;
+        for replicate in 0..replicates {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: super::super::stage::STAGE_UNCERTAINTY,
+                });
+            }
+            let mut counts_stream;
+            let rng = if bayesian {
+                &mut stream
+            } else {
+                counts_stream = super::gcm_bootstrap::replicate_stream(
+                    ctx,
+                    0xA77B_B007,
+                    u32::try_from(replicate).unwrap_or(u32::MAX),
+                );
+                &mut counts_stream
+            };
+            let replicate = match (attribute, simulate) {
+                (Some(attribute), _) => {
+                    self.attribute_replicate(attribute, &fitted, data, bayesian, rng, ctx)
+                }
+                (None, Some(simulate)) => {
+                    self.simulate_replicate(simulate, &fitted, data, bayesian, rng, ctx)
+                }
+                (None, None) => unreachable!("a replicate query is an attribution or a rollout"),
+            };
+            match replicate {
+                Ok(values) => {
+                    if out.names.is_empty() {
+                        out.names = values.iter().map(|(name, _)| name.clone()).collect();
+                        admitted = Some(admit_posterior_columns(ctx, replicates, out.names.len())?);
+                    } else if values.len() != out.names.len()
+                        || values.iter().zip(&out.names).any(|((name, _), first)| name != first)
+                    {
+                        return Err(CausalError::Compile {
+                            message: "a mechanism-refit replicate changed the attribution's \
+                                      components"
+                                .into(),
+                        });
+                    }
+                    out.rows.push(values.into_iter().map(|(_, value)| value).collect());
+                }
+                Err(_) if ctx.cancellation.is_cancelled() => {
+                    return Err(CausalError::Cancelled {
+                        stage: super::super::stage::STAGE_UNCERTAINTY,
+                    });
+                }
+                Err(error) if bayesian => return Err(error),
+                Err(_) => out.failed += 1,
+            }
+        }
+        drop(admitted);
+        if out.rows.len() < 2 && bayesian {
+            return Err(CausalError::Compile {
+                message: "Bayesian attribution draws have inconsistent shape".into(),
+            });
+        }
+        Ok(out)
+    }
+
+    /// One replicate of a temporal rollout: the mechanisms refit under fresh block weights (or
+    /// block counts), the dynamics rolled forward from the last rows of the series, and the mean
+    /// of every variable at every step read off the rollout.
+    fn simulate_replicate(
+        &self,
+        simulate: &antecedent_core::SimulateQuery,
+        fitted: &crate::gcm::FittedGcm,
+        data: &TabularData,
+        bayesian: bool,
+        rng: &mut antecedent_core::CausalRng,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<(String, f64)>, CausalError> {
+        let n = data.row_count();
+        let weights =
+            if bayesian { self.draw_row_weights(n, rng) } else { self.draw_row_counts(n, rng) };
+        let registry = crate::gcm::MechanismRegistry::standard();
+        let cancelled = || ctx.cancellation.is_cancelled();
+        let store = if bayesian {
+            registry.refit_weighted_polled(
+                &fitted.model,
+                data,
+                &fitted.assignments,
+                &weights,
+                &cancelled,
+            )
+        } else {
+            registry.refit_frequency_weighted_polled(
+                &fitted.model,
+                data,
+                &fitted.assignments,
+                &weights,
+                &cancelled,
+            )
+        }
+        .map_err(CausalError::rejected)?;
+        let refit = crate::gcm::FittedGcm {
+            model: fitted.model.clone().with_mechanisms(store),
+            assignments: fitted.assignments.clone(),
+        };
+        let outcome = match &self.lag_aligned {
+            Some(aligned) => {
+                super::structural_route::rollout_on_unfolding(&refit, data, aligned, simulate, ctx)?
+            }
+            None => crate::analysis::structure_route::run_simulate(&refit, data, simulate, ctx)?,
+        };
+        let nodes = self
+            .lag_aligned
+            .as_ref()
+            .map_or(refit.model.n_nodes(), |aligned| aligned.contemporaneous_count());
+        crate::analysis::structure_route::simulation_quantities(&outcome, nodes).ok_or_else(|| {
+            CausalError::Compile {
+                message: "this simulation has no mechanism-refit replicate".into(),
+            }
+        })
+    }
+
+    /// One replicate of a fitted-model attribution on mechanisms refit under fresh weights.
+    fn attribute_replicate(
+        &self,
+        attribute: &antecedent_core::AttributeQuery,
+        fitted: &crate::gcm::FittedGcm,
+        data: &TabularData,
+        bayesian: bool,
+        rng: &mut antecedent_core::CausalRng,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<(String, f64)>, CausalError> {
+        use antecedent_core::{AttributeTarget, ChangeEstimator};
+        let draw = |op: &Self, n: usize, rng: &mut antecedent_core::CausalRng| {
+            if bayesian { op.draw_row_weights(n, rng) } else { op.draw_row_counts(n, rng) }
+        };
+        let populations =
+            |change: &antecedent_core::ChangeAttributionQuery| -> Result<_, CausalError> {
+                let baseline = antecedent_attribution::resolve_rows(data, &change.baseline)
+                    .map_err(CausalError::rejected)?
+                    .len();
+                let comparison = antecedent_attribution::resolve_rows(data, &change.comparison)
+                    .map_err(CausalError::rejected)?
+                    .len();
+                Ok((baseline, comparison))
+            };
+        match &attribute.target {
+            AttributeTarget::DistributionChange { change, estimator }
+            | AttributeTarget::RootCauses { change, estimator } => {
+                let (nb, nc) = populations(change)?;
+                let (baseline, comparison) = (draw(self, nb, rng), draw(self, nc, rng));
+                let refit = if bayesian {
+                    antecedent_attribution::PopulationRefit::RowWeights {
+                        baseline: &baseline,
+                        comparison: &comparison,
+                    }
+                } else {
+                    antecedent_attribution::PopulationRefit::Counts {
+                        baseline: &baseline,
+                        comparison: &comparison,
+                    }
+                };
+                let result = match estimator {
+                    ChangeEstimator::Sampled { measure, n_samples, seed } => {
+                        let options = antecedent_attribution::DistributionChangeOptions {
+                            measure: difference_measure(*measure),
+                            n_samples: *n_samples,
+                            seed: *seed,
+                        };
+                        if bayesian {
+                            antecedent_attribution::distribution_change_with_row_weights(
+                                &fitted.model,
+                                data,
+                                change,
+                                &options,
+                                &baseline,
+                                &comparison,
+                                ctx,
+                            )
+                        } else {
+                            antecedent_attribution::distribution_change_with_frequency_weights(
+                                &fitted.model,
+                                data,
+                                change,
+                                &options,
+                                &baseline,
+                                &comparison,
+                                ctx,
+                            )
+                        }
+                    }
+                    ChangeEstimator::Robust { max_rows, n_samples, seed } => {
+                        antecedent_attribution::distribution_change_robust_with_refit(
+                            &fitted.model,
+                            data,
+                            change,
+                            &antecedent_attribution::RobustChangeOptions {
+                                max_rows: *max_rows,
+                                n_samples: *n_samples,
+                                seed: *seed,
+                            },
+                            &refit,
+                            ctx,
+                        )
+                    }
+                }
+                .map_err(CausalError::rejected)?;
+                Ok(change_quantities(&result))
+            }
+            AttributeTarget::StructureChange { change, comparison, measure, n_samples, seed } => {
+                let (nb, nc) = populations(change)?;
+                let (baseline, comparison_weights) = (draw(self, nb, rng), draw(self, nc, rng));
+                let refit = if bayesian {
+                    antecedent_attribution::PopulationRefit::RowWeights {
+                        baseline: &baseline,
+                        comparison: &comparison_weights,
+                    }
+                } else {
+                    antecedent_attribution::PopulationRefit::Counts {
+                        baseline: &baseline,
+                        comparison: &comparison_weights,
+                    }
+                };
+                let comparison_model =
+                    crate::analysis::structure_route::structure_comparison_model(
+                        &self.graph,
+                        comparison,
+                    )?;
+                let result = antecedent_attribution::structure_change_with_refit(
+                    &fitted.model,
+                    &comparison_model,
+                    data,
+                    change,
+                    &antecedent_attribution::StructureChangeOptions {
+                        measure: difference_measure(*measure),
+                        n_samples: *n_samples,
+                        seed: *seed,
+                    },
+                    &refit,
+                    ctx,
+                )
+                .map_err(CausalError::rejected)?;
+                Ok(change_quantities(&result))
+            }
+            AttributeTarget::MechanismChange { .. } => Err(CausalError::Unsupported {
+                message: "mechanism-change detection is a test, not a smooth functional of the \
+                          refitted mechanisms",
+            }),
+            AttributeTarget::IntrinsicInfluence(_) => Err(CausalError::Compile {
+                message: "intrinsic influence draws its refits inside the engine".into(),
+            }),
+            _ => {
+                // Paths, feature relevance, anomaly scores and unit change read the fitted
+                // mechanisms (and, for the last three, the rows): refit them on the whole
+                // table under one weight vector and recompute.
+                let weights = draw(self, data.row_count(), rng);
+                let registry = crate::gcm::MechanismRegistry::standard();
+                let store = if bayesian {
+                    registry.refit_weighted_polled(
+                        &fitted.model,
+                        data,
+                        &fitted.assignments,
+                        &weights,
+                        &|| ctx.cancellation.is_cancelled(),
+                    )
+                } else {
+                    registry.refit_frequency_weighted_polled(
+                        &fitted.model,
+                        data,
+                        &fitted.assignments,
+                        &weights,
+                        &|| ctx.cancellation.is_cancelled(),
+                    )
+                }
+                .map_err(CausalError::rejected)?;
+                let refit = crate::gcm::FittedGcm {
+                    model: fitted.model.clone().with_mechanisms(store),
+                    assignments: fitted.assignments.clone(),
+                };
+                let outcome = crate::analysis::structure_route::run_attribute_with_fit(
+                    &refit,
+                    &self.graph,
+                    data,
+                    attribute,
+                    None,
+                    ctx,
+                )?;
+                attribution_quantities_weighted(&outcome, &weights).ok_or_else(|| {
+                    CausalError::Compile {
+                        message: "this attribution has no mechanism-refit replicate".into(),
+                    }
+                })
+            }
+        }
     }
 
     /// Draw count published on the result: absent for point procedures.
@@ -364,17 +981,18 @@ impl CheckedAttributionOperation {
             antecedent_core::AssumptionSet::default(),
             OverlapPolicy::ExplicitOverride,
         );
-        let posterior = self.change_posterior(query, data, &fitted.model, ctx)?;
-        let bootstrap_diagnostic = self.change_bootstrap(query, data, &fitted.model, ctx)?.map(
-            |(accounting, diagnostic)| {
+        let options = antecedent_attribution::DistributionChangeOptions::default();
+        let posterior = self.change_posterior(query, data, &fitted.model, &options, ctx)?;
+        let bootstrap_diagnostic = self
+            .change_bootstrap(query, data, &fitted.model, &options, ctx)?
+            .map(|(accounting, diagnostic)| {
                 estimate.uncertainty.bootstrap = accounting;
                 if self.lag_aligned.is_some() {
                     estimate.uncertainty.block.family =
                         Some(antecedent_estimate::CircularBlockFamily::RowBlock);
                 }
                 diagnostic
-            },
-        );
+            });
         if let Some(posterior) = &posterior {
             if let Some(index) = posterior.effect_column() {
                 estimate.ate = posterior.summaries.mean[index];
@@ -522,6 +1140,7 @@ impl CheckedAttributionOperation {
         query: &antecedent_core::ChangeAttributionQuery,
         data: &TabularData,
         model: &crate::gcm::CompiledCausalModel,
+        options: &antecedent_attribution::DistributionChangeOptions,
         ctx: &ExecutionContext,
     ) -> Result<Option<(antecedent_estimate::BootstrapAccounting, Diagnostic)>, CausalError> {
         let AttributionProcedure::RowBootstrap { replicates } = self.procedure else {
@@ -537,7 +1156,6 @@ impl CheckedAttributionOperation {
             message: "change bootstrap row count overflow".to_owned(),
         })?;
         let _admitted = super::gcm_bootstrap::admit_replicates(ctx, replicates, 1, rows)?;
-        let options = antecedent_attribution::DistributionChangeOptions::default();
         let mut totals = Vec::with_capacity(usize::try_from(replicates).unwrap_or(0));
         let mut failed = 0_u32;
         for replicate in 0..replicates {
@@ -553,7 +1171,7 @@ impl CheckedAttributionOperation {
                 model,
                 data,
                 query,
-                &options,
+                options,
                 &baseline_counts,
                 &comparison_counts,
                 ctx,
@@ -657,18 +1275,46 @@ impl CheckedAttributionOperation {
         query: &antecedent_core::ChangeAttributionQuery,
         data: &TabularData,
         model: &crate::gcm::CompiledCausalModel,
+        options: &antecedent_attribution::DistributionChangeOptions,
         ctx: &ExecutionContext,
     ) -> Result<Option<CausalPosterior>, CausalError> {
         let AttributionProcedure::SharedDirichletRowWeights { draws } = self.procedure else {
             return Ok(None);
         };
+        let posterior_columns =
+            self.change_posterior_columns(query, data, model, options, draws, ctx)?;
+        let (identification, _) = parametric_scm_identification(
+            CausalQuery::ChangeAttribution(query.clone()),
+            query.outcome,
+            query.outcome,
+        );
+        Ok(Some(super::attribution_path::attribution_posterior(
+            posterior_columns,
+            identification.required_assumptions,
+            identification.status,
+            super::CHANGE_DIRICHLET_BACKEND,
+            true,
+        )?))
+    }
+
+    /// The posterior columns of a Dirichlet row-weight bootstrap of the distribution change:
+    /// the total first, then one column per component, one weight vector per population per
+    /// draw.
+    fn change_posterior_columns(
+        &self,
+        query: &antecedent_core::ChangeAttributionQuery,
+        data: &TabularData,
+        model: &crate::gcm::CompiledCausalModel,
+        options: &antecedent_attribution::DistributionChangeOptions,
+        draws: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<(String, Vec<f64>)>, CausalError> {
         let baseline_n = antecedent_attribution::resolve_rows(data, &query.baseline)
             .map_err(CausalError::rejected)?
             .len();
         let comparison_n = antecedent_attribution::resolve_rows(data, &query.comparison)
             .map_err(CausalError::rejected)?
             .len();
-        let options = antecedent_attribution::DistributionChangeOptions::default();
         let mut rng = ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, 0xC4A6_7A7E);
         let _totals_admitted = admit_posterior_columns(ctx, draws, 1)?;
         let mut component_admitted = None;
@@ -686,7 +1332,7 @@ impl CheckedAttributionOperation {
                 model,
                 data,
                 query,
-                &options,
+                options,
                 &baseline_weights,
                 &comparison_weights,
                 ctx,
@@ -719,18 +1365,61 @@ impl CheckedAttributionOperation {
         }
         let mut posterior_columns = vec![("total_change".to_owned(), totals)];
         posterior_columns.extend(components.unwrap_or_default());
-        let (identification, _) = parametric_scm_identification(
-            CausalQuery::ChangeAttribution(query.clone()),
-            query.outcome,
-            query.outcome,
-        );
-        Ok(Some(super::attribution_path::attribution_posterior(
-            posterior_columns,
-            identification.required_assumptions,
-            identification.status,
-            super::CHANGE_DIRICHLET_BACKEND,
-            true,
-        )?))
+        Ok(posterior_columns)
+    }
+}
+
+/// The per-source posterior columns of an intrinsic-influence attribution run under
+/// Dirichlet row-weight refits: the contribution of each source in every refit.
+fn intrinsic_posterior_columns(slot: &GcmSlot) -> Result<Vec<(String, Vec<f64>)>, CausalError> {
+    let GcmSlot::Attribution(payload) = slot else {
+        return Err(CausalError::Compile {
+            message: "an intrinsic-influence posterior needs the attribution it was run on".into(),
+        });
+    };
+    let AttributionOutcome::IntrinsicInfluence(result) = &payload.outcome else {
+        return Err(CausalError::Compile {
+            message: "an intrinsic-influence posterior needs an intrinsic-influence outcome".into(),
+        });
+    };
+    if result.fit_draws.len() < 2 {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "the posterior over the mechanisms of an intrinsic-influence attribution needs its \
+             mechanism refits, and too few completed (the planned simulation exceeds the draw \
+             ceiling, or a refit failed). Next attempt: lower the outer, inner or replicate \
+             draws, or request fewer draws, so every refit fits the budget"
+        ));
+    }
+    Ok(result
+        .sources
+        .iter()
+        .enumerate()
+        .map(|(index, source)| {
+            (
+                format!("source[{}]", source.source.raw()),
+                result.fit_draws.iter().map(|draw| draw[index]).collect(),
+            )
+        })
+        .collect())
+}
+
+/// The replicates of a mechanism-refit resampling: the quantities' names, one row of values per
+/// completed replicate, and the replicates that failed.
+struct Replicates {
+    names: Vec<String>,
+    rows: Vec<Vec<f64>>,
+    failed: u32,
+}
+
+impl Replicates {
+    /// The values of each quantity across the completed replicates.
+    fn columns(&self) -> Vec<(String, Vec<f64>)> {
+        self.names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| (name.clone(), self.rows.iter().map(|row| row[index]).collect()))
+            .collect()
     }
 }
 
@@ -869,7 +1558,41 @@ fn attribution_procedure(
     study: &Study,
 ) -> Result<(EstimatorId, AttributionProcedure), CausalError> {
     Ok(match (target, &study.inference) {
-        // A fitted-model target reports the fitted model's answer under either mode.
+        // The posterior over the mechanisms of a fitted-model target: Dirichlet row-weight
+        // refits (block weights on a lag-aligned unfolding) of the mechanisms, the families
+        // held at the ones selected on the data.
+        (AttributionTarget::Model(query), InferenceMode::Bayesian(config))
+            if attribute_posterior_supported(query) =>
+        {
+            if config.prior.is_some()
+                || config.prior_artifact.is_some()
+                || config.external_compose.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian attribution uses its shared-row Bayesian bootstrap and does not accept coefficient priors or external prior composition",
+                });
+            }
+            bayesian_draw_count(&study.inference)?;
+            let draws = attribute_posterior_draws(query, config);
+            (EstimatorId::GcmFitBayesian, AttributionProcedure::SharedDirichletRowWeights { draws })
+        }
+        // The mechanism-refit bootstrap of a fitted-model target: multinomial rows of
+        // independent subjects on a static DAG, circular blocks of consecutive times on a
+        // lag-aligned TemporalDag unfolding.
+        (AttributionTarget::Model(query), InferenceMode::Frequentist)
+            if study.bootstrap_replicates > 0 && attribute_bootstrap_supported(query) =>
+        {
+            if study.graph.as_dag().is_some() {
+                super::gcm_bootstrap::require_subject_resampling(study.sampling_design)?;
+            } else {
+                super::gcm_bootstrap::require_series_resampling(study.sampling_design)?;
+            }
+            (
+                EstimatorId::GcmFit,
+                AttributionProcedure::RowBootstrap { replicates: study.bootstrap_replicates },
+            )
+        }
+        // Every other fitted-model target reports the fitted model's answer.
         (AttributionTarget::Model(_), _) => (EstimatorId::GcmFit, AttributionProcedure::Point),
         (_, InferenceMode::Frequentist) => {
             // A requested replicate count is the mechanism-refit bootstrap: multinomial

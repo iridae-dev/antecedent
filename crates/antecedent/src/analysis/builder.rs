@@ -443,8 +443,12 @@ pub(super) fn discovery_stub_graph(
         C::Dag | C::DagPosterior | C::DagEdgeMarginals => {
             Ok(AcceptedGraph::dag(Dag::with_variables(width)))
         }
-        C::Cpdag => AcceptedGraph::cpdag(Cpdag::with_variables(width)),
-        C::Pag => Ok(AcceptedGraph::pag(Pag::with_variables(width))),
+        // A class posterior is over CPDAGs; a stability table has no class of its own and is
+        // given the class of the search it re-runs by `discovery_stub_class` before this call.
+        C::Cpdag | C::CpdagPosterior | C::StructureStability => {
+            AcceptedGraph::cpdag(Cpdag::with_variables(width))
+        }
+        C::Pag | C::PagPosterior => Ok(AcceptedGraph::pag(Pag::with_variables(width))),
         C::TemporalDag | C::TemporalDagPosterior => {
             Ok(AcceptedGraph::temporal_dag(TemporalDag::empty()))
         }
@@ -452,6 +456,17 @@ pub(super) fn discovery_stub_graph(
             AcceptedGraph::temporal_cpdag(TemporalCpdag::empty())
         }
         C::TemporalPag => Ok(AcceptedGraph::temporal_pag(TemporalPag::empty())),
+    }
+}
+
+/// The class the stub graph of a discovery study states: the class the search returns, or,
+/// for a stability search, the class of the search it re-runs.
+pub(super) fn discovery_stub_class(
+    method: &antecedent_core::DiscoveryMethod,
+) -> antecedent_core::DiscoveredClass {
+    match method {
+        antecedent_core::DiscoveryMethod::BootstrapStability { base, .. } => base.output(),
+        other => other.output(),
     }
 }
 
@@ -596,6 +611,8 @@ pub struct StudyBuilder {
     bootstrap_replicates: u32,
     /// Whether [`Self::bootstrap_replicates`] was set explicitly.
     bootstrap_explicit: bool,
+    /// Whether the temporal response retains its joint horizon replicates.
+    retain_joint_horizons: bool,
     split: Option<DiscoveryEstimationSplit>,
     identifier: Option<IdentifierId>,
     estimator: Option<EstimatorId>,
@@ -754,6 +771,7 @@ fn refuse_bayesian_estimator_under_frequentist(estimator: EstimatorId) -> Result
         EstimatorId::BayesianTemporalDesignExcursion => {
             bayesian!("bayesian.temporal_design.excursion")
         }
+        EstimatorId::BayesianIvBounds => bayesian!("bayesian.iv_bounds.endpoint_bootstrap"),
         EstimatorId::BayesianTemporalRegimeSurvival => {
             bayesian!("bayesian.temporal_design.regime_survival")
         }
@@ -827,6 +845,7 @@ fn refuse_frequentist_estimator_under_bayesian(
         }
         EstimatorId::CellAipw => frequentist!("cell.aipw"),
         EstimatorId::TemporalGlmLinkContrast => frequentist!("temporal.glm_link_contrast"),
+        EstimatorId::IvBoundsSharp => frequentist!("iv_bounds.balke_pearl"),
         EstimatorId::TemporalDesignExcursion => frequentist!("temporal_design.excursion"),
         EstimatorId::TemporalRegimeSurvival => frequentist!("temporal_design.regime_survival"),
         EstimatorId::TemporalLaggedInstrument => frequentist!("temporal.lagged_instrument"),
@@ -869,6 +888,9 @@ pub(super) fn omitted_bootstrap_resamples(query: &CausalQuery, inference: &Infer
         | CausalQuery::NestedCounterfactual(_)
         | CausalQuery::AnomalyAttribution(_)
         | CausalQuery::ChangeAttribution(_) => false,
+        CausalQuery::Attribute(_) | CausalQuery::Simulate(_) => {
+            !super::execute::attribute_bootstrap_supported(query)
+        }
         _ => true,
     }
 }
@@ -1223,6 +1245,7 @@ impl StudyBuilder {
             refute_explicit: false,
             bootstrap_replicates: Self::OMITTED_BOOTSTRAP,
             bootstrap_explicit: false,
+            retain_joint_horizons: false,
             split: None,
             identifier: None,
             estimator: None,
@@ -1504,6 +1527,23 @@ impl StudyBuilder {
     pub fn bootstrap_replicates(mut self, n: u32) -> Self {
         self.bootstrap_replicates = n;
         self.bootstrap_explicit = true;
+        self
+    }
+
+    /// Retain the joint replicates of a temporal response surface, so horizons can be composed
+    /// from realizations coupled across them (see
+    /// [`crate::analysis::horizon_composition`]).
+    ///
+    /// Under Frequentist inference the replicates are the joint circular-block bootstrap
+    /// replicates of the whole dose-by-horizon surface and need `bootstrap_replicates`; under
+    /// Bayesian inference they are the draws of the block-weight posterior over the surface
+    /// (one Exp(1) weight per block of consecutive times shared by every horizon), which
+    /// replaces the per-horizon conjugate fits, whose draws are independent marginals. The
+    /// option changes the contract's inference binding, and a Bayesian run under it is
+    /// unlicensed.
+    #[must_use]
+    pub fn retain_joint_horizons(mut self, on: bool) -> Self {
+        self.retain_joint_horizons = on;
         self
     }
 
@@ -1831,6 +1871,7 @@ impl StudyBuilder {
             refute_explicit: self.refute_explicit,
             bootstrap_replicates: self.bootstrap_replicates,
             bootstrap_explicit: self.bootstrap_explicit,
+            retain_joint_horizons: self.retain_joint_horizons,
             split: self.split,
             identifier: self.identifier,
             estimator: self.estimator,

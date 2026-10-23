@@ -318,3 +318,105 @@ fn temporal_design_lowers_its_assignment_contrast_and_retains_its_premises() {
         assert!(result.temporal_design().is_some());
     }
 }
+
+/// Columns z, d, y and the cell mass; the law is perfect compliance (the treatment is the
+/// instrument), so the average effect is point identified at 0.6 - 0.3.
+fn iv_table() -> TabularData {
+    let z = [0.0, 0.0, 1.0, 1.0];
+    let d = [0.0, 0.0, 1.0, 1.0];
+    let y = [0.0, 1.0, 0.0, 1.0];
+    let w = [0.7, 0.3, 0.4, 0.6];
+    TabularData::from_f64_columns([
+        ("z", z.as_slice()),
+        ("d", d.as_slice()),
+        ("y", y.as_slice()),
+        ("w", w.as_slice()),
+    ])
+    .unwrap()
+}
+
+fn iv_study(bayesian: bool) -> (Study, TabularData) {
+    let data = iv_table();
+    let query = antecedent_core::IvBoundsQuery::new(
+        VariableId::from_raw(2),
+        VariableId::from_raw(1),
+        VariableId::from_raw(0),
+    )
+    .with_weight(VariableId::from_raw(3));
+    let mut builder = Study::tabular(data.clone()).query(CausalQuery::IvBounds(query));
+    if bayesian {
+        builder =
+            builder.inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(DRAWS)));
+    }
+    (builder.build().unwrap(), data)
+}
+
+#[test]
+fn iv_bounds_lowers_an_identified_set_and_claims_bounds_not_a_point() {
+    use crate::planner::lowered::UncertaintyReading;
+    use antecedent_contract::ClaimKind;
+    for bayesian in [false, true] {
+        let (study, data) = iv_study(bayesian);
+        let program = compiled(&study);
+        assert_eq!(program.route(), "IvBounds");
+        assert_eq!(program.depth(), LoweringDepth::Complete);
+        assert!(matches!(
+            program.scientific().target(),
+            ProblemTarget::QueryFunctional {
+                kind: FunctionalKind::IdentifiedSet,
+                outcome: Some(outcome),
+                ..
+            }
+                if *outcome == VariableId::from_raw(2)
+        ));
+        assert_eq!(program.claim().kind(), Some(ClaimKind::Bounds));
+        if bayesian {
+            assert_eq!(program.claim().uncertainty(), UncertaintyReading::Posterior);
+        } else {
+            assert_eq!(program.claim().uncertainty(), UncertaintyReading::Envelope);
+            assert!(matches!(program.statistical().realization(), Realization::Envelope(_)));
+        }
+        assert!(program.identification_retained());
+        let premises = retained_assumptions(&program).expect("the bounds product is retained");
+        assert!(!premises.is_empty(), "the instrument premises are declared, not dropped");
+        let expected =
+            if bayesian { EstimatorId::BayesianIvBounds } else { EstimatorId::IvBoundsSharp };
+        assert_eq!(recorded_estimator(&study), Some(expected));
+        let ctx = ExecutionContext::for_tests(47);
+        let prepared = study.prepare(&ctx).unwrap();
+        assert_eq!(prepared.plan().lowered_program_identity(), Some(program.identity()));
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        assert_eq!(result.lowered_program_identity(), Some(program.identity()));
+        let bounds = result.iv_bounds().expect("the bounds payload");
+        assert!((bounds.lower - 0.3).abs() < 1e-6 && (bounds.upper - 0.3).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn iv_bounds_refuses_a_law_the_instrument_cannot_produce_and_names_the_next_attempt() {
+    // Z=0 forces (y=1, d=0) and Z=1 forces (y=0, d=0): no response-type distribution explains
+    // both arms, so the instrument cannot be independent of the outcome and excluded from it.
+    let z = [0.0, 1.0];
+    let d = [0.0, 0.0];
+    let y = [1.0, 0.0];
+    let w = [1.0, 1.0];
+    let data = TabularData::from_f64_columns([
+        ("z", z.as_slice()),
+        ("d", d.as_slice()),
+        ("y", y.as_slice()),
+        ("w", w.as_slice()),
+    ])
+    .unwrap();
+    let query = antecedent_core::IvBoundsQuery::new(
+        VariableId::from_raw(2),
+        VariableId::from_raw(1),
+        VariableId::from_raw(0),
+    )
+    .with_weight(VariableId::from_raw(3));
+    let study = Study::tabular(data.clone()).query(CausalQuery::IvBounds(query)).build().unwrap();
+    let ctx = ExecutionContext::for_tests(48);
+    let prepared = study.prepare(&ctx).unwrap();
+    let refusal = prepared.estimate(&data, &ctx).unwrap_err().to_string();
+    assert!(refusal.contains("instrumental inequality"), "{refusal}");
+    assert!(refusal.contains("Next attempt"), "{refusal}");
+}

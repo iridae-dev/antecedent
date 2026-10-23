@@ -60,6 +60,14 @@ pub enum DiscoveredClass {
     DagEdgeMarginals,
     /// A posterior over bounded-lag DBN templates.
     TemporalDagPosterior,
+    /// A posterior over Markov equivalence classes: every atom is a CPDAG and carries the
+    /// summed posterior mass of the DAGs that share it.
+    CpdagPosterior,
+    /// A posterior over PAG classes: every atom is a PAG with its circle marks.
+    PagPosterior,
+    /// The sampling distribution of a frequentist search under a declared resampling
+    /// design: per-edge and per-structure selection frequencies, not a graph.
+    StructureStability,
 }
 
 impl DiscoveredClass {
@@ -77,6 +85,9 @@ impl DiscoveredClass {
             Self::DagPosterior => "dag_posterior",
             Self::DagEdgeMarginals => "dag_edge_marginals",
             Self::TemporalDagPosterior => "temporal_dag_posterior",
+            Self::CpdagPosterior => "cpdag_posterior",
+            Self::PagPosterior => "pag_posterior",
+            Self::StructureStability => "structure_stability",
         }
     }
 
@@ -210,7 +221,30 @@ pub enum DiscoveryMethod {
         /// Sample by MCMC even where exact enumeration is feasible.
         force_mcmc: bool,
     },
+    /// Exact posterior over PAG classes of the Gaussian maximal ancestral graphs of a few
+    /// variables (latent confounding allowed), scored by BIC.
+    ExactPagPosterior,
+    /// Posterior over Markov equivalence classes: the DAG posterior of `base` with every
+    /// DAG replaced by its CPDAG and the mass of DAGs that share a CPDAG summed. `base`
+    /// is a DAG-posterior method that lists its graphs.
+    ClassPosterior {
+        /// The DAG-posterior method whose atoms are collapsed.
+        base: Box<DiscoveryMethod>,
+    },
+    /// Sampling distribution of a frequentist search: `base` re-run on `replicates`
+    /// resamples drawn under the study's declared sampling design (independent
+    /// subjects: rows; a dependent series: circular blocks; a panel: whole units), with
+    /// the per-edge and per-structure selection frequencies it returned.
+    BootstrapStability {
+        /// The frequentist search that is re-run.
+        base: Box<DiscoveryMethod>,
+        /// Resamples drawn.
+        replicates: u32,
+    },
 }
+
+/// Most resamples a stability search draws.
+const MAX_STABILITY_REPLICATES: u32 = 10_000;
 
 impl DiscoveryMethod {
     /// Stable algorithm id, written to the logical plan's `discovery_algorithm`.
@@ -234,6 +268,9 @@ impl DiscoveryMethod {
             Self::StructureMcmc => "structure_mcmc",
             Self::CiScreenedPosterior { .. } => "ci_screened_posterior",
             Self::DbnPosterior { .. } => "dbn_posterior",
+            Self::ClassPosterior { .. } => "class_posterior",
+            Self::ExactPagPosterior => "exact_pag_posterior",
+            Self::BootstrapStability { .. } => "bootstrap_stability",
         }
     }
 
@@ -246,7 +283,9 @@ impl DiscoveryMethod {
             | Self::OrderMcmc { .. }
             | Self::StructureMcmc
             | Self::CiScreenedPosterior { .. }
-            | Self::DbnPosterior { .. } => DiscoveryInference::Bayesian,
+            | Self::DbnPosterior { .. }
+            | Self::ExactPagPosterior
+            | Self::ClassPosterior { .. } => DiscoveryInference::Bayesian,
             Self::Pc
             | Self::Fci
             | Self::Rfci
@@ -257,7 +296,8 @@ impl DiscoveryMethod {
             | Self::PcmciPlus
             | Self::Lpcmci
             | Self::JpcmciPlus
-            | Self::Rpcmci { .. } => DiscoveryInference::Frequentist,
+            | Self::Rpcmci { .. }
+            | Self::BootstrapStability { .. } => DiscoveryInference::Frequentist,
         }
     }
 
@@ -278,44 +318,61 @@ impl DiscoveryMethod {
             | Self::CiScreenedPosterior { .. } => DiscoveredClass::DagPosterior,
             Self::ExactDagMarginals => DiscoveredClass::DagEdgeMarginals,
             Self::DbnPosterior { .. } => DiscoveredClass::TemporalDagPosterior,
+            Self::ClassPosterior { .. } => DiscoveredClass::CpdagPosterior,
+            Self::ExactPagPosterior => DiscoveredClass::PagPosterior,
+            Self::BootstrapStability { .. } => DiscoveredClass::StructureStability,
         }
     }
 
     /// Whether the method searches lagged structure over time series.
     #[must_use]
     pub const fn is_temporal(&self) -> bool {
-        self.output().is_temporal()
+        match self {
+            // A wrapper searches what its base searches.
+            Self::ClassPosterior { base } | Self::BootstrapStability { base, .. } => {
+                (**base).is_temporal()
+            }
+            _ => self.output().is_temporal(),
+        }
     }
 
     /// Whether the method decides adjacencies with conditional-independence tests,
     /// so its significance level is part of what it returns.
     #[must_use]
     pub const fn uses_independence_tests(&self) -> bool {
-        matches!(
-            self,
-            Self::Pc
-                | Self::Fci
-                | Self::Rfci
-                | Self::Ges { .. }
-                | Self::Pcmci
-                | Self::PcmciPlus
-                | Self::Lpcmci
-                | Self::JpcmciPlus
-                | Self::Rpcmci { .. }
-                | Self::CiScreenedPosterior { .. }
-        )
+        match self {
+            Self::ClassPosterior { base } | Self::BootstrapStability { base, .. } => {
+                (**base).uses_independence_tests()
+            }
+            _ => matches!(
+                self,
+                Self::Pc
+                    | Self::Fci
+                    | Self::Rfci
+                    | Self::Ges { .. }
+                    | Self::Pcmci
+                    | Self::PcmciPlus
+                    | Self::Lpcmci
+                    | Self::JpcmciPlus
+                    | Self::Rpcmci { .. }
+                    | Self::CiScreenedPosterior { .. }
+            ),
+        }
     }
 
     /// Whether the method samples its posterior by MCMC and needs a schedule.
     #[must_use]
     pub const fn samples_posterior(&self) -> bool {
-        matches!(
-            self,
-            Self::OrderMcmc { .. }
-                | Self::StructureMcmc
-                | Self::CiScreenedPosterior { .. }
-                | Self::DbnPosterior { .. }
-        )
+        match self {
+            Self::ClassPosterior { base } => (**base).samples_posterior(),
+            _ => matches!(
+                self,
+                Self::OrderMcmc { .. }
+                    | Self::StructureMcmc
+                    | Self::CiScreenedPosterior { .. }
+                    | Self::DbnPosterior { .. }
+            ),
+        }
     }
 }
 
@@ -374,6 +431,17 @@ impl CanonicalEncode for DiscoveryMethod {
             }
             Self::DbnPosterior { force_mcmc } => {
                 writer.word(17).word(flag(*force_mcmc));
+            }
+            Self::ExactPagPosterior => {
+                writer.word(20);
+            }
+            Self::ClassPosterior { base } => {
+                writer.word(18);
+                (**base).encode(writer);
+            }
+            Self::BootstrapStability { base, replicates } => {
+                writer.word(19).word(u64::from(*replicates));
+                (**base).encode(writer);
             }
         }
     }
@@ -459,6 +527,68 @@ impl CanonicalEncode for DiscoverQuery {
     }
 }
 
+/// What is wrong with the options of `method`, or `None`.
+///
+/// A wrapper is checked against what it wraps: a class posterior collapses a DAG posterior
+/// that lists its graphs, and a stability search re-runs one frequentist search that
+/// returns a structure.
+fn method_fault(method: &DiscoveryMethod) -> Option<&'static str> {
+    match method {
+        DiscoveryMethod::DirectLingam { prune_threshold }
+            if !(prune_threshold.is_finite() && *prune_threshold >= 0.0) =>
+        {
+            Some("the LiNGAM prune threshold must be finite and non-negative")
+        }
+        DiscoveryMethod::Notears { lambda, threshold, .. }
+            if !(lambda.is_finite()
+                && *lambda >= 0.0
+                && threshold.is_finite()
+                && *threshold >= 0.0) =>
+        {
+            Some("the NOTEARS penalty and threshold must be finite and non-negative")
+        }
+        DiscoveryMethod::Ges { max_subset: Some(0), .. } => {
+            Some("the GES subset cap must be at least 1")
+        }
+        DiscoveryMethod::ClassPosterior { base } => match &**base {
+            DiscoveryMethod::ExactDagPosterior
+            | DiscoveryMethod::OrderMcmc { .. }
+            | DiscoveryMethod::StructureMcmc
+            | DiscoveryMethod::CiScreenedPosterior { .. }
+            | DiscoveryMethod::DbnPosterior { .. } => method_fault(base),
+            _ => Some(
+                "a class posterior collapses the graphs of an exact, order-MCMC, \
+                 structure-MCMC, CI-screened or bounded-lag template posterior; the exact edge \
+                 marginals list no graphs",
+            ),
+        },
+        DiscoveryMethod::BootstrapStability { base, replicates } => {
+            if *replicates < 2 || *replicates > MAX_STABILITY_REPLICATES {
+                return Some("a stability search draws between 2 and 10000 resamples");
+            }
+            match &**base {
+                DiscoveryMethod::Pc
+                | DiscoveryMethod::Fci
+                | DiscoveryMethod::Rfci
+                | DiscoveryMethod::Ges { .. }
+                | DiscoveryMethod::DirectLingam { .. }
+                | DiscoveryMethod::Notears { .. }
+                | DiscoveryMethod::Pcmci
+                | DiscoveryMethod::PcmciPlus
+                | DiscoveryMethod::Lpcmci
+                | DiscoveryMethod::JpcmciPlus
+                | DiscoveryMethod::Rpcmci { .. } => method_fault(base),
+                _ => Some(
+                    "a stability search re-runs PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, \
+                     PCMCI+, LPCMCI, J-PCMCI+ or regime PCMCI; a posterior has its own sampling \
+                     error",
+                ),
+            }
+        }
+        _ => None,
+    }
+}
+
 impl DiscoverQuery {
     /// A search over `variables` with `method` under `bounds`.
     #[must_use]
@@ -510,26 +640,8 @@ impl DiscoverQuery {
         if !self.method.is_temporal() && self.bounds.max_lag != 0 {
             return invalid("a static search takes no lag; set max_lag to 0");
         }
-        match &self.method {
-            DiscoveryMethod::DirectLingam { prune_threshold }
-                if !(prune_threshold.is_finite() && *prune_threshold >= 0.0) =>
-            {
-                return invalid("the LiNGAM prune threshold must be finite and non-negative");
-            }
-            DiscoveryMethod::Notears { lambda, threshold, .. }
-                if !(lambda.is_finite()
-                    && *lambda >= 0.0
-                    && threshold.is_finite()
-                    && *threshold >= 0.0) =>
-            {
-                return invalid(
-                    "the NOTEARS penalty and threshold must be finite and non-negative",
-                );
-            }
-            DiscoveryMethod::Ges { max_subset: Some(0), .. } => {
-                return invalid("the GES subset cap must be at least 1");
-            }
-            _ => {}
+        if let Some(fault) = method_fault(&self.method) {
+            return invalid(fault);
         }
         if self.method.samples_posterior() {
             match self.bounds.schedule {

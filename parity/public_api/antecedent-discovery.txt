@@ -78,6 +78,7 @@ impl core::clone::Clone for antecedent_discovery::DiscoveryPerformanceRecord
 impl core::clone::Clone for antecedent_discovery::DiscoveryWorkspace
 impl core::clone::Clone for antecedent_discovery::DiscriminatingPathBudget
 impl core::clone::Clone for antecedent_discovery::EdgeEvidence
+impl core::clone::Clone for antecedent_discovery::EdgeSelection
 impl core::clone::Clone for antecedent_discovery::EvidenceSource
 impl core::clone::Clone for antecedent_discovery::ExactDagMarginals
 impl core::clone::Clone for antecedent_discovery::ExactDagPosterior
@@ -95,6 +96,7 @@ impl core::clone::Clone for antecedent_discovery::Lpcmci
 impl core::clone::Clone for antecedent_discovery::LpcmciDiscriminatingPathRule
 impl core::clone::Clone for antecedent_discovery::LpcmciOrientCollider
 impl core::clone::Clone for antecedent_discovery::LpcmciR1
+impl core::clone::Clone for antecedent_discovery::MarkSelection
 impl core::clone::Clone for antecedent_discovery::MeekR1
 impl core::clone::Clone for antecedent_discovery::MeekR2
 impl core::clone::Clone for antecedent_discovery::MeekR3
@@ -122,6 +124,8 @@ impl core::clone::Clone for antecedent_discovery::SamplingSummary
 impl core::clone::Clone for antecedent_discovery::ScoredLink
 impl core::clone::Clone for antecedent_discovery::SpaceDummyCiMode
 impl core::clone::Clone for antecedent_discovery::StructureMcmc
+impl core::clone::Clone for antecedent_discovery::StructureSelection
+impl core::clone::Clone for antecedent_discovery::StructureStability
 impl core::clone::Clone for antecedent_discovery::TemporalConstraints
 impl core::clone::Clone for antecedent_discovery::TimeDummyCiMode
 impl core::clone::Clone for antecedent_discovery::conflict_resolution::ConflictResolution
@@ -225,6 +229,7 @@ impl core::cmp::PartialEq for antecedent_discovery::DiscoveryError
 impl core::cmp::PartialEq for antecedent_discovery::DiscoveryPerformanceRecord
 impl core::cmp::PartialEq for antecedent_discovery::DiscriminatingPathBudget
 impl core::cmp::PartialEq for antecedent_discovery::EdgeEvidence
+impl core::cmp::PartialEq for antecedent_discovery::EdgeSelection
 impl core::cmp::PartialEq for antecedent_discovery::EvidenceSource
 impl core::cmp::PartialEq for antecedent_discovery::ExactDagMarginals
 impl core::cmp::PartialEq for antecedent_discovery::GraphPosteriorAtomKind
@@ -232,11 +237,14 @@ impl core::cmp::PartialEq for antecedent_discovery::JpcmciNodeRole
 impl core::cmp::PartialEq for antecedent_discovery::KnowledgeFault
 impl core::cmp::PartialEq for antecedent_discovery::KnowledgeScope
 impl core::cmp::PartialEq for antecedent_discovery::LaggedLink
+impl core::cmp::PartialEq for antecedent_discovery::MarkSelection
 impl core::cmp::PartialEq for antecedent_discovery::OrientationError
 impl core::cmp::PartialEq for antecedent_discovery::PossibleDSepBudget
 impl core::cmp::PartialEq for antecedent_discovery::RegimeAssignment
 impl core::cmp::PartialEq for antecedent_discovery::ScoredLink
 impl core::cmp::PartialEq for antecedent_discovery::SpaceDummyCiMode
+impl core::cmp::PartialEq for antecedent_discovery::StructureSelection
+impl core::cmp::PartialEq for antecedent_discovery::StructureStability
 impl core::cmp::PartialEq for antecedent_discovery::TimeDummyCiMode
 impl core::cmp::PartialEq for antecedent_discovery::conflict_resolution::ConflictResolution
 impl core::cmp::PartialEq for antecedent_discovery::conflict_resolution::IncidentOrientation
@@ -360,6 +368,7 @@ impl core::fmt::Debug for antecedent_discovery::DiscoveryPerformanceRecord
 impl core::fmt::Debug for antecedent_discovery::DiscoveryWorkspace
 impl core::fmt::Debug for antecedent_discovery::DiscriminatingPathBudget
 impl core::fmt::Debug for antecedent_discovery::EdgeEvidence
+impl core::fmt::Debug for antecedent_discovery::EdgeSelection
 impl core::fmt::Debug for antecedent_discovery::EvidenceSource
 impl core::fmt::Debug for antecedent_discovery::ExactDagMarginals
 impl core::fmt::Debug for antecedent_discovery::ExactDagPosterior
@@ -377,6 +386,7 @@ impl core::fmt::Debug for antecedent_discovery::Lpcmci
 impl core::fmt::Debug for antecedent_discovery::LpcmciDiscriminatingPathRule
 impl core::fmt::Debug for antecedent_discovery::LpcmciOrientCollider
 impl core::fmt::Debug for antecedent_discovery::LpcmciR1
+impl core::fmt::Debug for antecedent_discovery::MarkSelection
 impl core::fmt::Debug for antecedent_discovery::MeekR1
 impl core::fmt::Debug for antecedent_discovery::MeekR2
 impl core::fmt::Debug for antecedent_discovery::MeekR3
@@ -404,6 +414,8 @@ impl core::fmt::Debug for antecedent_discovery::SamplingSummary
 impl core::fmt::Debug for antecedent_discovery::ScoredLink
 impl core::fmt::Debug for antecedent_discovery::SpaceDummyCiMode
 impl core::fmt::Debug for antecedent_discovery::StructureMcmc
+impl core::fmt::Debug for antecedent_discovery::StructureSelection
+impl core::fmt::Debug for antecedent_discovery::StructureStability
 impl core::fmt::Debug for antecedent_discovery::TemporalConstraints
 impl core::fmt::Debug for antecedent_discovery::TimeDummyCiMode
 impl core::fmt::Debug for antecedent_discovery::conflict_resolution::ConflictResolution
@@ -487,6 +499,7 @@ impl core::marker::Copy for antecedent_discovery::LaggedLink
 impl core::marker::Copy for antecedent_discovery::LpcmciDiscriminatingPathRule
 impl core::marker::Copy for antecedent_discovery::LpcmciOrientCollider
 impl core::marker::Copy for antecedent_discovery::LpcmciR1
+impl core::marker::Copy for antecedent_discovery::MarkSelection
 impl core::marker::Copy for antecedent_discovery::MeekR1
 impl core::marker::Copy for antecedent_discovery::MeekR2
 impl core::marker::Copy for antecedent_discovery::MeekR3
@@ -530,6 +543,7 @@ impl core::marker::Freeze for antecedent_discovery::DiscoveryPerformanceRecord [
 impl core::marker::Freeze for antecedent_discovery::DiscoveryWorkspace [auto]
 impl core::marker::Freeze for antecedent_discovery::DiscriminatingPathBudget [auto]
 impl core::marker::Freeze for antecedent_discovery::EdgeEvidence [auto]
+impl core::marker::Freeze for antecedent_discovery::EdgeSelection [auto]
 impl core::marker::Freeze for antecedent_discovery::EvidenceSource [auto]
 impl core::marker::Freeze for antecedent_discovery::ExactDagMarginals [auto]
 impl core::marker::Freeze for antecedent_discovery::ExactDagPosterior [auto]
@@ -547,6 +561,7 @@ impl core::marker::Freeze for antecedent_discovery::Lpcmci [auto]
 impl core::marker::Freeze for antecedent_discovery::LpcmciDiscriminatingPathRule [auto]
 impl core::marker::Freeze for antecedent_discovery::LpcmciOrientCollider [auto]
 impl core::marker::Freeze for antecedent_discovery::LpcmciR1 [auto]
+impl core::marker::Freeze for antecedent_discovery::MarkSelection [auto]
 impl core::marker::Freeze for antecedent_discovery::MeekR1 [auto]
 impl core::marker::Freeze for antecedent_discovery::MeekR2 [auto]
 impl core::marker::Freeze for antecedent_discovery::MeekR3 [auto]
@@ -574,6 +589,8 @@ impl core::marker::Freeze for antecedent_discovery::SamplingSummary [auto]
 impl core::marker::Freeze for antecedent_discovery::ScoredLink [auto]
 impl core::marker::Freeze for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Freeze for antecedent_discovery::StructureMcmc [auto]
+impl core::marker::Freeze for antecedent_discovery::StructureSelection [auto]
+impl core::marker::Freeze for antecedent_discovery::StructureStability [auto]
 impl core::marker::Freeze for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Freeze for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::marker::Freeze for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -637,6 +654,7 @@ impl core::marker::Send for antecedent_discovery::DiscoveryPerformanceRecord [au
 impl core::marker::Send for antecedent_discovery::DiscoveryWorkspace [auto]
 impl core::marker::Send for antecedent_discovery::DiscriminatingPathBudget [auto]
 impl core::marker::Send for antecedent_discovery::EdgeEvidence [auto]
+impl core::marker::Send for antecedent_discovery::EdgeSelection [auto]
 impl core::marker::Send for antecedent_discovery::EvidenceSource [auto]
 impl core::marker::Send for antecedent_discovery::ExactDagMarginals [auto]
 impl core::marker::Send for antecedent_discovery::ExactDagPosterior [auto]
@@ -654,6 +672,7 @@ impl core::marker::Send for antecedent_discovery::Lpcmci [auto]
 impl core::marker::Send for antecedent_discovery::LpcmciDiscriminatingPathRule [auto]
 impl core::marker::Send for antecedent_discovery::LpcmciOrientCollider [auto]
 impl core::marker::Send for antecedent_discovery::LpcmciR1 [auto]
+impl core::marker::Send for antecedent_discovery::MarkSelection [auto]
 impl core::marker::Send for antecedent_discovery::MeekR1 [auto]
 impl core::marker::Send for antecedent_discovery::MeekR2 [auto]
 impl core::marker::Send for antecedent_discovery::MeekR3 [auto]
@@ -681,6 +700,8 @@ impl core::marker::Send for antecedent_discovery::SamplingSummary [auto]
 impl core::marker::Send for antecedent_discovery::ScoredLink [auto]
 impl core::marker::Send for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Send for antecedent_discovery::StructureMcmc [auto]
+impl core::marker::Send for antecedent_discovery::StructureSelection [auto]
+impl core::marker::Send for antecedent_discovery::StructureStability [auto]
 impl core::marker::Send for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Send for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::marker::Send for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -739,6 +760,7 @@ impl core::marker::StructuralPartialEq for antecedent_discovery::DiscoveryError
 impl core::marker::StructuralPartialEq for antecedent_discovery::DiscoveryPerformanceRecord
 impl core::marker::StructuralPartialEq for antecedent_discovery::DiscriminatingPathBudget
 impl core::marker::StructuralPartialEq for antecedent_discovery::EdgeEvidence
+impl core::marker::StructuralPartialEq for antecedent_discovery::EdgeSelection
 impl core::marker::StructuralPartialEq for antecedent_discovery::EvidenceSource
 impl core::marker::StructuralPartialEq for antecedent_discovery::ExactDagMarginals
 impl core::marker::StructuralPartialEq for antecedent_discovery::GraphPosteriorAtomKind
@@ -746,11 +768,14 @@ impl core::marker::StructuralPartialEq for antecedent_discovery::JpcmciNodeRole
 impl core::marker::StructuralPartialEq for antecedent_discovery::KnowledgeFault
 impl core::marker::StructuralPartialEq for antecedent_discovery::KnowledgeScope
 impl core::marker::StructuralPartialEq for antecedent_discovery::LaggedLink
+impl core::marker::StructuralPartialEq for antecedent_discovery::MarkSelection
 impl core::marker::StructuralPartialEq for antecedent_discovery::OrientationError
 impl core::marker::StructuralPartialEq for antecedent_discovery::PossibleDSepBudget
 impl core::marker::StructuralPartialEq for antecedent_discovery::RegimeAssignment
 impl core::marker::StructuralPartialEq for antecedent_discovery::ScoredLink
 impl core::marker::StructuralPartialEq for antecedent_discovery::SpaceDummyCiMode
+impl core::marker::StructuralPartialEq for antecedent_discovery::StructureSelection
+impl core::marker::StructuralPartialEq for antecedent_discovery::StructureStability
 impl core::marker::StructuralPartialEq for antecedent_discovery::TimeDummyCiMode
 impl core::marker::StructuralPartialEq for antecedent_discovery::conflict_resolution::ConflictResolution
 impl core::marker::StructuralPartialEq for antecedent_discovery::conflict_resolution::IncidentOrientation
@@ -801,6 +826,7 @@ impl core::marker::Sync for antecedent_discovery::DiscoveryPerformanceRecord [au
 impl core::marker::Sync for antecedent_discovery::DiscoveryWorkspace [auto]
 impl core::marker::Sync for antecedent_discovery::DiscriminatingPathBudget [auto]
 impl core::marker::Sync for antecedent_discovery::EdgeEvidence [auto]
+impl core::marker::Sync for antecedent_discovery::EdgeSelection [auto]
 impl core::marker::Sync for antecedent_discovery::EvidenceSource [auto]
 impl core::marker::Sync for antecedent_discovery::ExactDagMarginals [auto]
 impl core::marker::Sync for antecedent_discovery::ExactDagPosterior [auto]
@@ -818,6 +844,7 @@ impl core::marker::Sync for antecedent_discovery::Lpcmci [auto]
 impl core::marker::Sync for antecedent_discovery::LpcmciDiscriminatingPathRule [auto]
 impl core::marker::Sync for antecedent_discovery::LpcmciOrientCollider [auto]
 impl core::marker::Sync for antecedent_discovery::LpcmciR1 [auto]
+impl core::marker::Sync for antecedent_discovery::MarkSelection [auto]
 impl core::marker::Sync for antecedent_discovery::MeekR1 [auto]
 impl core::marker::Sync for antecedent_discovery::MeekR2 [auto]
 impl core::marker::Sync for antecedent_discovery::MeekR3 [auto]
@@ -845,6 +872,8 @@ impl core::marker::Sync for antecedent_discovery::SamplingSummary [auto]
 impl core::marker::Sync for antecedent_discovery::ScoredLink [auto]
 impl core::marker::Sync for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Sync for antecedent_discovery::StructureMcmc [auto]
+impl core::marker::Sync for antecedent_discovery::StructureSelection [auto]
+impl core::marker::Sync for antecedent_discovery::StructureStability [auto]
 impl core::marker::Sync for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Sync for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::marker::Sync for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -914,6 +943,7 @@ impl core::marker::Unpin for antecedent_discovery::DiscoveryPerformanceRecord [a
 impl core::marker::Unpin for antecedent_discovery::DiscoveryWorkspace [auto]
 impl core::marker::Unpin for antecedent_discovery::DiscriminatingPathBudget [auto]
 impl core::marker::Unpin for antecedent_discovery::EdgeEvidence [auto]
+impl core::marker::Unpin for antecedent_discovery::EdgeSelection [auto]
 impl core::marker::Unpin for antecedent_discovery::EvidenceSource [auto]
 impl core::marker::Unpin for antecedent_discovery::ExactDagMarginals [auto]
 impl core::marker::Unpin for antecedent_discovery::ExactDagPosterior [auto]
@@ -931,6 +961,7 @@ impl core::marker::Unpin for antecedent_discovery::Lpcmci [auto]
 impl core::marker::Unpin for antecedent_discovery::LpcmciDiscriminatingPathRule [auto]
 impl core::marker::Unpin for antecedent_discovery::LpcmciOrientCollider [auto]
 impl core::marker::Unpin for antecedent_discovery::LpcmciR1 [auto]
+impl core::marker::Unpin for antecedent_discovery::MarkSelection [auto]
 impl core::marker::Unpin for antecedent_discovery::MeekR1 [auto]
 impl core::marker::Unpin for antecedent_discovery::MeekR2 [auto]
 impl core::marker::Unpin for antecedent_discovery::MeekR3 [auto]
@@ -958,6 +989,8 @@ impl core::marker::Unpin for antecedent_discovery::SamplingSummary [auto]
 impl core::marker::Unpin for antecedent_discovery::ScoredLink [auto]
 impl core::marker::Unpin for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Unpin for antecedent_discovery::StructureMcmc [auto]
+impl core::marker::Unpin for antecedent_discovery::StructureSelection [auto]
+impl core::marker::Unpin for antecedent_discovery::StructureStability [auto]
 impl core::marker::Unpin for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Unpin for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::marker::Unpin for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -1026,6 +1059,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::Discovery
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::DiscoveryWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::DiscriminatingPathBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::EdgeEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::EdgeSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::EvidenceSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::ExactDagMarginals [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::ExactDagPosterior [auto]
@@ -1039,6 +1073,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::LaggedLin
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::LpcmciDiscriminatingPathRule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::LpcmciOrientCollider [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::LpcmciR1 [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::MarkSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::MeekR1 [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::MeekR2 [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::MeekR3 [auto]
@@ -1060,6 +1095,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::SamplingS
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::ScoredLink [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::StructureMcmc [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::StructureSelection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::StructureStability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::TemporalConstraints [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -1123,6 +1160,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::DiscoveryPer
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::DiscoveryWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::DiscriminatingPathBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::EdgeEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::EdgeSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::EvidenceSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::ExactDagMarginals [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::ExactDagPosterior [auto]
@@ -1136,6 +1174,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::LaggedLink [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::LpcmciDiscriminatingPathRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::LpcmciOrientCollider [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::LpcmciR1 [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::MarkSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::MeekR1 [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::MeekR2 [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::MeekR3 [auto]
@@ -1157,6 +1196,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::SamplingSumm
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::ScoredLink [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::StructureMcmc [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::StructureSelection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::StructureStability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::TemporalConstraints [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::TimeDummyCiMode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
@@ -1234,10 +1275,11 @@ impl<G> core::panic::unwind_safe::UnwindSafe for antecedent_discovery::GraphEvid
 pub const <antecedent_discovery::AdjacencyMask>::EMPTY: Self
 pub const <antecedent_discovery::selective::DiscoveryStage>::ALL: [Self; 4]
 pub const <antecedent_discovery::selective::Mark>::ALL: [Self; 4]
-pub const <antecedent_discovery::selective::StructureClass>::ALL: [Self; 4]
+pub const <antecedent_discovery::selective::StructureClass>::ALL: [Self; 5]
 pub const antecedent_discovery::EXACT_ENUM_MAX_NODES: usize
 pub const antecedent_discovery::EXACT_MARGINAL_MAX_NODES: usize
 pub const antecedent_discovery::MAX_POSTERIOR_NODES: usize
+pub const antecedent_discovery::PAG_ENUM_MAX_NODES: usize
 pub const antecedent_discovery::conflict_resolution::MAX_IMPLICATED_COLLIDERS: usize
 pub const antecedent_discovery::graph_mcmc::DEFAULT_TEMPERATURES: [f64; 4]
 pub const antecedent_discovery::selective::DEFAULT_STORE_CAPACITY: usize
@@ -1338,6 +1380,11 @@ pub field antecedent_discovery::EdgeEvidence::p_value: core::option::Option<f64>
 pub field antecedent_discovery::EdgeEvidence::provenance: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_discovery::EdgeEvidence::separating_set: core::option::Option<alloc::sync::Arc<[antecedent_discovery::LaggedParent]>>
 pub field antecedent_discovery::EdgeEvidence::statistic: core::option::Option<f64>
+pub field antecedent_discovery::EdgeSelection::a: antecedent_discovery::selective::StructureNode
+pub field antecedent_discovery::EdgeSelection::b: antecedent_discovery::selective::StructureNode
+pub field antecedent_discovery::EdgeSelection::frequency: f64
+pub field antecedent_discovery::EdgeSelection::in_reference: bool
+pub field antecedent_discovery::EdgeSelection::marks: alloc::vec::Vec<antecedent_discovery::MarkSelection>
 pub field antecedent_discovery::ExactDagMarginals::edge_marginals: alloc::sync::Arc<[f64]>
 pub field antecedent_discovery::ExactDagMarginals::log_evidence: f64
 pub field antecedent_discovery::ExactDagMarginals::n_vars: usize
@@ -1387,6 +1434,9 @@ pub field antecedent_discovery::LaggedLink::target: antecedent_core::ids::Variab
 pub field antecedent_discovery::LaggedLink::target_lag: antecedent_core::ids::Lag
 pub field antecedent_discovery::Lpcmci::fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>
 pub field antecedent_discovery::Lpcmci::n_preliminary_iterations: u32
+pub field antecedent_discovery::MarkSelection::at_a: antecedent_discovery::selective::Mark
+pub field antecedent_discovery::MarkSelection::at_b: antecedent_discovery::selective::Mark
+pub field antecedent_discovery::MarkSelection::frequency: f64
 pub field antecedent_discovery::MultiDatasetConstraints::context_kinds: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_discovery::ContextKind)]>
 pub field antecedent_discovery::MultiDatasetConstraints::context_variables: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent_discovery::MultiDatasetConstraints::cross_env: antecedent_discovery::CrossEnvLinkAssumption
@@ -1469,6 +1519,17 @@ pub field antecedent_discovery::StructureMcmc::pair_move_probability: f64
 pub field antecedent_discovery::StructureMcmc::require_diagnostics_gate: bool
 pub field antecedent_discovery::StructureMcmc::temperatures: alloc::vec::Vec<f64>
 pub field antecedent_discovery::StructureMcmc::thin: u32
+pub field antecedent_discovery::StructureSelection::count: u32
+pub field antecedent_discovery::StructureSelection::frequency: f64
+pub field antecedent_discovery::StructureSelection::structure: antecedent_discovery::selective::DiscoveredStructure
+pub field antecedent_discovery::StructureStability::class: antecedent_discovery::selective::StructureClass
+pub field antecedent_discovery::StructureStability::edges: alloc::vec::Vec<antecedent_discovery::EdgeSelection>
+pub field antecedent_discovery::StructureStability::failed: u32
+pub field antecedent_discovery::StructureStability::reference: antecedent_discovery::selective::DiscoveredStructure
+pub field antecedent_discovery::StructureStability::reference_frequency: f64
+pub field antecedent_discovery::StructureStability::requested: u32
+pub field antecedent_discovery::StructureStability::structures: alloc::vec::Vec<antecedent_discovery::StructureSelection>
+pub field antecedent_discovery::StructureStability::succeeded: u32
 pub field antecedent_discovery::TemporalConstraints::max_lag: antecedent_core::ids::Lag
 pub field antecedent_discovery::TemporalConstraints::min_lag: antecedent_core::ids::Lag
 pub field antecedent_discovery::conflict_resolution::IncidentOrientation::children: alloc::vec::Vec<u32>
@@ -1694,6 +1755,7 @@ pub fn <antecedent_discovery::Ges>::fn with_max_subset(self, max_subset: core::o
 pub fn <antecedent_discovery::Ges>::fn with_pc_screening(self, screen: bool) -> Self
 pub fn <antecedent_discovery::GraphPosterior>::fn from_atoms(n_vars: usize, weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>, atoms: impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<antecedent_discovery::AdjacencyMask>>, edge_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, orientation_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, sampling: antecedent_discovery::SamplingSummary) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn new(n_vars: usize, weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>, adjacency: impl core::convert::Into<alloc::sync::Arc<[u64]>>, edge_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, orientation_marginals: impl core::convert::Into<alloc::sync::Arc<[f64]>>, sampling: antecedent_discovery::SamplingSummary) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::GraphPosterior>::fn to_equivalence_classes(&self) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn to_weighted_samples(&self) -> core::result::Result<antecedent_prob::graph_samples::WeightedGraphSamples, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::GraphPosterior>::fn with_algorithm(self, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_discovery::GraphPosterior>::fn with_atom_kind(self, kind: antecedent_discovery::GraphPosteriorAtomKind) -> Self
@@ -1820,6 +1882,8 @@ pub fn <antecedent_discovery::StructureMcmc>::fn with_diagnostics_gate(self, req
 pub fn <antecedent_discovery::StructureMcmc>::fn with_pair_move_probability(self, probability: f64) -> Self
 pub fn <antecedent_discovery::StructureMcmc>::fn with_schedule(self, n_chains: u32, n_warmup: u32, n_draws: u32, thin: u32) -> Self
 pub fn <antecedent_discovery::StructureMcmc>::fn with_temperatures(self, temperatures: impl core::convert::Into<alloc::vec::Vec<f64>>) -> Self
+pub fn <antecedent_discovery::StructureStability>::fn adjacency_frequency(&self, a: antecedent_discovery::selective::StructureNode, b: antecedent_discovery::selective::StructureNode) -> f64
+pub fn <antecedent_discovery::StructureStability>::fn tabulate(reference: antecedent_discovery::selective::DiscoveredStructure, resamples: &[antecedent_discovery::selective::DiscoveredStructure], requested: u32) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::cyclic_fci::SigmaCiOracle>::fn new(graph: antecedent_graph::cyclic::CyclicMixedGraph, column_nodes: alloc::vec::Vec<antecedent_graph::types::DenseNodeId>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::selective::CiTestSpec>::fn declared(identity: impl core::convert::Into<alloc::string::String>, test: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::selective::CiTestSpec>::fn named(name: impl core::convert::Into<alloc::string::String>) -> Self
@@ -1828,10 +1892,12 @@ pub fn <antecedent_discovery::selective::DataIdentity>::fn changed_variables(&se
 pub fn <antecedent_discovery::selective::DiscoveredStructure>::const fn class(&self) -> antecedent_discovery::selective::StructureClass
 pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn edges(&self) -> &[antecedent_discovery::selective::StructureEdge]
 pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn from_cpdag(graph: &antecedent_graph::cpdag::Cpdag) -> Self
+pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn from_dag(graph: &antecedent_graph::dag::Dag) -> Self
 pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn from_pag(graph: &antecedent_graph::pag::Pag) -> Self
 pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn from_parts(class: antecedent_discovery::selective::StructureClass, nodes: alloc::vec::Vec<antecedent_discovery::selective::StructureNode>, edges: alloc::vec::Vec<antecedent_discovery::selective::StructureEdge>) -> core::option::Option<Self>
 pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn from_temporal_cpdag(graph: &antecedent_graph::cpdag::TemporalCpdag) -> Self
 pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn from_temporal_dag(graph: &antecedent_graph::temporal::TemporalDag) -> Self
+pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn from_temporal_pag(graph: &antecedent_graph::temporal_pag::TemporalPag) -> Self
 pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn identity(&self) -> antecedent_discovery::selective::Digest
 pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn is_fully_directed(&self) -> bool
 pub fn <antecedent_discovery::selective::DiscoveredStructure>::fn nodes(&self) -> &[antecedent_discovery::selective::StructureNode]
@@ -1963,6 +2029,7 @@ pub fn antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_masks(cmask: u
 pub fn antecedent_discovery::edge_bit(n: usize, from: usize, to: usize) -> u32
 pub fn antecedent_discovery::evidence::threshold_scored_links(scored: alloc::vec::Vec<antecedent_discovery::ScoredLink>, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>, alpha: f64) -> alloc::vec::Vec<antecedent_discovery::ScoredLink>
 pub fn antecedent_discovery::exact_dag_marginals(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::ExactDagMarginals, antecedent_discovery::DiscoveryError>
+pub fn antecedent_discovery::exact_pag_posterior(data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::graph_posterior::has_edge(mask: u64, n: usize, from: usize, to: usize) -> bool
 pub fn antecedent_discovery::graph_posterior::lagged_link(variables: &[antecedent_core::ids::VariableId], from: usize, lag: u32, to: usize) -> antecedent_discovery::LaggedLink
 pub fn antecedent_discovery::graph_posterior::mask_is_dag(mask: u64, n: usize) -> bool
@@ -2005,6 +2072,7 @@ pub mod antecedent_discovery::error
 pub mod antecedent_discovery::evidence
 pub mod antecedent_discovery::exact_enumeration
 pub mod antecedent_discovery::exact_marginals
+pub mod antecedent_discovery::exact_pag_posterior
 pub mod antecedent_discovery::fci
 pub mod antecedent_discovery::ges
 pub mod antecedent_discovery::graph_mcmc
@@ -2042,6 +2110,7 @@ pub mod antecedent_discovery::selective::store
 pub mod antecedent_discovery::selective::structure
 pub mod antecedent_discovery::selective::transport
 pub mod antecedent_discovery::selective::work
+pub mod antecedent_discovery::stability
 pub mod antecedent_discovery::structure_mcmc
 pub mod antecedent_discovery::uncovered_paths
 pub mod antecedent_discovery::weakly_minimal
@@ -2063,6 +2132,7 @@ pub struct antecedent_discovery::DiscoveryResult<G, R>
 pub struct antecedent_discovery::DiscoveryWorkspace
 pub struct antecedent_discovery::DiscriminatingPathBudget
 pub struct antecedent_discovery::EdgeEvidence
+pub struct antecedent_discovery::EdgeSelection
 pub struct antecedent_discovery::ExactDagMarginals
 pub struct antecedent_discovery::ExactDagPosterior
 pub struct antecedent_discovery::Fci
@@ -2078,6 +2148,7 @@ pub struct antecedent_discovery::Lpcmci has private fields
 pub struct antecedent_discovery::LpcmciDiscriminatingPathRule
 pub struct antecedent_discovery::LpcmciOrientCollider
 pub struct antecedent_discovery::LpcmciR1
+pub struct antecedent_discovery::MarkSelection
 pub struct antecedent_discovery::MeekR1
 pub struct antecedent_discovery::MeekR2
 pub struct antecedent_discovery::MeekR3
@@ -2107,6 +2178,8 @@ pub struct antecedent_discovery::RuleDelta
 pub struct antecedent_discovery::SamplingSummary
 pub struct antecedent_discovery::ScoredLink
 pub struct antecedent_discovery::StructureMcmc
+pub struct antecedent_discovery::StructureSelection
+pub struct antecedent_discovery::StructureStability
 pub struct antecedent_discovery::TemporalConstraints
 pub struct antecedent_discovery::conflict_resolution::IncidentOrientation
 pub struct antecedent_discovery::cyclic_fci::CyclicFciPremises
@@ -2243,6 +2316,8 @@ pub use antecedent_discovery::exact_enumeration::ExactDagPosterior = antecedent_
 pub use antecedent_discovery::exact_marginals::EXACT_MARGINAL_MAX_NODES = antecedent_discovery::EXACT_MARGINAL_MAX_NODES
 pub use antecedent_discovery::exact_marginals::ExactDagMarginals = antecedent_discovery::ExactDagMarginals
 pub use antecedent_discovery::exact_marginals::exact_dag_marginals = antecedent_discovery::exact_dag_marginals
+pub use antecedent_discovery::exact_pag_posterior::PAG_ENUM_MAX_NODES = antecedent_discovery::PAG_ENUM_MAX_NODES
+pub use antecedent_discovery::exact_pag_posterior::exact_pag_posterior = antecedent_discovery::exact_pag_posterior
 pub use antecedent_discovery::fci::Fci = antecedent_discovery::Fci
 pub use antecedent_discovery::fci::StaticPagDiscoveryResult = antecedent_discovery::StaticPagDiscoveryResult
 pub use antecedent_discovery::ges::Ges = antecedent_discovery::Ges
@@ -2366,6 +2441,10 @@ pub use antecedent_discovery::selective::work::OrientationWork = antecedent_disc
 pub use antecedent_discovery::selective::work::WorkUnits = antecedent_discovery::selective::WorkUnits
 pub use antecedent_discovery::selective::work::observe_orientation = antecedent_discovery::selective::observe_orientation
 pub use antecedent_discovery::set_edge = antecedent_discovery::graph_posterior::set_edge
+pub use antecedent_discovery::stability::EdgeSelection = antecedent_discovery::EdgeSelection
+pub use antecedent_discovery::stability::MarkSelection = antecedent_discovery::MarkSelection
+pub use antecedent_discovery::stability::StructureSelection = antecedent_discovery::StructureSelection
+pub use antecedent_discovery::stability::StructureStability = antecedent_discovery::StructureStability
 pub use antecedent_discovery::structure_mcmc::StructureMcmc = antecedent_discovery::StructureMcmc
 pub use antecedent_discovery::temporal_cpdag_from_dbn_masks = antecedent_discovery::dbn_posterior::temporal_cpdag_from_dbn_masks
 pub use antecedent_discovery::temporal_dag_from_dbn_masks = antecedent_discovery::dbn_posterior::temporal_dag_from_dbn_masks
@@ -2454,6 +2533,7 @@ pub variant antecedent_discovery::selective::StructureClass::Cpdag
 pub variant antecedent_discovery::selective::StructureClass::Pag
 pub variant antecedent_discovery::selective::StructureClass::TemporalCpdag
 pub variant antecedent_discovery::selective::StructureClass::TemporalDag
+pub variant antecedent_discovery::selective::StructureClass::TemporalPag
 pub variant antecedent_discovery::selective::TemporalAlgorithm::Pcmci
 pub variant antecedent_discovery::selective::TemporalAlgorithm::PcmciPlus
 pub variant antecedent_discovery::selective::reuse::SplitRule::Explicit { discovery_rows: alloc::vec::Vec<usize> }

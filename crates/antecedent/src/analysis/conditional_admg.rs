@@ -9,8 +9,9 @@
 //! plug-in of that contrast. The Bayesian object is the Dirichlet row-law
 //! posterior of the same contrast. A modifier that is a descendant of the
 //! treatment is refused: its observed law is not the law it has under the
-//! intervention. A temporal ADMG is refused while identification of a temporal
-//! contrast there is blocked.
+//! intervention. A conditional effect on a temporal ADMG read from tabular rows is refused: its
+//! temporal counterpart is a `TemporalEffect` with modifiers, identified by IDC on the unrolled
+//! window (`analysis::temporal_admg_contrast`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -40,14 +41,17 @@ use antecedent_identify::{
 
 use crate::{CausalError, EstimatorId, IdentifierId};
 
-/// Identification of this cell is blocked. The message is the refusal.
-const TEMPORAL_IDENTIFICATION_BLOCKED: &str = "Identification is blocked. A temporal conditional \
-     contrast on a TemporalAdmg has no prepared route yet, and the contemporaneous projection \
-     answers a different target. The unconditional pulse and sustained contrasts are identified \
-     on the unrolled window by antecedent_identify::temporal_admg; next attempts: IDC on that \
-     window for the conditional law, TemporalConditionalPulse or TemporalConditionalSustained on \
-     a TemporalDag when the lag structure has no latent confounding, or the static Admg for the \
-     contemporaneous conditional effect.";
+/// The static conditional-effect query on a temporal ADMG is refused. The message is the refusal.
+const TEMPORAL_IDENTIFICATION_BLOCKED: &str = "Identification is blocked for this target. A \
+     ConditionalEffect on a TemporalAdmg read from tabular rows is the contemporaneous projection, \
+     which answers a different target than a temporal conditional contrast. The temporal \
+     conditional contrast is TemporalConditionalPulse or TemporalConditionalSustained, a \
+     TemporalEffect with effect modifiers on one series: it is identified by IDC on the unrolled \
+     window of the template, with the modifiers read at the first treated period, and executes \
+     unlicensed; a window that holds a hedge is refused with the variables and periods that carry \
+     it. Next attempts: that temporal query on the series, TemporalConditionalPulse or \
+     TemporalConditionalSustained on a TemporalDag when the lag structure has no latent \
+     confounding, or the static Admg for the contemporaneous conditional effect.";
 
 /// IDC contrast of the active and control conditional laws.
 #[derive(Clone, Debug)]
@@ -210,8 +214,9 @@ pub(crate) fn compile_bayesian_admg_conditional(
 ///
 /// # Errors
 ///
-/// Always. Identification of this cell is blocked. The call does not project
-/// `graph` onto a static ADMG.
+/// Always. The static conditional query on a temporal ADMG is the contemporaneous projection, a
+/// different target than the temporal conditional contrast. The call does not project `graph`
+/// onto a static ADMG.
 pub(crate) fn compile_temporal_admg_conditional_frequentist(
     graph: &TemporalAdmg,
     query: &ConditionalEffectQuery,
@@ -223,8 +228,8 @@ pub(crate) fn compile_temporal_admg_conditional_frequentist(
 ///
 /// # Errors
 ///
-/// Always. The same identification block as the frequentist cell. No posterior
-/// is built from a static projection.
+/// Always. The same refusal as the frequentist cell. No posterior is built from a static
+/// projection.
 pub(crate) fn compile_temporal_admg_conditional_bayesian(
     graph: &TemporalAdmg,
     query: &ConditionalEffectQuery,

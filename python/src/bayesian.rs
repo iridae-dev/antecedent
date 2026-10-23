@@ -576,6 +576,24 @@ fn bayesian_params_capped(max_parents: Option<usize>) -> BayesianDiscoverParams 
     params
 }
 
+/// The local score a posterior search runs under: Gaussian noise (the default, invariant
+/// within a Markov equivalence class) or Laplace noise (which orients what non-Gaussian noise
+/// orients).
+fn score_family_of(noise: &str) -> PyResult<antecedent_state::GraphScoreFamily> {
+    match noise.to_ascii_lowercase().as_str() {
+        "gaussian" => Ok(antecedent_state::GraphScoreFamily::GaussianBic),
+        "laplace" => Ok(antecedent_state::GraphScoreFamily::LaplaceBic),
+        other => {
+            Err(crate::value_err(format!("unknown noise {other:?}; expected gaussian|laplace")))
+        }
+    }
+}
+
+/// The search itself, or the posterior over its Markov equivalence classes.
+fn over_classes(spec: DiscoverySpec, equivalence_classes: bool) -> DiscoverySpec {
+    if equivalence_classes { spec.equivalence_classes() } else { spec }
+}
+
 fn schedule_from_args(n_chains: u32, n_warmup: u32, n_draws: u32, thin: u32) -> GraphMcmcSchedule {
     GraphMcmcSchedule { n_chains, n_warmup, n_draws, thin }
 }
@@ -596,8 +614,39 @@ fn parse_soft_weight(name: &str) -> PyResult<CiSoftWeight> {
 /// Larger graphs: use `discover_order_mcmc`, `discover_structure_mcmc`, or
 /// `discover_ci_screened_posterior`.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, seed=1, threads=None))]
+#[pyo3(signature = (names, columns, *, seed=1, threads=None, equivalence_classes=false))]
 fn discover_exact_dag_posterior(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    seed: u64,
+    threads: Option<u32>,
+    equivalence_classes: bool,
+) -> PyResult<PyGraphPosterior> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let (data, variables) = tabular_from_batch(&batch)?;
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let (post, route) = compiled_search(
+            over_classes(
+                DiscoverySpec::exact_dag_posterior(bayesian_params()),
+                equivalence_classes,
+            ),
+            DiscoverInput::Tabular(data),
+            &variables,
+            &ctx,
+            posterior_of,
+        )?;
+        Ok(PyGraphPosterior::from_rust(names, post).with_route(route))
+    })
+}
+
+/// Exact posterior over PAG classes of the Gaussian maximal ancestral graphs of at most four
+/// variables (latent confounding allowed), scored by BIC.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, seed=1, threads=None))]
+fn discover_exact_pag_posterior(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
@@ -610,7 +659,7 @@ fn discover_exact_dag_posterior(
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let (post, route) = compiled_search(
-            DiscoverySpec::exact_dag_posterior(bayesian_params()),
+            DiscoverySpec::exact_pag_posterior(bayesian_params()),
             DiscoverInput::Tabular(data),
             &variables,
             &ctx,
@@ -668,7 +717,9 @@ fn discover_exact_dag_marginals(
     require_diagnostics_gate=true,
     max_parents=None,
     seed=1,
-    threads=None
+    threads=None,
+    equivalence_classes=false,
+    noise="gaussian"
 ))]
 fn discover_order_mcmc(
     py: Python<'_>,
@@ -682,18 +733,22 @@ fn discover_order_mcmc(
     max_parents: Option<usize>,
     seed: u64,
     threads: Option<u32>,
+    equivalence_classes: bool,
+    noise: &str,
 ) -> PyResult<PyGraphPosterior> {
+    let family = score_family_of(noise)?;
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
+        let mut params = bayesian_params_capped(max_parents);
+        params.score_family = family;
         let (post, route) = compiled_search(
-            DiscoverySpec::order_mcmc(
-                bayesian_params_capped(max_parents),
-                schedule,
-                require_diagnostics_gate,
+            over_classes(
+                DiscoverySpec::order_mcmc(params, schedule, require_diagnostics_gate),
+                equivalence_classes,
             ),
             DiscoverInput::Tabular(data),
             &variables,
@@ -718,7 +773,8 @@ fn discover_order_mcmc(
     thin=1,
     max_parents=None,
     seed=1,
-    threads=None
+    threads=None,
+    equivalence_classes=false
 ))]
 fn discover_structure_mcmc(
     py: Python<'_>,
@@ -731,6 +787,7 @@ fn discover_structure_mcmc(
     max_parents: Option<usize>,
     seed: u64,
     threads: Option<u32>,
+    equivalence_classes: bool,
 ) -> PyResult<PyGraphPosterior> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -739,7 +796,10 @@ fn discover_structure_mcmc(
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
         let (post, route) = compiled_search(
-            DiscoverySpec::structure_mcmc(bayesian_params_capped(max_parents), schedule),
+            over_classes(
+                DiscoverySpec::structure_mcmc(bayesian_params_capped(max_parents), schedule),
+                equivalence_classes,
+            ),
             DiscoverInput::Tabular(data),
             &variables,
             &ctx,
@@ -765,7 +825,8 @@ fn discover_structure_mcmc(
     n_draws=600,
     thin=1,
     seed=1,
-    threads=None
+    threads=None,
+    equivalence_classes=false
 ))]
 fn discover_ci_screened_posterior(
     py: Python<'_>,
@@ -782,6 +843,7 @@ fn discover_ci_screened_posterior(
     thin: u32,
     seed: u64,
     threads: Option<u32>,
+    equivalence_classes: bool,
 ) -> PyResult<PyGraphPosterior> {
     let soft = parse_soft_weight(soft_weight)?;
     let ci_name = ci.unwrap_or_else(|| "parcorr".to_string());
@@ -808,12 +870,15 @@ fn discover_ci_screened_posterior(
         };
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
         let (post, route) = compiled_search(
-            DiscoverySpec::ci_screened_posterior(
-                bayesian_params(),
-                screen,
-                schedule,
-                soft,
-                ci_label,
+            over_classes(
+                DiscoverySpec::ci_screened_posterior(
+                    bayesian_params(),
+                    screen,
+                    schedule,
+                    soft,
+                    ci_label,
+                ),
+                equivalence_classes,
             ),
             DiscoverInput::Tabular(data),
             &variables,
@@ -838,7 +903,8 @@ fn discover_ci_screened_posterior(
     thin=1,
     seed=1,
     threads=None,
-    unit_lengths=None
+    unit_lengths=None,
+    equivalence_classes=false
 ))]
 fn discover_dbn_posterior(
     py: Python<'_>,
@@ -853,6 +919,7 @@ fn discover_dbn_posterior(
     seed: u64,
     threads: Option<u32>,
     unit_lengths: Option<Vec<usize>>,
+    equivalence_classes: bool,
 ) -> PyResult<PyGraphPosterior> {
     let _ = thin; // DBN engine schedule has no thin; kept for API symmetry.
     let batch = columns_to_batch(&names, &columns)?;
@@ -871,7 +938,10 @@ fn discover_dbn_posterior(
             (DiscoverInput::Series(series), variables)
         };
         let (post, route) = compiled_search(
-            DiscoverySpec::dbn_posterior(bayesian_params(), max_lag, force_mcmc, schedule),
+            over_classes(
+                DiscoverySpec::dbn_posterior(bayesian_params(), max_lag, force_mcmc, schedule),
+                equivalence_classes,
+            ),
             input,
             &variables,
             &ctx,
@@ -886,6 +956,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyGraphPosterior>()?;
     m.add_function(wrap_pyfunction!(discover_exact_dag_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(discover_exact_dag_marginals, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_exact_pag_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(discover_order_mcmc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_structure_mcmc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_ci_screened_posterior, m)?)?;

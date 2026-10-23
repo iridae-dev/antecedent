@@ -225,6 +225,10 @@ impl core::clone::Clone for antecedent_io_core::InterventionWire
 impl core::clone::Clone for antecedent_io_core::InterventionalDistributionQueryWire
 impl core::clone::Clone for antecedent_io_core::InterventionalDistributionWire
 impl core::clone::Clone for antecedent_io_core::IoError
+impl core::clone::Clone for antecedent_io_core::IvBoundsIntervalWire
+impl core::clone::Clone for antecedent_io_core::IvBoundsPosteriorWire
+impl core::clone::Clone for antecedent_io_core::IvBoundsQueryWire
+impl core::clone::Clone for antecedent_io_core::IvBoundsWire
 impl core::clone::Clone for antecedent_io_core::JointLawPropagationArtifactError
 impl core::clone::Clone for antecedent_io_core::JointLawPropagationArtifactWire
 impl core::clone::Clone for antecedent_io_core::KernelPolicyWire
@@ -1398,6 +1402,10 @@ impl core::cmp::PartialEq for antecedent_io_core::InterventionWire
 impl core::cmp::PartialEq for antecedent_io_core::InterventionalDistributionQueryWire
 impl core::cmp::PartialEq for antecedent_io_core::InterventionalDistributionWire
 impl core::cmp::PartialEq for antecedent_io_core::IoError
+impl core::cmp::PartialEq for antecedent_io_core::IvBoundsIntervalWire
+impl core::cmp::PartialEq for antecedent_io_core::IvBoundsPosteriorWire
+impl core::cmp::PartialEq for antecedent_io_core::IvBoundsQueryWire
+impl core::cmp::PartialEq for antecedent_io_core::IvBoundsWire
 impl core::cmp::PartialEq for antecedent_io_core::JointLawPropagationArtifactError
 impl core::cmp::PartialEq for antecedent_io_core::JointLawPropagationArtifactWire
 impl core::cmp::PartialEq for antecedent_io_core::KernelPolicyWire
@@ -2255,6 +2263,10 @@ impl core::fmt::Debug for antecedent_io_core::InterventionWire
 impl core::fmt::Debug for antecedent_io_core::InterventionalDistributionQueryWire
 impl core::fmt::Debug for antecedent_io_core::InterventionalDistributionWire
 impl core::fmt::Debug for antecedent_io_core::IoError
+impl core::fmt::Debug for antecedent_io_core::IvBoundsIntervalWire
+impl core::fmt::Debug for antecedent_io_core::IvBoundsPosteriorWire
+impl core::fmt::Debug for antecedent_io_core::IvBoundsQueryWire
+impl core::fmt::Debug for antecedent_io_core::IvBoundsWire
 impl core::fmt::Debug for antecedent_io_core::JointLawPropagationArtifactError
 impl core::fmt::Debug for antecedent_io_core::JointLawPropagationArtifactWire
 impl core::fmt::Debug for antecedent_io_core::KernelPolicyWire
@@ -3188,6 +3200,10 @@ impl core::marker::Freeze for antecedent_io_core::InterventionWire [auto]
 impl core::marker::Freeze for antecedent_io_core::InterventionalDistributionQueryWire [auto]
 impl core::marker::Freeze for antecedent_io_core::InterventionalDistributionWire [auto]
 impl core::marker::Freeze for antecedent_io_core::IoError [auto]
+impl core::marker::Freeze for antecedent_io_core::IvBoundsIntervalWire [auto]
+impl core::marker::Freeze for antecedent_io_core::IvBoundsPosteriorWire [auto]
+impl core::marker::Freeze for antecedent_io_core::IvBoundsQueryWire [auto]
+impl core::marker::Freeze for antecedent_io_core::IvBoundsWire [auto]
 impl core::marker::Freeze for antecedent_io_core::JointLawPropagationArtifactError [auto]
 impl core::marker::Freeze for antecedent_io_core::JointLawPropagationArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io_core::KernelPolicyWire [auto]
@@ -3953,6 +3969,10 @@ impl core::marker::Send for antecedent_io_core::InterventionWire [auto]
 impl core::marker::Send for antecedent_io_core::InterventionalDistributionQueryWire [auto]
 impl core::marker::Send for antecedent_io_core::InterventionalDistributionWire [auto]
 impl core::marker::Send for antecedent_io_core::IoError [auto]
+impl core::marker::Send for antecedent_io_core::IvBoundsIntervalWire [auto]
+impl core::marker::Send for antecedent_io_core::IvBoundsPosteriorWire [auto]
+impl core::marker::Send for antecedent_io_core::IvBoundsQueryWire [auto]
+impl core::marker::Send for antecedent_io_core::IvBoundsWire [auto]
 impl core::marker::Send for antecedent_io_core::JointLawPropagationArtifactError [auto]
 impl core::marker::Send for antecedent_io_core::JointLawPropagationArtifactWire [auto]
 impl core::marker::Send for antecedent_io_core::KernelPolicyWire [auto]
@@ -4718,6 +4738,10 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::InterventionWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::InterventionalDistributionQueryWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::InterventionalDistributionWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::IoError
+impl core::marker::StructuralPartialEq for antecedent_io_core::IvBoundsIntervalWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::IvBoundsPosteriorWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::IvBoundsQueryWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::IvBoundsWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::JointLawPropagationArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io_core::JointLawPropagationArtifactWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::KernelPolicyWire
@@ -5437,6 +5461,10 @@ impl core::marker::Sync for antecedent_io_core::InterventionWire [auto]
 impl core::marker::Sync for antecedent_io_core::InterventionalDistributionQueryWire [auto]
 impl core::marker::Sync for antecedent_io_core::InterventionalDistributionWire [auto]
 impl core::marker::Sync for antecedent_io_core::IoError [auto]
+impl core::marker::Sync for antecedent_io_core::IvBoundsIntervalWire [auto]
+impl core::marker::Sync for antecedent_io_core::IvBoundsPosteriorWire [auto]
+impl core::marker::Sync for antecedent_io_core::IvBoundsQueryWire [auto]
+impl core::marker::Sync for antecedent_io_core::IvBoundsWire [auto]
 impl core::marker::Sync for antecedent_io_core::JointLawPropagationArtifactError [auto]
 impl core::marker::Sync for antecedent_io_core::JointLawPropagationArtifactWire [auto]
 impl core::marker::Sync for antecedent_io_core::KernelPolicyWire [auto]
@@ -6205,6 +6233,10 @@ impl core::marker::Unpin for antecedent_io_core::InterventionWire [auto]
 impl core::marker::Unpin for antecedent_io_core::InterventionalDistributionQueryWire [auto]
 impl core::marker::Unpin for antecedent_io_core::InterventionalDistributionWire [auto]
 impl core::marker::Unpin for antecedent_io_core::IoError [auto]
+impl core::marker::Unpin for antecedent_io_core::IvBoundsIntervalWire [auto]
+impl core::marker::Unpin for antecedent_io_core::IvBoundsPosteriorWire [auto]
+impl core::marker::Unpin for antecedent_io_core::IvBoundsQueryWire [auto]
+impl core::marker::Unpin for antecedent_io_core::IvBoundsWire [auto]
 impl core::marker::Unpin for antecedent_io_core::JointLawPropagationArtifactError [auto]
 impl core::marker::Unpin for antecedent_io_core::JointLawPropagationArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io_core::KernelPolicyWire [auto]
@@ -6973,6 +7005,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::Interventio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::InterventionalDistributionQueryWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::InterventionalDistributionWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::IoError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::IvBoundsIntervalWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::IvBoundsPosteriorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::IvBoundsQueryWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::IvBoundsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::JointLawPropagationArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::JointLawPropagationArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::KernelPolicyWire [auto]
@@ -7740,6 +7776,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::InterventionWi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::InterventionalDistributionQueryWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::InterventionalDistributionWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::IoError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::IvBoundsIntervalWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::IvBoundsPosteriorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::IvBoundsQueryWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::IvBoundsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::JointLawPropagationArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::JointLawPropagationArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::KernelPolicyWire [auto]
@@ -8492,6 +8532,10 @@ impl serde_core::ser::Serialize for antecedent_io_core::IntervalInterpretationWi
 impl serde_core::ser::Serialize for antecedent_io_core::InterventionWire
 impl serde_core::ser::Serialize for antecedent_io_core::InterventionalDistributionQueryWire
 impl serde_core::ser::Serialize for antecedent_io_core::InterventionalDistributionWire
+impl serde_core::ser::Serialize for antecedent_io_core::IvBoundsIntervalWire
+impl serde_core::ser::Serialize for antecedent_io_core::IvBoundsPosteriorWire
+impl serde_core::ser::Serialize for antecedent_io_core::IvBoundsQueryWire
+impl serde_core::ser::Serialize for antecedent_io_core::IvBoundsWire
 impl serde_core::ser::Serialize for antecedent_io_core::JointLawPropagationArtifactWire
 impl serde_core::ser::Serialize for antecedent_io_core::KernelPolicyWire
 impl serde_core::ser::Serialize for antecedent_io_core::LaggedLinkWire
@@ -9125,6 +9169,10 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::IntervalInter
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::InterventionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::InterventionalDistributionQueryWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::InterventionalDistributionWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::IvBoundsIntervalWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::IvBoundsPosteriorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::IvBoundsQueryWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::IvBoundsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::JointLawPropagationArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::KernelPolicyWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::LaggedLinkWire
@@ -9638,6 +9686,9 @@ pub const antecedent_io_core::CONTENT_BYTES: &str
 pub const antecedent_io_core::CONTENT_CBOR: &str
 pub const antecedent_io_core::CONTRACT_SECTION: &str
 pub const antecedent_io_core::CONTRACT_SECTION_FORMAT: u16
+pub const antecedent_io_core::IV_BOUNDS_BAYESIAN_METHOD: &str
+pub const antecedent_io_core::IV_BOUNDS_FREQUENTIST_METHOD: &str
+pub const antecedent_io_core::IV_BOUNDS_POINT_UNCERTAINTY: &str
 pub const antecedent_io_core::JOINT_LAW_PROPAGATION_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::JOINT_LAW_PROPAGATION_ARTIFACT_VERSION: u32
 pub const antecedent_io_core::JOINT_LAW_PROPAGATION_MAX_INPUTS: usize
@@ -10042,6 +10093,7 @@ pub field antecedent_io_core::AnalysisResultWire::interference_inference: core::
 pub field antecedent_io_core::AnalysisResultWire::interval_lower: core::option::Option<f64>
 pub field antecedent_io_core::AnalysisResultWire::interval_upper: core::option::Option<f64>
 pub field antecedent_io_core::AnalysisResultWire::interventional_distribution: core::option::Option<antecedent_io_core::InterventionalDistributionWire>
+pub field antecedent_io_core::AnalysisResultWire::iv_bounds: core::option::Option<antecedent_io_core::IvBoundsWire>
 pub field antecedent_io_core::AnalysisResultWire::learner_provenance: alloc::vec::Vec<(alloc::string::String, alloc::string::String, alloc::string::String)>
 pub field antecedent_io_core::AnalysisResultWire::local_polynomial_ratio: core::option::Option<antecedent_io_core::LocalPolynomialRatioWire>
 pub field antecedent_io_core::AnalysisResultWire::longitudinal_regime: core::option::Option<antecedent_io_core::LongitudinalRegimeWire>
@@ -10584,6 +10636,7 @@ pub field antecedent_io_core::InferenceBindingWire::bootstrap_replicates: u32
 pub field antecedent_io_core::InferenceBindingWire::estimator_spec: core::option::Option<antecedent_io_core::EstimatorSpecWire>
 pub field antecedent_io_core::InferenceBindingWire::format: u16
 pub field antecedent_io_core::InferenceBindingWire::inference: alloc::string::String
+pub field antecedent_io_core::InferenceBindingWire::joint_horizons: bool
 pub field antecedent_io_core::InferenceBindingWire::observation_options: antecedent_io_core::ObservationOptionsWire
 pub field antecedent_io_core::InferenceBindingWire::overlap_policy: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::InferenceBindingWire::response_options: core::option::Option<antecedent_io_core::ResponseOptionsWire>
@@ -10627,6 +10680,37 @@ pub field antecedent_io_core::InterventionalDistributionQueryWire::interventions
 pub field antecedent_io_core::InterventionalDistributionQueryWire::outcomes: alloc::vec::Vec<u32>
 pub field antecedent_io_core::InterventionalDistributionQueryWire::target_population: antecedent_io_core::TargetPopulationWire
 pub field antecedent_io_core::InterventionalDistributionWire::atoms: alloc::vec::Vec<antecedent_io_core::DistributionAtomWire>
+pub field antecedent_io_core::IvBoundsIntervalWire::critical_value: f64
+pub field antecedent_io_core::IvBoundsIntervalWire::infeasible: u64
+pub field antecedent_io_core::IvBoundsIntervalWire::level: f64
+pub field antecedent_io_core::IvBoundsIntervalWire::lower: f64
+pub field antecedent_io_core::IvBoundsIntervalWire::lower_se: f64
+pub field antecedent_io_core::IvBoundsIntervalWire::method: alloc::string::String
+pub field antecedent_io_core::IvBoundsIntervalWire::replicates: u64
+pub field antecedent_io_core::IvBoundsIntervalWire::upper: f64
+pub field antecedent_io_core::IvBoundsIntervalWire::upper_se: f64
+pub field antecedent_io_core::IvBoundsIntervalWire::width_retained: bool
+pub field antecedent_io_core::IvBoundsPosteriorWire::infeasible_draws: u64
+pub field antecedent_io_core::IvBoundsPosteriorWire::lower_mean: f64
+pub field antecedent_io_core::IvBoundsPosteriorWire::lower_sd: f64
+pub field antecedent_io_core::IvBoundsPosteriorWire::n_draws: u64
+pub field antecedent_io_core::IvBoundsPosteriorWire::upper_mean: f64
+pub field antecedent_io_core::IvBoundsPosteriorWire::upper_sd: f64
+pub field antecedent_io_core::IvBoundsQueryWire::instrument: u32
+pub field antecedent_io_core::IvBoundsQueryWire::outcome: u32
+pub field antecedent_io_core::IvBoundsQueryWire::treatment: u32
+pub field antecedent_io_core::IvBoundsQueryWire::weight: core::option::Option<u32>
+pub field antecedent_io_core::IvBoundsWire::arm_weights: alloc::vec::Vec<f64>
+pub field antecedent_io_core::IvBoundsWire::calibration: alloc::string::String
+pub field antecedent_io_core::IvBoundsWire::cells: alloc::vec::Vec<f64>
+pub field antecedent_io_core::IvBoundsWire::interval: core::option::Option<antecedent_io_core::IvBoundsIntervalWire>
+pub field antecedent_io_core::IvBoundsWire::licensed: bool
+pub field antecedent_io_core::IvBoundsWire::lower: f64
+pub field antecedent_io_core::IvBoundsWire::posterior: core::option::Option<antecedent_io_core::IvBoundsPosteriorWire>
+pub field antecedent_io_core::IvBoundsWire::rows: u64
+pub field antecedent_io_core::IvBoundsWire::rows_dropped: u64
+pub field antecedent_io_core::IvBoundsWire::uncertainty: alloc::string::String
+pub field antecedent_io_core::IvBoundsWire::upper: f64
 pub field antecedent_io_core::JointLawPropagationArtifactWire::alignment_id: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::JointLawPropagationArtifactWire::covariance_id: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::JointLawPropagationArtifactWire::identity: alloc::string::String
@@ -14466,6 +14550,10 @@ pub struct antecedent_io_core::InterferenceQueryWire
 pub struct antecedent_io_core::InterferenceSnapshotWire
 pub struct antecedent_io_core::InterventionalDistributionQueryWire
 pub struct antecedent_io_core::InterventionalDistributionWire
+pub struct antecedent_io_core::IvBoundsIntervalWire
+pub struct antecedent_io_core::IvBoundsPosteriorWire
+pub struct antecedent_io_core::IvBoundsQueryWire
+pub struct antecedent_io_core::IvBoundsWire
 pub struct antecedent_io_core::JointLawPropagationArtifactWire
 pub struct antecedent_io_core::KernelPolicyWire
 pub struct antecedent_io_core::LaggedLinkWire
@@ -15040,11 +15128,17 @@ pub use antecedent_io_core::analysis_result_artifact::AnalysisResultHeader = ant
 pub use antecedent_io_core::analysis_result_artifact::AnalysisResultWire = antecedent_io_core::AnalysisResultWire
 pub use antecedent_io_core::analysis_result_artifact::DistributionAtomWire = antecedent_io_core::DistributionAtomWire
 pub use antecedent_io_core::analysis_result_artifact::HistoryMatchWire = antecedent_io_core::HistoryMatchWire
+pub use antecedent_io_core::analysis_result_artifact::IV_BOUNDS_BAYESIAN_METHOD = antecedent_io_core::IV_BOUNDS_BAYESIAN_METHOD
+pub use antecedent_io_core::analysis_result_artifact::IV_BOUNDS_FREQUENTIST_METHOD = antecedent_io_core::IV_BOUNDS_FREQUENTIST_METHOD
+pub use antecedent_io_core::analysis_result_artifact::IV_BOUNDS_POINT_UNCERTAINTY = antecedent_io_core::IV_BOUNDS_POINT_UNCERTAINTY
 pub use antecedent_io_core::analysis_result_artifact::IdentifiedSetIntervalMethodWire = antecedent_io_core::IdentifiedSetIntervalMethodWire
 pub use antecedent_io_core::analysis_result_artifact::IdentifiedSetIntervalWire = antecedent_io_core::IdentifiedSetIntervalWire
 pub use antecedent_io_core::analysis_result_artifact::InterferenceInferenceWire = antecedent_io_core::InterferenceInferenceWire
 pub use antecedent_io_core::analysis_result_artifact::InterferencePointwiseIntervalWire = antecedent_io_core::InterferencePointwiseIntervalWire
 pub use antecedent_io_core::analysis_result_artifact::InterventionalDistributionWire = antecedent_io_core::InterventionalDistributionWire
+pub use antecedent_io_core::analysis_result_artifact::IvBoundsIntervalWire = antecedent_io_core::IvBoundsIntervalWire
+pub use antecedent_io_core::analysis_result_artifact::IvBoundsPosteriorWire = antecedent_io_core::IvBoundsPosteriorWire
+pub use antecedent_io_core::analysis_result_artifact::IvBoundsWire = antecedent_io_core::IvBoundsWire
 pub use antecedent_io_core::analysis_result_artifact::LocalPolynomialRatioWire = antecedent_io_core::LocalPolynomialRatioWire
 pub use antecedent_io_core::analysis_result_artifact::LongitudinalRegimeWire = antecedent_io_core::LongitudinalRegimeWire
 pub use antecedent_io_core::analysis_result_artifact::MediationPosteriorSummaryWire = antecedent_io_core::MediationPosteriorSummaryWire
@@ -15440,6 +15534,7 @@ pub use antecedent_io_core::query_wire::InterferenceFunctionalWire = antecedent_
 pub use antecedent_io_core::query_wire::InterferenceQueryWire = antecedent_io_core::InterferenceQueryWire
 pub use antecedent_io_core::query_wire::InterventionWire = antecedent_io_core::InterventionWire
 pub use antecedent_io_core::query_wire::InterventionalDistributionQueryWire = antecedent_io_core::InterventionalDistributionQueryWire
+pub use antecedent_io_core::query_wire::IvBoundsQueryWire = antecedent_io_core::IvBoundsQueryWire
 pub use antecedent_io_core::query_wire::PathSpecificEffectQueryWire = antecedent_io_core::PathSpecificEffectQueryWire
 pub use antecedent_io_core::query_wire::RandomizationDesignWire = antecedent_io_core::RandomizationDesignWire
 pub use antecedent_io_core::query_wire::RandomizedEffectQueryWire = antecedent_io_core::RandomizedEffectQueryWire
@@ -15630,9 +15725,10 @@ pub variant antecedent_io_core::CausalQueryWire::Discover(antecedent_io_core::Di
 pub variant antecedent_io_core::CausalQueryWire::Distribution(antecedent_io_core::InterventionalDistributionQueryWire)
 pub variant antecedent_io_core::CausalQueryWire::HistoryMatch(antecedent_io_core::query_wire::HistoryMatchQueryWire)
 pub variant antecedent_io_core::CausalQueryWire::Interference(antecedent_io_core::InterferenceQueryWire)
+pub variant antecedent_io_core::CausalQueryWire::IvBounds(antecedent_io_core::IvBoundsQueryWire)
 pub variant antecedent_io_core::CausalQueryWire::LocalPolynomialRatio(antecedent_io_core::query_wire::LocalPolynomialRatioQueryWire)
 pub variant antecedent_io_core::CausalQueryWire::LongitudinalRegime(antecedent_io_core::query_wire::LongitudinalRegimeQueryWire)
-pub variant antecedent_io_core::CausalQueryWire::MechanismChange { targets: alloc::vec::Vec<u32>, baseline: antecedent_io_core::query_wire::PopulationSelectorWire, comparison: antecedent_io_core::query_wire::PopulationSelectorWire, significance_level_bits: u64, max_targets: u64 }
+pub variant antecedent_io_core::CausalQueryWire::MechanismChange { targets: alloc::vec::Vec<u32>, baseline: antecedent_io_core::query_wire::PopulationSelectorWire, comparison: antecedent_io_core::query_wire::PopulationSelectorWire, significance_level_bits: u64, max_targets: u64, change_prior_bits: core::option::Option<u64> }
 pub variant antecedent_io_core::CausalQueryWire::Mediation { treatment: u32, outcome: u32, mediators: alloc::vec::Vec<u32>, contrast: antecedent_io_core::query_wire::MediationContrastWire, control: antecedent_io_core::InterventionWire, active: antecedent_io_core::InterventionWire, target_population: antecedent_io_core::TargetPopulationWire, horizons: alloc::vec::Vec<u32> }
 pub variant antecedent_io_core::CausalQueryWire::NestedCounterfactual { treatment: u32, mediator: u32, outcome: u32, control_bits: u64, active_bits: u64 }
 pub variant antecedent_io_core::CausalQueryWire::PanelDid(antecedent_io_core::query_wire::PanelDidQueryWire)
@@ -15910,11 +16006,14 @@ pub variant antecedent_io_core::DesignVariableRole::Covariate
 pub variant antecedent_io_core::DesignVariableRole::Other
 pub variant antecedent_io_core::DesignVariableRole::Outcome
 pub variant antecedent_io_core::DesignVariableRole::Treatment
+pub variant antecedent_io_core::DiscoveryMethodWire::BootstrapStability { base: alloc::boxed::Box<antecedent_io_core::DiscoveryMethodWire>, replicates: u32 }
 pub variant antecedent_io_core::DiscoveryMethodWire::CiScreenedPosterior { weight: alloc::string::String }
+pub variant antecedent_io_core::DiscoveryMethodWire::ClassPosterior { base: alloc::boxed::Box<antecedent_io_core::DiscoveryMethodWire> }
 pub variant antecedent_io_core::DiscoveryMethodWire::DbnPosterior { force_mcmc: bool }
 pub variant antecedent_io_core::DiscoveryMethodWire::DirectLingam { prune_threshold: f64 }
 pub variant antecedent_io_core::DiscoveryMethodWire::ExactDagMarginals
 pub variant antecedent_io_core::DiscoveryMethodWire::ExactDagPosterior
+pub variant antecedent_io_core::DiscoveryMethodWire::ExactPagPosterior
 pub variant antecedent_io_core::DiscoveryMethodWire::Fci
 pub variant antecedent_io_core::DiscoveryMethodWire::Ges { screen_pc: bool, max_subset: core::option::Option<u32> }
 pub variant antecedent_io_core::DiscoveryMethodWire::JpcmciPlus

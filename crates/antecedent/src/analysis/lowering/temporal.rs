@@ -30,11 +30,11 @@ use antecedent_contract::ClaimKind;
 use antecedent_core::{
     AssumptionSet, CausalQuery, CausalSchema, Conditioning, DoseTimeSurface, GraphFamily,
     HistoryWindow, InferenceSelection, InitialLaw, Intervention, InterventionContrast,
-    InterventionWorld, MediationQuery, ModelAssumptions, ObservationUnit, OutcomeQuantity,
-    PartialIdentificationEnvelope, QuantityUnits, ResponseFunctional, ResponseQuery,
-    ScientificTarget, ScientificTargetError, ScientificWorldId, TargetForm, TargetPopulation,
-    TemporalEffectQuery, TemporalPolicy, TimeFrame, Value, VariableId, WorldAction, WorldBinding,
-    WorldCollection,
+    InterventionWorld, LikelihoodModel, MediationQuery, ModelAssumptions, ObservationUnit,
+    OrdinaryBayesianLikelihood, OutcomeQuantity, PartialIdentificationEnvelope, Prior,
+    QuantityUnits, ResponseFunctional, ResponseQuery, ScientificTarget, ScientificTargetError,
+    ScientificWorldId, TargetForm, TargetPopulation, TemporalEffectQuery, TemporalPolicy,
+    TimeFrame, Value, VariableId, WorldAction, WorldBinding, WorldCollection,
 };
 use antecedent_data::TableView;
 
@@ -54,9 +54,14 @@ use crate::planner::lowered::{
     linear_gaussian_physical_operators, linear_gaussian_program_operators,
 };
 use crate::planner::statistical::{
-    DeclaredProgram, FoldPlan, ModelRole, ModelSlot, Realization, ResampleUnit, ResamplingMethod,
-    ResamplingPlan, StatisticalProgram,
+    DeclaredProgram, FoldPlan, ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan,
+    Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
+
+/// Prior of the joint block-weight posterior over a temporal response surface.
+const JOINT_BLOCK_WEIGHT_PRIOR: &str = "dirichlet_block_weights(1)";
+/// Backend of that posterior: weighted least squares of every horizon under shared block weights.
+const JOINT_BLOCK_WEIGHT_BACKEND: &str = "temporal.response.block_weight_surface";
 use crate::{EstimatorId, IdentifierId, InferenceMode, Study};
 
 #[cfg(test)]
@@ -76,6 +81,8 @@ const SPLIT_WINDOWS: usize = 2;
 
 const DAG_DESIGN_AT_EXECUTION: &str =
     "the lagged adjustment design is assembled from the unfolded sample at execution";
+const WINDOW_DESIGN_AT_EXECUTION: &str = "the lag-aligned window table of the unrolled temporal \
+     ADMG is assembled from the series at execution; the discrete plug-in fits no design matrix";
 const CLASS_DESIGN_AT_EXECUTION: &str =
     "each completion assembles its own lagged design from the unfolded sample at execution";
 const RESPONSE_DESIGN_AT_EXECUTION: &str =
@@ -102,6 +109,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         }),
         RouteInput::TemporalEffectDag { query, .. }
         | RouteInput::TemporalEffectClass { query, .. }
+        | RouteInput::TemporalEffectAdmg { query, .. }
         | RouteInput::PanelTemporalEffectDag { query, .. }
         | RouteInput::PanelTemporalEffectClass { query, .. }
         | RouteInput::MultiEnvTemporalEffect { query, .. } => lower_effect(cx, query),
@@ -388,7 +396,13 @@ fn lower_effect(
             identification,
             models,
             claim: ClaimKind::Point,
-            width: if is_class { CLASS_DESIGN_AT_EXECUTION } else { DAG_DESIGN_AT_EXECUTION },
+            width: if cx.study.graph.class() == GraphClass::TemporalAdmg {
+                WINDOW_DESIGN_AT_EXECUTION
+            } else if is_class {
+                CLASS_DESIGN_AT_EXECUTION
+            } else {
+                DAG_DESIGN_AT_EXECUTION
+            },
         },
     )
 }
@@ -582,6 +596,25 @@ fn assemble(
     statistical.models = Arc::from(parts.models);
     statistical.folds = fold_plan(study);
     statistical.resampling = resampling_plan(study);
+    if let (true, InferenceMode::Bayesian(config)) = (study.retain_joint_horizons, &study.inference)
+    {
+        // The joint block-weight posterior over the whole surface replaces the per-horizon
+        // conjugate fits: one Exp(1) weight per block of consecutive times, shared by every
+        // horizon, per draw.
+        let declaration = |error: antecedent_core::DeclarationError| CausalError::Compile {
+            message: error.to_string(),
+        };
+        let prior = Prior::new(JOINT_BLOCK_WEIGHT_PRIOR).map_err(declaration)?;
+        let likelihood = LikelihoodModel::new(JOINT_BLOCK_WEIGHT_BACKEND).map_err(declaration)?;
+        statistical.realization =
+            Realization::Bayesian(OrdinaryBayesianLikelihood::new(likelihood, prior.clone()));
+        statistical.posterior = Some(PosteriorPlan {
+            algorithm: PosteriorAlgorithm::Conjugate,
+            draws: config.n_draws,
+            prior,
+        });
+        statistical.resampling = None;
+    }
     let bayesian = matches!(study.inference, InferenceMode::Bayesian(_));
     if parts.envelope && !bayesian {
         statistical.realization = Realization::Envelope(
@@ -909,6 +942,7 @@ fn graph_family(study: &Study) -> GraphFamily {
     match study.graph.class() {
         GraphClass::TemporalCpdag => GraphFamily::TemporalCpdag,
         GraphClass::TemporalPag => GraphFamily::TemporalPag,
+        GraphClass::TemporalAdmg => GraphFamily::TemporalAdmg,
         _ => GraphFamily::TemporalDag,
     }
 }

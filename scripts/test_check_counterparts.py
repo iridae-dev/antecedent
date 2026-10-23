@@ -77,7 +77,7 @@ class GeneratorChecks(unittest.TestCase):
         self.assertEqual(gen.child_status(child, None), ("executing_unlicensed", "delivered"))
 
     def test_the_shipped_inventory_is_current(self) -> None:
-        self.assertEqual(gen.OUT_TOML.read_text(), gen.render_toml(gen.build()))
+        self.assertEqual(gen.OUT_TOML.read_text(encoding="utf-8"), gen.render_toml(gen.build()))
 
 
 if __name__ == "__main__":

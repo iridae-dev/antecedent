@@ -437,7 +437,7 @@ pub(crate) fn panel_units_from_batch(
 
 /// Read the `background_knowledge` argument of a direct entry point: the wire JSON of
 /// [`crate::selective_discovery_api::background_knowledge`], or nothing.
-fn knowledge_arg(text: Option<&str>) -> PyResult<BackgroundKnowledge> {
+pub(crate) fn knowledge_arg(text: Option<&str>) -> PyResult<BackgroundKnowledge> {
     let Some(text) = text else { return Ok(BackgroundKnowledge::default()) };
     let parsed: serde_json::Value =
         serde_json::from_str(text).map_err(|e| value_err(format!("background_knowledge: {e}")))?;
@@ -1621,5 +1621,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(discover_jpcmci_plus, m)?)?;
     m.add_function(wrap_pyfunction!(discover_rpcmci, m)?)?;
     m.add_function(wrap_pyfunction!(two_regime_half_split_py, m)?)?;
+    crate::structure_stability_api::register(m)?;
     Ok(())
 }

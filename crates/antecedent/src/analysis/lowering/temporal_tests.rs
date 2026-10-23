@@ -14,7 +14,7 @@ use antecedent_core::{
     TemporalPolicy, TemporalResponseSpec, VariableId,
 };
 use antecedent_data::{MultiEnvironmentData, PanelData, PanelUnit, TableView, TimeSeriesData};
-use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
+use antecedent_graph::{TemporalAdmg, TemporalCpdag, TemporalDag, ensure_lagged};
 
 use super::super::registry::REGISTERED;
 use crate::analysis::execute::CheckedTemporalMediationOperation;
@@ -74,6 +74,15 @@ fn xy_dag() -> TemporalDag {
     let mut graph = TemporalDag::empty();
     let x1 = ensure_lagged(&mut graph, X, Lag::from_raw(1)).unwrap();
     let y0 = ensure_lagged(&mut graph, XY_OUTCOME, Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    graph
+}
+
+/// `x(t-1) -> y(t)` as a temporal ADMG template.
+fn xy_admg() -> TemporalAdmg {
+    let mut graph = TemporalAdmg::empty();
+    let x1 = graph.add_lagged(X, Lag::from_raw(1)).unwrap();
+    let y0 = graph.add_lagged(XY_OUTCOME, Lag::CONTEMPORANEOUS).unwrap();
     graph.insert_directed(x1, y0).unwrap();
     graph
 }
@@ -148,6 +157,10 @@ fn cells() -> Vec<(&'static str, StudyBuilder)> {
         (
             "TemporalEffectClass",
             Study::series(xy_series(0.0)).graph(class()).temporal_query(effect_query()),
+        ),
+        (
+            "TemporalEffectAdmg",
+            Study::series(xy_series(0.0)).graph(xy_admg()).temporal_query(effect_query()),
         ),
         (
             "PanelTemporalEffectDag",

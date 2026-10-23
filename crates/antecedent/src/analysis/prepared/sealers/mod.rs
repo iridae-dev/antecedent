@@ -31,6 +31,7 @@ mod design;
 mod posterior;
 mod program;
 mod response;
+mod route;
 mod static_query;
 mod temporal;
 
@@ -230,6 +231,7 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
     sealer(ExecutionKind::SequentialContrast, design::sequential_contrast),
     sealer(ExecutionKind::HistoryMatch, design::history_match),
     sealer(ExecutionKind::TemporalDesign, design::temporal_design),
+    sealer(ExecutionKind::IvBounds, design::iv_bounds),
     sealer(ExecutionKind::TemporalMediation, temporal::temporal_mediation),
     sealer(ExecutionKind::TemporalDagEffect, temporal::temporal_dag_effect),
     sealer(ExecutionKind::BayesianTemporalDagEffect, temporal::bayesian_temporal_dag_effect),
@@ -264,6 +266,11 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
     sealer(ExecutionKind::GraphPosteriorResponse, posterior::graph_posterior_response),
     sealer(ExecutionKind::BayesianSpecialist, posterior::bayesian_specialist),
     sealer(ExecutionKind::TransportTrial, posterior::transport_trial),
+    sealer(ExecutionKind::Discovery, route::discovery),
+    sealer(ExecutionKind::PanelTemporal, route::panel_temporal),
+    sealer(ExecutionKind::MultiEnvTemporal, route::multi_env_temporal),
+    sealer(ExecutionKind::TemporalCrossWorld, route::temporal_cross_world),
+    sealer(ExecutionKind::TemporalAdmgEffect, route::temporal_admg_effect),
 ];
 
 /// Select the sealed operation for `cx`, or `OrdinaryDispatch` when no sealer
@@ -357,6 +364,7 @@ mod tests {
         ExecutionKind::SequentialContrast,
         ExecutionKind::HistoryMatch,
         ExecutionKind::TemporalDesign,
+        ExecutionKind::IvBounds,
         ExecutionKind::TemporalMediation,
         ExecutionKind::TemporalDagEffect,
         ExecutionKind::BayesianTemporalDagEffect,
@@ -382,6 +390,11 @@ mod tests {
         ExecutionKind::GraphPosteriorResponse,
         ExecutionKind::BayesianSpecialist,
         ExecutionKind::TransportTrial,
+        ExecutionKind::Discovery,
+        ExecutionKind::PanelTemporal,
+        ExecutionKind::MultiEnvTemporal,
+        ExecutionKind::TemporalCrossWorld,
+        ExecutionKind::TemporalAdmgEffect,
     ];
 
     #[test]

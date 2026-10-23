@@ -96,6 +96,7 @@ pub(crate) enum AnalysisRoute {
     Attribute,
     Simulate,
     TemporalDesign,
+    IvBounds,
 }
 
 #[derive(Clone, Copy)]
@@ -167,8 +168,12 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         (DataModality::TemporalOrEvent, CausalQuery::ChangeAttribution(_)) => {
             AnalysisRoute::ChangeAttribution
         }
-        (DataModality::Tabular, CausalQuery::MechanismChange(_)) => AnalysisRoute::MechanismChange,
-        (DataModality::Tabular, CausalQuery::UnitChange(_)) => AnalysisRoute::UnitChange,
+        (DataModality::Tabular | DataModality::TemporalOrEvent, CausalQuery::MechanismChange(_)) => {
+            AnalysisRoute::MechanismChange
+        }
+        (DataModality::Tabular | DataModality::TemporalOrEvent, CausalQuery::UnitChange(_)) => {
+            AnalysisRoute::UnitChange
+        }
         (DataModality::TemporalOrEvent, CausalQuery::TemporalEffect(_)) => {
             AnalysisRoute::TemporalEffect
         }
@@ -206,9 +211,14 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         // Every modality: the method decides which data it searches, and
         // admission refuses a method on data it does not run on.
         (_, CausalQuery::Discover(_)) => AnalysisRoute::Discover,
-        (DataModality::Tabular, CausalQuery::Attribute(_)) => AnalysisRoute::Attribute,
-        (DataModality::Tabular, CausalQuery::Simulate(_)) => AnalysisRoute::Simulate,
+        (DataModality::Tabular | DataModality::TemporalOrEvent, CausalQuery::Attribute(_)) => {
+            AnalysisRoute::Attribute
+        }
+        (DataModality::Tabular | DataModality::TemporalOrEvent, CausalQuery::Simulate(_)) => {
+            AnalysisRoute::Simulate
+        }
         (DataModality::Tabular, CausalQuery::TemporalDesign(_)) => AnalysisRoute::TemporalDesign,
+        (DataModality::Tabular, CausalQuery::IvBounds(_)) => AnalysisRoute::IvBounds,
         _ => return None,
     })
 }

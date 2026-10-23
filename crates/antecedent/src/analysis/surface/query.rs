@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub use antecedent_core::IvBoundsQuery;
 pub use antecedent_core::{
     AnomalyAttributionQuery, AssignmentDesign, AverageEffectQuery, CausalQuery,
     ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery,

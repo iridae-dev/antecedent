@@ -979,10 +979,44 @@ def binary_iv_bounds(cells: Sequence[Sequence[float]]) -> BinaryIvBounds:
     with cell order ``(Y,D)=(0,0),(1,0),(0,1),(1,1)``. This is a contrast bound,
     not a continuous-response curve estimator.
     """
-    from ._native import _binary_iv_ate_bounds
+    import math
 
-    lower, upper = _binary_iv_ate_bounds([list(arm) for arm in cells])
-    return BinaryIvBounds(lower=float(lower), upper=float(upper))
+    from ._analyze import analyze
+    from .errors import CausalEstimateError, CausalIdentifyError
+    from .quasi import IvBounds
+
+    arms = [[float(cell) for cell in arm] for arm in cells]
+    if len(arms) != 2 or any(len(arm) != 4 for arm in arms):
+        raise CausalValueError(
+            "cells must be a 2x4 nested sequence: one arm per instrument value, "
+            "cells (Y,D)=(0,0),(1,0),(0,1),(1,1)"
+        )
+    if any(not math.isfinite(cell) or cell < 0.0 for arm in arms for cell in arm) or any(
+        abs(sum(arm) - 1.0) > 1e-9 for arm in arms
+    ):
+        raise CausalIdentifyError(
+            "binary-IV cells must be finite, non-negative, and sum to one by Z arm"
+        )
+    # The observed law is a weighted eight-row table of the three coded columns: the compiled
+    # IvBounds study reads the law from it exactly as it reads a sample.
+    instrument = [z for z in (0.0, 1.0) for _ in range(4)]
+    outcome = [float(y) for _ in (0, 1) for y, _d in ((0, 0), (1, 0), (0, 1), (1, 1))]
+    treatment = [float(d) for _ in (0, 1) for _y, d in ((0, 0), (1, 0), (0, 1), (1, 1))]
+    weight = [cell for arm in arms for cell in arm]
+    try:
+        result = analyze(
+            {"z": instrument, "d": treatment, "y": outcome, "w": weight},
+            query=IvBounds(outcome="y", treatment="d", instrument="z", weight="w"),
+        )
+    except (CausalEstimateError, CausalUnsupportedError) as error:
+        # A law the instrument premises cannot produce is an identification failure, named so.
+        if "instrumental inequality" in str(error):
+            raise CausalIdentifyError(str(error)) from error
+        raise
+    section = result.iv_bounds
+    if section is None:
+        raise CausalIdentifyError("the compiled IV bounds study returned no identified set")
+    return BinaryIvBounds(lower=float(section.lower), upper=float(section.upper))
 
 
 __all__ = [

@@ -301,6 +301,7 @@ class AteAnalysisResult:
     sequential_contrast: SequentialContrastSection | None
     history_match: HistoryMatchSection | None
     temporal_design: TemporalDesignSection | None
+    iv_bounds: IvBoundsSection | None
     quasi_rollout: QuasiRolloutSection | None
     policy_value: PolicyValueSection | None
     continuous_dose_response: ContinuousDoseResponseSection | None
@@ -663,6 +664,36 @@ class HistoryMatchSection:
     caliper: float | None
     uncertainty: str
 
+class IvBoundsIntervalSection:
+    level: float
+    lower: float
+    upper: float
+    lower_se: float
+    upper_se: float
+    critical_value: float
+    width_retained: bool
+    replicates: int
+    infeasible: int
+    method: str
+
+class IvBoundsPosteriorSection:
+    n_draws: int
+    infeasible_draws: int
+    lower_mean: float
+    upper_mean: float
+    lower_sd: float
+    upper_sd: float
+
+class IvBoundsSection:
+    lower: float
+    upper: float
+    cells: list[float]
+    arm_weights: list[float]
+    rows: int
+    rows_dropped: int
+    interval: IvBoundsIntervalSection | None
+    posterior: IvBoundsPosteriorSection | None
+
 class TemporalDesignSection:
     design: str
     functional: str
@@ -1013,6 +1044,48 @@ class GraphEdge:
     target_lag: int
     at_source: str
     at_target: str
+
+class StabilityMark:
+    at_source: str
+    at_target: str
+    frequency: float
+
+class StabilityEdge:
+    source: str
+    source_lag: int
+    target: str
+    target_lag: int
+    frequency: float
+    in_reference: bool
+    marks: list[StabilityMark]
+
+class StabilityStructure:
+    frequency: float
+    count: int
+    edges: list[GraphEdge]
+
+class StructureStabilityResult:
+    algorithm_id: str
+    base_algorithm: str
+    structure_class: str
+    variable_names: list[str]
+    replicates_requested: int
+    replicates_succeeded: int
+    replicates_failed: int
+    reference_frequency: float
+    reference_edges: list[GraphEdge]
+    edges: list[StabilityEdge]
+    structures: list[StabilityStructure]
+    @property
+    def route(self) -> Any: ...
+    @property
+    def contract(self) -> dict[str, str]: ...
+    @property
+    def claim(self) -> dict[str, str]: ...
+    def inspect(self) -> dict[str, str]: ...
+    def adjacency_frequency(
+        self, source: str, target: str, *, source_lag: int = 0, target_lag: int = 0
+    ) -> float: ...
 
 class PcmciDiscoveryResult:
     links: list[DiscoveredLink]
@@ -1891,6 +1964,19 @@ class PreparedAnalysis:
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_iv_bounds(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treatment: str,
+        instrument: str,
+        weight: str | None = None,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     def prepare_temporal_design(
         names: list[str],
         columns: Sequence[Any],
@@ -2481,6 +2567,7 @@ class FittedGcm:
         inner_draws: int = 40,
         replicates: int = 4,
         fit_bootstrap: int = 0,
+        posterior_draws: int = 0,
         level: float = 0.95,
         max_sources: int = 64,
         seed: int = 0,
@@ -2699,6 +2786,7 @@ def attribute_intrinsic_influence(
     inner_draws: int = 40,
     replicates: int = 4,
     fit_bootstrap: int = 0,
+    posterior_draws: int = 0,
     level: float = 0.95,
     max_sources: int = 64,
     seed: int = 0,
@@ -2988,10 +3076,6 @@ def prepare_observation_response(
     threads: int | None = None,
     options: dict[str, Any] | None = None,
 ) -> PreparedAnalysis: ...
-def _binary_iv_ate_bounds(cells: list[list[float]]) -> tuple[float, float]:
-    """Sharp Balke–Pearl bounds on E[Y(1)-Y(0)] from a 2×4 observed binary-IV law."""
-    ...
-
 def gaussian_observation_log_likelihood(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -3214,6 +3298,14 @@ def discover_exact_dag_posterior(
     *,
     seed: int = 1,
     threads: int | None = None,
+    equivalence_classes: bool = False,
+) -> GraphPosterior: ...
+def discover_exact_pag_posterior(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
 ) -> GraphPosterior: ...
 def discover_exact_dag_marginals(
     names: list[str],
@@ -3223,6 +3315,30 @@ def discover_exact_dag_marginals(
     seed: int = 1,
     threads: int | None = None,
 ) -> tuple[list[float], float]: ...
+def discover_bootstrap_stability(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    base: str = "pc",
+    replicates: int = 200,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: str | None = None,
+    max_cond_size: int = 2,
+    max_lag: int = 1,
+    screen_pc: bool = False,
+    max_subset: int | None = None,
+    prune_threshold: float = 0.05,
+    l1: float = 0.1,
+    threshold: float = 0.3,
+    standardize: bool = True,
+    missing: str | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    unit_lengths: list[int] | None = None,
+    background_knowledge: str | None = None,
+) -> StructureStabilityResult: ...
 def discover_order_mcmc(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -3235,6 +3351,8 @@ def discover_order_mcmc(
     max_parents: int | None = None,
     seed: int = 1,
     threads: int | None = None,
+    equivalence_classes: bool = False,
+    noise: str = "gaussian",
 ) -> GraphPosterior: ...
 def discover_structure_mcmc(
     names: list[str],
@@ -3247,6 +3365,7 @@ def discover_structure_mcmc(
     max_parents: int | None = None,
     seed: int = 1,
     threads: int | None = None,
+    equivalence_classes: bool = False,
 ) -> GraphPosterior: ...
 def discover_ci_screened_posterior(
     names: list[str],
@@ -3263,6 +3382,7 @@ def discover_ci_screened_posterior(
     thin: int = 1,
     seed: int = 1,
     threads: int | None = None,
+    equivalence_classes: bool = False,
 ) -> GraphPosterior: ...
 def discover_dbn_posterior(
     names: list[str],
@@ -3277,6 +3397,7 @@ def discover_dbn_posterior(
     seed: int = 1,
     threads: int | None = None,
     unit_lengths: list[int] | None = None,
+    equivalence_classes: bool = False,
 ) -> GraphPosterior: ...
 def mediation_effects_summary(
     names: list[str],
@@ -3360,6 +3481,29 @@ def attribute_paths(
     seed: int = 0,
     threads: int | None = None,
 ) -> ChangeAttributionResult: ...
+def compose_horizon_draws(
+    horizons: list[int],
+    columns: Sequence[NDArray[np.float64]],
+    evidence_id: str,
+    alignment_id: str,
+    operation: str,
+    *,
+    coefficients: list[float] | None = None,
+    map: Any = None,
+    seed: int = 0,
+) -> str: ...
+def attribution_uncertainty(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    edges: list[tuple[str, str]],
+    kind: str,
+    params_json: str,
+    *,
+    posterior_draws: int = 0,
+    bootstrap_replicates: int = 0,
+    seed: int = 0,
+    threads: int | None = None,
+) -> str: ...
 def attribute_distribution_change(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -3802,6 +3946,10 @@ class TemporalAdmg:
         bidirected: list[tuple[str, int, str, int]] | None = None,
     ) -> TemporalAdmg: ...
     def node_count(self) -> int: ...
+    def variable_names(self) -> list[str]: ...
+    def edges(
+        self,
+    ) -> tuple[list[tuple[str, int, str, int]], list[tuple[str, int, str, int]]]: ...
 
 class TemporalDag:
     @classmethod

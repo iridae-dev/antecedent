@@ -31,10 +31,10 @@ use super::{
     discovered_transport_api, discovery_api, discretized_composition_api, distribution_api,
     dose_grid_api, effect_constancy_api, effect_constancy_review_api, evidence_ledger_api,
     execution_attempt_api, experiment_api, external_api, factorial_api, forward_source_api,
-    gcm_api, graph_falsification_api, graph_io, graphs, interface_contract_api,
-    interference_saturation_api, inverse_outcome_api, inverse_query_api, joint_law_propagation_api,
-    joint_transport_api, latent_class_api, learned_continuous_api, learned_joint_api,
-    learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
+    gcm_api, graph_falsification_api, graph_io, graphs, horizon_composition_api,
+    interface_contract_api, interference_saturation_api, inverse_outcome_api, inverse_query_api,
+    joint_law_propagation_api, joint_transport_api, latent_class_api, learned_continuous_api,
+    learned_joint_api, learned_trial_api, load_float64_arrow_c_columns, load_float64_columns,
     matched_case_control_api, measured_inference_api, measurement_model_api,
     mechanism_composition_api, mechanism_discrepancy_api, msm_sensitivity_api,
     multi_level_treatment_api, nested_bayesian_api, nested_fisher_api, nonlinear_mediation_api,
@@ -356,6 +356,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     discovery_api::register(m)?;
     temporal_api::register(m)?;
     attribution_api::register(m)?;
+    horizon_composition_api::register(m)?;
     graph_io::register(m)?;
     design_api::register(m)?;
     design_ranking_api::register(m)?;

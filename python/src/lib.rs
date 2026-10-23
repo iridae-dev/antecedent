@@ -89,6 +89,7 @@ mod graph_build;
 mod graph_falsification_api;
 mod graph_io;
 mod graphs;
+mod horizon_composition_api;
 mod identification_details;
 mod inspect_receipt_api;
 mod interference_saturation_api;
@@ -176,6 +177,7 @@ mod source_projection_api;
 mod stability;
 mod staleness_api;
 mod state_api;
+mod structure_stability_api;
 mod study_planning_api;
 mod survival_api;
 mod target_validation_api;
@@ -1424,6 +1426,10 @@ pub(crate) struct AteAnalysisResult {
     /// Sequentially randomized unit-period design or regime survival (unlicensed).
     #[pyo3(get)]
     temporal_design: Option<temporal_design_api::TemporalDesignSection>,
+    /// Sharp bounds on the average effect under a binary instrument (unlicensed): an identified
+    /// set, never a point.
+    #[pyo3(get)]
+    iv_bounds: Option<bounds_api::IvBoundsSection>,
     /// Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic
     /// panel, or optioned local ratio (unlicensed, calibration unmeasured).
     #[pyo3(get)]

@@ -11,7 +11,7 @@
 
 use antecedent_core::{
     AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus, DiscoverQuery,
-    DiscoveryInference, DiscoveryMethod,
+    DiscoveryInference, DiscoveryMethod, InterventionSequence, SimulateQuery, SimulationTarget,
 };
 
 use super::{
@@ -25,9 +25,9 @@ use super::{
     identify_cached_diagnostic, nan_effect, parametric_scm_identification,
 };
 use crate::analysis::structure_route::{
-    AttributionOutcome, AttributionPayload, DiscoverData, DiscoveryPayload, MechanismProgram,
-    SimulationOutcome, SimulationPayload, admit, discovery_quote, model_quote, run_attribute,
-    run_discovery, run_simulate,
+    AttributionFit, AttributionOutcome, AttributionPayload, DiscoverData, DiscoveredStructure,
+    DiscoveryPayload, MechanismProgram, SimulationOutcome, SimulationPayload, admit,
+    discovery_quote, model_quote, run_attribute_with_fit, run_discovery, run_simulate,
 };
 
 /// Identifier a structure search records: it identifies no causal contrast;
@@ -61,11 +61,45 @@ fn restriction(id: &str, description: &str, algorithm: &str) -> AssumptionRecord
 /// The premises a search method's answer is correct under.
 fn search_premises(method: &DiscoveryMethod) -> antecedent_core::AssumptionSet {
     use antecedent_core::Assumption;
+    match method {
+        // A wrapper is correct under what the search it wraps is correct under, and its own
+        // restriction.
+        DiscoveryMethod::ClassPosterior { base } => {
+            let mut set = search_premises(base);
+            set.push(restriction(
+                "discovery.equivalence_class_collapse",
+                "Markov equivalence is the identifiability limit of the Gaussian BIC score: \
+                 DAGs of one class score equally, so the class posterior is the DAG posterior \
+                 summed over each class and adds no assumption beyond the DAG posterior's.",
+                method.id(),
+            ));
+            return set;
+        }
+        DiscoveryMethod::BootstrapStability { base, .. } => {
+            let mut set = search_premises(base);
+            set.push(restriction(
+                "discovery.resampling_design",
+                "The rows were sampled under the declared sampling design, so resamples drawn \
+                 under it reproduce the search's sampling law: independent subjects for a \
+                 table, a stationary dependent series for circular blocks, independent units \
+                 for a panel. The frequencies are a bootstrap distribution of the search, not \
+                 a posterior, and their coverage is not measured.",
+                method.id(),
+            ));
+            return set;
+        }
+        _ => {}
+    }
     let id = method.id();
     let mut set = antecedent_core::AssumptionSet::default();
     set.push(premise(Assumption::CausalMarkov, id));
-    let latent_tolerant =
-        matches!(method, DiscoveryMethod::Fci | DiscoveryMethod::Rfci | DiscoveryMethod::Lpcmci);
+    let latent_tolerant = matches!(
+        method,
+        DiscoveryMethod::Fci
+            | DiscoveryMethod::Rfci
+            | DiscoveryMethod::Lpcmci
+            | DiscoveryMethod::ExactPagPosterior
+    );
     if !latent_tolerant {
         set.push(premise(Assumption::CausalSufficiency, id));
     }
@@ -185,7 +219,12 @@ impl super::Study {
         query: &DiscoverQuery,
     ) -> Result<(), CausalError> {
         query.validate()?;
-        let method = &query.method;
+        // A wrapper runs on the data the search it wraps runs on.
+        let method = match &query.method {
+            DiscoveryMethod::ClassPosterior { base }
+            | DiscoveryMethod::BootstrapStability { base, .. } => &**base,
+            other => other,
+        };
         let admitted = match &self.data {
             DataInput::Tabular(_) => !method.is_temporal(),
             DataInput::Temporal(_) | DataInput::Event(_) => {
@@ -257,7 +296,7 @@ impl super::Study {
             return Err(CausalError::Cancelled { stage: DISCOVER_STAGE });
         }
         let lease = admit(ctx, discovery_quote(query, data.rows()), "structure search")?;
-        let structure = run_discovery(spec, query, data, ctx)?;
+        let structure = run_discovery(spec, query, data, self.sampling_design, ctx)?;
         drop(lease);
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: DISCOVER_STAGE });
@@ -266,18 +305,44 @@ impl super::Study {
             identification_from_cache_or(ctx, self.reuse_static_identification(physical), || {
                 Ok(structure_search_identification(self.query.clone(), query))
             })?;
-        let mut diagnostics = vec![Diagnostic::new(
-            "discovery.review_gate",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "the {} search returned a {}; a downstream study reads it only after its review \
-                 gate (accept_discovered), which records this search's provenance on the \
-                 accepted graph. CPDAG and PAG marks stay class information.",
-                query.method.id(),
-                query.output().as_str()
+        let mut diagnostics = vec![match &structure {
+            DiscoveredStructure::Stability(table) => Diagnostic::new(
+                "discovery.stability_table",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "the stability search tabulated {} of {} resamples ({} failed and are kept \
+                     as failed mass); the frequencies are a bootstrap distribution of the \
+                     search under the declared sampling design, not a posterior, and carry no \
+                     review gate. Their coverage is not measured.",
+                    table.succeeded, table.requested, table.failed
+                ),
             ),
-        )];
+            DiscoveredStructure::RegimeStability(tables) => Diagnostic::new(
+                "discovery.stability_table",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "the stability search tabulated one table for each of {} labelled regime(s), \
+                     re-running regime PCMCI on circular-block resamples that carry their regime \
+                     labels; the frequencies are a bootstrap distribution of the search, not a \
+                     posterior, and carry no review gate. Their coverage is not measured.",
+                    tables.len()
+                ),
+            ),
+            _ => Diagnostic::new(
+                "discovery.review_gate",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "the {} search returned a {}; a downstream study reads it only after its \
+                     review gate (accept_discovered), which records this search's provenance on \
+                     the accepted graph. CPDAG and PAG marks stay class information.",
+                    query.method.id(),
+                    query.output().as_str()
+                ),
+            ),
+        }];
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
@@ -390,6 +455,100 @@ pub(super) fn run_model_query(
     query: &CausalQuery,
     ctx: &ExecutionContext,
 ) -> Result<ModelAnswer, CausalError> {
+    run_model_query_with_fit(program, graph, data, query, None, ModelRun::default(), ctx)
+}
+
+/// How a fitted-model query reads its answer beyond the point: a mechanism-change reading and,
+/// on the lag-aligned unfolding of a `TemporalDag`, the unfolding a rollout steps.
+#[derive(Clone, Copy, Default)]
+pub(super) struct ModelRun<'a> {
+    pub(super) reading: ChangeReading,
+    pub(super) unfolding: Option<&'a super::temporal_attribution::LagAlignedScm>,
+}
+
+/// Roll the dynamics of a fitted lag-aligned model forward.
+///
+/// The unfolded model is one slice: the contemporaneous nodes keep their fitted mechanisms and
+/// every lagged copy `v@L` is assigned the value of `v` read `L` steps back from the rollout's
+/// history, which starts at the last rows of the series. The caller's schedule is applied on top.
+/// Sampling the unfolded graph once would instead treat the lagged copies as exogenous columns.
+///
+/// # Errors
+///
+/// A non-rollout target, a caller-supplied history (the history is the data's last rows), a
+/// series shorter than the history, or a rollout failure.
+pub(super) fn rollout_on_unfolding(
+    fitted: &crate::gcm::FittedGcm,
+    data: &TabularData,
+    aligned: &super::temporal_attribution::LagAlignedScm,
+    simulate: &SimulateQuery,
+    ctx: &ExecutionContext,
+) -> Result<SimulationOutcome, CausalError> {
+    let SimulationTarget::TemporalRollout { schedule, n_rows, n_steps, window, history, seed } =
+        &simulate.target
+    else {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "a simulation on a time series is a temporal rollout of the fitted dynamics"
+        ));
+    };
+    if !history.is_empty() {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "the rollout of a fitted TemporalDag starts from the last rows of the series; omit \
+             the history"
+        ));
+    }
+    let mut steps = aligned.lag_assignments(*n_steps);
+    steps.extend(schedule.steps.iter().cloned());
+    let sequence = InterventionSequence::new(steps);
+    let initial = aligned.initial_history(data, *n_rows)?;
+    let plan = crate::gcm::TemporalPlan {
+        sequence: &sequence,
+        n_steps: *n_steps,
+        n_rows: *n_rows,
+        window: (*window).max(aligned.history()),
+        initial_history: &initial,
+    };
+    let mut rng = antecedent_core::CausalRng::from_seed(*seed);
+    Ok(SimulationOutcome::Temporal(crate::gcm::sample_temporal_policy(
+        &fitted.model,
+        &plan,
+        &mut rng,
+        ctx,
+    )?))
+}
+
+/// How a mechanism-change detection draws its null law and reads its answer.
+///
+/// `block` is the block length of a dependent series (the null law is then a block permutation
+/// of the residuals, not an independent-residual one); `bayesian` reads the answer as the
+/// posterior probability of a change under the prior the query declares.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct ChangeReading {
+    pub(super) block: Option<usize>,
+    pub(super) bayesian: bool,
+}
+
+/// Block permutations a dependent-series mechanism-change test runs.
+const CHANGE_BLOCK_PERMUTATIONS: usize = 499;
+
+/// [`run_model_query`] with the mechanism-fit refits of an intrinsic-influence attribution
+/// set by the study's inference mode (`fit`) instead of by the query.
+///
+/// # Errors
+///
+/// As [`run_model_query`].
+pub(super) fn run_model_query_with_fit(
+    program: &MechanismProgram,
+    graph: &Dag,
+    data: &TabularData,
+    query: &CausalQuery,
+    fit: Option<AttributionFit>,
+    run: ModelRun<'_>,
+    ctx: &ExecutionContext,
+) -> Result<ModelAnswer, CausalError> {
+    let reading = run.reading;
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: MODEL_STAGE });
     }
@@ -405,7 +564,7 @@ pub(super) fn run_model_query(
     match query {
         CausalQuery::Attribute(attribute) => {
             let _lease = admit(ctx, model_quote(rows, nodes, 0), "attribution")?;
-            let outcome = run_attribute(&fitted, graph, data, attribute, ctx)?;
+            let outcome = run_attribute_with_fit(&fitted, graph, data, attribute, fit, ctx)?;
             let value = match &outcome {
                 AttributionOutcome::RootCauses { attribution, .. } => attribution.total_change,
                 AttributionOutcome::Change(change) => change.total_change,
@@ -421,6 +580,23 @@ pub(super) fn run_model_query(
         CausalQuery::Simulate(simulate) => {
             let draws = crate::analysis::structure_route::simulated_rows(&simulate.target, rows);
             let _lease = admit(ctx, model_quote(rows, nodes, draws), "simulation")?;
+            if let Some(aligned) = run.unfolding {
+                let outcome = rollout_on_unfolding(&fitted, data, aligned, simulate, ctx)?;
+                return Ok(ModelAnswer {
+                    slot: GcmSlot::Simulation(Box::new(SimulationPayload { outcome, mechanisms })),
+                    estimate: point(f64::NAN),
+                    diagnostics: vec![
+                        fitted_note,
+                        model_diagnostic(
+                            "gcm.simulation.unfolded_rollout",
+                            "a rollout of the fitted dynamics: the contemporaneous mechanisms of \
+                             the lag-aligned model are stepped forward and every lagged node reads \
+                             the history of the rollout, which starts at the last rows of the \
+                             series",
+                        ),
+                    ],
+                });
+            }
             let outcome = run_simulate(&fitted, data, simulate, ctx)?;
             let (value, note) = match &outcome {
                 SimulationOutcome::PolicyValue(value) => (
@@ -453,13 +629,47 @@ pub(super) fn run_model_query(
         }
         CausalQuery::MechanismChange(detection) => {
             detection.validate()?;
-            let detections = crate::gcm::mechanism_change_detection(
-                &fitted.model,
-                data,
-                detection,
-                antecedent_attribution::MechanismChangeMethod::LikelihoodRatio,
-                ctx,
-            )?;
+            let detections = if reading.bayesian {
+                let prior = detection.change_prior.map(|prior| prior.to_f64()).ok_or_else(|| {
+                    crate::unsupported_reason!(
+                        "option_not_applicable",
+                        "the posterior probability of a mechanism change needs a prior over the \
+                         change indicator, and none is assumed. Next attempt: declare it with \
+                         MechanismChangeQuery::with_change_prior"
+                    )
+                })?;
+                antecedent_attribution::mechanism_change_posterior(
+                    &fitted.model,
+                    data,
+                    detection,
+                    prior,
+                    reading.block.unwrap_or(1),
+                    ctx,
+                )
+                .map_err(CausalError::from)?
+                .into_iter()
+                .map(antecedent_attribution::MechanismChangePosterior::into_detection)
+                .collect()
+            } else if let Some(block) = reading.block {
+                antecedent_attribution::detect_mechanism_changes_block(
+                    &fitted.model,
+                    data,
+                    detection,
+                    antecedent_attribution::MechanismChangeMethod::LikelihoodRatio,
+                    block,
+                    CHANGE_BLOCK_PERMUTATIONS,
+                    ctx,
+                )
+                .map_err(CausalError::from)?
+            } else {
+                crate::gcm::mechanism_change_detection(
+                    &fitted.model,
+                    data,
+                    detection,
+                    antecedent_attribution::MechanismChangeMethod::LikelihoodRatio,
+                    ctx,
+                )?
+            };
             Ok(ModelAnswer {
                 slot: GcmSlot::Mechanism(detections),
                 estimate: nan_effect(),

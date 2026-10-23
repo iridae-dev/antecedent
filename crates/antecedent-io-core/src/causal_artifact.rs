@@ -1005,6 +1005,20 @@ pub(crate) fn validate_query_ids(
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))
         }
+        Q::IvBounds(wire) => {
+            validate_ids(
+                [wire.outcome, wire.treatment, wire.instrument].into_iter().chain(wire.weight),
+                variable_count,
+            )?;
+            antecedent_core::IvBoundsQuery {
+                outcome: antecedent_core::VariableId::from_raw(wire.outcome),
+                treatment: antecedent_core::VariableId::from_raw(wire.treatment),
+                instrument: antecedent_core::VariableId::from_raw(wire.instrument),
+                weight: wire.weight.map(antecedent_core::VariableId::from_raw),
+            }
+            .validate()
+            .map_err(|e| IoError::Convert(e.to_string()))
+        }
         Q::SequentialContrast(wire) => {
             validate_ids(
                 [wire.outcome, wire.first_treatment, wire.second_treatment]

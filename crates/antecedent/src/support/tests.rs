@@ -1185,3 +1185,31 @@ fn temporal_mediation_dbn_posterior_all_suites_are_licensed() {
         }
     }
 }
+
+#[test]
+fn temporal_admg_contrasts_execute_unlicensed_at_validation_none_only() {
+    for query in [
+        "PulseEffect",
+        "SustainedEffect",
+        "TemporalConditionalPulse",
+        "TemporalConditionalSustained",
+    ] {
+        for structure in ["explicit", "accepted"] {
+            for inference in ["Frequentist", "Bayesian"] {
+                let runs = cell(query, "TemporalAdmg", structure, inference, "none");
+                assert_eq!(classify(runs), CellStatus::Refused, "{runs:?}");
+                assert!(super::executes_unlicensed(runs), "{runs:?}");
+                for validation in ["cheap", "full"] {
+                    let refused = cell(query, "TemporalAdmg", structure, inference, validation);
+                    assert!(!super::executes_unlicensed(refused), "{refused:?}");
+                }
+            }
+        }
+        let posterior = cell(query, "TemporalAdmg", "graph_posterior", "Frequentist", "none");
+        assert!(!super::executes_unlicensed(posterior), "{posterior:?}");
+    }
+    let mediation =
+        cell("TemporalMediationEffect", "TemporalAdmg", "explicit", "Frequentist", "none");
+    assert_eq!(classify(mediation), CellStatus::Refused);
+    assert!(!super::executes_unlicensed(mediation));
+}

@@ -309,6 +309,26 @@ impl super::Study {
         // selected non-temporal identifier/estimator rather than silently ignoring it.
         if matches!(&self.query, CausalQuery::TemporalEffect(_)) {
             let class_aware = self.graph.class().is_incomplete_temporal();
+            // A temporal ADMG contrast is identified by the complete ID algorithm on the unrolled
+            // window and evaluated by the functional plug-in; the builder's placeholder
+            // estimator is not a selection.
+            if self.graph.class() == GraphClass::TemporalAdmg {
+                let identifier_ok = self.identifier.is_none_or(|id| id == IdentifierId::GeneralId);
+                let estimator_ok = self
+                    .caller_selected_estimator()
+                    .is_none_or(|est| est == EstimatorId::FunctionalEffect);
+                if !identifier_ok || !estimator_ok {
+                    return Err(crate::compile_reason!(
+                        "strategy_incompatible",
+                        "a contrast on a TemporalAdmg is identified by general.id on its unrolled \
+                         window and evaluated by functional.effect; got identifier {:?} and \
+                         estimator {:?}",
+                        self.identifier,
+                        self.caller_selected_estimator()
+                    ));
+                }
+                return Ok(());
+            }
             if let Some(id) = &self.identifier {
                 let ok = if class_aware {
                     *id == IdentifierId::GeneralizedAdjustment
@@ -579,16 +599,39 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.execute_shared(&std::sync::Arc::new(physical.clone()), ctx)
+        let physical = std::sync::Arc::new(physical.clone());
+        if let Some(data) = self.prepared_tabular_data() {
+            return self.prepare_on(physical, ctx)?.estimate(data, ctx);
+        }
+        self.execute_shared(&physical, None, ctx)
+    }
+
+    /// The rows of a tabular study that executes through its prepared handle: the
+    /// retained operation `Study::prepare` seals runs them, so a compiled plan or a
+    /// one-shot run never dispatches a tabular route without one.
+    fn prepared_tabular_data(&self) -> Option<&TabularData> {
+        match &self.data {
+            DataInput::Tabular(data)
+                if self.graph_posterior.is_none()
+                    && !matches!(self.query, CausalQuery::Discover(_)) =>
+            {
+                Some(data)
+            }
+            _ => None,
+        }
     }
 
     /// [`Self::execute`] for a plan the caller already holds behind an `Arc`.
+    ///
+    /// `execution` is the sealed operation of the prepared handle that runs the plan,
+    /// or `None` outside one; a tabular route needs it.
     pub(crate) fn execute_shared(
         &self,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        execution: Option<&super::super::prepared::PreparedExecution>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.execute_on(&self.data, physical, ctx)
+        self.execute_on(&self.data, physical, execution, ctx)
     }
 
     /// Execute against an explicit data slot (prepare/estimate must not clone `Study`).
@@ -596,6 +639,7 @@ impl super::Study {
         &self,
         data: &DataInput,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        execution: Option<&super::super::prepared::PreparedExecution>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let lowered =
@@ -608,11 +652,16 @@ impl super::Study {
                     tabular,
                     ctx,
                     |table, ctx| {
-                        self.execute_on_inner(&DataInput::Tabular(table.clone()), physical, ctx)
+                        self.execute_on_inner(
+                            &DataInput::Tabular(table.clone()),
+                            physical,
+                            execution,
+                            ctx,
+                        )
                     },
                 )?
             }
-            _ => self.execute_on_inner(data, physical, ctx)?,
+            _ => self.execute_on_inner(data, physical, execution, ctx)?,
         };
         push_gaussian_likelihood_disclosure(&mut result, &self.inference, data);
         push_lag_zero_average_effect_disclosure(self, &mut result);
@@ -690,6 +739,7 @@ impl super::Study {
         &self,
         data: &DataInput,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        execution: Option<&super::super::prepared::PreparedExecution>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
@@ -701,13 +751,15 @@ impl super::Study {
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
                 let DataInput::Tabular(data) = data else { return Err(route_mismatch()) };
-                self.execute_tabular_route(
-                    route,
-                    data,
-                    physical,
-                    &super::super::prepared::PreparedExecution::OrdinaryDispatch,
-                    ctx,
-                )
+                let Some(execution) = execution else {
+                    return Err(CausalError::Compile {
+                        message: "a tabular route executes through the operation its prepared \
+                                  handle retained; call Study::prepare and then \
+                                  PreparedStudy::estimate"
+                            .into(),
+                    });
+                };
+                self.execute_tabular_route(route, data, physical, execution, ctx)
             }
             Some(AnalysisRoute::TemporalCrossWorld) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
@@ -741,6 +793,9 @@ impl super::Study {
                 let CausalQuery::TemporalEffect(q) = &self.query else {
                     return Err(route_mismatch());
                 };
+                if self.graph.class() == GraphClass::TemporalAdmg {
+                    return self.execute_temporal_admg_contrast(data, q, physical, ctx);
+                }
                 if self.graph.class().is_incomplete_temporal() {
                     return self.execute_temporal_class(data, q, physical, ctx);
                 }
@@ -771,9 +826,14 @@ impl super::Study {
             Some(AnalysisRoute::MultiEnvTemporalEffect) => {
                 self.execute_multi_env_effect_route(data, physical, ctx)
             }
-            Some(AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution)
-                if self.graph.class() == GraphClass::TemporalDag =>
-            {
+            Some(
+                AnalysisRoute::Anomaly
+                | AnalysisRoute::ChangeAttribution
+                | AnalysisRoute::Attribute
+                | AnalysisRoute::UnitChange
+                | AnalysisRoute::MechanismChange
+                | AnalysisRoute::Simulate,
+            ) if self.graph.class() == GraphClass::TemporalDag => {
                 let (DataInput::Temporal(series) | DataInput::Event(series)) = data else {
                     return Err(route_mismatch());
                 };
@@ -1013,6 +1073,25 @@ impl super::Study {
                 let graph = self.require_execute_dag(
                     "MechanismChange execute requires a supplied static DAG",
                 )?;
+                // The posterior probability of a change lives on the sealed operation.
+                if self.inference.is_bayesian() {
+                    let cache = if let Some((cache, _)) = self.reuse_static_identification(physical)
+                    {
+                        cache
+                    } else {
+                        super::report_identify_compute(ctx);
+                        std::sync::Arc::new(
+                            self.prepare_static_identification(physical)?.ok_or_else(|| {
+                                CausalError::Compile {
+                                    message: "mechanism change identified no structural product"
+                                        .into(),
+                                }
+                            })?,
+                        )
+                    };
+                    return super::CheckedAttributionOperation::checked(self, physical, &cache)?
+                        .execute(data, ctx);
+                }
                 self.execute_mechanism_change(data, graph, q, physical, ctx)
             }
             AnalysisRoute::UnitChange => {
@@ -1097,6 +1176,7 @@ impl super::Study {
             }
             AnalysisRoute::HistoryMatch => self.execute_history_match(data, physical, ctx),
             AnalysisRoute::TemporalDesign => self.execute_temporal_design(data, physical, ctx),
+            AnalysisRoute::IvBounds => self.execute_iv_bounds(data, physical, ctx),
             AnalysisRoute::SequentialContrast => {
                 self.execute_sequential_contrast(data, physical, ctx)
             }
@@ -1105,6 +1185,32 @@ impl super::Study {
                 let graph = self.require_execute_dag(
                     "Attribute and Simulate execute on a supplied or accepted static DAG",
                 )?;
+                // The posterior over the mechanisms, and the mechanism-refit row bootstrap of a
+                // change target, live on the sealed attribution operation; running it here
+                // keeps the uncertainty independent of the entry.
+                if matches!(route, AnalysisRoute::Attribute | AnalysisRoute::Simulate)
+                    && super::attribute_runs_checked(
+                        &self.query,
+                        &self.inference,
+                        self.bootstrap_replicates,
+                    )
+                {
+                    let cache = if let Some((cache, _)) = self.reuse_static_identification(physical)
+                    {
+                        cache
+                    } else {
+                        super::report_identify_compute(ctx);
+                        std::sync::Arc::new(
+                            self.prepare_static_identification(physical)?.ok_or_else(|| {
+                                CausalError::Compile {
+                                    message: "attribution identified no structural product".into(),
+                                }
+                            })?,
+                        )
+                    };
+                    return super::CheckedAttributionOperation::checked(self, physical, &cache)?
+                        .execute(data, ctx);
+                }
                 self.execute_model_route(data, graph, physical, ctx)
             }
             AnalysisRoute::TemporalMediation
@@ -1564,8 +1670,11 @@ impl super::Study {
         if let Some(result) = self.run_sealed_specialist_transport_and_linear(route, ctx)? {
             return Ok(*result);
         }
+        if let Some(data) = self.prepared_tabular_data() {
+            return self.prepare(ctx)?.estimate(data, ctx);
+        }
         let compiled = std::sync::Arc::new(self.compile(ctx)?);
-        self.execute_shared(&compiled, ctx)
+        self.execute_shared(&compiled, None, ctx)
     }
 
     /// Bayesian basis ATE, robust ATE, and basis CATE one-shot routes that retain a sealed checked operation.
@@ -2560,14 +2669,19 @@ pub(crate) const CHANGE_DIRICHLET_BACKEND: &str =
     "gcm.attribution.shared_population_dirichlet_row_weights";
 /// Posterior backend of the Bayesian GCM counterfactual.
 pub(crate) const COUNTERFACTUAL_DIRICHLET_BACKEND: &str = "gcm.fit.bayesian";
+/// Posterior backend of the Bayesian fitted-model attribution (intrinsic influence, change and
+/// root causes): the posterior over the mechanisms under Dirichlet row weights.
+pub(crate) const ATTRIBUTE_DIRICHLET_BACKEND: &str =
+    "gcm.attribution.attribute_dirichlet_row_weights";
 
 /// Posteriors drawn by Dirichlet row reweighting (a Bayesian bootstrap).
 /// They fit no outcome likelihood, so no Gaussian fit is disclosed for them.
-const BOOTSTRAP_LAW_BACKENDS: [&str; 4] = [
+const BOOTSTRAP_LAW_BACKENDS: [&str; 5] = [
     ROBUST_ATE_BOOTSTRAP_BACKEND,
     ANOMALY_DIRICHLET_BACKEND,
     CHANGE_DIRICHLET_BACKEND,
     COUNTERFACTUAL_DIRICHLET_BACKEND,
+    ATTRIBUTE_DIRICHLET_BACKEND,
 ];
 
 /// Append [`gaussian_likelihood_disclosure`] to `result` once.

@@ -25,7 +25,7 @@
 use std::sync::Arc;
 
 use antecedent_attribution::{
-    AttributionError, ComponentStatus, IntrinsicAllocation, IntrinsicInfluenceQuery,
+    AttributionError, ComponentStatus, FitResampling, IntrinsicAllocation, IntrinsicInfluenceQuery,
     IntrinsicInfluenceResult, NoiseIndependence, UncertaintyComponent, intrinsic_influence,
 };
 use antecedent_core::{
@@ -401,6 +401,59 @@ fn chain_data(n: usize) -> (CompiledCausalModel, TabularData) {
         .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
         .unwrap();
     (compiled.with_mechanisms(store), data)
+}
+
+/// The posterior over the mechanisms: Dirichlet-weighted refits with the families held at the
+/// ones selected on the data. It centres on the same contributions as the row bootstrap, has a
+/// spread of the same order, and returns its refits as draws.
+#[test]
+fn the_posterior_over_the_mechanisms_returns_its_refits_beside_the_bootstrap() {
+    let (m, data) = chain_data(300);
+    let base = IntrinsicInfluenceQuery::new(var(1))
+        .with_simulation(300, 20, 4)
+        .with_fit_bootstrap(20)
+        .with_seed(7);
+    let bootstrap =
+        intrinsic_influence(&m, NoiseIndependence::Declared, Some(&data), &base, &ctx()).unwrap();
+    assert_eq!(bootstrap.method.fit_resampling, FitResampling::RowBootstrap);
+    assert_eq!(bootstrap.fit_draws.len(), 20, "the refits of the bootstrap are returned too");
+    let posterior_query = base.clone().with_fit_resampling(FitResampling::DirichletRowWeights);
+    let posterior =
+        intrinsic_influence(&m, NoiseIndependence::Declared, Some(&data), &posterior_query, &ctx())
+            .unwrap();
+    assert_eq!(posterior.method.fit_resampling, FitResampling::DirichletRowWeights);
+    assert_eq!(posterior.budget.refits, 20);
+    assert_eq!(posterior.fit_draws.len(), 20);
+    assert!(posterior.fit_draws.iter().all(|draw| draw.len() == 2));
+    for i in 0..2 {
+        // The point answer does not depend on the resampling of the refits.
+        assert_eq!(
+            posterior.sources[i].contribution.to_bits(),
+            bootstrap.sources[i].contribution.to_bits()
+        );
+        let mean = posterior.fit_draws.iter().map(|draw| draw[i]).sum::<f64>() / 20.0;
+        let ComponentStatus::Quantified { stderr, df, .. } = &posterior.sources[i].whole_procedure
+        else {
+            panic!("whole procedure not quantified: {:?}", posterior.sources[i].whole_procedure);
+        };
+        assert!(stderr.is_finite() && *stderr > 0.0);
+        assert_eq!(*df, 19.0);
+        assert!(
+            (mean - posterior.sources[i].contribution).abs() <= 6.0 * stderr.max(0.1),
+            "source {i}: posterior mean {mean} against {}",
+            posterior.sources[i].contribution
+        );
+        let ComponentStatus::Quantified { stderr: boot, .. } =
+            &bootstrap.sources[i].whole_procedure
+        else {
+            panic!("bootstrap not quantified");
+        };
+        let ratio = stderr / boot;
+        assert!(
+            (0.25..4.0).contains(&ratio),
+            "source {i}: posterior over bootstrap spread {ratio}"
+        );
+    }
 }
 
 #[test]

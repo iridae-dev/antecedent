@@ -94,6 +94,40 @@ pub fn structure_change(
     options: &StructureChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    structure_change_impl(baseline_model, comparison_model, data, query, options, None, ctx)
+}
+
+/// [`structure_change`] with both populations' mechanisms refit under `refit`, the families of
+/// each hybrid held at the ones selected on the unweighted populations: one replicate of the
+/// row bootstrap (counts) or one draw of the posterior over the mechanisms (row weights).
+///
+/// # Errors
+///
+/// As [`structure_change`], and weights that do not match the resolved populations.
+pub fn structure_change_with_refit(
+    baseline_model: &CompiledCausalModel,
+    comparison_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &StructureChangeOptions,
+    refit: &crate::distribution_change::PopulationRefit<'_>,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    structure_change_impl(baseline_model, comparison_model, data, query, options, Some(refit), ctx)
+}
+
+/// Row weights of a refit: baseline, comparison, and whether they are counts.
+type RefitWeights = (Vec<f64>, Vec<f64>, bool);
+
+fn structure_change_impl(
+    baseline_model: &CompiledCausalModel,
+    comparison_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &StructureChangeOptions,
+    refit: Option<&crate::distribution_change::PopulationRefit<'_>>,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
     query.validate()?;
     require_structure_components(
         query.components,
@@ -102,6 +136,15 @@ pub fn structure_change(
     validate_shared_layout(baseline_model, comparison_model)?;
 
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
+    if let Some(refit) = refit {
+        if refit.baseline().len() != baseline_data.row_count()
+            || refit.comparison().len() != comparison_data.row_count()
+        {
+            return Err(AttributionError::invalid_input(
+                "attribution refit weights must match resolved population sizes",
+            ));
+        }
+    }
     let outcome_dense = resolve_outcome_dense(baseline_model, query.outcome)?;
     // Outcome must resolve in both layouts (already same VariableIds).
     let _ = resolve_outcome_dense(comparison_model, query.outcome)?;
@@ -162,6 +205,7 @@ pub fn structure_change(
         values_buf: Vec::new(),
         baseline_law: None,
         fits: None,
+        refit: refit.map(|r| (r.baseline().to_vec(), r.comparison().to_vec(), r.is_counts())),
         compiled_cache: HashMap::new(),
         hybrid_cache: HashMap::new(),
     };
@@ -349,6 +393,9 @@ struct StructureSwapPayoff<'a> {
     baseline_law: Option<(f64, f64)>,
     /// Memoized mechanism fits (two `assign_and_fit` calls total; see [`StructureFits`]).
     fits: Option<StructureFits>,
+    /// Row weights the two fits are made under, when the fits are one replicate of a
+    /// resampling rather than the point fits.
+    refit: Option<RefitWeights>,
     /// Memoized compiled hybrid graphs keyed by coalition mask.
     ///
     /// Capped so a wide exact allocation cannot retain every hybrid. A miss
@@ -400,6 +447,7 @@ impl CoalitionPayoff for StructureSwapPayoff<'_> {
             values_buf: Vec::new(),
             baseline_law: self.baseline_law,
             fits: self.fits.clone(),
+            refit: self.refit.clone(),
             compiled_cache: self.compiled_cache.clone(),
             hybrid_cache: self.hybrid_cache.clone(),
         }))
@@ -445,16 +493,31 @@ impl StructureSwapPayoff<'_> {
         let full_mask = full_coalition_mask(self.players.len())?;
         let compiled_baseline = self.compiled_for(0)?;
         let compiled_full = self.compiled_for(full_mask)?;
-        let (baseline, _) = MechanismRegistry::standard().assign_and_fit(
+        let (mut baseline, baseline_assignments) = MechanismRegistry::standard().assign_and_fit(
             &compiled_baseline,
             &self.baseline_data,
             SelectionPolicy::BestScore,
         )?;
-        let (comparison, _) = MechanismRegistry::standard().assign_and_fit(
-            &compiled_full,
-            &self.comparison_data,
-            SelectionPolicy::BestScore,
-        )?;
+        let (mut comparison, comparison_assignments) = MechanismRegistry::standard()
+            .assign_and_fit(&compiled_full, &self.comparison_data, SelectionPolicy::BestScore)?;
+        if let Some((baseline_weights, comparison_weights, counts)) = &self.refit {
+            baseline = crate::distribution_change::refit_under_weights(
+                &compiled_baseline,
+                &self.baseline_data,
+                &baseline_assignments,
+                baseline_weights,
+                *counts,
+                self.ctx,
+            )?;
+            comparison = crate::distribution_change::refit_under_weights(
+                &compiled_full,
+                &self.comparison_data,
+                &comparison_assignments,
+                comparison_weights,
+                *counts,
+                self.ctx,
+            )?;
+        }
         self.fits = Some(StructureFits { baseline, comparison });
         Ok(())
     }
@@ -801,6 +864,7 @@ mod tests {
             values_buf: Vec::new(),
             baseline_law: None,
             fits: None,
+            refit: None,
             compiled_cache: HashMap::new(),
             hybrid_cache: HashMap::new(),
         };

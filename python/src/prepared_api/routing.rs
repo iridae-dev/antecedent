@@ -370,6 +370,7 @@ pub(super) fn bind_temporal_class(
     match graph {
         TemporalClassGraph::Cpdag(g) => with_graph(builder, g, accepted, discovery_algorithm),
         TemporalClassGraph::Pag(g) => with_graph(builder, g, accepted, discovery_algorithm),
+        TemporalClassGraph::Admg(g) => with_graph(builder, g, accepted, discovery_algorithm),
     }
 }
 
@@ -438,7 +439,10 @@ pub(super) fn extract_temporal_class(
     } else if let Ok(g) = graph.extract::<graphs::TemporalPag>() {
         require_named_graph_order(&g.names, names, "TemporalPag")?;
         Ok(Some(TemporalClassGraph::Pag(g.pag)))
+    } else if let Ok(g) = graph.extract::<graphs::TemporalAdmg>() {
+        require_named_graph_order(&g.names, names, "TemporalAdmg")?;
+        Ok(Some(TemporalClassGraph::Admg(g.graph)))
     } else {
-        Err(crate::value_err("class_graph requires TemporalCpdag or TemporalPag"))
+        Err(crate::value_err("class_graph requires TemporalCpdag, TemporalPag or TemporalAdmg"))
     }
 }

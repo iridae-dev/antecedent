@@ -521,6 +521,14 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ("caliper".into(), query.caliper.map_or_else(|| "none".into(), |c| c.to_string())),
             ("temporal_coordinates".into(), "history_period".into()),
         ],
+        CausalQueryWire::IvBounds(query) => vec![
+            ("query_kind".into(), "iv_bounds".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("treatment".into(), query.treatment.to_string()),
+            ("instrument".into(), query.instrument.to_string()),
+            ("weight".into(), query.weight.map_or_else(|| "none".into(), |id| id.to_string())),
+            ("temporal_coordinates".into(), "cross_section".into()),
+        ],
         CausalQueryWire::SequentialContrast(query) => vec![
             ("query_kind".into(), "sequential_contrast".into()),
             ("outcome".into(), query.outcome.to_string()),
@@ -2545,6 +2553,11 @@ pub struct InferenceBindingWire {
     /// Discovery / estimation split, when declared.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub split: Option<SplitIdentityWire>,
+    /// The temporal response retains the joint replicates of its surface (frequentist block
+    /// bootstrap counts, or Bayesian block-weight draws), so horizons can be composed from
+    /// realizations coupled across them. Absent when not requested.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub joint_horizons: bool,
 }
 
 /// Overlap policy of a configured estimator.
@@ -3527,6 +3540,7 @@ mod tests {
                 crossfit_folds: 5,
             },
             split: None,
+            joint_horizons: false,
         };
         let plus_zero = inference_binding_digest(&binding).unwrap();
         binding.bayesian.as_mut().unwrap().prior_scale_bits = Some((-0.0f64).to_bits());

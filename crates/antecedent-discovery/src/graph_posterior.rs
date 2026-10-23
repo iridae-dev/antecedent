@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
-use antecedent_graph::{Admg, Cpdag, Dag, Pag};
+use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Pag};
 use antecedent_prob::{
     GraphIdentFlag, HessianFactorization, InferenceDiagnostics, WeightedGraphSamples,
     all_chains_moved, parameter_mcmc_diagnostics,
@@ -509,6 +509,185 @@ impl GraphPosterior {
         g.edge_marginals = Some(Arc::clone(&self.edge_marginals));
         g.orientation_marginals = Some(Arc::clone(&self.orientation_marginals));
         Ok(g)
+    }
+
+    /// The posterior over Markov equivalence classes this DAG posterior induces.
+    ///
+    /// Every DAG atom is replaced by its CPDAG (the essential graph: its skeleton, its
+    /// v-structures and the edges Meek's rules compel) and the posterior mass of the DAGs
+    /// that share a CPDAG is summed, so the class probabilities are exact functions of the
+    /// DAG posterior and a class the DAG posterior favours is not split across its members.
+    /// The atoms keep first-seen order and carry [`GraphPosteriorAtomKind::Cpdag`]: both
+    /// directed bits of an unordered pair mark an undirected edge. The edge marginals are the
+    /// class posterior's bit inclusion, so an undirected edge counts in both directions.
+    ///
+    /// The chain diagnostics of a sampled posterior describe the DAG draws; the Monte-Carlo
+    /// standard errors, split R-hat and bulk ESS of the per-edge DAG indicators do not carry
+    /// over to class bit indicators and are dropped. The Kish count is recomputed on the
+    /// class weights, and a note records the collapse.
+    ///
+    /// # Errors
+    ///
+    /// A posterior whose atoms are not DAGs, a lagged template posterior, or an atom that is
+    /// not acyclic.
+    pub fn to_equivalence_classes(&self) -> Result<Self, DiscoveryError> {
+        if self.atom_kind != GraphPosteriorAtomKind::Dag {
+            return Err(DiscoveryError::unsupported(
+                "only a posterior over DAG atoms collapses to equivalence classes",
+            ));
+        }
+        if self.max_lag.is_some() || self.lag_masks.is_some() {
+            return self.to_temporal_equivalence_classes();
+        }
+        let n = self.n_vars;
+        let mut slot: std::collections::HashMap<AdjacencyMask, usize> =
+            std::collections::HashMap::with_capacity(self.atoms.len());
+        let mut classes: Vec<AdjacencyMask> = Vec::new();
+        let mut mass: Vec<f64> = Vec::new();
+        for (&atom, &weight) in self.atoms.iter().zip(self.weights.iter()) {
+            let dag = crate::adjacency_mask::dag_from_adjacency_mask(atom, n)?;
+            let cpdag = crate::ges::dag_to_cpdag(&dag)?;
+            let class = crate::adjacency_mask::adjacency_mask_from_cpdag(&cpdag)?;
+            let at = *slot.entry(class).or_insert_with(|| {
+                classes.push(class);
+                mass.push(0.0);
+                classes.len() - 1
+            });
+            mass[at] += weight;
+        }
+        let total: f64 = mass.iter().sum();
+        let weights: Vec<f64> = mass.iter().map(|m| m / total).collect();
+        let square: f64 = weights.iter().map(|w| w * w).sum();
+        let ess = if square > 0.0 { 1.0 / square } else { 1.0 };
+        let (edge, orientation) = accumulate_marginals(n, &weights, &classes);
+        let mut diagnostics = self.diagnostics.clone();
+        diagnostics.notes.push(Arc::from(format!(
+            "equivalence_class_collapse dag_atoms={} classes={} effective_class_count={ess:.4}",
+            self.n_graphs,
+            classes.len()
+        )));
+        let collapsed = Self::from_atoms(
+            n,
+            weights,
+            classes,
+            edge,
+            orientation,
+            SamplingSummary { ess, diagnostics, rejected_invalid: self.rejected_invalid },
+        )?
+        .with_atom_kind(GraphPosteriorAtomKind::Cpdag);
+        Ok(match &self.algorithm {
+            Some(algorithm) => collapsed.with_algorithm(format!("class_posterior({algorithm})")),
+            None => collapsed.with_algorithm("class_posterior"),
+        })
+    }
+}
+
+impl GraphPosterior {
+    /// The posterior over temporal equivalence classes a bounded-lag template posterior induces.
+    ///
+    /// Each template is unrolled to a window of the lag-0 variables and their lagged parents.
+    /// Lagged edges are oriented by time, so they start directed; the unshielded colliders of
+    /// the window and Meek's rules R1 to R4 then compel what they can of the contemporaneous
+    /// edges, and the rest stay undirected (both bits). Templates that share a lag mask and a
+    /// contemporaneous class pool their mass. Lagged parents are treated as exogenous roots of
+    /// the window, so a collider between two lagged parents that the full stationary unrolling
+    /// would shield (through the earlier lags) counts as unshielded; the pooled classes are
+    /// those of the one-step window, an approximation the diagnostics note records.
+    fn to_temporal_equivalence_classes(&self) -> Result<Self, DiscoveryError> {
+        let (Some(max_lag), Some(lag_masks)) = (self.max_lag, self.lag_masks.as_ref()) else {
+            return Err(DiscoveryError::unsupported(
+                "a temporal collapse needs the lag masks of the template atoms",
+            ));
+        };
+        let p = self.n_vars;
+        let lags = max_lag as usize;
+        let cell = lags * p * p;
+        if cell > 64 || (lags + 1) * p > 255 {
+            return Err(DiscoveryError::unsupported("the unrolled window is too wide to collapse"));
+        }
+        let mut slot: std::collections::HashMap<(AdjacencyMask, u64), usize> =
+            std::collections::HashMap::with_capacity(self.atoms.len());
+        let mut classes: Vec<AdjacencyMask> = Vec::new();
+        let mut lag_keys: Vec<u64> = Vec::new();
+        let mut mass: Vec<f64> = Vec::new();
+        let node = |index: usize| DenseNodeId::from_raw(crate::indexing::dense_u32(index));
+        for ((&atom, &lag_mask), &weight) in
+            self.atoms.iter().zip(lag_masks.iter()).zip(self.weights.iter())
+        {
+            let mut window = Dag::with_variables(crate::indexing::dense_u32((lags + 1) * p));
+            for i in 0..p {
+                for j in 0..p {
+                    if i != j && crate::adjacency_mask::has_edge(atom, p, i, j) {
+                        window.insert_directed(node(i), node(j))?;
+                    }
+                }
+            }
+            for b in 0..cell {
+                if (lag_mask >> b) & 1 == 1 {
+                    let lag = b / (p * p) + 1;
+                    let from = (b % (p * p)) / p;
+                    let to = b % p;
+                    window.insert_directed(node(lag * p + from), node(to))?;
+                }
+            }
+            let cpdag =
+                crate::ges::dag_to_cpdag_with_known(&window, |from, _| from.as_usize() >= p)?;
+            let mut class = AdjacencyMask::EMPTY;
+            for edge in cpdag.edges() {
+                let (i, j) = (edge.a.as_usize(), edge.b.as_usize());
+                if i >= p || j >= p {
+                    continue;
+                }
+                if edge.is_undirected() {
+                    class = crate::adjacency_mask::set_edge(class, p, i, j, true);
+                    class = crate::adjacency_mask::set_edge(class, p, j, i, true);
+                } else if let Some((from, to)) = edge.parent_child() {
+                    class = crate::adjacency_mask::set_edge(
+                        class,
+                        p,
+                        from.as_usize(),
+                        to.as_usize(),
+                        true,
+                    );
+                }
+            }
+            let at = *slot.entry((class, lag_mask)).or_insert_with(|| {
+                classes.push(class);
+                lag_keys.push(lag_mask);
+                mass.push(0.0);
+                classes.len() - 1
+            });
+            mass[at] += weight;
+        }
+        let total: f64 = mass.iter().sum();
+        let weights: Vec<f64> = mass.iter().map(|m| m / total).collect();
+        let square: f64 = weights.iter().map(|w| w * w).sum();
+        let ess = if square > 0.0 { 1.0 / square } else { 1.0 };
+        let (edge, orientation) = accumulate_marginals(p, &weights, &classes);
+        let mut diagnostics = self.diagnostics.clone();
+        diagnostics.notes.push(Arc::from(format!(
+            "temporal_equivalence_class_collapse template_atoms={} classes={} \
+             one_step_window_lagged_parents_exogenous",
+            self.n_graphs,
+            classes.len()
+        )));
+        let mut collapsed = Self::from_atoms(
+            p,
+            weights,
+            classes,
+            edge,
+            orientation,
+            SamplingSummary { ess, diagnostics, rejected_invalid: self.rejected_invalid },
+        )?
+        .with_atom_kind(GraphPosteriorAtomKind::Cpdag)
+        .with_lag_masks(lag_keys)?;
+        if let Some(lagged) = &self.lagged_edge_marginals {
+            collapsed = collapsed.with_lagged_marginals(max_lag, Arc::clone(lagged))?;
+        }
+        Ok(match &self.algorithm {
+            Some(algorithm) => collapsed.with_algorithm(format!("class_posterior({algorithm})")),
+            None => collapsed.with_algorithm("class_posterior"),
+        })
     }
 }
 
@@ -1456,6 +1635,92 @@ mod tests {
         admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask, has_edge,
         mask_is_dag, pag_from_adjacency_mask, parents_of, set_edge,
     };
+
+    #[test]
+    fn dags_of_one_equivalence_class_pool_their_mass() {
+        let n = 3;
+        let graph = |edges: &[(usize, usize)]| {
+            edges.iter().fold(AdjacencyMask::EMPTY, |mask, &(a, b)| set_edge(mask, n, a, b, true))
+        };
+        // The three orientations of a chain without a collider share one class; the
+        // collider is its own class.
+        let atoms = [
+            graph(&[(0, 1), (1, 2)]),
+            graph(&[(2, 1), (1, 0)]),
+            graph(&[(1, 0), (1, 2)]),
+            graph(&[(0, 1), (2, 1)]),
+        ];
+        let weights = [0.1, 0.2, 0.3, 0.4];
+        let (edge, orientation) = accumulate_marginals(n, &weights, &atoms);
+        let posterior = GraphPosterior::from_atoms(
+            n,
+            weights.to_vec(),
+            atoms,
+            edge,
+            orientation,
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("test"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap();
+        let classes = posterior.to_equivalence_classes().unwrap();
+        assert_eq!(classes.atom_kind, GraphPosteriorAtomKind::Cpdag);
+        assert_eq!(classes.n_graphs, 2);
+        assert!((classes.weights[0] - 0.6).abs() < 1e-12);
+        assert!((classes.weights[1] - 0.4).abs() < 1e-12);
+        // The chain class leaves both edges undirected (both bits); the collider is directed.
+        assert!(has_edge(classes.atoms[0], n, 0, 1) && has_edge(classes.atoms[0], n, 1, 0));
+        assert!(has_edge(classes.atoms[0], n, 1, 2) && has_edge(classes.atoms[0], n, 2, 1));
+        assert!(has_edge(classes.atoms[1], n, 0, 1) && !has_edge(classes.atoms[1], n, 1, 0));
+        assert!(has_edge(classes.atoms[1], n, 2, 1) && !has_edge(classes.atoms[1], n, 1, 2));
+        assert!((classes.ess - 1.0 / (0.6 * 0.6 + 0.4 * 0.4)).abs() < 1e-12);
+        assert_eq!(classes.algorithm.as_deref(), Some("class_posterior"));
+        assert!(classes.edge_mcse.is_none());
+        // Collapsing is not repeated on classes.
+        assert!(classes.to_equivalence_classes().is_err());
+    }
+
+    #[test]
+    fn lagged_parents_compel_the_contemporaneous_edges_they_shield() {
+        let p = 2;
+        let forward = set_edge(AdjacencyMask::EMPTY, p, 0, 1, true);
+        let backward = set_edge(AdjacencyMask::EMPTY, p, 1, 0, true);
+        // Bit 0 is the lag-1 edge from variable 0 to variable 0.
+        let atoms = [forward, backward, forward, backward];
+        let lags = [0_u64, 0, 1, 1];
+        let weights = [0.1, 0.2, 0.3, 0.4];
+        let (edge, orientation) = accumulate_marginals(p, &weights, &atoms);
+        let posterior = GraphPosterior::from_atoms(
+            p,
+            weights.to_vec(),
+            atoms,
+            edge,
+            orientation,
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic("test"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_lagged_marginals(1, vec![0.0; 4])
+        .unwrap()
+        .with_lag_masks(lags.to_vec())
+        .unwrap();
+        let classes = posterior.to_equivalence_classes().unwrap();
+        assert_eq!(classes.atom_kind, GraphPosteriorAtomKind::Cpdag);
+        // Without the lagged parent the two orientations are one undirected class; with it
+        // each is compelled.
+        assert_eq!(classes.n_graphs, 3);
+        assert!((classes.weights[0] - 0.3).abs() < 1e-12);
+        assert!(has_edge(classes.atoms[0], p, 0, 1) && has_edge(classes.atoms[0], p, 1, 0));
+        assert!(has_edge(classes.atoms[1], p, 0, 1) && !has_edge(classes.atoms[1], p, 1, 0));
+        assert!(has_edge(classes.atoms[2], p, 1, 0) && !has_edge(classes.atoms[2], p, 0, 1));
+        assert_eq!(classes.max_lag, Some(1));
+        assert_eq!(classes.lag_masks.as_deref(), Some(&[0_u64, 1, 1][..]));
+    }
 
     #[test]
     fn directed_masks_report_one_inclusion_probability() {

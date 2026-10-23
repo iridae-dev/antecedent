@@ -34,7 +34,7 @@ use crate::temporal_block::common_time_window;
 use crate::util::range;
 
 use self::assumptions::with_pointwise_homoskedastic_ols_assumption;
-use self::bootstrap::{bootstrap_surface, bootstrap_surface_gapped};
+use self::bootstrap::{bayesian_bootstrap_surface, bootstrap_surface, bootstrap_surface_gapped};
 use self::support::{intervention_support, mean_curve_support};
 use self::surface::{
     CellEval, FittedHorizon, FittedSurface, SeProvenance, checked_surface_cells,
@@ -71,7 +71,7 @@ pub use block::{
 pub use bootstrap::circular_block_positions_into;
 pub(crate) use plan::plan_temporal_intervention;
 pub use plan::{TemporalInterventionPlan, plan_from_response_query};
-pub use surface::PreparedTemporalSurface;
+pub use surface::{JOINT_HORIZON_LAYOUT, JOINT_HORIZON_REPLICATES, PreparedTemporalSurface};
 
 /// Temporal response estimator: dose × horizon surfaces and temporal intervention responses.
 #[derive(Clone, Debug)]
@@ -86,6 +86,14 @@ pub struct TemporalResponseEstimator {
     /// the untempered full-likelihood posterior; without it, or at any other horizon, the
     /// Bayesian curve is the long-run-tempered generalized posterior.
     pub white_innovation: Option<crate::white_innovation_posterior::InnovationWhitenessGate>,
+    /// Draw the surface replicates as Dirichlet block-weight draws (the posterior over the
+    /// surface) instead of circular-block bootstrap counts; the band then reads as credible.
+    /// Needs bootstrap replicates and a series without gaps.
+    pub block_weight_posterior: bool,
+    /// Publish the joint replicates behind the band as the [`JOINT_HORIZON_REPLICATES`] and
+    /// [`JOINT_HORIZON_LAYOUT`] support diagnostics, so a consumer can compose horizons from
+    /// realizations coupled across them.
+    pub retain_joint_replicates: bool,
 }
 
 /// A temporal query's per-horizon identification and the aggregate identification status
@@ -125,7 +133,13 @@ impl TemporalResponseEstimator {
         let mut inner = LinearAdjustmentAte::new();
         inner.bootstrap_replicates = 0;
         inner.overlap = OverlapPolicy::ExplicitOverride;
-        Self { inner, allow_gaps: false, white_innovation: None }
+        Self {
+            inner,
+            allow_gaps: false,
+            white_innovation: None,
+            block_weight_posterior: false,
+            retain_joint_replicates: false,
+        }
     }
 
     /// Declare serially independent outcome innovations, refutable by `gate`, so a one-step
@@ -413,7 +427,10 @@ impl TemporalResponseEstimator {
         let scores = if replicates > 0 && !gapped { horizon_scores(&horizons) } else { Vec::new() };
         let score_refs: Vec<&[f64]> = scores.iter().map(Vec::as_slice).collect();
         let block = ResponseBlockLength::new(span, window, &score_refs);
-        let bootstrap = if gapped {
+        let weighted = self.block_weight_posterior && !gapped;
+        let bootstrap = if weighted {
+            bayesian_bootstrap_surface(&horizons, &rows, block.length, replicates, ctx)
+        } else if gapped {
             bootstrap_surface_gapped(
                 &horizons,
                 &gapped_horizon_rows(&horizons, &rows),
@@ -428,7 +445,16 @@ impl TemporalResponseEstimator {
             fell_back: replicates > 0 && bootstrap.is_none(),
             cancelled: bootstrap.as_ref().is_some_and(|b| b.cancelled),
         };
-        Ok(FittedSurface { horizons, ranges, identification, bootstrap, se_provenance, block })
+        Ok(FittedSurface {
+            horizons,
+            ranges,
+            identification,
+            bootstrap,
+            se_provenance,
+            block,
+            weighted,
+            retain_joint: self.retain_joint_replicates,
+        })
     }
 
     fn fit_horizon(
@@ -544,6 +570,21 @@ impl TemporalResponseEstimator {
             ));
         }
         Ok(PreparedTemporalSurface { horizons, cells, series_rows: data.row_count() })
+    }
+
+    /// Draw the surface replicates as Dirichlet block-weight draws (see
+    /// [`Self::block_weight_posterior`]).
+    #[must_use]
+    pub const fn with_block_weight_posterior(mut self, on: bool) -> Self {
+        self.block_weight_posterior = on;
+        self
+    }
+
+    /// Publish the joint replicates behind the band (see [`Self::retain_joint_replicates`]).
+    #[must_use]
+    pub const fn with_joint_replicates(mut self, on: bool) -> Self {
+        self.retain_joint_replicates = on;
+        self
     }
 
     /// Copy the `Study` bootstrap / replicate count onto the shared OLS machinery.

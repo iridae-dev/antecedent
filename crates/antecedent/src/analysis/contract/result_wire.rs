@@ -535,3 +535,49 @@ impl From<&crate::TemporalDesignEstimate>
         }
     }
 }
+
+/// The artifact section of a compiled instrumental-variable bounds estimate.
+pub(crate) fn iv_bounds_wire(
+    fit: &antecedent_estimate::IvBoundsEstimate,
+) -> antecedent_io::analysis_result_artifact::IvBoundsWire {
+    {
+        use antecedent_io::analysis_result_artifact::{
+            IV_BOUNDS_POINT_UNCERTAINTY, IvBoundsIntervalWire, IvBoundsPosteriorWire,
+        };
+        let interval = fit.interval.map(|interval| IvBoundsIntervalWire {
+            level: interval.level,
+            lower: interval.lower,
+            upper: interval.upper,
+            lower_se: interval.lower_se,
+            upper_se: interval.upper_se,
+            critical_value: interval.critical_value,
+            width_retained: interval.width_retained,
+            replicates: interval.replicates as u64,
+            infeasible: interval.infeasible as u64,
+            method: interval.method.as_str().to_owned(),
+        });
+        let uncertainty = interval
+            .as_ref()
+            .map_or_else(|| IV_BOUNDS_POINT_UNCERTAINTY.to_owned(), |i| i.method.clone());
+        antecedent_io::analysis_result_artifact::IvBoundsWire {
+            lower: fit.lower,
+            upper: fit.upper,
+            cells: fit.law.cells.iter().flatten().copied().collect(),
+            arm_weights: fit.arm_weights.to_vec(),
+            rows: fit.rows as u64,
+            rows_dropped: fit.rows_dropped as u64,
+            interval,
+            posterior: fit.posterior.map(|posterior| IvBoundsPosteriorWire {
+                n_draws: posterior.n_draws as u64,
+                infeasible_draws: posterior.infeasible_draws as u64,
+                lower_mean: posterior.lower_mean,
+                upper_mean: posterior.upper_mean,
+                lower_sd: posterior.lower_sd,
+                upper_sd: posterior.upper_sd,
+            }),
+            uncertainty,
+            calibration: "unmeasured".to_owned(),
+            licensed: false,
+        }
+    }
+}

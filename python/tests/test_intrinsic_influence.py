@@ -90,6 +90,34 @@ def test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero():
         assert source.whole_procedure.status == "unquantified"
 
 
+def test_the_posterior_over_the_mechanisms_covers_the_closed_form_shares():
+    result = intrinsic_influence(
+        _data(),
+        EDGES,
+        "z",
+        independent_noise=True,
+        outer_draws=200,
+        inner_draws=20,
+        posterior_draws=20,
+        seed=3,
+    )
+    posterior = result.posterior
+    assert posterior is not None and posterior.draws == 20
+    assert result.method["fit_resampling"] == "dirichlet_row_weights"
+    assert result.budget["refits"] == 20
+    for name, truth in TRUTH.items():
+        share = posterior.source(name)
+        assert share.sd > 0.0
+        assert share.ci_low <= share.mean <= share.ci_high
+        assert abs(share.mean - truth) <= 6 * max(share.sd, 0.05 * truth)
+
+
+def test_a_frequentist_run_carries_no_posterior():
+    result = intrinsic_influence(_data(), EDGES, "z", independent_noise=True)
+    assert result.posterior is None
+    assert result.method["fit_resampling"] == "row_bootstrap"
+
+
 def test_same_seed_reproduces_and_a_different_seed_does_not():
     kwargs = {"independent_noise": True, "outer_draws": 100, "inner_draws": 10}
     a = intrinsic_influence(_data(), EDGES, "z", seed=2, **kwargs)

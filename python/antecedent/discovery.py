@@ -25,7 +25,11 @@ from ._native import (
     GraphPosterior,
     PcmciDiscoveryResult,
     RpcmciDiscoverySummary,
+    StructureStabilityResult,
     two_regime_half_split,
+)
+from ._native import (
+    discover_bootstrap_stability as _discover_bootstrap_stability,
 )
 from ._native import (
     discover_ci_screened_posterior as _discover_ci_screened_posterior,
@@ -38,6 +42,9 @@ from ._native import (
 )
 from ._native import (
     discover_exact_dag_posterior as _discover_exact_dag_posterior,
+)
+from ._native import (
+    discover_exact_pag_posterior as _discover_exact_pag_posterior,
 )
 from ._native import (
     discover_fci as _discover_fci,
@@ -1089,11 +1096,45 @@ class ExactDagPosterior:
 
 
 @dataclass(frozen=True)
+class ExactPagPosterior:
+    """Exact posterior over PAG classes of Gaussian maximal ancestral graphs (at most 4 variables).
+
+    The Bayesian counterpart of :class:`FCI` and :class:`RFCI`: every maximal ancestral graph is
+    enumerated, fitted by residual iterative conditional fitting and scored by BIC, and graphs
+    with the same m-separation statements (Markov equivalent) are merged into their PAG. The
+    result is a :class:`GraphPosterior` whose ``atom_kind`` is ``"Pag"`` and whose
+    ``mark_masks`` flag the circle endpoints. Latent confounding is allowed; selection variables
+    are not modelled. The weights are ``exp(BIC)`` under a uniform prior over the graphs, the BIC
+    approximation to the marginal likelihood. More than four variables are refused (the
+    candidate space is enumerated, not sampled).
+    """
+
+    kind: Literal["exact_pag_posterior"] = "exact_pag_posterior"
+
+    algorithm_id: ClassVar[str] = "exact_pag_posterior"
+
+    def _wire(self) -> dict[str, Any]:
+        return {"algorithm": "exact_pag_posterior"}
+
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+        names, cols = coerce_data(data)
+        return _discover_exact_pag_posterior(names, cols, seed=seed, threads=threads)
+
+
+@dataclass(frozen=True)
 class OrderMcmc:
     """Order-MCMC graph posterior over up to 16 variables.
 
     ``max_parents`` caps the parents of any node (``None``: no cap). Each step costs a
     ``2**n``-state dynamic program, so the run time doubles with every variable.
+
+    ``noise="gaussian"`` scores parent sets by the Gaussian BIC, which cannot tell the DAGs of a
+    Markov equivalence class apart. ``noise="laplace"`` scores them under independent Laplace
+    noise (least-absolute-deviations fits, a heavy-tailed non-Gaussian family), so the posterior
+    can orient an edge the Gaussian posterior leaves undirected, as LiNGAM does when the noise
+    is truly non-Gaussian; it is a pseudo-posterior under that declared noise family and is
+    misspecified under other non-Gaussian noise. It is the Bayesian counterpart of LiNGAM and
+    NOTEARS orientation.
     """
 
     n_chains: int = 4
@@ -1102,6 +1143,7 @@ class OrderMcmc:
     thin: int = 1
     require_diagnostics_gate: bool = True
     max_parents: int | None = None
+    noise: Literal["gaussian", "laplace"] = "gaussian"
     kind: Literal["order_mcmc"] = "order_mcmc"
 
     algorithm_id: ClassVar[str] = "order_mcmc"
@@ -1115,6 +1157,7 @@ class OrderMcmc:
             "thin": self.thin,
             "require_diagnostics_gate": self.require_diagnostics_gate,
             **({} if self.max_parents is None else {"max_parents": self.max_parents}),
+            **({} if self.noise == "gaussian" else {"noise": self.noise}),
         }
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
@@ -1122,6 +1165,7 @@ class OrderMcmc:
         return _discover_order_mcmc(
             names,
             cols,
+            noise=self.noise,
             n_chains=self.n_chains,
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
@@ -1275,6 +1319,243 @@ class DbnPosterior:
         )
 
 
+@dataclass(frozen=True)
+class EquivalenceClassPosterior:
+    """Posterior over Markov equivalence classes (CPDAGs) of a DAG posterior.
+
+    The wrapped search runs unchanged. Every DAG it lists is replaced by its CPDAG and the
+    posterior mass of the DAGs that share a CPDAG is summed, so the answer is a
+    :class:`GraphPosterior` whose ``atom_kind`` is ``"Cpdag"``: both directed bits of an
+    unordered pair mark an undirected edge, and ``edge_marginals`` count an undirected edge in
+    both directions. The class probabilities are exact functions of the DAG posterior. The
+    per-edge Monte-Carlo errors of a sampled DAG posterior do not carry over to class bits and
+    are dropped; the chain diagnostics of the DAG draws stay on ``converged``.
+
+    ``base`` is an :class:`ExactDagPosterior` (at most six variables), :class:`OrderMcmc`,
+    :class:`StructureMcmc`, :class:`CiScreenedPosterior` or the temporal :class:`DbnPosterior`.
+    A template's class is that of its one-step window: lagged edges are oriented by time and
+    compel what colliders and Meek's rules compel of the contemporaneous edges; lagged parents
+    are treated as exogenous roots of the window. The exact marginals route lists no graphs and
+    is refused.
+    """
+
+    base: ExactDagPosterior | OrderMcmc | StructureMcmc | CiScreenedPosterior | DbnPosterior
+    kind: Literal["class_posterior"] = "class_posterior"
+
+    algorithm_id: ClassVar[str] = "class_posterior"
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.base,
+            (ExactDagPosterior, OrderMcmc, StructureMcmc, CiScreenedPosterior, DbnPosterior),
+        ):
+            raise CausalUnsupportedError(
+                "a class posterior collapses the graphs of ExactDagPosterior, OrderMcmc, "
+                "StructureMcmc, CiScreenedPosterior or DbnPosterior; the exact edge marginals "
+                "list no graphs. Next attempt: pass one of those as base",
+                reason_code="option_not_applicable",
+            )
+
+    def _wire(self) -> dict[str, Any]:
+        return {"algorithm": "class_posterior", "base": self.base._wire()}
+
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+        base = self.base
+        if isinstance(base, DbnPosterior):
+            names, cols, unit_lengths = coerce_temporal_data(data)
+            return _discover_dbn_posterior(
+                names,
+                cols,
+                unit_lengths=unit_lengths,
+                max_lag=base.max_lag,
+                force_mcmc=base.force_mcmc,
+                n_chains=base.n_chains,
+                n_warmup=base.n_warmup,
+                n_draws=base.n_draws,
+                seed=seed,
+                threads=threads,
+                equivalence_classes=True,
+            )
+        names, cols = coerce_data(data)
+        if isinstance(base, ExactDagPosterior):
+            if len(names) > EXACT_ENUMERATION_MAX_VARIABLES:
+                raise CausalUnsupportedError(
+                    f"the exact posterior lists its graphs for at most "
+                    f"{EXACT_ENUMERATION_MAX_VARIABLES} variables; {len(names)} were given. "
+                    "Next attempt: use OrderMcmc or StructureMcmc as base",
+                    reason_code="option_not_applicable",
+                )
+            return _discover_exact_dag_posterior(
+                names, cols, seed=seed, threads=threads, equivalence_classes=True
+            )
+        if isinstance(base, OrderMcmc):
+            return _discover_order_mcmc(
+                names,
+                cols,
+                n_chains=base.n_chains,
+                n_warmup=base.n_warmup,
+                n_draws=base.n_draws,
+                thin=base.thin,
+                require_diagnostics_gate=base.require_diagnostics_gate,
+                **({} if base.max_parents is None else {"max_parents": base.max_parents}),
+                seed=seed,
+                threads=threads,
+                equivalence_classes=True,
+                noise=base.noise,
+            )
+        if isinstance(base, StructureMcmc):
+            return _discover_structure_mcmc(
+                names,
+                cols,
+                n_chains=base.n_chains,
+                n_warmup=base.n_warmup,
+                n_draws=base.n_draws,
+                thin=base.thin,
+                **({} if base.max_parents is None else {"max_parents": base.max_parents}),
+                seed=seed,
+                threads=threads,
+                equivalence_classes=True,
+            )
+        return _discover_ci_screened_posterior(
+            names,
+            cols,
+            alpha=base.alpha,
+            fdr=base.fdr,
+            ci=base.ci,
+            max_cond_size=base.max_cond_size,
+            soft_weight=base.soft_weight,
+            n_chains=base.n_chains,
+            n_warmup=base.n_warmup,
+            n_draws=base.n_draws,
+            thin=base.thin,
+            seed=seed,
+            threads=threads,
+            equivalence_classes=True,
+        )
+
+
+@dataclass(frozen=True)
+class BootstrapStability:
+    """Sampling distribution of a frequentist structure search over resamples.
+
+    The wrapped search is re-run on ``replicates`` resamples drawn under the data's sampling
+    design (independent rows for a table, circular blocks for a series, whole units for a
+    panel) and the result tabulates how often every node pair was adjacent
+    (``result.edges``), carried every pair of endpoint marks, and how often the search
+    returned every whole structure (``result.structures``). A resample on which the search
+    fails is counted in ``replicates_failed`` and never redrawn; fewer than half succeeding
+    is refused.
+
+    The frequencies are a bootstrap distribution of the search, not a posterior. The
+    structure the search returns on the full sample is ``result.reference_edges``. The
+    conditional-independence test must be a named test, and a table with a missing searched
+    value is refused (drop the rows first).
+
+    ``base`` is :class:`PC`, :class:`FCI`, :class:`RFCI`, :class:`GES`, :class:`LiNGAM`,
+    :class:`NOTEARS`, :class:`PCMCI` or :class:`PCMCIPlus`.
+    """
+
+    base: PC | FCI | RFCI | GES | LiNGAM | NOTEARS | PCMCI | PCMCIPlus | LPCMCI
+    replicates: int = 200
+    kind: Literal["bootstrap_stability"] = "bootstrap_stability"
+
+    algorithm_id: ClassVar[str] = "bootstrap_stability"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.base, (PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, PCMCIPlus, LPCMCI)
+        ):
+            raise CausalUnsupportedError(
+                "a stability search re-runs PC, FCI, RFCI, GES, LiNGAM, NOTEARS, PCMCI, "
+                "PCMCIPlus or LPCMCI; a posterior has its own sampling error, and the "
+                "multi-environment and regime searches take their own inputs. Next attempt: "
+                "pass one of the supported searches as base",
+                reason_code="option_not_applicable",
+            )
+        if isinstance(self.replicates, bool) or not (
+            isinstance(self.replicates, int) and 2 <= self.replicates <= 10_000
+        ):
+            raise CausalValueError(
+                f"replicates must be an integer in [2, 10000]; got {self.replicates!r}",
+                reason_code="invalid_argument",
+            )
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "bootstrap_stability",
+            "base": self.base._wire(),
+            "replicates": self.replicates,
+        }
+
+    def run(
+        self, data: Any, *, seed: int = 1, threads: int | None = None
+    ) -> StructureStabilityResult:
+        base = self.base
+        ci = getattr(base, "ci", "parcorr")
+        if not isinstance(ci, str):
+            raise CausalUnsupportedError(
+                "a stability search takes a named conditional-independence test; a callable is "
+                "re-entered once per resample. Next attempt: pass the test by name",
+                reason_code="option_not_applicable",
+            )
+        common: dict[str, Any] = {"replicates": self.replicates, "seed": seed, "threads": threads}
+        if isinstance(base, (PCMCI, PCMCIPlus, LPCMCI)):
+            names, cols, unit_lengths = coerce_temporal_data(data)
+            with _named_positions(names):
+                return _discover_bootstrap_stability(
+                    names,
+                    cols,
+                    base="lpcmci"
+                    if isinstance(base, LPCMCI)
+                    else ("pcmci" if isinstance(base, PCMCI) else "pcmci_plus"),
+                    alpha=base.alpha,
+                    fdr=base.fdr,
+                    ci=ci,
+                    max_cond_size=base.max_cond_size,
+                    max_lag=base.max_lag,
+                    unit_lengths=unit_lengths,
+                    **({} if isinstance(base, LPCMCI) else _knowledge_kwargs(base.knowledge, names)),
+                    **common,
+                )
+        names, cols = coerce_data(data)
+        if isinstance(base, LiNGAM):
+            return _discover_bootstrap_stability(
+                names,
+                cols,
+                base="direct_lingam",
+                prune_threshold=base.prune_threshold,
+                max_cond_size=base.max_cond_size,
+                **common,
+            )
+        if isinstance(base, NOTEARS):
+            return _discover_bootstrap_stability(
+                names,
+                cols,
+                base="notears",
+                l1=base.l1,
+                threshold=base.threshold,
+                standardize=base.standardize,
+                max_cond_size=base.max_cond_size,
+                missing=base.missing,
+                **common,
+            )
+        extra: dict[str, Any] = {}
+        if isinstance(base, GES):
+            extra = {"screen_pc": base.screen_pc, "max_subset": base.max_subset}
+        with _named_positions(names):
+            return _discover_bootstrap_stability(
+                names,
+                cols,
+                base=base.kind,
+                alpha=base.alpha,
+                fdr=base.fdr,
+                ci=ci,
+                max_cond_size=base.max_cond_size,
+                **extra,
+                **_knowledge_kwargs(base.knowledge, names),
+                **common,
+            )
+
+
 # Alias: DiscoveryResult is the preferred name; PcmciDiscoveryResult kept for compat.
 DiscoveryResult = PcmciDiscoveryResult
 
@@ -1399,12 +1680,15 @@ def graph_posterior_map_dag(post: GraphPosterior) -> Dag:
 
 __all__ = [
     "BackgroundKnowledge",
+    "BootstrapStability",
     "CiScreenedPosterior",
     "DbnPosterior",
     "DiscoveredLink",
     "DiscoveryResult",
+    "EquivalenceClassPosterior",
     "ExactDagMarginals",
     "ExactDagPosterior",
+    "ExactPagPosterior",
     "FCI",
     "GES",
     "GraphEdge",
@@ -1423,6 +1707,7 @@ __all__ = [
     "RPCMCI",
     "RpcmciDiscoverySummary",
     "StructureMcmc",
+    "StructureStabilityResult",
     "cpdag_oriented_edges",
     "discovery_algorithm",
     "discovery_to_dag",

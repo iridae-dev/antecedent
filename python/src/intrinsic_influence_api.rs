@@ -11,7 +11,9 @@ use std::sync::Arc;
 use antecedent::gcm::{
     ComponentStatus, IntrinsicInfluenceResult, ShapleyMethod, UncertaintyComponent,
 };
-use antecedent::{AttributionOutcome, MechanismProgram};
+use antecedent::{
+    AttributionOutcome, BayesianConfig, CausalPosterior, InferenceMode, MechanismProgram,
+};
 use antecedent_core::{
     AttributeTarget, ComponentId, InfluenceAllocation, IntrinsicInfluenceTarget, NoiseDeclaration,
     VariableId,
@@ -55,7 +57,11 @@ fn component_name(component: UncertaintyComponent) -> &'static str {
     }
 }
 
-fn result_json(result: &IntrinsicInfluenceResult, names: &[String]) -> String {
+fn result_json(
+    result: &IntrinsicInfluenceResult,
+    names: &[String],
+    posterior: Option<&CausalPosterior>,
+) -> String {
     let sources: Vec<serde_json::Value> = result
         .sources
         .iter()
@@ -86,7 +92,26 @@ fn result_json(result: &IntrinsicInfluenceResult, names: &[String]) -> String {
         }),
         _ => serde_json::json!({ "kind": "unrecognized" }),
     };
+    let posterior = posterior.map(|posterior| {
+        let summary = &posterior.summaries;
+        let columns: Vec<serde_json::Value> = result
+            .sources
+            .iter()
+            .enumerate()
+            .map(|(index, s)| {
+                serde_json::json!({
+                    "source": source_name(names, s.source),
+                    "mean": summary.mean.get(index),
+                    "sd": summary.sd.get(index),
+                    "ci_low": summary.q025.get(index),
+                    "ci_high": summary.q975.get(index),
+                })
+            })
+            .collect();
+        serde_json::json!({ "draws": summary.n_draws, "level": 0.95, "sources": columns })
+    });
     serde_json::json!({
+        "posterior": posterior,
         "target": names.get(result.target.as_usize()).cloned()
             .unwrap_or_else(|| format!("V{}", result.target.raw())),
         "sources": sources,
@@ -103,6 +128,7 @@ fn result_json(result: &IntrinsicInfluenceResult, names: &[String]) -> String {
             "inner_draws": result.method.inner_draws,
             "replicates": result.method.replicates,
             "fit_bootstrap_replicates": result.method.fit_bootstrap_replicates,
+            "fit_resampling": result.method.fit_resampling.as_str(),
         },
         "budget": {
             "coalition_evaluations": result.budget.coalition_evaluations,
@@ -124,6 +150,8 @@ pub(crate) struct IntrinsicOptions {
     pub(crate) inner_draws: usize,
     pub(crate) replicates: usize,
     pub(crate) fit_bootstrap: u32,
+    /// Posterior draws over the mechanisms; `0` is the Frequentist answer.
+    pub(crate) posterior_draws: usize,
     pub(crate) level: f64,
     pub(crate) max_sources: usize,
     pub(crate) seed: u64,
@@ -183,11 +211,18 @@ pub(crate) fn attribute(
     };
     let mut ctx = py_execution_context(options.seed, crate::resolve_user_threads(options.threads));
     crate::apply_cancel(&mut ctx, options.cancel);
-    let (outcome, route) = source.attribute(AttributeTarget::IntrinsicInfluence(query), &ctx)?;
+    let inference = if options.posterior_draws > 0 {
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(options.posterior_draws))
+    } else {
+        InferenceMode::Frequentist
+    };
+    let (outcome, route) =
+        source.attribute_under(AttributeTarget::IntrinsicInfluence(query), inference, &ctx)?;
     let AttributionOutcome::IntrinsicInfluence(result) = outcome else {
         return Err(outcome_mismatch());
     };
-    Ok((result_json(&result, names), route))
+    let posterior = route.execution.result().posterior.as_ref();
+    Ok((result_json(&result, names, posterior), route))
 }
 
 /// Intrinsic causal influence of the noise terms upstream of `target` on its variance.
@@ -197,7 +232,7 @@ pub(crate) fn attribute(
 #[pyfunction]
 #[pyo3(
     name = "attribute_intrinsic_influence",
-    signature = (names, columns, edges, target, *, independent_noise=false, bidirected_edges=None, allocation="auto", n_permutations=200, outer_draws=200, inner_draws=40, replicates=4, fit_bootstrap=0, level=0.95, max_sources=64, seed=0, threads=None, cancel=None)
+    signature = (names, columns, edges, target, *, independent_noise=false, bidirected_edges=None, allocation="auto", n_permutations=200, outer_draws=200, inner_draws=40, replicates=4, fit_bootstrap=0, posterior_draws=0, level=0.95, max_sources=64, seed=0, threads=None, cancel=None)
 )]
 fn attribute_intrinsic_influence_py(
     py: Python<'_>,
@@ -213,6 +248,7 @@ fn attribute_intrinsic_influence_py(
     inner_draws: usize,
     replicates: usize,
     fit_bootstrap: u32,
+    posterior_draws: usize,
     level: f64,
     max_sources: usize,
     seed: u64,
@@ -236,6 +272,7 @@ fn attribute_intrinsic_influence_py(
             inner_draws,
             replicates,
             fit_bootstrap,
+            posterior_draws,
             level,
             max_sources,
             seed,

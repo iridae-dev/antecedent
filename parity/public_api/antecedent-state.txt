@@ -934,6 +934,7 @@ pub use antecedent_state::suff_stats::MERGE_REL_TOL = antecedent_state::MERGE_RE
 pub use antecedent_state::suff_stats::StreamingCovariance = antecedent_state::StreamingCovariance
 pub use antecedent_state::suff_stats::merge_within_tolerance = antecedent_state::merge_within_tolerance
 pub variant antecedent_state::GraphScoreFamily::GaussianBic
+pub variant antecedent_state::GraphScoreFamily::LaplaceBic
 pub variant antecedent_state::InvalidationTarget::AllResults
 pub variant antecedent_state::InvalidationTarget::GraphScores
 pub variant antecedent_state::InvalidationTarget::LagIndexes

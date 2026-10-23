@@ -1311,6 +1311,7 @@ impl StudyResult {
             || self.history_match().is_some()
             || self.quasi_rollout().is_some()
             || self.temporal_design().is_some()
+            || self.iv_bounds().is_some()
         {
             // These non-effect result families report no calibrated scalar
             // effect interval. Their uncertainty semantics live in their
@@ -1989,6 +1990,7 @@ fn inference_binding_wire(study: &Study, inference: String) -> InferenceBindingW
             &study.observation_options,
         ),
         split: study.split.as_ref().map(super::contract_identity::split),
+        joint_horizons: study.retain_joint_horizons,
     }
 }
 
@@ -2561,6 +2563,7 @@ const fn compiled_off_axis_kind(query: &CausalQuery) -> Option<&'static str> {
         CausalQuery::Attribute(_) => Some("Attribute"),
         CausalQuery::Simulate(_) => Some("Simulate"),
         CausalQuery::TemporalDesign(_) => Some("TemporalDesign"),
+        CausalQuery::IvBounds(_) => Some("IvBounds"),
         _ => None,
     }
 }
@@ -2865,6 +2868,7 @@ fn functional_label(query: &CausalQuery) -> String {
         CausalQuery::Attribute(q) => format!("attribute.{}", q.target.as_str()),
         CausalQuery::Simulate(q) => format!("simulate.{}", q.target.as_str()),
         CausalQuery::TemporalDesign(q) => format!("temporal_design.{}", q.design_name()),
+        CausalQuery::IvBounds(_) => "iv_bounds.binary_instrument".into(),
         _ => String::new(),
     }
 }
@@ -3537,6 +3541,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         history_match: result.history_match().map(Into::into),
         quasi_rollout: result.quasi_rollout().map(Into::into),
         temporal_design: result.temporal_design().map(Into::into),
+        iv_bounds: result.iv_bounds().map(result_wire::iv_bounds_wire),
         interference_inference: result.interference_inference().map(Into::into),
         interventional_distribution: result.distribution().map(distribution_wire),
         // A standard error describes the published scalar; none rides without it.

@@ -132,6 +132,43 @@ What is checked, and what is not:
   checked is computational: the exact marginals against enumeration, and the published samplers
   against the exact marginals. The marginals are conditional on the prior and the parent cap.
 
+## Uncertainty over a discovered structure
+
+A frequentist search (PC, FCI, GES, LiNGAM, NOTEARS, PCMCI) returns one structure and no
+sampling error. Two compiled routes carry the missing uncertainty. Both execute unlicensed
+and neither has a coverage record.
+
+**Posterior over Markov equivalence classes.** `EquivalenceClassPosterior(base)` (Rust:
+`DiscoverySpec::equivalence_classes`) runs an `ExactDagPosterior`, `OrderMcmc`,
+`StructureMcmc` or `CiScreenedPosterior` unchanged, replaces every DAG it lists by its
+CPDAG and sums the mass of the DAGs that share one. The answer is a `GraphPosterior` whose
+`atom_kind` is `"Cpdag"`, the Bayesian counterpart of PC and GES: a class the DAG posterior
+favours is not split across its members, because the Gaussian BIC score cannot tell them
+apart. Both directed bits of an unordered pair mark an undirected edge, so
+`edge_marginals` count it in both directions. The class posterior is accepted as a
+posterior and never as one DAG. `OrderMcmc(noise="laplace")` scores parent sets under Laplace noise, which is not
+equivalent within a class, so the posterior can orient an edge the Gaussian posterior leaves
+undirected (the Bayesian counterpart of LiNGAM and NOTEARS orientation); it is a
+pseudo-posterior under that declared noise family. A `DbnPosterior` base collapses onto the
+classes of each template's one-step window. `ExactPagPosterior` is the Bayesian counterpart of FCI and RFCI for at most four
+variables: every maximal ancestral graph is fitted by residual iterative conditional fitting,
+scored by BIC, and Markov-equivalent graphs are merged into their PAG, so the result is a
+`GraphPosterior` with `atom_kind` `"Pag"` and `mark_masks` flagging the circle endpoints.
+Larger graphs refuse; a sampler over maximal ancestral graphs is the next attempt.
+
+**Stability of the search.** `BootstrapStability(base, replicates)` (Rust:
+`DiscoverySpec::bootstrap_stability`) re-runs the search on resamples drawn under the
+declared sampling design: rows for independent subjects, circular blocks for a dependent
+series (and each environment of a multi-environment study), whole units for a panel. LPCMCI and
+J-PCMCI+ are re-run too, and regime PCMCI is re-run on block resamples that carry their regime labels, one table per regime. The result tabulates how often every node pair was
+adjacent, how often it carried every pair of endpoint marks, and how often the search
+returned every whole structure; `reference_edges` is the structure on the full sample. The
+frequencies are a bootstrap distribution of the search, not a posterior. A resample on
+which the search fails is counted in `replicates_failed` and never redrawn, and fewer than
+half succeeding is refused. A table with a missing searched value, a masked or weighted
+table and a declared design that does not sample independent rows are refused with the next
+attempt named.
+
 ## Reading `unidentified_mass` and envelope cases
 
 After `analyze(...)` with a graph posterior or class envelope, inspect the result

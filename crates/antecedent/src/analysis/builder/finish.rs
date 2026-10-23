@@ -52,6 +52,7 @@ pub(super) struct FinishInput {
     pub(super) refute_explicit: bool,
     pub(super) bootstrap_replicates: u32,
     pub(super) bootstrap_explicit: bool,
+    pub(super) retain_joint_horizons: bool,
     pub(super) split: Option<DiscoveryEstimationSplit>,
     pub(super) identifier: Option<IdentifierId>,
     pub(super) estimator: Option<EstimatorId>,
@@ -97,6 +98,7 @@ struct Carry {
     latency_bootstrap_not_applied: Option<(u32, u32)>,
     bootstrap_replicates: u32,
     bootstrap_explicit: bool,
+    retain_joint_horizons: bool,
     split: Option<DiscoveryEstimationSplit>,
     identifier: Option<IdentifierId>,
     estimator: Option<EstimatorId>,
@@ -215,6 +217,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         refute_explicit,
         bootstrap_replicates,
         bootstrap_explicit,
+        retain_joint_horizons,
         split,
         identifier,
         estimator,
@@ -250,7 +253,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
     }
     let design_based = query.as_ref().is_some_and(is_graphless_design);
     let discovered = match &query {
-        Some(CausalQuery::Discover(search)) => Some(search.output()),
+        Some(CausalQuery::Discover(search)) => Some(super::discovery_stub_class(&search.method)),
         _ => None,
     };
     let (graph, graph_posterior) = match discovered {
@@ -279,6 +282,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
             latency_bootstrap_not_applied: None,
             bootstrap_replicates,
             bootstrap_explicit,
+            retain_joint_horizons,
             split,
             identifier,
             estimator,
@@ -458,7 +462,16 @@ fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalEr
         // or the fitted model is the procedure, and its uncertainty is what the
         // engine reports.
         carry.refute = RefuteSuite::None;
-        carry.bootstrap_replicates = 0;
+        // The mechanism-refit row bootstrap of a fitted-model attribution runs only when a
+        // replicate count was asked for.
+        if !(carry.bootstrap_explicit
+            && crate::analysis::execute::attribute_bootstrap_supported(&query))
+        {
+            carry.bootstrap_replicates = 0;
+        }
+    }
+    if carry.retain_joint_horizons {
+        refuse_joint_horizons(&query, &carry, &graph)?;
     }
     if is_graphless_design(&query) {
         apply_design_contract(&query, &graph, &carry)?;
@@ -467,8 +480,10 @@ fn contract_query(budget: BudgetedInference) -> Result<ContractedQuery, CausalEr
         // its interval does not resample); every other design-based query reports zero
         // replicates.
         carry.refute = RefuteSuite::None;
-        if !matches!(query, CausalQuery::Survival(_) | CausalQuery::TemporalDesign(_))
-            || !carry.bootstrap_explicit
+        if !matches!(
+            query,
+            CausalQuery::Survival(_) | CausalQuery::TemporalDesign(_) | CausalQuery::IvBounds(_)
+        ) || !carry.bootstrap_explicit
         {
             carry.bootstrap_replicates = 0;
         }
@@ -558,6 +573,49 @@ fn lag_zero_average_effect(
     Ok(CausalQuery::TemporalEffect(lag_zero))
 }
 
+/// Refuses `retain_joint_horizons` on a study whose response has no joint horizon replicates to
+/// retain: only a temporal response surface on a supplied `TemporalDag` resamples every horizon
+/// together, and each inference mode needs what produces them.
+fn refuse_joint_horizons(
+    query: &CausalQuery,
+    carry: &Carry,
+    graph: &AcceptedGraph,
+) -> Result<(), CausalError> {
+    let temporal = matches!(query, CausalQuery::Response(q) if q.is_temporal());
+    if !temporal || graph.as_temporal_dag().is_none() {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "joint horizon replicates are retained by a temporal response on a supplied \
+             TemporalDag; omit retain_joint_horizons"
+        ));
+    }
+    match &carry.inference {
+        InferenceMode::Frequentist
+            if !(carry.bootstrap_explicit && carry.bootstrap_replicates > 0) =>
+        {
+            Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "the joint horizon replicates of a Frequentist response are its circular-block \
+                 bootstrap replicates; request bootstrap_replicates"
+            ))
+        }
+        InferenceMode::Bayesian(cfg)
+            if cfg.prior.is_some()
+                || cfg.prior_artifact.is_some()
+                || cfg.external_compose.is_some()
+                || cfg.white_innovation.is_some() =>
+        {
+            Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "the joint horizon draws are the block-weight posterior over the surface, which \
+                 takes no coefficient prior, transferred prior or innovation declaration; leave \
+                 them unset"
+            ))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Refuses the options a structure-discovery, attribution or simulation study
 /// does not read, so none is accepted and then ignored.
 fn refuse_structure_route_options(query: &CausalQuery, carry: &Carry) -> Result<(), CausalError> {
@@ -570,7 +628,10 @@ fn refuse_structure_route_options(query: &CausalQuery, carry: &Carry) -> Result<
              validator; omit refute and validators"
         ));
     }
-    if carry.bootstrap_explicit && carry.bootstrap_replicates != 0 {
+    if carry.bootstrap_explicit
+        && carry.bootstrap_replicates != 0
+        && !crate::analysis::execute::attribute_bootstrap_supported(query)
+    {
         return Err(crate::unsupported_reason!(
             "option_not_applicable",
             "structure discovery, attribution and simulation do not resample; omit \
@@ -595,7 +656,9 @@ fn refuse_structure_route_options(query: &CausalQuery, carry: &Carry) -> Result<
              population option"
         ));
     }
-    if matches!(carry.inference, InferenceMode::Bayesian(_)) {
+    if matches!(carry.inference, InferenceMode::Bayesian(_))
+        && !crate::analysis::execute::attribute_posterior_supported(query)
+    {
         return Err(if let CausalQuery::Discover(_) = query {
             crate::unsupported_reason!(
                 "option_not_applicable",
@@ -606,9 +669,13 @@ fn refuse_structure_route_options(query: &CausalQuery, carry: &Carry) -> Result<
         } else {
             crate::unsupported_reason!(
                 "option_not_applicable",
-                "attribution and simulation on a fitted model report the fitted model's answer; \
-                 for the Dirichlet mechanism-refit posterior use AnomalyAttribution, \
-                 ChangeAttribution or Counterfactual under Bayesian inference"
+                "a simulation other than a temporal rollout reports the fitted model's answer \
+                 (its draws are the process's own variation, not a functional of the refit), and \
+                 an Attribute mechanism-change detection is a two-sample test whose p-value is a \
+                 tail probability of a null law of its statistic, not a smooth functional of the \
+                 refitted mechanisms, so neither has a posterior over the mechanisms. Next \
+                 attempt: roll the dynamics out (a temporal rollout has one), or run the \
+                 mechanism-change query itself with a declared prior over the change indicator"
             )
         });
     }
@@ -626,6 +693,7 @@ fn refuse_estimator_design_mismatch(
     refuse_survival_dose_mismatch(query, estimator)?;
     refuse_history_contrast_mismatch(query, estimator)?;
     refuse_temporal_design_mismatch(query, estimator)?;
+    refuse_iv_bounds_mismatch(query, estimator)?;
     refuse_longitudinal_regime_mismatch(query, estimator)
 }
 
@@ -660,6 +728,25 @@ fn refuse_temporal_design_mismatch(
         return Err(CausalError::Unsupported {
             message: "a temporal-design query takes the excursion estimators for an arm or dose \
                       design and the regime-survival estimators for a survival design",
+        });
+    }
+    Ok(())
+}
+
+/// Refuses an IV-bounds estimator selected for another query, and another estimator on an
+/// IV-bounds query.
+fn refuse_iv_bounds_mismatch(
+    query: &CausalQuery,
+    estimator: Option<EstimatorId>,
+) -> Result<(), CausalError> {
+    let bounds_estimator =
+        matches!(estimator, Some(EstimatorId::IvBoundsSharp | EstimatorId::BayesianIvBounds));
+    if matches!(query, CausalQuery::IvBounds(_)) != bounds_estimator
+        && (bounds_estimator || estimator.is_some())
+    {
+        return Err(CausalError::Unsupported {
+            message: "an IV bounds query takes the IV bounds estimators, and they answer that \
+                      query only",
         });
     }
     Ok(())
@@ -947,6 +1034,7 @@ fn apply_design_contract(
             | CausalQuery::ContinuousDoseResponse(_)
             | CausalQuery::TemporalDesign(_)
             | CausalQuery::HistoryMatch(_)
+            | CausalQuery::IvBounds(_)
     );
     if !matches!(carry.inference, InferenceMode::Frequentist) && !bayesian_design {
         return Err(CausalError::Unsupported {
@@ -960,6 +1048,7 @@ fn apply_design_contract(
         CausalQuery::Survival(_)
             | CausalQuery::ContinuousDoseResponse(_)
             | CausalQuery::TemporalDesign(_)
+            | CausalQuery::IvBounds(_)
     );
     if let (InferenceMode::Bayesian(config), false) = (&carry.inference, reads_own_model) {
         if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
@@ -1006,6 +1095,8 @@ fn apply_design_contract(
                     | EstimatorId::BayesianTemporalDesignExcursion
                     | EstimatorId::TemporalRegimeSurvival
                     | EstimatorId::BayesianTemporalRegimeSurvival
+                    | EstimatorId::IvBoundsSharp
+                    | EstimatorId::BayesianIvBounds
             )
         })
         || carry
@@ -1026,7 +1117,10 @@ fn apply_design_contract(
     }
     if carry.bootstrap_explicit
         && carry.bootstrap_replicates != 0
-        && !matches!(query, CausalQuery::Survival(_) | CausalQuery::TemporalDesign(_))
+        && !matches!(
+            query,
+            CausalQuery::Survival(_) | CausalQuery::TemporalDesign(_) | CausalQuery::IvBounds(_)
+        )
     {
         return Err(CausalError::Unsupported {
             message: "this design-based query does not support bootstrap intervals",
@@ -1684,6 +1778,13 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         // The untempered posterior of a declared white-innovation premise is a different
         // construction from the licensed tempered posterior of the same cell: it is unlicensed
         // and its calibration is unmeasured, so the cell's license does not carry to it.
+        if carry.retain_joint_horizons
+            && matches!(carry.inference, InferenceMode::Bayesian(_))
+            && support_status == Some(CellStatus::Licensed)
+        {
+            // The block-weight posterior over the surface replaces the licensed conjugate fits.
+            support_status = Some(CellStatus::Refused);
+        }
         if matches!(&carry.inference, InferenceMode::Bayesian(cfg) if cfg.white_innovation.is_some())
             && support_status == Some(CellStatus::Licensed)
         {
@@ -1839,6 +1940,7 @@ fn into_study(exposure: BoundExposure) -> Study {
         query,
         refute: carry.refute,
         bootstrap_replicates: carry.bootstrap_replicates,
+        retain_joint_horizons: carry.retain_joint_horizons,
         split: carry.split,
         identifier: carry.identifier,
         estimator: carry.estimator,

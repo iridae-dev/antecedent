@@ -17,6 +17,11 @@ use crate::retention::RetentionPolicy;
 pub enum GraphScoreFamily {
     /// Gaussian BIC local score (intercept + linear parents, σ² MLE = SSE/n).
     GaussianBic,
+    /// Laplace-noise BIC local score: intercept + linear parents fitted by least absolute
+    /// deviations, scale `b` the mean absolute residual, `k = |Pa| + 2` parameters. Unlike the
+    /// Gaussian score it is not invariant within a Markov equivalence class when the noise is
+    /// not Gaussian, so a posterior under it can orient edges the Gaussian posterior cannot.
+    LaplaceBic,
 }
 
 /// Semantic cache key for a graph-score table (no pointer identity).
@@ -250,6 +255,7 @@ impl LocalScoreCache {
                 };
                 gaussian_bic_from_gram(data, gram, node, parents)?
             }
+            GraphScoreFamily::LaplaceBic => laplace_bic_local(data, node, parents)?,
         };
         self.entries.entry(node).or_default().insert(Arc::clone(parents), s);
         self.bytes = self.bytes.saturating_add(32 + 8 * parents.len() as u64);
@@ -340,6 +346,111 @@ fn gaussian_bic_from_gram(
     bic_from_rss(rss_from_joint_gram(gram, m, &cols)?, n, parents.len() + 1)
 }
 
+/// Iteratively reweighted least squares sweeps of the least-absolute-deviations fit.
+const LAD_SWEEPS: usize = 60;
+
+/// Solve the symmetric system `a x = b` (`k × k`, row-major) by Gaussian elimination with
+/// partial pivoting; `None` when it is singular to working precision.
+fn solve_dense(mut a: Vec<f64>, mut b: Vec<f64>, k: usize) -> Option<Vec<f64>> {
+    for col in 0..k {
+        let pivot =
+            (col..k).max_by(|&i, &j| a[i * k + col].abs().total_cmp(&a[j * k + col].abs()))?;
+        if a[pivot * k + col].abs() < 1e-12 {
+            return None;
+        }
+        if pivot != col {
+            for c in 0..k {
+                a.swap(col * k + c, pivot * k + c);
+            }
+            b.swap(col, pivot);
+        }
+        for row in col + 1..k {
+            let factor = a[row * k + col] / a[col * k + col];
+            for c in col..k {
+                a[row * k + c] -= factor * a[col * k + c];
+            }
+            b[row] -= factor * b[col];
+        }
+    }
+    let mut x = vec![0.0; k];
+    for row in (0..k).rev() {
+        let tail: f64 = (row + 1..k).map(|c| a[row * k + c] * x[c]).sum();
+        x[row] = (b[row] - tail) / a[row * k + row];
+    }
+    Some(x)
+}
+
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::needless_range_loop,
+    clippy::many_single_char_names,
+    reason = "row counts enter a likelihood as floats; the loops index the design by row and column"
+)]
+/// Laplace-noise BIC local score (higher is better):
+/// `-n (ln(2 b) + 1) - (k / 2) ln(n)` with `b` the mean absolute residual of the least
+/// absolute deviations fit of the node on intercept + parents and `k = |Pa| + 2`.
+fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Result<f64, StateError> {
+    let n = data.n_rows;
+    if n < 2 {
+        return Err(StateError::Numerical("need n≥2 for BIC".into()));
+    }
+    if node as usize >= data.n_vars {
+        return Err(StateError::Shape(format!("node {node} out of range")));
+    }
+    if parents.iter().any(|&p| p as usize >= data.n_vars) {
+        return Err(StateError::Shape("parent out of range".into()));
+    }
+    let k = parents.len() + 1;
+    let y = data.col(node as usize);
+    let column = |c: usize, row: usize| -> f64 {
+        if c == 0 { 1.0 } else { data.col(parents[c - 1] as usize)[row] }
+    };
+    let mut weights = vec![1.0; n];
+    let mut beta = vec![0.0; k];
+    for _ in 0..LAD_SWEEPS {
+        let mut gram = vec![0.0; k * k];
+        let mut rhs = vec![0.0; k];
+        for row in 0..n {
+            let w = weights[row];
+            for i in 0..k {
+                let xi = column(i, row);
+                rhs[i] += w * xi * y[row];
+                for j in i..k {
+                    gram[i * k + j] += w * xi * column(j, row);
+                }
+            }
+        }
+        for i in 0..k {
+            for j in 0..i {
+                gram[i * k + j] = gram[j * k + i];
+            }
+        }
+        let Some(next) = solve_dense(gram, rhs, k) else {
+            return Err(StateError::Numerical(
+                "Laplace BIC local fit: rank-deficient parents".into(),
+            ));
+        };
+        beta = next;
+        for row in 0..n {
+            let fitted: f64 = (0..k).map(|c| beta[c] * column(c, row)).sum();
+            weights[row] = 1.0 / (y[row] - fitted).abs().max(1e-8);
+        }
+    }
+    let mut absolute = 0.0;
+    for row in 0..n {
+        let fitted: f64 = (0..k).map(|c| beta[c] * column(c, row)).sum();
+        absolute += (y[row] - fitted).abs();
+    }
+    let scale = absolute / n as f64;
+    if !(scale.is_finite() && scale > 1e-12) {
+        return Err(StateError::Numerical(
+            "degenerate Laplace BIC fit (zero residual scale)".into(),
+        ));
+    }
+    let nf = n as f64;
+    Ok(-nf * ((2.0 * scale).ln() + 1.0) - 0.5 * (k as f64 + 1.0) * nf.ln())
+}
+
 fn rss_from_joint_gram(gram: &[f64], m: usize, cols: &[usize]) -> Result<f64, StateError> {
     let q = cols.len();
     if q < 2 || gram.len() < m.saturating_mul(m) {
@@ -426,6 +537,7 @@ pub fn full_graph_score(
 ) -> Result<f64, StateError> {
     let gram = match family {
         GraphScoreFamily::GaussianBic => gaussian_design_gram(data),
+        GraphScoreFamily::LaplaceBic => Vec::new(),
     };
     let mut total = 0.0;
     #[allow(
@@ -436,6 +548,7 @@ pub fn full_graph_score(
         let pa = parents.get(&node).cloned().unwrap_or_else(|| Arc::from([]));
         total += match family {
             GraphScoreFamily::GaussianBic => gaussian_bic_from_gram(data, &gram, node, &pa)?,
+            GraphScoreFamily::LaplaceBic => laplace_bic_local(data, node, &pa)?,
         };
     }
     Ok(total)
@@ -458,6 +571,46 @@ mod tests {
             cols[2 * n + i] = x2;
         }
         GraphScoreData::new(n, 3, Arc::from(cols)).unwrap()
+    }
+
+    /// Deterministic Laplace draws by the inverse CDF of a splitmix64 stream.
+    fn laplace_stream(n: usize, seed: u64) -> Vec<f64> {
+        let mut state = seed;
+        (0..n)
+            .map(|_| {
+                state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+                let mut z = state;
+                z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+                z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+                z ^= z >> 31;
+                let u = (z >> 11) as f64 / (1u64 << 53) as f64 - 0.5;
+                -u.signum() * (1.0 - 2.0 * u.abs()).max(1e-12).ln()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_laplace_score_prefers_the_causal_direction_under_laplace_noise() {
+        let n = 3000;
+        let x = laplace_stream(n, 11);
+        let e = laplace_stream(n, 29);
+        let y: Vec<f64> = x.iter().zip(&e).map(|(x, e)| 1.5 * x + e).collect();
+        let mut cols = x;
+        cols.extend(y);
+        let data = GraphScoreData::new(n, 2, Arc::from(cols)).unwrap();
+        let score = |node: u32, parents: &[u32]| laplace_bic_local(&data, node, parents).unwrap();
+        let causal = score(0, &[]) + score(1, &[0]);
+        let anticausal = score(1, &[]) + score(0, &[1]);
+        assert!(causal > anticausal, "causal {causal} anticausal {anticausal}");
+        // The Gaussian score cannot separate the two directions.
+        let gaussian =
+            |node: u32, parents: &[u32]| gaussian_bic_local(&data, node, parents).unwrap();
+        let gap = (gaussian(0, &[]) + gaussian(1, &[0])) - (gaussian(1, &[]) + gaussian(0, &[1]));
+        assert!(gap.abs() < 1e-6, "gaussian gap {gap}");
+        // A perfect fit has no residual scale and is refused, not scored.
+        let twin: Vec<f64> = data.col(0).iter().chain(data.col(0)).copied().collect();
+        let twin = GraphScoreData::new(n, 2, Arc::from(twin)).unwrap();
+        assert!(laplace_bic_local(&twin, 1, &[0]).is_err());
     }
 
     fn fresh_cache(data: &GraphScoreData) -> LocalScoreCache {

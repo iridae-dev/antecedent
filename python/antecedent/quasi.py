@@ -878,6 +878,86 @@ class PeriodHistoryMatchEstimate:
 
 
 @dataclass(frozen=True, slots=True)
+class IvBounds:
+    """Sharp bounds on the average effect of a binary treatment under a binary instrument.
+
+    ``instrument``, ``treatment`` and ``outcome`` name 0/1 columns (``bool`` or ``0``/``1``);
+    ``weight`` optionally names a non-negative sampling-weight column. The instrument is declared
+    independent of the potential outcomes and excluded from the outcome; neither is checked.
+    Those premises partially identify the effect, so the answer is an identified set
+    (``result.answer.kind == "bounds"``), never a point. ``bootstrap=`` adds an Imbens-Manski
+    interval about the set from row-bootstrap endpoint replicates; ``Bayesian`` inference reports
+    the Bayesian-bootstrap posterior of the endpoints. Rows are independent subjects, so a
+    declared dependent-series, trajectory or clustered sampling design refuses the row-level
+    draw. The route is unlicensed and its calibration is unmeasured.
+    """
+
+    outcome: str
+    treatment: str
+    instrument: str
+    weight: str | None = None
+    kind: Literal["iv_bounds"] = field(default="iv_bounds", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        names = [self.outcome, self.treatment, self.instrument]
+        if self.weight is not None:
+            names.append(self.weight)
+        if any(not isinstance(name, str) or not name.strip() for name in names):
+            raise CausalValueError("declare non-empty outcome, treatment and instrument names")
+        if len(set(names)) != len(names):
+            raise CausalValueError("outcome, treatment, instrument and weight must be distinct")
+
+
+@dataclass(frozen=True, slots=True)
+class IvBoundsInterval:
+    """Sampling interval about the identified set of an :class:`IvBounds` study."""
+
+    level: float
+    lower: float
+    upper: float
+    lower_se: float
+    upper_se: float
+    critical_value: float
+    width_retained: bool
+    replicates: int
+    infeasible: int
+    method: str
+
+
+@dataclass(frozen=True, slots=True)
+class IvBoundsPosterior:
+    """Bayesian-bootstrap posterior summary of the endpoints of an :class:`IvBounds` study."""
+
+    n_draws: int
+    infeasible_draws: int
+    lower_mean: float
+    upper_mean: float
+    lower_sd: float
+    upper_sd: float
+
+
+@dataclass(frozen=True, slots=True)
+class IvBoundsEstimate:
+    """Identified set of average effects under a binary instrument. Unlicensed, never a point.
+
+    ``cells`` is the observed law ``P(Y=y, D=d | Z=z)``, instrument arm major, cell order
+    ``(0,0) (1,0) (0,1) (1,1)``; the bounds are recomputable from it.
+    """
+
+    lower: float
+    upper: float
+    cells: tuple[float, ...]
+    arm_weights: tuple[float, ...]
+    rows: int
+    rows_dropped: int
+    uncertainty: str
+    interval: IvBoundsInterval | None = None
+    posterior: IvBoundsPosterior | None = None
+    calibration: str = "unmeasured"
+    licensed: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class LocalPolynomialRatioEstimate:
     estimate: float
     reduced_form_discontinuity: float
@@ -1138,6 +1218,10 @@ def _bind_local_ratio_options(query: Any) -> None:
 __all__ = [
     "PeriodHistoryMatch",
     "PeriodHistoryMatchEstimate",
+    "IvBounds",
+    "IvBoundsEstimate",
+    "IvBoundsInterval",
+    "IvBoundsPosterior",
     "DifferenceInDifferences",
     "DifferenceInDifferencesEstimate",
     "PanelDifferenceInDifferences",

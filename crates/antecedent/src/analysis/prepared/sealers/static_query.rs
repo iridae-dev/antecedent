@@ -70,7 +70,12 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
         ),
         (
             DataInput::Temporal(_) | DataInput::Event(_),
-            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+            CausalQuery::AnomalyAttribution(_)
+            | CausalQuery::ChangeAttribution(_)
+            | CausalQuery::Attribute(_)
+            | CausalQuery::UnitChange(_)
+            | CausalQuery::MechanismChange(_)
+            | CausalQuery::Simulate(_),
             Some(cache),
             GraphClass::TemporalDag,
             InferenceMode::Frequentist | InferenceMode::Bayesian(_),

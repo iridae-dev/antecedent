@@ -188,6 +188,11 @@ pub struct MechanismChangeDetection {
     /// permutation distribution. A raw p-value at this floor means "no permutation was as
     /// extreme", and an adjustment across many targets cannot go below it.
     pub p_value_floor: Option<f64>,
+    /// Posterior probability that the mechanism changed, under the prior over the change
+    /// indicator the query declared; `Some` only for the Bayesian reading, whose `p_value` is
+    /// then `NaN` (a posterior probability is not a tail probability) and whose
+    /// [`Self::statistic`] is the serial-dependence-adjusted likelihood-ratio statistic.
+    pub posterior_probability: Option<f64>,
 }
 
 /// Unit-level contribution matrix (units × components).

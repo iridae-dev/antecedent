@@ -35,7 +35,8 @@ pub use antecedent_discovery::{
     OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment, RegimeGraphCollection, Rfci,
     Rpcmci, RpcmciDiscoveryResult, SamplingSummary, ScoredLink, SpaceDummyCiMode,
     StaticCpdagDiscoveryResult, StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc,
-    TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag, two_regime_half_split,
+    StructureStability, TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
+    two_regime_half_split,
 };
 use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus};
 use antecedent_graph::{DenseNodeId, Endpoint, TemporalPag};
@@ -539,6 +540,21 @@ pub fn discover_exact_dag_posterior(
     Ok(eng
         .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
         .with_algorithm("exact_dag_posterior"))
+}
+
+/// Exact posterior over PAG classes of the Gaussian maximal ancestral graphs of at most four
+/// variables, scored by BIC.
+///
+/// # Errors
+///
+/// More than four variables, missing or non-finite values, or no finite score.
+#[doc(hidden)]
+pub fn discover_exact_pag_posterior(
+    data: &TabularData,
+    variables: &[VariableId],
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    Ok(antecedent_discovery::exact_pag_posterior(data, variables, ctx)?)
 }
 
 /// Exact edge marginals of the DAG posterior for `7 ≤ n ≤ 12` variables (Gaussian BIC).

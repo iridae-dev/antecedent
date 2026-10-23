@@ -399,6 +399,278 @@ fn attribute_structure_change(
     })
 }
 
+/// A quantity name such as `component[3]` or `path[0>3]` with its variable numbers replaced by
+/// the variable names.
+fn named_quantity(quantity: &str, names: &[String]) -> String {
+    let Some((head, rest)) = quantity.split_once('[') else {
+        return quantity.to_owned();
+    };
+    let inner = rest.trim_end_matches(']');
+    let named: Vec<String> = inner
+        .split('>')
+        .map(|part| {
+            part.parse::<usize>()
+                .ok()
+                .and_then(|index| names.get(index).cloned())
+                .unwrap_or_else(|| part.to_owned())
+        })
+        .collect();
+    format!("{head}[{}]", named.join(">"))
+}
+
+fn json_str(params: &serde_json::Value, key: &str) -> PyResult<String> {
+    params[key]
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| crate::value_err(format!("attribution parameter {key:?} is required")))
+}
+
+fn json_usize(params: &serde_json::Value, key: &str, default: usize) -> usize {
+    params[key].as_u64().and_then(|v| usize::try_from(v).ok()).unwrap_or(default)
+}
+
+fn json_names(params: &serde_json::Value, key: &str) -> Vec<String> {
+    params[key]
+        .as_array()
+        .map(|items| items.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect())
+        .unwrap_or_default()
+}
+
+/// The population change query of an attribution request.
+fn change_query(
+    params: &serde_json::Value,
+    schema: &antecedent_core::CausalSchema,
+    components: AttributionComponents,
+    seed: u64,
+) -> PyResult<(ChangeAttributionQuery, usize)> {
+    let outcome = schema.id_of(&json_str(params, "outcome")?).map_err(py_err)?;
+    let n_samples = json_usize(params, "n_samples", 500);
+    let query = ChangeAttributionQuery::new(
+        outcome,
+        PopulationSelector::TimeRange {
+            start: json_usize(params, "baseline_start", 0),
+            end: json_usize(params, "baseline_end", 0),
+        },
+        PopulationSelector::TimeRange {
+            start: json_usize(params, "comparison_start", 0),
+            end: json_usize(params, "comparison_end", 0),
+        },
+    )
+    .with_components(components)
+    .with_allocation(AllocationMethod::Shapley {
+        approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
+    });
+    Ok((query, n_samples))
+}
+
+/// Run a fitted-model attribution through the compiled route under a posterior over the
+/// mechanisms (`posterior_draws` Dirichlet-weighted refits) or the mechanism-refit row
+/// bootstrap (`bootstrap_replicates`), and return its quantities as JSON.
+///
+/// `kind` is one of `distribution_change`, `robust_change`, `root_causes`, `structure_change`,
+/// `paths`, `feature_relevance`, `anomaly` and `unit_change`; `params_json` carries the
+/// parameters of that kind. Mechanism-change detection has no posterior over the mechanisms (a
+/// two-sample test, not a smooth functional of the refit) and is refused.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, kind, params_json, *, posterior_draws=0, bootstrap_replicates=0, seed=0, threads=None))]
+fn attribution_uncertainty(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    edges: Vec<(String, String)>,
+    kind: String,
+    params_json: String,
+    posterior_draws: usize,
+    bootstrap_replicates: u32,
+    seed: u64,
+    threads: Option<u32>,
+) -> PyResult<String> {
+    if (posterior_draws > 0) == (bootstrap_replicates > 0) {
+        return Err(crate::value_err(
+            "ask for exactly one of posterior_draws (Bayesian) and bootstrap_replicates \
+             (Frequentist)",
+        ));
+    }
+    let params: serde_json::Value = serde_json::from_str(&params_json)
+        .map_err(|error| crate::value_err(format!("attribution parameters: {error}")))?;
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
+        let data = loaded.data;
+        let schema = data.schema().clone();
+        let ids = |list: &[String]| -> PyResult<Vec<VariableId>> {
+            list.iter().map(|name| schema.id_of(name).map_err(py_err)).collect()
+        };
+        let target = match kind.as_str() {
+            "distribution_change" | "root_causes" | "robust_change" => {
+                let (change, n_samples) =
+                    change_query(&params, &schema, AttributionComponents::Mechanisms, seed)?;
+                let estimator = if kind == "robust_change" {
+                    ChangeEstimator::Robust { max_rows: 10_000, n_samples: 4_000, seed }
+                } else {
+                    ChangeEstimator::Sampled {
+                        measure: ChangeMeasure::MeanDifference,
+                        n_samples: n_samples.max(100),
+                        seed,
+                    }
+                };
+                if kind == "root_causes" {
+                    AttributeTarget::RootCauses { change, estimator }
+                } else {
+                    AttributeTarget::DistributionChange { change, estimator }
+                }
+            }
+            "structure_change" => {
+                let (change, n_samples) =
+                    change_query(&params, &schema, AttributionComponents::Structure, seed)?;
+                let comparison_edges: Vec<(String, String)> = params["comparison_edges"]
+                    .as_array()
+                    .map(|pairs| {
+                        pairs
+                            .iter()
+                            .filter_map(|pair| {
+                                Some((
+                                    pair.get(0)?.as_str()?.to_owned(),
+                                    pair.get(1)?.as_str()?.to_owned(),
+                                ))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let g1 = dag_from_named_edges(&schema, &comparison_edges)?;
+                let comparison: Arc<[(VariableId, VariableId)]> = g1
+                    .directed_edge_pairs_sorted()
+                    .into_iter()
+                    .map(|(from, to)| (VariableId::from_raw(from), VariableId::from_raw(to)))
+                    .collect();
+                AttributeTarget::StructureChange {
+                    change,
+                    comparison,
+                    measure: ChangeMeasure::MeanDifference,
+                    n_samples: n_samples.max(100),
+                    seed,
+                }
+            }
+            "paths" => AttributeTarget::Paths {
+                sources: Arc::from(ids(&json_names(&params, "sources"))?),
+                outcome: schema.id_of(&json_str(&params, "outcome")?).map_err(py_err)?,
+                max_paths: json_usize(&params, "max_paths", 64),
+                max_len: json_usize(&params, "max_len", 16),
+                through: Arc::from(ids(&json_names(&params, "through"))?),
+            },
+            "feature_relevance" => {
+                let outcome = schema.id_of(&json_str(&params, "outcome")?).map_err(py_err)?;
+                let features: Vec<VariableId> = (0..schema.len())
+                    .map(|i| crate::fit_u32(i).map(VariableId::from_raw))
+                    .collect::<PyResult<Vec<_>>>()?
+                    .into_iter()
+                    .filter(|id| *id != outcome)
+                    .collect();
+                let max_features = features.len();
+                AttributeTarget::FeatureRelevance {
+                    outcome,
+                    features: Arc::from(features),
+                    delta: params["delta"].as_f64().unwrap_or(1.0),
+                    n_samples: json_usize(&params, "n_samples", 200),
+                    max_features,
+                }
+            }
+            "anomaly" => {
+                let targets = ids(&json_names(&params, "outcomes"))?;
+                let max_units = match json_usize(&params, "max_units", 0) {
+                    0 => data.row_count(),
+                    given => given,
+                };
+                AttributeTarget::Anomaly(AnomalyAttributionQuery::new(targets, max_units))
+            }
+            "unit_change" => {
+                let outcome = schema.id_of(&json_str(&params, "outcome")?).map_err(py_err)?;
+                let max_units = match json_usize(&params, "max_units", 0) {
+                    0 => data.row_count(),
+                    given => given,
+                };
+                AttributeTarget::UnitChange(UnitChangeQuery::new(outcome, max_units))
+            }
+            other => {
+                return Err(crate::value_err(format!(
+                    "unknown attribution kind {other:?}; mechanism-change detection has no \
+                     posterior or refit bootstrap (a test is not a smooth functional of the \
+                     refitted mechanisms)"
+                )));
+            }
+        };
+        let source = model_source(data, &edges)?;
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let inference = if posterior_draws > 0 {
+            antecedent::InferenceMode::Bayesian(
+                antecedent::BayesianConfig::conjugate().n_draws(posterior_draws),
+            )
+        } else {
+            antecedent::InferenceMode::Frequentist
+        };
+        let (outcome, route) =
+            source.attribute_resampled(target, inference, bootstrap_replicates, &ctx)?;
+        let point = antecedent::analysis::structure_route::attribution_quantities(&outcome)
+            .unwrap_or_default();
+        let result = route.execution.result();
+        let posterior = result.posterior.as_ref().map(|posterior| {
+            let summary = &posterior.summaries;
+            let quantities: Vec<String> =
+                point.iter().map(|(name, _)| named_quantity(name, &names)).collect();
+            serde_json::json!({
+                "draws": summary.n_draws,
+                "level": 0.95,
+                "names": quantities,
+                "mean": summary.mean.to_vec(),
+                "sd": summary.sd.to_vec(),
+                "ci_low": summary.q025.to_vec(),
+                "ci_high": summary.q975.to_vec(),
+            })
+        });
+        let bootstrap =
+            result.diagnostics.iter().find(|d| d.code.as_ref() == "gcm.frequentist_bootstrap").map(
+                |d| {
+                    let field = |key: &str| {
+                        d.fields
+                            .iter()
+                            .find(|(k, _)| k.as_ref() == key)
+                            .map(|(_, v)| v.to_string())
+                            .unwrap_or_default()
+                    };
+                    let se: serde_json::Map<String, serde_json::Value> = d
+                        .fields
+                        .iter()
+                        .filter_map(|(k, v)| {
+                            let name = k.strip_prefix("bootstrap_se.")?;
+                            Some((
+                                named_quantity(name, &names),
+                                v.parse::<f64>()
+                                    .map_or(serde_json::Value::Null, serde_json::Value::from),
+                            ))
+                        })
+                        .collect();
+                    serde_json::json!({
+                        "replicates_ok": field("replicates_ok").parse::<u32>().unwrap_or(0),
+                        "replicates_failed": field("replicates_failed").parse::<u32>().unwrap_or(0),
+                        "se": se,
+                    })
+                },
+            );
+        let point_json: Vec<serde_json::Value> = point
+            .iter()
+            .map(|(name, value)| serde_json::json!({ "name": named_quantity(name, &names), "value": value }))
+            .collect();
+        Ok(serde_json::json!({
+            "kind": kind,
+            "point": point_json,
+            "posterior": posterior,
+            "bootstrap": bootstrap,
+        })
+        .to_string())
+    })
+}
+
 /// Evaluate a decision problem under a Python utility callback .
 ///
 /// `utility(actions, outcomes) -> flat float64 ndarray` of length `len(actions) * len(outcomes)`.
@@ -771,6 +1043,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(attribute_structure_change, m)?)?;
     m.add_function(wrap_pyfunction!(anomaly_attribution, m)?)?;
     m.add_function(wrap_pyfunction!(attribute_unit_change, m)?)?;
+    m.add_function(wrap_pyfunction!(attribution_uncertainty, m)?)?;
     m.add_function(wrap_pyfunction!(attribute_feature_relevance, m)?)?;
     m.add_function(wrap_pyfunction!(mechanism_change_detection, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_decision_py, m)?)?;

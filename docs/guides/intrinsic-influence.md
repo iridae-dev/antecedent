@@ -98,6 +98,19 @@ the components. It is a Student-t interval with `fit_bootstrap - 1` degrees of f
 is uncalibrated and unlicensed: no coverage record stands behind it. It is `unquantified`,
 with the mechanism-fit reason, when no bootstrap ran.
 
+### Posterior over the mechanisms
+
+`posterior_draws` is the Bayesian counterpart of `fit_bootstrap`. Each draw refits every
+mechanism under one Dirichlet(1, ..., 1) row-weight vector, with the mechanism families held
+at the ones selected on the data, and repeats the whole attribution on the refit. The result
+carries a `posterior` with the mean, standard deviation and 95% credible interval of each
+source's share given the empirical row law, and `method["fit_resampling"]` reads
+`dirichlet_row_weights`. The `whole_procedure` entry then reads as the posterior standard
+deviation. Like the bootstrap it is uncalibrated and unlicensed, conditional on the family
+selection, and it does not address misspecification or identification. In Rust the same
+attribution runs through the compiled route under `InferenceMode::Bayesian`; at most 100
+refits run unless the draw count is set, because every refit is a full nested attribution.
+
 ## Example
 
 ```python

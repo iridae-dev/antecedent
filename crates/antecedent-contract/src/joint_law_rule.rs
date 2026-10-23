@@ -894,6 +894,10 @@ pub struct ComposedCoordinate {
     pub route: PropagationRoute,
     /// Sorted role names of the inputs (one entry per input).
     pub roles: Vec<&'static str>,
+    /// Sorted distinct horizons of the one temporal claim whose horizons the inputs are; empty
+    /// when the inputs are not horizons of a single claim. A record measured over one set of
+    /// horizons says nothing about another.
+    pub horizons: Vec<u32>,
 }
 
 impl ComposedCoordinate {
@@ -903,14 +907,93 @@ impl ComposedCoordinate {
         let mut roles: Vec<&'static str> =
             request.inputs.iter().map(|input| input.role.as_str()).collect();
         roles.sort_unstable();
-        Self { operation: plan.operation, route: plan.route, roles }
+        Self { operation: plan.operation, route: plan.route, roles, horizons: Vec::new() }
     }
 
-    /// Stable identity string: `operation|route|role,role,...`.
+    /// The coordinate over the horizons of one temporal claim.
+    #[must_use]
+    pub fn over_horizons(mut self, horizons: &[u32]) -> Self {
+        let mut horizons = horizons.to_vec();
+        horizons.sort_unstable();
+        horizons.dedup();
+        self.horizons = horizons;
+        self
+    }
+
+    /// Stable identity string: `operation|route|role,role,...`, followed by
+    /// `|horizons=h,h,...` when the inputs are horizons of one temporal claim. A coordinate
+    /// without horizons keeps the identity it always had.
     #[must_use]
     pub fn id(&self) -> String {
-        format!("{}|{}|{}", self.operation.as_str(), self.route.as_str(), self.roles.join(","))
+        let base =
+            format!("{}|{}|{}", self.operation.as_str(), self.route.as_str(), self.roles.join(","));
+        if self.horizons.is_empty() {
+            return base;
+        }
+        let horizons: Vec<String> = self.horizons.iter().map(u32::to_string).collect();
+        format!("{base}|horizons={}", horizons.join(","))
     }
+}
+
+/// The inputs of a composition across the horizons of one temporal claim: one per horizon,
+/// all resting on the same evidence and all rows of the one joint law `alignment_id` names (a
+/// replicate or a draw index that refit every horizon together).
+///
+/// Horizons fit one by one are independent marginals, not these: their draws carry no common
+/// alignment identity, and [`check_horizon_composition`] refuses them.
+#[must_use]
+pub fn horizon_inputs(
+    horizons: &[u32],
+    evidence_id: &str,
+    alignment_id: &str,
+) -> Vec<PropagationInput> {
+    horizons
+        .iter()
+        .map(|horizon| PropagationInput {
+            id: format!("horizon:{horizon}"),
+            evidence_id: evidence_id.to_owned(),
+            role: InputRole::Estimate,
+            alignment: InputAlignment::Aligned { alignment_id: alignment_id.to_owned() },
+        })
+        .collect()
+}
+
+/// Check a composition across the horizons of one temporal claim and name its coordinate.
+///
+/// The inputs are the claim's horizons, coupled by the joint law `alignment_id` (see
+/// [`horizon_inputs`]); the dependence is that aligned joint law. The result is the checked
+/// plan and the coordinate, carrying the horizon axis.
+///
+/// # Errors
+/// No horizons, repeated horizons, a blank evidence or alignment identity, or a request the
+/// propagation rule refuses (for example an operation that needs more inputs than horizons).
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+pub fn check_horizon_composition(
+    operation: PropagationOperation,
+    horizons: &[u32],
+    evidence_id: &str,
+    alignment_id: &str,
+    reading: RequestedReading,
+) -> Result<(PropagationPlan, ComposedCoordinate), ExternalRefusal> {
+    let mut sorted = horizons.to_vec();
+    sorted.sort_unstable();
+    let before = sorted.len();
+    sorted.dedup();
+    if sorted.is_empty() || sorted.len() != before {
+        return Err(invalid("horizons", "name each horizon of the claim once, and at least one"));
+    }
+    let request = PropagationRequest {
+        operation,
+        inputs: horizon_inputs(&sorted, evidence_id, alignment_id),
+        dependence: PropagationDependence::AlignedJointLaw,
+        reading,
+    };
+    let plan = check_propagation(&request)?;
+    let coordinate = ComposedCoordinate::of(&request, &plan).over_horizons(&sorted);
+    Ok((plan, coordinate))
 }
 
 /// A coverage record offered for a composed coordinate.
@@ -1162,6 +1245,72 @@ mod tests {
         refusal.validate().expect("well-formed refusal");
         assert!(refusal.remedy.is_some(), "every refusal states what would license it");
         (refusal.code, refusal.detail)
+    }
+
+    #[test]
+    fn horizons_of_one_joint_law_compose_and_independent_marginals_do_not() {
+        let (plan, coordinate) = check_horizon_composition(
+            PropagationOperation::NonlinearFunctional,
+            &[3, 1, 2],
+            "series_snapshot",
+            "replicates:7",
+            RequestedReading::Spread,
+        )
+        .expect("horizons coupled by one joint law compose");
+        assert_eq!(plan.route, PropagationRoute::AlignedJointLaw);
+        assert_eq!(plan.alignment_id.as_deref(), Some("replicates:7"));
+        assert_eq!(coordinate.horizons, vec![1, 2, 3]);
+        assert!(coordinate.id().ends_with("|horizons=1,2,3"), "{}", coordinate.id());
+        // A coordinate without the axis keeps its identity, and a different horizon set is a
+        // different coordinate.
+        let plain = ComposedCoordinate { horizons: Vec::new(), ..coordinate.clone() };
+        assert!(!plain.id().contains("horizons"));
+        assert_ne!(coordinate.id(), coordinate.clone().over_horizons(&[1, 2]).id());
+
+        // Horizons fit one by one carry no common alignment: pairing them is refused.
+        let marginals = request(
+            PropagationOperation::NonlinearFunctional,
+            (1..=3)
+                .map(|h| {
+                    input(
+                        &format!("horizon:{h}"),
+                        "series_snapshot",
+                        InputAlignment::IndependentMarginals,
+                    )
+                })
+                .collect(),
+            PropagationDependence::AlignedJointLaw,
+            RequestedReading::Spread,
+        );
+        assert!(check_propagation(&marginals).is_err());
+        let declared_independent = request(
+            PropagationOperation::Sum,
+            (1..=3)
+                .map(|h| {
+                    input(
+                        &format!("horizon:{h}"),
+                        "series_snapshot",
+                        InputAlignment::IndependentMarginals,
+                    )
+                })
+                .collect(),
+            PropagationDependence::DeclaredIndependent,
+            RequestedReading::Spread,
+        );
+        let (code, _) = detail(&declared_independent);
+        assert_eq!(code, "evidence_double_counted", "one series' horizons are not independent");
+
+        for bad in [&[][..], &[1, 1][..]] {
+            let error = check_horizon_composition(
+                PropagationOperation::Sum,
+                bad,
+                "e",
+                "a",
+                RequestedReading::Point,
+            )
+            .expect_err("a horizon set names each horizon once");
+            error.validate().expect("well-formed refusal");
+        }
     }
 
     #[test]

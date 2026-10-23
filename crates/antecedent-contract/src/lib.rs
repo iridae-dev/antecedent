@@ -117,8 +117,8 @@ pub use joint_law_rule::{
     PropagationClass, PropagationDependence, PropagationInput, PropagationOperation,
     PropagationPlan, PropagationRequest, PropagationRoute, RequestedReading,
     STRUCTURAL_ENVELOPE_LABEL, UNCALIBRATED_SPREAD_LABEL, check_composed_interval,
-    check_propagation, check_propagation_with_ledger, check_rows_pairable,
-    check_rows_pairable_across,
+    check_horizon_composition, check_propagation, check_propagation_with_ledger,
+    check_rows_pairable, check_rows_pairable_across, horizon_inputs,
 };
 pub use mechanism_composition::{
     AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, LatentCauseDeclaration,

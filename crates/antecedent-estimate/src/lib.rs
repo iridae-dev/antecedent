@@ -88,6 +88,7 @@ pub mod interference;
 pub mod interference_observational;
 pub mod interference_saturation;
 pub mod iv;
+pub mod iv_bounds;
 pub mod joint_bayesian_transport;
 pub mod joint_if;
 pub mod joint_panel;
@@ -324,6 +325,10 @@ pub use iv::{
     CheckedIvLowering, CheckedIvPreparation, CheckedIvProcedure, PreparedIvProblem,
     TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
 };
+pub use iv_bounds::{
+    IvBoundsEstimate, IvBoundsEstimator, IvBoundsInterval, IvBoundsIntervalMethod,
+    IvBoundsPosterior, PreparedIvBounds,
+};
 pub use joint_cell_factorized::{
     CellEstimate, CellOrderingSpread, CellRefusal, CellStatus, FactorizedJointConfig,
     FactorizedJointFit, JointCellReport, JointContrast, MAX_FACTORIZED_COMPONENTS, MAX_ORDERINGS,
@@ -424,8 +429,9 @@ pub use temporal_mediation::{
     TemporalMediationSlice, TemporalMediationUncertainty, shared_mediation_block_bootstrap,
 };
 pub use temporal_response::{
-    MaxDeviationBand, PreparedTemporalSurface, ResponseBlockLength, SIMULTANEOUS_BAND_CRITICAL,
-    SIMULTANEOUS_BAND_LOWER, SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER,
+    JOINT_HORIZON_LAYOUT, JOINT_HORIZON_REPLICATES, MaxDeviationBand, PreparedTemporalSurface,
+    ResponseBlockLength, SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER,
+    SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER,
     TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC, TEMPORAL_RESPONSE_BAND_WITHHELD,
     TEMPORAL_RESPONSE_BLOCK_LENGTH, TEMPORAL_RESPONSE_FEW_REPLICATES, TemporalIdentification,
     TemporalInterventionPlan, TemporalResponseEstimator, block_dispersion_inflation,

@@ -20,6 +20,7 @@ implementation_deviations = [
   "pinned pointwise 95% band oracle on conformance/response/temporal_dose_horizon (including strictly positive width at dose zero)",
   "adjustment-set correctness on conformance/response/temporal_confounded_pulse (unadjusted slope 4.5 vs structural 2)",
   "per-horizon empirical support on conformance/response/temporal_horizon_support (union of ranges would mislabel mixed cells)",
+  "the joint replicates of the surface can be retained (JOINT_HORIZON_REPLICATES) so horizons compose from realizations coupled across them; with block_weight_posterior the replicates are Dirichlet block-weight draws (one Exp(1) weight per block of consecutive series times shared by every horizon, weighted least squares per horizon), the Bayesian bootstrap of Rubin applied to blocks of the lag windows; this is the repository's own construction and the band then reads as credible, conditional on the unfolded regression",
 ]
 
 upstream_implementations_observed = []
@@ -30,4 +31,6 @@ test_sources = [
   "conformance/response/temporal_horizon_support/expected.json",
   "crates/antecedent/tests/temporal_response_facade.rs",
   "crates/antecedent/tests/temporal_response_redundancy.rs",
+  "crates/antecedent-estimate/src/temporal_response/tests.rs (joint_horizon_replicates_are_retained_on_request_and_couple_the_horizons)",
+  "crates/antecedent/tests/horizon_composition.rs",
 ]

@@ -593,6 +593,27 @@ path = "python/tests/test_compiled_structure_routes.py"
 gates = ["inventory"]
 
 [[test]]
+id = "target-refuter-extensions"
+crate = "antecedent"
+cargo_target = "target_refuter_extensions"
+path = "crates/antecedent/tests/target_refuter_extensions.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "structure-uncertainty-routes"
+crate = "antecedent"
+cargo_target = "structure_uncertainty_routes"
+path = "crates/antecedent/tests/structure_uncertainty_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "structure-uncertainty-routes-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_structure_uncertainty_routes.py"
+gates = ["inventory"]
+
+[[test]]
 id = "quasi-rollout-routes"
 crate = "antecedent"
 cargo_target = "quasi_rollout_routes"
@@ -873,6 +894,13 @@ path = "scripts/test_gate_compiler_bypass.py"
 gates = ["inventory"]
 
 [[test]]
+id = "retained-route-gate"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_retained_routes.py"
+gates = ["inventory"]
+
+[[test]]
 id = "strategy-table-workspace-reuse"
 crate = "antecedent"
 cargo_target = "lib"
@@ -947,4 +975,54 @@ id = "propagation-chain-python"
 crate = "python"
 cargo_target = "script"
 path = "python/tests/test_propagation_chain.py"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-admg-window-identification"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/temporal_admg.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-admg-window-table"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/temporal_admg_contrast.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-admg-window-route"
+crate = "antecedent"
+cargo_target = "suite_07"
+path = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+gates = ["inventory", "named"]
+suite_map_line = "suite_07: refute_validator_not_applicable, repeated_measures_posterior_facade, rollout_artifact, route_evidence_joint_law_propagation, route_evidence_observation_query, sample_split_analysis_facade, sample_split_effect_facade, sample_split_parent_set_effect_facade, sample_split_weighted_acceptance, saturation_interference_route, schema_binding, scientific_bridge_facade, scientific_bridge_interval_facade, selective_discovery_facade, sequential_evaluation_facade, short_series_measurement, smoothed_dose_lifecycle, smoothed_dose_posterior_facade, source_evidence, source_projection, specification_conformance, staged_attribution_transport_interference, staged_bayesian_basis_gcomp, static_class_bounds, statistical_transport_numeric, survival_route, switchback_interval_route, synthetic_control_route, synthetic_did_randomization_route, temporal_admg_route_evidence, temporal_attribution_route_evidence, temporal_class_bayesian_envelope, temporal_class_envelope_numeric_pins, temporal_class_observation"
+
+[[test]]
+id = "iv-bounds-estimator"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/iv_bounds.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "iv-bounds-lowering"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/design_based_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "iv-bounds-compiled-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_iv_bounds_compiled.py"
+gates = ["inventory"]
+
+[[test]]
+id = "release-scope-reconciliation-check"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/reconcile_release_scope.py"
 gates = ["inventory"]

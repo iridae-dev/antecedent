@@ -151,9 +151,9 @@ impl OrderMcmc {
             n,
             "order MCMC supports at most 16 variables (MAX_POSTERIOR_NODES)",
         )?;
-        if !matches!(score_family, GraphScoreFamily::GaussianBic) {
+        if !matches!(score_family, GraphScoreFamily::GaussianBic | GraphScoreFamily::LaplaceBic) {
             return Err(DiscoveryError::unsupported(
-                "order MCMC currently supports GaussianBic only",
+                "order MCMC supports the Gaussian and Laplace BIC scores only",
             ));
         }
         let schedule = self.schedule();

@@ -173,6 +173,7 @@ python3 scripts/test_check_acceptance_manifest.py
 python3 scripts/test_check_release_closure.py
 python3 scripts/check_counterparts.py --self-test
 python3 scripts/test_check_counterparts.py
+python3 scripts/reconcile_release_scope.py --self-test
 python3 scripts/test_generate_calibration_backlog.py
 python3 scripts/run_scale_cases.py --self-test
 ci_workflow_tests

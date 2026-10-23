@@ -42,14 +42,15 @@ use crate::error::CausalError;
 pub use antecedent_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
     ComponentStatus, ComponentUncertainty, DifferenceMeasure, DistributionChangeOptions,
-    FeatureRelevance, INTRINSIC_MAX_EXACT_PLAYERS, IntrinsicAllocation, IntrinsicBudget,
-    IntrinsicInfluenceQuery, IntrinsicInfluenceResult, IntrinsicMethod, MechanismChangeDetection,
-    MechanismChangeMethod, NoiseIndependence, PartialStderr, PopulationDoContrast,
-    RobustChangeOptions, RootCauseRank, ShapleyMethod, SourceInfluence, StructureChangeOptions,
-    UncertaintyComponent, UnitChangeResult, arrow_strengths, detect_mechanism_changes,
-    distribution_change, distribution_change_robust, distribution_change_with_row_weights,
-    feature_relevance, intrinsic_influence, path_decompose, population_do_contrast,
-    root_cause_rank, score_anomalies, score_anomalies_with, structure_change, unit_change,
+    FeatureRelevance, FitResampling, INTRINSIC_MAX_EXACT_PLAYERS, IntrinsicAllocation,
+    IntrinsicBudget, IntrinsicInfluenceQuery, IntrinsicInfluenceResult, IntrinsicMethod,
+    MechanismChangeDetection, MechanismChangeMethod, NoiseIndependence, PartialStderr,
+    PopulationDoContrast, RobustChangeOptions, RootCauseRank, ShapleyMethod, SourceInfluence,
+    StructureChangeOptions, UncertaintyComponent, UnitChangeResult, arrow_strengths,
+    detect_mechanism_changes, distribution_change, distribution_change_robust,
+    distribution_change_with_row_weights, feature_relevance, intrinsic_influence, path_decompose,
+    population_do_contrast, root_cause_rank, score_anomalies, score_anomalies_with,
+    structure_change, unit_change,
 };
 pub use antecedent_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,

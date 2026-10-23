@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use antecedent::{
     AcceptedGraph, AttributionOutcome, CausalError as RustCausalError, CompiledExecution,
-    DiscoveredStructure, DiscoverySpec, MechanismProgram, SimulationOutcome, Study,
+    DiscoveredStructure, DiscoverySpec, InferenceMode, MechanismProgram, SimulationOutcome, Study,
 };
 use antecedent_core::{
     AttributeQuery, AttributeTarget, CausalQuery, ExecutionContext, SimulateQuery,
@@ -95,7 +95,8 @@ pub(crate) fn run_discovery(
 }
 
 /// Compile, prepare and run the attribution or simulation `query` on mechanisms
-/// `program` fits on `graph`.
+/// `program` fits on `graph`, under `inference` (a posterior over the mechanisms where the
+/// target has one).
 ///
 /// # Errors
 ///
@@ -105,6 +106,8 @@ pub(crate) fn run_model(
     graph: ModelGraph,
     query: CausalQuery,
     program: MechanismProgram,
+    inference: InferenceMode,
+    bootstrap_replicates: u32,
     ctx: &ExecutionContext,
 ) -> Result<RouteRecord, RustCausalError> {
     let builder = Study::tabular(data);
@@ -112,7 +115,13 @@ pub(crate) fn run_model(
         ModelGraph::Dag(dag) => builder.graph(dag),
         ModelGraph::Accepted(accepted) => builder.graph(accepted),
     };
-    let study = builder.query(query).mechanisms(program).build()?;
+    let builder = builder.query(query).mechanisms(program).inference(inference);
+    let builder = if bootstrap_replicates > 0 {
+        builder.bootstrap_replicates(bootstrap_replicates)
+    } else {
+        builder
+    };
+    let study = builder.build()?;
     let execution = CompiledExecution::run(&study, ctx)?;
     Ok(RouteRecord { execution: Arc::new(execution), ctx: ctx.clone() })
 }
@@ -143,10 +152,39 @@ impl ModelSource {
         target: AttributeTarget,
         ctx: &ExecutionContext,
     ) -> PyResult<(AttributionOutcome, RouteRecord)> {
+        self.attribute_under(target, InferenceMode::Frequentist, ctx)
+    }
+
+    /// Run the attribution `target` states through the compiled route under `inference`.
+    pub(crate) fn attribute_under(
+        &self,
+        target: AttributeTarget,
+        inference: InferenceMode,
+        ctx: &ExecutionContext,
+    ) -> PyResult<(AttributionOutcome, RouteRecord)> {
+        self.attribute_resampled(target, inference, 0, ctx)
+    }
+
+    /// Run the attribution `target` states under `inference`, with the mechanism-refit row
+    /// bootstrap when `bootstrap_replicates` is positive.
+    pub(crate) fn attribute_resampled(
+        &self,
+        target: AttributeTarget,
+        inference: InferenceMode,
+        bootstrap_replicates: u32,
+        ctx: &ExecutionContext,
+    ) -> PyResult<(AttributionOutcome, RouteRecord)> {
         let query = CausalQuery::Attribute(AttributeQuery::new(target));
-        let record =
-            run_model((*self.data).clone(), self.graph(), query, self.program.clone(), ctx)
-                .map_err(py_err)?;
+        let record = run_model(
+            (*self.data).clone(),
+            self.graph(),
+            query,
+            self.program.clone(),
+            inference,
+            bootstrap_replicates,
+            ctx,
+        )
+        .map_err(py_err)?;
         let outcome = record
             .execution
             .result()
@@ -163,9 +201,16 @@ impl ModelSource {
         ctx: &ExecutionContext,
     ) -> PyResult<(SimulationOutcome, RouteRecord)> {
         let query = CausalQuery::Simulate(SimulateQuery::new(target));
-        let record =
-            run_model((*self.data).clone(), self.graph(), query, self.program.clone(), ctx)
-                .map_err(py_err)?;
+        let record = run_model(
+            (*self.data).clone(),
+            self.graph(),
+            query,
+            self.program.clone(),
+            InferenceMode::Frequentist,
+            0,
+            ctx,
+        )
+        .map_err(py_err)?;
         let outcome = record
             .execution
             .result()

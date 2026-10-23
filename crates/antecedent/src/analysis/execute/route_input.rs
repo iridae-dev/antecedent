@@ -13,13 +13,14 @@ use super::{
 use crate::graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
 use antecedent_core::{
     AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, DiscoverQuery,
-    HistoryMatchQuery, InterferenceQuery, InterventionalDistributionQuery,
+    HistoryMatchQuery, InterferenceQuery, InterventionalDistributionQuery, IvBoundsQuery,
     LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MediationQuery, NestedCounterfactualQuery,
     PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery, RandomizedEffectQuery, ResponseQuery,
     SequentialContrastQuery, SurvivalQuery, SyntheticControlQuery, TemporalDesignQuery,
     TemporalEffectQuery, TransportQuery,
 };
 use antecedent_data::{MultiEnvironmentData, PanelData, TabularData, TimeSeriesData};
+use antecedent_graph::TemporalAdmg;
 
 /// Already-extracted inputs for one `(route, graph class)` cell.
 ///
@@ -115,6 +116,13 @@ pub(crate) enum RouteInput<'a> {
         query: &'a TemporalEffectQuery,
         graph: &'a TemporalDag,
         classification: DataClassification,
+    },
+    /// A pulse, sustained or conditional contrast on a temporal ADMG, identified by the complete
+    /// ID algorithm on the unrolled window of the template and estimated on the window table.
+    TemporalEffectAdmg {
+        data: &'a TimeSeriesData,
+        query: &'a TemporalEffectQuery,
+        graph: &'a TemporalAdmg,
     },
     TemporalResponseDag {
         data: &'a TimeSeriesData,
@@ -217,6 +225,11 @@ pub(crate) enum RouteInput<'a> {
     TemporalDesign {
         data: &'a TabularData,
         query: &'a TemporalDesignQuery,
+    },
+    /// Bounds on the average effect under a binary instrument on a graphless table.
+    IvBounds {
+        data: &'a TabularData,
+        query: &'a IvBoundsQuery,
     },
     GcmDag {
         data: &'a TabularData,
@@ -431,6 +444,13 @@ fn temporal_route_input<'a>(
                 classification: series_classification(study),
             }
         }
+        (AnalysisRoute::TemporalEffect, GraphRef::TemporalAdmg(temporal_admg)) => {
+            RouteInput::TemporalEffectAdmg {
+                data: series(study),
+                query: temporal_effect(study),
+                graph: temporal_admg,
+            }
+        }
         (AnalysisRoute::TemporalResponse, GraphRef::TemporalDag(temporal_dag)) => {
             RouteInput::TemporalResponseDag {
                 data: series(study),
@@ -562,6 +582,9 @@ fn design_route_input<'a>(
         (AnalysisRoute::TemporalDesign, GraphRef::RandomizedTrial) => {
             RouteInput::TemporalDesign { data: tabular(study), query: temporal_design(study) }
         }
+        (AnalysisRoute::IvBounds, GraphRef::RandomizedTrial) => {
+            RouteInput::IvBounds { data: tabular(study), query: iv_bounds(study) }
+        }
         _ => return None,
     })
 }
@@ -577,9 +600,15 @@ fn gcm_route_input<'a>(
         (route, GraphRef::Dag(dag)) if is_gcm_route(route) => {
             RouteInput::GcmDag { data: tabular(study), route, graph: dag }
         }
-        (AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution, GraphRef::TemporalDag(_)) => {
-            RouteInput::GcmTemporal { data: series(study) }
-        }
+        (
+            AnalysisRoute::Anomaly
+            | AnalysisRoute::ChangeAttribution
+            | AnalysisRoute::Attribute
+            | AnalysisRoute::UnitChange
+            | AnalysisRoute::MechanismChange
+            | AnalysisRoute::Simulate,
+            GraphRef::TemporalDag(_),
+        ) => RouteInput::GcmTemporal { data: series(study) },
         (
             AnalysisRoute::TemporalCrossWorld,
             GraphRef::TemporalCpdag(_) | GraphRef::TemporalPag(_),
@@ -705,6 +734,11 @@ fn history_match(study: &Study) -> &HistoryMatchQuery {
 
 fn sequential_contrast(study: &Study) -> &SequentialContrastQuery {
     let CausalQuery::SequentialContrast(query) = &study.query else { unreachable!() };
+    query
+}
+
+fn iv_bounds(study: &Study) -> &IvBoundsQuery {
+    let CausalQuery::IvBounds(query) = &study.query else { unreachable!() };
     query
 }
 

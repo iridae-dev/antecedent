@@ -262,8 +262,8 @@ fn one_shot_run_identifies_once_per_family() {
 #[test]
 fn a_compiled_single_graph_plan_executes_its_retained_identification() {
     // An execution of a compiled plan takes the retained product: compile identifies
-    // once and the execution adds no identification. It is not a prepared handle, so
-    // the published result is the one a fresh identification produces.
+    // once and the execution adds no identification. A series study is not
+    // a prepared handle, so its published result is the one a fresh identification produces.
     for (family, study) in [
         ("class effect", class_effect_study()),
         ("structural", structural_study()),
@@ -275,13 +275,17 @@ fn a_compiled_single_graph_plan_executes_its_retained_identification() {
         assert_eq!(identify_computations(&sink), 1, "{family}: compile identifies once");
         let reused = study.execute(&plan, &ctx).unwrap();
         assert_eq!(identify_computations(&sink), 1, "{family}: execution reuses the product");
-        assert!(
-            !reused
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached"),
-            "{family}: a compiled plan publishes the diagnostics of a fresh identification"
-        );
+        // A tabular study executes a compiled plan through its prepared handle, which
+        // reports the retained identification it installed; a series study does not.
+        if family == "temporal class" {
+            assert!(
+                !reused
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached"),
+                "{family}: a compiled plan publishes the diagnostics of a fresh identification"
+            );
+        }
         // A plan compiled for another study keeps nothing it could reuse here.
         let (other_ctx, other_sink) = recording_ctx(13);
         let foreign = static_effect_study().compile(&other_ctx).unwrap();

@@ -11,6 +11,7 @@ use antecedent_core::{
     SyntheticControlQuery, TransportQuery,
 };
 use antecedent_data::MultiEnvironmentData;
+use antecedent_graph::TemporalAdmg;
 
 use super::dispatch::wire_pair;
 use super::plan_id::PlanId;
@@ -120,6 +121,9 @@ impl super::Study {
             RouteInput::TemporalEffectDag { data, query: q, graph, classification } => {
                 self.compile_logical_temporal_effect_dag(data, q, graph, classification)
             }
+            RouteInput::TemporalEffectAdmg { data, query: q, graph } => {
+                self.compile_logical_temporal_effect_admg(data, q, graph)
+            }
             RouteInput::TemporalResponseDag { data, query: q, graph } => {
                 self.compile_logical_temporal_response_dag(data, q, graph)
             }
@@ -208,6 +212,7 @@ impl super::Study {
             RouteInput::TemporalDesign { data, query: q } => {
                 self.compile_logical_temporal_design(data, q)
             }
+            RouteInput::IvBounds { data, query: q } => self.compile_logical_iv_bounds(data, q),
             RouteInput::GcmDag { data, .. } => self.compile_logical_gcm(
                 data.row_count() as u64,
                 PlanId::GcmQuery.as_str(),
@@ -510,6 +515,115 @@ impl super::Study {
         Ok(plan)
     }
 
+    /// Logical plan of a pulse, sustained or conditional contrast on a temporal ADMG.
+    ///
+    /// The contrast is identified by the complete ID algorithm (IDC with modifiers) on the
+    /// unrolled window of the template and evaluated by the functional plug-in on the lag-aligned
+    /// window table, so the plan names `general.id` and `functional.effect`; a different pair
+    /// would answer another question.
+    fn compile_logical_temporal_effect_admg(
+        &self,
+        data: &TimeSeriesData,
+        q: &TemporalEffectQuery,
+        graph: &TemporalAdmg,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        q.validate()?;
+        let template_variables: std::collections::BTreeSet<VariableId> = graph
+            .nodes()
+            .iter()
+            .filter_map(|node| match node {
+                antecedent_core::NodeRef::Lagged { variable, .. } => Some(*variable),
+                _ => None,
+            })
+            .collect();
+        for variable in
+            [q.treatment, q.outcome].into_iter().chain(q.effect_modifiers.iter().copied())
+        {
+            if !template_variables.contains(&variable) {
+                return Err(crate::compile_reason!(
+                    "unknown_variable",
+                    "variable {} is not a variable of the temporal ADMG template; name a \
+                     variable that appears in the template at some lag",
+                    variable.raw()
+                ));
+            }
+        }
+        let schema_len = data.schema().len();
+        if let Some(variable) = template_variables.iter().find(|v| v.as_usize() >= schema_len) {
+            return Err(crate::compile_reason!(
+                "unknown_variable",
+                "template variable {} is outside the series schema of {schema_len} variables; \
+                 the template names variables by the schema's dense ids",
+                variable.raw()
+            ));
+        }
+        if data.storage().weights().is_some() {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "row sampling weights do not apply to a temporal ADMG contrast: the window table \
+                 is read from the unweighted series. Next attempt: drop the weights, or use a \
+                 TemporalDag whose linear fit reads them"
+            ));
+        }
+        if q.max_history_lag.is_some() {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "a declared history cap does not apply to a temporal ADMG contrast: the window \
+                 holds the template's own lags, and a shorter history would silently turn their \
+                 causes into latent ones. Next attempt: drop the cap, or edit the template"
+            ));
+        }
+        if self.split.is_some() {
+            return Err(crate::compile_reason!(
+                "option_not_applicable",
+                "a supplied TemporalAdmg needs no discovery/estimation split: the window table \
+                 is built from the whole series. Next attempt: drop the split, or discover the \
+                 structure first and analyse the accepted graph"
+            ));
+        }
+        let (identifier_id, estimator_id) = self.resolve_admg_ids();
+        if identifier_id != IdentifierId::GeneralId || estimator_id != EstimatorId::FunctionalEffect
+        {
+            return Err(crate::compile_reason!(
+                "strategy_incompatible",
+                "a contrast on a TemporalAdmg is identified by {:?} on the unrolled window and \
+                 evaluated by {:?}; got identifier {:?} and estimator {:?}",
+                IdentifierId::GeneralId.as_str(),
+                EstimatorId::FunctionalEffect.as_str(),
+                identifier_id.as_str(),
+                estimator_id.as_str()
+            ));
+        }
+        let (identifier, estimator) = wire_pair((identifier_id, estimator_id));
+        let classification = match &self.data {
+            DataInput::Event(_) => DataClassification::Event,
+            _ => DataClassification::Temporal,
+        };
+        let record = antecedent_contract::LogicalAnalysisPlanRecord {
+            plan_id: Arc::from(PlanId::TemporalAdmgContrast.as_str()),
+            data_classification: classification,
+            discovery_algorithm: None,
+            graph_review_required: false,
+            identifier: Some(identifier),
+            estimator: Some(estimator),
+            validation_suite: self.validation_suite_id(),
+            query_variables: Arc::from([q.treatment, q.outcome]),
+        };
+        let mut logical = LogicalAnalysisPlan::unsplit(
+            record,
+            CausalQuery::TemporalEffect(q.clone()),
+            data.row_count() as u64,
+        );
+        if let Ok(window) = antecedent_identify::temporal_admg::plan_temporal_admg_window(graph, q)
+        {
+            // The estimator reads one column per template variable and window period.
+            logical.design_columns_hint =
+                (u64::from(window.periods) * template_variables.len() as u64).max(1);
+        }
+        logical.validate()?;
+        Ok(logical)
+    }
+
     fn compile_logical_temporal_response_dag(
         &self,
         data: &TimeSeriesData,
@@ -716,8 +830,10 @@ impl super::Study {
     /// Logical plan of a conditional effect on a mixed graph.
     ///
     /// A latent-confounded `Admg` compiles the IDC contrast; a latent-free one is the
-    /// Dag conditional route. A `TemporalAdmg` is refused: its contrast is a temporal one
-    /// and is not identified, and the contemporaneous projection answers a different target.
+    /// Dag conditional route. A `TemporalAdmg` is refused: the tabular rows read the
+    /// contemporaneous projection, which answers a different target than the temporal
+    /// conditional contrast (a `TemporalEffect` with modifiers on one series, identified by IDC
+    /// on the unrolled window).
     fn compile_logical_conditional_mixed(
         &self,
         data: &TabularData,
@@ -1216,6 +1332,31 @@ impl super::Study {
         ))
     }
 
+    fn compile_logical_iv_bounds(
+        &self,
+        data: &TabularData,
+        q: &antecedent_core::IvBoundsQuery,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        q.validate()?;
+        for id in super::checked_iv_bounds::query_columns(q) {
+            data.schema().get(id).map_err(CausalError::rejected)?;
+        }
+        let plan = if self.inference.is_bayesian() {
+            PlanId::BayesianIvBounds
+        } else {
+            PlanId::IvBoundsSharp
+        }
+        .as_str();
+        Ok(self.study_query_plan(
+            data.row_count() as u64,
+            DataClassification::Tabular,
+            plan,
+            "randomized.design",
+            plan,
+            Arc::from([q.outcome, q.treatment, q.instrument]),
+        ))
+    }
+
     fn compile_logical_temporal_design(
         &self,
         data: &TabularData,
@@ -1353,6 +1494,9 @@ impl super::Study {
                     DiscoveredClass::DagPosterior
                         | DiscoveredClass::DagEdgeMarginals
                         | DiscoveredClass::TemporalDagPosterior
+                        | DiscoveredClass::CpdagPosterior
+                        | DiscoveredClass::PagPosterior
+                        | DiscoveredClass::StructureStability
                 ),
                 identifier: Some(Arc::from(super::structural_route::STRUCTURE_SEARCH_IDENTIFIER)),
                 estimator: Some(Arc::from(format!("discovery.{}", query.method.id()))),
@@ -1385,6 +1529,10 @@ impl super::Study {
                 (CausalQuery::ChangeAttribution(_), InferenceMode::Bayesian(_)) => {
                     "gcm.attribution.bayesian"
                 }
+                (
+                    CausalQuery::Attribute(_) | CausalQuery::Simulate(_),
+                    InferenceMode::Bayesian(_),
+                ) if super::attribute_posterior_supported(&self.query) => "gcm.fit.bayesian",
                 _ => "gcm.fit",
             },
             Arc::from([treatment, outcome]),
@@ -1578,6 +1726,7 @@ impl super::Study {
             | RouteInput::DistributionMixed { .. }
             | RouteInput::PathSpecificDag { .. }
             | RouteInput::TemporalEffectClass { .. }
+            | RouteInput::TemporalEffectAdmg { .. }
             | RouteInput::TemporalResponseClass { .. }
             | RouteInput::TemporalMediationPag
             | RouteInput::TemporalMediationCpdag { .. }
@@ -1596,6 +1745,7 @@ impl super::Study {
             | RouteInput::SequentialContrast { .. }
             | RouteInput::HistoryMatch { .. }
             | RouteInput::TemporalDesign { .. }
+            | RouteInput::IvBounds { .. }
             | RouteInput::GcmTemporal { .. }
             | RouteInput::TemporalCrossWorldClass { .. } => {
                 self.compile_logical_from(input)?.compile_physical(ctx)

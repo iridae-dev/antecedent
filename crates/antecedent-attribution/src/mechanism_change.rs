@@ -264,9 +264,329 @@ pub(crate) fn detect_mechanism_changes_with_correction(
             method: Arc::from(method_name),
             n_permutations,
             p_value_floor: n_permutations.map(|b| 1.0 / (b as f64 + 1.0)),
+            posterior_probability: None,
         });
     }
     Ok(out)
+}
+
+/// The baseline (cross-fitted, out of sample) and comparison residuals of every target of
+/// `query`, with the guards of [`detect_mechanism_changes_with_correction`]: populations of at
+/// least ten rows and a refusal under a parent-covariate shift.
+fn residual_pairs(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &MechanismChangeQuery,
+    ctx: &ExecutionContext,
+) -> Result<Vec<(VariableId, Vec<f64>, Vec<f64>)>, AttributionError> {
+    query.validate()?;
+    if query.targets.len() > query.max_targets {
+        return Err(AttributionError::SizeLimit {
+            kind: "targets",
+            requested: query.targets.len(),
+            max: query.max_targets,
+        });
+    }
+    let (baseline, comparison) = resolve_population_pair(data, &query.baseline, &query.comparison)?;
+    if baseline.row_count() < MIN_POPULATION_ROWS || comparison.row_count() < MIN_POPULATION_ROWS {
+        return Err(AttributionError::invalid_input(
+            "baseline and comparison populations need at least 10 rows each: fewer cannot \
+             support a calibrated residual distribution and risk a degenerate (e.g. constant) \
+             segment",
+        ));
+    }
+    for &target in query.targets.iter() {
+        if parent_covariate_shift_detected(graph_model, &baseline, &comparison, target)? {
+            return Err(AttributionError::invalid_input(
+                "baseline and comparison populations differ materially in a tested \
+                 mechanism's parent covariates; residual two-sample tests are not \
+                 calibrated under a covariate shift with no accompanying mechanism change, \
+                 so the comparison is refused",
+            ));
+        }
+    }
+    let (base_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+        graph_model,
+        &baseline,
+        SelectionPolicy::BestScore,
+    )?;
+    let base_model = graph_model.clone().with_mechanisms(base_mechs);
+    let n_base = baseline.row_count();
+    let fold_count = baseline_cross_fit_folds(n_base);
+    let baseline_folds = kfold_row_indices(n_base, fold_count);
+    let mut fold_models = Vec::with_capacity(baseline_folds.len());
+    for fold in 0..baseline_folds.len() {
+        let train_rows: Vec<usize> = (0..n_base).filter(|r| r % fold_count != fold).collect();
+        let train = subset_table(&baseline, &train_rows)?;
+        let (mechs, _) = MechanismRegistry::standard().assign_and_fit(
+            graph_model,
+            &train,
+            SelectionPolicy::BestScore,
+        )?;
+        fold_models.push(graph_model.clone().with_mechanisms(mechs));
+    }
+    let fold_tables = baseline_folds
+        .iter()
+        .map(|assigned| subset_table(&baseline, assigned))
+        .collect::<Result<Vec<_>, _>>()?;
+    ctx.map_indexed(query.targets.len(), |ti, worker| {
+        let target = query.targets[ti];
+        let mut baseline_rng =
+            worker.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 0));
+        let mut comparison_rng =
+            worker.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 1));
+        let rb = cross_fitted_residuals(
+            &fold_models,
+            &fold_tables,
+            &baseline_folds,
+            baseline.row_count(),
+            target,
+            &mut baseline_rng,
+        )?;
+        let rc = residuals(&base_model, &comparison, target, &mut comparison_rng)?;
+        Ok::<_, AttributionError>((target, rb, rc))
+    })
+}
+
+/// Fewest block permutations a dependent-series test runs (the smallest attainable p-value is
+/// `1 / (permutations + 1)`).
+pub const MIN_BLOCK_PERMUTATIONS: usize = 99;
+
+/// Gaussian two-sample likelihood-ratio statistic `2 log LR` of a common mean and variance
+/// against separate ones (two extra parameters).
+fn gaussian_lr_statistic(a: &[f64], b: &[f64]) -> f64 {
+    let pooled: Vec<f64> = a.iter().chain(b).copied().collect();
+    let (_, var_pooled) = antecedent_stats::mean_var(&pooled);
+    let (_, var_a) = antecedent_stats::mean_var(a);
+    let (_, var_b) = antecedent_stats::mean_var(b);
+    let floor = f64::MIN_POSITIVE;
+    (pooled.len() as f64) * var_pooled.max(floor).ln()
+        - (a.len() as f64) * var_a.max(floor).ln()
+        - (b.len() as f64) * var_b.max(floor).ln()
+}
+
+/// The statistic a dependent-series test permutes, by method.
+fn block_statistic(method: MechanismChangeMethod, a: &[f64], b: &[f64]) -> Option<f64> {
+    match method {
+        MechanismChangeMethod::LikelihoodRatio => Some(gaussian_lr_statistic(a, b)),
+        MechanismChangeMethod::MeanDiff => {
+            let mean = |xs: &[f64]| xs.iter().sum::<f64>() / xs.len().max(1) as f64;
+            Some((mean(a) - mean(b)).abs())
+        }
+        _ => None,
+    }
+}
+
+fn unsupported_block_method() -> AttributionError {
+    AttributionError::unsupported(
+        "a dependent-series mechanism-change test permutes blocks of the residual likelihood \
+         ratio or mean difference; use one of those methods",
+    )
+}
+
+/// Detect mechanism changes between two populations that are segments of one dependent series.
+///
+/// The residual two-sample tests of [`detect_mechanism_changes`] draw their null law as if the
+/// residuals were independent, which the consecutive times of one series are not. Here the null
+/// law is a **block permutation** one: the baseline and comparison residuals are concatenated in
+/// time, cut into blocks of `block` consecutive times, the blocks are permuted at random and the
+/// first `n_baseline` residuals are called the baseline, so the serial dependence inside a block
+/// is kept under the null. The p-value is `(1 + #{statistic* ≥ statistic}) / (B + 1)`; the
+/// Benjamini–Hochberg correction across targets is applied as in the independent case.
+///
+/// Only the likelihood-ratio and mean-difference methods have a block null here.
+///
+/// # Errors
+///
+/// As [`detect_mechanism_changes`], an unsupported method, or fewer than
+/// [`MIN_BLOCK_PERMUTATIONS`] permutations.
+pub fn detect_mechanism_changes_block(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &MechanismChangeQuery,
+    method: MechanismChangeMethod,
+    block: usize,
+    permutations: usize,
+    ctx: &ExecutionContext,
+) -> Result<Vec<MechanismChangeDetection>, AttributionError> {
+    if permutations < MIN_BLOCK_PERMUTATIONS {
+        return Err(AttributionError::invalid_input(
+            "a block permutation test needs at least 99 permutations",
+        ));
+    }
+    if block_statistic(method, &[0.0], &[0.0]).is_none() {
+        return Err(unsupported_block_method());
+    }
+    let alpha = query.significance_level.to_f64();
+    let pairs = residual_pairs(graph_model, data, query, ctx)?;
+    let raw = ctx.map_indexed(pairs.len(), |i, worker| {
+        let (target, rb, rc) = &pairs[i];
+        let observed = block_statistic(method, rb, rc).ok_or_else(unsupported_block_method)?;
+        let mut rng = CausalRng::from_seed(
+            attribution_stream(worker, KERNEL_STREAM, target.as_usize() as u64).next_u64(),
+        );
+        let pooled: Vec<f64> = rb.iter().chain(rc.iter()).copied().collect();
+        let n = pooled.len();
+        let block = block.clamp(1, n);
+        let starts: Vec<usize> = (0..n).step_by(block).collect();
+        let mut order: Vec<usize> = (0..starts.len()).collect();
+        let mut shuffled = Vec::with_capacity(n);
+        let mut exceed = 0_usize;
+        for _ in 0..permutations {
+            for k in (1..order.len()).rev() {
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "next_f64() is in [0, 1), so the scaled draw is an index at most k"
+                )]
+                let j = ((rng.next_f64() * (k + 1) as f64) as usize).min(k);
+                order.swap(k, j);
+            }
+            shuffled.clear();
+            for &o in &order {
+                let start = starts[o];
+                shuffled.extend_from_slice(&pooled[start..(start + block).min(n)]);
+            }
+            let (a, b) = shuffled.split_at(rb.len());
+            let statistic = block_statistic(method, a, b).ok_or_else(unsupported_block_method)?;
+            if statistic >= observed - 1e-12 {
+                exceed += 1;
+            }
+        }
+        let p = (1 + exceed) as f64 / (permutations + 1) as f64;
+        Ok::<_, AttributionError>((*target, observed, p))
+    })?;
+    let p_values: Vec<f64> = raw.iter().map(|&(_, _, p)| p).collect();
+    let adjusted = adjust_pvalues(&p_values, FdrAdjustment::bh().method);
+    let name = match method {
+        MechanismChangeMethod::LikelihoodRatio => "likelihood_ratio.block_permutation",
+        _ => "mean_diff.block_permutation",
+    };
+    Ok(raw
+        .into_iter()
+        .zip(adjusted)
+        .map(|((target, statistic, p), adjusted_p)| MechanismChangeDetection {
+            variable: target,
+            changed: adjusted_p < alpha,
+            statistic,
+            p_value: p,
+            adjusted_p_value: Some(adjusted_p),
+            method: Arc::from(name),
+            n_permutations: Some(permutations),
+            p_value_floor: Some(1.0 / (permutations as f64 + 1.0)),
+            posterior_probability: None,
+        })
+        .collect())
+}
+
+/// The posterior probability that one tested mechanism changed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MechanismChangePosterior {
+    /// Tested node.
+    pub variable: VariableId,
+    /// Gaussian likelihood-ratio statistic `2 log LR` of separate against common residual mean
+    /// and variance.
+    pub statistic: f64,
+    /// Variance inflation of the statistic's null from the serial dependence of the residuals
+    /// (at least 1), which divides the statistic.
+    pub inflation: f64,
+    /// `log` Bayes factor of a change against no change under the unit-information (BIC)
+    /// approximation: `(statistic / inflation − 2 ln n) / 2`.
+    pub log_bayes_factor: f64,
+    /// The declared prior probability of a change.
+    pub prior: f64,
+    /// The posterior probability of a change given the residuals.
+    pub probability: f64,
+}
+
+impl MechanismChangePosterior {
+    /// The posterior as a detection record: `changed` when the probability exceeds one half, the
+    /// adjusted statistic, no p-value (`NaN`), and the probability itself.
+    #[must_use]
+    pub fn into_detection(self) -> MechanismChangeDetection {
+        MechanismChangeDetection {
+            variable: self.variable,
+            changed: self.probability > 0.5,
+            statistic: self.statistic / self.inflation,
+            p_value: f64::NAN,
+            adjusted_p_value: None,
+            method: Arc::from("posterior_probability.bic_block"),
+            n_permutations: None,
+            p_value_floor: None,
+            posterior_probability: Some(self.probability),
+        }
+    }
+}
+
+/// Bartlett long-run variance inflation `1 + 2 Σ_{k<block} (1 − k/block) ρ_k` of the residuals
+/// of two populations, each centred on its own mean, floored at 1.
+fn serial_inflation(rb: &[f64], rc: &[f64], block: usize) -> f64 {
+    let centred = |xs: &[f64]| {
+        let mean = xs.iter().sum::<f64>() / xs.len().max(1) as f64;
+        xs.iter().map(|x| x - mean).collect::<Vec<f64>>()
+    };
+    let (a, b) = (centred(rb), centred(rc));
+    let n = (a.len() + b.len()) as f64;
+    let variance = (a.iter().chain(&b).map(|x| x * x).sum::<f64>() / n).max(f64::MIN_POSITIVE);
+    let lag_product = |series: &[f64], k: usize| -> f64 {
+        series.iter().zip(series.iter().skip(k)).map(|(x, y)| x * y).sum::<f64>()
+    };
+    let block = block.max(1);
+    let mut inflation = 1.0;
+    for k in 1..block.min(a.len().min(b.len())) {
+        let rho = (lag_product(&a, k) + lag_product(&b, k)) / (n * variance);
+        inflation += 2.0 * (1.0 - k as f64 / block as f64) * rho;
+    }
+    inflation.max(1.0)
+}
+
+/// The posterior probability of a mechanism change for each target, under a declared prior over
+/// the change indicator.
+///
+/// Per target, the residuals of the two populations (as in [`detect_mechanism_changes_block`])
+/// give the Gaussian likelihood-ratio statistic of a change in the residual mean or variance;
+/// the statistic is divided by the Bartlett variance inflation of the residuals' serial
+/// dependence at `block` lags, the log Bayes factor of a change is the unit-information (BIC)
+/// approximation `(statistic / inflation − 2 ln n) / 2`, and
+/// `P(change | data) = π BF / (π BF + 1 − π)` for the declared prior `π`. The prior is the
+/// caller's declaration and is never assumed; the approximation is not a calibrated posterior.
+///
+/// # Errors
+///
+/// As [`detect_mechanism_changes`], and a `prior` outside (0, 1).
+pub fn mechanism_change_posterior(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &MechanismChangeQuery,
+    prior: f64,
+    block: usize,
+    ctx: &ExecutionContext,
+) -> Result<Vec<MechanismChangePosterior>, AttributionError> {
+    if !(prior > 0.0 && prior < 1.0) {
+        return Err(AttributionError::invalid_input(
+            "the prior probability of a change lies strictly between 0 and 1",
+        ));
+    }
+    let pairs = residual_pairs(graph_model, data, query, ctx)?;
+    Ok(pairs
+        .into_iter()
+        .map(|(variable, rb, rc)| {
+            let statistic = gaussian_lr_statistic(&rb, &rc);
+            let inflation = serial_inflation(&rb, &rc, block);
+            let n = (rb.len() + rc.len()) as f64;
+            let log_bayes_factor = 0.5 * (statistic / inflation - 2.0 * n.ln());
+            let log_odds = (prior / (1.0 - prior)).ln() + log_bayes_factor;
+            let probability = 1.0 / (1.0 + (-log_odds).exp());
+            MechanismChangePosterior {
+                variable,
+                statistic,
+                inflation,
+                log_bayes_factor,
+                prior,
+                probability,
+            }
+        })
+        .collect())
 }
 
 /// Distinct RNG stream per (target, population) so seeding is deterministic
@@ -1319,5 +1639,50 @@ mod tests {
             "Discrete-family residual statistic should depend on the ExecutionContext seed \
              (s1={s1}, s2={s2}); identical values mean the RNG is being ignored"
         );
+    }
+}
+
+#[cfg(test)]
+mod block_null_tests {
+    use super::{gaussian_lr_statistic, serial_inflation};
+
+    fn ar1(n: usize, rho: f64, level: f64, state: &mut u64) -> Vec<f64> {
+        let mut next = || {
+            *state ^= *state >> 12;
+            *state ^= *state << 25;
+            *state ^= *state >> 27;
+            let u = (state.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 11) as f64 / (1u64 << 53) as f64;
+            u - 0.5
+        };
+        let mut x = 0.0;
+        (0..n)
+            .map(|_| {
+                x = rho * x + next();
+                x + level
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_likelihood_ratio_statistic_separates_a_shift_from_none() {
+        let mut state = 0x1234_5678_9ABC_DEF1_u64;
+        let a = ar1(200, 0.0, 0.0, &mut state);
+        let same = ar1(200, 0.0, 0.0, &mut state);
+        let shifted = ar1(200, 0.0, 1.0, &mut state);
+        assert!(gaussian_lr_statistic(&a, &same) < 10.0);
+        assert!(gaussian_lr_statistic(&a, &shifted) > 100.0);
+    }
+
+    #[test]
+    fn serial_dependence_inflates_the_statistic_null_and_white_noise_does_not() {
+        let mut state = 0x0FED_CBA9_8765_4321_u64;
+        let white_a = ar1(400, 0.0, 0.0, &mut state);
+        let white_b = ar1(400, 0.0, 0.0, &mut state);
+        let slow_a = ar1(400, 0.9, 0.0, &mut state);
+        let slow_b = ar1(400, 0.9, 0.0, &mut state);
+        let white = serial_inflation(&white_a, &white_b, 12);
+        let slow = serial_inflation(&slow_a, &slow_b, 12);
+        assert!((1.0..1.6).contains(&white), "white noise inflation {white}");
+        assert!(slow > 2.0 * white, "persistent residuals inflate more: {slow} against {white}");
     }
 }

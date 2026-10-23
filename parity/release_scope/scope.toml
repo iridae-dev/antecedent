@@ -1562,10 +1562,12 @@ status = "mandatory"
 list = "mandatory"
 source = "scope_amendment_2026_10_22"
 role = "discover, attribute and simulate query kinds compiled with a CausalContract and ClaimEnvelope; discovered-graph provenance carried into identification and GCM fits; executing and explicitly unlicensed routes; the two fitting-gap rows closed or named attempts"
-owner = "crates/antecedent-discover, crates/antecedent-gcm, python/antecedent"
+owner = "crates/antecedent-discovery, crates/antecedent-attribution, crates/antecedent/src/analysis/structure_route.rs, python/antecedent/discovery.py, python/antecedent/gcm.py"
 reference = "parity/discovery.toml, parity/gcm.toml, parity/capabilities/route_manifest.toml"
-acceptance_fixtures = ["parity/fixtures/discovery_compiler_route.toml", "parity/fixtures/gcm_compiler_route.toml"]
+acceptance_fixtures = ["parity/fixtures/structure_compiler_routes.toml", "crates/antecedent/tests/structure_compiler_routes.rs"]
 consumer = "compiler discover/attribute/simulate prepared handles; Python discovery and GCM wrappers"
+consumer_paths = ["crates/antecedent/src/analysis/execute/structural_route.rs", "python/antecedent/discovery.py", "python/antecedent/gcm.py"]
+children = ["P05.static.frequentist", "P05.static.bayesian", "P05.temporal.frequentist", "P05.temporal.bayesian", "P13.attribution.static.frequentist", "P13.attribution.static.bayesian", "P13.attribution.temporal.frequentist", "P13.attribution.temporal.bayesian"]
 
 [[entry]]
 id = "audit.unified_plan_view"
@@ -1573,10 +1575,11 @@ status = "mandatory"
 list = "mandatory"
 source = "scope_amendment_2026_10_22"
 role = "one PlanView per route, filled before execution without fitting, scanning, graph enumeration or simulation; per-route checked accessors removed; graph-posterior logical plan; Python mirror"
-owner = "crates/antecedent-compile, python/antecedent"
+owner = "crates/antecedent/src/planner/plan_view.rs, python/antecedent/results/_plan_view.py"
 reference = "parity/compiler.toml"
-acceptance_fixtures = ["parity/fixtures/plan_view_all_routes.toml"]
+acceptance_fixtures = ["crates/antecedent/tests/plan_view.rs", "python/tests/test_plan_view.py"]
 consumer = "Study.inspect, prepared handles, Python inspect"
+consumer_paths = ["crates/antecedent/src/analysis/prepared/info.rs", "python/antecedent/results/_views.py"]
 
 [[entry]]
 id = "audit.compiler_bypass_closure"
@@ -1584,10 +1587,11 @@ status = "mandatory"
 list = "mandatory"
 source = "scope_amendment_2026_10_22"
 role = "compiler-bypassing entry points hidden or token-gated; every off-matrix execution_only, fitting_gap and graphless route on the retained checked path with the same inspect and claim path; graphless Bayesian and temporal axes"
-owner = "crates/antecedent-estimate, crates/antecedent-compile, python/antecedent"
+owner = "crates/antecedent/src/strategy_table, crates/antecedent/src/analysis/surface/estimate.rs, python/antecedent/estimation.py"
 reference = "parity/support_graphless.toml, parity/python_facade_surface.toml"
-acceptance_fixtures = ["parity/fixtures/compiler_bypass_surface.toml", "parity/fixtures/graphless_retained_program.toml"]
+acceptance_fixtures = ["scripts/test_gate_compiler_bypass.py", "scripts/test_gate_retained_routes.py", "crates/antecedent/tests/compiler_consistency.rs"]
 consumer = "public Rust and Python facades; graphless route tests"
+consumer_paths = ["scripts/gate_checked_execution.py", "parity/python_facade_surface.toml"]
 
 [[entry]]
 id = "audit.host_integration_contract"
@@ -1595,10 +1599,11 @@ status = "mandatory"
 list = "mandatory"
 source = "scope_amendment_2026_10_22"
 role = "versioned JSON Schema export for requests, CausalContract, ClaimEnvelope, refusals and supported/partial/unsupported statuses; stable refusal and error codes across Rust and Python; embedding guidance; minimal reference host without agent logic"
-owner = "crates/antecedent-compile, python/antecedent, examples"
+owner = "crates/antecedent/src/host.rs, python/antecedent/host.py, scripts/generate_host_schema.py"
 reference = "parity/python_facade_surface.toml"
-acceptance_fixtures = ["parity/fixtures/host_schema_export.toml", "examples/python/reference_host.py"]
+acceptance_fixtures = ["crates/antecedent/tests/host_contract.rs", "python/tests/test_host_contract.py", "examples/python/reference_host.py"]
 consumer = "reference host under examples; application and tool-layer hosts"
+consumer_paths = ["examples/python/reference_host.py", "examples/rust/reference_host.rs"]
 
 [[entry]]
 id = "audit.report_from_contract"
@@ -1606,10 +1611,11 @@ status = "mandatory"
 list = "mandatory"
 source = "scope_amendment_2026_10_22"
 role = "deterministic Markdown and HTML report rendered from CausalContract, ClaimEnvelope and PlanView with assumptions, diagnostics, uncertainty axes, refusals and limits and no new numerical content; Rust and Python"
-owner = "crates/antecedent-compile, python/antecedent"
+owner = "crates/antecedent/src/report.rs, python/antecedent/results/_report.py"
 reference = "parity/compiler.toml"
-acceptance_fixtures = ["parity/fixtures/report_golden_markdown.md", "parity/fixtures/report_golden_html.html"]
+acceptance_fixtures = ["crates/antecedent/tests/report.rs", "python/tests/test_report.py", "crates/antecedent/tests/golden/report/licensed_static_effect.md"]
 consumer = "golden-file tests; Python report API"
+consumer_paths = ["crates/antecedent/tests/report.rs", "python/tests/test_report.py"]
 
 [[entry]]
 id = "audit.staleness_drift_diagnostics"
@@ -1617,10 +1623,12 @@ status = "mandatory"
 list = "mandatory"
 source = "scope_amendment_2026_10_22"
 role = "compiler-level comparison of new data with a stored plan or artifact (covariate shift, overlap and positivity change, assumption-check regressions, support loss, prior-likelihood conflict, period and population drift) returning reuse, refresh, re-identify or refuse with the changed dependency keys"
-owner = "crates/antecedent-compile"
+owner = "crates/antecedent/src/analysis/staleness.rs, python/antecedent/estimation.py"
 reference = "parity/compiler.toml"
-acceptance_fixtures = ["parity/fixtures/staleness_diagnostic.toml"]
+acceptance_fixtures = ["crates/antecedent/tests/staleness_facade.rs", "python/tests/test_staleness.py"]
 consumer = "host refresh decisions; later refresh-semantics audit"
+consumer_paths = ["crates/antecedent/src/period_refresh.rs", "python/antecedent/estimation.py"]
+children = ["P18.static.frequentist", "P18.static.bayesian", "P18.temporal.frequentist", "P18.temporal.bayesian"]
 
 [[entry]]
 id = "audit.temporal_route_uncertainty"
@@ -1628,10 +1636,11 @@ status = "mandatory"
 list = "mandatory"
 source = "scope_amendment_2026_10_22"
 role = "uncertainty procedures for temporal routes now reporting no interval, under the declared block, cluster or trajectory sampling design with horizon coupling, diagnostics and refusals; point-only routes carry a recorded reason"
-owner = "crates/antecedent-estimate"
+owner = "crates/antecedent-estimate/src/temporal_response"
 reference = "parity/support_licensed.toml, docs/user-facing-limits.md"
-acceptance_fixtures = ["parity/fixtures/temporal_uncertainty_procedures.toml"]
+acceptance_fixtures = ["crates/antecedent/tests/temporal_attribution_block_bootstrap.rs", "crates/antecedent/tests/temporal_design_routes.rs", "python/tests/test_checked_temporal_interval.py"]
 consumer = "temporal licensed routes; later whole-procedure calibration"
+consumer_paths = ["crates/antecedent/src/analysis/checked_temporal_response.rs"]
 children = ["P07.derivative.temporal.frequentist", "P07.derivative.temporal.bayesian", "P13.attribution.temporal.frequentist", "P13.attribution.temporal.bayesian", "P14.temporal.frequentist", "P14.temporal.bayesian", "P15.conditional.temporal.frequentist", "P15.conditional.temporal.bayesian", "P15.projection.temporal.frequentist", "P15.projection.temporal.bayesian", "P15.pulse.temporal.frequentist", "P15.pulse.temporal.bayesian", "P15.sustained.temporal.frequentist", "P15.sustained.temporal.bayesian"]
 
 [[entry]]
@@ -1642,8 +1651,9 @@ source = "scope_amendment_2026_10_22"
 role = "closure of frequentist-only licensed cells, Bayesian scalar-refuter and posterior-predictive states, matched interval reporting on static counterfactual, attribution and transport, and a re-audited not-applicable list in which refusals are built or reclassified with a named next attempt"
 owner = "crates/antecedent-estimate"
 reference = "parity/support_n_a.toml, parity/support_licensed.toml"
-acceptance_fixtures = ["parity/fixtures/symmetry_matrix_audit.toml"]
+acceptance_fixtures = ["scripts/test_check_counterparts.py", "crates/antecedent/tests/licensed_compiler.rs"]
 consumer = "support matrix gates"
+consumer_paths = ["scripts/check_counterparts.py", "scripts/gate_docs_support_matrix.sh"]
 
 [[entry]]
 id = "audit.unbuilt_counterparts"
@@ -1653,8 +1663,9 @@ source = "scope_amendment_2026_10_22"
 role = "counterparts that are unbuilt rather than impossible: temporal CPDAG and PAG average effect, temporal and Bayesian dose and quantile variants, temporal trials and interference, temporal survival, and measurement and composition routes with measurement-error propagation in transport"
 owner = "crates/antecedent-estimate"
 reference = "parity/method_children/children.toml"
-acceptance_fixtures = ["parity/fixtures/unbuilt_counterparts.toml"]
+acceptance_fixtures = ["crates/antecedent/tests/temporal_design_routes.rs", "crates/antecedent/tests/bayesian_design_routes.rs", "crates/antecedent/tests/bayesian_design_posterior_routes.rs", "crates/antecedent/tests/unlicensed_design_routes.rs"]
 consumer = "method children; route manifest"
+consumer_paths = ["scripts/check_counterparts.py", "parity/capabilities/route_manifest.toml"]
 children = ["P06.temporal.frequentist", "P06.temporal.bayesian", "P07.continuous_dose.temporal.frequentist", "P07.continuous_dose.temporal.bayesian", "P07.smoothed_dose.temporal.frequentist", "P07.smoothed_dose.temporal.bayesian", "P07.dose_grid.temporal.frequentist", "P07.dose_grid.temporal.bayesian", "P07.dose_grid.static.bayesian", "P07.quantile.static.bayesian", "P07.quantile.temporal.frequentist", "P07.quantile.temporal.bayesian", "P09.two_arm.temporal.frequentist", "P09.two_arm.temporal.bayesian", "P09.multiarm.temporal.frequentist", "P09.multiarm.temporal.bayesian", "P09.categorical.temporal.frequentist", "P09.categorical.temporal.bayesian", "P09.factorial.temporal.frequentist", "P09.factorial.temporal.bayesian", "P09.interference.temporal.frequentist", "P09.interference.temporal.bayesian", "P10.temporal.frequentist", "P10.temporal.bayesian", "P16.static.frequentist", "P16.static.bayesian", "P16.temporal.frequentist", "P16.temporal.bayesian"]
 
 [[entry]]
@@ -1665,8 +1676,10 @@ source = "scope_amendment_2026_10_22"
 role = "heterogeneity-robust staggered difference-in-differences, unbalanced and covariate-adjusted panels, augmented panel DiD, synthetic control with intervals (multi-unit, conformal), temporal regression discontinuity and local ratio, fuzzy RD and regression kink intervals, each keeping its own assignment, pretrend and target-population assumptions"
 owner = "crates/antecedent-estimate"
 reference = "parity/method_children/children.toml"
-acceptance_fixtures = ["parity/fixtures/quasi_experimental_rollouts.toml"]
+acceptance_fixtures = ["crates/antecedent/tests/quasi_rollout_routes.rs", "crates/antecedent/tests/augmented_panel_did_route.rs", "crates/antecedent/tests/synthetic_control_route.rs", "crates/antecedent/tests/panel_did_route.rs", "python/tests/test_quasi_rollout.py"]
 consumer = "quasi-experimental routes and examples"
+consumer_paths = ["python/antecedent/_quasi_rollout.py", "crates/antecedent/tests/quasi_rollout_routes.rs"]
+children = ["P11.did.static.frequentist", "P11.did.static.bayesian", "P11.did.temporal.frequentist", "P11.did.temporal.bayesian", "P11.augmented_panel_did.static.frequentist", "P11.augmented_panel_did.static.bayesian", "P11.augmented_panel_did.temporal.frequentist", "P11.augmented_panel_did.temporal.bayesian", "P11.staggered.static.frequentist", "P11.staggered.static.bayesian", "P11.staggered.temporal.frequentist", "P11.staggered.temporal.bayesian", "P11.synthetic_control.static.frequentist", "P11.synthetic_control.static.bayesian", "P11.synthetic_control.temporal.frequentist", "P11.synthetic_control.temporal.bayesian", "P11.rd.static.frequentist", "P11.rd.static.bayesian", "P11.rd.temporal.frequentist", "P11.rd.temporal.bayesian", "P11.local_ratio.static.frequentist", "P11.local_ratio.static.bayesian", "P11.local_ratio.temporal.frequentist", "P11.local_ratio.temporal.bayesian"]
 
 [[entry]]
 id = "audit.target_native_validation_sensitivity"
@@ -1676,8 +1689,9 @@ source = "scope_amendment_2026_10_22"
 role = "target-native refuters for conditional, derivative, temporal, mediation, world-valued and joint-contrast outputs in all four static/temporal by frequentist/Bayesian quadrants; derivative-native validation; E-value, partial-R2 benchmarking and Rosenbaum-style bounds as assumption ranges tied to the target"
 owner = "crates/antecedent-estimate"
 reference = "parity/method_children/children.toml"
-acceptance_fixtures = ["parity/fixtures/target_native_refuters.toml", "parity/fixtures/sensitivity_bounds.toml"]
+acceptance_fixtures = ["parity/fixtures/target_native_refuters.toml", "parity/fixtures/sensitivity_bounds.toml", "crates/antecedent/tests/target_native_validation.rs"]
 consumer = "Refute and sensitivity entry points"
+consumer_paths = ["crates/antecedent/src/analysis/target_validation.rs", "python/src/target_validation_api.rs"]
 children = ["P13.refuter.static.frequentist", "P13.refuter.static.bayesian", "P13.refuter.temporal.frequentist", "P13.refuter.temporal.bayesian"]
 
 [[entry]]
@@ -1690,6 +1704,7 @@ owner = "crates/antecedent-data, python/antecedent"
 reference = "docs/user-facing-limits.md"
 acceptance_fixtures = ["parity/fixtures/parquet_ingestion.toml", "examples/python/parquet_e2e.py"]
 consumer = "prepared APIs from Python; Parquet example"
+consumer_paths = ["crates/antecedent/src/analysis/file_table.rs", "python/antecedent/_table_file.py"]
 
 [[entry]]
 id = "audit.data_quality_breadth"
@@ -1699,8 +1714,10 @@ source = "scope_amendment_2026_10_22"
 role = "per-route supported missing-data policies with refusals naming the next attempt, multiple imputation with valid pooling, continuous measurement error beside binary misclassification, and shared unbalanced-panel preparation"
 owner = "crates/antecedent-data, crates/antecedent-estimate"
 reference = "docs/guides/missing-data.md, docs/measurement-models.md"
-acceptance_fixtures = ["parity/fixtures/missing_data_policies.toml", "parity/fixtures/measurement_error_continuous.toml"]
+acceptance_fixtures = ["crates/antecedent/tests/missing_data_routes.rs", "crates/antecedent/tests/missing_policy_support.rs", "python/tests/test_missing_imputation.py", "crates/antecedent/tests/continuous_measurement_facade.rs", "python/tests/test_continuous_measurement.py"]
 consumer = "routes taking a missing policy; measurement-model corrections"
+consumer_paths = ["crates/antecedent/src/analysis/measurement_model.rs", "python/antecedent/_measured_inference.py"]
+children = ["P16.static.frequentist", "P16.static.bayesian", "P16.temporal.frequentist", "P16.temporal.bayesian"]
 
 [[entry]]
 id = "audit.experiment_planning_power"
@@ -1710,5 +1727,7 @@ source = "scope_amendment_2026_10_22"
 role = "power, sample size and minimum detectable effect through the compiler for Bernoulli, complete, stratified, cluster, multi-arm, switchback and adaptive designs, frequentist (analytic and simulated) and Bayesian (assurance, posterior precision), in both directions, with assumptions retained in the contract and feeding bounded design ranking; refuses designs without establishable operating characteristics"
 owner = "crates/antecedent-design"
 reference = "docs/design-ranking.md"
-acceptance_fixtures = ["parity/fixtures/design_power_closed_form.toml", "parity/fixtures/design_power_simulation.toml"]
+acceptance_fixtures = ["crates/antecedent/tests/experiment_planning.rs", "python/tests/test_experiment_planning.py", "crates/antecedent-design/src/planning/tests.rs"]
 consumer = "bounded design ranking candidates"
+consumer_paths = ["crates/antecedent/src/analysis/execute/compile_planning.rs", "python/antecedent/design/planning.py"]
+children = ["P17.static.frequentist", "P17.static.bayesian", "P17.temporal.frequentist", "P17.temporal.bayesian"]

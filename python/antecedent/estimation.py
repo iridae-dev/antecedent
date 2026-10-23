@@ -100,6 +100,7 @@ from .quasi import (
     AugmentedPanelDiD,
     CovariateAdjustedDiD,
     FuzzyRegressionDiscontinuity,
+    IvBounds,
     PanelDifferenceInDifferences,
     PeriodHistoryMatch,
     RegressionKink,
@@ -599,6 +600,7 @@ _PreparedQuery = (
     | LongitudinalRegime
     | SequentialContrast
     | PeriodHistoryMatch
+    | IvBounds
     | PolicyProgramValue
     | TemporalDesignQuery
 )
@@ -845,6 +847,15 @@ def _history_match_payload(data: Any, query: PeriodHistoryMatch) -> tuple[list[s
     required = [query.outcome, query.treated, *query.history]
     required.extend(name for name in (query.period, query.weight) if name is not None)
     raw = read_columns(data, tuple(required), what="history match")
+    return ingest_columns({name: raw[name] for name in required})
+
+
+def _iv_bounds_payload(data: Any, query: IvBounds) -> tuple[list[str], list[Any]]:
+    """The numeric columns of the binary-instrument bounds study."""
+    required = [query.outcome, query.treatment, query.instrument]
+    if query.weight is not None:
+        required.append(query.weight)
+    raw = read_columns(data, tuple(required), what="IV bounds")
     return ingest_columns({name: raw[name] for name in required})
 
 
@@ -1701,6 +1712,9 @@ class PreparedAnalysis(Generic[ResultT]):
         elif isinstance(query, PeriodHistoryMatch):
             names, columns = _history_match_payload(data, query)
             frame = None
+        elif isinstance(query, IvBounds):
+            names, columns = _iv_bounds_payload(data, query)
+            frame = None
         else:
             names, columns, frame = _frame_payload(
                 data, analysis_columns(query, graph, estimator_config)
@@ -2278,6 +2292,9 @@ class PreparedAnalysis(Generic[ResultT]):
             return names, columns, None
         if isinstance(query, PeriodHistoryMatch):
             names, columns = _history_match_payload(data, query)
+            return names, columns, None
+        if isinstance(query, IvBounds):
+            names, columns = _iv_bounds_payload(data, query)
             return names, columns, None
         if isinstance(query, ResponseCurve) and query.observation is not None:
             from .observation import Complete, _ensure_latent_schema_column

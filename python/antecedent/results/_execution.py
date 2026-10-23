@@ -270,6 +270,14 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
             detail="unlicensed_sequential_contrast_" + str(contrast.get("uncertainty")),
             structured=canonical_from_wire("sequential_contrast", contrast),
         )
+    bounds_section = payload.get("iv_bounds")
+    if kind == "bounds" and isinstance(bounds_section, Mapping):
+        return Answer(
+            "bounds",
+            bounds=(float(bounds_section["lower"]), float(bounds_section["upper"])),
+            detail="unlicensed_iv_bounds_" + str(bounds_section.get("uncertainty")),
+            structured=canonical_from_wire("iv_bounds", bounds_section),
+        )
     design = payload.get("temporal_design")
     if kind != "unavailable" and isinstance(design, Mapping):
         return Answer(
@@ -530,6 +538,14 @@ class ResultAPI:
                 detail="unlicensed_sequential_contrast_" + contrast.uncertainty,
                 structured=canonical_from_live("sequential_contrast", contrast),
             )
+        iv_bounds = getattr(self, "iv_bounds", None)
+        if iv_bounds is not None:
+            return Answer(
+                "bounds",
+                bounds=(float(iv_bounds.lower), float(iv_bounds.upper)),
+                detail="unlicensed_iv_bounds_" + str(iv_bounds.uncertainty),
+                structured=canonical_from_live("iv_bounds", iv_bounds),
+            )
         design = getattr(self, "temporal_design", None)
         if design is not None:
             return Answer(
@@ -697,6 +713,20 @@ class ResultAPI:
             return (
                 f"{rollout.design} ({rollout.method}) summary {overall.estimate:g}: {spread} "
                 f"({rollout.uncertainty}). Unlicensed; calibration is unmeasured."
+            )
+        iv_bounds = getattr(self, "iv_bounds", None)
+        if iv_bounds is not None:
+            spread = (
+                f" {iv_bounds.interval.level:.0%} sampling interval about the set "
+                f"[{iv_bounds.interval.lower:g}, {iv_bounds.interval.upper:g}]"
+                f" ({iv_bounds.interval.method})."
+                if iv_bounds.interval is not None
+                else " No sampling interval."
+            )
+            return (
+                f"Average effect under a binary instrument is partially identified: "
+                f"[{iv_bounds.lower:g}, {iv_bounds.upper:g}], a set and not a point."
+                f"{spread} Unlicensed, calibration unmeasured."
             )
         matched = getattr(self, "history_match", None)
         if matched is not None:

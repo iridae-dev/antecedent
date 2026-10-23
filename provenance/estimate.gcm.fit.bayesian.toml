@@ -9,14 +9,17 @@ copied_tests = false
 # (EstimatorId::GcmFitBayesian, public name gcm.fit.bayesian). This is the
 # estimator identity assigned when an anomaly-attribution query runs under
 # Bayesian inference (attribution_path.rs finish_gcm), and gcm.fit.bayesian is
-# also the algorithm label stamped on the Bayesian counterfactual posterior.
+# also the algorithm label stamped on the Bayesian counterfactual posterior and the
+# estimator of a fitted-model attribution (intrinsic influence, distribution change,
+# root causes) run under Bayesian inference.
 #
 # Bayesian GCM fit: the mechanism families are selected once on the unweighted
 # data exactly as in estimate.gcm.fit; then every posterior draw samples one
 # Dirichlet(1,...,1) row-weight vector over the observed units, refits all
 # selected mechanisms under those shared weights, and re-runs the downstream
-# procedure (anomaly attribution, or abduction-action-prediction for the
-# counterfactual route) on the original rows. The published posterior is the
+# procedure (anomaly attribution, abduction-action-prediction for the
+# counterfactual route, or the distribution-change and intrinsic-influence
+# attributions of the fitted-model route) on the original rows. The published posterior is the
 # pushforward of those refits. Pearl supplies the abduction-action-prediction
 # procedure, Rubin the Bayesian bootstrap, and Janzing et al. the outlier score
 # the anomaly route re-evaluates per draw; layering the row-weight refit over a
@@ -36,6 +39,7 @@ implementation_deviations = [
  "Anomaly attribution holds the marginal reference statistics at the observed data values across draws and publishes the posterior of each target's mean anomaly score; the anomaly score itself keeps the deviations recorded in attribution.basic.",
  "On the counterfactual route, abducted disturbances are recomputed from the observed rows for every draw rather than drawn, so the mean_ite interval is for the average over the observed units and each unit interval is a credible interval for that observed unit's contrast, not a predictive interval for a new unit.",
  "Coefficient priors, transferred priors, and external prior composition are refused; Bayesian inference here accepts only the draw count.",
+ "On the fitted-model attribution route the posterior covers intrinsic influence (each source's variance share, one nested attribution per refit, at most 100 refits unless the draw count is set), distribution change and root causes under the sampled estimator (one weight vector per population per draw); the other attribution targets report the fitted model's answer and name that in a diagnostic.",
 ]
 
 upstream_implementations_observed = []
@@ -47,4 +51,5 @@ test_sources = [
  "crates/antecedent/tests/bayesian_functional_routes.rs (counterfactual_posterior_has_bayesian_bootstrap_variance, accepted_counterfactual_matches_explicit_bayesian)",
  "conformance/estimate/staged_attribution (known-truth anomaly fixture: linear chain with one injected outlier row)",
  "conformance/estimate/staged_static_kinds (Bayesian counterfactual mean ITE pin)",
+ "crates/antecedent/tests/attribute_mechanism_posterior.rs (a_change_attribution_has_a_posterior_over_the_mechanisms, a_change_attribution_has_a_bootstrap_beside_its_posterior, an_intrinsic_influence_has_a_posterior_over_the_mechanisms, the_other_fitted_model_targets_say_they_report_the_fitted_answer)",
 ]

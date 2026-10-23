@@ -204,6 +204,7 @@ fn fixture_body() -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
         longitudinal_regime: None,
         sequential_contrast: None,
         history_match: None,
+        iv_bounds: None,
         quasi_rollout: None,
         temporal_design: None,
         interference_inference: None,
@@ -357,6 +358,7 @@ fn contract_for(
             crossfit_folds: 5,
         },
         split: None,
+        joint_horizons: false,
     };
     let inference_digest = inference_binding_digest(&inference_binding).unwrap();
     let data_snapshot = DataSnapshotIdentityWire {

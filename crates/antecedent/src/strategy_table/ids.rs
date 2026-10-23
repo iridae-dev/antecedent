@@ -452,6 +452,11 @@ pub enum EstimatorId {
     /// Joint-likelihood parametric g-formula posterior of regime survival (unlicensed,
     /// uncalibrated).
     BayesianTemporalRegimeSurvival,
+    /// Sharp Balke-Pearl bounds on the average effect of a binary treatment under a binary
+    /// instrument, with an Imbens-Manski row-bootstrap interval (unlicensed, uncalibrated).
+    IvBoundsSharp,
+    /// Bayesian-bootstrap posterior of the same bounds' endpoints (unlicensed, uncalibrated).
+    BayesianIvBounds,
 }
 all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
@@ -1222,6 +1227,20 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "temporal_design.joint_likelihood_g_formula",
             provenance: same_step("estimate.bayesian_temporal_regime_survival"),
         },
+        EstimatorId::IvBoundsSharp => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "iv_bounds.balke_pearl",
+            parallel_task_dimension: "analysis",
+            kernel_label: "iv_bounds.balke_pearl_row_bootstrap",
+            provenance: same_step("estimate.iv_bounds_sharp"),
+        },
+        EstimatorId::BayesianIvBounds => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "bayesian.iv_bounds.endpoint_bootstrap",
+            parallel_task_dimension: "analysis",
+            kernel_label: "iv_bounds.bayesian_bootstrap_endpoints",
+            provenance: same_step("estimate.bayesian_iv_bounds"),
+        },
         EstimatorId::SequentialCrossfitContrastWald => EstimatorData {
             compatible: RANDOMIZED,
             name: "sequential.crossfit_contrast.wald",
@@ -1567,6 +1586,8 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::BayesianTemporalDesignExcursion
         | EstimatorId::TemporalRegimeSurvival
         | EstimatorId::BayesianTemporalRegimeSurvival
+        | EstimatorId::IvBoundsSharp
+        | EstimatorId::BayesianIvBounds
         | EstimatorId::BayesianPiecewiseSurvival
         | EstimatorId::BayesianDosePolicy
         | EstimatorId::BayesianLocalRatio => false,

@@ -1226,6 +1226,10 @@ pub struct AnalysisResultWire {
     /// Within-period history-matched contrast, unlicensed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history_match: Option<HistoryMatchWire>,
+    /// Sharp bounds on the average effect under a binary instrument, unlicensed. Absent on
+    /// every other result, so their bodies and digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iv_bounds: Option<IvBoundsWire>,
     /// Rollout design effects with whole-procedure uncertainty, unlicensed. Absent on every
     /// other result, so their bodies and digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1445,10 +1449,15 @@ pub fn decode_analysis_result_artifact(
 }
 
 mod graphless;
+mod iv_bounds;
 mod quasi_rollout;
 mod temporal_design;
 mod validate;
 
+pub use iv_bounds::{
+    IV_BOUNDS_BAYESIAN_METHOD, IV_BOUNDS_FREQUENTIST_METHOD, IV_BOUNDS_POINT_UNCERTAINTY,
+    IvBoundsIntervalWire, IvBoundsPosteriorWire, IvBoundsWire,
+};
 pub use quasi_rollout::{DesignEffectWire, QuasiRolloutWire, rederive_rollout_summary};
 pub use temporal_design::TemporalDesignWire;
 

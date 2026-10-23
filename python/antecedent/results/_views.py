@@ -930,6 +930,9 @@ class AnalysisResult(ResultModel, ResultAPI):
     longitudinal_regime: Any | None = None
     sequential_contrast: Any | None = None
     history_match: Any | None = None
+    #: Sharp bounds on the average effect under a binary instrument
+    #: (:class:`antecedent.quasi.IvBoundsEstimate`): an identified set, never a point; unlicensed.
+    iv_bounds: Any | None = None
     #: Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
     #: or optioned local ratio (:class:`antecedent.quasi.QuasiRolloutEstimate`); unlicensed.
     quasi_rollout: Any | None = None

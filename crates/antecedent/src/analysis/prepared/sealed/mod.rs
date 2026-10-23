@@ -15,6 +15,7 @@ use super::{CheckedProgramBinding, PreparedExecution, PreparedStudy};
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
 use antecedent_core::ExecutionContext;
 use antecedent_data::{TabularData, TimeSeriesData};
@@ -127,6 +128,13 @@ pub(super) trait SealedOperation {
     fn estimate_series(&self, _call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
         Ok(None)
     }
+
+    /// Require that `plan` still carries the lowered program this operation was
+    /// sealed to. An operation that retains no program of its own accepts any plan
+    /// (the handle's dispatch already requires one).
+    fn require_retained_program(&self, _plan: &PhysicalExecutionPlan) -> Result<(), CausalError> {
+        Ok(())
+    }
 }
 
 /// A boxed operation is the operation: the large variants are boxed to keep
@@ -166,6 +174,10 @@ impl<T: SealedOperation + ?Sized> SealedOperation for Box<T> {
 
     fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
         (**self).estimate_series(call)
+    }
+
+    fn require_retained_program(&self, plan: &PhysicalExecutionPlan) -> Result<(), CausalError> {
+        (**self).require_retained_program(plan)
     }
 }
 

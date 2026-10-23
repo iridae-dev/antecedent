@@ -2551,3 +2551,27 @@ rust = "antecedent::host::refusal_record"
 kind = "fn"
 status = "bound"
 python = "antecedent.host.refusal_record"
+
+[[entry]]
+rust = "antecedent::analysis::horizon_composition::compose_horizons"
+kind = "fn"
+status = "bound"
+python = "antecedent.horizon_composition.compose_horizons"
+
+[[entry]]
+rust = "antecedent::analysis::horizon_composition::compose_horizons_with"
+kind = "fn"
+status = "bound"
+python = "antecedent.horizon_composition.compose_horizons"
+
+[[entry]]
+rust = "antecedent::analysis::horizon_composition::horizon_draws"
+kind = "fn"
+status = "missing"
+reason = "reads the joint replicates a Rust temporal response retains under StudyBuilder::retain_joint_horizons; Python has no temporal-response study that retains them, so Python composes the joint draws a caller supplies through compose_horizons (same checks and arithmetic). Next attempt: bind retain_joint_horizons on the Python temporal-response prepare and return the draws with the response"
+
+[[entry]]
+rust = "antecedent::analysis::structure_route::attribution_quantities"
+kind = "fn"
+status = "bound"
+python = "antecedent.attribution.attribution_uncertainty"

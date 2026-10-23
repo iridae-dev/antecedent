@@ -32,6 +32,9 @@ pub enum QueryError {
     /// Invalid within-period history match.
     #[error("invalid history-match query: {0}")]
     InvalidHistoryMatch(String),
+    /// Invalid instrumental-variable bounds declaration.
+    #[error("invalid iv-bounds query: {0}")]
+    InvalidIvBounds(String),
     /// Invalid observational sequential regime contrast.
     #[error("invalid sequential-contrast query: {0}")]
     InvalidSequentialContrast(String),

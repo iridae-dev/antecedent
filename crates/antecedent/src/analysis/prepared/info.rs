@@ -134,6 +134,8 @@ pub enum RetainedOperation<'a> {
     HistoryMatch,
     /// Temporal design-based assignment contrast.
     TemporalDesign,
+    /// Bounds on the average effect under a binary instrument.
+    IvBounds,
     /// Source graph and complete temporal class envelope.
     TemporalClassEffect(CheckedTemporalClassEffectInfo),
     /// Checked functional program of an interventional distribution.
@@ -179,6 +181,16 @@ pub enum RetainedOperation<'a> {
     BayesianSpecialist(crate::analysis::execute::CheckedBayesianSpecialistInfo),
     /// Certified trial-to-target transport.
     TransportTrial(crate::analysis::execute::CheckedTransportTrialInfo),
+    /// Structure discovery, sealed to the lowered program of its search.
+    Discovery,
+    /// Panel temporal effect or response, sealed to its lowered program.
+    PanelTemporal,
+    /// Multi-environment temporal effect, sealed to its lowered program.
+    MultiEnvTemporal,
+    /// Temporal cross-world query, sealed to its lowered program.
+    TemporalCrossWorld,
+    /// Temporal ADMG effect, sealed to its lowered program.
+    TemporalAdmgEffect,
 }
 
 impl RetainedOperation<'_> {
@@ -226,6 +238,7 @@ impl RetainedOperation<'_> {
             Self::SequentialContrast => "sequential_contrast",
             Self::HistoryMatch => "history_match",
             Self::TemporalDesign => "temporal_design",
+            Self::IvBounds => "iv_bounds",
             Self::TemporalClassEffect(_) => "temporal_class_effect",
             Self::Distribution(_) => "distribution",
             Self::BayesianGcomp { .. } => "bayesian_gcomp",
@@ -246,6 +259,11 @@ impl RetainedOperation<'_> {
             Self::GraphPosteriorResponse(_) => "graph_posterior_response",
             Self::BayesianSpecialist(_) => "bayesian_specialist",
             Self::TransportTrial(_) => "transport_trial",
+            Self::Discovery => "discovery",
+            Self::PanelTemporal => "panel_temporal",
+            Self::MultiEnvTemporal => "multi_env_temporal",
+            Self::TemporalCrossWorld => "temporal_cross_world",
+            Self::TemporalAdmgEffect => "temporal_admg_effect",
         }
     }
 }
@@ -319,6 +337,7 @@ impl PreparedStudy {
             E::SequentialContrast(_) => R::SequentialContrast,
             E::HistoryMatch(_) => R::HistoryMatch,
             E::TemporalDesign(_) => R::TemporalDesign,
+            E::IvBounds(_) => R::IvBounds,
             E::TemporalClassEffect(operation) => R::TemporalClassEffect(operation.info()),
             E::Distribution(operation) => R::Distribution(operation.prepared.program()),
             E::BayesianGcomp(operation) => R::BayesianGcomp {
@@ -348,6 +367,11 @@ impl PreparedStudy {
             E::GraphPosteriorResponse(operation) => R::GraphPosteriorResponse(operation.info()),
             E::BayesianSpecialist(operation) => R::BayesianSpecialist(operation.info()),
             E::TransportTrial(operation) => R::TransportTrial(operation.info()),
+            E::Discovery(_) => R::Discovery,
+            E::PanelTemporal(_) => R::PanelTemporal,
+            E::MultiEnvTemporal(_) => R::MultiEnvTemporal,
+            E::TemporalCrossWorld(_) => R::TemporalCrossWorld,
+            E::TemporalAdmgEffect(_) => R::TemporalAdmgEffect,
         }
     }
 

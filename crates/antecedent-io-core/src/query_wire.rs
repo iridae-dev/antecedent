@@ -1339,6 +1339,9 @@ pub enum CausalQueryWire {
         significance_level_bits: u64,
         /// Cap.
         max_targets: u64,
+        /// Declared prior probability of a change, as f64 bits; absent when none is declared.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        change_prior_bits: Option<u64>,
     },
     /// Unit change.
     UnitChange {
@@ -1416,6 +1419,23 @@ pub enum CausalQueryWire {
     Simulate(crate::structure_query_wire::SimulateQueryWire),
     /// Sequentially randomized unit-period design or regime survival.
     TemporalDesign(crate::temporal_design_query_wire::TemporalDesignQueryWire),
+    /// Sharp bounds on the average effect of a binary treatment under a binary instrument.
+    IvBounds(IvBoundsQueryWire),
+}
+
+/// Declared columns of a binary-instrument bounds query.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct IvBoundsQueryWire {
+    /// Outcome column.
+    pub outcome: u32,
+    /// Treatment column.
+    pub treatment: u32,
+    /// Instrument column.
+    pub instrument: u32,
+    /// Sampling-weight column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u32>,
 }
 
 /// Declared columns and caliper of a within-period history match.
@@ -1978,7 +1998,8 @@ impl CausalQueryWire {
             | Self::Discover(_)
             | Self::Attribute(_)
             | Self::Simulate(_)
-            | Self::TemporalDesign(_) => None,
+            | Self::TemporalDesign(_)
+            | Self::IvBounds(_) => None,
         }
     }
 
@@ -2019,7 +2040,8 @@ impl CausalQueryWire {
             | Self::Discover(_)
             | Self::Attribute(_)
             | Self::Simulate(_)
-            | Self::TemporalDesign(_) => None,
+            | Self::TemporalDesign(_)
+            | Self::IvBounds(_) => None,
         }
     }
 }
@@ -2490,6 +2512,7 @@ pub fn causal_query_to_wire_with_registry(
             comparison: population_to_wire(&q.comparison)?,
             significance_level_bits: q.significance_level.to_f64().to_bits(),
             max_targets: crate::error::fit_u64(q.max_targets)?,
+            change_prior_bits: q.change_prior.map(|p| p.to_f64().to_bits()),
         },
         CausalQuery::UnitChange(q) => CausalQueryWire::UnitChange {
             outcome: q.outcome.raw(),
@@ -2858,6 +2881,12 @@ pub fn causal_query_to_wire_with_registry(
         CausalQuery::TemporalDesign(q) => CausalQueryWire::TemporalDesign(
             crate::temporal_design_query_wire::TemporalDesignQueryWire::from_domain(q)?,
         ),
+        CausalQuery::IvBounds(q) => CausalQueryWire::IvBounds(IvBoundsQueryWire {
+            outcome: q.outcome.raw(),
+            treatment: q.treatment.raw(),
+            instrument: q.instrument.raw(),
+            weight: q.weight.map(antecedent_core::VariableId::raw),
+        }),
         _ => return Err(IoError::Convert("unsupported CausalQuery variant".into())),
     })
 }
@@ -2984,6 +3013,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             comparison,
             significance_level_bits,
             max_targets,
+            change_prior_bits,
         } => CausalQuery::MechanismChange(MechanismChangeQuery {
             targets: vars_from_raw(targets),
             baseline: population_from_wire(baseline)?,
@@ -2992,6 +3022,8 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 *significance_level_bits,
             )),
             max_targets: usize::try_from(*max_targets).map_err(|_| IoError::TooLarge)?,
+            change_prior: change_prior_bits
+                .map(|bits| OrderedFloatBits::from_f64(f64::from_bits(bits))),
         }),
         CausalQueryWire::UnitChange { outcome, unit_rows, components, allocation, max_units } => {
             CausalQuery::UnitChange(UnitChangeQuery {
@@ -3565,6 +3597,16 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
         CausalQueryWire::Attribute(w) => CausalQuery::Attribute(w.to_domain()?),
         CausalQueryWire::Simulate(w) => CausalQuery::Simulate(w.to_domain()?),
         CausalQueryWire::TemporalDesign(w) => CausalQuery::TemporalDesign(w.to_domain()?),
+        CausalQueryWire::IvBounds(w) => {
+            let q = antecedent_core::IvBoundsQuery {
+                outcome: VariableId::from_raw(w.outcome),
+                treatment: VariableId::from_raw(w.treatment),
+                instrument: VariableId::from_raw(w.instrument),
+                weight: w.weight.map(VariableId::from_raw),
+            };
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::IvBounds(q)
+        }
     })
 }
 
@@ -4533,6 +4575,16 @@ mod tests {
             0.05,
             16,
         )));
+        assert_rt(&CausalQuery::MechanismChange(
+            MechanismChangeQuery::new(
+                [t],
+                PopulationSelector::All,
+                PopulationSelector::Environment { env_index: 1 },
+                0.05,
+                4,
+            )
+            .with_change_prior(0.25),
+        ));
         assert_rt(&CausalQuery::UnitChange(
             UnitChangeQuery::new(y, 32).with_unit_rows([3usize, 4]),
         ));

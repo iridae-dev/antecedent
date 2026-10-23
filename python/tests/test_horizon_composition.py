@@ -1,0 +1,48 @@
+"""Composition across horizons: coupled draws compose, independent marginals do not."""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+from antecedent.horizon_composition import compose_horizons
+
+
+def _coupled(n: int = 200):
+    x = np.linspace(-8.0, 8.0, n)
+    return [x, 2.0 * x + 1.0]
+
+
+def test_a_contrast_of_coupled_horizons_has_the_spread_of_the_realizations():
+    columns = _coupled()
+    composed = compose_horizons(
+        [1, 2], columns, evidence_id="series", alignment_id="replicates:200",
+        operation="contrast", coefficients=[-1.0, 1.0],
+    )  # fmt: skip
+    # h2 - h1 = x + 1 on every row: the spread of x, not sqrt(var(x) + var(2x + 1)).
+    assert composed.variance == pytest.approx(np.var(columns[0], ddof=1), rel=1e-9)
+    assert composed.coordinate.endswith("|horizons=1,2")
+    assert composed.label == "uncalibrated_spread"
+    assert composed.route == "aligned_joint_law"
+
+
+def test_a_nonlinear_map_composes_the_same_joint_draws():
+    columns = _coupled()
+    composed = compose_horizons(
+        [1, 2], columns, evidence_id="series", alignment_id="replicates:200",
+        operation="nonlinear_functional", map=lambda values: max(values),
+    )  # fmt: skip
+    expected = np.maximum(columns[0], columns[1])
+    assert np.allclose(composed.draws, expected)
+
+
+def test_a_malformed_declaration_is_refused():
+    columns = _coupled()
+    with pytest.raises(ValueError):
+        compose_horizons(
+            [1, 2], columns, evidence_id="e", alignment_id="a", operation="sum",
+        )  # fmt: skip
+    with pytest.raises(Exception, match="horizon"):
+        compose_horizons(
+            [1, 1], columns, evidence_id="e", alignment_id="a", operation="sum",
+            coefficients=[1.0, 1.0],
+        )  # fmt: skip

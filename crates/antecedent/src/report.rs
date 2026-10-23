@@ -132,19 +132,16 @@ impl PreparedStudy {
     /// # Errors
     ///
     /// The refusals of [`Self::execution_contract`], [`Self::contract`] and
-    /// [`Self::plan_view`]; a plan with no lowered program is reported without the plan section.
+    /// [`Self::plan_view`]; `route_not_lowered` when the plan carries no lowered program.
     pub fn report(
         &self,
         result: Option<&StudyResult>,
         ctx: &ExecutionContext,
         format: ReportFormat,
     ) -> Result<String, CausalError> {
-        // A handle whose plan carries no lowered program is reported without the plan section.
-        let plan = match self.plan_view() {
-            Ok(plan) => Some(plan),
-            Err(error) if error.reason_code() == Some("route_not_lowered") => None,
-            Err(error) => return Err(error),
-        };
+        // A plan with no lowered program is refused (`route_not_lowered`), not reported
+        // without its plan section.
+        let plan = self.plan_view()?;
         let names: Vec<Arc<str>> =
             self.schema().variables().iter().map(|variable| Arc::clone(&variable.name)).collect();
         let (contract, claim) = match result {
@@ -154,10 +151,7 @@ impl PreparedStudy {
             }
             None => (self.contract()?, None),
         };
-        let mut input = ReportInput::new(&contract).with_names(&names);
-        if let Some(plan) = &plan {
-            input = input.with_plan(plan);
-        }
+        let mut input = ReportInput::new(&contract).with_names(&names).with_plan(&plan);
         if let Some(claim) = &claim {
             input = input.with_claim(claim);
         }

@@ -113,4 +113,43 @@ impl PyPreparedAnalysis {
             req.finish_applied(builder, false)
         })
     }
+
+    /// Freeze bounds on the average effect of a binary treatment under a binary instrument.
+    ///
+    /// The instrument, treatment and outcome are 0/1 columns read by name; `weight` names an
+    /// optional sampling-weight column. The answer is an identified set, never a point.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, treatment, instrument, weight=None, *,
+        seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_iv_bounds(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        treatment: String,
+        instrument: String,
+        weight: Option<String>,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+        req.refuse_design("IV bounds")?;
+        let data = req.load_columns(py, columns)?;
+        req.off_gil(py, move |req| {
+            let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
+            let mut query = antecedent_core::IvBoundsQuery::new(
+                id(&outcome)?,
+                id(&treatment)?,
+                id(&instrument)?,
+            );
+            if let Some(weight) = weight.as_deref() {
+                query = query.with_weight(id(weight)?);
+            }
+            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+            let builder = Study::tabular(data).query(CausalQuery::IvBounds(query));
+            req.finish_applied(builder, false)
+        })
+    }
 }
