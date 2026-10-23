@@ -29,6 +29,7 @@ pub mod rcc;
 pub mod riesz;
 pub mod sensitivity;
 pub mod stability;
+pub mod staleness;
 mod streams;
 pub mod suite;
 mod tipping;
@@ -90,6 +91,10 @@ pub use stability::{
     FalsePositiveCheckReport, LagWindowSensitivity, LinkStability, NullCalibrationReport,
     NullTransform, OrientationStability, OrientationStabilityReport, RegimeStability,
     RegimeStabilityReport, SyntheticNullCalibration, UndirectedLinkStability,
+};
+pub use staleness::{
+    FindingKind, Multiplicity, Recommendation, StalenessBaseline, StalenessError, StalenessFinding,
+    StalenessPlan, StalenessPolicy, StalenessReport, assess_exported_baseline,
 };
 pub use suite::{
     BayesianSuiteContext, ConfiguredValidator, ValidationOutcome, ValidationSuite, ValidatorId,

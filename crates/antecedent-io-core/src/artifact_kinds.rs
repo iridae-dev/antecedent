@@ -30,6 +30,7 @@ pub(crate) const RECALC_RECEIPT: &str = "recalc_receipt_v1";
 pub(crate) const SCIENTIFIC_BRIDGE: &str = "scientific_bridge_v1";
 pub(crate) const SELECTIVE_DISCOVERY: &str = "selective_discovery_v1";
 pub(crate) const SENSITIVITY_DECISION: &str = "sensitivity_decision_v1";
+pub(crate) const STALENESS_BASELINE: &str = "staleness_baseline_v1";
 pub(crate) const TEMPORAL_COUNTERFACTUAL: &str = "temporal_counterfactual_v1";
 pub(crate) const TRANSPORT_CERTIFICATE: &str = "transport_certificate";
 pub(crate) const TRANSPORTED_COUNTERFACTUAL: &str = "transported_counterfactual_v1";
@@ -43,7 +44,7 @@ mod tests {
         EXTERNAL_RESPONSE_CLAIM, FROZEN_SCORES, INTERFACE_CONTRACT, JOINT_DISTRIBUTION,
         JOINT_MECHANISM_SENSITIVITY, MEASUREMENT_MODEL, PROVIDER_RESULT,
         PROVIDER_VERIFICATION_RECEIPT, RECALC_RECEIPT, SCIENTIFIC_BRIDGE, SELECTIVE_DISCOVERY,
-        SENSITIVITY_DECISION, TEMPORAL_COUNTERFACTUAL, TRANSPORT_CERTIFICATE,
+        SENSITIVITY_DECISION, STALENESS_BASELINE, TEMPORAL_COUNTERFACTUAL, TRANSPORT_CERTIFICATE,
         TRANSPORTED_COUNTERFACTUAL,
     };
 
@@ -73,6 +74,7 @@ mod tests {
             SCIENTIFIC_BRIDGE,
             SELECTIVE_DISCOVERY,
             SENSITIVITY_DECISION,
+            STALENESS_BASELINE,
             TEMPORAL_COUNTERFACTUAL,
             TRANSPORT_CERTIFICATE,
             TRANSPORTED_COUNTERFACTUAL,
