@@ -3,6 +3,57 @@
 # rule here matches. This file does not cause refusal; it names it.
 # A cell matching every listed constraint reports that rule's `reason`.
 # Must not overlap licensed cells or n/a predicates (the gate fails on overlap).
+# `executes_unlicensed = true` marks a refused cell that still builds and runs on
+# an explicit request; its result reports the support status `refused`, so no
+# evidence row or coverage record is implied. The first matching rule decides.
+
+[[closed]]
+queries = ["InterventionResponse"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted", "graph_posterior"]
+inferences = ["Bayesian"]
+validations = ["cheap", "full"]
+executes_unlicensed = true
+reason = "Bayesian InterventionResponse cheap and full run the Bayesian refuter state on the intervention level and stay unlicensed: no evidence row or coverage record names the state. Cheap runs plugin-level overlap on the posterior-mean level and the prior and posterior predictive checks of the outcome regression; full adds plugin-level sampling stability, level-native prior sensitivity (the response is refitted at each prior-grid point and its posterior-mean level read back) and MCMC diagnostics. A graph posterior runs the plugin-level suite on the pooled level and the posterior checks on its primary identified atom. Requested explicitly, the state executes; the default suite still downgrades to the licensed validation none."
+
+[[closed]]
+queries = ["PointDerivative", "Elasticity", "SemiElasticity", "AverageDerivative", "DirectionalDerivative", "ResponseJacobian"]
+graph_classes = ["Dag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+executes_unlicensed = true
+reason = "Derivative, elasticity and Jacobian cheap and full run the derivative refuter state and stay unlicensed: no evidence row or coverage record names it. Cheap checks support at the evaluation point and the central finite difference of the identified intervention levels against the published derivative on its reported scale (point derivatives of order one, order two on the identity scale, and observed-law average derivatives through ± shift interventions); full adds a whole-procedure row bootstrap of the derivative under independent subjects (the published value must lie in the replicates' 95% range; failed replicates are kept). Bayesian studies add the prior and posterior predictive checks of the outcome regression and, under full, prior sensitivity refitting the whole derivative at each grid point and MCMC diagnostics. ATE-shaped contrast refuters do not apply."
+
+[[closed]]
+queries = ["PointDerivative", "Elasticity", "SemiElasticity", "AverageDerivative", "DirectionalDerivative", "ResponseJacobian"]
+graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "Temporal derivative cheap and full are refused, not impossible: the temporal derivative is the slope of the linear unfolded fit at one horizon, a scalar a refuter state can check. Next attempt: the static derivative refuter state on that horizon's lag-aligned design (support at the evaluation point, finite-difference consistency of the horizon's identified levels, and circular-block stability under the dependent-series design), executing unlicensed."
+
+[[closed]]
+queries = ["InterventionResponse"]
+graph_classes = ["TemporalDag", "Cpdag", "Pag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+executes_unlicensed = true
+reason = "Temporal and class-aware InterventionResponse cheap and full run a refuter state and stay unlicensed: no evidence row or coverage record names it. A TemporalDag level runs the TemporalDag Pulse-native suite on each requested horizon's own Pulse witness (the unit contrast at that horizon with the response's intervention as the active arm, under that horizon's proof and lag indexer): overlap, the temporal placebo and pre-period checks, and under full circular-block stability under the dependent-series design; Bayesian studies add the predictive checks and prior sensitivity of each witness; horizons are not mixed. A Cpdag or Pag level runs the plugin-level suite on every completion's own level and estimand (overlap; full adds per-completion sampling stability), mixes the reports only when every completion answers the same level, and reports how far the completions disagree."
+
+[[closed]]
+queries = ["InterventionResponse"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "TemporalCpdag and TemporalPag InterventionResponse cheap and full are refused, not impossible: the graph-posterior cells of these classes already run the Pulse-native suite on every completion atom. Next attempt: the same per-completion, per-horizon Pulse-witness state on the explicit and accepted completion-enumeration envelope, with a failed completion reported rather than mixed."
+
+[[closed]]
+queries = ["InterventionResponse"]
+graph_classes = ["CoDetermined"]
+structures = ["explicit"]
+inferences = ["Bayesian"]
+validations = ["none"]
+executes_unlicensed = true
+reason = "Bayesian joint InterventionResponse on a CoDetermined tier closure runs response.bayesian over the closure's generalized adjustment set (the same tier identification the Frequentist cell.aipw cell uses) and stays unlicensed: no evidence row or coverage record names it. The outcome regression is additive in the treatments, so the published level is that model's joint level, not the saturated cell mean cell.aipw estimates."
 
 [[closed]]
 queries = ["Counterfactual"]

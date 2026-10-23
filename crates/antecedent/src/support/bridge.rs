@@ -22,16 +22,24 @@ use super::cell::{
 };
 
 /// Query kinds that intentionally sit off the matrix axes: the mechanism- and unit-change
-/// studies, which have no geometric cell to license and run only against a supplied static DAG,
-/// and the graphless designs, which are licensed by their own design key rather than a graph class.
+/// studies, which have no geometric cell to license and run only against a supplied static DAG;
+/// structure discovery, attribution and simulation on a fitted model, which execute through the
+/// compiler and stay unlicensed until a coverage record licenses them; and the graphless designs,
+/// which are licensed by their own design key rather than a graph class.
 ///
 /// This is the closed allow-list for "no cell": every other query kind must classify onto the
 /// axis (for some graph class), so a variant added later without a matrix row is refused at build
 /// rather than silently defaulting to allowed.
 #[must_use]
 pub fn is_declared_off_axis(query: &CausalQuery) -> bool {
-    matches!(query.kind(), CausalQueryKind::MechanismChange | CausalQueryKind::UnitChange)
-        || crate::analysis::query_license::is_graphless_design(query)
+    matches!(
+        query.kind(),
+        CausalQueryKind::MechanismChange
+            | CausalQueryKind::UnitChange
+            | CausalQueryKind::Discover
+            | CausalQueryKind::Attribute
+            | CausalQueryKind::Simulate
+    ) || crate::analysis::query_license::is_graphless_design(query)
 }
 
 /// Refuse a query the matrix does not know and that is not a declared off-axis kind.

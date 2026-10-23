@@ -959,6 +959,8 @@ def _rule_snapshot(rule: dict, *, parent: bool = False) -> dict:
         "validations": rule.get("validations"),
         "reason": rule["reason"],
     }
+    if rule.get("executes_unlicensed"):
+        item["executes_unlicensed"] = True
     if parent:
         item["parent"] = rule["parent"]
     return item

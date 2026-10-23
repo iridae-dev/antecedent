@@ -458,9 +458,46 @@ impl MechanismRegistry {
         weights: &[f64],
         cancelled: &dyn Fn() -> bool,
     ) -> Result<CompiledMechanismStore, ModelError> {
+        self.refit_with_weights(model, data, assignments, weights, false, cancelled)
+    }
+
+    /// Refit standard mechanisms under frequency weights (bootstrap counts),
+    /// conditional on the originally selected families.
+    ///
+    /// A count of zero drops that row from the refit; this is the multinomial
+    /// row bootstrap expressed on the original table, so the original units,
+    /// their order and the discrete support are kept (a support value no
+    /// resampled row carries keeps probability zero). A replicate whose refit
+    /// fails is the caller's to count as failed, not to drop.
+    ///
+    /// # Errors
+    /// Negative or non-finite counts, an all-zero count vector, nonstandard
+    /// assignments, weighted fitting failures, or [`ModelError::Cancelled`].
+    pub fn refit_frequency_weighted_polled(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        assignments: &[MechanismAssignment],
+        counts: &[f64],
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<CompiledMechanismStore, ModelError> {
+        self.refit_with_weights(model, data, assignments, counts, true, cancelled)
+    }
+
+    fn refit_with_weights(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        assignments: &[MechanismAssignment],
+        weights: &[f64],
+        allow_zero: bool,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<CompiledMechanismStore, ModelError> {
         let total: f64 = weights.iter().sum();
+        let invalid_weight =
+            |w: &f64| !w.is_finite() || if allow_zero { *w < 0.0 } else { *w <= 0.0 };
         if weights.len() != data.row_count()
-            || weights.iter().any(|w| !w.is_finite() || *w <= 0.0)
+            || weights.iter().any(invalid_weight)
             || !total.is_finite()
             || total <= 0.0
             || assignments.len() != model.n_nodes()

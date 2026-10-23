@@ -1,10 +1,21 @@
 # Typed impossibilities. A cell matching every listed constraint on a rule
 # is n/a (not refused). Omitted keys mean "any value on that axis."
+#
+# Only a cell whose estimand does not denote, or whose structure axis does not
+# exist for the graph class, belongs here. A route that is merely not built is a
+# refusal: it goes to support_closed.toml with a reason that names the next
+# attempt, or, once built, with `executes_unlicensed = true` (the derivative and
+# the TemporalDag / Cpdag / Pag InterventionResponse refuter states, the Bayesian
+# Dag InterventionResponse refuter state, the Bayesian joint InterventionResponse
+# on a CoDetermined tier closure).
+# Theory-blocked contrasts that do denote but are not identified (temporal
+# contrasts on TemporalAdmg, TemporalMediationEffect on TemporalPag) are also
+# recorded there, with the identification reason.
 
 [[n_a]]
 queries = ["PulseEffect", "SustainedEffect", "TemporalConditionalPulse", "TemporalConditionalSustained", "TemporalMediationEffect"]
 graph_classes = ["Dag", "Admg", "Cpdag", "Pag", "CoDetermined", "Unknown"]
-reason = "Temporal contrast queries require a temporal graph class."
+reason = "Temporal contrast queries require a temporal graph class: a pulse, sustained, temporal-conditional or temporal-mediation contrast is indexed by a lag and a horizon, and a static graph class has no time index for either."
 
 [[n_a]]
 queries = [
@@ -33,28 +44,6 @@ graph_classes = ["Dag", "TemporalDag", "TemporalCpdag", "TemporalPag"]
 structures = ["graph_posterior"]
 validations = ["cheap", "full"]
 reason = "cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no licensed scalar-refuter state."
-
-[[n_a]]
-queries = ["InterventionResponse"]
-graph_classes = ["TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
-structures = ["explicit", "accepted"]
-validations = ["cheap", "full"]
-reason = "cheap and full denote the ATE-shaped scalar refuter suite; temporal and class-aware InterventionResponse remain function-valued or envelope-mixed surfaces with no licensed scalar-refuter state."
-
-[[n_a]]
-queries = ["InterventionResponse"]
-graph_classes = ["Dag"]
-structures = ["explicit", "accepted", "graph_posterior"]
-inferences = ["Bayesian"]
-validations = ["cheap", "full"]
-reason = "Bayesian InterventionResponse has no licensed scalar-refuter state; cheap/full name the Frequentist ATE-shaped suite."
-
-[[n_a]]
-queries = ["PointDerivative", "Elasticity", "SemiElasticity", "AverageDerivative", "DirectionalDerivative", "ResponseJacobian"]
-graph_classes = ["Dag", "TemporalDag", "TemporalCpdag", "TemporalPag"]
-structures = ["explicit", "accepted"]
-validations = ["cheap", "full"]
-reason = "Derivative-native validation is not implemented; ATE refuters do not apply."
 
 [[n_a]]
 queries = [
@@ -107,12 +96,6 @@ reason = "CoDetermined cells license AverageEffect and joint InterventionRespons
 graph_classes = ["CoDetermined", "Unknown"]
 structures = ["accepted", "graph_posterior"]
 reason = "Tier-rule backgrounds are an explicit structure source."
-
-[[n_a]]
-queries = ["InterventionResponse"]
-graph_classes = ["CoDetermined", "Unknown"]
-inferences = ["Bayesian"]
-reason = "Joint InterventionResponse on a tier background is Frequentist (cell.aipw joint); AverageEffect is the tier-rule query with a Bayesian posterior."
 
 [[n_a]]
 queries = ["AverageEffect", "InterventionResponse"]

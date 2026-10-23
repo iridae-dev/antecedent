@@ -82,7 +82,10 @@ pub(super) fn static_dag_response(cx: &SealContext<'_>) -> SealOutcome {
                         query.functional,
                         antecedent_core::ResponseFunctional::InterventionResponse { .. }
                     ) && (matches!(analysis.inference, InferenceMode::Frequentist)
-                        || analysis.refute == RefuteSuite::None)) =>
+                        || matches!(
+                            analysis.refute,
+                            RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                        ))) =>
         {
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::RESPONSE)?;
             let bayesian = matches!(analysis.inference, InferenceMode::Bayesian(_));

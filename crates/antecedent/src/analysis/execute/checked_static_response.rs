@@ -265,14 +265,12 @@ impl CheckedStaticDagResponseOperation {
                 });
             }
         };
-        // A Bayesian intervention level publishes a posterior, not the plugin
-        // g-computation level the cheap/full refuters are licensed for.
-        let bayesian = inference.is_bayesian();
+        // A Bayesian intervention level publishes a posterior; its cheap/full suites run
+        // the Bayesian refuter state (plugin-level suite on the posterior-mean level plus
+        // the predictive checks and, under full, level-native prior sensitivity), which
+        // executes unlicensed.
         let admissible_refuter = match query.functional {
             ResponseFunctional::MeanCurve { .. } => refute == RefuteSuite::None,
-            ResponseFunctional::InterventionResponse { .. } if bayesian => {
-                refute == RefuteSuite::None
-            }
             ResponseFunctional::InterventionResponse { .. } => {
                 matches!(
                     refute,
@@ -363,6 +361,11 @@ impl CheckedStaticDagResponseOperation {
     /// Inference procedure fixed by preparation.
     pub(crate) fn inference(&self) -> &InferenceMode {
         &self.inference
+    }
+
+    /// Response fitter fixed to the retained adjustment set and response options.
+    pub(crate) fn fitter(&self) -> &ContinuousResponseEstimator {
+        &self.fitter
     }
 
     /// Retained response query, including full grid or intervention values.
@@ -619,9 +622,42 @@ impl super::Study {
 
         let scalar_intervention = scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        let (refutations, refute_diagnostics) = if scalar_intervention
-            && matches!(refute, RefuteSuite::Cheap | RefuteSuite::Full)
-        {
+        let mut predictive_checks = Vec::new();
+        let (refutations, refute_diagnostics) = if let (true, InferenceMode::Bayesian(config)) = (
+            scalar_intervention && matches!(refute, RefuteSuite::Cheap | RefuteSuite::Full),
+            operation.inference(),
+        ) {
+            let estimator = super::bayesian_level_refutation::bayesian_response_estimator_in_force(
+                operation.fitter(),
+                data,
+                query,
+                config,
+                ctx,
+            )?;
+            let state = super::bayesian_level_refutation::refute_bayesian_intervention_level(
+                &super::bayesian_level_refutation::BayesianLevelRefutationInput {
+                    data,
+                    query,
+                    estimand,
+                    fitter: operation.fitter(),
+                    estimator: &estimator,
+                    status: identification.status,
+                    assumptions: &identification.required_assumptions,
+                    level: scalar,
+                    level_sd: standard_error,
+                    treatment,
+                    outcome,
+                    suite: refute,
+                    latency: self.latency_mode,
+                    plugin_level: true,
+                    summarize: response_scalar_summary,
+                    target_label: "intervention-level",
+                },
+                ctx,
+            )?;
+            predictive_checks = state.predictive_checks;
+            (state.refutations, state.diagnostics)
+        } else if scalar_intervention && matches!(refute, RefuteSuite::Cheap | RefuteSuite::Full) {
             let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
             let mut workspace = EstimationWorkspace::default();
             if matches!(refute, RefuteSuite::Cheap | RefuteSuite::Full) {
@@ -668,6 +704,7 @@ impl super::Study {
                 )),
                 diagnostics: Some(diagnostics),
                 response: Some(response),
+                predictive_checks,
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             }),

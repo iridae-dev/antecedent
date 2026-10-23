@@ -571,10 +571,15 @@ def test_v13_named_refusals():
         ac.analyze(data, graph=dag, query=cf, refute="full")
     with pytest.raises(CausalUnsupportedError, match="no native ITE refuter"):
         PreparedAnalysis.prepare(data, graph=dag, query=cf, refute="cheap")
-    with pytest.raises(CausalUnsupportedError, match="sampling uncertainty is unavailable"):
-        ac.analyze(data, graph=dag, query=cf, refute="none", bootstrap=10)
-    with pytest.raises(CausalUnsupportedError, match="sampling uncertainty is unavailable"):
-        PreparedAnalysis.prepare(data, graph=dag, query=cf, refute="none", bootstrap=8)
+    # A Frequentist replicate count runs the mechanism-refit row bootstrap, which is
+    # unlicensed; the Bayesian cell keeps its posterior and refuses bootstrap=.
+    bootstrapped = ac.analyze(data, graph=dag, query=cf, refute="none", bootstrap=10)
+    assert bootstrapped.evidence_status != "licensed"
+    assert any("gcm.frequentist_bootstrap" in d for d in bootstrapped.diagnostics)
+    with pytest.raises(CausalUnsupportedError, match="Bayesian-bootstrap|mechanism-refit"):
+        PreparedAnalysis.prepare(
+            data, graph=dag, query=cf, refute="none", bootstrap=8, inference=ac.Bayesian()
+        )
 
 
 def test_counterfactual_reports_extrapolative_support():

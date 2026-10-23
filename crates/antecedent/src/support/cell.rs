@@ -47,6 +47,9 @@ pub enum StructureSource {
     GraphPosterior,
     /// Randomization itself supplies identification; no graph was supplied.
     RandomizedTrial,
+    /// The study searches for structure; no graph was supplied and the
+    /// discovered structure is the answer, not an input.
+    Discovered,
 }
 
 /// Convert a caller-supplied structure into a graph plus its matrix axis.
@@ -88,6 +91,7 @@ impl StructureSource {
             Self::Accepted => "accepted",
             Self::GraphPosterior => "graph_posterior",
             Self::RandomizedTrial => "randomized_trial",
+            Self::Discovered => "discovered",
         }
     }
 }
@@ -306,6 +310,8 @@ pub enum SupportStructure {
     GraphPosterior,
     /// Randomized trial, off the geometric graph axis.
     RandomizedTrial,
+    /// Structure search, off the geometric graph axis.
+    Discovered,
 }
 
 impl SupportStructure {
@@ -317,6 +323,7 @@ impl SupportStructure {
             Self::Accepted => "accepted",
             Self::GraphPosterior => "graph_posterior",
             Self::RandomizedTrial => "randomized_trial",
+            Self::Discovered => "discovered",
         }
     }
 
@@ -328,6 +335,7 @@ impl SupportStructure {
             "accepted" => Self::Accepted,
             "graph_posterior" => Self::GraphPosterior,
             "randomized_trial" => Self::RandomizedTrial,
+            "discovered" => Self::Discovered,
             _ => return None,
         })
     }
@@ -340,6 +348,7 @@ impl From<StructureSource> for SupportStructure {
             StructureSource::Accepted => Self::Accepted,
             StructureSource::GraphPosterior => Self::GraphPosterior,
             StructureSource::RandomizedTrial => Self::RandomizedTrial,
+            StructureSource::Discovered => Self::Discovered,
         }
     }
 }

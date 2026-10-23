@@ -61,6 +61,9 @@ pub struct NaRule {
     pub inferences: Option<&'static [&'static str]>,
     pub validations: Option<&'static [&'static str]>,
     pub reason: &'static str,
+    /// Closed rules only: the refused cell still executes, and its result stays
+    /// unlicensed (the contract reports `refused`). Always `false` on n/a rules.
+    pub executes_unlicensed: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -171,6 +174,8 @@ struct RawRule {
     inferences: Option<Vec<String>>,
     validations: Option<Vec<String>>,
     reason: String,
+    #[serde(default)]
+    executes_unlicensed: bool,
 }
 
 #[derive(Deserialize)]
@@ -193,6 +198,7 @@ impl NaRule {
             inferences: opt_strs(raw.inferences),
             validations: opt_strs(raw.validations),
             reason: leak_str(raw.reason),
+            executes_unlicensed: raw.executes_unlicensed,
         }
     }
 }

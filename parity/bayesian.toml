@@ -75,7 +75,7 @@ smoke_fixture = "conformance/bayesian/ppc"
 evidence_test = "crates/antecedent-validate/src/bayesian_checks/tests.rs"
 evidence_assertion = "posterior_predictive_logit_null_rate_is_at_most_nominal"
 limitations = "The original smoke fixture requires finite p-values only. Executed Gaussian and logit posterior-predictive null-rate tests and a proper-prior prior-predictive null-rate test compare bounded rejection rates over simulated correctly specified datasets; those checks are model-specific and do not establish causal identification."
-notes = "Prior and posterior predictive checks on CausalAnalysis (any refute≠none) + Python ValidationView.prior_predictive / posterior_predictive; numerical tests live in the validation calibration_gate module."
+notes = "Prior and posterior predictive checks on CausalAnalysis (any refute≠none) + Python ValidationView.prior_predictive / posterior_predictive; numerical tests live in the validation calibration_gate module. The Bayesian Dag InterventionResponse refuter state runs both checks on the outcome regression the level is computed from; that state executes unlicensed (crates/antecedent/tests/bayesian_intervention_level_refutation.rs)."
 
 [[capabilities]]
 id = "bayes.validate.prior_sensitivity"
@@ -85,7 +85,7 @@ smoke_fixture = "conformance/bayesian/prior_sensitivity"
 evidence_test = "crates/antecedent-validate/src/bayesian_checks/tests.rs"
 evidence_assertion = "resolved_prior_sensitivity_matches_orthogonal_gaussian_posterior_means"
 limitations = "The original smoke fixture checks finite means only. An executed orthogonal Gaussian design compares sensitivity-grid posterior means with closed-form values for the prior actually in force; this does not validate every external-prior composition or nonlinear likelihood."
-notes = "Isotropic and resolved-prior scale grids; direct conjugate numerical reference."
+notes = "Isotropic and resolved-prior scale grids; direct conjugate numerical reference. The Bayesian Dag InterventionResponse refuter state (full) uses the same grids level-natively: it refits the whole response at each grid point and reads back the posterior-mean level, not the dose coefficient; it executes unlicensed."
 
 [[capabilities]]
 id = "bayes.data.bayesian_bootstrap"

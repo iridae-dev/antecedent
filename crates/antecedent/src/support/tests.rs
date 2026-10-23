@@ -262,7 +262,7 @@ fn dag_intervention_response_cheap_and_full_are_licensed() {
     for graph in ["TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"] {
         let status =
             classify(cell("InterventionResponse", graph, "explicit", "Frequentist", "cheap"));
-        assert!(matches!(status, CellStatus::NotApplicable { .. }), "{graph}: {status:?}");
+        assert_eq!(status, CellStatus::Refused, "{graph}: {status:?}");
     }
 }
 
@@ -277,9 +277,53 @@ fn function_valued_and_class_response_cheap_are_not_applicable() {
     let status =
         classify(cell("ResponseCurve", "TemporalDag", "graph_posterior", "Frequentist", "full"));
     assert!(matches!(status, CellStatus::NotApplicable { .. }), "{status:?}");
-    let status =
-        classify(cell("InterventionResponse", "Dag", "graph_posterior", "Bayesian", "cheap"));
-    assert!(matches!(status, CellStatus::NotApplicable { .. }), "{status:?}");
+    // The Bayesian intervention-level refuter state is a refusal that executes
+    // unlicensed, not a typed impossibility.
+    for structure in ["explicit", "accepted", "graph_posterior"] {
+        for validation in ["cheap", "full"] {
+            let c = cell("InterventionResponse", "Dag", structure, "Bayesian", validation);
+            assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+            assert!(super::executes_unlicensed(c), "{c:?}");
+        }
+    }
+}
+
+#[test]
+fn refusals_formerly_recorded_as_not_applicable_execute_or_name_their_next_attempt() {
+    // Built refuter states: refused (unlicensed) cells that execute.
+    for query in ["PointDerivative", "AverageDerivative", "ResponseJacobian", "Elasticity"] {
+        for inference in ["Frequentist", "Bayesian"] {
+            let c = cell(query, "Dag", "explicit", inference, "cheap");
+            assert_eq!(classify(c), CellStatus::Refused, "{c:?}");
+            assert!(super::executes_unlicensed(c), "{c:?}");
+        }
+    }
+    for graph in ["TemporalDag", "Cpdag", "Pag"] {
+        let c = cell("InterventionResponse", graph, "explicit", "Frequentist", "full");
+        assert!(super::executes_unlicensed(c), "{graph}");
+    }
+    let c = cell("InterventionResponse", "CoDetermined", "explicit", "Bayesian", "none");
+    assert!(super::executes_unlicensed(c), "{c:?}");
+    // Not built yet: refused with a named next attempt.
+    for c in [
+        cell("InterventionResponse", "TemporalCpdag", "explicit", "Frequentist", "full"),
+        cell("InterventionResponse", "TemporalPag", "accepted", "Bayesian", "cheap"),
+        cell("PointDerivative", "TemporalDag", "explicit", "Frequentist", "cheap"),
+    ] {
+        let err = refuse_if_not_applicable(c).unwrap_err().to_string();
+        assert!(err.starts_with("refused:") && err.contains("Next attempt"), "{c:?}: {err}");
+        assert!(!super::executes_unlicensed(c), "{c:?}");
+    }
+    // Genuine impossibilities stay n/a.
+    for c in [
+        cell("PulseEffect", "Dag", "explicit", "Frequentist", "none"),
+        cell("InterventionResponse", "Unknown", "explicit", "Bayesian", "none"),
+        cell("InterventionResponse", "CoDetermined", "accepted", "Bayesian", "none"),
+        cell("ResponseCurve", "Dag", "explicit", "Bayesian", "cheap"),
+    ] {
+        assert!(matches!(classify(c), CellStatus::NotApplicable { .. }), "{c:?}");
+        assert!(!super::executes_unlicensed(c), "{c:?}");
+    }
 }
 
 #[test]

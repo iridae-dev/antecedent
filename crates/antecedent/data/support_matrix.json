@@ -19,7 +19,7 @@
       "structures": null,
       "inferences": null,
       "validations": null,
-      "reason": "Temporal contrast queries require a temporal graph class."
+      "reason": "Temporal contrast queries require a temporal graph class: a pulse, sustained, temporal-conditional or temporal-mediation contrast is indexed by a lag and a horizon, and a static graph class has no time index for either."
     },
     {
       "queries": [
@@ -99,75 +99,6 @@
     },
     {
       "queries": [
-        "InterventionResponse"
-      ],
-      "graph_classes": [
-        "TemporalDag",
-        "Cpdag",
-        "Pag",
-        "TemporalCpdag",
-        "TemporalPag"
-      ],
-      "structures": [
-        "explicit",
-        "accepted"
-      ],
-      "inferences": null,
-      "validations": [
-        "cheap",
-        "full"
-      ],
-      "reason": "cheap and full denote the ATE-shaped scalar refuter suite; temporal and class-aware InterventionResponse remain function-valued or envelope-mixed surfaces with no licensed scalar-refuter state."
-    },
-    {
-      "queries": [
-        "InterventionResponse"
-      ],
-      "graph_classes": [
-        "Dag"
-      ],
-      "structures": [
-        "explicit",
-        "accepted",
-        "graph_posterior"
-      ],
-      "inferences": [
-        "Bayesian"
-      ],
-      "validations": [
-        "cheap",
-        "full"
-      ],
-      "reason": "Bayesian InterventionResponse has no licensed scalar-refuter state; cheap/full name the Frequentist ATE-shaped suite."
-    },
-    {
-      "queries": [
-        "PointDerivative",
-        "Elasticity",
-        "SemiElasticity",
-        "AverageDerivative",
-        "DirectionalDerivative",
-        "ResponseJacobian"
-      ],
-      "graph_classes": [
-        "Dag",
-        "TemporalDag",
-        "TemporalCpdag",
-        "TemporalPag"
-      ],
-      "structures": [
-        "explicit",
-        "accepted"
-      ],
-      "inferences": null,
-      "validations": [
-        "cheap",
-        "full"
-      ],
-      "reason": "Derivative-native validation is not implemented; ATE refuters do not apply."
-    },
-    {
-      "queries": [
         "AnomalyAttribution",
         "AverageDerivative",
         "ChangeAttribution",
@@ -239,21 +170,6 @@
     },
     {
       "queries": [
-        "InterventionResponse"
-      ],
-      "graph_classes": [
-        "CoDetermined",
-        "Unknown"
-      ],
-      "structures": null,
-      "inferences": [
-        "Bayesian"
-      ],
-      "validations": null,
-      "reason": "Joint InterventionResponse on a tier background is Frequentist (cell.aipw joint); AverageEffect is the tier-rule query with a Bayesian posterior."
-    },
-    {
-      "queries": [
         "AverageEffect",
         "InterventionResponse"
       ],
@@ -271,6 +187,136 @@
     }
   ],
   "closed_rules": [
+    {
+      "queries": [
+        "InterventionResponse"
+      ],
+      "graph_classes": [
+        "Dag"
+      ],
+      "structures": [
+        "explicit",
+        "accepted",
+        "graph_posterior"
+      ],
+      "inferences": [
+        "Bayesian"
+      ],
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "Bayesian InterventionResponse cheap and full run the Bayesian refuter state on the intervention level and stay unlicensed: no evidence row or coverage record names the state. Cheap runs plugin-level overlap on the posterior-mean level and the prior and posterior predictive checks of the outcome regression; full adds plugin-level sampling stability, level-native prior sensitivity (the response is refitted at each prior-grid point and its posterior-mean level read back) and MCMC diagnostics. A graph posterior runs the plugin-level suite on the pooled level and the posterior checks on its primary identified atom. Requested explicitly, the state executes; the default suite still downgrades to the licensed validation none.",
+      "executes_unlicensed": true
+    },
+    {
+      "queries": [
+        "PointDerivative",
+        "Elasticity",
+        "SemiElasticity",
+        "AverageDerivative",
+        "DirectionalDerivative",
+        "ResponseJacobian"
+      ],
+      "graph_classes": [
+        "Dag"
+      ],
+      "structures": [
+        "explicit",
+        "accepted"
+      ],
+      "inferences": null,
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "Derivative, elasticity and Jacobian cheap and full run the derivative refuter state and stay unlicensed: no evidence row or coverage record names it. Cheap checks support at the evaluation point and the central finite difference of the identified intervention levels against the published derivative on its reported scale (point derivatives of order one, order two on the identity scale, and observed-law average derivatives through ± shift interventions); full adds a whole-procedure row bootstrap of the derivative under independent subjects (the published value must lie in the replicates' 95% range; failed replicates are kept). Bayesian studies add the prior and posterior predictive checks of the outcome regression and, under full, prior sensitivity refitting the whole derivative at each grid point and MCMC diagnostics. ATE-shaped contrast refuters do not apply.",
+      "executes_unlicensed": true
+    },
+    {
+      "queries": [
+        "PointDerivative",
+        "Elasticity",
+        "SemiElasticity",
+        "AverageDerivative",
+        "DirectionalDerivative",
+        "ResponseJacobian"
+      ],
+      "graph_classes": [
+        "TemporalDag",
+        "TemporalCpdag",
+        "TemporalPag"
+      ],
+      "structures": [
+        "explicit",
+        "accepted"
+      ],
+      "inferences": null,
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "Temporal derivative cheap and full are refused, not impossible: the temporal derivative is the slope of the linear unfolded fit at one horizon, a scalar a refuter state can check. Next attempt: the static derivative refuter state on that horizon's lag-aligned design (support at the evaluation point, finite-difference consistency of the horizon's identified levels, and circular-block stability under the dependent-series design), executing unlicensed."
+    },
+    {
+      "queries": [
+        "InterventionResponse"
+      ],
+      "graph_classes": [
+        "TemporalDag",
+        "Cpdag",
+        "Pag"
+      ],
+      "structures": [
+        "explicit",
+        "accepted"
+      ],
+      "inferences": null,
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "Temporal and class-aware InterventionResponse cheap and full run a refuter state and stay unlicensed: no evidence row or coverage record names it. A TemporalDag level runs the TemporalDag Pulse-native suite on each requested horizon's own Pulse witness (the unit contrast at that horizon with the response's intervention as the active arm, under that horizon's proof and lag indexer): overlap, the temporal placebo and pre-period checks, and under full circular-block stability under the dependent-series design; Bayesian studies add the predictive checks and prior sensitivity of each witness; horizons are not mixed. A Cpdag or Pag level runs the plugin-level suite on every completion's own level and estimand (overlap; full adds per-completion sampling stability), mixes the reports only when every completion answers the same level, and reports how far the completions disagree.",
+      "executes_unlicensed": true
+    },
+    {
+      "queries": [
+        "InterventionResponse"
+      ],
+      "graph_classes": [
+        "TemporalCpdag",
+        "TemporalPag"
+      ],
+      "structures": [
+        "explicit",
+        "accepted"
+      ],
+      "inferences": null,
+      "validations": [
+        "cheap",
+        "full"
+      ],
+      "reason": "TemporalCpdag and TemporalPag InterventionResponse cheap and full are refused, not impossible: the graph-posterior cells of these classes already run the Pulse-native suite on every completion atom. Next attempt: the same per-completion, per-horizon Pulse-witness state on the explicit and accepted completion-enumeration envelope, with a failed completion reported rather than mixed."
+    },
+    {
+      "queries": [
+        "InterventionResponse"
+      ],
+      "graph_classes": [
+        "CoDetermined"
+      ],
+      "structures": [
+        "explicit"
+      ],
+      "inferences": [
+        "Bayesian"
+      ],
+      "validations": [
+        "none"
+      ],
+      "reason": "Bayesian joint InterventionResponse on a CoDetermined tier closure runs response.bayesian over the closure's generalized adjustment set (the same tier identification the Frequentist cell.aipw cell uses) and stays unlicensed: no evidence row or coverage record names it. The outcome regression is additive in the treatments, so the published level is that model's joint level, not the saturated cell mean cell.aipw estimates.",
+      "executes_unlicensed": true
+    },
     {
       "queries": [
         "Counterfactual"

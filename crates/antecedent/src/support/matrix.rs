@@ -108,6 +108,31 @@ pub(super) fn refusal_reason(cell: SupportCell) -> Option<&'static str> {
     None
 }
 
+/// Whether a refused cell executes and stays unlicensed.
+///
+/// True only when the cell is refused (not licensed, not n/a) and the first
+/// `parity/support_closed.toml` rule that names it carries
+/// `executes_unlicensed = true`. Such a cell builds and runs; its result reports
+/// the support status `refused`, so no coverage or evidence row is implied. The
+/// default refuter suite is still downgraded on it (an implicit request keeps the
+/// licensed `none` cell); only an explicit request runs it.
+#[must_use]
+pub(crate) fn executes_unlicensed(cell: SupportCell) -> bool {
+    if !matches!(classify(cell), CellStatus::Refused) {
+        return false;
+    }
+    CLOSED_RULES
+        .iter()
+        .find(|rule| {
+            axis_in(rule.queries, cell.query.as_str())
+                && axis_in(rule.graph_classes, cell.graph_class.as_str())
+                && axis_in(rule.structures, cell.structure.as_str())
+                && axis_in(rule.inferences, cell.inference.as_str())
+                && axis_in(rule.validations, cell.validation.as_str())
+        })
+        .is_some_and(|rule| rule.executes_unlicensed)
+}
+
 /// The single static message every unmatched `Refused` cell reports. Cell
 /// coordinates vary at runtime — the caller's [`CausalError::Support`] already
 /// carries the offending cell in its own context — so this stays a fixed,

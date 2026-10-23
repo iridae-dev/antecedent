@@ -283,6 +283,8 @@ closed_rules = closed_doc.get("closed") or []
 for i, rule in enumerate(closed_rules, 1):
     if not isinstance(rule.get("reason"), str) or not rule["reason"].strip():
         fail.append(f"parity/support_closed.toml rule #{i}: missing reason")
+    if "executes_unlicensed" in rule and not isinstance(rule["executes_unlicensed"], bool):
+        fail.append(f"parity/support_closed.toml rule #{i}: executes_unlicensed must be a boolean")
     for key, legal in AXIS_KEYS.items():
         vals = rule.get(key)
         if vals is None:
