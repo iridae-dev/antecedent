@@ -325,3 +325,52 @@ crate = "antecedent"
 cargo_target = "compile_from_decision"
 path = "crates/antecedent/tests/compile_from_decision.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "lowered-dispatch"
+crate = "antecedent"
+cargo_target = "lowered_dispatch"
+path = "crates/antecedent/tests/lowered_dispatch.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "lowering-registry-coverage"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "feedback-target-vocabulary"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/scientific_target/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-contract-section"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/contract_section/cyclic.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-family-record-versions"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/cyclic_family_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-family-lowering"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/cyclic_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "acyclic-identity-regression"
+crate = "antecedent"
+cargo_target = "acyclic_identity_regression"
+path = "crates/antecedent/tests/acyclic_identity_regression.rs"
+gates = ["inventory", "named"]

@@ -1902,7 +1902,7 @@ impl super::Study {
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
 
         let (identified, identify_cached) =
-            self.graph_posterior_identification_for_bayesian(gp, query, ctx)?;
+            self.graph_posterior_identification_for_bayesian(gp, query, physical, ctx)?;
         let GraphPosteriorBayesianPrepared {
             graphs,
             subsample_notes,
@@ -1992,16 +1992,22 @@ impl super::Study {
         ))
     }
 
-    /// The frozen graph-posterior identification: the prepared cache, or a fresh build.
+    /// The frozen graph-posterior identification: the prepared cache, the product the
+    /// plan's lowered program retained at compile, or a fresh build.
     fn graph_posterior_identification_for_bayesian(
         &self,
         gp: &GraphPosterior,
         query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<super::super::prepared::CachedGraphPosteriorIdentification>, bool), CausalError>
     {
         Ok(if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
             (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
+        {
+            (cache, false)
         } else {
             (
                 Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
@@ -2323,6 +2329,10 @@ impl super::Study {
             (operation.identification().clone(), true)
         } else if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
             (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
+        {
+            (cache, false)
         } else {
             (
                 Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(
@@ -2540,7 +2550,7 @@ impl super::Study {
         }
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let (identified, identify_cached) =
-            self.dbn_posterior_identification(gp, &vars, query, ctx)?;
+            self.dbn_posterior_identification(gp, &vars, query, physical, ctx)?;
         let gaps = self.admit_posterior_gaps(data, &vars, false)?;
         let mut atoms = Self::estimate_dbn_posterior_frequentist_atoms(
             data,
@@ -2611,17 +2621,23 @@ impl super::Study {
         Ok(result)
     }
 
-    /// The frozen DBN-posterior identification: the prepared cache, or a fresh build.
+    /// The frozen DBN-posterior identification: the prepared cache, the product the
+    /// plan's lowered program retained at compile, or a fresh build.
     fn dbn_posterior_identification(
         &self,
         gp: &GraphPosterior,
         vars: &[VariableId],
         query: &TemporalEffectQuery,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<super::super::prepared::CachedDbnPosteriorIdentification>, bool), CausalError>
     {
         Ok(if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
             (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
+        {
+            (cache, false)
         } else {
             (
                 Arc::new(crate::analysis::prepared::build_dbn_posterior_identification_cache(
@@ -2890,7 +2906,7 @@ impl super::Study {
         let sequential_bayes = if multi_step { Some(bayesian_gcomp(&cfg, ctx)) } else { None };
 
         let (identified, identify_cached) =
-            self.dbn_posterior_identification(gp, &vars, query, ctx)?;
+            self.dbn_posterior_identification(gp, &vars, query, physical, ctx)?;
         let run = DbnBayesianRun {
             data,
             gp,
@@ -3304,7 +3320,8 @@ impl super::Study {
         let started = Instant::now();
         // Identify once for the complete request, then project the same
         // atom cache independently for each horizon (fresh and prepared).
-        let (cache, _) = self.dbn_posterior_mediation_identification(data, gp, query, ctx)?;
+        let (cache, _) =
+            self.dbn_posterior_mediation_identification(data, gp, query, physical, ctx)?;
         let mut horizon_study = self.clone();
         horizon_study.dbn_posterior_identification_cache = Some(Arc::clone(&cache));
 
@@ -3393,17 +3410,23 @@ impl super::Study {
         ))
     }
 
-    /// The frozen DBN-posterior mediation identification: the prepared cache, or a fresh build.
+    /// The frozen DBN-posterior mediation identification: the prepared cache, the product
+    /// the plan's lowered program retained at compile, or a fresh build.
     fn dbn_posterior_mediation_identification(
         &self,
         data: &TimeSeriesData,
         gp: &GraphPosterior,
         query: &antecedent_core::MediationQuery,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<super::super::prepared::CachedDbnPosteriorIdentification>, bool), CausalError>
     {
         Ok(if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
             (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
+        {
+            (cache, false)
         } else {
             let variables = data.schema().variables().iter().map(|v| v.id).collect::<Vec<_>>();
             (
@@ -3447,7 +3470,7 @@ impl super::Study {
         require_gaussian_mediation(&estimator).map_err(CausalError::from)?;
 
         let (identified, identify_cached) =
-            self.dbn_posterior_mediation_identification(data, gp, query, ctx)?;
+            self.dbn_posterior_mediation_identification(data, gp, query, physical, ctx)?;
         let horizon = query.horizons.first().copied().ok_or_else(|| CausalError::Compile {
             message: "DBN mediation requires at least one horizon".into(),
         })?;

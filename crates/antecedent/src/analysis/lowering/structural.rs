@@ -67,13 +67,16 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         Some(RouteInput::GcmDag { graph, .. }) => {
             lower_structural(cx, static_mechanisms(graph, registry(&cx.study.query)))
         }
-        Some(RouteInput::GcmTemporal { .. }) => match cx.study.graph.as_temporal_dag() {
-            Some(graph) => {
-                lower_structural(cx, lagged_mechanisms(graph, registry(&cx.study.query)))
-            }
-            None => super::generic(cx),
-        },
-        _ => super::generic(cx),
+        Some(RouteInput::GcmTemporal { .. }) => {
+            // The route classifies as this cell only on a supplied temporal DAG.
+            let graph = cx
+                .study
+                .graph
+                .as_temporal_dag()
+                .ok_or_else(|| super::not_lowered_by("structural", cx))?;
+            lower_structural(cx, lagged_mechanisms(graph, registry(&cx.study.query)))
+        }
+        _ => Err(super::not_lowered_by("structural", cx)),
     }
 }
 
@@ -94,15 +97,19 @@ fn lower_mediation(
     let assumptions = cache
         .as_ref()
         .map_or_else(AssumptionSet::new, |cache| cache.identification.required_assumptions.clone());
-    let Ok(target) = theorem_mediation_target(
+    // A mediation the theorem target cannot state (for example arms that are not
+    // portable world actions) lowers to its typed path-specific functional.
+    let target = theorem_mediation_target(
         &query,
         data.schema(),
         &assumptions,
         inference_selection(&study.inference),
         None,
-    ) else {
-        return super::generic(cx);
-    };
+    )
+    .map_or_else(
+        |_| super::query_functional(study, FunctionalKind::PathSpecific, Some(query.outcome)),
+        ProblemTarget::Target,
+    );
     let adjustment: &[VariableId] = match cache.as_ref() {
         Some(cache) => &cache.estimand.adjustment_set,
         None => &[],
@@ -120,7 +127,7 @@ fn lower_mediation(
     assemble(
         cx,
         CellProgram {
-            target: ProblemTarget::Target(target),
+            target,
             identification,
             realization: RealizationChoice::Declared,
             models,
@@ -152,7 +159,7 @@ fn lower_structural(
         CausalQuery::ChangeAttribution(_) => FunctionalKind::ChangeAttribution,
         CausalQuery::MechanismChange(_) => FunctionalKind::MechanismChange,
         CausalQuery::UnitChange(_) => FunctionalKind::UnitChange,
-        _ => return super::generic(cx),
+        _ => return Err(super::not_lowered_by("structural", cx)),
     };
     let (_, outcome) = crate::analysis::execute::gcm_query_vars(&study.query)?;
     let identification = retain_or_defer(cx)?;
@@ -189,7 +196,7 @@ fn lower_structural(
     assemble(
         cx,
         CellProgram {
-            target: ProblemTarget::Functional { kind, outcome: Some(outcome) },
+            target: super::query_functional(study, kind, Some(outcome)),
             identification,
             realization: RealizationChoice::Override { realization, posterior },
             models,

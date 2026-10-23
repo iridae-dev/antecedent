@@ -213,7 +213,7 @@ fn series_effect() -> StudyBuilder {
 }
 
 #[test]
-fn no_temporal_cell_remains_generic() {
+fn every_temporal_cell_lowers_completely() {
     let lowered: BTreeSet<&str> = cells().iter().map(|(name, _)| *name).collect();
     let registered: BTreeSet<&str> = REGISTERED
         .iter()
@@ -229,10 +229,6 @@ fn no_temporal_cell_remains_generic() {
         let program = plan.lowered().expect("compile attaches a lowered program");
         assert_eq!(program.route(), name);
         assert_eq!(program.depth(), LoweringDepth::Complete, "{name}");
-        assert!(
-            !matches!(program.scientific().target(), ProblemTarget::Unlowered),
-            "{name} states its target"
-        );
         assert!(program.claim().kind().is_some(), "{name} states its claim");
         assert_eq!(
             compile(&study).lowered().unwrap().identity(),
@@ -399,6 +395,51 @@ fn mediation_lowers_to_the_theorem_target_the_checked_operation_freezes() {
 }
 
 #[test]
+fn multi_horizon_mediation_states_one_target_per_horizon() {
+    let query = mediation_query().with_horizons(vec![1, 2]).unwrap();
+    let study = point(
+        Study::series(xmy_series()).graph(xmy_dag()).query(CausalQuery::Mediation(query.clone())),
+    )
+    .build()
+    .unwrap();
+    let plan = compile(&study);
+    let program = plan.lowered().unwrap();
+    let ProblemTarget::Targets(targets) = program.scientific().target() else {
+        panic!("a two-horizon mediation lowers to one theorem target per horizon");
+    };
+    let cache = crate::analysis::prepared::identify_temporal_mediation_horizons(
+        &xmy_dag(),
+        &query,
+        EstimatorId::TemporalMediation,
+    )
+    .unwrap();
+    let frozen = CheckedTemporalMediationOperation::theorem_targets(
+        &query,
+        xmy_series().schema(),
+        cache.by_horizon.iter().map(|entry| (entry.horizon, &entry.identification, &entry.indexer)),
+        InferenceSelection::Frequentist,
+    )
+    .unwrap();
+    let lowered: Vec<_> = targets.iter().map(|target| target.identity()).collect();
+    let expected: Vec<_> = frozen.iter().map(|target| target.identity()).collect();
+    assert_eq!(lowered, expected);
+    assert_eq!(lowered.len(), 2);
+    assert_ne!(lowered[0], lowered[1], "each horizon is its own target");
+    let single = point(
+        Study::series(xmy_series())
+            .graph(xmy_dag())
+            .query(CausalQuery::Mediation(mediation_query())),
+    )
+    .build()
+    .unwrap();
+    assert_ne!(
+        compile(&single).lowered().unwrap().identity(),
+        program.identity(),
+        "a horizon family is not its first horizon"
+    );
+}
+
+#[test]
 fn cross_world_identifies_on_each_execution() {
     let study =
         point(Study::series(xmy_series()).graph(xmy_dag()).query(nested_query())).build().unwrap();
@@ -407,7 +448,11 @@ fn cross_world_identifies_on_each_execution() {
     assert!(!program.identification_retained());
     assert!(matches!(
         program.scientific().target(),
-        ProblemTarget::Functional { kind: FunctionalKind::PathSpecific, outcome: Some(outcome) }
+        ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::PathSpecific,
+            outcome: Some(outcome),
+            ..
+        }
             if *outcome == XMY_OUTCOME
     ));
 }

@@ -11,11 +11,12 @@
 //! identified-set envelope when frequentist identification is partial), the fitted models
 //! with their roles and variables, the cross-fitting split, and the resampling the
 //! configured estimator performs under the declared sampling design. Layer five quotes
-//! the adjustment design a linear adjustment fits and states when a route fits no design
-//! matrix. Layer six names the claim kind the retained identification licenses.
+//! the adjustment design a linear adjustment fits and states, with the reason, when a
+//! route fits no single quoted adjustment design. Layer six names the claim kind the
+//! retained identification licenses.
 //!
-//! A query whose actions have no portable world-indexed statement keeps the generic
-//! lowering, which is what it compiled to before this family lowered its own layers.
+//! A query whose actions have no portable world-indexed statement (a callback action)
+//! lowers to its typed functional, keyed by the canonical digest of the query.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -60,6 +61,21 @@ const ROW_UNIT: &str = "row";
 /// Why a discrete plug-in route has no design width.
 const PLUG_IN_FITS_NO_DESIGN: &str =
     "discrete plug-in evaluation of identified factors fits no design matrix";
+/// Why a linear adjustment with an uncoded categorical adjustment variable is not quoted.
+const UNCODED_ADJUSTMENT: &str = "a categorical adjustment variable has no declared contrast \
+                                  coding; the fit encodes it and sizes the design at execution";
+/// Why a linear adjustment without one compile-time adjustment set is not quoted.
+const ADJUSTMENT_SET_PER_GRAPH: &str = "no single adjustment set is fixed at compile (a class or \
+                                        mixed graph chooses one per member graph, or \
+                                        identification was deferred); the design is sized at \
+                                        execution";
+/// Why a regression-discontinuity route is not quoted.
+const LOCAL_FITS_AT_EXECUTION: &str =
+    "two one-sided local fits inside the bandwidth, sized at execution";
+/// Why a weighting, matching, instrument, learner or Bayesian route is not quoted.
+const NUISANCE_MODELS: &str = "the estimator fits its propensity, outcome, instrument or \
+                               learner models on their own bases, sized at execution; no single \
+                               adjustment design is quoted";
 
 /// The query of one static effect cell, with the rows it reads.
 #[derive(Clone, Copy)]
@@ -166,7 +182,7 @@ impl Roles {
 /// Lower one cell of this family.
 pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {
     let Some((query, data)) = cx.input.as_ref().and_then(EffectQuery::of) else {
-        return super::generic(cx);
+        return Err(super::not_lowered_by("static effect", cx));
     };
     let study = cx.study;
     let plan = cx.plan;
@@ -178,10 +194,8 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
 
     let target = match linear {
         Some(linear) => ProblemTarget::Target(linear.program.target().clone()),
-        None => match problem_target(study, query, data.schema()) {
-            Ok(target) => target,
-            Err(_) => return super::generic(cx),
-        },
+        None => problem_target(study, query, data.schema())
+            .unwrap_or_else(|_| unportable_target(study, query)),
     };
     let source_digest = linear.map(|linear| linear.program.source_digest());
     let scientific = ScientificProblem {
@@ -198,7 +212,9 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     let identification = identification_layer(cx, linear, estimator)?;
     let caches = match &identification {
         IdentificationLayer::Retained(retained) => retained.caches(),
-        IdentificationLayer::Deferred | IdentificationLayer::PerExecution { .. } => &[],
+        IdentificationLayer::Deferred { .. }
+        | IdentificationLayer::PerExecution { .. }
+        | IdentificationLayer::NonGraphical(_) => &[],
     };
     let static_cache = caches.iter().find_map(|cache| match cache {
         IdentificationCache::Static(cache) => Some(cache.as_ref()),
@@ -292,14 +308,30 @@ fn problem_target(
             schema,
         )?),
         // A law over the outcomes, not a functional of one outcome: no world form states it.
-        EffectQuery::Distribution(query) => ProblemTarget::Functional {
-            kind: FunctionalKind::InterventionalDistribution,
-            outcome: query.outcomes.first().copied(),
-        },
+        EffectQuery::Distribution(query) => super::query_functional(
+            study,
+            FunctionalKind::InterventionalDistribution,
+            query.outcomes.first().copied(),
+        ),
         EffectQuery::PathSpecific(query) => {
             ProblemTarget::Target(path_specific_target(query, family, inference, schema)?)
         }
     })
+}
+
+/// Layer one for a query whose worlds the target algebra refuses (a callback action
+/// or another non-portable intervention): its typed functional, keyed by the query.
+fn unportable_target(study: &Study, query: EffectQuery<'_>) -> ProblemTarget {
+    let (kind, outcome) = match query {
+        EffectQuery::Average(query) | EffectQuery::Conditional(query) => {
+            (FunctionalKind::InterventionContrast, Some(query.outcome))
+        }
+        EffectQuery::Distribution(query) => {
+            (FunctionalKind::InterventionalDistribution, query.outcomes.first().copied())
+        }
+        EffectQuery::PathSpecific(query) => (FunctionalKind::PathSpecific, Some(query.outcome)),
+    };
+    super::query_functional(study, kind, outcome)
 }
 
 /// Graph family the target is stated under. A co-determined tier background states
@@ -472,7 +504,7 @@ fn identification_layer(
         Ok(layer) => Ok(layer),
         Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => Err(error),
         Err(error) if linear.is_some() => Err(error),
-        Err(_) => Ok(IdentificationLayer::Deferred),
+        Err(_) => Ok(super::identification_refused_at_compile()),
     }
 }
 
@@ -731,8 +763,9 @@ fn slot(
 }
 
 /// Layer five's design. A retained linear operation quotes its own design; a linear
-/// adjustment on one adjustment set quotes `[1 | T | Z…]` from the data; a discrete
-/// plug-in fits no design; every other route keeps the planner's schema bound.
+/// adjustment on one adjustment set quotes `[1 | T | Z…]` from the data; every other
+/// route states what it fits instead of one quoted adjustment design. The row and
+/// column counts of an unquoted design are the planner's sizing of the physical record.
 fn design_shape(
     cx: &LoweringContext<'_>,
     linear: Option<&CompiledLinearExecution>,
@@ -764,12 +797,18 @@ fn design_shape(
             };
             // A categorical adjustment without a coding has no quotable width.
             quote_adjustment_width(cx, &cache.estimand.adjustment_set, &contrasts)
-                .unwrap_or_else(|_| bound(WidthSource::SchemaBound))
+                .unwrap_or_else(|_| bound(WidthSource::NotDesignBased(UNCODED_ADJUSTMENT)))
         }
         (Some(EstimatorId::FunctionalDistribution | EstimatorId::FunctionalEffect), _) => {
             bound(WidthSource::NotDesignBased(PLUG_IN_FITS_NO_DESIGN))
         }
-        _ => bound(WidthSource::SchemaBound),
+        (Some(EstimatorId::LinearAdjustmentAte), _) => {
+            bound(WidthSource::NotDesignBased(ADJUSTMENT_SET_PER_GRAPH))
+        }
+        (Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear), _) => {
+            bound(WidthSource::NotDesignBased(LOCAL_FITS_AT_EXECUTION))
+        }
+        _ => bound(WidthSource::NotDesignBased(NUISANCE_MODELS)),
     })
 }
 

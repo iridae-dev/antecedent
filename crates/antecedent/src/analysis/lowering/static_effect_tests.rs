@@ -323,7 +323,7 @@ fn representatives() -> Vec<(&'static str, Study)> {
 }
 
 #[test]
-fn no_cell_of_the_family_keeps_the_generic_lowering() {
+fn every_cell_of_the_family_lowers_completely() {
     let family: BTreeSet<&str> = REGISTERED
         .iter()
         .filter(|(_, family)| *family == FAMILY)
@@ -336,11 +336,7 @@ fn no_cell_of_the_family_keeps_the_generic_lowering() {
         });
         let program = lowered(&plan);
         assert_eq!(program.route(), name, "the representative of {name} compiles as another cell");
-        assert_eq!(program.depth(), LoweringDepth::Complete, "{name} kept the generic lowering");
-        assert!(
-            !matches!(program.scientific().target(), ProblemTarget::Unlowered),
-            "{name} states no target"
-        );
+        assert_eq!(program.depth(), LoweringDepth::Complete, "{name} lowers completely");
         assert!(program.statistical().estimator().is_some(), "{name} names no estimator");
         let again = compile(&study);
         assert_eq!(lowered(&again).identity(), program.identity(), "{name} identity is unstable");
@@ -534,6 +530,30 @@ fn conditional_effect_conditions_its_target_on_the_modifiers() {
 }
 
 #[test]
+fn distribution_functionals_of_different_queries_lower_to_different_programs() {
+    let at = |level: f64| {
+        let action = Intervention::set(v(0), Value::f64(level));
+        let query = InterventionalDistributionQuery::new(v(1), [action]);
+        let study = base(binary_data())
+            .graph(confounded_dag())
+            .query(CausalQuery::Distribution(query))
+            .build()
+            .unwrap();
+        let plan = compile(&study);
+        let program = lowered(&plan);
+        let ProblemTarget::QueryFunctional { query, .. } = program.scientific().target() else {
+            panic!("an interventional distribution lowers to its typed functional");
+        };
+        (*query, program.identity())
+    };
+    let (one, one_identity) = at(1.0);
+    let (zero, zero_identity) = at(0.0);
+    assert_ne!(one, zero, "the query digest reads the intervention level");
+    assert_ne!(one_identity, zero_identity, "two queries of one kind are two programs");
+    assert_eq!(at(1.0), (one, one_identity), "the digest is canonical across compiles");
+}
+
+#[test]
 fn distribution_and_path_specific_cells_state_their_own_targets() {
     let ctx = ExecutionContext::for_tests(17);
     let distribution = base(binary_data())
@@ -545,9 +565,10 @@ fn distribution_and_path_specific_cells_state_their_own_targets() {
     let program = lowered(&plan);
     assert!(matches!(
         program.scientific().target(),
-        ProblemTarget::Functional {
+        ProblemTarget::QueryFunctional {
             kind: FunctionalKind::InterventionalDistribution,
             outcome: Some(outcome),
+            ..
         } if *outcome == v(1)
     ));
     assert_eq!(program.statistical().estimator(), Some(EstimatorId::FunctionalDistribution));

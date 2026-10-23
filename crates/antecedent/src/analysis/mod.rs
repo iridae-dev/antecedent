@@ -252,9 +252,10 @@ pub use exact::{
     ExactStudyResult,
 };
 pub use interface_contract::{
-    ConsumedInterfaceContract, InterfaceContractExport, InterfaceContractRefusal,
-    check_interface_composition, check_interface_composition_with_ledger,
-    check_interface_connection, consume_interface_contract_artifact, export_interface_contract,
+    ConsumedInterfaceContract, CyclicComponentDeclaration, InterfaceContractExport,
+    InterfaceContractRefusal, check_interface_composition, check_interface_composition_with_cyclic,
+    check_interface_composition_with_ledger, check_interface_connection,
+    consume_interface_contract_artifact, export_interface_contract,
     inspect_interface_contract_artifact,
 };
 pub use inverse_outcome::{

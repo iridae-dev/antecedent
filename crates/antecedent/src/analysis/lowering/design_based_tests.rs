@@ -28,7 +28,7 @@ const SUBJECTS: usize = 80;
 const DRAWS: usize = 400;
 
 #[test]
-fn no_design_cell_takes_the_generic_lowering() {
+fn every_design_cell_is_lowered_by_its_family() {
     let family: Vec<_> = REGISTERED
         .iter()
         .filter(|(_, family)| *family == "design_based")
@@ -36,7 +36,7 @@ fn no_design_cell_takes_the_generic_lowering() {
         .collect();
     assert_eq!(family.len(), LOWERED.len(), "the family's cell inventory drifted");
     for cell in family {
-        assert!(LOWERED.contains(&cell), "{} still takes the generic lowering", cell.as_str());
+        assert!(LOWERED.contains(&cell), "{} is not lowered by the design family", cell.as_str());
     }
 }
 
@@ -216,7 +216,11 @@ fn history_match_lowers_its_matched_functional_and_retains_its_premises() {
     assert_eq!(program.depth(), LoweringDepth::Complete);
     assert!(matches!(
         program.scientific().target(),
-        ProblemTarget::Functional { kind: FunctionalKind::HistoryMatch, outcome: Some(outcome) }
+        ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::HistoryMatch,
+            outcome: Some(outcome),
+            ..
+        }
             if *outcome == VariableId::from_raw(2)
     ));
     assert!(program.identification_retained());

@@ -115,7 +115,7 @@ impl super::Study {
         graph_posterior_response_supported(query)?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let (identified, identify_cached) =
-            self.admg_posterior_response_identification(gp, query, ctx)?;
+            self.admg_posterior_response_identification(gp, query, physical, ctx)?;
         if identified.atoms.is_empty() && identified.graphs.identified_mass() <= 0.0 {
             return Err(CausalError::Compile {
                 message: "ADMG graph-posterior response: no identified ADMG atoms".into(),
@@ -202,15 +202,21 @@ impl super::Study {
         ))
     }
 
-    /// The prepared ADMG posterior identification cache, or a live build of it.
+    /// The prepared ADMG posterior identification cache, the product the plan's lowered
+    /// program retained at compile, or a live build of it.
     fn admg_posterior_response_identification(
         &self,
         gp: &GraphPosterior,
         query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<CachedGraphPosteriorIdentification>, bool), CausalError> {
         if let Some(cache) = self.graph_posterior_identification_cache.as_ref() {
             Ok((Arc::clone(cache), true))
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
+        {
+            Ok((cache, false))
         } else {
             Ok((
                 Arc::new(

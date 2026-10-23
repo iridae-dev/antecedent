@@ -16,8 +16,9 @@
 //! contrast) and a typed functional otherwise. Layer three carries the realization the
 //! study declares and, for a frequentist study, whether its sampling law is design-based
 //! (over the assignment of fixed units) or superpopulation (over sampled units); the model
-//! slots, folds and randomization test the design fits. Layer five is not a design matrix
-//! for any of these cells, and says so.
+//! slots, folds and randomization test the design fits. Layer five quotes the one design
+//! matrix a cell fits (an ANCOVA randomized effect) and states for every other cell what
+//! it fits instead.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -90,6 +91,11 @@ const CONTROL_WORLD: u32 = 0;
 const ACTIVE_WORLD: u32 = 1;
 /// Declaration name used when the route record names no estimator.
 const UNNAMED_ESTIMATOR: &str = "unnamed";
+/// Why an ANCOVA design with a categorical covariate is not quoted.
+const UNCODED_ANCOVA_COVARIATE: &str = "an ANCOVA covariate is categorical without a declared \
+                                        contrast coding; the fit sizes the design at execution";
+/// Why a design cell without a quotable design is not quoted.
+const UNQUOTED_DESIGN: &str = "the design is sized at execution";
 
 /// Which population a frequentist sampling law speaks for.
 #[derive(Clone, Copy)]
@@ -142,14 +148,10 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
             IdentificationLayer::Retained(Arc::new(RetainedIdentification {
                 product: Some(retain_product(&cell.identification, &cell.target)?),
                 caches: Arc::from(caches),
+                key: super::retention_key(study),
             }))
         };
-    let design = DesignShape {
-        rows: plan.logical.row_count_hint,
-        columns: plan.logical.design_columns_hint,
-        source: cell.width,
-        direct: false,
-    };
+    let design = design_shape(cx, input, cell.width);
     let statistical = statistical_program(study, identifier, estimator, design, &cell)?;
     let scientific = ScientificProblem {
         target: cell.target,
@@ -174,6 +176,35 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         claim,
     }
     .finish())
+}
+
+/// Layer five. An ANCOVA randomized effect quotes its design `[1 | assignment |
+/// covariates]` from the data; the assignment is the query's vector, not a source
+/// column, so the design is never gathered directly. Every other cell states what it
+/// fits instead, sized by the planner.
+fn design_shape(
+    cx: &LoweringContext<'_>,
+    input: RouteInput<'_>,
+    width: WidthSource,
+) -> DesignShape {
+    let planned = |source: WidthSource| DesignShape {
+        rows: cx.plan.logical.row_count_hint,
+        columns: cx.plan.logical.design_columns_hint,
+        source,
+        direct: false,
+    };
+    match (input, width) {
+        (RouteInput::RandomizedEffect { query, .. }, WidthSource::Quoted) => {
+            super::quote_adjustment_width(cx, &query.ancova_covariates, &[]).map_or_else(
+                |_| planned(WidthSource::NotDesignBased(UNCODED_ANCOVA_COVARIATE)),
+                |quoted| DesignShape { direct: false, ..quoted },
+            )
+        }
+        // Only the ANCOVA design is quoted; a cell that names `Quoted` without one is
+        // stated as unquoted rather than carrying the planner's sizing as a quote.
+        (_, WidthSource::Quoted) => planned(WidthSource::NotDesignBased(UNQUOTED_DESIGN)),
+        (_, width) => planned(width),
+    }
 }
 
 fn not_lowered(cx: &LoweringContext<'_>) -> CausalError {
@@ -293,7 +324,7 @@ fn design_cell(
                 ));
             }
             DesignCell {
-                target: functional(FunctionalKind::ExposureContrast, outcome),
+                target: functional(study, FunctionalKind::ExposureContrast, outcome),
                 identification,
                 models,
                 folds: None,
@@ -323,7 +354,7 @@ fn design_cell(
             covariates.extend(query.fixed_cuped.map(|(covariate, _)| covariate));
             let ancova = !query.ancova_covariates.is_empty();
             DesignCell {
-                target: functional(FunctionalKind::AssignmentContrast, query.outcome),
+                target: functional(study, FunctionalKind::AssignmentContrast, query.outcome),
                 identification,
                 models: vec![slot(ModelRole::Outcome, method, &covariates, Some(query.outcome))],
                 folds: None,
@@ -337,10 +368,10 @@ fn design_cell(
                 } else {
                     SamplingBasis::DesignBased
                 },
-                // An ANCOVA fit is the design [1 | assignment | covariates]; its plan keeps the
-                // planner's bound because a quoted width would re-plan the published record.
+                // An ANCOVA fit is the design [1 | assignment | covariates], quoted from the
+                // data in `design_shape`; the attached program re-plans the record from it.
                 width: if ancova {
-                    WidthSource::SchemaBound
+                    WidthSource::Quoted
                 } else {
                     WidthSource::NotDesignBased("a difference of arm means fits no design matrix")
                 },
@@ -371,7 +402,7 @@ fn design_cell(
                 ));
             }
             DesignCell {
-                target: functional(FunctionalKind::PolicyValue, query.outcome),
+                target: functional(study, FunctionalKind::PolicyValue, query.outcome),
                 identification,
                 models,
                 folds: None,
@@ -402,7 +433,7 @@ fn design_cell(
                 ));
             }
             DesignCell {
-                target: functional(FunctionalKind::EffectOnTreated, query.outcome),
+                target: functional(study, FunctionalKind::EffectOnTreated, query.outcome),
                 identification,
                 models,
                 folds: None,
@@ -429,7 +460,7 @@ fn design_cell(
                 }
             };
             DesignCell {
-                target: functional(FunctionalKind::EffectOnTreated, query.outcome),
+                target: functional(study, FunctionalKind::EffectOnTreated, query.outcome),
                 identification,
                 models: vec![slot(ModelRole::Outcome, family, &[], Some(query.outcome))],
                 folds: None,
@@ -452,7 +483,7 @@ fn design_cell(
         RouteInput::ContinuousDoseResponse { data, query } => {
             let (identification, _) = CheckedContinuousDoseOperation::design_identification(query);
             let target = if query.target_doses.is_empty() {
-                functional(FunctionalKind::PolicyValue, query.outcome)
+                functional(study, FunctionalKind::PolicyValue, query.outcome)
             } else {
                 let binding = binding(data, TargetPopulation::AllObserved, "row", query.outcome)?;
                 let worlds = query
@@ -566,7 +597,7 @@ fn design_cell(
                 ));
             }
             DesignCell {
-                target: functional(FunctionalKind::SurvivalContrast, query.duration),
+                target: functional(study, FunctionalKind::SurvivalContrast, query.duration),
                 identification,
                 models,
                 folds: None,
@@ -605,7 +636,7 @@ fn design_cell(
             );
             let folds = query.fold_ids.iter().collect::<BTreeSet<_>>().len();
             DesignCell {
-                target: functional(FunctionalKind::RegimeValue, query.outcome),
+                target: functional(study, FunctionalKind::RegimeValue, query.outcome),
                 identification,
                 models,
                 folds: (folds > 0).then_some(FoldPlan {
@@ -687,7 +718,7 @@ fn design_cell(
             let mut match_inputs = vec![query.treated];
             match_inputs.extend(query.period);
             DesignCell {
-                target: functional(FunctionalKind::HistoryMatch, query.outcome),
+                target: functional(study, FunctionalKind::HistoryMatch, query.outcome),
                 identification,
                 models: vec![
                     slot(ModelRole::Nuisance, "history_mean_score", &query.history, None),
@@ -779,9 +810,9 @@ fn retain_product(
             }
             CompiledIdentificationProduct::retain_for_target(identification, parts, target)
         }
-        ProblemTarget::Functional { .. }
-        | ProblemTarget::QueryFunctional { .. }
-        | ProblemTarget::Unlowered => CompiledIdentificationProduct::retain(identification, parts),
+        ProblemTarget::Targets(_) | ProblemTarget::QueryFunctional { .. } => {
+            CompiledIdentificationProduct::retain(identification, parts)
+        }
     };
     retained.map_err(|refusal| CausalError::Compile { message: refusal.to_string() })
 }
@@ -830,8 +861,10 @@ fn assignment_resample_unit(assignment_unit: &str) -> ResampleUnit {
     }
 }
 
-fn functional(kind: FunctionalKind, outcome: VariableId) -> ProblemTarget {
-    ProblemTarget::Functional { kind, outcome: Some(outcome) }
+/// The typed functional `kind` on `outcome`, keyed by the canonical digest of the
+/// study's query so two designs of one kind lower to different programs.
+fn functional(study: &Study, kind: FunctionalKind, outcome: VariableId) -> ProblemTarget {
+    super::query_functional(study, kind, Some(outcome))
 }
 
 fn slot(

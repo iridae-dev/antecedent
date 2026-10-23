@@ -15,6 +15,76 @@ use crate::{Dag, RefuteSuite, Study};
 const FAMILIES: [&str; 5] =
     ["static_effect", "static_response", "structural", "temporal", "design_based"];
 
+/// Registered cells no licensed support-matrix coordinate executes: the graphless
+/// design axes, the panel and multi-environment modalities, and the latent-confounded
+/// temporal PAG mediation every compile refuses. Each still lowers completely through
+/// its family; the licensed-route record simply has no row for it.
+const OUTSIDE_LICENSED_ROUTES: [&str; 16] = [
+    "TemporalMediationPag",
+    "MultiEnvTemporalEffect",
+    "PanelTemporalEffectDag",
+    "PanelTemporalEffectClass",
+    "PanelTemporalResponseDag",
+    "PanelTemporalResponseClass",
+    "RandomizedEffect",
+    "PolicyValue",
+    "PanelDid",
+    "SyntheticControl",
+    "ContinuousDoseResponse",
+    "LocalPolynomialRatio",
+    "Survival",
+    "LongitudinalRegime",
+    "SequentialContrast",
+    "HistoryMatch",
+];
+
+/// Licensed routes the support matrix executes.
+const LICENSED_ROUTE_COUNT: usize = 723;
+
+/// The `lowering` value of every `[[route]]` in the licensed-route record, in order.
+fn licensed_route_lowerings() -> Vec<Option<String>> {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../parity/licensed_routes.toml");
+    let text = std::fs::read_to_string(path).expect("parity/licensed_routes.toml");
+    let mut routes: Vec<Option<String>> = Vec::new();
+    for line in text.lines().map(str::trim) {
+        if line == "[[route]]" {
+            routes.push(None);
+        } else if let Some(value) = line.strip_prefix("lowering = ") {
+            let route = routes.last_mut().expect("a lowering value belongs to a [[route]]");
+            *route = Some(value.trim_matches('"').to_owned());
+        }
+    }
+    routes
+}
+
+#[test]
+fn every_registered_cell_lowers_completely_and_the_licensed_routes_name_registered_cells() {
+    // One depth: a partial lowering cannot be added without failing this match.
+    let complete = |depth: LoweringDepth| match depth {
+        LoweringDepth::Complete => true,
+    };
+    assert!(complete(LoweringDepth::Complete));
+    let mut registered: BTreeSet<&str> = REGISTERED.iter().map(|(cell, _)| cell.as_str()).collect();
+    for cell in GraphPosteriorCell::ALL {
+        registered.insert(RouteCell::GraphPosterior(cell).as_str());
+    }
+    let routes = licensed_route_lowerings();
+    assert_eq!(routes.len(), LICENSED_ROUTE_COUNT, "licensed route inventory drifted");
+    let mut named = BTreeSet::new();
+    for (index, route) in routes.iter().enumerate() {
+        let lowering = route
+            .as_deref()
+            .unwrap_or_else(|| panic!("licensed route #{} records no lowering", index + 1));
+        assert!(registered.contains(lowering), "licensed route names unregistered {lowering}");
+        named.insert(lowering);
+    }
+    let outside: BTreeSet<&str> = OUTSIDE_LICENSED_ROUTES.into_iter().collect();
+    assert!(outside.is_subset(&registered), "an excluded cell is not registered");
+    assert!(named.is_disjoint(&outside), "a licensed route names an excluded cell");
+    let covered: BTreeSet<&str> = named.union(&outside).copied().collect();
+    assert_eq!(covered, registered, "every registered cell is licensed or explicitly excluded");
+}
+
 #[test]
 fn every_route_cell_is_registered_once_to_a_family() {
     let mut names = BTreeSet::new();
@@ -111,7 +181,7 @@ fn prepare_installs_the_identification_compile_retained() {
 }
 
 #[test]
-fn quoted_design_width_counts_contrast_columns_the_schema_bound_misses() {
+fn quoted_design_width_counts_contrast_columns_the_planner_sizing_misses() {
     use antecedent_core::physical_choice::PhysicalAlternative;
     use antecedent_core::{CategoryDomainId, MeasurementSpec, SmallRoleSet, ValueType};
     use antecedent_data::{
@@ -184,10 +254,10 @@ fn quoted_design_width_counts_contrast_columns_the_schema_bound_misses() {
         .unwrap();
     let plan = prepared.plan();
     let design = plan.lowered().unwrap().physical().design();
-    let schema_bound = plan.logical.record.query_variables.len() as u64;
-    assert_eq!(schema_bound, 2, "the planner's bound counts the query's variables");
+    let planner_sizing = plan.logical.record.query_variables.len() as u64;
+    assert_eq!(planner_sizing, 2, "the planner's sizing counts the query's variables");
     assert_eq!(design.columns(), 5, "intercept, treatment and three contrast columns");
-    assert_ne!(design.columns(), schema_bound);
+    assert_ne!(design.columns(), planner_sizing);
     assert_eq!(design.source(), crate::planner::lowered::WidthSource::Quoted);
     assert!(!design.direct());
     assert_eq!(plan.choice.selected(), PhysicalAlternative::MaterializedDesign);

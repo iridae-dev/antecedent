@@ -230,19 +230,24 @@ impl super::Study {
         diagnostics
     }
 
-    /// The prepared class posterior identification, built from the posterior
-    /// when the study carries no cache; refuses a posterior with no
-    /// identified class atoms.
+    /// The prepared class posterior identification, the product the plan's lowered
+    /// program retained at compile, or a build from the posterior when the study
+    /// carries neither; refuses a posterior with no identified class atoms.
     fn temporal_class_posterior_identification(
         &self,
         gp: &GraphPosterior,
         vars: &[antecedent_core::VariableId],
         query: &TemporalEffectQuery,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<CachedTemporalClassPosteriorIdentification>, bool), CausalError> {
         let (identified, identify_cached) =
             if let Some(cache) = self.temporal_class_posterior_identification_cache.as_ref() {
                 (Arc::clone(cache), true)
+            } else if let Some(cache) =
+                crate::analysis::lowering::plan_retained_temporal_class_posterior(self, physical)
+            {
+                (cache, false)
             } else {
                 (
                 Arc::new(
@@ -305,7 +310,7 @@ impl super::Study {
         let class_tag = temporal_class_posterior_tag(gp.atom_kind)?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let (identified, identify_cached) =
-            self.temporal_class_posterior_identification(gp, &vars, query, ctx)?;
+            self.temporal_class_posterior_identification(gp, &vars, query, physical, ctx)?;
         let gaps = self.admit_posterior_gaps(data, &vars, false)?;
         let evals = self.evaluate_temporal_class_atoms((data, query, gaps), &identified, ctx)?;
 

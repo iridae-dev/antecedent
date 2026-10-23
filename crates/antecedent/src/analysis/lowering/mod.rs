@@ -2,10 +2,10 @@
 //!
 //! [`attach`] lowers one parsed route; [`attach_graph_posterior`] lowers a study
 //! that carries a graph posterior. Each cell is registered to a family lowering
-//! in `registry`; a family that has not lowered its own layers yet delegates to
-//! the generic lowering, which states the route record, the declared inference
-//! and the planner's physical estimate, and marks the program
-//! [`LoweringDepth::Generic`].
+//! in `registry`, and every family lowers each layer from its own scientific
+//! problem: a query the world algebra cannot state lowers to its typed functional
+//! keyed by the query's canonical digest, and an identification that refuses at
+//! compile is deferred with a recorded reason. There is no partial lowering.
 //!
 //! Dispatch refuses a plan without a lowered program (`route_not_lowered`), and
 //! compile and one-shot run refuse a context already inside a lowered dispatch
@@ -13,9 +13,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub(crate) mod cyclic;
 mod decision;
 mod design_based;
 mod graph_posterior;
+mod query_digest;
 mod registry;
 mod static_effect;
 mod static_response;
@@ -40,22 +42,29 @@ pub(crate) use temporal::{
     TemporalContrast, contrast_frame, contrast_outcome, target_contrast, temporal_contrast_target,
 };
 
+use query_digest::{query_digest, retention_key};
+
+use crate::Study;
+use crate::analysis::IdentificationCache;
 use crate::analysis::builder::DataInput;
-use crate::analysis::compiled_linear::CompiledLinearProgram;
 use crate::analysis::execute::RouteInput;
+use crate::analysis::prepared::{
+    CachedDbnPosteriorIdentification, CachedGraphPosteriorIdentification,
+    CachedStaticIdentification, CachedTemporalClassPosteriorIdentification,
+};
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
 use crate::planner::lowered::{
-    ClaimDemand, DesignShape, IdentificationLayer, LoweredParts, LoweredProgram, LoweringDepth,
-    PhysicalLayer, ProblemTarget, RetainedIdentification, ScientificProblem, UncertaintyReading,
-    WidthSource,
+    DesignShape, FunctionalKind, IdentificationLayer, LoweredProgram, ProblemTarget,
+    RetainedIdentification, WidthSource,
 };
-use crate::planner::statistical::{DeclaredProgram, StatisticalProgram};
-use crate::{EstimatorId, IdentifierId, InferenceMode, Study};
 
 /// Why a sharp regression-discontinuity route retains no identification.
 const RD_IDENTIFIES_PER_EXECUTION: &str =
     "sharp regression discontinuity identifies on each execution";
+/// Why a program whose identification refused at compile retains none.
+const IDENTIFICATION_REFUSED_AT_COMPILE: &str = "identification refused at compile; preparation \
+                                                  identifies and reports the same refusal";
 
 /// Everything a route lowering reads.
 pub(crate) struct LoweringContext<'a> {
@@ -180,7 +189,92 @@ pub(crate) fn retain_identification(
     Ok(IdentificationLayer::Retained(Arc::new(RetainedIdentification {
         product,
         caches: Arc::from(caches),
+        key: retention_key(cx.study),
     })))
+}
+
+/// The deferred layer of a program whose identification refused at compile.
+pub(crate) const fn identification_refused_at_compile() -> IdentificationLayer {
+    IdentificationLayer::Deferred { reason: IDENTIFICATION_REFUSED_AT_COMPILE }
+}
+
+/// The typed functional `kind` of the study's query on `outcome`, keyed by the
+/// query's canonical digest so two queries of one kind lower to different programs.
+pub(crate) fn query_functional(
+    study: &Study,
+    kind: FunctionalKind,
+    outcome: Option<VariableId>,
+) -> ProblemTarget {
+    ProblemTarget::QueryFunctional { kind, outcome, query: query_digest(&study.query) }
+}
+
+/// The identification product `plan`'s lowered program retained for `study`, picked
+/// by `pick`. `None` when the program retained none, or retained it for a study whose
+/// query, structure or identification options differ from `study`'s.
+fn retained_cache<T>(
+    study: &Study,
+    plan: &PhysicalExecutionPlan,
+    pick: impl Fn(&IdentificationCache) -> Option<&Arc<T>>,
+) -> Option<Arc<T>> {
+    let retained = plan.lowered()?.retained_identification()?;
+    if retained.key != retention_key(study) {
+        return None;
+    }
+    retained.caches().iter().find_map(pick).map(Arc::clone)
+}
+
+/// The static identification `plan` retained for `study`.
+pub(crate) fn plan_retained_static(
+    study: &Study,
+    plan: &PhysicalExecutionPlan,
+) -> Option<Arc<CachedStaticIdentification>> {
+    retained_cache(study, plan, |cache| match cache {
+        IdentificationCache::Static(cache) => Some(cache),
+        _ => None,
+    })
+}
+
+/// The static graph-posterior identification `plan` retained for `study`.
+pub(crate) fn plan_retained_graph_posterior(
+    study: &Study,
+    plan: &PhysicalExecutionPlan,
+) -> Option<Arc<CachedGraphPosteriorIdentification>> {
+    retained_cache(study, plan, |cache| match cache {
+        IdentificationCache::GraphPosterior(cache) => Some(cache),
+        _ => None,
+    })
+}
+
+/// The DBN-posterior identification `plan` retained for `study`.
+pub(crate) fn plan_retained_dbn_posterior(
+    study: &Study,
+    plan: &PhysicalExecutionPlan,
+) -> Option<Arc<CachedDbnPosteriorIdentification>> {
+    retained_cache(study, plan, |cache| match cache {
+        IdentificationCache::DbnPosterior(cache) => Some(cache),
+        _ => None,
+    })
+}
+
+/// The temporal class-posterior identification `plan` retained for `study`.
+pub(crate) fn plan_retained_temporal_class_posterior(
+    study: &Study,
+    plan: &PhysicalExecutionPlan,
+) -> Option<Arc<CachedTemporalClassPosteriorIdentification>> {
+    retained_cache(study, plan, |cache| match cache {
+        IdentificationCache::TemporalClassPosterior(cache) => Some(cache),
+        _ => None,
+    })
+}
+
+/// A refusal for a family lowering handed a cell it does not lower.
+fn not_lowered_by(family: &str, cx: &LoweringContext<'_>) -> CausalError {
+    crate::compile_reason!(
+        "route_not_lowered",
+        "the {} lowering does not lower {} for this study",
+        family,
+        cx.cell.as_str()
+    )
 }
 
 /// The real width of the linear adjustment design `[1 | T | Z…]` over `adjustment`
@@ -226,87 +320,4 @@ fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {
         ));
     }
     registry::lower_cell(cx)
-}
-
-/// The lowering every family delegates to until it lowers its own layers.
-///
-/// Layer one states the route record (and the checked target of a retained linear
-/// operation). Layer two retains the identification product only where compile
-/// already identified. Layer three is the declared inference. Layer five is the
-/// planner's estimate.
-fn generic(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {
-    let study = cx.study;
-    let plan = cx.plan;
-    let record = &plan.logical.record;
-    let linear = plan.linear.as_deref().map(|linear| linear.program.as_ref());
-    let identifier =
-        record.identifier.as_deref().and_then(|name| name.parse::<IdentifierId>().ok());
-    let estimator = record.estimator.as_deref().and_then(|name| name.parse::<EstimatorId>().ok());
-    let source_digest = linear.map(CompiledLinearProgram::source_digest);
-    let scientific = ScientificProblem {
-        target: linear.map_or(ProblemTarget::Unlowered, |program| {
-            ProblemTarget::Target(program.target().clone())
-        }),
-        plan_id: Arc::clone(&record.plan_id),
-        data: record.data_classification,
-        graph_class: study.graph.class().as_str(),
-        query_variables: Arc::clone(&record.query_variables),
-        source_digest,
-        support_coordinate: crate::analysis::contract::matrix_coordinate(study).map(Arc::from),
-        licensed: matches!(study.support_status, Some(crate::support::CellStatus::Licensed)),
-    };
-    let identification = match (linear, estimator) {
-        (Some(program), _) => retain_identification(cx, Some(program.identification().clone()))?,
-        (None, Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear)) => {
-            IdentificationLayer::PerExecution { reason: RD_IDENTIFIES_PER_EXECUTION }
-        }
-        (None, _) => IdentificationLayer::Deferred,
-    };
-    let design = match plan.linear.as_deref() {
-        Some(linear) => quote_adjustment_width(
-            cx,
-            &linear.identification.estimand.adjustment_set,
-            &linear.fitter.contrasts,
-        )?,
-        None => DesignShape {
-            rows: plan.logical.row_count_hint,
-            columns: plan.logical.design_columns_hint,
-            source: WidthSource::SchemaBound,
-            direct: false,
-        },
-    };
-    let statistical = StatisticalProgram::declared(DeclaredProgram {
-        identifier,
-        estimator,
-        inference: &study.inference,
-        bootstrap_replicates: study.bootstrap_replicates,
-        sampling_design: study.sampling_design,
-        design,
-        operators: linear.map_or_else(Vec::new, |program| program.operators().to_vec()),
-    })?;
-    let physical = PhysicalLayer {
-        operators: Arc::from(
-            linear.map_or_else(Vec::new, |program| program.physical_operators().to_vec()),
-        ),
-        design,
-    };
-    let claim = ClaimDemand {
-        uncertainty: match study.inference {
-            InferenceMode::Frequentist => UncertaintyReading::Sampling,
-            InferenceMode::Bayesian(_) => UncertaintyReading::Posterior,
-        },
-        kind: None,
-    };
-    let evidence = decision::evidence_program(cx, source_digest, &statistical)?;
-    Ok(LoweredParts {
-        cell: cx.cell,
-        depth: LoweringDepth::Generic,
-        scientific,
-        identification,
-        statistical,
-        evidence,
-        physical,
-        claim,
-    }
-    .finish())
 }

@@ -129,7 +129,11 @@ fn derivative_lowers_the_response_derivative_functional() {
     assert_eq!(program.depth(), LoweringDepth::Complete);
     assert!(matches!(
         program.scientific().target(),
-        ProblemTarget::Functional { kind: FunctionalKind::ResponseDerivative, outcome: Some(Y) }
+        ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::ResponseDerivative,
+            outcome: Some(Y),
+            ..
+        }
     ));
 }
 
@@ -261,7 +265,7 @@ fn every_static_response_cell_lowers_completely() {
     ];
     for study in &studies {
         let program = lowered(study);
-        assert_eq!(program.depth(), LoweringDepth::Complete, "{} stayed generic", program.route());
+        assert_eq!(program.depth(), LoweringDepth::Complete, "{}", program.route());
         assert_eq!(lowered(study).identity(), program.identity(), "{}", program.route());
         covered.insert(program.route());
         match program.route() {

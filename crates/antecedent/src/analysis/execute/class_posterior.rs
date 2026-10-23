@@ -53,6 +53,10 @@ impl super::Study {
             self.graph_posterior_identification_cache.as_ref()
         {
             (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_graph_posterior(self, physical)
+        {
+            (cache, false)
         } else {
             (
                 Arc::new(crate::analysis::prepared::build_graph_posterior_identification_cache(

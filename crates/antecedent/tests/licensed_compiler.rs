@@ -1381,6 +1381,9 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
         .lowered()
         .ok_or_else(|| format!("{expected}: compile attached no lowered program"))?;
     let lowering = lowered.route().to_owned();
+    if lowered.depth() != antecedent::planner::lowered::LoweringDepth::Complete {
+        return Err(format!("{expected}: {lowering} did not lower every layer"));
+    }
     let lowered_identity = lowered.identity();
     let contract = prepared.contract().map_err(|e| format!("{expected}: contract {e}"))?;
     let preview = prepared

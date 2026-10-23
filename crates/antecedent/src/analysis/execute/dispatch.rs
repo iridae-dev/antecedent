@@ -740,10 +740,45 @@ impl super::Study {
             Some(AnalysisRoute::MultiEnvTemporalEffect) => {
                 self.execute_multi_env_effect_route(data, physical, ctx)
             }
+            Some(AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution)
+                if self.graph.class() == GraphClass::TemporalDag =>
+            {
+                let (DataInput::Temporal(series) | DataInput::Event(series)) = data else {
+                    return Err(route_mismatch());
+                };
+                self.execute_series_attribution(series, physical, ctx)
+            }
             _ => Err(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
             }),
         }
+    }
+
+    /// Series anomaly or change attribution on a supplied `TemporalDag`: the sealed
+    /// attribution operation over the lag-aligned unfolding, built from the static
+    /// identification the plan's lowered program retained (or the prepared cache).
+    /// The study identifies here only when neither carries the product.
+    fn execute_series_attribution(
+        &self,
+        series: &TimeSeriesData,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let cache = match self.identification_cache.as_ref() {
+            Some(cache) => std::sync::Arc::clone(cache),
+            None => match crate::analysis::lowering::plan_retained_static(self, physical) {
+                Some(cache) => cache,
+                None => {
+                    std::sync::Arc::new(self.prepare_static_identification(physical)?.ok_or_else(
+                        || CausalError::Compile {
+                            message: "series attribution identified no structural product".into(),
+                        },
+                    )?)
+                }
+            },
+        };
+        super::CheckedAttributionOperation::checked(self, physical, &cache)?
+            .execute_series(series, ctx)
     }
 
     /// Panel temporal-effect execution: class graphs or the resolved `TemporalDag`.

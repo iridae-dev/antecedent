@@ -5,6 +5,13 @@ not new crates and not a second public workflow. `PreparedStudy` and Python
 `PreparedAnalysis` stay the practitioner handle. `antecedent-expr` stays the
 identified-functional IR.
 
+The layers exist as code. `Study::compile` lowers every route cell to one
+`LoweredProgram` (`crates/antecedent/src/planner/lowered.rs`) and attaches it to
+the `PhysicalExecutionPlan` it returns; dispatch refuses a plan without one. The
+program holds the scientific problem, the identification product, the statistical
+program, the evidence and decision program, the physical layer, and the claim the
+execution must publish. See [The lowered program](#the-lowered-program).
+
 `antecedent-contract::SemanticLayer` (`Target`, `Identification`, `Program`,
 `Inference`, `Support`, `Data`, `Execution`, `Results`) is the identity and
 transform axis from ADR 0022. It is not this map. In particular its `Program`
@@ -54,7 +61,7 @@ Logical compile writes a route record. It does not build an
 | `compile_logical_admg_response` | `crates/antecedent/src/analysis/execute/compile.rs` | 1 | `antecedent` | Exists today. ADMG response logical record. |
 | `IdentifierId`, `EstimatorId` | `crates/antecedent/src/strategy_table/ids.rs` | 1 | `antecedent` | Exists today. Closed wire names the logical record stores. Selection is not identification and not a fit. |
 
-`compile_physical_with_all_graphs` estimates peak bytes as `n_rows * 8 * 8` for the design plus the same again for workspace, always materializes `design.matrix` as `CopiedContiguous`, picks `DenseBackend` under the estimator's `kernel_label` (fallback `ols.faer`), schedules one task dimension from `EstimatorId::parallel_task_dimension` (fallback `analysis`), and sets `expected_python_crossings` to 1. A soft memory limit with no chunked alternative returns `CausalError::Resource`.
+`compile_physical_with_all_graphs` sizes the record from the logical plan's row count and its query variables, materializes `design.matrix` as `CopiedContiguous`, picks `DenseBackend` under the estimator's `kernel_label` (fallback `ols.faer`), schedules one task dimension from `EstimatorId::parallel_task_dimension` (fallback `analysis`), and sets `expected_python_crossings` to 1. A soft memory limit with no chunked alternative returns `CausalError::Resource`. That sizing is a starting record, not the design: when the attached lowered program quotes a design (a linear adjustment `[1 | T | Z…]` with its contrast codings, or an ANCOVA randomized effect), `PhysicalExecutionPlan::requote` re-plans rows, columns, byte estimates and whether the design is borrowed from the source columns, from the quoted width. A route that fits no single adjustment design says so on its layer five (`WidthSource::NotDesignBased`, with the reason) instead of passing the starting record off as a quote. A plan from `compile_physical` alone carries no lowered program and does not dispatch.
 
 ## Compile
 
@@ -66,9 +73,12 @@ Logical compile writes a route record. It does not build an
 | `StaticMediationSource` | `crates/antecedent/src/analysis/execute/route_input.rs` | 1 | `antecedent` | Exists today. `MediationQuery` or `NestedCounterfactualQuery`. |
 | `PlanId` | `crates/antecedent/src/analysis/execute/plan_id.rs` | 1 | `antecedent` | Exists today. Wire `plan_id` for the routes that do not use the planner's fixed ids (`static_conditional`, `transport_trial`, `gcm_query`, longitudinal regime ids, and the rest of that enum). |
 | `Study::compile_logical` | `crates/antecedent/src/analysis/execute/compile.rs` | 1 | `antecedent` | Exists today. Inspectable route record only. |
-| `Study::compile` | `crates/antecedent/src/analysis/execute/compile.rs` | 5 | `antecedent` | Exists today. Logical record, then `compile_physical*`. Attaches a resolved DAG, temporal DAG, or PAG when the cell has one. `StaticAteMixed` is physical-only. |
+| `Study::compile` | `crates/antecedent/src/analysis/execute/compile.rs` | 1 to 6 | `antecedent` | Exists today. Logical record, then `compile_physical*`, then the route lowering, which attaches the `LoweredProgram`. Attaches a resolved DAG, temporal DAG, or PAG when the cell has one. `StaticAteMixed` is physical-only. A context already inside a lowered dispatch is refused (`public_builder_reentry`). |
+| `Study::compile_for_decision`, `Study::compile_for_evsi` | `crates/antecedent/src/analysis/execute/compile_decision.rs` | 1 to 6 | `antecedent` | Exists today. Compile that starts from a `DecisionProblem` or an `EvsiRequest`; layer four carries the decision or the EVSI program. |
+| `RouteCell`, `GraphPosteriorCell`, the registry table | `crates/antecedent/src/analysis/lowering/registry.rs` | 1 to 6 | `antecedent` | Exists today. One row per `RouteInput` variant mapping it to its family lowering (`static_effect`, `static_response`, `structural`, `temporal`, `design_based`), plus the graph-posterior cells. A `RouteInput` variant without a row does not compile. The cell name is the `lowering` column of `parity/licensed_routes.toml`. |
 | `Study::compile_logical_from` and the `compile_logical_*` route builders in this file | `crates/antecedent/src/analysis/execute/compile.rs` | 1 | `antecedent` | Exists today. One builder per `RouteInput` arm: static response DAG/PAG/CPDAG, co-determined joint, mixed ADMG response, static ATE DAG/PAG/CPDAG, distribution DAG and mixed, path-specific, temporal effect and response, multi-env temporal effect, panel effect and response, conditional DAG/CPDAG/PAG, temporal and static mediation, transport, interference, randomized, policy value, panel DiD, synthetic control, continuous dose, local-polynomial ratio, survival, longitudinal regime, GCM, cross-world. Each fills a `LogicalAnalysisPlanRecord`. |
-| `Study::run` | `crates/antecedent/src/analysis/execute/dispatch.rs` | 3 | `antecedent` | Exists today. One-shot sugar over identify, prepare, and estimate. Returns `StudyResult`. |
+| `Study::run` | `crates/antecedent/src/analysis/execute/dispatch.rs` | 3 | `antecedent` | Exists today. One-shot sugar over compile, prepare, and estimate. Returns `StudyResult`. |
+| `Study::execute` and the dispatch entry points | `crates/antecedent/src/analysis/execute/dispatch.rs` | 3 to 6 | `antecedent` | Exists today. Require the plan's lowered program for the cell the study classifies as (`route_not_lowered` otherwise), run inside its lowered-dispatch scope, and stamp its identity on the result. |
 
 ## Prepared execution
 
@@ -130,13 +140,13 @@ Exists today in `antecedent-core` unless noted. These types are the problem stat
 
 ## Statistical program
 
-No type today is the statistical program. Fitting is a set of estimator entry points selected by `EstimatorId` and by the sealed prepared operation. `antecedent-learn` fits predictors; it does not own the causal statistical program.
+`StatisticalProgram` (`crates/antecedent/src/planner/statistical.rs`) is layer three of every lowered program: the resolved identifier and estimator, the `Realization` the inference mode selects (a frequentist score, an ordinary or generalized Bayesian likelihood, an identified-set envelope, or an exact point), the fitted models as `ModelSlot`s with their roles and variables, the cross-fitting `FoldPlan`, the `ResamplingPlan` under the declared sampling design, and the `PosteriorPlan`. Its identity enters the lowered program's identity. The estimators below remain the entry points the program is realized by; `antecedent-learn` fits predictors and does not own the causal statistical program.
 
 | Type or function | Path | Layer | Crate | Notes |
 | --- | --- | --- | --- | --- |
 | `Estimator::prepare`, `Estimator::fit` | `crates/antecedent-estimate/src/estimator.rs` | 3 | `antecedent-estimate` | Exists today. Sealed. Implemented for `LinearAdjustmentAte`. Most estimators use inherent `prepare` / `fit` instead. |
 | `PreparedEstimationProblem`, `EstimationWorkspace`, `LinearAdjustmentAte`, `CheckedLinearAdjustmentAte` | `crates/antecedent-estimate/src/adjustment.rs` | 3 | `antecedent-estimate` | Exists today. |
-| `compile_adjustment_design` | `crates/antecedent-estimate/src/design_compile.rs` | 3 | `antecedent-estimate` | Exists today. Expands covariates to a float design. Contrast matrices come from `antecedent-data`. `CompiledDesign` lives in `antecedent-stats`. The physical planner does not read this width. |
+| `compile_adjustment_design`, `design_width::quote_adjustment_design` | `crates/antecedent-estimate/src/design_compile.rs`, `design_width.rs` | 3 | `antecedent-estimate` | Exists today. Expands covariates to a float design. Contrast matrices come from `antecedent-data`. `CompiledDesign` lives in `antecedent-stats`. The lowering quotes the same width at compile and layer five re-plans the physical record from it. |
 | `JointFitPlan` | `crates/antecedent-estimate/src/fit_plan.rs` | 3 | `antecedent-estimate` | Exists today. Joint fit schedule inside estimate. Not a `PhysicalExecutionPlan`. |
 | `ScoreTable`, `ScoreInference` | `crates/antecedent-estimate/src/scores.rs` | 3 | `antecedent-estimate` | Exists today. AIPW and cell-AIPW scores. Frozen on `PreparedStudy` when the cell exports them. |
 | `CheckedAipwPreparation`, `CheckedFrontDoorPreparation`, `CheckedIvPreparation` | `crates/antecedent-estimate/src/aipw.rs`, `frontdoor.rs`, `iv.rs` | 3 | `antecedent-estimate` | Exists today. Bound into `CheckedProgramBinding`. |
@@ -178,14 +188,28 @@ No type today is the statistical program. Fitting is a set of estimator entry po
 | `StudyResult` | `crates/antecedent/src/result.rs` | 6 | `antecedent` | Exists today. Bundles logical record, physical record, `IdentificationResult`, `IdentifiedEstimand`, `PrimaryEstimate`, payload, optional posterior, refutations, diagnostics. One facade result, not a separated receipt. |
 | Artifact consume and `verify_contract_against_body` | `crates/antecedent-io`, `crates/antecedent-io-core` | 6 | `antecedent-io` / `antecedent-io-core` | Exists today. Estimator-free replay stays in `antecedent-io-core`. Estimator-bound replay stays in `antecedent-io`. |
 
-## What is missing
+## The lowered program
 
-The six-layer model is not implemented as internal IR. The gaps below are observations about the current tree.
+`LoweredProgram` (`crates/antecedent/src/planner/lowered.rs`) is the mandatory output of compile for every `RouteCell`. Every cell lowers at `LoweringDepth::Complete`; there is no partial lowering.
 
-- Layer 1 is `CausalQuery` plus schema, graph, assumptions, and data. `LogicalAnalysisPlan` is route, query, split, and strategy-name metadata. It is not a scientific-problem operator with evidence-use effects.
-- Layer 2 exists (`IdentificationResult`, `IdentifiedEstimand`, the expr arena) and is cached on `PreparedStudy`. The physical plan does not take that product as input. Graph-posterior analyses have no single logical plan.
-- Layer 3 has no program object. Folds, scores, priors, and resampling are fields of individual estimators and of `CheckedProgramBinding`, not a plan the next layer schedules. `FunctionalProgram` is layer 2. `NodeProgram` and `CompiledCausalModel` are model companions and are not inputs to `Study::compile`.
-- Layer 4 exists as the ledger, the joint-law rule, the design crate, and the lowered decision program. Compile starts from `DecisionProblem` and `EvsiRequest`, but the carrier check reads only the realization the generic lowering declares. An outcome law is supplied only by the interventional-distribution cells. The EVSI Monte Carlo dimension sits on `EvsiProgram`, not on the physical layer's operators.
-- Layer 5 is one dense-design estimate: fixed column-width heuristic, one copied buffer, one kernel label, one task dimension, no scan or projection operators, no spill, and no use of `BufferMaterialization::Chunked`. `compile_adjustment_design` already knows a real design width and is not consulted. `antecedent-state` (`CausalState`, `InvalidationLog`, sufficient statistics) is retained state, not this plan.
+| Layer | Field | Notes |
+| --- | --- | --- |
+| 1. Scientific problem | `ScientificProblem` | `ProblemTarget::Target` (a world-indexed `ScientificTarget`: worlds, a contrast, a dose-time surface, or mediation), `ProblemTarget::Targets` (one target per requested horizon, for a multi-horizon mediation or a per-horizon response), or `ProblemTarget::QueryFunctional` (a typed `FunctionalKind` with the canonical digest of the query's interventions, levels, conditioning and evaluation points, for a query no world form states: a distribution, a derivative or Jacobian, a cross-world or attribution query, a callback action, a schedule outside its horizon). Two queries of one kind lower to different programs. Also the route record, data modality, graph class and support coordinate. |
+| 2. Identification product | `IdentificationLayer` | `Retained`: identified once at compile with the products preparation installs, keyed by the study inputs identification reads. `PerExecution`: the route identifies on each execution (sharp RD, cross-world probes), with the reason. `Deferred`: identification refused at compile, with the reason; preparation identifies and reports the same refusal. |
+| 3. Statistical program | `StatisticalProgram` | See [Statistical program](#statistical-program). |
+| 4. Evidence and decision program | `EvidenceDecisionProgram` | Source contributions and composition, and the decision or EVSI program when compile started from one. |
+| 5. Physical layer | `PhysicalLayer` | Physical operator contracts and the `DesignShape`, whose `WidthSource` is `Quoted` or `NotDesignBased(reason)`. Execution accounting: it stays out of the identity. |
+| 6. Claim | `ClaimDemand` | The uncertainty reading and claim kind the execution must publish. The measured receipt stays on the result. |
+
+Preparation installs a retained identification instead of identifying again. Graph-posterior executions that reach dispatch without a prepared cache take the products the plan retained, so a one-shot run identifies the atoms once. `scripts/gate_checked_execution.py` fails on a licensed route without a registered `lowering` cell, a surviving partial lowering, library code that re-enters the public builder, or an `ExecutionContext` literal outside `antecedent-core`.
+
+## Remaining gaps
+
+These are observations about the current tree.
+
+- Layer 1 is still read from `CausalQuery` plus schema, graph, assumptions, and data; `LogicalAnalysisPlan` stays route, query, split, and strategy-name metadata. A functional target is keyed by the query's digest, not stated as worlds; fields with no canonical encoding of their own are digested from their `Debug` rendering.
+- Layer 2: single-graph executors reached through `Study::execute` without a prepared handle still identify on their own instead of taking the plan's retained product. Graph-posterior atoms do not.
+- Layer 4: an outcome law is supplied only by the interventional-distribution cells. The EVSI Monte Carlo dimension sits on `EvsiProgram`, not on the physical layer's operators.
+- Layer 5 is one dense-design estimate per route: one copied or borrowed buffer, one kernel label, one task dimension, no scan or projection operators, no spill, and no use of `BufferMaterialization::Chunked`. Only linear adjustment and ANCOVA designs are quoted; the other routes say what they fit instead. `antecedent-state` (`CausalState`, `InvalidationLog`, sufficient statistics) is retained state, not this plan.
 - Layer 6 exists as identities, `CausalContract`, `ClaimEnvelope`, and `StudyResult`. The result still carries the route records and the identification product in one struct. `ExecutionPerformanceRecord` can store measured facts; the physical planner's byte counts are estimates, not measurements.
 - Three graphs are not three IRs. The causal graph is `antecedent-graph`. Provenance and overlap are `EvidenceLedger` and `ProvenanceGraph`. The execution schedule is the single `task_schedule` on `PhysicalExecutionPlanRecord`.

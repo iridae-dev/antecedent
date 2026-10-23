@@ -119,7 +119,7 @@ impl super::Study {
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let estimator_id = EstimatorId::temporal_response_for(&self.inference);
         let (identified, identify_cached) =
-            self.dbn_response_posterior_identification(gp, &vars, query, ctx)?;
+            self.dbn_response_posterior_identification(gp, &vars, query, physical, ctx)?;
         let inputs = DbnPosteriorInputs { data, query, temporal, treatment, outcome, ctx };
         let mut atoms = dbn_posterior_structural_atoms(&identified);
         let fits = self.fit_dbn_posterior_atoms(&inputs, &identified, &mut atoms)?;
@@ -207,18 +207,24 @@ impl super::Study {
         ))
     }
 
-    /// The prepared DBN-posterior identification, built from the posterior
-    /// when the study carries no cache.
+    /// The prepared DBN-posterior identification, the product the plan's lowered
+    /// program retained at compile, or a build from the posterior when the study
+    /// carries neither.
     fn dbn_response_posterior_identification(
         &self,
         gp: &GraphPosterior,
         vars: &[antecedent_core::VariableId],
         query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<crate::analysis::prepared::CachedDbnPosteriorIdentification>, bool), CausalError>
     {
         Ok(if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
             (Arc::clone(cache), true)
+        } else if let Some(cache) =
+            crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
+        {
+            (cache, false)
         } else {
             (
                 Arc::new(

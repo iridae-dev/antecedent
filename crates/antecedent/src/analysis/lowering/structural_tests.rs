@@ -183,7 +183,11 @@ fn counterfactual_lowers_its_functional_mechanisms_and_row_weight_posterior() {
     assert_eq!(frequentist.depth(), LoweringDepth::Complete);
     assert!(matches!(
         frequentist.scientific().target(),
-        ProblemTarget::Functional { kind: FunctionalKind::Counterfactual, outcome: Some(y) }
+        ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::Counterfactual,
+            outcome: Some(y),
+            ..
+        }
             if *y == v(1)
     ));
     let statistical = frequentist.statistical();
@@ -227,7 +231,7 @@ fn anomaly_prepare_and_estimate_stamp_the_compiled_identity() {
         let program = lowered(&study);
         assert!(matches!(
             program.scientific().target(),
-            ProblemTarget::Functional { kind: FunctionalKind::AnomalyAttribution, .. }
+            ProblemTarget::QueryFunctional { kind: FunctionalKind::AnomalyAttribution, .. }
         ));
         assert_eq!(program.statistical().models()[1].family(), "gcm.registry.standard.best_score");
         let prepared = study.prepare(&ctx).unwrap();
@@ -284,7 +288,7 @@ fn every_structural_cell_lowers_completely() {
         assert_eq!(program.depth(), LoweringDepth::Complete);
         assert!(matches!(
             program.scientific().target(),
-            ProblemTarget::Functional { kind, .. } if *kind == expected
+            ProblemTarget::QueryFunctional { kind, .. } if *kind == expected
         ));
         covered.insert(program.route());
     }

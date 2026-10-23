@@ -38,13 +38,10 @@ pub(crate) use linear_gaussian::{
 
 const LOWERED_PROGRAM_TAG: &str = "antecedent.lowered_program";
 
-/// How far a route's lowering has been carried.
+/// How far a route's lowering has been carried. Every registered route cell lowers
+/// each layer from its own scientific problem; there is no partial lowering.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum LoweringDepth {
-    /// Placeholder lowering shared by every route: the route record, the declared
-    /// inference, and the planner's schema-bound physical estimate. Preparation
-    /// still identifies on its own.
-    Generic,
     /// The route lowers each layer from its own scientific problem.
     Complete,
 }
@@ -54,7 +51,6 @@ impl LoweringDepth {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Generic => "generic",
             Self::Complete => "complete",
         }
     }
@@ -95,6 +91,9 @@ pub enum FunctionalKind {
     RegimeValue,
     /// Derivative, average derivative, directional derivative or Jacobian of a response curve.
     ResponseDerivative,
+    /// Contrast of an outcome functional between intervention worlds the world algebra
+    /// cannot state (a callback action, or a schedule outside the horizon).
+    InterventionContrast,
 }
 
 impl FunctionalKind {
@@ -118,6 +117,7 @@ impl FunctionalKind {
             Self::SurvivalContrast => "survival_contrast",
             Self::RegimeValue => "regime_value",
             Self::ResponseDerivative => "response_derivative",
+            Self::InterventionContrast => "intervention_contrast",
         }
     }
 }
@@ -127,13 +127,9 @@ impl FunctionalKind {
 pub enum ProblemTarget {
     /// World-indexed target: worlds, a contrast, a dose-time surface, or mediation.
     Target(ScientificTarget),
-    /// A functional that is not indexed by intervention worlds.
-    Functional {
-        /// Kind of functional.
-        kind: FunctionalKind,
-        /// Outcome the functional reads, when it has one.
-        outcome: Option<VariableId>,
-    },
+    /// One world-indexed target per requested horizon, in request order: a
+    /// multi-horizon mediation or a per-horizon family the query answers jointly.
+    Targets(Arc<[ScientificTarget]>),
     /// A functional that is not indexed by intervention worlds, with the digest of the query
     /// (interventions, levels, conditioning, evaluation points) that defines it, so two queries of
     /// one kind have different identities.
@@ -145,8 +141,6 @@ pub enum ProblemTarget {
         /// Canonical digest of the query the functional answers.
         query: [u8; 32],
     },
-    /// Generic lowering has not stated the target beyond the route record.
-    Unlowered,
 }
 
 /// Layer one: the scientific problem.
@@ -216,11 +210,11 @@ impl ScientificProblem {
             ProblemTarget::Target(target) => {
                 writer.text("target").bytes(target.identity().as_bytes());
             }
-            ProblemTarget::Functional { kind, outcome } => {
-                writer
-                    .text("functional")
-                    .text(kind.as_str())
-                    .opt_word(outcome.map(|id| u64::from(id.raw())));
+            ProblemTarget::Targets(targets) => {
+                writer.text("targets").word(targets.len() as u64);
+                for target in targets.iter() {
+                    writer.bytes(target.identity().as_bytes());
+                }
             }
             ProblemTarget::QueryFunctional { kind, outcome, query } => {
                 writer
@@ -228,9 +222,6 @@ impl ScientificProblem {
                     .text(kind.as_str())
                     .opt_word(outcome.map(|id| u64::from(id.raw())))
                     .bytes(query);
-            }
-            ProblemTarget::Unlowered => {
-                writer.text("unlowered");
             }
         }
         writer
@@ -251,8 +242,12 @@ impl ScientificProblem {
 /// Layer two: what identification the program carries.
 #[derive(Clone, Debug)]
 pub(crate) enum IdentificationLayer {
-    /// The route has not lowered its identification: preparation identifies.
-    Deferred,
+    /// Identification is left to preparation, which identifies and reports what it
+    /// finds; the reason says why compile retained nothing.
+    Deferred {
+        /// Why compile retained no identification.
+        reason: &'static str,
+    },
     /// Identified at compile and retained with the program; preparation installs
     /// these products and does not identify again.
     Retained(Arc<RetainedIdentification>),
@@ -261,6 +256,68 @@ pub(crate) enum IdentificationLayer {
         /// Why the route cannot retain one identification.
         reason: &'static str,
     },
+    /// Identification of a feedback model that is not a graphical identification
+    /// product of an acyclic model.
+    NonGraphical(Arc<NonGraphicalIdentification>),
+}
+
+/// Identification a feedback program carries in place of a graphical product.
+///
+/// None of these is upgraded to graphical identification: a specified or fitted
+/// model stays conditional on that model, a clamp-experiment recovery keeps the
+/// directions its design leaves unresolved, and a cyclic input/output SCM
+/// identification stays scoped to its theorem and premises.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum NonGraphicalIdentification {
+    /// Conditional on the specified or fitted model whose digest is `model`.
+    SpecifiedModelConditional {
+        /// Digest of the model the answer is conditional on.
+        model: [u8; 32],
+    },
+    /// Linear law recovered from declared clamp experiments.
+    ExperimentalRecovery {
+        /// Digest of the declared clamp design.
+        design: [u8; 32],
+        /// Directions the design leaves unresolved, as `(target, missing clamps)`.
+        unresolved: Arc<[(VariableId, Arc<[VariableId]>)]>,
+    },
+    /// Theorem-scoped identification of an input/output SCM on a cyclic graph.
+    CyclicIoScm {
+        /// Digest of the graphical source and its premises.
+        source: [u8; 32],
+    },
+}
+
+impl NonGraphicalIdentification {
+    /// Stable `snake_case` name.
+    pub(crate) const fn as_str(&self) -> &'static str {
+        match self {
+            Self::SpecifiedModelConditional { .. } => "specified_model_conditional",
+            Self::ExperimentalRecovery { .. } => "experimental_recovery",
+            Self::CyclicIoScm { .. } => "cyclic_ioscm",
+        }
+    }
+
+    fn write(&self, writer: &mut CanonicalWriter) {
+        writer.text(self.as_str());
+        match self {
+            Self::SpecifiedModelConditional { model } => {
+                writer.bytes(model);
+            }
+            Self::ExperimentalRecovery { design, unresolved } => {
+                writer.bytes(design).word(unresolved.len() as u64);
+                for (target, missing) in unresolved.iter() {
+                    writer.word(u64::from(target.raw())).word(missing.len() as u64);
+                    for source in missing.iter() {
+                        writer.word(u64::from(source.raw()));
+                    }
+                }
+            }
+            Self::CyclicIoScm { source } => {
+                writer.bytes(source);
+            }
+        }
+    }
 }
 
 /// Identification products compiled with a lowered program.
@@ -270,6 +327,10 @@ pub(crate) struct RetainedIdentification {
     pub(crate) product: Option<CompiledIdentificationProduct>,
     /// Products preparation installs, in install order.
     pub(crate) caches: Arc<[IdentificationCache]>,
+    /// Digest of the study inputs these products were identified from (query,
+    /// structure and the options identification reads). Dispatch installs a retained
+    /// product only into a study with the same key.
+    pub(crate) key: [u8; 32],
 }
 
 impl RetainedIdentification {
@@ -282,8 +343,8 @@ impl RetainedIdentification {
 impl IdentificationLayer {
     fn write(&self, writer: &mut CanonicalWriter) {
         match self {
-            Self::Deferred => {
-                writer.text("deferred");
+            Self::Deferred { reason } => {
+                writer.text("deferred").text(reason);
             }
             Self::Retained(retained) => {
                 writer.text("retained");
@@ -299,6 +360,10 @@ impl IdentificationLayer {
             Self::PerExecution { reason } => {
                 writer.text("per_execution").text(reason);
             }
+            Self::NonGraphical(identification) => {
+                writer.text("non_graphical");
+                identification.write(writer);
+            }
         }
     }
 }
@@ -308,10 +373,9 @@ impl IdentificationLayer {
 pub enum WidthSource {
     /// Encoded from the selected roles and their contrast codings.
     Quoted,
-    /// The route does not fit a design matrix.
+    /// The route fits no single quoted adjustment design; the reason says what it
+    /// fits instead and when that is sized.
     NotDesignBased(&'static str),
-    /// The planner's bound from the query's variable count.
-    SchemaBound,
 }
 
 impl WidthSource {
@@ -321,7 +385,6 @@ impl WidthSource {
         match self {
             Self::Quoted => "quoted",
             Self::NotDesignBased(_) => "not_design_based",
-            Self::SchemaBound => "schema_bound",
         }
     }
 }
@@ -454,7 +517,7 @@ impl LoweredParts {
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
         LoweredProgram {
-            cell: self.cell,
+            cell: ProgramCell::Route(self.cell),
             depth: self.depth,
             scientific: self.scientific,
             identification: self.identification,
@@ -467,10 +530,82 @@ impl LoweredParts {
     }
 }
 
+/// The parts a cyclic family lowering assembles. The program is always
+/// [`LoweringDepth::Complete`]; [`Self::finish`] computes the identity.
+pub(crate) struct CyclicLoweredParts {
+    /// Stable family name the program was lowered for.
+    pub(crate) family: &'static str,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl CyclicLoweredParts {
+    /// Seal the parts into a lowered program for the cyclic family.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::CyclicFamily(self.family);
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(self.family).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+        }
+    }
+}
+
+/// The compiled cell a lowered program was lowered for: a route cell of
+/// `Study::compile`, or a cyclic family that prepares through its own entry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub(crate) enum ProgramCell {
+    /// A registered route cell.
+    Route(RouteCell),
+    /// A cyclic family, by its stable family name.
+    CyclicFamily(&'static str),
+}
+
+impl ProgramCell {
+    /// Stable name, written to the licensed-route record.
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Route(cell) => cell.as_str(),
+            Self::CyclicFamily(_) => "CyclicFamily",
+        }
+    }
+}
+
+impl PartialEq<ProgramCell> for RouteCell {
+    fn eq(&self, other: &ProgramCell) -> bool {
+        matches!(other, ProgramCell::Route(cell) if cell == self)
+    }
+}
+
+impl PartialEq<RouteCell> for ProgramCell {
+    fn eq(&self, other: &RouteCell) -> bool {
+        matches!(self, ProgramCell::Route(cell) if cell == other)
+    }
+}
+
 /// The program one route lowers to. Every plan `Study::compile` returns carries one.
 #[derive(Clone, Debug)]
 pub struct LoweredProgram {
-    cell: RouteCell,
+    cell: ProgramCell,
     depth: LoweringDepth,
     scientific: ScientificProblem,
     identification: IdentificationLayer,
@@ -491,6 +626,15 @@ impl LoweredProgram {
     #[must_use]
     pub const fn route(&self) -> &'static str {
         self.cell.as_str()
+    }
+
+    /// Stable family name when this program was lowered for a cyclic family.
+    #[must_use]
+    pub const fn cyclic_family(&self) -> Option<&'static str> {
+        match self.cell {
+            ProgramCell::CyclicFamily(family) => Some(family),
+            ProgramCell::Route(_) => None,
+        }
     }
 
     /// How far this route's lowering has been carried.
@@ -515,7 +659,19 @@ impl LoweredProgram {
     pub(crate) fn retained_identification(&self) -> Option<&RetainedIdentification> {
         match &self.identification {
             IdentificationLayer::Retained(retained) => Some(retained),
-            IdentificationLayer::Deferred | IdentificationLayer::PerExecution { .. } => None,
+            IdentificationLayer::Deferred { .. }
+            | IdentificationLayer::PerExecution { .. }
+            | IdentificationLayer::NonGraphical(_) => None,
+        }
+    }
+
+    /// Identification of a feedback program, when layer two carries one.
+    pub(crate) fn non_graphical_identification(&self) -> Option<&NonGraphicalIdentification> {
+        match &self.identification {
+            IdentificationLayer::NonGraphical(identification) => Some(identification),
+            IdentificationLayer::Deferred { .. }
+            | IdentificationLayer::PerExecution { .. }
+            | IdentificationLayer::Retained(_) => None,
         }
     }
 
@@ -549,8 +705,9 @@ impl LoweredProgram {
         self.identity
     }
 
-    /// Route cell, for dispatch verification.
-    pub(crate) const fn cell(&self) -> RouteCell {
+    /// Program cell, for dispatch verification. A cyclic family's program never
+    /// equals a route cell, so route dispatch refuses it.
+    pub(crate) const fn cell(&self) -> ProgramCell {
         self.cell
     }
 }

@@ -3,8 +3,9 @@
 //! The program is a mixture over the posterior's graph atoms.
 //!
 //! * Layer one states the target every atom answers: the contrast, world or
-//!   worlds of the query under the atoms' graph family, or a typed functional for
-//!   the cross-world queries no world-indexed target states.
+//!   worlds of the query under the atoms' graph family, one mediation target per
+//!   requested horizon, or the typed functional of the query (keyed by its
+//!   canonical digest) for the cross-world queries no world-indexed target states.
 //! * Layer two identifies every atom once, at compile, through the same per-atom
 //!   builders preparation used, and retains the products so preparation installs
 //!   them instead of identifying again. A cross-world query identifies on its probe
@@ -245,19 +246,18 @@ fn query_variables(query: &CausalQuery, recorded: &Arc<[VariableId]>) -> Arc<[Va
 
 /// The target every atom of the posterior answers.
 ///
-/// A world-indexed target where the query states one. A query the target algebra
-/// refuses (a callback intervention, a zero horizon, a schedule outside its
-/// horizon) and the cross-world queries take the typed functional instead.
+/// A world-indexed target where the query states one; one target per requested
+/// horizon for a multi-horizon mediation. A query the target algebra refuses (a
+/// callback intervention, a zero horizon, a schedule outside its horizon) and the
+/// cross-world queries take the typed functional of the query instead.
 fn problem_target(
     study: &Study,
     cell: GraphPosteriorCell,
     family: GraphFamily,
     recorded: &[VariableId],
 ) -> ProblemTarget {
-    let functional = |kind: FunctionalKind| ProblemTarget::Functional {
-        kind,
-        outcome: recorded.get(1).copied(),
-    };
+    let functional =
+        |kind: FunctionalKind| super::query_functional(study, kind, recorded.get(1).copied());
     let fallback = match &study.query {
         CausalQuery::Counterfactual(_) => FunctionalKind::Counterfactual,
         CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_) => {
@@ -265,6 +265,19 @@ fn problem_target(
         }
         CausalQuery::Mediation(query) if query.contrast != MediationContrast::Total => {
             FunctionalKind::PathSpecific
+        }
+        CausalQuery::AverageEffect(_)
+        | CausalQuery::ConditionalEffect(_)
+        | CausalQuery::TemporalEffect(_)
+        | CausalQuery::Mediation(_) => FunctionalKind::InterventionContrast,
+        CausalQuery::Response(query)
+            if !matches!(
+                query.functional,
+                ResponseFunctional::MeanCurve { .. }
+                    | ResponseFunctional::InterventionResponse { .. }
+            ) =>
+        {
+            FunctionalKind::ResponseDerivative
         }
         _ => FunctionalKind::InterventionalDistribution,
     };
@@ -280,26 +293,26 @@ fn problem_target(
     };
     let built = match (&study.query, cell) {
         (CausalQuery::AverageEffect(query), GraphPosteriorCell::AverageEffect) => {
-            static_contrast(schema, query, &model, inference)
+            static_contrast(schema, query, &model, inference).map(ProblemTarget::Target)
         }
         (CausalQuery::ConditionalEffect(query), GraphPosteriorCell::ConditionalEffect) => {
-            static_contrast(schema, &query.inner, &model, inference)
+            static_contrast(schema, &query.inner, &model, inference).map(ProblemTarget::Target)
         }
         (CausalQuery::Response(query), GraphPosteriorCell::StaticResponse) => {
-            static_response(schema, query, &model, inference)
+            static_response(schema, query, &model, inference).map(ProblemTarget::Target)
         }
         (CausalQuery::TemporalEffect(query), GraphPosteriorCell::TemporalEffect) => {
-            temporal_contrast(schema, query, &model, inference)
+            temporal_contrast(schema, query, &model, inference).map(ProblemTarget::Target)
         }
         (CausalQuery::Response(query), GraphPosteriorCell::TemporalResponse) => {
-            temporal_response(schema, query, &model, inference)
+            temporal_response(schema, query, &model, inference).map(ProblemTarget::Target)
         }
         (CausalQuery::Mediation(query), GraphPosteriorCell::TemporalMediation) => {
             temporal_mediation(schema, query, family, inference)
         }
         _ => Err(unrepresented()),
     };
-    built.map_or_else(|_| functional(fallback), ProblemTarget::Target)
+    built.unwrap_or_else(|_| functional(fallback))
 }
 
 fn schema(study: &Study) -> Option<&CausalSchema> {
@@ -536,17 +549,36 @@ fn temporal_response(
     ))
 }
 
-/// Temporal mediation at the query's first horizon, with the cross-world premises
-/// a natural component carries. Every requested horizon is a mediator and outcome
-/// model of layer three.
+/// Temporal mediation: one target per requested horizon, in request order, with the
+/// cross-world premises a natural component carries. A one-horizon request is one
+/// target. Every requested horizon is also a mediator and outcome model of layer three.
 fn temporal_mediation(
     schema: &CausalSchema,
     query: &MediationQuery,
     family: GraphFamily,
     inference: InferenceSelection,
-) -> Result<ScientificTarget, CausalError> {
+) -> Result<ProblemTarget, CausalError> {
     query.validate()?;
-    let horizon = query.horizons.first().copied().ok_or_else(unrepresented)?;
+    let mut targets = query
+        .horizons
+        .iter()
+        .map(|&horizon| temporal_mediation_at(schema, query, horizon, family, inference))
+        .collect::<Result<Vec<_>, _>>()?;
+    match targets.len() {
+        0 => Err(unrepresented()),
+        1 => targets.pop().map(ProblemTarget::Target).ok_or_else(unrepresented),
+        _ => Ok(ProblemTarget::Targets(Arc::from(targets))),
+    }
+}
+
+/// The mediation target of `query` at one `horizon`.
+fn temporal_mediation_at(
+    schema: &CausalSchema,
+    query: &MediationQuery,
+    horizon: u32,
+    family: GraphFamily,
+    inference: InferenceSelection,
+) -> Result<ScientificTarget, CausalError> {
     let component = match query.contrast {
         MediationContrast::Total => MediationComponent::Total,
         MediationContrast::Direct => MediationComponent::Direct,

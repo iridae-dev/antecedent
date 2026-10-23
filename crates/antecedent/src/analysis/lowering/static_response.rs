@@ -3,7 +3,9 @@
 //!
 //! Layer one is the world-indexed target the query asks for: one world per grid
 //! level of a mean curve, one joint world for an intervention response, and the
-//! response-derivative functional for derivatives and Jacobians. Layer two retains
+//! response-derivative functional for derivatives and Jacobians. An intervention the
+//! world algebra cannot state (a callback action) lowers to the typed response
+//! functional keyed by the query's digest. Layer two retains
 //! the identification preparation would compute. Layer three reads the estimator the
 //! route record resolved, its nuisance models over the identified adjustment set, the
 //! cross-fitting split and the multiplier band the response options declare. Layer
@@ -77,7 +79,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
             };
             (data, query, family, false)
         }
-        _ => return super::generic(cx),
+        _ => return Err(super::not_lowered_by("static response", cx)),
     };
     let study = cx.study;
     let identification = retain_or_defer(cx)?;
@@ -85,17 +87,22 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     let assumptions = cache
         .as_ref()
         .map_or_else(AssumptionSet::new, |cache| cache.identification.required_assumptions.clone());
-    let Ok(target) = response_target(
+    let key = super::query_digest(&study.query);
+    // A query whose worlds are not portable (for example a callback intervention)
+    // lowers to its typed functional rather than a target that misstates it.
+    let target = response_target(
         data.schema(),
         query,
         family,
         assumptions,
         inference_selection(&study.inference),
-    ) else {
-        // A query whose worlds are not portable (for example a callback intervention)
-        // keeps the generic lowering instead of a target that misstates it.
-        return super::generic(cx);
-    };
+        key,
+    )
+    .unwrap_or_else(|_| ProblemTarget::QueryFunctional {
+        kind: FunctionalKind::InterventionalDistribution,
+        outcome: query.functional.outcome_ids().first().copied(),
+        query: key,
+    });
     let estimator = record_estimator(cx);
     let adjustment: &[VariableId] = match cache.as_ref() {
         Some(cache) => &cache.estimand.adjustment_set,
@@ -167,7 +174,8 @@ fn response_sampling(
     (folds, resampling)
 }
 
-/// The target a static response query asks for.
+/// The target a static response query asks for. `key` is the canonical digest of
+/// the study's query, which keys a derivative functional.
 ///
 /// # Errors
 ///
@@ -179,6 +187,7 @@ fn response_target(
     family: GraphFamily,
     assumptions: AssumptionSet,
     inference: InferenceSelection,
+    key: [u8; 32],
 ) -> Result<ProblemTarget, CausalError> {
     let form = match &query.functional {
         ResponseFunctional::MeanCurve { outcome, treatment } => {
@@ -205,16 +214,18 @@ fn response_target(
         }
         ResponseFunctional::AverageDerivative { outcome, .. }
         | ResponseFunctional::PointDerivative { outcome, .. } => {
-            return Ok(ProblemTarget::Functional {
+            return Ok(ProblemTarget::QueryFunctional {
                 kind: FunctionalKind::ResponseDerivative,
                 outcome: Some(*outcome),
+                query: key,
             });
         }
         ResponseFunctional::DirectionalDerivative { outcomes, .. }
         | ResponseFunctional::Jacobian { outcomes, .. } => {
-            return Ok(ProblemTarget::Functional {
+            return Ok(ProblemTarget::QueryFunctional {
                 kind: FunctionalKind::ResponseDerivative,
                 outcome: outcomes.first().copied(),
+                query: key,
             });
         }
     };
@@ -427,9 +438,9 @@ pub(super) fn assemble(
 
 /// Identify at compile what preparation would identify and retain it.
 ///
-/// A study whose identification refuses keeps a deferred layer: preparation then
-/// identifies and refuses exactly as before, and a one-shot run that never
-/// prepares is not refused at compile.
+/// A study whose identification refuses keeps a deferred layer that records why:
+/// preparation then identifies and refuses exactly as before, and a one-shot run
+/// that never prepares is not refused at compile.
 ///
 /// # Errors
 ///
@@ -440,7 +451,7 @@ pub(super) fn retain_or_defer(
     match super::retain_identification(cx, None) {
         Ok(layer) => Ok(layer),
         Err(error @ CausalError::Cancelled { .. }) => Err(error),
-        Err(_) => Ok(IdentificationLayer::Deferred),
+        Err(_) => Ok(super::identification_refused_at_compile()),
     }
 }
 

@@ -114,6 +114,10 @@ impl super::Study {
         let (identified, identify_cached) =
             if let Some(cache) = self.dbn_posterior_identification_cache.as_ref() {
                 (Arc::clone(cache), true)
+            } else if let Some(cache) =
+                crate::analysis::lowering::plan_retained_dbn_posterior(self, physical)
+            {
+                (cache, false)
             } else {
                 (
                 Arc::new(

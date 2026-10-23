@@ -6,11 +6,13 @@
 //!
 //! * layer one is the world-indexed target the query asks for: a pulse or
 //!   sustained contrast at the query horizon for an effect, a dose-by-horizon
-//!   surface for a response, the theorem-scoped mediation target for a one-horizon
-//!   mediation on a temporal DAG. The history window is the declared cap, or the
-//!   planner's default resolved to the depth the retained identification unfolded,
-//!   so the identity pins what the planner used. A query the target constructors
-//!   cannot state as worlds lowers to its typed functional;
+//!   surface for a response (one scheduled world per horizon for a single
+//!   non-grid intervention), and one theorem-scoped mediation target per requested
+//!   horizon for a mediation on a temporal DAG. The history window is the declared
+//!   cap, or the planner's default resolved to the depth the retained
+//!   identification unfolded, so the identity pins what the planner used. A query
+//!   the target constructors cannot state as worlds lowers to its typed functional,
+//!   keyed by the canonical digest of the query;
 //! * layer two retains the identification preparation would compute; cross-world
 //!   queries identify on each execution;
 //! * layer three resamples the unit the study's sampling design declares (or the
@@ -362,11 +364,13 @@ fn lower_effect(
             ProblemTarget::Target(target)
         }
         // The target constructors refuse the query as a contrast of two scheduled
-        // worlds; it lowers to the law of its outcome under the schedule.
-        Err(_) => ProblemTarget::Functional {
-            kind: FunctionalKind::InterventionalDistribution,
-            outcome: Some(query.outcome),
-        },
+        // worlds (a callback action, a schedule outside the horizon, a zero horizon);
+        // it lowers to the typed contrast functional of this query.
+        Err(_) => super::query_functional(
+            cx.study,
+            FunctionalKind::InterventionContrast,
+            Some(query.outcome),
+        ),
     };
     let mut inputs = vec![query.treatment];
     inputs.extend(query.effect_modifiers.iter().copied());
@@ -440,14 +444,12 @@ fn lower_mediation(
     let identification = retained(cx)?;
     let dag = temporal_cache(&identification);
     let class = class_cache(&identification);
-    let functional = ProblemTarget::Functional {
-        kind: FunctionalKind::PathSpecific,
-        outcome: Some(query.outcome),
-    };
-    // One horizon is one theorem target. A horizon family or a class has one target
-    // per horizon or per completion, and lowers to the path-specific functional.
+    let functional =
+        super::query_functional(cx.study, FunctionalKind::PathSpecific, Some(query.outcome));
+    // One theorem target per requested horizon. A class has one target per completion
+    // and horizon, and lowers to the typed path-specific functional of the query.
     let target = match dag {
-        Some(cache) if cache.by_horizon.len() == 1 => {
+        Some(cache) if !cache.by_horizon.is_empty() => {
             CheckedTemporalMediationOperation::theorem_targets(
                 query,
                 schema_of(cx.study),
@@ -458,8 +460,8 @@ fn lower_mediation(
                 selection(cx.study),
             )
             .ok()
-            .and_then(|targets| targets.into_iter().next())
-            .map_or(functional, ProblemTarget::Target)
+            .and_then(horizon_targets)
+            .unwrap_or(functional)
         }
         _ => functional,
     };
@@ -527,7 +529,7 @@ fn lower_cross_world(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalE
     assemble(
         cx,
         TemporalLowering {
-            target: ProblemTarget::Functional { kind, outcome },
+            target: super::query_functional(cx.study, kind, outcome),
             envelope: is_class(cx.study),
             identification: IdentificationLayer::PerExecution {
                 reason: CROSS_WORLD_IDENTIFIES_PER_EXECUTION,
@@ -637,14 +639,16 @@ fn retained(cx: &LoweringContext<'_>) -> Result<IdentificationLayer, CausalError
     match super::retain_identification(cx, None) {
         Ok(layer) => Ok(layer),
         Err(error @ CausalError::Cancelled { .. }) => Err(error),
-        Err(_) => Ok(IdentificationLayer::Deferred),
+        Err(_) => Ok(super::identification_refused_at_compile()),
     }
 }
 
 fn caches(layer: &IdentificationLayer) -> &[IdentificationCache] {
     match layer {
         IdentificationLayer::Retained(retained) => retained.caches(),
-        IdentificationLayer::Deferred | IdentificationLayer::PerExecution { .. } => &[],
+        IdentificationLayer::Deferred { .. }
+        | IdentificationLayer::PerExecution { .. }
+        | IdentificationLayer::NonGraphical(_) => &[],
     }
 }
 
@@ -699,22 +703,44 @@ fn pins(target: &ScientificTarget, history: HistoryWindow, outcome: VariableId) 
     })
 }
 
-/// The dose-by-horizon surface a response asks for, or its typed functional when the
-/// response is not a grid of hard-set doses (a derivative, a shift, a sequence).
+/// One target per horizon, or the single target of a one-horizon request.
+fn horizon_targets(targets: Vec<ScientificTarget>) -> Option<ProblemTarget> {
+    match targets.len() {
+        0 => None,
+        1 => targets.into_iter().next().map(ProblemTarget::Target),
+        _ => Some(ProblemTarget::Targets(Arc::from(targets))),
+    }
+}
+
+/// The dose-by-horizon surface a response asks for; one scheduled world per horizon
+/// for a single intervention that is not a hard-set grid (a shift, a soft or
+/// stochastic action); otherwise its typed functional (a derivative, a joint or
+/// callback action), keyed by the query.
 fn response_target(
     cx: &LoweringContext<'_>,
     query: &ResponseQuery,
     history: HistoryWindow,
     assumptions: AssumptionSet,
 ) -> Result<ProblemTarget, CausalError> {
-    let functional = ProblemTarget::Functional {
-        kind: FunctionalKind::InterventionalDistribution,
-        outcome: query.functional.primary_pair().map(|(_, outcome)| outcome),
+    let kind = match query.functional {
+        ResponseFunctional::AverageDerivative { .. }
+        | ResponseFunctional::PointDerivative { .. }
+        | ResponseFunctional::DirectionalDerivative { .. }
+        | ResponseFunctional::Jacobian { .. } => FunctionalKind::ResponseDerivative,
+        ResponseFunctional::MeanCurve { .. } | ResponseFunctional::InterventionResponse { .. } => {
+            FunctionalKind::InterventionalDistribution
+        }
     };
-    let (Some(temporal), Some((dose, outcome, levels))) =
-        (query.temporal.as_ref(), response_grid(&query.functional))
-    else {
+    let functional = super::query_functional(
+        cx.study,
+        kind,
+        query.functional.primary_pair().map(|(_, outcome)| outcome),
+    );
+    let Some(temporal) = query.temporal.as_ref() else {
         return Ok(functional);
+    };
+    let Some((dose, outcome, levels)) = response_grid(&query.functional) else {
+        return Ok(per_horizon_response(cx, query, history, assumptions).unwrap_or(functional));
     };
     let units = outcome_units(cx.study, outcome)?;
     let grid = DoseTimeGrid {
@@ -742,6 +768,53 @@ fn response_target(
             )
         });
     Ok(built.map_or(functional, ProblemTarget::Target))
+}
+
+/// One scheduled world per requested horizon for an intervention response that sets one
+/// non-grid action; `None` when the response is not that, or the worlds are refused.
+fn per_horizon_response(
+    cx: &LoweringContext<'_>,
+    query: &ResponseQuery,
+    history: HistoryWindow,
+    assumptions: AssumptionSet,
+) -> Option<ProblemTarget> {
+    let temporal = query.temporal.as_ref()?;
+    let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional
+    else {
+        return None;
+    };
+    let [intervention] = &**interventions else { return None };
+    let units = outcome_units(cx.study, *outcome).ok()?;
+    let model = ModelAssumptions::new(graph_family(cx.study), assumptions);
+    let built = ObservationUnit::new(observation_unit(cx.study)).and_then(|unit| {
+        let binding = WorldBinding::new(
+            query.target_population.clone(),
+            unit,
+            OutcomeQuantity::new(*outcome, query.outcome_functional.clone(), units)?,
+            Conditioning::unconditional(),
+        )?;
+        temporal
+            .horizons
+            .iter()
+            .map(|&horizon| {
+                let time =
+                    TimeFrame::temporal(horizon, history, InitialLaw::contemporaneous_observed())?;
+                let world = InterventionWorld::new(
+                    ScientificWorldId::from_raw(0),
+                    WorldAction::schedule(intervention.clone(), temporal.policy.clone())?,
+                    false,
+                    binding.clone(),
+                    time,
+                )?;
+                Ok(ScientificTarget::new(
+                    TargetForm::World(world),
+                    model.clone(),
+                    selection(cx.study),
+                ))
+            })
+            .collect::<Result<Vec<_>, ScientificTargetError>>()
+    });
+    built.ok().and_then(horizon_targets)
 }
 
 /// Dose, outcome and hard-set levels of a mean curve or a one-dose intervention response.

@@ -11,6 +11,23 @@ Checked-recipe obligations for those citations are the route and the test.
 They must match the support matrix. Identification and calibration stay on the
 license record. A closed cell stays closed. This does not weaken the retained
 program check below.
+
+Every licensed route dispatches a lowered program. The gate also fails, before
+any test binary starts, when:
+
+* a `[[route]]` in parity/licensed_routes.toml records no `lowering`, names a
+  value that is not a registered route cell, or the record does not hold every
+  licensed route;
+* a partial lowering survives under analysis/lowering or planner/lowered
+  (`LoweringDepth::Generic`, `WidthSource::SchemaBound`, a `generic` lowering);
+* library code under analysis/{execute,prepared,lowering} or planner re-enters
+  the public builder (`Study::tabular` and its peers, `StudyBuilder`, or a
+  builder's `.build()`), outside `#[cfg(test)]` items and test files;
+* any code outside antecedent-core writes an `ExecutionContext { .. }` literal,
+  which would bypass the lowered-dispatch scope the context carries.
+
+The evidence rows add the compiler-path, lowered-dispatch and lowering-registry
+assertions to the checked-execution citations.
 """
 
 import json
@@ -20,11 +37,32 @@ import tomllib
 from collections import defaultdict
 from pathlib import Path
 
+from _rust_source import rust_mask
 from gate_recipe_obligations import matrix_alignment_problems
 from test_evidence import checked_execution_body_problems, closure
 
 ROOT = Path(__file__).resolve().parents[1]
 LICENSED = ROOT / "parity" / "support_licensed.toml"
+LICENSED_ROUTES = ROOT / "parity" / "licensed_routes.toml"
+LICENSED_ROUTE_COUNT = 723
+FACADE = ROOT / "crates" / "antecedent" / "src"
+REGISTRY = FACADE / "analysis" / "lowering" / "registry.rs"
+LOWERING_SOURCES = (FACADE / "analysis" / "lowering", FACADE / "planner" / "lowered.rs",
+                    FACADE / "planner" / "lowered")
+REENTRY_SOURCES = (FACADE / "analysis" / "execute", FACADE / "analysis" / "prepared",
+                   FACADE / "analysis" / "lowering", FACADE / "planner")
+_PARTIAL_LOWERING = re.compile(
+    r"\bLoweringDepth::Generic\b|\bWidthSource::SchemaBound\b|\bfn\s+generic\b"
+    r"|\bSchemaBound\b|^\s*Generic\s*[,(]",
+    re.M,
+)
+_BUILDER_BUILD = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*builder[A-Za-z0-9_]*\s*\.\s*build\s*\(\s*\)", re.I)
+_CONTEXT_LITERAL = re.compile(r"\bExecutionContext\s*\{")
+_CONTEXT_DECLARATION = re.compile(
+    r"(?:->|\bfor|\bimpl(?:\s*<[^>]*>)?|\bstruct|\benum|\btrait)\s*"
+    r"(?:[A-Za-z_][A-Za-z0-9_]*::)*ExecutionContext\s*\{$"
+)
+_CFG_TEST = re.compile(r"#\s*\[\s*cfg\s*\(\s*(?:test|all\s*\(\s*test\b[^\]]*)\)\s*\]")
 AXIS = ("query", "graph_class", "structure", "inference", "validation")
 _STUDY_BUILDER = re.compile(
     r"\bStudy::(?:tabular|series|series_multi|panel|events)\b|\bStudyBuilder\b"
@@ -86,6 +124,143 @@ def execution_reentry_problems(body: str, assertion: str) -> list[str]:
                 "instead of running its retained program"
             ]
     return []
+
+
+def route_cell_names() -> set[str]:
+    """Every registered route cell: the registry rows and the graph-posterior cells."""
+    text = REGISTRY.read_text(encoding="utf-8")
+    table = text[text.index("route_lowerings! {"):]
+    table = table[: table.index("}")]
+    names = set(re.findall(r"^\s*([A-Z][A-Za-z0-9]*)\s*=>\s*[a-z_]+\s*,", table, re.M))
+    names |= set(re.findall(r'=>\s*"(GraphPosterior[A-Za-z]+)"', text))
+    return names
+
+
+def lowering_record_problems() -> list[str]:
+    """Every licensed route names the registered cell its lowered program was compiled for."""
+    names = route_cell_names()
+    if not names:
+        return [f"{REGISTRY.relative_to(ROOT)}: no route cells found"]
+    routes = tomllib.loads(LICENSED_ROUTES.read_text(encoding="utf-8")).get("route", [])
+    problems = []
+    if len(routes) != LICENSED_ROUTE_COUNT:
+        problems.append(
+            f"licensed_routes.toml holds {len(routes)} routes, expected {LICENSED_ROUTE_COUNT}"
+        )
+    for route in routes:
+        coordinate = route.get("coordinate", "<no coordinate>")
+        lowering = route.get("lowering")
+        if not isinstance(lowering, str) or not lowering.strip():
+            problems.append(f"{coordinate}: licensed route records no lowering")
+        elif lowering not in names:
+            problems.append(f"{coordinate}: lowering {lowering!r} is not a registered route cell")
+    return problems
+
+
+def rust_files(root: Path) -> list[Path]:
+    return [root] if root.is_file() else sorted(root.rglob("*.rs"))
+
+
+def is_test_file(path: Path) -> bool:
+    return (
+        path.name == "tests.rs"
+        or path.name.endswith("_tests.rs")
+        or "tests" in path.relative_to(ROOT).parts[:-1]
+    )
+
+
+def without_test_items(masked: str) -> str:
+    """Blank every `#[cfg(test)]` item: an inline module or function, or a `mod x;`."""
+    out = list(masked)
+    for attribute in _CFG_TEST.finditer(masked):
+        start = attribute.start()
+        brace = masked.find("{", attribute.end())
+        semicolon = masked.find(";", attribute.end())
+        if semicolon != -1 and (brace == -1 or semicolon < brace):
+            end = semicolon + 1
+        elif brace == -1:
+            continue
+        else:
+            depth = 0
+            end = len(masked)
+            for index in range(brace, len(masked)):
+                if masked[index] == "{":
+                    depth += 1
+                elif masked[index] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = index + 1
+                        break
+        for index in range(start, end):
+            if out[index] != "\n":
+                out[index] = " "
+    return "".join(out)
+
+
+def line_of(text: str, offset: int) -> int:
+    return text.count("\n", 0, offset) + 1
+
+
+def partial_lowering_problems() -> list[str]:
+    problems = []
+    for root in LOWERING_SOURCES:
+        if not root.exists():
+            continue
+        for path in rust_files(root):
+            masked = rust_mask(path.read_text(encoding="utf-8"))
+            for match in _PARTIAL_LOWERING.finditer(masked):
+                problems.append(
+                    f"{path.relative_to(ROOT)}:{line_of(masked, match.start())}: partial lowering "
+                    f"{match.group(0).strip()!r} survives; every route lowers completely"
+                )
+    return problems
+
+
+def reentry_problems() -> list[str]:
+    problems = []
+    for root in REENTRY_SOURCES:
+        for path in rust_files(root):
+            if is_test_file(path):
+                continue
+            masked = without_test_items(rust_mask(path.read_text(encoding="utf-8")))
+            for pattern in (_STUDY_BUILDER, _BUILDER_BUILD):
+                for match in pattern.finditer(masked):
+                    problems.append(
+                        f"{path.relative_to(ROOT)}:{line_of(masked, match.start())}: library "
+                        f"code re-enters the public builder ({match.group(0).strip()!r})"
+                    )
+    return problems
+
+
+def context_literal_problems() -> list[str]:
+    problems = []
+    roots = [path for path in sorted((ROOT / "crates").iterdir()) if path.is_dir()]
+    roots.append(ROOT / "python")
+    for root in roots:
+        if root.name == "antecedent-core" or not root.exists():
+            continue
+        for path in sorted(root.rglob("*.rs")):
+            if "target" in path.relative_to(ROOT).parts:
+                continue
+            masked = rust_mask(path.read_text(encoding="utf-8"))
+            for match in _CONTEXT_LITERAL.finditer(masked):
+                line_start = masked.rfind("\n", 0, match.start()) + 1
+                if _CONTEXT_DECLARATION.search(masked[line_start : match.end()]):
+                    continue
+                problems.append(
+                    f"{path.relative_to(ROOT)}:{line_of(masked, match.start())}: "
+                    "ExecutionContext struct literal outside antecedent-core"
+                )
+    return problems
+
+
+def compiler_problems() -> list[str]:
+    return (
+        lowering_record_problems()
+        + partial_lowering_problems()
+        + reentry_problems()
+        + context_literal_problems()
+    )
 
 
 def citation_problems(test_rel: str, assertion: str, cache: dict) -> list[str]:
@@ -167,7 +342,8 @@ def main() -> None:
         return citation_problems(test, assertion, cache)
 
     alignment = matrix_alignment_problems(ROOT, cite=cached_cite)
-    if failures or alignment:
+    compiler = compiler_problems()
+    if failures or alignment or compiler:
         if failures:
             print(
                 f"FAIL: checked execution: {len(failures)} licensed route(s) bypass the retained plan",
@@ -181,6 +357,14 @@ def main() -> None:
                 flush=True,
             )
             for failure in alignment:
+                print(f"FAIL: {failure}", flush=True)
+        if compiler:
+            print(
+                f"FAIL: lowered dispatch: {len(compiler)} route(s) or source site(s) bypass the "
+                "lowered program",
+                flush=True,
+            )
+            for failure in compiler:
                 print(f"FAIL: {failure}", flush=True)
         raise SystemExit(1)
     if not rows:
@@ -206,6 +390,22 @@ def main() -> None:
          "changed_inputs_refit_and_execution_policy_refuses_before_fitting"),
         ("cyclic_compiled_reuse_replay", "crates/antecedent/src/analysis/cyclic.rs",
          "common_prepared_handle_retains_fit_retargets_and_independently_replays"),
+    ])
+    # Every licensed route dispatches the lowered program compile attached.
+    lowered_dispatch = "crates/antecedent/tests/lowered_dispatch.rs"
+    rows.extend([
+        ("compiler_path_licensed_routes", "crates/antecedent/tests/licensed_compiler.rs",
+         "every_licensed_cell_completes_the_compiler_path"),
+        ("lowered_dispatch_refuses_unlowered_plan", lowered_dispatch,
+         "dispatch_refuses_a_plan_without_a_lowered_program"),
+        ("lowered_dispatch_refuses_reentry", lowered_dispatch,
+         "lowered_dispatch_refuses_public_builder_reentry"),
+        ("lowered_dispatch_identifies_once", lowered_dispatch,
+         "one_shot_run_identifies_once_per_family"),
+        ("lowered_dispatch_retained_identification", lowered_dispatch,
+         "compiled_execution_takes_the_identification_the_program_retained"),
+        ("lowering_registry_coverage", "crates/antecedent/src/analysis/lowering/tests.rs",
+         "every_registered_cell_lowers_completely_and_the_licensed_routes_name_registered_cells"),
     ])
     shard = sys.argv[2]
     if shard != "all":
