@@ -469,6 +469,7 @@ def _panel_did_from_raw(
             clusters=section.clusters,
             uncertainty=section.uncertainty,
             interval_95=section.interval_95,
+            standard_error=section.standard_error if section.interval_95 is not None else None,
         )
     if isinstance(query, StaggeredAdoption) and query.event_study:
         intervals = section.event_time_intervals_95

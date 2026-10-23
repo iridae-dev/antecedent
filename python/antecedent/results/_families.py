@@ -138,6 +138,11 @@ def _panel_from_live(section: Any) -> dict[str, Any]:
             "propensity_max": section.propensity_max,
             "effective_control_sample_size": section.effective_control_sample_size,
             "nuisance_predictions_cross_fitted": section.nuisance_predictions_cross_fitted,
+            # Only a whole-cluster resample publishes an interval and its standard error.
+            "interval_95": getattr(section, "interval_95", None),
+            "standard_error": getattr(section, "standard_error", None)
+            if getattr(section, "interval_95", None) is not None
+            else None,
         }
     effects = getattr(section, "effects", None)
     if effects is None:
@@ -174,6 +179,10 @@ def _panel_from_wire(wire: Mapping[str, Any]) -> dict[str, Any]:
             "propensity_max": p_max,
             "effective_control_sample_size": ess,
             "nuisance_predictions_cross_fitted": declared,
+            "interval_95": wire.get("interval_95"),
+            "standard_error": wire.get("standard_error")
+            if wire.get("interval_95") is not None
+            else None,
         }
     tuples = wire.get("event_time_effects")
     if not tuples:
@@ -292,6 +301,9 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
     "history_match": _FamilySpec(
         exclude=frozenset({"calibration", "licensed", "calibration_measured", "support_status"}),
     ),
+    # The live dataclass and the wire body spell every field alike (effects are nested
+    # records); calibration ``unmeasured`` and ``licensed`` false travel on both sides.
+    "quasi_rollout": _FamilySpec(),
     "continuous_dose_response": _FamilySpec(
         live_renames={"support_status": "graphless_support_status"},
         # Live-only descriptive labels; the method and whether a policy value was

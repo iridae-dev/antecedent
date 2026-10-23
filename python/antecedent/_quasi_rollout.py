@@ -6,6 +6,7 @@ metadata; only the outcome and the baseline covariates reach the numeric ingest.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from ._data import ingest_columns, read_columns
@@ -84,6 +85,48 @@ def covariate_adjusted_payload(
 
 def _pair(value: Any) -> tuple[float, float] | None:
     return None if value is None else (float(value[0]), float(value[1]))
+
+
+def quasi_rollout_from_wire(wire: Any) -> QuasiRolloutEstimate | None:
+    """A loaded artifact's ``quasi_rollout`` body section as the live frozen result."""
+    if not isinstance(wire, Mapping):
+        return None
+
+    def effect(row: Mapping[str, Any]) -> DesignEffect:
+        optional_int = {
+            key: None if row.get(key) is None else int(row[key])
+            for key in ("group", "period", "event_time")
+        }
+        return DesignEffect(
+            kind=str(row["kind"]),
+            estimate=float(row["estimate"]),
+            standard_error=None
+            if row.get("standard_error") is None
+            else float(row["standard_error"]),
+            interval=_pair(row.get("interval")),
+            band=_pair(row.get("band")),
+            unit=None if row.get("unit") is None else str(row["unit"]),
+            treated=int(row.get("treated", 0)),
+            comparison=int(row.get("comparison", 0)),
+            **optional_int,
+        )
+
+    critical = wire.get("critical_value")
+    return QuasiRolloutEstimate(
+        design=str(wire["design"]),
+        method=str(wire["method"]),
+        effects=tuple(effect(row) for row in wire.get("effects") or ()),
+        uncertainty=str(wire["uncertainty"]),
+        replicates_requested=int(wire.get("replicates_requested", 0)),
+        replicates_ok=int(wire.get("replicates_ok", 0)),
+        replicates_failed=int(wire.get("replicates_failed", 0)),
+        critical_value=None if critical is None else float(critical),
+        diagnostics=tuple(
+            (str(name), float(value)) for name, value in wire.get("diagnostics") or ()
+        ),
+        calibration=str(wire.get("calibration", "unmeasured")),
+        licensed=bool(wire.get("licensed", False)),
+    )
 
 
 def quasi_rollout_from_raw(raw: Any) -> QuasiRolloutEstimate | None:

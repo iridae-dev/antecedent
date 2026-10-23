@@ -15,6 +15,7 @@ from .estimation import PreparedAnalysis, _PreparedQuery, _PreparedResult
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .missing import MissingPolicy
+from .quasi import QuasiRolloutEstimate
 from .results import AnalysisResult, CausalResponseView
 from .results._execution import Answer, CalibrationInfo, ResultAPI, answer_from_artifact
 from .results._report import InspectionReport, as_inspection
@@ -233,6 +234,20 @@ class LoadedResult(ResultAPI):
         if not self.acceptance.answer_available:
             return Answer("unavailable", detail="semantic_acceptance_unavailable")
         return answer_from_artifact(self.decoded_artifact.contract, self.decoded_artifact.payload)
+
+    @property
+    def quasi_rollout(self) -> QuasiRolloutEstimate | None:
+        """The recorded rollout, conformal or multi-unit synthetic-panel, or optioned
+        local-ratio result (unlicensed, calibration unmeasured), equal to the live
+        ``result.quasi_rollout``; ``None`` when absent or the load is unavailable."""
+        from ._quasi_rollout import quasi_rollout_from_wire
+
+        if not self.acceptance.answer_available:
+            return None
+        payload = self.decoded_artifact.payload
+        if not isinstance(payload, Mapping):
+            return None
+        return quasi_rollout_from_wire(payload.get("quasi_rollout"))
 
     def inspect(self) -> InspectionReport:
         if not self.acceptance.answer_available and not (

@@ -43,7 +43,9 @@ impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
     fn from(value: &antecedent::PanelDidEstimate) -> Self {
         Self {
             effect: value.effect,
-            standard_error: if value.augmented.is_some() {
+            // An augmented panel publishes a standard error only with its whole-cluster
+            // resample interval; the supplied-nuisance point fit has none.
+            standard_error: if value.augmented.is_some() && value.interval_95.is_none() {
                 None
             } else {
                 Some(value.standard_error)

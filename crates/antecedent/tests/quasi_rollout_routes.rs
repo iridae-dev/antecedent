@@ -295,12 +295,15 @@ fn the_augmented_panel_publishes_a_whole_cluster_resample_interval() {
         true,
     )
     .with_resampling(DidResamplingScheme::ClusterBootstrap, 199);
-    let result = Study::tabular(data)
-        .query(query)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(2))
-        .unwrap();
+    let ctx = ExecutionContext::for_tests(2);
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "augmented-resampled", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let section = body.panel_did.as_ref().unwrap();
+    assert!(section.standard_error.is_some_and(|se| se > 0.0));
+    assert_eq!(section.interval_95, result.panel_did().unwrap().interval_95);
     let fit = result.panel_did().unwrap();
     assert!((fit.effect - 1.5).abs() < 0.15, "{}", fit.effect);
     let interval = fit.interval_95.unwrap();
@@ -535,4 +538,64 @@ fn a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_desi
         .unwrap_err()
         .to_string();
     assert!(refused.contains("Next attempt"), "{refused}");
+}
+
+#[test]
+fn the_rollout_section_round_trips_through_the_result_artifact_and_re_derives_its_summary() {
+    let (data, units, periods, cohorts) = staggered(13, 60, 0.0);
+    let query = rollout_query(
+        &units,
+        &periods,
+        &cohorts,
+        robust(RolloutDidEstimator::CallawaySantAnna, DidAggregation::Dynamic),
+    )
+    .with_resampling(DidResamplingScheme::ClusterMultiplier, 99);
+    let ctx = ExecutionContext::for_tests(2);
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let rollout = result.quasi_rollout().unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "quasi-rollout", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let section = body.quasi_rollout.clone().unwrap();
+    assert_eq!(section.design, rollout.design.as_ref());
+    assert_eq!(section.calibration, "unmeasured");
+    assert!(!section.licensed);
+    assert_eq!(section.effects.len(), rollout.effects.len());
+    for (wire, effect) in section.effects.iter().zip(rollout.effects.iter()) {
+        assert_eq!(wire.kind, effect.kind.as_str());
+        assert_eq!(wire.estimate, effect.estimate);
+        assert_eq!(wire.interval, effect.interval);
+        assert_eq!(wire.band, effect.band);
+    }
+    // A fresh consumer re-derives the dynamic summary from the event-time effects alone.
+    let summary =
+        antecedent_io::analysis_result_artifact::rederive_rollout_summary(&section).unwrap();
+    assert!((summary - rollout.overall().unwrap().estimate).abs() < 1e-9);
+    assert_eq!(body.estimate, Some(rollout.overall().unwrap().estimate));
+    assert!(body.standard_error.is_none());
+    // A tampered summary, a licence claim or a narrowed band is refused on re-encode.
+    let names = header.variable_names;
+    let mut tampered = body.clone();
+    tampered.quasi_rollout.as_mut().unwrap().effects[0].estimate += 1.0;
+    tampered.estimate = tampered.quasi_rollout.as_ref().map(|s| s.effects[0].estimate);
+    assert!(antecedent_io::encode_analysis_result_artifact(&tampered, names.clone(), "t").is_err());
+    let mut licensed = body.clone();
+    licensed.quasi_rollout.as_mut().unwrap().licensed = true;
+    assert!(antecedent_io::encode_analysis_result_artifact(&licensed, names.clone(), "t").is_err());
+    let mut narrowed = body.clone();
+    if let Some(effect) = narrowed
+        .quasi_rollout
+        .as_mut()
+        .unwrap()
+        .effects
+        .iter_mut()
+        .find(|effect| effect.band.is_some())
+    {
+        effect.band = effect.interval.map(|[lo, hi]| [lo + 1e-3, hi]);
+        assert!(
+            antecedent_io::encode_analysis_result_artifact(&narrowed, names.clone(), "t").is_err()
+        );
+    }
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, names, "t").is_ok());
 }

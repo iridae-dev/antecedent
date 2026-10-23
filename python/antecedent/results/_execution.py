@@ -261,6 +261,13 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
             detail="unlicensed_sequential_contrast_" + str(contrast.get("uncertainty")),
             structured=canonical_from_wire("sequential_contrast", contrast),
         )
+    rollout = payload.get("quasi_rollout")
+    if kind != "unavailable" and isinstance(rollout, Mapping):
+        return Answer(
+            "structured",
+            detail="unlicensed_quasi_rollout_" + str(rollout.get("uncertainty")),
+            structured=canonical_from_wire("quasi_rollout", rollout),
+        )
     matched = payload.get("history_match")
     if kind == "point" and isinstance(matched, Mapping):
         return Answer(
@@ -514,6 +521,13 @@ class ResultAPI:
                 detail="unlicensed_sequential_contrast_" + contrast.uncertainty,
                 structured=canonical_from_live("sequential_contrast", contrast),
             )
+        rollout = getattr(self, "quasi_rollout", None)
+        if rollout is not None:
+            return Answer(
+                "structured",
+                detail="unlicensed_quasi_rollout_" + str(rollout.uncertainty),
+                structured=canonical_from_live("quasi_rollout", rollout),
+            )
         matched = getattr(self, "history_match", None)
         if matched is not None:
             return Answer(
@@ -645,6 +659,18 @@ class ResultAPI:
                 f"Observational sequential contrast {contrast.contrast:g} of regime "
                 f"{contrast.active_regime} against {contrast.control_regime}: {spread}. "
                 "Unlicensed; repeated-sampling calibration is unmeasured."
+            )
+        rollout = getattr(self, "quasi_rollout", None)
+        if rollout is not None and rollout.effects:
+            overall = rollout.effects[0]
+            spread = (
+                f"pointwise 95% interval [{overall.interval[0]:g}, {overall.interval[1]:g}]"
+                if overall.interval is not None
+                else "no interval"
+            )
+            return (
+                f"{rollout.design} ({rollout.method}) summary {overall.estimate:g}: {spread} "
+                f"({rollout.uncertainty}). Unlicensed; calibration is unmeasured."
             )
         matched = getattr(self, "history_match", None)
         if matched is not None:

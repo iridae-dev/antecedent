@@ -718,6 +718,8 @@ class AugmentedPanelDiDEstimate:
     #: Whole-cluster resample interval when ``resampling`` was declared (calibration
     #: unmeasured, nuisance predictions held fixed).
     interval_95: tuple[float, float] | None = None
+    #: Whole-cluster resample standard error behind ``interval_95``; ``None`` without it.
+    standard_error: float | None = None
 
 
 @dataclass(frozen=True, slots=True)

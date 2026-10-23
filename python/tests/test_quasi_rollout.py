@@ -184,3 +184,91 @@ def test_rollout_queries_validate_their_options():
         SyntheticControl("y", "unit", "period", "a", 5, conformal=True, adoptions=[("a", 5)])
     with pytest.raises(CausalValueError, match="bandwidth_rule"):
         FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0, bandwidth_rule="cv")  # type: ignore[arg-type]
+
+
+def _resampled_dynamic_rollout() -> object:
+    query = StaggeredRollout(
+        "y",
+        "unit",
+        "period",
+        "cohort",
+        aggregation="dynamic",
+        resampling="cluster_multiplier",
+        replicates=199,
+    )
+    return antecedent.analyze(_staggered_panel(), query=query)
+
+
+def test_rollout_export_load_round_trip_reproduces_the_live_result():
+    result = _resampled_dynamic_rollout()
+    artifact = result.export()
+    loaded = antecedent.load(artifact)
+    assert loaded.export() == artifact
+    assert loaded.quasi_rollout == result.quasi_rollout
+    assert loaded.answer == result.answer
+
+
+def test_a_fresh_consumer_rederives_the_dynamic_summary_from_the_loaded_effects():
+    loaded = antecedent.load(_resampled_dynamic_rollout().export())
+    rollout = loaded.quasi_rollout
+    assert isinstance(rollout, QuasiRolloutEstimate)
+    post = [
+        effect.estimate
+        for effect in rollout.effects_of("event_time")
+        if effect.event_time is not None and effect.event_time >= 0
+    ]
+    assert post
+    assert rollout.overall is not None
+    assert rollout.overall.estimate == pytest.approx(sum(post) / len(post), rel=1e-12, abs=1e-12)
+
+
+def test_rollout_answer_is_structured_unlicensed_and_unmeasured():
+    result = _resampled_dynamic_rollout()
+    answer = result.answer
+    assert answer.kind == "structured"
+    assert answer.detail is not None and answer.detail.startswith("unlicensed_quasi_rollout_")
+    structured = answer.structured
+    assert structured is not None
+    assert structured["calibration"] == "unmeasured"
+    assert structured["licensed"] is False
+    assert structured["design"] == "staggered_did"
+    assert structured["effects"][0]["kind"] == "overall"
+    assert structured["effects"][0]["estimate"] == result.quasi_rollout.overall.estimate
+
+
+def test_resampled_augmented_panel_publishes_its_standard_error():
+    from antecedent.quasi import AugmentedPanelDiD
+
+    rng = np.random.default_rng(17)
+    n = 400
+    x = rng.normal(size=n)
+    propensity = 1.0 / (1.0 + np.exp(-0.5 * x))
+    treated = rng.uniform(size=n) < propensity
+    level = rng.normal(size=n)
+    change = 1.0 + 0.5 * x
+    data = {
+        "id": [f"s{i}" for i in range(n)],
+        "pre": level,
+        "post": level + change + 2.0 * treated + 0.3 * rng.normal(size=n),
+        "treated": treated.tolist(),
+        "p": propensity,
+        "m0": change,
+    }
+    query = AugmentedPanelDiD(
+        "pre",
+        "post",
+        "id",
+        "treated",
+        "p",
+        "m0",
+        True,
+        resampling="cluster_bootstrap",
+        replicates=199,
+    )
+    section = antecedent.analyze(data, query=query).panel_did
+    assert section.standard_error is not None and section.standard_error > 0.0
+    assert section.interval_95 is not None
+    half = 1.959963984540054 * section.standard_error
+    assert section.interval_95[0] == pytest.approx(section.estimate - half, rel=1e-9, abs=1e-12)
+    assert section.interval_95[1] == pytest.approx(section.estimate + half, rel=1e-9, abs=1e-12)
+    assert section.estimate == pytest.approx(2.0, abs=0.3)
