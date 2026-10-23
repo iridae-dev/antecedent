@@ -212,13 +212,13 @@ impl OuMechanisms {
         Ok(OuMechanismLaw { mean: process.center, covariance })
     }
 }
-struct Summary {
+pub(crate) struct Summary {
     mean: Vec<f64>,
     scatter: Vec<f64>,
     count: usize,
     replacements: Vec<OuEquationReplacement>,
 }
-fn summaries(
+pub(crate) fn summaries(
     regimes: &[OuMechanismRegime],
     n: usize,
     ctx: &ExecutionContext,
@@ -265,7 +265,7 @@ fn summaries(
     }
     Ok(output)
 }
-fn scores(
+pub(crate) fn scores(
     model: &OuMechanisms,
     data: &[Summary],
     parameters: &[OuMechanismParameter],
@@ -369,7 +369,7 @@ fn scores(
     }
     Ok((likelihood, score))
 }
-fn parameters(
+pub(crate) fn parameters(
     model: &OuMechanisms,
     coordinates: &[OuMechanismParameter],
 ) -> Result<Vec<f64>, EquilibriumError> {
@@ -402,7 +402,7 @@ fn parameters(
     }
     Ok(values)
 }
-fn bind(
+pub(crate) fn bind(
     template: &OuMechanisms,
     coordinates: &[OuMechanismParameter],
     values: &[f64],

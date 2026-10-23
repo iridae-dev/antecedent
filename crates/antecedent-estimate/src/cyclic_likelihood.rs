@@ -323,7 +323,7 @@ pub enum CyclicBootstrapDesign {
     /// Entire randomized assignment/outcome rows are IID within each target set.
     RandomizedWithinTargets,
 }
-fn bootstrap_groups(
+pub(crate) fn bootstrap_groups(
     rows: &[RegimeRow],
     design: CyclicBootstrapDesign,
 ) -> std::collections::BTreeMap<Vec<(usize, u64)>, Vec<usize>> {

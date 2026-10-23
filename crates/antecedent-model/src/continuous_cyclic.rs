@@ -840,6 +840,9 @@ impl OrnsteinUhlenbeck {
     ) -> Result<f64, EquilibriumError> {
         let n = self.validate()?;
         let mut total = 0.0;
+        // Consecutive rows with the same clamp assignment share one stationary law
+        // and factor. Only the previous assignment is retained, so memory stays O(n^2).
+        let mut previous: Option<(&[Clamp], OuInterventionalLaw, Vec<f64>)> = None;
         for row in rows {
             check_cancel(ctx)?;
             if row.values.len() != n || row.values.iter().any(|v| !v.is_finite()) {
@@ -850,18 +853,30 @@ impl OrnsteinUhlenbeck {
                     return Err(invalid("OU observed clamp disagreement"));
                 }
             }
-            let law = self.stationary_intervention(&row.clamps, ctx)?;
+            if previous.as_ref().is_none_or(|(clamps, _, _)| *clamps != row.clamps.as_slice()) {
+                let law = self.stationary_intervention(&row.clamps, ctx)?;
+                let free = &law.free;
+                let k = free.len();
+                let l = if k == 0 {
+                    Vec::new()
+                } else {
+                    let full_covariance = &law.covariance;
+                    let covariance: Vec<_> = free
+                        .iter()
+                        .flat_map(|&i| free.iter().map(move |&j| full_covariance[i * n + j]))
+                        .collect();
+                    cholesky(&covariance, k)?
+                };
+                previous = Some((row.clamps.as_slice(), law, l));
+            }
+            let Some((_, law, l)) = previous.as_ref() else {
+                return Err(invalid("OU stationary law"));
+            };
             let free = &law.free;
             let k = free.len();
             if k == 0 {
                 continue;
             }
-            let full_covariance = &law.covariance;
-            let covariance: Vec<_> = free
-                .iter()
-                .flat_map(|&i| free.iter().map(move |&j| full_covariance[i * n + j]))
-                .collect();
-            let l = cholesky(&covariance, k)?;
             let mut residual: Vec<_> = free.iter().map(|&i| row.values[i] - law.mean[i]).collect();
             for i in 0..k {
                 for j in 0..i {

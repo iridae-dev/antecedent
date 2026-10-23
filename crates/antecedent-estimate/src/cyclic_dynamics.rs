@@ -62,7 +62,7 @@ pub struct OdeFit {
 fn invalid(s: &str) -> EquilibriumError {
     EquilibriumError::Invalid(s.into())
 }
-fn bind(template: &OdeSystem, parameters: &[OdeParameter], values: &[f64]) -> OdeSystem {
+pub(crate) fn bind(template: &OdeSystem, parameters: &[OdeParameter], values: &[f64]) -> OdeSystem {
     let mut model = template.clone();
     for (&parameter, &value) in parameters.iter().zip(values) {
         match parameter {
@@ -78,7 +78,7 @@ fn bind(template: &OdeSystem, parameters: &[OdeParameter], values: &[f64]) -> Od
     }
     model
 }
-fn likelihood_score(
+pub(crate) fn likelihood_score(
     model: &OdeSystem,
     parameters: &[OdeParameter],
     data: &[OdeObservation],
