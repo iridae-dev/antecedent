@@ -11,6 +11,7 @@ use crate::callback::Portability;
 use crate::canonical_encode::{CanonicalEncode, count, i32_bits};
 use crate::identity::CanonicalWriter;
 use crate::ids::{DynamicRuleId, VariableId};
+use crate::refusal::NextAttempt;
 use crate::value::Value;
 use crate::value_expr::{ExpressionFault, PolicyReads, ValueExpr};
 
@@ -748,7 +749,9 @@ pub enum ExecutionSurface {
     Temporal,
     /// Counterfactual worlds on a static structural model.
     Counterfactual,
-    /// Linear equilibrium of a cyclic model. Untimed [`Intervention::Set`] only.
+    /// Cyclic model. Without a named family this surface admits the operation
+    /// every cyclic family performs: an untimed [`Intervention::Set`].
+    /// [`CyclicFamily`] admits the further operations of one family.
     Cyclic,
 }
 
@@ -866,6 +869,219 @@ impl ExecutionSurface {
 }
 
 impl std::fmt::Display for ExecutionSurface {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// Model family behind [`ExecutionSurface::Cyclic`].
+///
+/// Each family admits its own operations. A refusal is a [`CapabilityRefusal`]
+/// on the cyclic surface, and [`Self::next_attempt`] names what to declare
+/// instead. No operation is rewritten into another one:
+///
+/// - Both equilibrium families admit an untimed hard clamp
+///   ([`InterventionOperation::Set`]), an additive shock on the structural
+///   assignment ([`InterventionOperation::Shift`]) and a mechanism replacement
+///   ([`InterventionOperation::Soft`]).
+/// - The continuous-time family admits an untimed hard clamp held from the
+///   initial time, a drift-mechanism replacement, and a change of an
+///   initial-state law ([`InterventionOperation::InitialState`]).
+///
+/// The bare [`ExecutionSurface::Cyclic`] keeps admitting only the untimed set.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
+pub enum CyclicFamily {
+    /// Linear equilibrium `X = KX + c + ε` with a zero structural diagonal.
+    LinearEquilibrium,
+    /// Nonlinear additive-noise equilibrium.
+    NonlinearEquilibrium,
+    /// Deterministic continuous-time initial-value dynamics.
+    ContinuousTime,
+}
+
+/// Declare the system on the continuous-time family, or run the schedule on
+/// the temporal surface.
+pub const CYCLIC_CONTINUOUS_TIME_ATTEMPT: NextAttempt = NextAttempt::new(
+    "continuous_time_family",
+    "declare the system on the continuous-time family, where an untimed set clamps from the \
+     initial time and the initial state is its own law, or run the step schedule on the \
+     temporal surface",
+);
+
+/// Evaluate each level of a stochastic assignment as its own hard-clamp world.
+pub const CYCLIC_PER_LEVEL_CLAMP_ATTEMPT: NextAttempt = NextAttempt::new(
+    "per_level_hard_clamp_worlds",
+    "evaluate each level as its own hard-clamp world and mix the world results under the \
+     declared assignment law",
+);
+
+/// Declare an expression intervention as a soft mechanism replacement.
+pub const CYCLIC_SOFT_REPLACEMENT_ATTEMPT: NextAttempt = NextAttempt::new(
+    "soft_mechanism_replacement",
+    "declare the replacement equation as a soft intervention of family `constant`, \
+     `linear_mechanism`, or `additive_shift`",
+);
+
+/// Declare a drift input or an initial-state change instead of a trajectory shift.
+pub const CYCLIC_DRIFT_INPUT_ATTEMPT: NextAttempt = NextAttempt::new(
+    "drift_input_or_initial_state",
+    "declare a soft `additive_shift` drift input, or an initial-state change of the shifted \
+     variable",
+);
+
+/// Declare an untimed clamp, or run the step schedule on the temporal surface.
+pub const CYCLIC_UNTIMED_CLAMP_ATTEMPT: NextAttempt = NextAttempt::new(
+    "untimed_clamp_or_temporal_surface",
+    "declare an untimed set, which clamps from the initial time over the whole horizon, or run \
+     the step schedule on the temporal surface",
+);
+
+/// Declare one of the operations the family performs.
+pub const CYCLIC_SUPPORTED_OPERATION_ATTEMPT: NextAttempt = NextAttempt::new(
+    "supported_cyclic_operation",
+    "declare a hard clamp, a soft mechanism replacement, an additive shock, or on the \
+     continuous-time family an initial-state change",
+);
+
+impl CyclicFamily {
+    /// Every family, in a stable order.
+    pub const ALL: [Self; 3] =
+        [Self::LinearEquilibrium, Self::NonlinearEquilibrium, Self::ContinuousTime];
+
+    /// Stable name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::LinearEquilibrium => "linear_equilibrium",
+            Self::NonlinearEquilibrium => "nonlinear_equilibrium",
+            Self::ContinuousTime => "continuous_time",
+        }
+    }
+
+    /// Whether this family performs `operation` without changing it.
+    #[must_use]
+    pub fn supports(self, operation: &InterventionOperation) -> bool {
+        match self {
+            Self::LinearEquilibrium | Self::NonlinearEquilibrium => matches!(
+                operation,
+                InterventionOperation::Set { .. }
+                    | InterventionOperation::Shift { .. }
+                    | InterventionOperation::Soft { .. }
+            ),
+            Self::ContinuousTime => matches!(
+                operation,
+                InterventionOperation::Set { .. }
+                    | InterventionOperation::Soft { .. }
+                    | InterventionOperation::InitialState { .. }
+            ),
+        }
+    }
+
+    /// Classify `intervention` under `temporal` and accept it on this family.
+    ///
+    /// # Errors
+    ///
+    /// [`CapabilityRefusal`] on [`ExecutionSurface::Cyclic`] when this family
+    /// cannot perform the operation; [`InterventionError`] when the intervention
+    /// or the policy is malformed.
+    pub fn admit(
+        self,
+        intervention: &Intervention,
+        temporal: Option<&TemporalPolicy>,
+    ) -> Result<InterventionOperation, AdmitError> {
+        let operation = intervention.operation(temporal)?;
+        self.admit_operation(&operation)?;
+        Ok(operation)
+    }
+
+    /// Accept `operation` on this family.
+    ///
+    /// # Errors
+    ///
+    /// [`CapabilityRefusal`] on [`ExecutionSurface::Cyclic`] naming the operation.
+    pub fn admit_operation(
+        self,
+        operation: &InterventionOperation,
+    ) -> Result<(), CapabilityRefusal> {
+        if self.supports(operation) {
+            return Ok(());
+        }
+        let name = self.refused_name(operation);
+        Err(CapabilityRefusal {
+            surface: ExecutionSurface::Cyclic,
+            operation: name,
+            reason: self.refusal_parts(name).0,
+        })
+    }
+
+    /// What to declare instead of the refused operation `operation`.
+    ///
+    /// `operation` is the name a [`CapabilityRefusal`] from this family carries.
+    #[must_use]
+    pub fn next_attempt(self, operation: &str) -> NextAttempt {
+        self.refusal_parts(operation).1
+    }
+
+    /// The timed wrapper is named when its action is one this family performs
+    /// untimed; otherwise the refused inner action is named.
+    fn refused_name(self, operation: &InterventionOperation) -> &'static str {
+        match operation {
+            InterventionOperation::Pulse { action, .. }
+            | InterventionOperation::Sustained { action, .. }
+            | InterventionOperation::Dynamic { action, .. } => {
+                if self.supports(action) {
+                    operation.name()
+                } else {
+                    self.refused_name(action)
+                }
+            }
+            other => other.name(),
+        }
+    }
+
+    fn refusal_parts(self, operation: &str) -> (&'static str, NextAttempt) {
+        let equilibrium = !matches!(self, Self::ContinuousTime);
+        match (equilibrium, operation) {
+            (true, "pulse" | "sustained" | "dynamic" | "sequence") => (
+                "a static equilibrium has no time axis, so a timed action is not an equilibrium \
+                 intervention",
+                CYCLIC_CONTINUOUS_TIME_ATTEMPT,
+            ),
+            (true, "initial_state_change") => (
+                "an equilibrium has no initial-state law; solver initialization is numerical and \
+                 is not a causal initial state",
+                CYCLIC_CONTINUOUS_TIME_ATTEMPT,
+            ),
+            (false, "shift") => (
+                "a shift on a trajectory could be a state jump or a drift input, and the \
+                 continuous-time family does not choose between them",
+                CYCLIC_DRIFT_INPUT_ATTEMPT,
+            ),
+            (false, "pulse" | "sustained" | "dynamic" | "sequence") => (
+                "a step-indexed schedule is not a real-time action of the continuous-time \
+                 family, whose clamps hold from the initial time",
+                CYCLIC_UNTIMED_CLAMP_ATTEMPT,
+            ),
+            (_, "stochastic") => (
+                "a stochastic assignment needs its law joined with the model's disturbance, \
+                 which this family does not declare",
+                CYCLIC_PER_LEVEL_CLAMP_ATTEMPT,
+            ),
+            (_, "transform" | "assign") => (
+                "an expression intervention inside a feedback loop is a new simultaneous \
+                 equation that this family does not compile from an expression",
+                CYCLIC_SOFT_REPLACEMENT_ATTEMPT,
+            ),
+            _ => (
+                "this cyclic family does not perform that operation",
+                CYCLIC_SUPPORTED_OPERATION_ATTEMPT,
+            ),
+        }
+    }
+}
+
+impl std::fmt::Display for CyclicFamily {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(self.as_str())
     }
@@ -1353,5 +1569,118 @@ mod tests {
             InterventionOperation::initial_state("", Value::f64(2.0)).unwrap_err(),
             InterventionError::EmptyInitialLaw
         );
+    }
+
+    #[test]
+    fn cyclic_families_admit_their_own_operations_and_keep_the_bare_surface() {
+        let variable = VariableId::from_raw(0);
+        let set = Intervention::set(variable, Value::f64(1.0));
+        let shift = Intervention::shift(variable, Value::f64(1.0));
+        let soft = Intervention::soft(variable, MechanismOverride::constant(1.0));
+        let initial = InterventionOperation::initial_state("x0", Value::f64(2.0)).unwrap();
+        for family in [CyclicFamily::LinearEquilibrium, CyclicFamily::NonlinearEquilibrium] {
+            for intervention in [&set, &shift, &soft] {
+                let operation = family.admit(intervention, None).unwrap();
+                assert_eq!(operation, intervention.operation(None).unwrap());
+            }
+            let refusal = family.admit_operation(&initial).unwrap_err();
+            assert_eq!(refusal.surface, ExecutionSurface::Cyclic);
+            assert_eq!(refusal.operation(), "initial_state_change");
+            assert_eq!(family.next_attempt(refusal.operation()), CYCLIC_CONTINUOUS_TIME_ATTEMPT);
+        }
+        let continuous = CyclicFamily::ContinuousTime;
+        continuous.admit(&set, None).unwrap();
+        continuous.admit(&soft, None).unwrap();
+        continuous.admit_operation(&initial).unwrap();
+        let refusal = refusal_operation(continuous.admit(&shift, None).unwrap_err());
+        assert_eq!(refusal, "shift");
+        assert_eq!(continuous.next_attempt(refusal), CYCLIC_DRIFT_INPUT_ATTEMPT);
+
+        // The bare surface is unchanged: only the untimed set.
+        assert!(ExecutionSurface::Cyclic.admit(&set, None).is_ok());
+        assert_eq!(
+            refusal_operation(ExecutionSurface::Cyclic.admit(&shift, None).unwrap_err()),
+            "shift"
+        );
+        assert_eq!(
+            refusal_operation(ExecutionSurface::Cyclic.admit(&soft, None).unwrap_err()),
+            "soft"
+        );
+    }
+
+    #[test]
+    fn every_cyclic_family_refusal_names_a_next_attempt() {
+        let variable = VariableId::from_raw(0);
+        let other = VariableId::from_raw(1);
+        let set = Intervention::set(variable, Value::f64(1.0));
+        let shift = Intervention::shift(variable, Value::f64(1.0));
+        let refused = [
+            (Intervention::stochastic(variable, StochasticPolicy::bernoulli(0.5)), None),
+            (Intervention::transform(variable, ValueExpr::generated()), None),
+            (Intervention::assign(variable, ValueExpr::var(other)), None),
+            (set.clone(), Some(TemporalPolicy::pulse(0))),
+            (set.clone(), Some(TemporalPolicy::sustained(0, 2))),
+            (shift.clone(), Some(TemporalPolicy::pulse(0))),
+            (
+                Intervention::sequence(InterventionSequence::new(vec![
+                    SequencedIntervention::new(set, TemporalPolicy::pulse(0)),
+                ])),
+                None,
+            ),
+        ];
+        for family in CyclicFamily::ALL {
+            for (intervention, temporal) in &refused {
+                let name =
+                    refusal_operation(family.admit(intervention, temporal.as_ref()).unwrap_err());
+                let attempt = family.next_attempt(name);
+                assert!(!attempt.name().is_empty() && !attempt.sentence().is_empty());
+                assert_ne!(attempt, CYCLIC_SUPPORTED_OPERATION_ATTEMPT, "{family} {name}");
+            }
+        }
+        // A timed shift on an equilibrium names the timing, not the shift it performs untimed.
+        let timed_shift = CyclicFamily::LinearEquilibrium
+            .admit(&shift, Some(&TemporalPolicy::pulse(0)))
+            .unwrap_err();
+        assert_eq!(refusal_operation(timed_shift), "pulse");
+        // On the continuous-time family the shift itself is what is refused.
+        let timed_shift = CyclicFamily::ContinuousTime
+            .admit(&shift, Some(&TemporalPolicy::pulse(0)))
+            .unwrap_err();
+        assert_eq!(refusal_operation(timed_shift), "shift");
+    }
+
+    #[test]
+    fn intervention_encodings_are_unchanged_by_cyclic_admission() {
+        let variable = VariableId::from_raw(7);
+        let cases = [
+            Intervention::set(variable, Value::f64(1.5)),
+            Intervention::shift(variable, Value::f64(-0.25)),
+            Intervention::soft(
+                variable,
+                MechanismOverride::named("linear_mechanism", vec![0.1, 0.0, 0.4]),
+            ),
+        ];
+        for (tag, intervention) in [1_u64, 2, 4].into_iter().zip(&cases) {
+            let mut encoded = CanonicalWriter::new("intervention-encoding");
+            intervention.encode(&mut encoded);
+            let mut expected = CanonicalWriter::new("intervention-encoding");
+            expected.word(tag).word(7);
+            match intervention {
+                Intervention::Set { value, .. } | Intervention::Shift { delta: value, .. } => {
+                    value.encode(&mut expected);
+                }
+                Intervention::Soft { mechanism, .. } => {
+                    expected.text(&mechanism.family_id).reals(&mechanism.parameters);
+                }
+                _ => unreachable!("only the three cyclic action kinds are encoded here"),
+            }
+            assert_eq!(encoded.finish(), expected.finish());
+            let before = encoded.finish();
+            let admitted = CyclicFamily::NonlinearEquilibrium.admit(intervention, None).unwrap();
+            assert_eq!(admitted, intervention.operation(None).unwrap());
+            let mut after = CanonicalWriter::new("intervention-encoding");
+            intervention.encode(&mut after);
+            assert_eq!(after.finish(), before);
+        }
     }
 }

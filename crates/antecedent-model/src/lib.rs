@@ -16,6 +16,7 @@ pub mod compose;
 pub mod continuous_cyclic;
 pub mod cyclic_actions;
 pub mod cyclic_component;
+pub mod cyclic_world;
 pub mod discretized_scm;
 pub mod discretized_scm_artifact;
 pub mod do_sampler;
