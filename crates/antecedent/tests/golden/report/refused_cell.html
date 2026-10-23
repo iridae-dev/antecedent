@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>Causal analysis report</title>
+<style>
+:root { color-scheme: light dark; --fg: #1b1f24; --bg: #ffffff; --rule: #c9d1d9; --muted: #57606a; }
+@media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --bg: #0d1117; --rule: #30363d; --muted: #8b949e; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+main { max-width: 64rem; margin: 0 auto; padding: 1rem; }
+h1, h2, h3 { line-height: 1.25; }
+h2 { border-bottom: 1px solid var(--rule); padding-bottom: 0.25rem; margin-top: 2rem; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+dl.facts dt { font-weight: 600; color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+table { border-collapse: collapse; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+<main>
+<h1>Causal analysis report</h1>
+<section id="summary">
+<h2>Summary</h2>
+<dl class="facts">
+<dt>Reading</dt><dd>a contract before execution</dd>
+<dt>Query</dt><dd>PathSpecificEffect</dd>
+<dt>Inference</dt><dd>frequentist</dd>
+<dt>Identifier</dt><dd>path_specific.natural</dd>
+<dt>Estimator</dt><dd>functional.effect</dd>
+<dt>Support status</dt><dd>refused</dd>
+</dl>
+<ul>
+<li>No claim is attached: this report reads the contract before any execution, and no estimate is stated.</li>
+<li>The cell is in the product but is not licensed, and the matrix refuses it.</li>
+</ul>
+</section>
+<section id="identification">
+<h2>Identification</h2>
+<dl class="facts">
+<dt>Graph class</dt><dd>Admg</dd>
+<dt>Structure source</dt><dd>explicit</dd>
+<dt>Identifier</dt><dd>path_specific.natural</dd>
+<dt>Estimator</dt><dd>functional.effect</dd>
+<dt>Resolved estimator</dt><dd>none</dd>
+<dt>Discovery algorithm</dt><dd>none</dd>
+</dl>
+<p>The identification slot is unavailable: not_prepared.</p>
+</section>
+<section id="assumptions">
+<h2>Assumptions</h2>
+<p>0 obligations are recorded; 0 remain unresolved.</p>
+</section>
+<section id="diagnostics-and-evidence">
+<h2>Diagnostics and evidence</h2>
+<p>No claim is attached, so no execution evidence or diagnostics are recorded.</p>
+</section>
+<section id="uncertainty">
+<h2>Uncertainty</h2>
+<p>The uncertainty slot is unavailable: execution_specific.</p>
+<h3>Calibration</h3>
+<p>Calibration is read from a claim; none is attached.</p>
+</section>
+<section id="support-and-licence">
+<h2>Support and licence</h2>
+<dl class="facts">
+<dt>Support status</dt><dd>refused</dd>
+<dt>Modality</dt><dd>tabular</dd>
+<dt>Inference</dt><dd>frequentist</dd>
+<dt>Query kind</dt><dd>PathSpecificEffect</dd>
+<dt>Rows</dt><dd>200</dd>
+<dt>Functional</dt><dd>all_observed</dd>
+</dl>
+<h3>Support slot</h3>
+<dl class="facts">
+<dt>Matrix status</dt><dd>refused</dd>
+<dt>Matrix coordinate</dt><dd>PathSpecificEffect:Admg:explicit:Frequentist:full</dd>
+<dt>Empirical support</dt><dd>unavailable:not_evaluated</dd>
+</dl>
+</section>
+<section id="refusals-and-limits">
+<h2>Refusals and limits</h2>
+<dl class="facts">
+<dt>Operation</dt><dd>inspect</dd>
+<dt>Applicability</dt><dd>unlicensed</dd>
+<dt>Readiness</dt><dd>none</dd>
+<dt>Coordinate</dt><dd>PathSpecificEffect:Admg:explicit:Frequentist:full</dd>
+</dl>
+<p>No limit is recorded beyond the blockers below.</p>
+<h3>Blockers and refusals</h3>
+<table>
+<thead><tr><th>Id</th><th>Scientific impossibility</th><th>Reason</th></tr></thead>
+<tbody>
+<tr><td>support.refused</td><td>yes</td><td>Path-specific queries execute only on a supplied static Dag; a directly supplied Admg, TemporalAdmg, or Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above).</td></tr>
+</tbody>
+</table>
+<h3>Next actions</h3>
+<p>Next actions are suggestions for the caller; none is taken automatically.</p>
+<table>
+<thead><tr><th>Action</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>consider_licensed_neighbor</td><td>choose an explicit licensed neighbor; never an automatic fallback</td></tr>
+</tbody>
+</table>
+<h3>Licensed neighbours</h3>
+<p>A neighbour changes the stated premises; it is not a fallback.</p>
+<table>
+<thead><tr><th>Coordinate</th><th>Changed premises</th><th>Required action</th></tr></thead>
+<tbody>
+<tr><td>AverageEffect:Admg:explicit:Frequentist:full</td><td>query: PathSpecificEffect to AverageEffect</td><td>change the query; do not relabel the graph class</td></tr>
+<tr><td>InterventionResponse:Admg:explicit:Frequentist:full</td><td>query: PathSpecificEffect to InterventionResponse</td><td>change the query; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:accepted:Frequentist:full</td><td>query: PathSpecificEffect to AverageEffect; structure: explicit to accepted</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:explicit:Bayesian:full</td><td>query: PathSpecificEffect to AverageEffect; inference: Frequentist to Bayesian</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:explicit:Frequentist:cheap</td><td>query: PathSpecificEffect to AverageEffect; validation: full to cheap</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:explicit:Frequentist:none</td><td>query: PathSpecificEffect to AverageEffect; validation: full to none</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>AverageEffect:Admg:graph_posterior:Frequentist:full</td><td>query: PathSpecificEffect to AverageEffect; structure: explicit to graph_posterior</td><td>change the listed premises; do not relabel the graph class</td></tr>
+<tr><td>ConditionalEffect:Admg:explicit:Frequentist:none</td><td>query: PathSpecificEffect to ConditionalEffect; validation: full to none</td><td>change the listed premises; do not relabel the graph class</td></tr>
+</tbody>
+</table>
+<dl class="facts">
+<dt>Layers the premises preserve</dt><dd>target</dd>
+<dt>Layers the premises invalidate</dt><dd>support, identification, results</dd>
+</dl>
+<p>This report restates the contract. It computes no estimate, grants no licence, and a status recorded here is the status the records carry.</p>
+</section>
+<section id="identities">
+<h2>Identities</h2>
+<dl class="facts">
+<dt>Target</dt><dd>d947cc7b8de5b280686f6410de9659f9be3a4afa032d01c120d57a48f132bc1b</dd>
+<dt>Identification</dt><dd>29e49e714b185af8a7299d26ea3f1427f16b3c4ef30b34868938a1b02cff9ec4</dd>
+<dt>Identification product</dt><dd>none</dd>
+<dt>Program</dt><dd>none</dd>
+<dt>Inference binding</dt><dd>dfbaf4691a9aed9b74147e09af2c59cfaf3d9fd478889631a5173f0bac005f66</dd>
+<dt>Observation</dt><dd>cc659f942a090ca3046701bc26734487d0de84af65e670e49bc5abe48aef151c</dd>
+<dt>Data snapshot</dt><dd>d3f991cc994df9d7757ec98159b5f3dbf5ed8e580cc3eaba9c79184522cf72f2</dd>
+<dt>Score reuse</dt><dd>none</dd>
+<dt>Target weights</dt><dd>none</dd>
+</dl>
+</section>
+</main>
+</body>
+</html>

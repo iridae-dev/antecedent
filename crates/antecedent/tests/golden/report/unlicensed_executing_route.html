@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>Causal analysis report</title>
+<style>
+:root { color-scheme: light dark; --fg: #1b1f24; --bg: #ffffff; --rule: #c9d1d9; --muted: #57606a; }
+@media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --bg: #0d1117; --rule: #30363d; --muted: #8b949e; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+main { max-width: 64rem; margin: 0 auto; padding: 1rem; }
+h1, h2, h3 { line-height: 1.25; }
+h2 { border-bottom: 1px solid var(--rule); padding-bottom: 0.25rem; margin-top: 2rem; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+dl.facts dt { font-weight: 600; color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+table { border-collapse: collapse; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+<main>
+<h1>Causal analysis report</h1>
+<section id="summary">
+<h2>Summary</h2>
+<dl class="facts">
+<dt>Reading</dt><dd>an executed claim</dd>
+<dt>Query</dt><dd>Unknown</dd>
+<dt>Inference</dt><dd>frequentist</dd>
+<dt>Identifier</dt><dd>none</dd>
+<dt>Estimator</dt><dd>sequential.crossfit_contrast.wald</dd>
+<dt>Route</dt><dd>SequentialContrast</dd>
+<dt>Claim kind</dt><dd>point</dd>
+<dt>Support status</dt><dd>off_axis</dd>
+</dl>
+<ul>
+<li>The claim publishes a value of kind point; the sections below state what it rests on and where it stops.</li>
+<li>The query is off the support-matrix axis; no matrix licence applies to it.</li>
+<li>Calibration status is unavailable: the reported uncertainty carries no measured-coverage record.</li>
+<li>Identification status is nonparametrically_identified.</li>
+</ul>
+</section>
+<section id="claim">
+<h2>Claim</h2>
+<dl class="facts">
+<dt>Claim id</dt><dd>649a68b1339d51d2bf91ac19dd9e760303be61d4c978e530c39557372c9f5c99</dd>
+<dt>Kind</dt><dd>point</dd>
+<dt>Value</dt><dd>none</dd>
+<dt>Outcome units</dt><dd>none</dd>
+<dt>Identification domain</dt><dd>identified</dd>
+<dt>Support domain</dt><dd>unknown</dd>
+<dt>Evaluated domain</dt><dd>evaluated</dd>
+<dt>Execution</dt><dd>8803f9ddaa94d51aa42daff15db1617ee0414860d03e9825dd54714d229958f6</dd>
+</dl>
+</section>
+<section id="identification">
+<h2>Identification</h2>
+<dl class="facts">
+<dt>Graph class</dt><dd>RandomizedTrial</dd>
+<dt>Structure source</dt><dd>randomized_trial</dd>
+<dt>Identifier</dt><dd>none</dd>
+<dt>Estimator</dt><dd>none</dd>
+<dt>Resolved estimator</dt><dd>sequential.crossfit_contrast.wald</dd>
+<dt>Discovery algorithm</dt><dd>none</dd>
+</dl>
+<dl class="facts">
+<dt>Status</dt><dd>nonparametrically_identified</dd>
+<dt>Identified mass</dt><dd>1</dd>
+<dt>Unidentified mass</dt><dd>0</dd>
+<dt>Unevaluable mass</dt><dd>0</dd>
+<dt>Incomplete-search mass</dt><dd>0</dd>
+<dt>Mass covers the full class</dt><dd>yes</dd>
+<dt>Weight basis</dt><dd>none</dd>
+<dt>Search capped</dt><dd>no</dd>
+</dl>
+</section>
+<section id="assumptions">
+<h2>Assumptions</h2>
+<p>0 obligations are recorded; 0 remain unresolved.</p>
+<h3>Assumptions the identification relies on</h3>
+<table>
+<thead><tr><th>Assumption</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>consistency</td><td>declared</td></tr>
+<tr><td>no_interference</td><td>declared</td></tr>
+<tr><td>positivity</td><td>declared</td></tr>
+<tr><td>custom:sequential_conditional_exchangeability</td><td>declared</td></tr>
+<tr><td>custom:no_unmeasured_second_decision_confounder</td><td>declared</td></tr>
+<tr><td>custom:nuisance_product_rate</td><td>declared</td></tr>
+</tbody>
+</table>
+</section>
+<section id="diagnostics-and-evidence">
+<h2>Diagnostics and evidence</h2>
+<h3>Evidence the claim references</h3>
+<ul>
+<li>snapshot:70480c58ee5f1a795d90ac591624509b73ae22077b2cbaa91a40999a05a4e578</li>
+<li>identification:b50bd7459618af7272fc7218a6716baf35e481d61770a70bb902f5e355d17f28</li>
+<li>program:71523fc7a0d1380a0c873a9c99a92baccae1d388dd99e9b87e5467a0b80fe247</li>
+</ul>
+</section>
+<section id="uncertainty">
+<h2>Uncertainty</h2>
+<p>The uncertainty slot is unavailable: omitted.</p>
+<h3>Uncertainty the program must publish</h3>
+<dl class="facts">
+<dt>claim_kind</dt><dd>point</dd>
+<dt>reading</dt><dd>sampling</dd>
+<dt>realization</dt><dd>frequentist</dd>
+</dl>
+<h3>Calibration</h3>
+<dl class="facts">
+<dt>Calibration status</dt><dd>unavailable</dd>
+<dt>Governing record</dt><dd>none</dd>
+<dt>Reason</dt><dd>calibration_basis_missing</dd>
+<dt>Measured rows (smallest)</dt><dd>none</dd>
+<dt>Measured rows (largest)</dt><dd>none</dd>
+<dt>Record dependence</dt><dd>none</dd>
+<dt>Measured at</dt><dd>none</dd>
+<dt>Nominal level</dt><dd>none</dd>
+<dt>Observed coverage</dt><dd>none</dd>
+</dl>
+</section>
+<section id="support-and-licence">
+<h2>Support and licence</h2>
+<dl class="facts">
+<dt>Support status</dt><dd>off_axis</dd>
+<dt>Modality</dt><dd>tabular</dd>
+<dt>Inference</dt><dd>frequentist</dd>
+<dt>Query kind</dt><dd>Unknown</dd>
+<dt>Rows</dt><dd>80</dd>
+<dt>Functional</dt><dd></dd>
+</dl>
+<h3>Support slot</h3>
+<dl class="facts">
+<dt>Matrix status</dt><dd>off_axis</dd>
+<dt>Matrix coordinate</dt><dd>none</dd>
+<dt>Empirical support</dt><dd>unavailable:not_evaluated</dd>
+</dl>
+<h3>Support cell of the program</h3>
+<dl class="facts">
+<dt>Coordinate</dt><dd>none</dd>
+<dt>Licensed</dt><dd>no</dd>
+<dt>Status</dt><dd>none</dd>
+</dl>
+</section>
+<section id="refusals-and-limits">
+<h2>Refusals and limits</h2>
+<dl class="facts">
+<dt>Operation</dt><dd>inspect</dd>
+<dt>Applicability</dt><dd>unknown</dd>
+<dt>Readiness</dt><dd>unknown_support</dd>
+<dt>Coordinate</dt><dd>none</dd>
+</dl>
+<h3>Limits</h3>
+<ul>
+<li>The claim states no scalar value.</li>
+<li>Calibration is unavailable (calibration_basis_missing).</li>
+</ul>
+<h3>Blockers and refusals</h3>
+<table>
+<thead><tr><th>Id</th><th>Scientific impossibility</th><th>Reason</th></tr></thead>
+<tbody>
+<tr><td>support.off_axis</td><td>yes</td><td>query is not on the public support-matrix axis</td></tr>
+</tbody>
+</table>
+<h3>Next actions</h3>
+<p>Next actions are suggestions for the caller; none is taken automatically.</p>
+<table>
+<thead><tr><th>Action</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>no_licensed_neighbor</td><td>no justified licensed neighbor; do not relabel the graph class</td></tr>
+</tbody>
+</table>
+<dl class="facts">
+<dt>Layers the premises preserve</dt><dd>target</dd>
+<dt>Layers the premises invalidate</dt><dd>support, identification, results</dd>
+</dl>
+<p>This report restates the contract. It computes no estimate, grants no licence, and a status recorded here is the status the records carry.</p>
+</section>
+<section id="program-plan">
+<h2>Program plan</h2>
+<dl class="facts">
+<dt>Route</dt><dd>SequentialContrast</dd>
+<dt>Family</dt><dd>design_based</dd>
+<dt>Stage</dt><dd>prepared</dd>
+<dt>Depth</dt><dd>complete</dd>
+<dt>Program identity</dt><dd>9146dc10af9d4475f1856a884f6f29899ed3cb2324ac12fed042ad6d4a120dc6</dd>
+<dt>Sealed operation</dt><dd>sequential_contrast</dd>
+</dl>
+<h3>Scientific problem</h3>
+<dl class="facts">
+<dt>data</dt><dd>tabular</dd>
+<dt>graph_class</dt><dd>RandomizedTrial</dd>
+<dt>plan_id</dt><dd>sequential.crossfit_contrast.wald</dd>
+<dt>query_variables</dt><dd>y, a0, a1</dd>
+<dt>target.form</dt><dd>target</dd>
+<dt>target.identity</dt><dd>707f28ed0e51ad3ccbd68caba93e90a5af9a064af883003d2930537f65d2f800</dd>
+</dl>
+<h3>Identification product</h3>
+<dl class="facts">
+<dt>Carried</dt><dd>retained</dd>
+<dt>Status</dt><dd>none</dd>
+<dt>Installed at prepare</dt><dd>no</dd>
+<dt>Product identity</dt><dd>57a4e6325cc37036fa8ece0286e8c39d78dc50e3275f92f56501a400c757a9eb</dd>
+<dt>Outcome</dt><dd>identified</dd>
+<dt>Claim class</dt><dd>identified_claim</dd>
+</dl>
+<table>
+<thead><tr><th>Estimand</th><th>Adjustment set</th><th>Instruments</th><th>Mediators</th></tr></thead>
+<tbody>
+<tr><td>sequential.crossfit_contrast</td><td>none</td><td>none</td><td>none</td></tr>
+</tbody>
+</table>
+<h3>Statistical program</h3>
+<dl class="facts">
+<dt>design.reason</dt><dd>augmented sequential scores average per-subject nuisance fits</dd>
+<dt>design.source</dt><dd>not_design_based</dd>
+<dt>estimator</dt><dd>sequential.crossfit_contrast.wald</dd>
+<dt>folds.folds</dt><dd>2</dd>
+<dt>folds.unit</dt><dd>subject</dd>
+<dt>identifier</dt><dd>randomized.design</dd>
+<dt>identity</dt><dd>d4b9da9d0dfb1c788a84efb45b8d9078fb7cdcae3de6c82ecb55b0014694793c</dd>
+<dt>models[0].family</dt><dd>crossfit_first_decision_propensity</dd>
+<dt>models[0].inputs</dt><dd>l0</dd>
+<dt>models[0].output</dt><dd>a0</dd>
+<dt>models[0].role</dt><dd>propensity</dd>
+<dt>models[1].family</dt><dd>crossfit_second_decision_propensity</dd>
+<dt>models[1].inputs</dt><dd>l0, a0, l1</dd>
+<dt>models[1].output</dt><dd>a1</dd>
+<dt>models[1].role</dt><dd>propensity</dd>
+<dt>models[2].family</dt><dd>crossfit_sequential_outcome_regression</dd>
+<dt>models[2].inputs</dt><dd>l0, a0, l1, a1</dd>
+<dt>models[2].output</dt><dd>y</dd>
+<dt>models[2].role</dt><dd>outcome</dd>
+<dt>operators</dt><dd>0</dd>
+<dt>realization</dt><dd>frequentist</dd>
+</dl>
+<h3>Evidence and decision program</h3>
+<dl class="facts">
+<dt>composition.kind</dt><dd>single</dd>
+<dt>identity</dt><dd>99dec0d4a3c47302aa2f4f28dc40b3ccfcab003e3737b2601341a639ef0ef027</dd>
+<dt>sources[0].role</dt><dd>observations</dd>
+</dl>
+<h3>Physical plan</h3>
+<dl class="facts">
+<dt>design.reason</dt><dd>augmented sequential scores average per-subject nuisance fits</dd>
+<dt>design.source</dt><dd>not_design_based</dd>
+<dt>operators</dt><dd>none</dd>
+</dl>
+</section>
+<section id="identities">
+<h2>Identities</h2>
+<dl class="facts">
+<dt>Target</dt><dd>ecbbe1071b706a90817dd8577bd5cfa984215b1cab05c0bceb32cabd45b21731</dd>
+<dt>Identification</dt><dd>b50bd7459618af7272fc7218a6716baf35e481d61770a70bb902f5e355d17f28</dd>
+<dt>Identification product</dt><dd>none</dd>
+<dt>Program</dt><dd>71523fc7a0d1380a0c873a9c99a92baccae1d388dd99e9b87e5467a0b80fe247</dd>
+<dt>Inference binding</dt><dd>122227db05904a9fdcabbcab561919a16691db0b8a445cffef22541a91240ba4</dd>
+<dt>Observation</dt><dd>9656ec48033e1c382f79800434aa8a3f9496560dbd8a369cbbf1d830f00ef5bd</dd>
+<dt>Data snapshot</dt><dd>70480c58ee5f1a795d90ac591624509b73ae22077b2cbaa91a40999a05a4e578</dd>
+<dt>Score reuse</dt><dd>none</dd>
+<dt>Target weights</dt><dd>none</dd>
+</dl>
+</section>
+</main>
+</body>
+</html>
