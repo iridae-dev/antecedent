@@ -37,6 +37,8 @@ def test_identity_domains_match_native_order():
         "target_weights",
         "learned_trial",
         "transport_certificate",
+        "cyclic_solution",
+        "cyclic_recovery",
     ]
 
 

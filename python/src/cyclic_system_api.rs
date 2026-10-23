@@ -142,6 +142,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPreparedCyclicSystem>()?;
     m.add_class::<PyPreparedCyclicFamily>()?;
     m.add_function(wrap_pyfunction!(prepare_cyclic_family, m)?)?;
+    m.add_function(wrap_pyfunction!(prepare_cyclic_experimental_recovery, m)?)?;
     m.add_function(wrap_pyfunction!(prepare_cyclic_system, m)?)?;
     m.add_function(wrap_pyfunction!(prepare_cyclic_system_buffers, m)?)?;
     m.add_function(wrap_pyfunction!(execute_cyclic_system, m)?)?;
@@ -372,6 +373,29 @@ impl PyPreparedCyclicSystem {
         self.inner.request().initial.clone()
     }
 
+    /// The same frozen request as a family program (`PreparedStudy::to_family`).
+    /// Compilation does not fit; the family keeps its own fit cache.
+    #[pyo3(signature = (*, max_bytes=None, cancel=None))]
+    fn to_family(
+        &self,
+        py: Python<'_>,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<PyPreparedCyclicFamily> {
+        let ctx = execution_context(max_bytes, cancel);
+        let attempt = py.detach(|| {
+            antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+                self.inner.to_family(&ctx)
+            })
+        });
+        crate::inspect_receipt_api::finish_observed(
+            py,
+            attempt.result.map_err(|e| crate::value_err(e.to_string())),
+            attempt.facts,
+        )
+        .map(|(inner, _)| PyPreparedCyclicFamily { inner })
+    }
+
     fn retarget_buffers(
         &self,
         py: Python<'_>,
@@ -563,10 +587,61 @@ impl PyPreparedCyclicFamily {
             .map_err(|e| crate::value_err(e.to_string()))?;
         Ok(PyCyclicEvidence { inner })
     }
+    /// Execute and return the intervention worlds keyed by scientific world id
+    /// (`PreparedStudy::interventions`), with certificates, solve routes and
+    /// failed or withheld mass. A family without worlds is refused with its next attempt.
+    #[pyo3(signature = (*, max_bytes=None, cancel=None))]
+    fn interventions(
+        &self,
+        py: Python<'_>,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<(String, NativeFacts)> {
+        let ctx = execution_context(max_bytes, cancel);
+        let attempt = py.detach(|| {
+            antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+                self.inner.interventions(&ctx)
+            })
+        });
+        let (worlds, facts) = crate::inspect_receipt_api::finish_observed(
+            py,
+            attempt.result.map_err(|e| crate::value_err(e.to_string())),
+            attempt.facts,
+        )?;
+        Ok((
+            serde_json::to_string(&worlds).map_err(|e| crate::serialization_err(e.to_string()))?,
+            facts,
+        ))
+    }
     fn inspect(&self) -> String {
         let inspection = self.inner.inspect();
-        serde_json::json!({"identity":inspection.identity,"family":inspection.family,"preparation_evaluations":inspection.preparation_evaluations,"retained_bytes":inspection.retained_bytes}).to_string()
+        serde_json::json!({"identity":inspection.identity,"family":inspection.family,"preparation_evaluations":inspection.preparation_evaluations,"retained_bytes":inspection.retained_bytes,"execution_plans":inspection.execution_plans}).to_string()
     }
+}
+
+/// Compile a linear law to be recovered from clamp experiments
+/// (`Study::prepare_experimental_recovery`). Any other family is refused.
+/// Compilation admits the worlds on the retained units and does not fit.
+#[pyfunction]
+#[pyo3(signature = (request_json, *, max_bytes=None, cancel=None))]
+fn prepare_cyclic_experimental_recovery(
+    py: Python<'_>,
+    request_json: &str,
+    max_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<PyPreparedCyclicFamily> {
+    let ctx = execution_context(max_bytes, cancel);
+    let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
+        let _input = input_admission(request_json, &ctx)?;
+        let request =
+            serde_json::from_str(request_json).map_err(|e| crate::value_err(e.to_string()))?;
+        let inner = py
+            .detach(|| antecedent::analysis::Study::prepare_experimental_recovery(&request, &ctx))
+            .map_err(|e| crate::value_err(e.to_string()))?;
+        Ok(PyPreparedCyclicFamily { inner })
+    });
+    crate::inspect_receipt_api::finish_observed(py, attempt.result, attempt.facts)
+        .map(|(handle, _)| handle)
 }
 #[pyfunction]
 #[pyo3(signature = (request_json, *, max_bytes=None, cancel=None))]

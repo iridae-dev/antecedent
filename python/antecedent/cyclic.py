@@ -6,6 +6,14 @@ Noise covariance is joint and may be correlated. Fitting requires independent
 observational/interventional equilibrium replicates with known hard clamps.
 Answers are conditional on the specified/fitted model; no nonparametric causal
 identification or nominal interval calibration is implied.
+
+Typed worlds name variables (:class:`World` of ``Set``/``Shift``/``Soft`` and
+:class:`InitialState`) on :class:`LinearCyclicModel`, :meth:`EquilibriumModel.worlds` and
+:meth:`OdeSystem.worlds`; :meth:`PreparedCyclicFamily.interventions` returns them keyed by
+world id. :func:`prepare_experimental_recovery` recovers a linear law from clamp experiments
+under a declared draw origin, and ``infer`` on :class:`OdeSystem`,
+:class:`OrnsteinUhlenbeck` and :class:`OuMechanisms` attaches bootstrap, observed-information
+or posterior uncertainty to a dynamic fit.
 """
 
 from __future__ import annotations
@@ -16,7 +24,43 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 from . import _native
+from ._cyclic_typed import (
+    AsymptoticNormal,
+    CyclicInterventions,
+    DynamicBootstrap,
+    DynamicMethod,
+    DynamicPosterior,
+    DynamicQuantity,
+    DynamicQuantitySelector,
+    ExperimentalFitOptions,
+    ExperimentRegime,
+    FlatCoefficients,
+    InitialState,
+    InverseWishartDisturbance,
+    KnownDisturbance,
+    LinearCyclicModel,
+    NormalCoefficients,
+    ObservedInformation,
+    OdeState,
+    OuMechanismCovariance,
+    OuMechanismMean,
+    OuStationaryCovariance,
+    OuStationaryMean,
+    RecoveredDrawSelector,
+    RecoveredResponseSelector,
+    RecoveredWorldAnswer,
+    RecoveryBootstrap,
+    RecoveryPosterior,
+    RecoveryPrior,
+    RecoveryUncertainty,
+    SamplingDesign,
+    World,
+    WorldAnswer,
+    WorldSelector,
+    prepare_experimental_recovery,
+)
 from .errors import CausalValueError, StructuredRefusal
+from .intervention import Set, Shift, Soft
 
 
 class CyclicRefusal(StructuredRefusal):
@@ -26,7 +70,9 @@ class CyclicRefusal(StructuredRefusal):
     registered runtime-refusal code and :attr:`detail` the stable ``<family>.<slot>`` detail.
     Malformed arguments raise :class:`~antecedent.errors.CausalValueError` instead, and
     refusals reported by the native layer arrive as the shared causal error classes with their
-    ``reason=<code>:`` prefix read into ``reason_code``.
+    ``reason=<code>:`` prefix read into ``reason_code``. :attr:`next_attempt` is the
+    sentence naming what to declare instead, when the refusal names one; it is also the
+    :attr:`remedy` unless a separate remedy is given.
     """
 
     def __init__(
@@ -36,6 +82,7 @@ class CyclicRefusal(StructuredRefusal):
         reason_code: str | None = None,
         detail: str | None = None,
         remedy: str | None = None,
+        next_attempt: str | None = None,
     ) -> None:
         text = f"{detail}: {message}" if detail else message
         super().__init__(
@@ -43,10 +90,12 @@ class CyclicRefusal(StructuredRefusal):
                 "code": reason_code,
                 "detail": detail or "",
                 "message": message,
-                "remedy": remedy,
+                "remedy": remedy if remedy is not None else next_attempt,
             },
             text=text,
         )
+        #: What to declare instead, when the refusal names it.
+        self.next_attempt: str | None = next_attempt
 
 
 def _cyclic_numeric_rows(values, width):
@@ -277,6 +326,39 @@ class EquilibriumModel:
         }
         return PreparedCyclicSystem._from_request(request, max_bytes=max_bytes, cancel=cancel)
 
+    def worlds(
+        self,
+        worlds: list[World],
+        noise: list[list[float]],
+        *,
+        variables: list[str] | None = None,
+        initial: list[float] | None = None,
+        policy: SolvePolicy | None = None,
+        max_bytes: int | None = None,
+        cancel: Any = None,
+    ) -> PreparedCyclicFamily:
+        """Typed worlds over shared disturbance draws, named by variable.
+
+        ``variables`` defaults to the equation ids: equation ``k`` is the mechanism of
+        variable ``k``. Every world solves each row of ``noise`` (one joint disturbance
+        realization per row, in the variables' units); a failed draw keeps its slot and its
+        share of failed mass. ``initial`` is a numerical guess, never a causal initial state
+        or a selection law. Compilation solves nothing; a world the family cannot take is
+        refused with its next attempt.
+        """
+        from ._cyclic_typed import equilibrium_worlds
+
+        return equilibrium_worlds(
+            self,
+            worlds,
+            noise,
+            variables=variables,
+            initial=initial,
+            policy=policy,
+            max_bytes=max_bytes,
+            cancel=cancel,
+        )
+
 
 @dataclass(frozen=True)
 class PreparedCyclicSystem:
@@ -331,6 +413,28 @@ class PreparedCyclicSystem:
         """Inspect the common native prepared handle's fit count and SCC schedules."""
         result: dict[str, Any] = json.loads(self._handle.inspect())
         return result
+
+    def to_family(
+        self, *, max_bytes: int | None = None, cancel: Any = None
+    ) -> PreparedCyclicFamily:
+        """The same frozen request as a ``system`` family program.
+
+        The family shares rebinding, evidence projection, keyed replay and fit reuse with
+        every other family. Compilation does not fit, and a fit already performed by this
+        handle is not transferred: the family keeps its own fit cache. Equation ``k`` is
+        named by its equation id.
+        """
+        handle = self._handle.to_family(
+            max_bytes=self.max_bytes if max_bytes is None else max_bytes,
+            cancel=self.cancel if cancel is None else cancel,
+        )
+        request = json.loads(self.request_json)
+        family = PreparedCyclicFamily(
+            json.dumps({"family": "system", "request": request}, allow_nan=False),
+            variable_names=tuple(equation["id"] for equation in request["model"]["equations"]),
+        )
+        object.__setattr__(family, "_handle", handle)
+        return family
 
     def retarget(
         self,
@@ -447,19 +551,58 @@ class PreparedCyclicFamily:
     """Retained dynamics/constraint request; no static SCM coercion is implied."""
 
     request_json: str
+    variable_names: tuple[str, ...] | None = field(default=None, repr=False, compare=False)
     _handle: Any = field(default=None, init=False, repr=False, compare=False)
     _lock: Any = field(default_factory=threading.Lock, init=False, repr=False, compare=False)
+    _law: Any = field(default=None, init=False, repr=False, compare=False)
 
     def inspect(self) -> dict[str, Any]:
-        """Inspect retained work; this preflight never fits or executes a model."""
+        """Inspect retained work; this preflight never fits or executes a model.
+
+        Beyond identity, family and retained bytes, the inspection names the draw origin and
+        its evidence meaning (``sampling_law``, ``parameter_posterior``, or None for supplied
+        draws), the unresolved directions of a recovered law (None for an experimental
+        recovery until an execution on this handle has fitted it), the request fields whose
+        change invalidates a retained fit (``fit_dependencies``; ``*`` is the whole request),
+        and the world ids of a typed-world family.
+        """
+        from ._cyclic_typed import family_facts
+
+        request = json.loads(self.request_json)
         if self._handle is None:
-            return {"family": json.loads(self.request_json)["family"], "preparation_evaluations": 0}
-        return dict(json.loads(self._handle.inspect()))
+            facts: dict[str, Any] = {"family": request["family"], "preparation_evaluations": 0}
+        else:
+            facts = dict(json.loads(self._handle.inspect()))
+        facts.update(family_facts(request, self._law))
+        if self.variable_names is not None:
+            facts["variables"] = list(self.variable_names)
+        return facts
+
+    def interventions(self, *, max_bytes: int | None = None, cancel: Any = None) -> Any:
+        """Execute and return the intervention worlds keyed by scientific world id.
+
+        Returns :class:`CyclicInterventions`: a :class:`WorldAnswer` per world of a specified
+        model (certificate, solve route, failed and withheld mass) or a
+        :class:`RecoveredWorldAnswer` per world of a recovered law (draw origin kept). A family
+        without intervention worlds raises :class:`CyclicRefusal` naming the typed families.
+        """
+        from ._cyclic_typed import _next_attempt_refusal
+
+        with self._lock:
+            self._prepare(max_bytes=max_bytes, cancel=cancel)
+            try:
+                payload, facts = self._handle.interventions(max_bytes=max_bytes, cancel=cancel)
+            except ValueError as error:
+                refusal = _next_attempt_refusal(error, "cyclic_family.interventions")
+                if refusal is None:
+                    raise
+                raise refusal from error
+        return CyclicInterventions._from_native(json.loads(payload), self.variable_names, facts)
 
     def evidence(
         self,
         schema: dict[str, Any],
-        selectors: list[dict[str, Any]],
+        selectors: list[Any],
         *,
         max_bytes: int | None = None,
         cancel: Any = None,
@@ -469,13 +612,20 @@ class PreparedCyclicFamily:
         Schema declares ``id``, ``population`` and ordered ``(name, units)``
         variables. Typed selectors bind the actual world, time and uncertainty
         port. Original diagnostics and failed slots remain part of the evidence.
+        Selectors are wire mappings or typed selectors (:class:`WorldSelector`,
+        :class:`RecoveredResponseSelector`, :class:`RecoveredDrawSelector`,
+        :class:`DynamicQuantitySelector`); a recovered law's port follows its draw origin.
         """
+        wire = [
+            item._wire(self.variable_names) if hasattr(item, "_wire") else item
+            for item in selectors
+        ]
         with self._lock:
             self._prepare(max_bytes=max_bytes, cancel=cancel)
         return CyclicEvidence(
             self._handle.evidence(
                 json.dumps(schema, allow_nan=False),
-                json.dumps(selectors, allow_nan=False),
+                json.dumps(wire, allow_nan=False),
                 max_bytes=max_bytes,
                 cancel=cancel,
             )
@@ -509,7 +659,7 @@ class PreparedCyclicFamily:
 
     def refresh(self, request_json: str) -> PreparedCyclicFamily:
         """Recompile changed inputs, reusing only compatible statistical products."""
-        refreshed = PreparedCyclicFamily(request_json)
+        refreshed = PreparedCyclicFamily(request_json, variable_names=self.variable_names)
         with self._lock:
             if self._handle is not None:
                 object.__setattr__(refreshed, "_handle", self._handle.rebind(request_json))
@@ -530,7 +680,11 @@ class PreparedCyclicFamily:
         with self._lock:
             self._prepare(max_bytes=max_bytes, cancel=cancel)
             report, artifact, facts = self._handle.execute(max_bytes=max_bytes, cancel=cancel)
-        return CyclicResult(json.loads(report), artifact, facts)
+            decoded = json.loads(report)
+            answer = decoded.get("answer", {})
+            if answer.get("family") == "experimental_recovery":
+                object.__setattr__(self, "_law", answer["result"]["law"])
+        return CyclicResult(decoded, artifact, facts)
 
 
 def prepare_recovered_linear(
@@ -604,6 +758,84 @@ class OdeSystem:
                 },
                 allow_nan=False,
             )
+        )
+
+    def worlds(
+        self,
+        initial: list[float],
+        times: list[float],
+        worlds: list[World],
+        *,
+        variables: list[str] | None = None,
+        initial_laws: list[str] | None = None,
+        policy: OdePolicy | None = None,
+        max_bytes: int | None = None,
+        cancel: Any = None,
+    ) -> PreparedCyclicFamily:
+        """Typed worlds of this initial-value problem, named by variable.
+
+        ``variables`` defaults to the equation ids and ``initial_laws`` (the declared
+        initial-state law of each state, replaced by :class:`InitialState`) to the variable
+        names. A ``Set`` is a sustained clamp from the first time; a ``Soft`` replaces or
+        changes the named mechanism. A disturbance ``Shift`` is refused with its next attempt:
+        this family has no structural disturbance. Trajectories are numerical integrations,
+        never certified solutions; times are in the system's own units.
+        """
+        from ._cyclic_typed import ode_worlds
+
+        return ode_worlds(
+            self,
+            initial,
+            times,
+            worlds,
+            variables=variables,
+            initial_laws=initial_laws,
+            policy=policy,
+            max_bytes=max_bytes,
+            cancel=cancel,
+        )
+
+    def infer(
+        self,
+        parameters: list[dict[str, Any]],
+        observations: list[dict[str, Any]],
+        *,
+        method: DynamicMethod,
+        sampling_design: SamplingDesign,
+        quantities: list[DynamicQuantity] | tuple[()] = (),
+        integration: OdePolicy | None = None,
+        learning_rate: float = 0.1,
+        score_tolerance: float = 1e-6,
+        max_iterations: int = 1000,
+        max_bytes: int | None = None,
+        cancel: Any = None,
+    ) -> PreparedCyclicFamily:
+        """Fit drift once, then attach sampling-law, information or posterior uncertainty.
+
+        ``observations`` are independent trajectories (the sampling units), as in
+        :meth:`fit`. ``method`` is :class:`DynamicBootstrap` (whole-procedure refits),
+        :class:`ObservedInformation` (delta method, only for a regular likelihood) or
+        :class:`DynamicPosterior`. ``quantities`` (:class:`OdeState`) are evaluated at every
+        replicate or draw. The point fit is shared across methods: rebinding only the method
+        or quantities reuses it. ``sampling_design`` is the study's declared design; the
+        bootstrap resamples the unit it names. Structure and observation variances are
+        specified, not estimated.
+        """
+        from ._cyclic_typed import infer_ode
+
+        return infer_ode(
+            self,
+            parameters,
+            observations,
+            method=method,
+            quantities=quantities,
+            sampling_design=sampling_design,
+            integration=integration,
+            learning_rate=learning_rate,
+            score_tolerance=score_tolerance,
+            max_iterations=max_iterations,
+            max_bytes=max_bytes,
+            cancel=cancel,
         )
 
     def fit(
@@ -702,6 +934,41 @@ class OrnsteinUhlenbeck:
                 },
                 allow_nan=False,
             )
+        )
+
+    def infer(
+        self,
+        parameters: list[dict[str, Any]],
+        rows: list[dict[str, Any]],
+        *,
+        method: DynamicMethod,
+        sampling_design: SamplingDesign,
+        quantities: list[DynamicQuantity] | tuple[()] = (),
+        options: FitOptions | None = None,
+        max_bytes: int | None = None,
+        cancel: Any = None,
+    ) -> PreparedCyclicFamily:
+        """Fit stationary drift/center once, then attach its declared uncertainty.
+
+        ``rows`` are independent stationary replicates under known sustained clamps (the
+        sampling units). ``method`` is :class:`DynamicBootstrap`,
+        :class:`ObservedInformation` or :class:`DynamicPosterior`; ``quantities``
+        (:class:`OuStationaryMean`, :class:`OuStationaryCovariance`) are evaluated at every
+        replicate or draw. Diffusion is specified, not estimated. An observed-information
+        covariance exists only for a regular likelihood; otherwise its reason is reported.
+        """
+        from ._cyclic_typed import infer_ou
+
+        return infer_ou(
+            self,
+            parameters,
+            rows,
+            method=method,
+            quantities=quantities,
+            sampling_design=sampling_design,
+            options=options,
+            max_bytes=max_bytes,
+            cancel=cancel,
         )
 
 
@@ -1613,6 +1880,44 @@ class OuMechanisms:
             )
         )
 
+    def infer(
+        self,
+        parameters: list[dict[str, Any]],
+        regimes: list[dict[str, Any]],
+        *,
+        method: DynamicMethod,
+        sampling_design: SamplingDesign,
+        quantities: list[DynamicQuantity] | tuple[()] = (),
+        learning_rate: float = 0.1,
+        score_tolerance: float = 1e-6,
+        max_iterations: int = 1000,
+        max_bytes: int | None = None,
+        cancel: Any = None,
+    ) -> PreparedCyclicFamily:
+        """Fit shared mechanisms once, then attach their declared uncertainty.
+
+        ``regimes`` are equation-replacement regimes ``{"id", "replacements", "values"}``;
+        each observation row is one sampling unit. ``quantities``
+        (:class:`OuMechanismMean`, :class:`OuMechanismCovariance`) are stationary laws after
+        equation replacements, evaluated at every replicate or draw. Known target mechanisms
+        stay fixed; identifiability of the estimated coordinates is a separate question.
+        """
+        from ._cyclic_typed import infer_ou_mechanisms
+
+        return infer_ou_mechanisms(
+            self,
+            parameters,
+            regimes,
+            method=method,
+            quantities=quantities,
+            sampling_design=sampling_design,
+            learning_rate=learning_rate,
+            score_tolerance=score_tolerance,
+            max_iterations=max_iterations,
+            max_bytes=max_bytes,
+            cancel=cancel,
+        )
+
 
 @dataclass(frozen=True)
 class AdamPolicy:
@@ -1628,3 +1933,81 @@ class AdamPolicy:
     l1_penalty: float = 0.001
     contraction_margin: float = 0.95
     seed: int = 0
+
+
+__all__ = [
+    "AdamPolicy",
+    "AsymptoticNormal",
+    "BipartiteCausalGraph",
+    "CyclicEvidence",
+    "CyclicGraph",
+    "CyclicInterventions",
+    "CyclicRefusal",
+    "CyclicResult",
+    "DynamicBootstrap",
+    "DynamicMethod",
+    "DynamicPosterior",
+    "DynamicQuantity",
+    "DynamicQuantitySelector",
+    "Equation",
+    "EquilibriumModel",
+    "ExperimentRegime",
+    "ExperimentalFitOptions",
+    "FitOptions",
+    "FlatCoefficients",
+    "IdentifiedCyclicFunctional",
+    "InitialState",
+    "InverseWishartDisturbance",
+    "KnownDisturbance",
+    "LinearCyclicModel",
+    "LocalCyclicModel",
+    "LocalMechanism",
+    "NormalCoefficients",
+    "ObservedInformation",
+    "OdePolicy",
+    "OdeState",
+    "OdeSystem",
+    "OrnsteinUhlenbeck",
+    "OuMechanismCovariance",
+    "OuMechanismMean",
+    "OuMechanisms",
+    "OuStationaryCovariance",
+    "OuStationaryMean",
+    "PolynomialCausalCandidate",
+    "PolynomialCausalModel",
+    "PolynomialExogenousAtom",
+    "PolynomialObservation",
+    "PolynomialSystem",
+    "PolynomialWorld",
+    "PreparedCyclicFamily",
+    "PreparedCyclicSystem",
+    "RecoveredDrawSelector",
+    "RecoveredResponseSelector",
+    "RecoveredWorldAnswer",
+    "RecoveryBootstrap",
+    "RecoveryPosterior",
+    "RecoveryPrior",
+    "RecoveryUncertainty",
+    "SamplingDesign",
+    "SamplingPolicy",
+    "Set",
+    "Shift",
+    "Soft",
+    "SolvePolicy",
+    "World",
+    "WorldAnswer",
+    "WorldSelector",
+    "action_worlds",
+    "bootstrap_responses",
+    "consume_artifact",
+    "consume_evidence",
+    "consume_family_artifact",
+    "discover_cyclic",
+    "fit_polynomial_candidates",
+    "joint_counterfactual",
+    "learn_structure",
+    "partial_counterfactual",
+    "posterior_responses",
+    "prepare_experimental_recovery",
+    "prepare_recovered_linear",
+]

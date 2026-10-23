@@ -353,6 +353,12 @@ status = "bound"
 python = "antecedent.composition_verification.consume_composition_verification_artifact"
 
 [[entry]]
+rust = "antecedent::analysis::interface_contract::check_interface_composition_with_cyclic"
+kind = "fn"
+status = "missing"
+reason = "composition of a certified cyclic component has no Python entry yet; next attempt: bind it in python/src/cyclic_system_api.rs next to as_component"
+
+[[entry]]
 rust = "antecedent::analysis::composition_verification::contract_effects"
 kind = "fn"
 status = "internal"
@@ -580,6 +586,18 @@ kind = "fn"
 status = "bound"
 python = "native:python/src/design_ranking_api.rs"
 reason = "evaluate_design_ranking; tested in python/tests/test_design_ranking.py"
+
+[[entry]]
+rust = "antecedent::analysis::design_ranking::compile_for_study"
+kind = "fn"
+status = "missing"
+reason = "compile of an EVSI request into a lowered plan has no Python entry yet; next attempt: bind it beside evaluate_design_ranking in python/src/design_ranking_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::design_ranking::evaluate_for_study"
+kind = "fn"
+status = "missing"
+reason = "evaluation bound to a lowered EVSI plan has no Python entry yet; next attempt: bind it beside evaluate_design_ranking in python/src/design_ranking_api.rs"
 
 [[entry]]
 rust = "antecedent::analysis::design_ranking::rank_structural"

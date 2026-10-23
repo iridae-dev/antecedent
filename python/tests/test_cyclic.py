@@ -23,6 +23,7 @@ from antecedent.cyclic import (
     consume_artifact,
     consume_family_artifact,
 )
+from antecedent.errors import CausalValueError
 
 
 def model() -> EquilibriumModel:
@@ -1444,6 +1445,7 @@ def test_cyclic_native_facts_survive_execution_cancellation_and_bad_artifact():
 
 def test_numpy_cyclic_output_keeps_admission_in_its_base_after_receipt_is_discarded():
     import gc
+
     import numpy as np
 
     system = EquilibriumModel((Equation("x", 0.0, (0.0,), "identity"),), (1.0,))
@@ -1457,3 +1459,440 @@ def test_numpy_cyclic_output_keeps_admission_in_its_base_after_receipt_is_discar
     gc.collect()
     assert np.asarray(retained).tolist() == [5.0, 6.0, 7.0, 8.0, 9.0]
     assert retained.base.base.admitted_bytes >= 80 * 8
+
+
+# Typed worlds, experimentally recovered laws and dynamic-fit inference. The feedback pair is
+# `A = 0.4 B + U_A`, `B = 0.5 A + U_B` with independent unit disturbances: the observational
+# B-on-A association is 1.40625 / 1.8125 (about 0.776), the hard-clamp derivative of B in A
+# is 0.5, and a unit mean shift of U_A moves B by 0.625 (and A by 1.25).
+
+
+def _fresh_replay(tmp_path: Path, program: str) -> str:
+    completed = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return completed.stdout
+
+
+def _feedback_linear():
+    from antecedent.cyclic import LinearCyclicModel
+
+    return LinearCyclicModel.from_direct_effects(["A", "B"], {("A", "B"): 0.4, ("B", "A"): 0.5})
+
+
+def _clamp_regimes(designs, *, rows=400, seed=20_251_023):
+    """Randomized clamp experiments on the feedback pair, one regime per design."""
+    import numpy as np
+    from antecedent.cyclic import ExperimentRegime
+
+    rng = np.random.default_rng(seed)
+    regimes = []
+    for source, clamped in enumerate(designs, start=1):
+        ua, ub = rng.standard_normal(rows), rng.standard_normal(rows)
+        if clamped is None:
+            a = (ua + 0.4 * ub) / 0.8
+            b = 0.5 * a + ub
+            clamps = {}
+        elif clamped == "A":
+            a = 2.0 + 1.5 * rng.standard_normal(rows)
+            b = 0.5 * a + ub
+            clamps = {"A": 2.0}
+        else:
+            b = 3.0 + 1.5 * rng.standard_normal(rows)
+            a = 0.4 * b + ua
+            clamps = {"B": 3.0}
+        regimes.append(ExperimentRegime({"A": a, "B": b}, source=source, clamps=clamps))
+    return regimes
+
+
+def _recovery(uncertainty, *, designs=(None, "A", "B"), worlds=None, sampling_design=None):
+    from antecedent.cyclic import Set, World, prepare_experimental_recovery
+
+    return prepare_experimental_recovery(
+        ["A", "B"],
+        _clamp_regimes(designs),
+        worlds or [World(1), World(2, Set("A", 2.0))],
+        outcome="B",
+        uncertainty=uncertainty,
+        source_id="clamp-experiments",
+        certifying_evidence=["held-out-regime"],
+        sampling_design=sampling_design,
+    )
+
+
+def test_linear_worlds_reproduce_the_analytic_feedback_pair_and_replay(tmp_path: Path) -> None:
+    from antecedent.cyclic import Set, Shift, World, WorldAnswer, WorldSelector, consume_evidence
+
+    prepared = _feedback_linear().worlds(
+        [World(0), World(1, Set("A", 0.0)), World(2, Set("A", 1.0)), World(3, Shift("A", 1.0))],
+        component_id="feedback",
+        source_id="specification",
+        certifying_evidence=["independent-bench-test"],
+    )
+    facts = prepared.inspect()
+    assert facts["family"] == "linear_worlds"
+    assert facts["preparation_evaluations"] == 0
+    assert facts["worlds"] == [0, 1, 2, 3]
+    assert facts["variables"] == ["A", "B"]
+    assert facts["draw_origin"] is None
+    worlds = prepared.interventions()
+    assert list(worlds) == [0, 1, 2, 3]
+    assert all(isinstance(world, WorldAnswer) for world in worlds.values())
+    observational = worlds[0]
+    association = observational.covariance("A", "B") / observational.covariance("A", "A")
+    assert association == pytest.approx(1.40625 / 1.8125, abs=1e-10)
+    assert association == pytest.approx(0.776, abs=5e-4)
+    derivative = worlds[2].mean("B") - worlds[1].mean("B")
+    assert derivative == pytest.approx(0.5, abs=1e-10)
+    assert worlds[3].mean("B") == pytest.approx(0.625, abs=1e-10)
+    assert worlds[3].mean("A") == pytest.approx(1.25, abs=1e-10)
+    for world in worlds.values():
+        assert world.certified
+        assert world.certificate["basis"] == "linear_family_contraction"
+        assert world.failed_mass == 0.0
+        assert world.physical_stability == "unclaimed"
+    assert worlds[1].solved_by["method"] == "acyclic_order"
+    assert worlds[3].solved_by["method"] == "strongly_connected_blocks"
+    assert worlds[1].actions[0]["kind"] == "hard_clamp"
+    assert worlds[1].actions[0]["name"] == "A"
+    assert worlds[3].actions[0]["kind"] == "additive_shock"
+
+    result = prepared.execute()
+    assert consume_family_artifact(result.export(), expected_identity=result.identity).report == (
+        result.report
+    )
+    schema = {"id": "feedback", "population": "model", "variables": [["A", "unit"], ["B", "unit"]]}
+    evidence = prepared.evidence(schema, [WorldSelector(3, "B")])
+    column = evidence.report["columns"][0]
+    assert column["port"] == "interventional_law"
+    assert column["samples"][0] == pytest.approx(0.625, abs=1e-10)
+    assert consume_evidence(evidence.export(), expected_identity=evidence.identity).report == (
+        evidence.report
+    )
+    path = tmp_path / "linear-worlds.ant"
+    path.write_bytes(result.export())
+    replayed = _fresh_replay(
+        tmp_path,
+        "import json,pathlib; from antecedent.cyclic import consume_family_artifact; "
+        + f"print(json.dumps(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(),"
+        + f"expected_identity={result.identity!r}).report,sort_keys=True))",
+    )
+    assert json.loads(replayed) == result.report
+
+
+def test_unsolvable_clamp_is_failed_mass_and_reading_it_names_the_next_attempt() -> None:
+    from antecedent.cyclic import LinearCyclicModel, Set, World
+
+    # A = B + C, B = A, C = A: the full system solves; do(C = 1) leaves 0 = 1 + U_A + U_B.
+    model = LinearCyclicModel.from_direct_effects(
+        ["A", "B", "C"],
+        {("A", "B"): 1.0, ("A", "C"): 1.0, ("B", "A"): 1.0, ("C", "A"): 1.0},
+    )
+    worlds = model.worlds(
+        [World(0), World(1, Set("C", 1.0))],
+        component_id="loops",
+        source_id="specification",
+        certifying_evidence=["independent-bench-test"],
+        certificate="report_uncertified",
+    ).interventions()
+    assert not worlds[0].certified
+    assert worlds[0].certificate["next_attempt"] is not None
+    clamped = worlds[1]
+    assert clamped.status == "no_solution"
+    assert clamped.failed_mass == 1.0
+    assert clamped.solved_by["method"] == "not_solved"
+    with pytest.raises(CyclicRefusal, match="no gaussian law") as refused:
+        clamped.mean("B")
+    assert refused.value.next_attempt
+    assert refused.value.reason_code == "route_not_supported"
+
+
+def test_equilibrium_and_ode_worlds_share_draws_initial_laws_and_refuse_shocks() -> None:
+    from antecedent.cyclic import InitialState, Set, Shift, World
+
+    feedback = EquilibriumModel(
+        (
+            Equation("a", 0.0, (0.0, 0.4), "identity"),
+            Equation("b", 0.0, (0.5, 0.0), "identity"),
+        ),
+        (1.0, 0.0, 0.0, 1.0),
+    )
+    worlds = feedback.worlds(
+        [World(0), World(1, Set("a", 2.0))], [[0.0, 0.0], [1.0, 0.0]]
+    ).interventions()
+    assert worlds[0].draws("b")[1] == pytest.approx(0.625, abs=1e-6)
+    assert worlds[0].draws("a")[1] == pytest.approx(1.25, abs=1e-6)
+    assert worlds[1].draws("b")[1] == pytest.approx(1.0, abs=1e-6)
+    with pytest.raises(CyclicRefusal, match="equilibrium_draws") as wrong_kind:
+        worlds[0].mean("b")
+    assert "draws()" in wrong_kind.value.next_attempt
+
+    decay = OdeSystem((Equation("x", 0.0, (0.0,), "identity"),), (1.0,))
+    trajectories = decay.worlds(
+        [2.0], [0.0, 1.0], [World(0), World(1, initial_states=InitialState("x", 4.0))]
+    ).interventions()
+    assert trajectories[0].trajectory("x")[1] == pytest.approx(2.0 * math.exp(-1.0), rel=1e-6)
+    assert trajectories[1].trajectory("x")[1] == pytest.approx(4.0 * math.exp(-1.0), rel=1e-6)
+    assert trajectories[1].certificate["gap"] == "numerical_integration_only"
+    assert trajectories[1].actions[0]["kind"] == "initial_state_change"
+    with pytest.raises(CyclicRefusal, match="shift") as refused:
+        # Admission or evaluation refuses the shock; either names its next attempt.
+        decay.worlds([2.0], [0.0, 1.0], [World(0, Shift("x", 1.0))]).interventions()
+    assert refused.value.next_attempt
+
+
+def test_experimental_recovery_keeps_each_draw_origin_through_worlds_evidence_and_replay() -> None:
+    from antecedent.cyclic import (
+        AsymptoticNormal,
+        FlatCoefficients,
+        KnownDisturbance,
+        RecoveredDrawSelector,
+        RecoveredResponseSelector,
+        RecoveredWorldAnswer,
+        RecoveryBootstrap,
+        RecoveryPosterior,
+        RecoveryPrior,
+        consume_evidence,
+    )
+
+    posterior = RecoveryPosterior(
+        RecoveryPrior(FlatCoefficients(), KnownDisturbance({"A": 1.0, "B": 1.0})), draws=32, seed=3
+    )
+    cases = [
+        (AsymptoticNormal(64, seed=7), None, "asymptotic_normal", "sampling_law", 64),
+        (
+            RecoveryBootstrap(12, seed=4),
+            "independent_subject_trajectories",
+            "bootstrap",
+            "sampling_law",
+            12,
+        ),
+        (posterior, None, "posterior", "parameter_posterior", 32),
+    ]
+    schema = {"id": "feedback", "population": "units", "variables": [["A", "unit"], ["B", "unit"]]}
+    for uncertainty, design, origin, meaning, draws in cases:
+        prepared = _recovery(uncertainty, sampling_design=design)
+        facts = prepared.inspect()
+        assert facts["family"] == "experimental_recovery"
+        assert facts["preparation_evaluations"] == 0
+        assert facts["draw_origin"]["origin"] == origin
+        assert facts["law_meaning"] == meaning
+        assert facts["unresolved_directions"] is None
+        assert {"regimes", "samples", "inference"} <= set(facts["fit_dependencies"])
+        assert "worlds" not in facts["fit_dependencies"]
+        assert facts["worlds"] == [1, 2]
+        if origin == "bootstrap":
+            assert facts["draw_origin"]["design"] == "independent_subject_trajectories"
+            assert facts["draw_origin"]["rule"] == "row_subject_iid"
+
+        result = prepared.execute()
+        law = result.report["answer"]["result"]
+        assert law["law_meaning"] == meaning
+        assert law["law"]["origin"]["origin"] == origin
+        assert len(law["law"]["draws"]) == draws
+        assert prepared.inspect()["unresolved_directions"] == []
+        worlds = prepared.interventions()
+        assert list(worlds) == [1, 2]
+        clamped = worlds[2]
+        assert isinstance(clamped, RecoveredWorldAnswer)
+        assert clamped.law_meaning == meaning
+        assert clamped.mean() == pytest.approx(1.0, abs=0.2)
+        assert consume_family_artifact(
+            result.export(), expected_identity=result.identity
+        ).report == (result.report)
+        evidence = prepared.evidence(
+            schema,
+            [RecoveredResponseSelector(1, 1), RecoveredDrawSelector(1, 0, 1)],
+        )
+        response, within = evidence.report["columns"]
+        assert response["port"] == meaning
+        assert len(response["samples"]) == draws
+        assert within["port"] == "interventional_law"
+        assert consume_evidence(evidence.export(), expected_identity=evidence.identity).report == (
+            evidence.report
+        )
+
+
+def test_uncovered_recovery_rows_stay_unresolved_and_withhold_their_mass() -> None:
+    from antecedent.cyclic import AsymptoticNormal
+
+    # Without a regime that clamps B, the row into A is uncovered: no draw completes it.
+    prepared = _recovery(AsymptoticNormal(16, seed=9), designs=(None, "A"))
+    prepared.execute()
+    facts = prepared.inspect()
+    assert facts["unresolved_directions"]
+    assert set(facts["draw_status"]) == {"unresolved"}
+    clamped = prepared.interventions()[2]
+    assert clamped.mixture_mean is None
+    assert clamped.withheld_mass == pytest.approx(1.0, abs=1e-12)
+    with pytest.raises(CyclicRefusal, match="withheld") as refused:
+        clamped.mean()
+    assert "clamps each missing source" in refused.value.next_attempt
+
+
+def test_recovery_and_world_refusals_name_their_next_attempt() -> None:
+    from antecedent import _native
+    from antecedent.cyclic import AsymptoticNormal, RecoveryBootstrap, Set, Shift, World
+
+    with pytest.raises(CyclicRefusal, match="hard clamps only") as shift:
+        _recovery(AsymptoticNormal(4, seed=1), worlds=[World(1), World(3, Shift("A", 1.0))])
+    assert "linear_worlds" in shift.value.next_attempt
+    assert shift.value.reason_code in _native.runtime_refusal_codes()
+
+    with pytest.raises(CyclicRefusal, match="no sampling design") as undeclared:
+        _recovery(RecoveryBootstrap(8, seed=1))
+    assert undeclared.value.reason_code == "required_option_missing"
+    assert "sampling_design=" in undeclared.value.next_attempt
+
+    with pytest.raises(CyclicRefusal, match="clustered_panel") as clustered:
+        _recovery(AsymptoticNormal(8, seed=1), sampling_design="clustered_panel")
+    assert clustered.value.reason_code == "estimator_inference_mismatch"
+    assert "RecoveryBootstrap" in clustered.value.next_attempt
+
+    with pytest.raises(CyclicRefusal, match="not declared") as unknown:
+        _recovery(AsymptoticNormal(8, seed=1), worlds=[World(1, Set("C", 1.0))])
+    assert unknown.value.reason_code == "unknown_variable"
+    assert "'A'" in unknown.value.next_attempt
+
+    with pytest.raises(CyclicRefusal, match="requested twice") as repeated:
+        _feedback_linear().worlds(
+            [World(3), World(3, Set("A", 1.0))],
+            component_id="feedback",
+            source_id="specification",
+            certifying_evidence=["independent-bench-test"],
+        )
+    assert "own id" in repeated.value.next_attempt
+
+    with pytest.raises(CausalValueError, match="sampling_design"):
+        _recovery(AsymptoticNormal(8, seed=1), sampling_design="rows")
+
+
+def test_system_family_and_families_without_worlds_refuse_interventions() -> None:
+    system = model().prepare([[], [{"variable": 0, "value": 2.0}]], [[0.1, 0.2]])
+    family = system.to_family()
+    facts = family.inspect()
+    assert facts["family"] == "system"
+    assert facts["preparation_evaluations"] == 0
+    assert facts["fit_dependencies"] == ["request.model", "request.fit"]
+    assert facts["variables"] == ["a", "b"]
+    answer = family.execute()
+    assert answer.report["answer"]["family"] == "system"
+    assert answer.report["answer"]["result"]["worlds"] == system.execute().report["worlds"]
+    assert consume_family_artifact(answer.export(), expected_identity=answer.identity).report == (
+        answer.report
+    )
+    with pytest.raises(CyclicRefusal, match="no intervention worlds") as refused:
+        family.interventions()
+    assert "linear_worlds" in refused.value.next_attempt
+
+
+def _ou_rows(seed: int = 7):
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    return [{"values": [0.5 + float(value)], "clamps": []} for value in rng.standard_normal(300)]
+
+
+def test_dynamic_inference_shares_its_fit_across_methods_and_binds_its_port(
+    tmp_path: Path,
+) -> None:
+    from antecedent.cyclic import (
+        DynamicBootstrap,
+        DynamicPosterior,
+        DynamicQuantitySelector,
+        ObservedInformation,
+        OuStationaryMean,
+    )
+
+    process = OrnsteinUhlenbeck((-1.0,), (0.0,), (4.0,))
+    parameters = [{"kind": "drift", "row": 0, "column": 0}, {"kind": "center", "variable": 0}]
+    rows = _ou_rows()
+    quantities = [OuStationaryMean(0)]
+
+    def infer(method):
+        return process.infer(
+            parameters,
+            rows,
+            method=method,
+            quantities=quantities,
+            sampling_design="independent_subject_trajectories",
+        )
+
+    information = infer(ObservedInformation())
+    facts = information.inspect()
+    assert facts["family"] == "dynamic_inference"
+    assert facts["uncertainty_method"] == "information"
+    assert facts["law_meaning"] == "covariance_influence"
+    assert facts["fit_dependencies"] == ["problem"]
+    first = information.execute().report["answer"]["result"]
+    observed = first["inference"]["result"]
+    assert first["inference"]["method"] == "information"
+    assert observed["quantity_estimates"][0] == pytest.approx(0.5, abs=0.25)
+    assert observed["quantity_standard_errors"][0] is not None
+
+    bootstrap = information.refresh(infer(DynamicBootstrap(20, seed=11)).request_json)
+    result = bootstrap.execute()
+    second = result.report["answer"]["result"]
+    assert second["fit"] == first["fit"]
+    assert len(second["inference"]["result"]["replicates"]) == 20
+    schema = {"id": "process", "population": "system", "variables": [["x", "unit"]]}
+    evidence = bootstrap.evidence(schema, [DynamicQuantitySelector(0)])
+    assert evidence.report["columns"][0]["port"] == "sampling_law"
+    assert len(evidence.report["columns"][0]["samples"]) == 20
+
+    posterior = infer(
+        DynamicPosterior((-1.0, 0.0), (10.0, 10.0), seed=13, chains=2, warmup=50, draws=50)
+    )
+    draws = posterior.execute().report["answer"]["result"]["inference"]["result"]
+    assert len(draws["quantity_draws"]) == 100
+    assert posterior.evidence(schema, [DynamicQuantitySelector(0)]).report["columns"][0][
+        "port"
+    ] == ("parameter_posterior")
+
+    path = tmp_path / "dynamic.ant"
+    path.write_bytes(result.export())
+    replayed = _fresh_replay(
+        tmp_path,
+        "import json,pathlib; from antecedent.cyclic import consume_family_artifact; "
+        + f"print(json.dumps(consume_family_artifact(pathlib.Path({str(path)!r}).read_bytes(),"
+        + f"expected_identity={result.identity!r}).report,sort_keys=True))",
+    )
+    assert json.loads(replayed) == result.report
+
+    with pytest.raises(CyclicRefusal, match="sampling design") as undeclared:
+        process.infer(parameters, rows, method=ObservedInformation(), sampling_design=None)
+    assert undeclared.value.reason_code == "required_option_missing"
+
+
+def test_recovered_law_and_its_evidence_replay_in_a_fresh_process(tmp_path: Path) -> None:
+    from antecedent.cyclic import RecoveredResponseSelector, RecoveryBootstrap
+
+    prepared = _recovery(
+        RecoveryBootstrap(8, seed=5), sampling_design="independent_subject_trajectories"
+    )
+    result = prepared.execute()
+    schema = {"id": "feedback", "population": "units", "variables": [["A", "unit"], ["B", "unit"]]}
+    evidence = prepared.evidence(schema, [RecoveredResponseSelector(1, 1)])
+    family_path = tmp_path / "recovery.ant"
+    family_path.write_bytes(result.export())
+    evidence_path = tmp_path / "recovery-evidence.ant"
+    evidence_path.write_bytes(evidence.export())
+    replayed = _fresh_replay(
+        tmp_path,
+        "import json,pathlib; from antecedent.cyclic import consume_evidence, "
+        + "consume_family_artifact; "
+        + f"f=consume_family_artifact(pathlib.Path({str(family_path)!r}).read_bytes(),"
+        + f"expected_identity={result.identity!r}); "
+        + f"e=consume_evidence(pathlib.Path({str(evidence_path)!r}).read_bytes(),"
+        + f"expected_identity={evidence.identity!r}); "
+        + "print(json.dumps([f.report,e.report],sort_keys=True))",
+    )
+    family_report, evidence_report = json.loads(replayed)
+    assert family_report == result.report
+    assert evidence_report == evidence.report
+    assert evidence_report["columns"][0]["port"] == "sampling_law"
