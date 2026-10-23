@@ -8,6 +8,7 @@
 pub mod adaptive_inference;
 pub mod ci;
 pub mod cluster;
+pub mod continuous_error;
 pub mod covariance;
 mod cox_ipcw;
 pub mod dcor;
@@ -31,6 +32,7 @@ pub mod m_estimate;
 pub mod matching;
 pub mod measurement_error;
 pub mod observation;
+pub mod power;
 pub use cox_ipcw::{CoxBreslowFit, CoxIpcwFit, cox_breslow, cox_ipcw};
 pub mod propensity;
 pub mod quantile;

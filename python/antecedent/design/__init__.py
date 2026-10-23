@@ -24,12 +24,17 @@ One entry point, :func:`rank_designs`, and one result, :class:`DesignRankingResu
   Each entry retains the actual implemented functional and evaluation method.
 
 :func:`evaluate_decision` scores one decision with a Python utility callback.
+
+:func:`plan_experiment` (and the :mod:`antecedent.design.planning` module) plans the power,
+sample size or minimum detectable effect of a randomized design; a plan's
+``sampling_plan()`` / ``experiment_plan()`` carry its sample size into ``rank_designs``.
 """
 
 from __future__ import annotations
 
 from .._native import DecisionEvaluation
 from .._native import evaluate_decision_py as evaluate_decision
+from . import planning as planning
 from ._declarations import (
     ARTIFACT_KIND,
     CALIBRATION,
@@ -72,6 +77,7 @@ from .objectives import (
     MeasurementColumn,
     ModelDistinction,
 )
+from .planning import PlanningResult, plan_experiment
 from .plans import (
     DesignPlan,
     Environment,
@@ -139,6 +145,7 @@ __all__ = [
     "IntegrationReport",
     "Measurement",
     "MonteCarlo",
+    "PlanningResult",
     "ProviderIdentity",
     "Sampling",
     "SignalProvider",
@@ -159,6 +166,7 @@ __all__ = [
     "RolloutResult",
     "evaluate_decision",
     "evsi",
+    "plan_experiment",
     "rank_designs",
     "rank_structural",
 ]

@@ -13,6 +13,18 @@ use crate::analysis::CausalContract;
 use crate::error::CausalError;
 use crate::support::CellStatus;
 
+/// Experiment planning types; [`crate::analysis::planning`] compiles and
+/// executes a plan. A plan's `experiment_candidate` and `sampling_candidate`
+/// feed [`rank_designs_bound`] with the planned sample size.
+pub use crate::analysis::planning::{PlannedExperiment, PlanningPlan, STANDALONE_PLANNING};
+pub use antecedent_design::planning::{
+    AnalyticCharacteristics, ArmComparison, FactorialContrast, FamilyCharacteristics, FamilyPower,
+    FamilySimulation, InterferenceExposure, Multiplicity, NormalPrior, OutcomeModel,
+    PLANNING_NEXT_ATTEMPTS, PlannedDesign, PlanningAssumptions, PlanningCriterion, PlanningGoal,
+    PlanningRefusal, PlanningRequest, PlanningResult, SequentialCharacteristics,
+    SequentialSimulation, SimulatedCharacteristics, SimulationSpec, StratumSpec, SuccessCriterion,
+    TestSidedness,
+};
 pub use antecedent_design::{
     AffineUtility, BinomialSignal, CandidateDesign, ConstraintViolation, DecisionConstraint,
     DecisionEvaluation, DecisionPrior, DecisionProblem, DecisionProblemId, DecisionRegistry,
@@ -32,6 +44,7 @@ pub use antecedent_design::{
     StudyPlanProposal, StudyPlanResult, StudyPlanRoute, StudyPlanStop, StudyProposal,
     StudySubsetOutcome, plan_studies,
 };
+pub use antecedent_stats::adaptive_inference::group_sequential::SpendingFunction;
 
 /// Obligations inspected before the existing ranker runs.
 ///

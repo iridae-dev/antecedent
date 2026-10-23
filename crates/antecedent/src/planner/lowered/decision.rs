@@ -538,6 +538,7 @@ pub struct EvidenceDecisionProgram {
     pub(crate) sources: Arc<[EvidenceSourceRef]>,
     pub(crate) composition: Composition,
     pub(crate) decision: Option<DecisionProgram>,
+    pub(crate) planning: Option<super::planning::PlanningProgram>,
 }
 
 impl EvidenceDecisionProgram {
@@ -557,6 +558,12 @@ impl EvidenceDecisionProgram {
     #[must_use]
     pub const fn decision(&self) -> Option<&DecisionProgram> {
         self.decision.as_ref()
+    }
+
+    /// The planning request compile started from, when it started from one.
+    #[must_use]
+    pub const fn planning(&self) -> Option<&super::planning::PlanningProgram> {
+        self.planning.as_ref()
     }
 
     /// Identity of this layer.
@@ -584,6 +591,11 @@ impl EvidenceDecisionProgram {
             None => {
                 writer.word(0);
             }
+        }
+        // Written only when present, so a program without a planning request
+        // keeps the identity it had before planning goals existed.
+        if let Some(planning) = &self.planning {
+            planning.write(&mut writer);
         }
         SemanticDigest::from_bytes(writer.finish())
     }

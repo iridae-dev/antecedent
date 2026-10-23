@@ -28,6 +28,14 @@ Carlo error, `rank_uncertain` and the whole ranking's `calibration == "unmeasure
 are diagnostics, not licensed intervals. A ranking recommends an action; it does
 not run it.
 
+A candidate's sample size can come from a plan: `design.plan_experiment` (see
+[power and sample size](guides/power-and-sample-size.md)) solves the size of a randomized
+design for a target power, assurance or posterior precision, and the plan's
+`sampling_plan()` or `experiment_plan(targets)` is a plan for `rank_designs` whose sample
+budget is that planned size. In Rust, `PlanningResult::sampling_candidate`,
+`experiment_candidate` and `future_data` give the `CandidateDesign` for `rank_designs_bound`
+and the future data of a value-of-information evaluation.
+
 The former `design_ranking` module is gone; there is no second ranking surface.
 `rank_structural` remains a compatibility view of `rank_designs` for structural
 declarations (see the end of this page).

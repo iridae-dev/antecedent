@@ -3,7 +3,9 @@
 //!
 //! A decision or value-of-information goal states the carrier it demands. The
 //! lowering checks that demand against the route's statistical realization and
-//! refuses, naming the next attempt, when the realization cannot publish it.
+//! refuses, naming the next attempt, when the realization cannot publish it. A
+//! planning goal carries the declared request of a future trial analysed as the
+//! route; its identity enters layer four.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -14,6 +16,7 @@ use crate::analysis::execute::require_carrier;
 use crate::error::CausalError;
 use crate::planner::lowered::{
     Composition, DecisionProgram, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef,
+    PlanningProgram,
 };
 use crate::planner::statistical::StatisticalProgram;
 
@@ -27,14 +30,24 @@ pub(crate) enum CompileGoal {
     /// A preposterior value-of-information request. The program's
     /// [`DecisionProgram::information_value`] is always present.
     Evsi(DecisionProgram),
+    /// An experiment-planning request for a future trial analysed as this route.
+    Planning(PlanningProgram),
 }
 
 impl CompileGoal {
     /// The decision the goal carries, when it carries one.
     pub(crate) const fn decision(&self) -> Option<&DecisionProgram> {
         match self {
-            Self::Estimate => None,
+            Self::Estimate | Self::Planning(_) => None,
             Self::Decision(program) | Self::Evsi(program) => Some(program),
+        }
+    }
+
+    /// The planning request the goal carries, when it carries one.
+    pub(crate) const fn planning(&self) -> Option<&PlanningProgram> {
+        match self {
+            Self::Planning(program) => Some(program),
+            Self::Estimate | Self::Decision(_) | Self::Evsi(_) => None,
         }
     }
 }
@@ -69,5 +82,6 @@ pub(super) fn evidence_program(
         }]),
         composition,
         decision,
+        planning: cx.goal.planning().cloned(),
     })
 }

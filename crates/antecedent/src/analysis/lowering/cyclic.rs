@@ -287,6 +287,7 @@ fn evidence_program(payloads: &CyclicContractPayloads) -> EvidenceDecisionProgra
         sources: Arc::from(sources),
         composition: Composition::Single,
         decision: None,
+        planning: None,
     }
 }
 

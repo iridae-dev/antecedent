@@ -14,6 +14,7 @@
 
 mod decision;
 mod linear_gaussian;
+mod planning;
 
 use std::sync::Arc;
 
@@ -35,6 +36,7 @@ pub(crate) use linear_gaussian::{
     linear_gaussian_physical_operators, linear_gaussian_program_operators,
     linear_gaussian_scientific_problem,
 };
+pub use planning::{PlanningProgram, SIMULATION_RECORD_BYTES, SimulationQuote};
 
 const LOWERED_PROGRAM_TAG: &str = "antecedent.lowered_program";
 
@@ -607,14 +609,57 @@ impl CyclicLoweredParts {
     }
 }
 
+/// The parts a standalone planning lowering assembles: a future trial of a
+/// declared design, with no data bound. [`Self::finish`] computes the identity.
+pub(crate) struct PlanningLoweredParts {
+    /// Stable name of the planned design.
+    pub(crate) design: &'static str,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl PlanningLoweredParts {
+    /// Seal the parts into a lowered program for the planned design.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::Planning(self.design);
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(self.design).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+        }
+    }
+}
+
 /// The compiled cell a lowered program was lowered for: a route cell of
-/// `Study::compile`, or a cyclic family that prepares through its own entry.
+/// `Study::compile`, a cyclic family that prepares through its own entry, or a
+/// standalone experiment plan.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(crate) enum ProgramCell {
     /// A registered route cell.
     Route(RouteCell),
     /// A cyclic family, by its stable family name.
     CyclicFamily(&'static str),
+    /// A standalone experiment plan, by its design name.
+    Planning(&'static str),
 }
 
 impl ProgramCell {
@@ -623,6 +668,7 @@ impl ProgramCell {
         match self {
             Self::Route(cell) => cell.as_str(),
             Self::CyclicFamily(_) => "CyclicFamily",
+            Self::Planning(_) => "ExperimentPlanning",
         }
     }
 }
@@ -670,7 +716,16 @@ impl LoweredProgram {
     pub const fn cyclic_family(&self) -> Option<&'static str> {
         match self.cell {
             ProgramCell::CyclicFamily(family) => Some(family),
-            ProgramCell::Route(_) => None,
+            ProgramCell::Route(_) | ProgramCell::Planning(_) => None,
+        }
+    }
+
+    /// Stable design name when this program was lowered for a standalone experiment plan.
+    #[must_use]
+    pub const fn planned_design(&self) -> Option<&'static str> {
+        match self.cell {
+            ProgramCell::Planning(design) => Some(design),
+            ProgramCell::Route(_) | ProgramCell::CyclicFamily(_) => None,
         }
     }
 

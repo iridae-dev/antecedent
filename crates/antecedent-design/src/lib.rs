@@ -32,6 +32,7 @@ pub mod joint_coupling;
 pub mod objective;
 pub mod obligation_adapters;
 mod plan_common;
+pub mod planning;
 pub mod preposterior;
 pub mod prior_signal;
 pub mod program_search;
