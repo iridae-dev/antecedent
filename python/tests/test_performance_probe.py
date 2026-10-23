@@ -55,7 +55,7 @@ def test_python_performance_probe_keeps_all_repeats_and_uncertainty(repo_root, t
         capture_output=True,
         text=True,
     )
-    report = json.loads(output.read_text())
+    report = json.loads(output.read_text(encoding="utf-8"))
     assert report["scope"] == "diagnostic_subset_not_full_N20_acceptance"
     assert len(report["native_sha256"]) == 64
     assert len(report["cells"]) == 4
@@ -102,7 +102,7 @@ def test_wide_gaussian_probe_profiles_complete_prepared_calls(repo_root, tmp_pat
         capture_output=True,
         text=True,
     )
-    report = json.loads(output.read_text())
+    report = json.loads(output.read_text(encoding="utf-8"))
     assert report["width"] == 32
     assert len(report["cells"]) == 2
     for cell in report["cells"]:
@@ -136,7 +136,7 @@ def test_capability_preflight_checks_science_without_collecting_timings(repo_roo
         capture_output=True,
         text=True,
     )
-    report = json.loads(output.read_text())
+    report = json.loads(output.read_text(encoding="utf-8"))
     assert report["timed"] is False
     assert report["warmups"] == 0
     assert {cell["capability"] for cell in report["cells"]} == set(names)

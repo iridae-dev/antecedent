@@ -12,7 +12,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import policy
-from antecedent.errors import CausalUnsupportedError
+from antecedent.errors import CausalError, CausalUnsupportedError
 from antecedent.ids import Estimator
 from antecedent.quasi import PeriodHistoryMatch
 from antecedent.regimes import LongitudinalRegime, SequentialContrast
@@ -78,7 +78,8 @@ def test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior() -> N
     result = ant.analyze(
         _panel(),
         query=_contrast_query(),
-        inference=ant.Bayesian(n_draws=2000),
+        inference=ant.Bayesian(backend="conjugate", n_draws=2000),
+        return_posterior_artifact=True,
         estimator=Estimator.BAYESIAN_SEQUENTIAL_CROSSFIT_CONTRAST,
         refute="none",
         seed=3,
@@ -88,7 +89,7 @@ def test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior() -> N
     assert result.posterior is not None
     scores = np.asarray(fit.contrast_scores)
     expected = np.sqrt(scores.var() / (scores.size + 1.0))
-    draws = np.asarray(result.posterior.draws)[:, 0]
+    draws = _draws(result)[:, 0]
     assert draws.mean() == pytest.approx(fit.contrast, abs=0.05)
     assert draws.std(ddof=1) == pytest.approx(expected, rel=0.08)
 
@@ -117,6 +118,13 @@ def test_sequential_contrast_refusals_and_estimator_ids_are_typed() -> None:
     assert positivity.value.reason_code == "positivity_violated"
 
 
+def _draws(result: object) -> np.ndarray:
+    """The retained joint draws (stored quantity by quantity): a row per draw, a column per quantity."""
+    artifact = ant.inference.decode_posterior_artifact(result.posterior.artifact)  # type: ignore[attr-defined]
+    flat = np.asarray(artifact.draws)
+    return flat.reshape(len(artifact.quantity_names), artifact.n_draws).T
+
+
 def _policy_query(**overrides: object) -> policy.PolicyValue:
     args: dict[str, object] = {
         "outcome": "y",
@@ -134,7 +142,8 @@ def test_binary_policy_posterior_matches_the_hand_scores() -> None:
     result = ant.analyze(
         {"y": np.array([3.0, 5.0, 2.0, 1.0])},
         query=_policy_query(),
-        inference=ant.Bayesian(n_draws=6000),
+        inference=ant.Bayesian(backend="conjugate", n_draws=6000),
+        return_posterior_artifact=True,
         refute="none",
         seed=5,
     )
@@ -144,7 +153,7 @@ def test_binary_policy_posterior_matches_the_hand_scores() -> None:
     assert value.reference_value == pytest.approx(1.5)
     assert value.incremental_value == pytest.approx(2.5)
     assert result.posterior is not None
-    draws = np.asarray(result.posterior.draws)
+    draws = _draws(result)
     scores = np.array([6.0, 10.0, -4.0, -2.0])
     assert draws[:, 0].mean() == pytest.approx(2.5, abs=0.1)
     assert draws[:, 0].std(ddof=1) == pytest.approx(np.sqrt(scores.var() / 5.0), rel=0.08)
@@ -175,7 +184,8 @@ def test_sequential_regime_posterior_matches_the_hand_recursion() -> None:
     result = ant.analyze(
         {"y": np.array([5.0, 4.0, 3.0, 0.0])},
         query=_regime_query(),
-        inference=ant.Bayesian(n_draws=6000),
+        inference=ant.Bayesian(backend="conjugate", n_draws=6000),
+        return_posterior_artifact=True,
         refute="none",
         seed=6,
     )
@@ -183,7 +193,7 @@ def test_sequential_regime_posterior_matches_the_hand_recursion() -> None:
     assert regime is not None and regime.value == pytest.approx(4.5)
     assert regime.value_interval_95 is None
     assert result.posterior is not None
-    draws = np.asarray(result.posterior.draws)[:, 0]
+    draws = _draws(result)[:, 0]
     scores = np.array([12.0, 4.0, 1.0, 1.0])
     assert draws.mean() == pytest.approx(4.5, abs=0.15)
     assert draws.std(ddof=1) == pytest.approx(np.sqrt(scores.var() / 5.0), rel=0.08)
@@ -197,11 +207,11 @@ def test_sequential_regime_posterior_refuses_other_methods() -> None:
         prediction_fold_ids=None,
         excluded_fold_predictions=False,
     )
-    with pytest.raises(CausalUnsupportedError) as raised:
+    with pytest.raises(CausalError) as raised:
         ant.analyze(
             {"y": np.array([5.0, 4.0, 3.0, 0.0])},
             query=ipw,
-            inference=ant.Bayesian(n_draws=100),
+            inference=ant.Bayesian(backend="conjugate", n_draws=100),
             refute="none",
         )
     assert raised.value.reason_code == "route_not_supported"

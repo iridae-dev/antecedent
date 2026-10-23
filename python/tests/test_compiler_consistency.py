@@ -280,12 +280,19 @@ def test_bayesian_request_with_a_frequentist_estimator_is_refused_by_code() -> N
                 estimator=estimator,
                 refute="none",
             )
-        assert caught.value.reason_code == "estimator_inference_mismatch"
         message = str(caught.value)
-        # The refusal names the estimator and both ways forward; nothing is lost:
-        # the estimator still runs under the inference it implements.
-        assert f"estimator {estimator} is Frequentist" in message
-        assert "Omit estimator=" in message and "inference=Frequentist" in message
+        if estimator == "propensity.weighting":
+            # A propensity posterior is not an effect posterior, so the boundary names the
+            # missing outcome law and its next attempt instead of the generic mismatch.
+            assert caught.value.reason_code == "route_not_supported"
+            assert "penalized_propensity.effect_posterior" in message
+            assert "Next attempt" in message
+        else:
+            assert caught.value.reason_code == "estimator_inference_mismatch"
+            # The refusal names the estimator and both ways forward; nothing is lost:
+            # the estimator still runs under the inference it implements.
+            assert f"estimator {estimator} is Frequentist" in message
+            assert "Omit estimator=" in message and "inference=Frequentist" in message
         frequentist = ant.analyze(
             _static(3),
             graph=GRAPH,

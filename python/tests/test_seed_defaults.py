@@ -2,7 +2,8 @@
 
 ``seed=0`` is the default for law enumeration, cross-world contrasts, and
 identification bounds, plus the other entry points pinned in ``SEED_ZERO``
-(attribution and mechanism samplers that were published with that default).
+(attribution and mechanism samplers that were published with that default), the joint-panel
+execution entry points and the two nuisance treatment-score posteriors.
 ``seed=1`` is the default for sampling estimators. Both exist on purpose.
 Changing either one changes published numerical results, so a new numeric
 default or a silent flip between 0 and 1 fails this test.
@@ -67,6 +68,11 @@ SEED_ZERO = (
     "gcm_api.rs::sample_noise",
     "graph_falsification_api.rs::evaluate_graph_py",
     "intrinsic_influence_api.rs::attribute_intrinsic_influence_py",
+    "joint_panel_api.rs::consume_joint_panel",
+    "joint_panel_api.rs::estimate",
+    "joint_panel_api.rs::export",
+    "joint_panel_api.rs::prepare_joint_panel",
+    "joint_panel_api.rs::retarget",
     "predictive_assessment_api.rs::predictive_assessment_assess",
     "recovery_api.rs::prepare_empirical",
     "recovery_api.rs::prepare_exact",
@@ -83,6 +89,8 @@ SEED_ZERO = (
     "transport_z_api.rs::prepare_empirical",
     "transport_z_api.rs::prepare_exact",
     "transport_z_api.rs::receive",
+    "prepared_api/treatment_score.rs::temporal_treatment_score",
+    "prepared_api/treatment_score.rs::treatment_score_posterior",
 )
 
 SEED_OPTIONAL = (

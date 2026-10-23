@@ -23,7 +23,15 @@ _NOTEBOOKS = sorted((_ROOT / "examples" / "notebooks").glob("*.ipynb"))
 
 
 def _asserts(source: str) -> int:
-    return sum(isinstance(node, ast.Assert) for node in ast.walk(ast.parse(source)))
+    """Checks of the answer: `assert` statements and explicit `raise AssertionError`."""
+    count = 0
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Assert):
+            count += 1
+        elif isinstance(node, ast.Raise) and node.exc is not None:
+            raised = node.exc.func if isinstance(node.exc, ast.Call) else node.exc
+            count += isinstance(raised, ast.Name) and raised.id == "AssertionError"
+    return count
 
 
 def test_examples_are_found():
@@ -37,7 +45,7 @@ def test_example_asserts_its_own_result(path):
 
 
 @pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: p.name)
-def test_example_runs(path, monkeypatch):
+def test_example_runs(path, monkeypatch, tmp_path):
     # `runpy.run_path` does not touch `sys.argv`: an example whose `__main__` block
     # reads it (`bench_python_overhead.py`'s `argparse.ArgumentParser`) would
     # otherwise inherit pytest's own argv (`-q`, the node id, `--tb=...`, ...) and
@@ -50,6 +58,20 @@ def test_example_runs(path, monkeypatch):
     # the example's normal 25-iteration invocation.
     if path.name == "bench_python_overhead.py":
         argv.append("--smoke")
+    # A protocol script reads its lane and output directory from the command line; one
+    # reduced trial of the linear lane exercises fit, export and fresh-process replay.
+    if path.name == "cyclic_paper_experiments.py":
+        pytest.importorskip("scipy")
+        argv += [
+            "--lane",
+            "nodags-linear",
+            "--output-dir",
+            str(tmp_path),
+            "--trials",
+            "1",
+            "--max-iterations",
+            "50",
+        ]
     monkeypatch.setattr("sys.argv", argv)
     runpy.run_path(str(path), run_name="__main__")
 

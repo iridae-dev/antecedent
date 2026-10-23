@@ -290,10 +290,8 @@ def test_missing_reaches_plan():
 
 def test_sampling_design_reaches_plan():
     """A declared sampling design binds to the data snapshot; an undeclared study carries none."""
-    declared = _contract(_analyze(sampling_design="independent_subject_trajectories"))
-    assert (
-        _resolve(declared, "data_snapshot.sampling_design") == "independent_subject_trajectories"
-    )
+    declared = _analyze(sampling_design="independent_subject_trajectories")
+    assert _bound(declared, "sampling_design") == "independent_subject_trajectories"
     assert _resolve(_contract(_analyze()), "data_snapshot.sampling_design") is _ABSENT
 
 
@@ -398,7 +396,7 @@ def test_cancel_reaches_plan():
 
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(CausalCancelled, match="cancelled during identify"):
+    with pytest.raises(CausalCancelled, match="cancelled during compile"):
         _analyze(bootstrap=199, cancel=token)
 
 

@@ -25,6 +25,7 @@ from antecedent import (
     load,
 )
 from antecedent import evidence_ledger as ledger_api
+from antecedent._artifact_protocol import exported_artifact
 from antecedent.inference import MeasuredInference
 from antecedent.transport import advanced as transport
 from antecedent.transport._temporal_extensions import (
@@ -275,9 +276,11 @@ def test_mixed_evidence_pools_and_reloads_from_the_ledger():
     assert pooled.value.variance == pytest.approx(mixed["pooled_variance"])
     declared = sum(end - start for start, end in mixed["observation_ranges"])
     assert pooled.mass.distinct_observations == declared
-    exported = session.export("mixed-evidence")
+    exported = exported_artifact(session, "mixed-evidence")
     del session
-    consumed = ledger_api.consume_evidence_ledger_artifact(exported.artifact, exported.identity)
+    consumed = ledger_api.consume_evidence_ledger_artifact(
+        exported.data, exported.expectation.identity
+    )
     replay = consumed.synthesis_of(pooled.result)
     assert replay.values[0] == pytest.approx(mixed["pooled"])
     assert replay.values[1] == pytest.approx(mixed["pooled_variance"])
@@ -292,9 +295,11 @@ def test_reused_evidence_keeps_one_observation_count():
     counted = pooled.mass.distinct_observations
     for result_id in (pooled.result, first, second):
         assert session.result(result_id).mass.distinct_observations == counted
-    exported = session.export("reused-evidence")
+    exported = exported_artifact(session, "reused-evidence")
     del session
-    consumed = ledger_api.consume_evidence_ledger_artifact(exported.artifact, exported.identity)
+    consumed = ledger_api.consume_evidence_ledger_artifact(
+        exported.data, exported.expectation.identity
+    )
     labels = {record.label: record.mass.distinct_observations for record in consumed.results}
     assert labels["pool"] == counted
     assert labels["cited_once"] == counted
@@ -351,9 +356,11 @@ def test_overlapping_studies_pool_under_a_declared_covariance_and_replace_the_di
     assert record.replaces == disjoint.result
     assert session.result(disjoint.result).status == "replaced"
 
-    exported = session.export("overlapping-evidence")
+    exported = exported_artifact(session, "overlapping-evidence")
     del session
-    consumed = ledger_api.consume_evidence_ledger_artifact(exported.artifact, exported.identity)
+    consumed = ledger_api.consume_evidence_ledger_artifact(
+        exported.data, exported.expectation.identity
+    )
     replay = consumed.synthesis_of(replacing.result)
     assert replay.values[0] == pytest.approx(overlap["pooled"])
     assert replay.values[1] == pytest.approx(overlap["pooled_variance"])

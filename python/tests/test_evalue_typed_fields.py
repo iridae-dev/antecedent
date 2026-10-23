@@ -6,6 +6,8 @@ reproduce the pass/fail without parsing ``RefutationReport`` strings. Both stay
 ``None`` when the refuter did not run.
 """
 
+import math
+
 import antecedent as ac
 import numpy as np
 import pytest
@@ -26,13 +28,34 @@ def confounded_fixture():
 
 
 def ate(data, graph, refute):
+    # No bootstrap: the interval-limit E-value then reads the analytic standard error, which
+    # does not move with the resampling stream.
     return ac.analyze(
         data,
         graph=graph,
         query=ac.AverageEffect("a", "y"),
         refute=refute,
+        bootstrap=0,
         seed=1,
     )
+
+
+def expected_evalue(data, estimate):
+    """The VanderWeele-Ding E-value of a continuous outcome, from the residual SD of the
+    outcome on treatment and adjustment set: the smaller of the point and the plug-in 95%
+    interval-limit E-values."""
+    n = len(data["y"])
+    design = np.column_stack([np.ones(n), data["a"], data["z"]])
+    beta = np.linalg.lstsq(design, data["y"], rcond=None)[0]
+    residual = data["y"] - design @ beta
+    sd = math.sqrt(residual @ residual / (n - design.shape[1]))
+
+    def evalue(effect):
+        ratio = math.exp(0.91 * abs(effect) / sd)
+        return ratio + math.sqrt(ratio * (ratio - 1.0))
+
+    limit = estimate.ate - 1.959963984540054 * estimate.se_analytic
+    return min(evalue(estimate.ate), evalue(limit))
 
 
 def test_evalue_is_a_typed_field_not_a_report_string():
@@ -49,7 +72,7 @@ def test_evalue_is_a_typed_field_not_a_report_string():
     # excluded interaction covariate `b` leaves residual variation that is smaller than
     # Y's marginal SD, so the standardized difference (and the reported E-value) is larger
     # under the corrected formula.
-    assert result.estimate.evalue == pytest.approx(4.2475105663300035, abs=5e-4)
+    assert result.estimate.evalue == pytest.approx(expected_evalue(data, result.estimate), rel=1e-9)
     threshold = result.estimate.evalue_threshold
     assert threshold == 2.0
     # The verdict is now reproducible from the typed pair alone.

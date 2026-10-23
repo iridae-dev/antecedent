@@ -19,16 +19,22 @@ the portable answer. Nothing is removed from the result object; this only govern
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, is_dataclass
+from dataclasses import fields, is_dataclass
 from typing import Any
 
 from .._unset_license import unset_dose_license, unset_panel_license, unset_policy_license
 
 
+def _field_values(value: Any) -> dict[str, Any]:
+    """A dataclass's fields by name, shallow: a retained result freezes its mappings to
+    read-only proxies, which ``dataclasses.asdict`` cannot deep-copy."""
+    return {field.name: getattr(value, field.name) for field in fields(value)}
+
+
 def _normalize(value: Any) -> Any:
     """JSON-native, order-stable form so live (tuples) and wire (lists) compare equal."""
     if is_dataclass(value) and not isinstance(value, type):
-        value = asdict(value)
+        value = _field_values(value)
     if isinstance(value, Mapping):
         out: dict[str, Any] = {}
         for key, item in value.items():
@@ -78,7 +84,7 @@ class _FamilySpec:
         if self.live_fn is not None:
             return _normalize(self.live_fn(section))
         raw = (
-            asdict(section)
+            _field_values(section)
             if is_dataclass(section) and not isinstance(section, type)
             else dict(section)
         )

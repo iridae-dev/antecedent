@@ -386,6 +386,10 @@ SNAPSHOT: dict[str, set[str]] = {
         "source_evidence",
         "source_projection",
         "categorical_treatment",
+        "cyclic",
+        "design_models",
+        "joint_panel",
+        "nuisance_scores",
         "cohort_decision",
         "compact_export",
         "composition",
@@ -441,6 +445,10 @@ SNAPSHOT: dict[str, set[str]] = {
     },
     "AnalysisResult": {
         "artifact",
+        "history_match",
+        "posterior_row",
+        "route_diagnostics",
+        "sequential_contrast",
         "estimand_text",
         "fitted_model",
         # The five-line API (`ResultAPI`)
@@ -520,6 +528,8 @@ SNAPSHOT: dict[str, set[str]] = {
     },
     "PreparedAnalysis": {
         "participants",
+        "temporal_treatment_score",
+        "treatment_score_posterior",
         "identification",
         "inspect_plan",
         "last_result",
@@ -588,6 +598,8 @@ SNAPSHOT: dict[str, set[str]] = {
     # the propensity overlap policy are reviewed surface, like the verbs.
     "Bayesian": {
         "backend",
+        "design_model",
+        "white_innovation",
         "draw_controls",
         "kind",
         "likelihood",

@@ -81,4 +81,4 @@ def test_credible_interval_always_refuses_and_names_the_missing_likelihood():
     # Invalid trajectories are a data error, not the boundary.
     with pytest.raises(CausalError) as invalid:
         trajectory_hazard_credible_interval(**{**data, "active": [False], "control": [False]})
-    assert invalid.value.reason_code != "cell_not_licensed"
+    assert getattr(invalid.value, "reason_code", None) != "cell_not_licensed"

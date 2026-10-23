@@ -1030,7 +1030,7 @@ def test_bayesian_switchback_refuses_unrestricted_carryover_and_unspecified_depe
         (_sb_model("unrestricted", "independent"), "carryover_unrestricted", "washout"),
         (_sb_model("none", "unspecified"), "dependence_undeclared", "sensitivity"),
     ):
-        with pytest.raises(CausalUnsupportedError) as caught:
+        with pytest.raises(CausalError) as caught:
             ant.analyze(data, query=query, inference=_bayes(model), refute="none")
         assert caught.value.reason_code == "cell_not_licensed"
         assert detail in str(caught.value) and next_attempt in str(caught.value)

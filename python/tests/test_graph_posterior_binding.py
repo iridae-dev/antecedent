@@ -253,7 +253,7 @@ def test_supplied_posterior_honours_cancellation(temporal):
         posterior = static_posterior()
         query = _ATE
 
-    with pytest.raises(antecedent.errors.CausalCancelledError, match="identify"):
+    with pytest.raises(antecedent.errors.CausalCancelledError, match="cancelled during compile"):
         antecedent.analyze(
             data,
             discovery=posterior,

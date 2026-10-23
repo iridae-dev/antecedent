@@ -38,6 +38,8 @@ _STUB = Path(_native.__file__).with_name("_native.pyi")
 # the extension genuinely does not define.
 _STUB_ONLY = {
     "CiArg",  # `str | Callable[..., Any] | None`, used across discovery signatures
+    "_PeriodPrior",  # tuple alias of the period-refresh prior wire form
+    "_PeriodWindow",  # tuple alias of the period-refresh window wire form
 }
 
 
@@ -64,6 +66,13 @@ def _extension_public_names() -> set[str]:
 
 def test_stub_file_exists():
     assert _STUB.is_file(), f"expected a type stub beside the extension at {_STUB}"
+
+
+def _extension_declared_names() -> set[str]:
+    """Public names plus the underscore-named classes the stub types as return values."""
+    return _extension_public_names() | {
+        n for n in dir(_native) if n.startswith("_") and not n.startswith("__")
+    }
 
 
 def test_every_extension_name_is_declared_in_the_stub():
@@ -145,7 +154,7 @@ def test_internal_stage_method_cannot_drift_from_optional_family():
 def test_stub_declares_nothing_the_extension_lacks():
     optional_absent = set() if _internal_family_enabled() else _INTERNAL_CANDIDATE_NAMES
     extra = sorted(
-        _stub_toplevel_names() - _extension_public_names() - _STUB_ONLY - optional_absent
+        _stub_toplevel_names() - _extension_declared_names() - _STUB_ONLY - optional_absent
     )
     assert not extra, (
         "_native.pyi declares names the extension does not define — stale stub "

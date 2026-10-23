@@ -43,6 +43,7 @@ _EXPECTED_ALL = {
     # Queries
     "AnomalyAttribution",
     "AnomalyReference",
+    "FeedbackMechanism",
     "AverageDerivative",
     "AverageEffect",
     "ChangeAttribution",
@@ -502,6 +503,10 @@ _EXPECTED_STAGE_ALL = {
         "estimate_group_time_att",
     },
     "regimes": {
+        "TrajectorySurvivalIntervals",
+        "trajectory_hazard_credible_interval",
+        "trajectory_survival_bootstrap",
+        "trajectory_survival_contrast",
         "LongitudinalRegime",
         "LongitudinalRegimeEstimate",
         "SequentialContrast",
@@ -564,6 +569,9 @@ _EXPECTED_STAGE_ALL = {
         "validate_synthetic_null_calibration",
     },
     "transport.advanced": {
+        "SmoothedDosePosterior",
+        "SmoothedDosePosteriorModel",
+        "consume_smoothed_dose_posterior",
         "AugmentedResponseGrid",
         "SelectionOverlap",
         "estimate_augmented_response_grid",

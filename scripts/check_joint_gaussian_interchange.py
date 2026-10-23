@@ -34,8 +34,8 @@ def check(directory: Path) -> dict[str, object]:
     from antecedent import _native
     from antecedent.errors import CausalSerializationError
 
-    identity = json.loads((directory / "identity.json").read_text())
-    expected = json.loads((directory / "expected.json").read_text())
+    identity = json.loads((directory / "identity.json").read_text(encoding="utf-8"))
+    expected = json.loads((directory / "expected.json").read_text(encoding="utf-8"))
     payload = (directory / "law.bin").read_bytes()
     artifact = _native.JointDistributionArtifact.load(payload, json.dumps(identity))
     shape = tuple(expected["shape"])

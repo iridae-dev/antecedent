@@ -42,7 +42,7 @@ def run(command: list[str], **kwargs) -> None:
 
 
 def inventory() -> None:
-    record = tomllib.loads((ROOT / "parity/cyclic/acceptance.toml").read_text())
+    record = tomllib.loads((ROOT / "parity/cyclic/acceptance.toml").read_text(encoding="utf-8"))
     expected = {"Y18.1", "Y18.2"} | {f"Y19.{i}" for i in range(1, 9)}
     if {row["id"] for row in record["capability"]} != expected:
         raise ValueError("cyclic acceptance children differ from promoted scope")
@@ -51,7 +51,7 @@ def inventory() -> None:
             if not (ROOT / path).is_file():
                 raise ValueError(f"missing cyclic implementation {path}")
     fixture = ROOT / "parity/cyclic/general-equilibrium"
-    manifest = json.loads((fixture / "manifest.json").read_text())
+    manifest = json.loads((fixture / "manifest.json").read_text(encoding="utf-8"))
     for key, path in [
         ("artifact_sha256", fixture / "nonlinear.ant"),
         ("generator_sha256", ROOT / manifest["generator"]),
@@ -66,7 +66,7 @@ def inventory() -> None:
         for r in json.loads(
             (
                 ROOT / "parity/cyclic/paper-experiments/stopping-diagnostics.json"
-            ).read_text()
+            ).read_text(encoding="utf-8")
         )["selected_fits"]
     }
     if set(selected) != {
@@ -75,7 +75,7 @@ def inventory() -> None:
         raise ValueError("incomplete selected-fit stopping diagnostics")
     for lane in ("nodags-linear", "nodags-relu", "bicycle"):
         path = ROOT / f"parity/cyclic/paper-experiments/{lane}.json"
-        result = json.loads(path.read_text())
+        result = json.loads(path.read_text(encoding="utf-8"))
         if (
             result["manifest"]["script_sha256"] != source
             or not result["manifest"]["full"]
@@ -119,19 +119,19 @@ def inventory() -> None:
                     "nonlinear fit did not reach its declared stopping rule"
                 )
     directory = ROOT / "parity/cyclic/paper-experiments"
-    bicycle = json.loads((directory / "bicycle.json").read_text())
+    bicycle = json.loads((directory / "bicycle.json").read_text(encoding="utf-8"))
     expected = {
         (t["seed"], f"single-contexts-{c['single_contexts']}")
         for t in bicycle["trials"]
         for c in t["cases"]
         if not c["converged"]
     }
-    continued = json.loads((directory / "ou-continuations.json").read_text())["cases"]
+    continued = json.loads((directory / "ou-continuations.json").read_text(encoding="utf-8"))["cases"]
     if {(r["seed"], r["case"]) for r in continued} != expected:
         raise ValueError("a budget-limited OU experiment has no named continuation")
     standardized = {
         (r["seed"], r["case"]): r
-        for r in json.loads((directory / "ou-standardized.json").read_text())["cases"]
+        for r in json.loads((directory / "ou-standardized.json").read_text(encoding="utf-8"))["cases"]
     }
     base_identities = {
         (t["seed"], f"single-contexts-{c['single_contexts']}"): c["artifact"][
@@ -204,9 +204,9 @@ def main() -> None:
         code = (
             "import json,pathlib;from antecedent.cyclic import consume_artifact;"
             f"p=pathlib.Path({str(fixture)!r});"
-            "expected=json.loads((p/'expected-identity.json').read_text());"
+            "expected=json.loads((p/'expected-identity.json').read_text(encoding='utf-8'));"
             "r=consume_artifact((p/'nonlinear.ant').read_bytes(),expected_identity=expected['identity']);"
-            "assert r.report==json.loads((p/'report.json').read_text())"
+            "assert r.report==json.loads((p/'report.json').read_text(encoding='utf-8'))"
         )
         run([args.python, "-c", code], cwd=directory, env=env)
     print(

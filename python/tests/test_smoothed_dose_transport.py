@@ -410,13 +410,33 @@ def test_posterior_covers_the_closed_form_target_with_the_joint_covariance(desig
     for index, dose in enumerate(GRID):
         reference = truth(dose, mean=float(target.mean()))
         assert abs(exact[index] - reference) < 4.0 * sd[index] + 0.02
-        assert row.lower[index] < reference < row.upper[index]
+        # The reported interval is the exact Gaussian 95% interval. Whether it covers the
+        # target is a property of the rate over data sets (next test), not of one data set.
+        assert row.lower[index] == pytest.approx(exact[index] - 1.959964 * sd[index], abs=0.01)
+        assert row.upper[index] == pytest.approx(exact[index] + 1.959964 * sd[index], abs=0.01)
         assert row.mean[index] == pytest.approx(exact[index], abs=0.01)
     # The retained joint draws reproduce the exact Gaussian covariance across the grid.
     joint = row.covariance_matrix()
     scale = np.sqrt(np.outer(np.diag(joint), np.diag(joint)))
     assert np.all(np.abs(joint - row.exact_covariance_matrix()) < 0.05 * scale)
     assert result.certificate["formula"] == "standardize"
+
+
+@pytest.mark.parametrize("design", DESIGNS)
+def test_posterior_intervals_cover_the_closed_form_target_at_the_nominal_rate(design):
+    covered = total = 0
+    for data_seed in range(3, 15):
+        query, data = fixture(design, seed=data_seed)
+        row = advanced.prepare_smoothed_dose(
+            query, data, options=options(), seed=5
+        ).posterior(posterior_model(draws=4_000)).posterior
+        mean_z = float(np.asarray(data.covariates["z"])[~np.asarray(data.source)].mean())
+        for index, dose in enumerate(GRID):
+            reference = truth(dose, mean=mean_z)
+            covered += int(row.lower[index] < reference < row.upper[index])
+            total += 1
+    # 36 intervals at 95%: fewer than 31 covering would be a miscalibrated posterior.
+    assert covered >= 31, (covered, total)
 
 
 def test_posterior_artifact_is_consumed_independently_and_refuses_changes():

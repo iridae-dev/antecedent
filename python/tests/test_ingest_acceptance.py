@@ -410,8 +410,15 @@ def test_an_invalid_refresh_leaves_the_prepared_study_exactly_as_it_was():
     assert study.last_result is first
     assert study.participants == participants
     assert study.export() == before
-    same(study.estimate(), first)
-    assert study.export() == before
+    again = study.estimate()
+    same(again, first)
+    # The exported artifact records the native work of its own estimate (the second click
+    # reuses the retained design), so its bytes differ; the scientific identities do not.
+    assert (again.claim_id, again.program_id, again.data_snapshot_id) == (
+        first.claim_id,
+        first.program_id,
+        first.data_snapshot_id,
+    )
     # The study still refreshes with a valid table afterwards.
     new_outcomes = declared_frame(3000, 9438852)
     valid = frame.copy()
