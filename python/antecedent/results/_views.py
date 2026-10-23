@@ -64,6 +64,7 @@ __all__ = [
     "DropReasonView",
     "GroupAccountingView",
     "RowAccountingView",
+    "ImputationView",
     "MissingDataView",
     "AnalysisResult",
 ]
@@ -701,6 +702,38 @@ class RowAccountingView(ResultModel):
         )
 
 
+class ImputationView(ResultModel):
+    """How a multiple-imputation result was formed.
+
+    The declared specification (``model``, ``imputations``, ``iterations``, ``seed``,
+    ``assumption``), the unit the parameter draws resampled, the cells imputed per variable,
+    the estimator fitted on every completed table and its estimate on each (``points``), and
+    the pooled variance components. ``pooling`` is ``"rubin"`` (Rubin's rules, Student-t
+    reference with ``df`` degrees of freedom, Barnard-Rubin when ``df_complete`` is known) or
+    ``"stacked_posterior"`` (equal-weight mixture of the completed tables' posteriors; the
+    between-imputation variance is its own axis).
+    """
+
+    model: str
+    imputations: int
+    iterations: int
+    seed: int
+    assumption: str
+    unit: str
+    units: int
+    imputed_cells: Mapping[str, int]
+    estimator: str
+    pooling: str
+    points: tuple[float, ...]
+    within: float
+    between: float
+    total: float
+    df: float | None = None
+    df_complete: float | None = None
+    fraction_missing_information: float | None = None
+    relative_increase: float | None = None
+
+
 class MissingDataView(ResultModel):
     """The missing-data policy of an execution, the assumption it needs, and the accounting."""
 
@@ -708,6 +741,7 @@ class MissingDataView(ResultModel):
     assumption: str
     accounting: RowAccountingView
     covariates: tuple[str, ...] = ()
+    imputation: ImputationView | None = None
 
     @property
     def policy(self) -> str:

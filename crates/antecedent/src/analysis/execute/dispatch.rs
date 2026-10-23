@@ -587,7 +587,19 @@ impl super::Study {
         let lowered =
             physical.require_lowered(crate::analysis::lowering::expected_cell(self))?.identity();
         let ctx = &ctx.enter_lowered_dispatch(lowered);
-        let mut result = self.execute_on_inner(data, physical, ctx)?;
+        let mut result = match data {
+            DataInput::Tabular(tabular) if crate::analysis::missing_imputation::imputes(self) => {
+                crate::analysis::missing_imputation::impute_fit_pool(
+                    self,
+                    tabular,
+                    ctx,
+                    |table, ctx| {
+                        self.execute_on_inner(&DataInput::Tabular(table.clone()), physical, ctx)
+                    },
+                )?
+            }
+            _ => self.execute_on_inner(data, physical, ctx)?,
+        };
         push_gaussian_likelihood_disclosure(&mut result, &self.inference, data);
         result.custom_validator_names = self
             .custom_validators

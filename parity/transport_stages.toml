@@ -6875,6 +6875,18 @@ evidence_assertion = "test_classical_error_recovers_the_coefficient_and_the_atte
 notes = "Python surface route; point-only or accounting, no interval."
 
 [[routes]]
+route = "antecedent.measurement_models.PreparedMeasurementModel.estimate_continuous"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable"
+evidence = "prepared_measurement_model"
+functional = "corrected_functional_with_uncalibrated_delta_method_or_bootstrap_se"
+guarantee = "corrected_point_with_uncalibrated_standard_error_no_interval"
+evidence_test = "python/tests/test_continuous_measurement.py"
+evidence_assertion = "test_linear_calibration_and_simex_recover_the_slope"
+notes = "Python surface route; regression calibration (linear or logistic) or SIMEX; point and an uncalibrated standard error, no interval."
+
+[[routes]]
 route = "antecedent.measurement_models.PreparedMeasurementModel.refresh"
 stage = "prepare"
 status = "licensed"

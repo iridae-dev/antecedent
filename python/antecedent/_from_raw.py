@@ -51,6 +51,7 @@ from .results import (
     EstimateView,
     IdentificationView,
     MediationView,
+    ImputationView,
     MissingDataView,
     PerformanceView,
     PlanView,
@@ -375,11 +376,23 @@ def _missing_data_from_raw(raw: Any, prepared: Any | None) -> MissingDataView | 
         return None
     parsed = json.loads(payload)
     labels = None if prepared is None else getattr(prepared, "participants", None)
+    imputation = parsed.get("imputation")
     return MissingDataView(
         declared=parsed["declared"],
         assumption=parsed["assumption"],
         covariates=tuple(parsed["covariates"]),
         accounting=row_accounting_from_dict(parsed["accounting"], labels),
+        imputation=None
+        if imputation is None
+        else ImputationView(
+            **{
+                **imputation,
+                "imputed_cells": {
+                    entry["variable"]: entry["cells"] for entry in imputation["imputed_cells"]
+                },
+                "points": tuple(imputation["points"]),
+            }
+        ),
     )
 
 

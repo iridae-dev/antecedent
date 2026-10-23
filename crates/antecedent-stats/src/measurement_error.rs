@@ -106,6 +106,10 @@ pub enum MeasurementErrorError {
     /// A variance came out materially non-positive.
     #[error("non-positive variance: {0}")]
     NonPositiveVariance(&'static str),
+    /// The outcome model could not be fitted: a logistic fit that did not
+    /// converge or is separated, or an outcome outside the family's support.
+    #[error("outcome model not fitted: {0}")]
+    OutcomeModelNotFitted(String),
 }
 
 fn finite_all(values: &[f64]) -> bool {

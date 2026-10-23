@@ -32,14 +32,57 @@ vector representation are not intervenable. (`representation_mapping_required`)
 
 | Route | Correction | Refused |
 |---|---|---|
-| classical continuous error | corrected normal equations (= regression calibration for a linear model), known or validated error variance | nonlinear outcome models |
-| repeated measurements | same, error variance and ICC from the sample's own replicates | normal-theory variance intervals |
+| classical continuous error | corrected normal equations (= regression calibration for a linear model), known or validated error variance; through `estimate_continuous`, logistic regression calibration and SIMEX | the `nonlinear_outcome_model` operation of `check_operation` (a logistic coefficient enters only through `estimate_continuous`) |
+| repeated measurements | same, error variance and ICC from the sample's own replicates | normal-theory variance intervals; the `nonlinear_outcome_model` operation, as above |
 | binary misclassification | Rogan-Gladen prevalence and risk difference, Youden index above the declared minimum | exposure misclassification |
 | probabilistic categorical | confusion-matrix inversion, category proportions and outcome means | per-unit soft assignments |
 | external latent posterior | posterior-mean substitution, or Rubin's rules for outcome-conditioned draws | any trust inferred from metadata |
 
 Each route's assumptions, allowed operations and refused operations are in
 `antecedent_contract::measurement::route_card`.
+
+## Continuous classical error: calibration and SIMEX
+
+`PreparedMeasurementModel::estimate_continuous` (Python
+`PreparedMeasurementModel.estimate_continuous` with `ContinuousErrorData`)
+corrects one treatment coefficient for classical additive error `W = X + U` in
+a continuous column. It re-runs the prepare checks of the linear adjusted
+effect, then:
+
+| Choice | Options | What happens |
+|---|---|---|
+| error location | treatment | the error-prone column is the regressor; its coefficient is reported |
+| | covariate | the error-prone column is the regressor and the treatment is an error-free covariate at a declared column; correcting the covariate removes the confounding it leaves in the treatment coefficient |
+| | outcome, identity link | no correction: classical outcome error does not bias a slope and the sandwich variance already includes it; the record says `outcome_error_no_correction` |
+| | outcome, logit link | refused (`route_not_supported`): a 0/1 outcome cannot carry additive continuous error; next attempt: the binary misclassification route |
+| outcome link | identity, logit | linear or logistic outcome model |
+| method | regression calibration | the outcome model on the best linear predictor of `X` given `W` and `Z`, from sample moments with `Var(W)` replaced by `Var(W) - sigma_u^2 / k` (per-row replicate counts allowed); refused when the implied reliability is at or below the model's floor. Exact for a linear model (it equals the corrected normal equations); a first-order approximation for a logistic model, good when the error or the coefficient is moderate |
+| | SIMEX | added error `lambda sigma_u^2 / k_i` on the grid `0.5, 1, 1.5, 2` (plus the naive `lambda = 0`), `B` remeasurements per value, the averaged coefficients extrapolated to `lambda = -1` by a quadratic (default) or linear least-squares fit; the per-`lambda` means are returned. The extrapolant is approximate: at reliability 0.8 a linear slope of 2 extrapolates to about 1.94 |
+
+The error variance comes from the model: declared with its standard error
+(classical route) or estimated from the sample's replicates (repeated route).
+Any other route, or a repeated route without replicated units, is refused with
+`measurement_not_identified`; next attempt: supply replicates or a validation
+sample. `antecedent_stats::continuous_error::error_variance_from_reliability`
+converts a declared reliability ratio `lambda_r` and the observed `Var(W)` into
+`sigma_u^2 = (1 - lambda_r) Var(W)` with a delta-method variance; that value is
+data dependent (computed from the measurement it corrects) and its variance is
+first order.
+
+Uncertainty: linear regression calibration keeps the delta method above.
+Logistic calibration and SIMEX (either link) bootstrap the whole procedure:
+rows are resampled with their replicates, the error variance is redrawn from
+`N(sigma^2, se^2)` truncated at `1e-3 sigma^2` or re-estimated from the
+resampled replicates, and the correction is re-run, at least 50 times. Each
+replicate draws from its own keyed stream of the request's seed, so the result
+is bitwise reproducible at any thread count; buffers are funded from the
+execution context's admission pool first, and a pool that cannot fund them
+refuses before anything is allocated. More than a tenth of the replicates
+failing refuses. The variance is split into the measurement-parameter part
+(derivative in `sigma^2` by a central difference under common random numbers,
+times the variance of `sigma^2`) and the remaining sampling part. The standard
+error is uncalibrated, no interval is produced, and the result has no artifact
+layout (`export` refuses).
 
 ## Uncertainty
 
@@ -104,7 +147,8 @@ intervention on the recorded indicator.
 (`AnalysisBinding`) and the data (`ClassicalLinearData`, `RepeatedLinearData`,
 `BinaryPrevalenceData`, `RiskDifferenceData`, `CategoricalData`,
 `LatentPosteriorData`), and `prepare_measurement_model` runs every prepare
-check. `PreparedMeasurementModel` offers `estimate`, `refresh`,
+check. `PreparedMeasurementModel` offers `estimate`, `estimate_continuous`
+(with `ContinuousErrorData`, returning `ContinuousMeasurementEstimate`), `refresh`,
 `with_validation_parameters` and `check_operation`; each returns a new object
 and a refusal leaves the prepared object untouched. `MeasurementEstimate`
 carries the point, the naive point, the uncalibrated standard error and the
@@ -118,6 +162,8 @@ issued); a claim of native trust is refused by name. Refusals are
 ## References
 
 Carroll, Ruppert, Stefanski and Crainiceanu (2006), *Measurement Error in
-Nonlinear Models*, doi:10.1201/9781420010138. Rogan and Gladen (1978), Am J
+Nonlinear Models*, doi:10.1201/9781420010138. Cook and Stefanski (1994),
+Simulation-extrapolation estimation in parametric measurement error models,
+JASA 89:1314-1328, doi:10.1080/01621459.1994.10476871. Rogan and Gladen (1978), Am J
 Epidemiol 107:71-76, doi:10.1093/oxfordjournals.aje.a112510. Rubin (1987),
 *Multiple Imputation for Nonresponse in Surveys*, doi:10.1002/9780470316696.

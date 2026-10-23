@@ -182,8 +182,43 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         let lowered = self.plan.require_lowered(None)?.identity();
         let scoped = ctx.enter_lowered_dispatch(lowered);
-        let mut result = self.estimate_click(data, shared, &scoped, notes)?;
+        let mut result = if crate::analysis::missing_imputation::imputes(self.study()) {
+            self.estimate_imputed(data, shared, &scoped, notes)?
+        } else {
+            self.estimate_click(data, shared, &scoped, notes)?
+        };
         result.lowered_identity = Some(lowered);
+        Ok(result)
+    }
+
+    /// The click under a declared multiple imputation: the retained operation runs on every
+    /// completed table and the fits are pooled. The contract is bound once, to the submitted
+    /// (incomplete) rows and the declared imputation, unless `notes` defers it. A refresh
+    /// keeps the retained operation: no per-table rebinding is recorded.
+    #[inline(never)]
+    fn estimate_imputed(
+        &self,
+        data: &TabularData,
+        shared: Option<Arc<crate::analysis::batch::SharedBatchDesign>>,
+        ctx: &ExecutionContext,
+        notes: &ClickNotes,
+    ) -> Result<StudyResult, CausalError> {
+        let mut result = crate::analysis::missing_imputation::impute_fit_pool(
+            self.study(),
+            data,
+            ctx,
+            |table, ctx| {
+                let mut inner = ClickNotes::deferred();
+                self.estimate_click(table, shared.clone(), ctx, &mut inner)
+            },
+        )?;
+        if !notes.defers_contract() {
+            result.executed_contract = Some(self.executed_contract(
+                &DataInput::Tabular(data.clone()),
+                self.analysis.refute,
+                None,
+            )?);
+        }
         Ok(result)
     }
 

@@ -292,8 +292,14 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
 /// Refuses builder inputs that are mutually exclusive before any field is moved.
 fn refuse_conflicting_inputs(input: &FinishInput) -> Result<(), CausalError> {
     crate::analysis::missing_data::validate_declaration(
-        input.query.as_ref(),
-        &input.data,
+        &crate::analysis::missing_data::DeclarationContext {
+            query: input.query.as_ref(),
+            data: &input.data,
+            inference: &input.inference,
+            estimator: input.estimator,
+            graph_posterior: input.graph_posterior.is_some(),
+            sampling_design: input.sampling_design,
+        },
         input.missing.as_ref(),
     )?;
     if let Some(spec) = &input.estimator_spec {

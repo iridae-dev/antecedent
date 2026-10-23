@@ -9,12 +9,18 @@
 
 use std::sync::Arc;
 
-use antecedent_core::CausalQuery;
+use antecedent_core::{CausalQuery, DeclaredSamplingDesign};
 use antecedent_data::{MissingDeclaration, MissingPolicy, TableView};
-use antecedent_estimate::missing_policy::policy_not_applicable;
+use antecedent_estimate::missing_policy::{policy_not_applicable, policy_not_applicable_next};
+use antecedent_estimate::multiple_imputation;
 
 use super::builder::DataInput;
+use super::missing_support::{
+    MissingInference, MissingModality, MissingRouteCell, route_missing_support,
+};
 use crate::error::CausalError;
+use crate::inference::InferenceMode;
+use crate::strategy_table::EstimatorId;
 
 /// Policies a static adjustment route can execute; its own default is complete-case.
 const STATIC: &[MissingPolicy] = &[MissingPolicy::ErrorOnMissing, MissingPolicy::CompleteCase];
@@ -115,6 +121,9 @@ impl MissingRoute {
             (Self::Panel, MissingPolicy::AvailableCase) => {
                 "each contrast uses the units observed in its baseline and target period; valid when a unit's chance of being observed in both periods is independent of its outcome change within cohort and cluster"
             }
+            (Self::Static, MissingPolicy::MultipleImputation(_)) => {
+                "multiple imputation: every row is kept and its missing treatment, outcome, adjustment or auxiliary values are drawn from a proper imputation model; valid when missingness is at random given the variables of the imputation model and that model is correctly specified; the completed-table fits are pooled by Rubin's rules (frequentist) or stacked into one posterior (Bayesian)"
+            }
             (Self::Temporal, MissingPolicy::CompleteCase) => {
                 "windows containing a missing value are dropped and time keeps its original grid, so no lag spans a gap; the retained windows represent the process when missingness is independent of the outcome innovation given the lagged regressors"
             }
@@ -126,21 +135,68 @@ impl MissingRoute {
     }
 }
 
-/// Refuse a declaration the query and data modality cannot execute.
+/// The route cell of a study: its query kind, data modality and inference mode.
+pub(crate) fn route_cell(
+    query: &CausalQuery,
+    data: &DataInput,
+    inference: &InferenceMode,
+) -> MissingRouteCell {
+    MissingRouteCell {
+        query: query.kind(),
+        modality: match data {
+            DataInput::Tabular(_) => MissingModality::Tabular,
+            DataInput::Temporal(_) => MissingModality::Series,
+            DataInput::Event(_) => MissingModality::Event,
+            DataInput::MultiEnv(_) => MissingModality::MultiEnv,
+            DataInput::Panel(_) => MissingModality::Panel,
+        },
+        inference: if inference.is_bayesian() {
+            MissingInference::Bayesian
+        } else {
+            MissingInference::Frequentist
+        },
+    }
+}
+
+/// What the builder knows about a study when it checks a missing-data declaration.
+pub(crate) struct DeclarationContext<'a> {
+    /// The query, when one is set.
+    pub(crate) query: Option<&'a CausalQuery>,
+    /// The data.
+    pub(crate) data: &'a DataInput,
+    /// Inference mode.
+    pub(crate) inference: &'a InferenceMode,
+    /// The estimator the caller chose, if any.
+    pub(crate) estimator: Option<EstimatorId>,
+    /// Whether the study averages over a graph posterior.
+    pub(crate) graph_posterior: bool,
+    /// Declared sampling design.
+    pub(crate) sampling_design: Option<DeclaredSamplingDesign>,
+}
+
+/// Refuse a declaration the study's route cell cannot execute.
+///
+/// The route cell's row of `parity/missing_policy_support.toml` decides: a policy it does
+/// not list is refused naming the supported policies and the next attempt. A multiple
+/// imputation declaration is further refused when its specification is out of range or
+/// declares missingness not at random (next attempt: a sensitivity analysis), when the
+/// chosen estimator is not one the cell pools, when the study averages over a graph
+/// posterior, or when the sampling design has no exchangeable unit for the imputation
+/// model's parameter draw.
 ///
 /// # Errors
 ///
 /// `missing_policy_not_applicable` naming the policies the route supports, or the absence
 /// of any route-level policy for a query that reads rows in its own way.
 pub(crate) fn validate_declaration(
-    query: Option<&CausalQuery>,
-    data: &DataInput,
+    context: &DeclarationContext<'_>,
     declaration: Option<&MissingDeclaration>,
 ) -> Result<(), CausalError> {
-    let (Some(query), Some(declaration)) = (query, declaration) else {
+    let (Some(query), Some(declaration)) = (context.query, declaration) else {
         return Ok(());
     };
-    let Some(route) = MissingRoute::of(query, data) else {
+    let cell = route_cell(query, context.data, context.inference);
+    let Some(row) = route_missing_support(cell) else {
         return Err(CausalError::Estimate(policy_not_applicable(
             declaration.policy,
             "this query on this data",
@@ -148,12 +204,13 @@ pub(crate) fn validate_declaration(
             &[],
         )));
     };
-    if !route.supported().contains(&declaration.policy) {
-        return Err(CausalError::Estimate(policy_not_applicable(
+    let label = MissingRoute::of(query, context.data).map_or("this route", MissingRoute::label);
+    if !row.supports(declaration.policy) {
+        return Err(CausalError::Estimate(policy_not_applicable_next(
             declaration.policy,
-            route.label(),
+            label,
             match declaration.policy {
-                MissingPolicy::CompleteCase if route == MissingRoute::Panel => {
+                MissingPolicy::CompleteCase if row.family == "panel" => {
                     "deleting single unit-periods would unbalance the panel and relabel its units"
                 }
                 MissingPolicy::InverseProbabilityOfObservation => {
@@ -162,20 +219,56 @@ pub(crate) fn validate_declaration(
                 MissingPolicy::BalancedPanel | MissingPolicy::AvailableCase => {
                     "only panel designs have units to restrict"
                 }
+                MissingPolicy::MultipleImputation(_) => {
+                    "multiple imputation pools estimators that report a point and a variance or posterior draws, and this route cell has no pooled estimator"
+                }
                 _ => "the route has no estimator for it",
             },
-            route.supported(),
+            &row.supported,
+            row.next_attempt,
         )));
     }
+    let imputation = declaration.policy.imputation();
     if !declaration.covariates.is_empty()
         && declaration.policy != MissingPolicy::InverseProbabilityOfObservation
+        && imputation.is_none()
     {
         return Err(CausalError::Estimate(policy_not_applicable(
             declaration.policy,
-            route.label(),
-            "observation-model covariates are read only by inverse-probability weighting",
-            route.supported(),
+            label,
+            "observation-model covariates are read only by inverse-probability weighting, and auxiliary variables only by multiple imputation",
+            &row.supported,
         )));
+    }
+    if let Some(spec) = imputation {
+        multiple_imputation::check_spec(&spec)
+            .map_err(|error| CausalError::Estimate(error.into()))?;
+        if let Some(estimator) = context.estimator {
+            if !row.imputes_with(estimator.as_str()) {
+                return Err(CausalError::Estimate(policy_not_applicable_next(
+                    declaration.policy,
+                    label,
+                    &format!(
+                        "multiple imputation pools the estimators {:?} on this route cell, and `{}` was chosen",
+                        row.imputation_estimators,
+                        estimator.as_str()
+                    ),
+                    &row.supported,
+                    MissingPolicy::CompleteCase,
+                )));
+            }
+        }
+        if context.graph_posterior {
+            return Err(CausalError::Estimate(policy_not_applicable_next(
+                declaration.policy,
+                label,
+                "a graph-posterior mixture is not pooled over completed tables",
+                &row.supported,
+                MissingPolicy::CompleteCase,
+            )));
+        }
+        multiple_imputation::bind_units(context.sampling_design, None, 0)
+            .map_err(|error| CausalError::Estimate(error.into()))?;
     }
     Ok(())
 }
@@ -209,7 +302,14 @@ pub(crate) fn report(
     let assumption = Arc::from(route.assumption(accounting.policy));
     let non_default =
         declared && (accounting.policy != route.default_policy() || !covariates.is_empty());
-    crate::result::MissingDataReport { accounting, declared, covariates, assumption, non_default }
+    crate::result::MissingDataReport {
+        accounting,
+        declared,
+        covariates,
+        assumption,
+        non_default,
+        imputation: None,
+    }
 }
 
 /// The identity entry of a study's missing-data declaration: present only when the policy
@@ -228,8 +328,67 @@ pub(crate) fn policy_wire(
             .collect(),
         _ => Vec::new(),
     };
+    let imputation =
+        declaration.policy.imputation().map(|spec| antecedent_io::ImputationSpecWire {
+            model: spec.model.name().to_owned(),
+            imputations: spec.imputations,
+            iterations: spec.iterations,
+            seed: spec.seed,
+            assumption: spec.assumption.name().to_owned(),
+            unit: imputation_unit_name(study.sampling_design).to_owned(),
+        });
     Some(antecedent_io::MissingPolicyWire {
         policy: declaration.policy.name().to_owned(),
         covariates: names,
+        imputation,
     })
+}
+
+/// The unit an imputation's parameter draw resamples under `design` on a static route.
+pub(crate) const fn imputation_unit_name(design: Option<DeclaredSamplingDesign>) -> &'static str {
+    match design {
+        Some(DeclaredSamplingDesign::ClusteredPanel) => "group",
+        _ => "row",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::missing_support::missing_support_table;
+
+    fn family(route: MissingRoute) -> &'static str {
+        match route {
+            MissingRoute::Static => "static",
+            MissingRoute::Randomized => "randomized",
+            MissingRoute::Panel => "panel",
+            MissingRoute::Temporal => "temporal",
+        }
+    }
+
+    /// The executors' own policy lists agree with the registry: a row executes exactly its
+    /// family's policies, plus multiple imputation where the row pools an estimator.
+    #[test]
+    fn route_families_agree_with_the_registry() {
+        for row in missing_support_table() {
+            let route = [
+                MissingRoute::Static,
+                MissingRoute::Randomized,
+                MissingRoute::Panel,
+                MissingRoute::Temporal,
+            ]
+            .into_iter()
+            .find(|route| family(*route) == row.family)
+            .expect("known family");
+            assert_eq!(row.default, route.default_policy(), "{:?}", row.query);
+            let without_imputation: Vec<&str> = row
+                .supported
+                .iter()
+                .filter(|policy| policy.imputation().is_none())
+                .map(|policy| policy.name())
+                .collect();
+            let executed: Vec<&str> = route.supported().iter().map(|p| p.name()).collect();
+            assert_eq!(without_imputation, executed, "{:?}", row.query);
+        }
+    }
 }

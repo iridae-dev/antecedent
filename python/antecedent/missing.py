@@ -9,6 +9,14 @@ weights or restricts rows on its own where that would change the design:
   missing value until a policy is declared, naming the first missing cell and the policies
   the route can execute.
 
+Average-effect routes also execute multiple imputation with valid pooling::
+
+    analyze(
+        data,
+        query=AverageEffect(...),
+        missing=MissingPolicy.multiple_imputation(imputations=40, seed=7),
+    )
+
 Declare a policy with a name or a :class:`MissingPolicy`::
 
     analyze(data, query=RandomizedEffect(...), missing="complete_case")
@@ -40,6 +48,7 @@ MissingPolicyName = Literal[
     "balanced_panel",
     "available_case",
     "pairwise_available",
+    "multiple_imputation",
 ]
 
 _NAMES: tuple[str, ...] = (
@@ -49,7 +58,65 @@ _NAMES: tuple[str, ...] = (
     "balanced_panel",
     "available_case",
     "pairwise_available",
+    "multiple_imputation",
 )
+
+_MODELS: tuple[str, ...] = ("chained_equations", "joint_normal")
+_ASSUMPTIONS: tuple[str, ...] = ("missing_at_random", "missing_not_at_random")
+
+
+@dataclass(frozen=True, slots=True)
+class ImputationSpec:
+    """The declared inputs of a multiple-imputation analysis.
+
+    Every field enters the claim identity.
+
+    * ``model``: ``"chained_equations"`` (each incomplete variable drawn from a
+      Bayesian-bootstrap fit of its conditional model: normal linear for a continuous
+      variable, logistic for a 0/1 one) or ``"joint_normal"`` (multivariate normal data
+      augmentation with a Jeffreys posterior draw; refuses an incomplete binary variable).
+    * ``imputations``: number of completed tables ``m`` (2 to 1000; default 20).
+    * ``iterations``: sweeps before each completed table is taken (1 to 1000; default 10).
+    * ``seed``: seed of the keyed random streams; table ``j`` opens its own stream, so the
+      result does not depend on threads.
+    * ``assumption``: ``"missing_at_random"``. ``"missing_not_at_random"`` is refused with a
+      sensitivity analysis named as the next attempt.
+    """
+
+    model: str = "chained_equations"
+    imputations: int = 20
+    iterations: int = 10
+    seed: int = 0
+    assumption: str = "missing_at_random"
+
+    def __post_init__(self) -> None:
+        if self.model not in _MODELS:
+            raise CausalValueError(
+                f"unknown imputation model {self.model!r}; use one of {list(_MODELS)}",
+                reason_code="invalid_argument",
+            )
+        if self.assumption not in _ASSUMPTIONS:
+            raise CausalValueError(
+                f"unknown missingness assumption {self.assumption!r}; use one of "
+                f"{list(_ASSUMPTIONS)}",
+                reason_code="invalid_argument",
+            )
+        for name in ("imputations", "iterations", "seed"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise CausalTypeError(
+                    f"{name} must be a non-negative integer", reason_code="invalid_argument"
+                )
+
+    def to_native(self) -> dict[str, Any]:
+        """The ``imputation`` member of the native ``missing`` option."""
+        return {
+            "model": self.model,
+            "imputations": self.imputations,
+            "iterations": self.iterations,
+            "seed": self.seed,
+            "assumption": self.assumption,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,10 +137,17 @@ class MissingPolicy:
       single unit-period.
     * ``"available_case"``: panel designs; each contrast uses the units observed in the
       periods it needs. Unit and period identities are preserved.
+    * ``"multiple_imputation"``: average-effect routes; every row is kept, the missing cells
+      are drawn ``imputation.imputations`` times from a proper imputation model, the route's
+      estimator runs on every completed table and the fits are pooled (Rubin's rules with
+      Barnard-Rubin degrees of freedom, or one stacked posterior under Bayesian inference).
+      ``covariates`` name the auxiliary variables of the imputation model; without them the
+      model reads every float column.
     """
 
     policy: MissingPolicyName
     covariates: tuple[str, ...] = ()
+    imputation: ImputationSpec | None = None
 
     def __post_init__(self) -> None:
         if self.policy not in _NAMES:
@@ -95,13 +169,27 @@ class MissingPolicy:
             raise CausalValueError(
                 "covariates must be distinct column names", reason_code="invalid_argument"
             )
-        if covariates and self.policy != "inverse_probability":
+        if covariates and self.policy not in ("inverse_probability", "multiple_imputation"):
             raise CausalValueError(
-                "covariates name the observation model of policy 'inverse_probability'; "
-                f"policy {self.policy!r} reads none",
+                "covariates name the observation model of policy 'inverse_probability' or the "
+                f"auxiliary variables of 'multiple_imputation'; policy {self.policy!r} reads none",
                 reason_code="invalid_argument",
             )
         object.__setattr__(self, "covariates", covariates)
+        if self.policy == "multiple_imputation":
+            if self.imputation is None:
+                object.__setattr__(self, "imputation", ImputationSpec())
+            elif not isinstance(self.imputation, ImputationSpec):
+                raise CausalTypeError(
+                    "imputation must be an antecedent.missing.ImputationSpec",
+                    reason_code="invalid_argument",
+                )
+        elif self.imputation is not None:
+            raise CausalValueError(
+                f"an imputation specification is read only by 'multiple_imputation', not "
+                f"{self.policy!r}",
+                reason_code="invalid_argument",
+            )
 
     @classmethod
     def error(cls) -> MissingPolicy:
@@ -127,6 +215,24 @@ class MissingPolicy:
     def available_case(cls) -> MissingPolicy:
         """Use each contrast's observed units."""
         return cls("available_case")
+
+    @classmethod
+    def multiple_imputation(
+        cls,
+        *,
+        model: str = "chained_equations",
+        imputations: int = 20,
+        iterations: int = 10,
+        seed: int = 0,
+        assumption: str = "missing_at_random",
+        auxiliary: Iterable[str] = (),
+    ) -> MissingPolicy:
+        """Impute the missing cells ``imputations`` times, fit every completed table, pool."""
+        return cls(
+            "multiple_imputation",
+            tuple(auxiliary),
+            ImputationSpec(model, imputations, iterations, seed, assumption),
+        )
 
 
 def coerce_missing(value: Any) -> MissingPolicy | None:
@@ -154,7 +260,13 @@ def native_declaration(policy: MissingPolicy | None, names: Iterable[str]) -> di
             f"available: {list(position)}",
             reason_code="invalid_argument",
         )
-    return {"policy": policy.policy, "covariates": [position[n] for n in policy.covariates]}
+    declaration: dict[str, Any] = {
+        "policy": policy.policy,
+        "covariates": [position[n] for n in policy.covariates],
+    }
+    if policy.imputation is not None:
+        declaration["imputation"] = policy.imputation.to_native()
+    return declaration
 
 
-__all__ = ["MissingPolicy", "MissingPolicyName", "coerce_missing"]
+__all__ = ["ImputationSpec", "MissingPolicy", "MissingPolicyName", "coerce_missing"]

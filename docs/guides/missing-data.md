@@ -15,7 +15,8 @@ result.missing_data.accounting     # rows total / kept / dropped, per variable, 
 
 | Route | Without `missing=` | Policies it executes |
 | --- | --- | --- |
-| Average effect, conditional, response, distribution, static mediation | complete case, reported | `error`, `complete_case` |
+| Average effect | complete case, reported | `error`, `complete_case`, `multiple_imputation` |
+| Conditional, response, distribution, static mediation | complete case, reported | `error`, `complete_case` |
 | Randomized two-arm ITT (every design except CUPED, ANCOVA and receipt-adjusted) | refuses at the first missing outcome | `error`, `complete_case`, `inverse_probability` |
 | Panel difference-in-differences | refuses at the first missing outcome | `error`, `balanced_panel`, `available_case` |
 | Lagged temporal effect (single window) | refuses at the first missing time point | `error`, `complete_case` |
@@ -23,8 +24,42 @@ result.missing_data.accounting     # rows total / kept / dropped, per variable, 
 
 A refusal is `missing_policy_required` and names the first missing cell (column and row) and
 the policies the route can execute. A policy the route or design cannot execute is refused
-when the study is built as `missing_policy_not_applicable`; it is never accepted and
-ignored. Routes not listed read their rows in their own way and accept no declaration.
+when the study is built as `missing_policy_not_applicable`, naming the supported policies and
+the next attempt; it is never accepted and ignored. Routes not listed read their rows in their
+own way and accept no declaration.
+
+### Route cells
+
+The support is declared once, per route cell (query kind, data modality, inference mode), in
+`parity/missing_policy_support.toml`. The builder reads that file
+(`antecedent::analysis::route_missing_support`), and `scripts/check_missing_policy_support.py`
+keeps this table equal to it. A cell that is not listed executes no policy.
+
+| Query | Modality | Inference | Without `missing=` | Policies it executes |
+| --- | --- | --- | --- | --- |
+| `AverageEffect` | tabular | frequentist | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
+| `AverageEffect` | tabular | bayesian | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
+| `ConditionalEffect` | tabular | frequentist | `complete_case` | `error`, `complete_case` |
+| `ConditionalEffect` | tabular | bayesian | `complete_case` | `error`, `complete_case` |
+| `Response` | tabular | frequentist | `complete_case` | `error`, `complete_case` |
+| `Response` | tabular | bayesian | `complete_case` | `error`, `complete_case` |
+| `Distribution` | tabular | frequentist | `complete_case` | `error`, `complete_case` |
+| `Distribution` | tabular | bayesian | `complete_case` | `error`, `complete_case` |
+| `Mediation` | tabular | frequentist | `complete_case` | `error`, `complete_case` |
+| `Mediation` | tabular | bayesian | `complete_case` | `error`, `complete_case` |
+| `RandomizedEffect` | tabular | frequentist | `error` | `error`, `complete_case`, `inverse_probability` |
+| `RandomizedEffect` | tabular | bayesian | `error` | `error`, `complete_case`, `inverse_probability` |
+| `PanelDid` | tabular | frequentist | `error` | `error`, `balanced_panel`, `available_case` |
+| `PanelDid` | tabular | bayesian | `error` | `error`, `balanced_panel`, `available_case` |
+| `TemporalEffect` | series | frequentist | `error` | `error`, `complete_case` |
+| `TemporalEffect` | series | bayesian | `error` | `error`, `complete_case` |
+| `Mediation` | series | frequentist | `error` | `error`, `complete_case` |
+| `Mediation` | series | bayesian | `error` | `error`, `complete_case` |
+
+Multiple imputation pools `linear.adjustment.ate`, `glm.adjustment`, `aipw` and
+`propensity.weighting` under frequentist inference and `bayesian.gcomp` under Bayesian
+inference. Another estimator chosen with it is refused at build (next attempt: one of those, or
+`complete_case`).
 
 ## Row accounting
 
@@ -117,6 +152,50 @@ missing time points of the variables it reads; the Bayesian dynamic-Bayesian-net
 declines refuters, whose predictive checks and prior sensitivity read consecutive rows, and
 every mixture refuses a discovery-estimation split on a series with gaps.
 
+**Average effect, `multiple_imputation`.** Declare it with
+`MissingPolicy.multiple_imputation(model=..., imputations=..., iterations=..., seed=...,
+assumption="missing_at_random", auxiliary=(...))` (Rust:
+`MissingDeclaration::new(MissingPolicy::MultipleImputation(ImputationSpec::new()...))`).
+Every row is kept. The imputation model reads every float column of the table, or, when
+auxiliary variables are declared, the treatment, the outcome and those variables; an analysed
+variable outside the model that is itself incomplete is refused. Two proper imputation models
+are available:
+
+- `chained_equations` (default): each incomplete variable is drawn in turn from its
+  conditional model on every other variable (normal linear regression for a continuous
+  variable, logistic regression for a 0/1 one), fitted on a Bayesian bootstrap of the observed
+  rows, so every completed table draws the model's parameters before it draws the cells;
+  `iterations` sweeps are run before a table is taken.
+- `joint_normal`: multivariate normal data augmentation; each sweep draws the covariance
+  from its inverse-Wishart posterior under the Jeffreys prior and the mean given it, then every
+  missing cell from its conditional normal law. An incomplete binary variable is refused (next
+  attempt: `chained_equations`).
+
+The route's own estimator runs on every completed table. Frequentist fits are pooled by
+Rubin's rules: the point is the mean of the `m` estimates, the variance is
+`T = Ū + (1 + 1/m) B` (within plus inflated between-imputation variance), and the reference is
+a Student t with the Barnard-Rubin degrees of freedom when the estimator has a finite
+complete-data degrees of freedom (`n − p` for linear adjustment), Rubin's large-sample
+degrees of freedom otherwise. Bayesian fits are stacked: the posterior draws of every
+completed table form one equal-weight mixture, and the between-imputation variance of the
+per-table posterior means is reported as its own axis. `result.missing_data.imputation`
+carries the specification, the unit the parameter draws resampled, the cells imputed per
+variable, every table's estimate and the variance components; the claim carries the
+specification and the pooled components among its evidence, and the specification enters the
+data-snapshot identity.
+
+Imputation table `j` opens its own keyed random stream from `seed`, so the result does not
+depend on threads or scheduling, and every completed table is leased from the execution's
+admission pool before it is allocated (a pool that cannot fund one table is refused before
+anything is drawn). The declared sampling design governs the unit of the parameter draw:
+rows for independent rows or subjects, whole clusters for a clustered panel (refused on the
+average-effect route, which binds no cluster labels; next attempt: supply cluster labels or
+`complete_case`), and a dependent time series is refused (next attempt: `complete_case` on the
+temporal route). The assumption is missing at random given the variables of the imputation
+model, and a correctly specified imputation model. Declaring `missing_not_at_random` is
+refused with a sensitivity analysis (delta-adjusted or selection-model imputation over a grid
+of departures) named as the next attempt; that analysis is not shipped.
+
 **NOTEARS, `complete_case`.** Rows with a missing value in any discovery variable are dropped
 and reported in `result.row_accounting`. The graph equals the one learned on the complete rows
 and speaks for the full data only when missingness is completely at random.
@@ -134,9 +213,28 @@ A claim over a result whose policy differs from the route's default carries the 
 assumption it needs and the digest of the dropped rows among its evidence references. Claims of
 default policies keep exactly the references they had.
 
+## Unbalanced panels
+
+`antecedent_data::PanelLayout::assess(subjects, periods, observed)` reports a long panel
+before any design reads it: the calendar grid, each unit's first and last observed period,
+its internal gaps as calendar runs, late entry and attrition, the cells expected and present,
+an attrition table per period (units at risk, observed, entering, leaving) and, given a
+baseline column, the standardized difference between units that later leave and units that
+stay. Duplicate unit-periods are refused. `PanelBalanceReport::prepare` keeps whole complete
+units (`BalancedUnits`), every complete unit-period with its identities
+(`AvailableUnitPeriods`), or each unit's maximal runs of consecutive periods
+(`ContiguousRuns`), so no lag or difference spans a gap or crosses a unit, and produces the row
+accounting above. `require_balance` refuses, for designs that need a balanced panel
+(two-period panels, synthetic control, a balanced event study, an augmented panel), naming the
+units that break balance and the next attempt; `require_lag` refuses a lag that would read
+across a gap. No difference-in-differences estimator is run by this layer.
+
 ## Intervals
 
 A handled missingness changes the variance construction, so no interval is published for it:
 responder-weighted and complete-case randomized effects, restricted panels and temporal fits
 on series with gaps report a point estimate and a standard error where one exists, and the
-interval stays closed until a coverage record measures the construction.
+interval stays closed until a coverage record measures the construction. Multiple
+imputation publishes the pooled standard error and its degrees of freedom, and its interval
+stays closed the same way: the whole impute-fit-pool procedure is one uncertainty path, so a
+coverage record can measure it as one construction.

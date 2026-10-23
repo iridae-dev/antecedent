@@ -51,6 +51,12 @@ What is licensed, and what is not:
 * **Consume** recomputes the point and standard error from the stored sufficient inputs against a
   model identity the consumer retained independently of the bytes.
 
+Continuous classical error beyond the linear moment correction goes through
+:meth:`PreparedMeasurementModel.estimate_continuous` with a :class:`ContinuousErrorData`: regression
+calibration or SIMEX (Cook and Stefanski 1994) under a linear or logistic outcome model, with the
+error in the treatment, a covariate or the outcome. Logistic calibration and SIMEX report a
+bootstrap standard error over the whole procedure; the result is uncalibrated and has no interval.
+
 A posterior from an external provider is trusted only as far as it is attested or verified, and
 never as native: :class:`ProviderObject` states an attestation or carries a verification receipt the
 library issued, and a claim of native trust is refused by name.
@@ -112,6 +118,8 @@ __all__ = [
     "ClassicalErrorParameters",
     "ClassicalLinearData",
     "ConsumedMeasurement",
+    "ContinuousErrorData",
+    "ContinuousMeasurementEstimate",
     "LatentPosteriorData",
     "MeasurementEstimate",
     "MeasurementIdentities",
@@ -911,6 +919,98 @@ class LatentPosteriorData:
         }
 
 
+_LOCATIONS = ("treatment", "covariate", "outcome")
+_LINKS = ("identity", "logit")
+_METHODS = ("regression_calibration", "simex")
+_EXTRAPOLANTS = ("quadratic", "linear")
+
+
+@dataclass(frozen=True, slots=True)
+class ContinuousErrorData:
+    """Data and question of one correction for continuous classical measurement error.
+
+    The design is ``(1, regressor, covariates)``. ``location`` says which column carries additive
+    error: ``"treatment"`` (``regressor`` is the error-prone treatment), ``"covariate"``
+    (``regressor`` is the error-prone covariate and the treatment is covariate column
+    ``treatment_column``) or ``"outcome"`` (``outcome`` is error-prone and ``regressor`` is the
+    error-free treatment). ``replicate_values`` (every row's measurements back to back) with
+    ``replicate_counts`` makes the error-prone column the row means; the column may then be left
+    ``None``.
+
+    ``link`` is ``"identity"`` (linear) or ``"logit"`` (0/1 outcome). ``method`` is
+    ``"regression_calibration"`` or ``"simex"`` (grid ``simex_lambdas`` plus ``0``,
+    ``simex_replicates`` remeasurements per value, ``"quadratic"`` or ``"linear"``
+    ``extrapolant``). Logistic calibration and SIMEX report a bootstrap standard error over
+    ``bootstrap_replicates`` (at least 50) resamples of the whole procedure, keyed by ``seed``.
+    """
+
+    outcome: Any = None
+    regressor: Any = None
+    covariates: Any = None
+    replicate_values: Any = None
+    replicate_counts: Any = None
+    location: str = "treatment"
+    treatment_column: int | None = None
+    link: str = "identity"
+    method: str = "regression_calibration"
+    simex_lambdas: tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
+    simex_replicates: int = 50
+    extrapolant: str = "quadratic"
+    bootstrap_replicates: int = 200
+    seed: int = 0
+
+    def __post_init__(self) -> None:
+        _choice(self.location, "location", _LOCATIONS)
+        _choice(self.link, "link", _LINKS)
+        _choice(self.method, "method", _METHODS)
+        _choice(self.extrapolant, "extrapolant", _EXTRAPOLANTS)
+        if (self.location == "covariate") != (self.treatment_column is not None):
+            raise CausalValueError(
+                "treatment_column is stated exactly when the error is in a covariate"
+            )
+
+    def to_wire(self) -> dict[str, Any]:
+        """The declaration the native layer reads."""
+        outcome = [] if self.outcome is None else _vector(self.outcome, "outcome")
+        regressor = [] if self.regressor is None else _vector(self.regressor, "regressor")
+        rows = len(regressor) if self.location == "outcome" else len(outcome)
+        covariates, k = _columns(self.covariates, rows, "covariates")
+        replicate_values = None
+        if self.replicate_values is not None:
+            replicate_values = _vector(self.replicate_values, "replicate_values")
+        replicate_counts = None
+        if self.replicate_counts is not None:
+            replicate_counts = [
+                _count(c, "replicate count", maximum=2**32 - 1)
+                for c in np.asarray(self.replicate_counts)
+            ]
+        method: dict[str, Any] = {"kind": self.method}
+        if self.method == "simex":
+            method.update(
+                lambdas=[_number(v, "simex_lambdas") for v in self.simex_lambdas],
+                replicates=_count(self.simex_replicates, "simex_replicates", maximum=2**32 - 1),
+                extrapolant=self.extrapolant,
+            )
+        return {
+            "outcome": outcome,
+            "regressor": regressor,
+            "covariates": covariates,
+            "covariate_count": k,
+            "replicate_values": replicate_values,
+            "replicate_counts": replicate_counts,
+            "location": self.location,
+            "treatment_column": None
+            if self.treatment_column is None
+            else _count(self.treatment_column, "treatment_column"),
+            "link": self.link,
+            "method": method,
+            "bootstrap_replicates": _count(
+                self.bootstrap_replicates, "bootstrap_replicates", maximum=2**32 - 1
+            ),
+            "seed": _count(self.seed, "seed"),
+        }
+
+
 MeasurementData = (
     ClassicalLinearData
     | RepeatedLinearData
@@ -1122,6 +1222,99 @@ def _estimate(handle: Any) -> MeasurementEstimate:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class ContinuousMeasurementEstimate:
+    """A corrected coefficient under continuous classical measurement error, bound to its model.
+
+    ``point`` is the treatment coefficient (index ``coefficient_index`` of ``coefficients``, on
+    ``(1, regressor, covariates)``) and ``naive_point`` the uncorrected one. ``standard_error`` is
+    uncalibrated: delta method for linear regression calibration, a bootstrap of the whole
+    procedure (``bootstrap_replicates`` used, ``failed_bootstrap_replicates`` failed) for logistic
+    calibration and SIMEX. ``method`` is ``regression_calibration``, ``simex`` or
+    ``outcome_error_no_correction`` (error in the outcome under an identity link, which does not
+    bias the slope). ``simex_lambdas`` and ``simex_means`` are the SIMEX path (``0`` first), one
+    mean coefficient vector per value. There is no interval: :meth:`interval` raises
+    ``cell_not_licensed``.
+    """
+
+    model_identity: str
+    route: str
+    functional_id: str
+    point: float
+    naive_point: float | None
+    standard_error: float | None
+    variance_components: tuple[VarianceComponent, ...]
+    rows: int
+    data_identity: str
+    inference: str
+    parameter_uncertainty: str
+    method: str
+    link: str
+    location: str
+    treatment_column: int | None
+    error_variance: float | None
+    error_variance_standard_error: float | None
+    reliability: float | None
+    bootstrap_replicates: int
+    failed_bootstrap_replicates: int
+    seed: int | None
+    coefficients: tuple[float, ...]
+    naive_coefficients: tuple[float, ...]
+    coefficient_index: int
+    simex_lambdas: tuple[float, ...] | None
+    simex_means: tuple[tuple[float, ...], ...] | None
+    simex_extrapolant: str | None
+    _handle: Any = field(repr=False, compare=False)
+
+    @property
+    def variance(self) -> float | None:
+        """The reported variance (the square of :attr:`standard_error`)."""
+        return None if self.standard_error is None else self.standard_error**2
+
+    def interval(self) -> None:
+        """Always raises ``cell_not_licensed``: no coverage record measures the method."""
+        raise_refusal(self._handle.interval(), MeasurementModelRefusal)
+
+
+def _continuous(summary: dict[str, Any], handle: Any) -> ContinuousMeasurementEstimate:
+    simex = summary["simex"]
+    return ContinuousMeasurementEstimate(
+        model_identity=summary["model_identity"],
+        route=summary["route"],
+        functional_id=summary["functional_id"],
+        point=float(summary["point"]),
+        naive_point=summary["naive_point"],
+        standard_error=summary["standard_error"],
+        variance_components=tuple(
+            VarianceComponent(c["name"], float(c["variance"]))
+            for c in summary["variance_components"]
+        ),
+        rows=int(summary["rows"]),
+        data_identity=summary["data_identity"],
+        inference=summary["inference"],
+        parameter_uncertainty=summary["parameter_uncertainty"],
+        method=summary["method"],
+        link=summary["link"],
+        location=summary["location"],
+        treatment_column=summary["treatment_column"],
+        error_variance=summary["error_variance"],
+        error_variance_standard_error=summary["error_variance_standard_error"],
+        reliability=summary["reliability"],
+        bootstrap_replicates=int(summary["bootstrap_replicates"]),
+        failed_bootstrap_replicates=int(summary["failed_bootstrap_replicates"]),
+        seed=summary["seed"],
+        coefficients=tuple(float(v) for v in summary["coefficients"]),
+        naive_coefficients=tuple(float(v) for v in summary["naive_coefficients"]),
+        coefficient_index=int(summary["coefficient_index"]),
+        simex_lambdas=None if simex is None else tuple(float(v) for v in simex["lambdas"]),
+        simex_means=None
+        if simex is None
+        else tuple(tuple(float(v) for v in row) for row in simex["means"]),
+        simex_extrapolant=None if simex is None else simex["extrapolant"],
+        _handle=handle,
+    )
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class MeasurementRefresh:
     """The new prepared state and the result recomputed from it."""
@@ -1172,6 +1365,28 @@ class PreparedMeasurementModel:
 
         object.__setattr__(result, "_model", freeze(self.model))
         return result
+
+    def estimate_continuous(
+        self, data: ContinuousErrorData, *, cancel: Any = None
+    ) -> ContinuousMeasurementEstimate:
+        """Correct the treatment coefficient for continuous classical measurement error.
+
+        Re-runs the prepare checks of the linear adjusted effect on this model and binding, then
+        corrects by regression calibration or SIMEX under a linear or logistic outcome model. The
+        nonlinear outcome operation stays refused by :meth:`check_operation`; this is its entry.
+
+        Raises:
+            MeasurementModelRefusal: ``measurement_not_identified`` when the model's route
+                identifies no error variance (remedy: supply replicates or a validation sample),
+                ``route_not_supported`` for a logit outcome with the error in the outcome (remedy:
+                the binary misclassification route), and the estimator's other coded refusals.
+        """
+        if not isinstance(data, ContinuousErrorData):
+            raise CausalTypeError("data must be a ContinuousErrorData")
+        summary = _unwrap(
+            self._handle.estimate_continuous(_dumps(data.to_wire()), cancel=cancel)
+        )
+        return _continuous(json.loads(summary), self._handle)
 
     def refresh(self, data: MeasurementData, *, cancel: Any = None) -> MeasurementRefresh:
         """Recompute with new outcome-only data of the same question.

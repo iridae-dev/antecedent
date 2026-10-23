@@ -222,6 +222,34 @@ impl RowAccounting {
         Self::from_selection(table, analysis_mask, MissingPolicy::CompleteCase, variables, &keep)
     }
 
+    /// Accounting of a multiple-imputation analysis over `variables`: every row the
+    /// analysis mask exposes is kept (its missing cells are imputed), and only the rows the
+    /// mask hides are dropped. `missing_by_variable` still counts the missing cells of each
+    /// variable, which are the cells that were imputed.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variables, or a policy other than [`MissingPolicy::MultipleImputation`].
+    pub fn imputed<T: TableView>(
+        table: &T,
+        analysis_mask: Option<&ValidityBitmap>,
+        policy: MissingPolicy,
+        variables: &[VariableId],
+    ) -> Result<Self, DataError> {
+        if policy.imputation().is_none() {
+            return Err(DataError::InvalidArgument {
+                message: format!(
+                    "imputed row accounting needs the multiple_imputation policy, got `{}`",
+                    policy.name()
+                ),
+            });
+        }
+        let keep: Vec<bool> = (0..table.row_count())
+            .map(|row| analysis_mask.is_none_or(|mask| mask.is_valid(row)))
+            .collect();
+        Self::from_selection(table, analysis_mask, policy, variables, &keep)
+    }
+
     /// Rows removed from the analysis.
     #[must_use]
     pub fn rows_dropped(&self) -> usize {
@@ -316,6 +344,68 @@ pub fn complete_rows<T: TableView>(
         }
     }
     Ok(keep)
+}
+
+/// A copy of `table` whose `Float64` columns named in `replacements` hold the supplied
+/// values, all observed. Every other column, the schema, the analysis mask and the weights
+/// are kept as they are, so a completed table of a multiple-imputation draw has the
+/// schema and row order of the table it completes.
+///
+/// # Errors
+///
+/// A replaced variable that is not a `Float64` column of the table, a replacement whose
+/// length differs from the row count, a non-finite replacement value, or a storage
+/// construction failure.
+pub fn complete_float_columns(
+    table: &crate::dataset::TabularData,
+    replacements: &[(VariableId, Arc<[f64]>)],
+) -> Result<crate::dataset::TabularData, DataError> {
+    use crate::column::{Float64Column, OwnedColumn};
+    let storage = table.storage();
+    let n = table.row_count();
+    for (id, values) in replacements {
+        if values.len() != n {
+            return Err(DataError::LengthMismatch {
+                expected: n,
+                actual: values.len(),
+                context: "completed column",
+            });
+        }
+        if values.iter().any(|v| !v.is_finite()) {
+            return Err(DataError::InvalidArgument {
+                message: format!("completed column {} holds a non-finite value", id.raw()),
+            });
+        }
+        if !storage.columns().iter().any(|c| matches!(c, OwnedColumn::Float64(f) if f.id == *id)) {
+            return Err(DataError::InvalidArgument {
+                message: format!(
+                    "variable {} is not a float column; only float columns are imputed",
+                    id.raw()
+                ),
+            });
+        }
+    }
+    let mut columns = Vec::with_capacity(storage.columns().len());
+    for column in storage.columns() {
+        let replaced = replacements.iter().find(|(id, _)| *id == column.id());
+        match (column, replaced) {
+            (OwnedColumn::Float64(float), Some((_, values))) => {
+                columns.push(OwnedColumn::Float64(Float64Column::new(
+                    float.id,
+                    Arc::clone(values),
+                    ValidityBitmap::all_valid(n),
+                )?));
+            }
+            _ => columns.push(column.clone()),
+        }
+    }
+    let rebuilt = crate::storage::OwnedColumnarStorage::try_new(
+        table.schema().clone(),
+        columns,
+        storage.analysis_mask().cloned(),
+        storage.weights().map(Arc::from),
+    )?;
+    Ok(crate::dataset::TabularData::new(rebuilt))
 }
 
 /// Lower-case hex BLAKE3 of the row total and the ascending dropped positions.

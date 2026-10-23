@@ -3,7 +3,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::result::MissingDataReport;
-use antecedent_data::{MissingDeclaration, MissingPolicy, RowAccounting};
+use antecedent_data::{
+    ImputationModel, ImputationSpec, MissingDeclaration, MissingPolicy, MissingnessAssumption,
+    RowAccounting,
+};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -50,9 +53,38 @@ pub(crate) fn report_json(report: Option<&MissingDataReport>) -> Option<String> 
             "assumption": report.assumption.as_ref(),
             "covariates": report.covariates.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
             "accounting": accounting_json(&report.accounting),
+            "imputation": report.imputation.as_ref().map(imputation_json),
         })
         .to_string(),
     )
+}
+
+/// The impute-fit-pool record of a multiple-imputation result.
+fn imputation_json(report: &antecedent::result::ImputationReport) -> serde_json::Value {
+    serde_json::json!({
+        "model": report.spec.model.name(),
+        "imputations": report.spec.imputations,
+        "iterations": report.spec.iterations,
+        "seed": report.spec.seed,
+        "assumption": report.spec.assumption.name(),
+        "unit": report.unit.as_ref(),
+        "units": report.units,
+        "imputed_cells": report
+            .imputed_cells
+            .iter()
+            .map(|(name, cells)| serde_json::json!({"variable": name.as_ref(), "cells": cells}))
+            .collect::<Vec<_>>(),
+        "estimator": report.estimator.as_ref(),
+        "pooling": report.pooling.as_ref(),
+        "points": report.points.as_ref(),
+        "within": report.within,
+        "between": report.between,
+        "total": report.total,
+        "df": report.df,
+        "df_complete": report.df_complete,
+        "fraction_missing_information": report.fraction_missing_information,
+        "relative_increase": report.relative_increase,
+    })
 }
 
 /// A policy by name; the refusal lists the names.
@@ -76,7 +108,51 @@ pub(crate) fn parse_declaration(value: &Bound<'_, PyAny>) -> PyResult<MissingDec
         Some(list) if !list.is_none() => list.extract()?,
         _ => Vec::new(),
     };
-    Ok(MissingDeclaration::new(parse_policy(&policy)?).with_covariates(
+    let mut policy = parse_policy(&policy)?;
+    if let Some(spec) = dict.get_item("imputation")?.filter(|value| !value.is_none()) {
+        if policy.imputation().is_none() {
+            return Err(crate::value_err(
+                "an imputation specification is read only by policy 'multiple_imputation'",
+            ));
+        }
+        policy = MissingPolicy::MultipleImputation(parse_imputation(&spec)?);
+    }
+    Ok(MissingDeclaration::new(policy).with_covariates(
         covariates.into_iter().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>(),
     ))
+}
+
+/// The `imputation` member of the `missing` option:
+/// `{"model", "imputations", "iterations", "seed", "assumption"}`.
+fn parse_imputation(value: &Bound<'_, PyAny>) -> PyResult<ImputationSpec> {
+    let dict = value.cast::<PyDict>()?;
+    let mut spec = ImputationSpec::new();
+    if let Some(model) = dict.get_item("model")? {
+        let name = model.extract::<String>()?;
+        spec.model = ImputationModel::from_name(&name).ok_or_else(|| {
+            crate::value_err(format!(
+                "unknown imputation model {name:?}; use one of {:?}",
+                ImputationModel::ALL.map(ImputationModel::name)
+            ))
+        })?;
+    }
+    if let Some(imputations) = dict.get_item("imputations")? {
+        spec.imputations = imputations.extract()?;
+    }
+    if let Some(iterations) = dict.get_item("iterations")? {
+        spec.iterations = iterations.extract()?;
+    }
+    if let Some(seed) = dict.get_item("seed")? {
+        spec.seed = seed.extract()?;
+    }
+    if let Some(assumption) = dict.get_item("assumption")? {
+        let name = assumption.extract::<String>()?;
+        spec.assumption = MissingnessAssumption::from_name(&name).ok_or_else(|| {
+            crate::value_err(format!(
+                "unknown missingness assumption {name:?}; use one of {:?}",
+                MissingnessAssumption::ALL.map(MissingnessAssumption::name)
+            ))
+        })?;
+    }
+    Ok(spec)
 }

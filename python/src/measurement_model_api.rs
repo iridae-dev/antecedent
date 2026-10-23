@@ -12,14 +12,18 @@
 //! issued; a claim of native trust is forwarded so the contract refuses it by
 //! name.
 
+use antecedent::analysis::continuous_measurement::{
+    CorrectionMethod, ErrorLocation, OutcomeLink, SimexExtrapolant,
+};
 use antecedent::analysis::transported_measurement::{
     ErrorParameter, InvarianceDeclaration, PopulationErrorStructure, TransportBasis,
     TransportReceipt, transport_measurement_estimate, verify_measurement_transport,
 };
 use antecedent::{
-    CategoricalTarget, ConsumedMeasurement, MeasurementAnalysisBinding, MeasurementDetail,
-    MeasurementEstimate, MeasurementInput, MeasurementModelRefusal, PreparedMeasurementModel,
-    StudyBuilder, consume_measurement_model_artifact,
+    CategoricalTarget, ConsumedMeasurement, ContinuousErrorInput, ContinuousMeasurementEstimate,
+    MeasurementAnalysisBinding, MeasurementDetail, MeasurementEstimate, MeasurementInput,
+    MeasurementModelRefusal, PreparedMeasurementModel, StudyBuilder,
+    consume_measurement_model_artifact,
 };
 use antecedent_contract::measurement::MeasurementOperation;
 use antecedent_contract::{
@@ -547,6 +551,63 @@ fn parse_input(value: &Json) -> PyResult<MeasurementInput> {
     }
 }
 
+fn parse_continuous_method(value: &Json) -> PyResult<CorrectionMethod> {
+    let map = object(value, "correction method")?;
+    match text(map, "kind")?.as_str() {
+        "regression_calibration" => Ok(CorrectionMethod::RegressionCalibration),
+        "simex" => Ok(CorrectionMethod::Simex {
+            lambdas: reals(map, "lambdas")?,
+            replicates: small(map, "replicates")?,
+            extrapolant: match text(map, "extrapolant")?.as_str() {
+                "linear" => SimexExtrapolant::Linear,
+                "quadratic" => SimexExtrapolant::Quadratic,
+                other => {
+                    return Err(crate::value_err(format!("unknown SIMEX extrapolant `{other}`")));
+                }
+            },
+        }),
+        other => Err(crate::value_err(format!("unknown correction method `{other}`"))),
+    }
+}
+
+fn parse_continuous_input(value: &Json) -> PyResult<ContinuousErrorInput> {
+    let map = object(value, "continuous measurement data")?;
+    let location = match text(map, "location")?.as_str() {
+        "treatment" => ErrorLocation::Treatment,
+        "covariate" => {
+            ErrorLocation::Covariate { treatment_column: index(map, "treatment_column")? }
+        }
+        "outcome" => ErrorLocation::Outcome,
+        other => return Err(crate::value_err(format!("unknown error location `{other}`"))),
+    };
+    let link = match text(map, "link")?.as_str() {
+        "identity" => OutcomeLink::Identity,
+        "logit" => OutcomeLink::Logit,
+        other => return Err(crate::value_err(format!("unknown outcome link `{other}`"))),
+    };
+    Ok(ContinuousErrorInput {
+        outcome: reals(map, "outcome")?,
+        regressor: reals(map, "regressor")?,
+        covariates: reals(map, "covariates")?,
+        covariate_count: index(map, "covariate_count")?,
+        replicate_values: match present(map, "replicate_values") {
+            Some(_) => Some(reals(map, "replicate_values")?),
+            None => None,
+        },
+        replicate_counts: match present(map, "replicate_counts") {
+            Some(_) => Some(small_list(map, "replicate_counts")?),
+            None => None,
+        },
+        spec: antecedent::analysis::continuous_measurement::ContinuousCorrectionSpec {
+            location,
+            link,
+            method: parse_continuous_method(member(map, "method")?)?,
+            bootstrap_replicates: small(map, "bootstrap_replicates")?,
+            seed: unsigned(map, "seed")?,
+        },
+    })
+}
+
 fn operation_from_name(name: &str) -> PyResult<MeasurementOperation> {
     [
         MeasurementOperation::LinearAdjustedEffect,
@@ -738,6 +799,38 @@ fn detail_json(estimate: &MeasurementEstimate) -> Json {
     }
 }
 
+fn continuous_json(estimate: &ContinuousMeasurementEstimate) -> Json {
+    let effect = estimate.effect();
+    let summary = &effect.summary;
+    let mut out = record_json(estimate.record());
+    out["method"] = json!(summary.method.as_str());
+    out["link"] = json!(summary.link.as_str());
+    out["location"] = json!(summary.location.as_str());
+    out["treatment_column"] = match summary.location {
+        ErrorLocation::Covariate { treatment_column } => json!(treatment_column),
+        _ => Json::Null,
+    };
+    out["error_variance"] = json!(summary.error_variance);
+    out["error_variance_standard_error"] = json!(summary.error_variance_standard_error);
+    out["reliability"] = json!(summary.reliability);
+    out["bootstrap_replicates"] = json!(summary.bootstrap_replicates);
+    out["failed_bootstrap_replicates"] = json!(summary.failed_bootstrap_replicates);
+    out["seed"] = json!(summary.seed);
+    out["coefficients"] = json!(effect.coefficients);
+    out["naive_coefficients"] = json!(effect.naive_coefficients);
+    out["coefficient_index"] = json!(effect.coefficient_index);
+    out["simex"] = effect.simex.as_ref().map_or(Json::Null, |fit| {
+        json!({
+            "lambdas": fit.lambdas,
+            "means": fit.lambda_means,
+            "extrapolant": fit.extrapolant.as_str(),
+            "replicates": fit.replicates,
+        })
+    });
+    out["interval"] = Json::Null;
+    out
+}
+
 fn route_card_json(prepared: &PreparedMeasurementModel) -> Json {
     let card = prepared.route_card();
     json!({
@@ -861,6 +954,28 @@ impl PreparedMeasurementHandle {
         })?;
         Ok(match outcome {
             Ok(estimate) => (Some(MeasurementEstimateHandle { inner: estimate }), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
+    }
+
+    /// Correct one coefficient for continuous classical measurement error
+    /// (regression calibration or SIMEX, linear or logistic outcome model).
+    /// Returns the result as JSON or the structured refusal.
+    #[pyo3(signature = (input_json, *, cancel=None))]
+    fn estimate_continuous(
+        &self,
+        py: Python<'_>,
+        input_json: &str,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        let input = parse_continuous_input(&parse(input_json, "continuous measurement data")?)?;
+        let inner = self.inner.clone();
+        let outcome = crate::detach_catch(py, move || {
+            let ctx = execution_context(0, None, cancel);
+            Ok(inner.estimate_continuous(input, &ctx))
+        })?;
+        Ok(match outcome {
+            Ok(estimate) => (Some(continuous_json(&estimate).to_string()), None),
             Err(refusal) => (None, Some(refusal_json(&refusal))),
         })
     }

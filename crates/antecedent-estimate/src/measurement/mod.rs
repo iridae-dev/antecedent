@@ -14,7 +14,9 @@
 //!    implements: a model declared differential is never run through the
 //!    non-differential route, and the reverse.
 //!
-//! Variance is delta-method and includes the uncertainty of the estimated
+//! Variance is delta-method (or, for logistic regression calibration and
+//! SIMEX in [`continuous`], a bootstrap of the whole procedure) and includes
+//! the uncertainty of the estimated
 //! measurement parameters (error variance, sensitivity and specificity,
 //! confusion columns, posterior draws), not only downstream sampling
 //! variance. No interval is produced: the whole measurement-plus-estimation
@@ -28,6 +30,7 @@
 
 pub mod binary;
 pub mod categorical;
+pub mod continuous;
 pub mod linear;
 pub mod posterior;
 
@@ -45,6 +48,11 @@ pub use binary::{
     correct_binary_prevalence, correct_binary_risk_difference,
 };
 pub use categorical::{CategoricalFunctional, CorrectedCategoricalOutcome, correct_categorical};
+pub use continuous::{
+    ContinuousCorrectionSpec, ContinuousCorrectionSummary, ContinuousErrorData,
+    ContinuousMethodKind, CorrectedContinuousEffect, CorrectionMethod, ErrorLocation, OutcomeLink,
+    SimexExtrapolant, SimexFit, correct_continuous_error,
+};
 pub use linear::{
     CorrectedLinearEffect, LinearMeasuredData, correct_classical_linear_effect,
     correct_repeated_linear_effect,

@@ -10287,7 +10287,7 @@ inference_outputs = []
 surface_rust = ["crates/antecedent/src/analysis/measurement_model.rs"]
 surface = ["python/antecedent/measurement_models.py"]
 surface_pyo3 = ["python/src/measurement_model_api.rs"]
-surface_values = ["MeasurementModelRefusal", "MeasurementAnalysisBinding", "CategoricalTarget", "MeasurementInput", "MeasurementDetail", "PreparedMeasurementModel", "MeasurementEstimate", "MeasurementRefresh", "ConsumedMeasurement", "AnalysisBinding", "BinaryParameters", "BinaryPrevalenceData", "BinaryRates", "CategoricalData", "CategoricalParameters", "ClassicalErrorParameters", "ClassicalLinearData", "LatentPosteriorData", "MeasurementIdentities", "MeasurementModel", "MeasurementVariable", "ParameterEvidence", "PosteriorParameters", "PosteriorReference", "ProviderObject", "RepeatedLinearData", "RepeatedParameters", "RepresentationMapping", "RepresentationVersion", "RiskDifferenceData", "VarianceComponent", "PreparedMeasurementHandle", "MeasurementEstimateHandle", "ConsumedMeasurementHandle", "DifferentialErrorDeclaration", "InvarianceDeclaration", "MeasurementTransportReceipt", "TransportedMeasurementEstimate"]
+surface_values = ["ContinuousErrorData", "ContinuousMeasurementEstimate", "MeasurementModelRefusal", "MeasurementAnalysisBinding", "CategoricalTarget", "MeasurementInput", "MeasurementDetail", "PreparedMeasurementModel", "MeasurementEstimate", "MeasurementRefresh", "ConsumedMeasurement", "AnalysisBinding", "BinaryParameters", "BinaryPrevalenceData", "BinaryRates", "CategoricalData", "CategoricalParameters", "ClassicalErrorParameters", "ClassicalLinearData", "LatentPosteriorData", "MeasurementIdentities", "MeasurementModel", "MeasurementVariable", "ParameterEvidence", "PosteriorParameters", "PosteriorReference", "ProviderObject", "RepeatedLinearData", "RepeatedParameters", "RepresentationMapping", "RepresentationVersion", "RiskDifferenceData", "VarianceComponent", "PreparedMeasurementHandle", "MeasurementEstimateHandle", "ConsumedMeasurementHandle", "DifferentialErrorDeclaration", "InvarianceDeclaration", "MeasurementTransportReceipt", "TransportedMeasurementEstimate"]
 refusals = [
   { code = "measurement_model_invalid", detail = "measurement_model.indicator_observed", when = "An observed column is given an error model.", remedy = "Declare the column noisy or misclassified, or use it directly as observed." },
   { code = "differential_error_not_pooled", detail = "measurement_model.structure_parameters", when = "The declared error structure disagrees with the parameter layout.", remedy = "Declare shared parameters as non-differential, or one parameter set per arm as differential by arm." },
@@ -10328,6 +10328,7 @@ routes = [
   { name = "antecedent.measurement_models.prepare_measurement_model", stage = "prepare", status = "licensed", claim = "none", covers = ["measurement_model_prepare"] },
   { name = "antecedent.measurement_models.model_identities", stage = "prepare", status = "licensed", claim = "none", covers = ["measurement_model_identities", "transport_measurement_model", "verify_measurement_transport", "measurement_model_transport", "measurement_model_transport_verify"] },
   { name = "antecedent.measurement_models.PreparedMeasurementModel.estimate", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.measurement_models.PreparedMeasurementModel.estimate_continuous", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.measurement_models.PreparedMeasurementModel.refresh", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.measurement_models.PreparedMeasurementModel.with_validation_parameters", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.measurement_models.MeasurementEstimate.export", stage = "representation", status = "licensed", claim = "point_only" },
@@ -10388,6 +10389,12 @@ prerequisite_reason = "A correction is licensed only for a request the measureme
 bounds = { cancellation = true, max_rows = 67108864, max_covariates = 64 }
 inference_inventory_disposition = "point_output_listed_unmeasured"
 refusals = [
+  { code = "measurement_not_identified", detail = "measurement_model.error_variance_not_identified", when = "A continuous-error correction has no identified error variance: the model is neither classical nor repeated, or the data carry no replicates.", remedy = "Supply replicates or a validation sample." },
+  { code = "measurement_not_identified", detail = "measurement_model.outcome_model_not_fitted", when = "The outcome model of a regression-calibration or SIMEX correction does not converge or separates.", remedy = "Use a linear outcome model, more rows, or fewer covariates." },
+  { code = "measurement_not_identified", detail = "measurement_model.bootstrap_unstable", when = "More than a tenth of the whole-procedure bootstrap replicates fail.", remedy = "Supply more rows or a more reliable measurement." },
+  { code = "route_not_supported", detail = "measurement_model.binary_outcome_continuous_error", when = "Additive continuous error is declared on a binary (logit-link) outcome.", remedy = "Use the binary misclassification route." },
+  { code = "route_not_supported", detail = "measurement_model.continuous_export", when = "A continuous-error correction is exported; the artifact has no slot for it.", remedy = "Retain the estimate in process; export the classical linear correction instead." },
+  { code = "invalid_argument", detail = "measurement_model.admission_refused", when = "The admission pool cannot fund the bootstrap buffers of a continuous-error correction.", remedy = "Raise the memory limit or lower the bootstrap replicates." },
   { code = "measurement_model_invalid", detail = "measurement_model.invalid_model", when = "A model is malformed: blank identity, parameters of another route or out of range.", remedy = "Declare a well formed model: named identities and parameters of the declared route within range." },
   { code = "proxy_offered_as_construct", detail = "measurement_model.proxy_as_construct", when = "A proxy, learned representation or derived column is offered as the latent construct.", remedy = "Name the latent scientific construct and relate the proxy to it by a measurement model." },
   { code = "measurement_binding_mismatch", detail = "measurement_model.population_mismatch", when = "The data population differs from the model's.", remedy = "Analyse data of the population the model names, or declare a model for this population." },
@@ -18201,11 +18208,12 @@ compatibility = "Additive: studies that keep their route default have the identi
 search = false
 bounds = { cancellation = true }
 surface = ["python/antecedent/missing.py"]
-surface_values = ["MissingPolicy"]
+surface_values = ["MissingPolicy", "ImputationSpec"]
 refusals = [
   { code = "missing_policy_required", detail = "missing_data.policy_required", when = "A route with no default for missing values meets one and no policy is declared; the refusal names the first missing cell and the executable policies." },
   { code = "missing_policy_not_applicable", detail = "missing_data.policy_not_applicable", when = "A declared policy cannot be executed on the route or design (unbalancing a panel, a design without a responder estimator, a series with gaps asked for a bootstrap)." },
   { code = "missing_policy_not_applicable", detail = "missing_data.covariates_incomplete", when = "The declared covariates of the observation model are themselves missing." },
+  { code = "missing_policy_not_applicable", detail = "missing_data.multiple_imputation", when = "A multiple-imputation declaration cannot run on the study: the route cell pools no estimator that ran, an imputation variable is not a float column, an incomplete analysed variable is outside the imputation model, or a completed table's fit reports no variance or posterior to pool." },
 ]
 routes = [{ name = "antecedent.missing.declared_policy", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["coerce_missing", "MissingPolicyName"] }]
 fixtures = [

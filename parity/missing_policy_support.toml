@@ -1,0 +1,128 @@
+# Declared missing-data support per route cell.
+#
+# The single statement of which `missing=` policies each route executes. The facade
+# reads this file at build time (crates/antecedent/src/analysis/missing_support.rs,
+# `route_missing_support`): a declaration whose policy is not listed for the study's
+# route cell is refused with `missing_policy_not_applicable`, naming the supported
+# policies and the next attempt. A route cell with no row executes no policy and
+# refuses every declaration. scripts/check_missing_policy_support.py checks this file
+# against the policy vocabulary and the table in docs/guides/missing-data.md, and
+# crates/antecedent/tests/missing_policy_support.rs enumerates every route cell
+# (query kind x data modality x inference mode) against it.
+#
+# Fields:
+#   query          CausalQueryKind variant name
+#   modality       data modality: tabular, series, event, multi_env, panel (event
+#                  series, multi-environment and panel inputs have no row: their routes
+#                  read rows in their own way)
+#   inference      inference modes the row covers: frequentist, bayesian
+#   family         executing route family: static, randomized, panel, temporal
+#   default        policy applied when none is declared
+#   supported      policies the route executes, in documentation order
+#   next_attempt   the supported policy a refusal names first
+#   imputation_estimators
+#                  estimators multiple imputation pools on this cell (point and
+#                  variance, or posterior draws); empty when the cell has no
+#                  multiple imputation
+
+schema = 1
+
+[[route]]
+query = "AverageEffect"
+modality = "tabular"
+inference = ["frequentist"]
+family = "static"
+default = "complete_case"
+supported = ["error", "complete_case", "multiple_imputation"]
+next_attempt = "multiple_imputation"
+imputation_estimators = ["linear.adjustment.ate", "glm.adjustment", "aipw", "propensity.weighting"]
+
+[[route]]
+query = "AverageEffect"
+modality = "tabular"
+inference = ["bayesian"]
+family = "static"
+default = "complete_case"
+supported = ["error", "complete_case", "multiple_imputation"]
+next_attempt = "multiple_imputation"
+imputation_estimators = ["bayesian.gcomp"]
+
+[[route]]
+query = "ConditionalEffect"
+modality = "tabular"
+inference = ["frequentist", "bayesian"]
+family = "static"
+default = "complete_case"
+supported = ["error", "complete_case"]
+next_attempt = "complete_case"
+imputation_estimators = []
+
+[[route]]
+query = "Response"
+modality = "tabular"
+inference = ["frequentist", "bayesian"]
+family = "static"
+default = "complete_case"
+supported = ["error", "complete_case"]
+next_attempt = "complete_case"
+imputation_estimators = []
+
+[[route]]
+query = "Distribution"
+modality = "tabular"
+inference = ["frequentist", "bayesian"]
+family = "static"
+default = "complete_case"
+supported = ["error", "complete_case"]
+next_attempt = "complete_case"
+imputation_estimators = []
+
+[[route]]
+query = "Mediation"
+modality = "tabular"
+inference = ["frequentist", "bayesian"]
+family = "static"
+default = "complete_case"
+supported = ["error", "complete_case"]
+next_attempt = "complete_case"
+imputation_estimators = []
+
+[[route]]
+query = "RandomizedEffect"
+modality = "tabular"
+inference = ["frequentist", "bayesian"]
+family = "randomized"
+default = "error"
+supported = ["error", "complete_case", "inverse_probability"]
+next_attempt = "inverse_probability"
+imputation_estimators = []
+
+[[route]]
+query = "PanelDid"
+modality = "tabular"
+inference = ["frequentist", "bayesian"]
+family = "panel"
+default = "error"
+supported = ["error", "balanced_panel", "available_case"]
+next_attempt = "balanced_panel"
+imputation_estimators = []
+
+[[route]]
+query = "TemporalEffect"
+modality = "series"
+inference = ["frequentist", "bayesian"]
+family = "temporal"
+default = "error"
+supported = ["error", "complete_case"]
+next_attempt = "complete_case"
+imputation_estimators = []
+
+[[route]]
+query = "Mediation"
+modality = "series"
+inference = ["frequentist", "bayesian"]
+family = "temporal"
+default = "error"
+supported = ["error", "complete_case"]
+next_attempt = "complete_case"
+imputation_estimators = []

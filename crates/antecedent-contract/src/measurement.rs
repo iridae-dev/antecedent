@@ -98,7 +98,7 @@ pub struct MeasurementRouteCard {
 const CLASSICAL_REFUSED: &[(MeasurementOperation, &str)] = &[
     (
         MeasurementOperation::NonlinearOutcomeModel,
-        "regression calibration is exact for a linear outcome model only; a nonlinear model needs its own measurement-error route",
+        "the moment correction is exact for a linear outcome model only; for a logistic outcome model use the continuous correction (`PreparedMeasurementModel::estimate_continuous`: logistic regression calibration or SIMEX with a bootstrap of the whole procedure)",
     ),
     (
         MeasurementOperation::ConditionOnConstruct,
@@ -140,7 +140,7 @@ const BINARY_REFUSED: &[(MeasurementOperation, &str)] = &[
 const REPEATED_REFUSED: &[(MeasurementOperation, &str)] = &[
     (
         MeasurementOperation::NonlinearOutcomeModel,
-        "the replicate-based variance corrects a linear outcome model only",
+        "the replicate-based moment correction is exact for a linear outcome model only; for a logistic outcome model use the continuous correction (`PreparedMeasurementModel::estimate_continuous`: logistic regression calibration or SIMEX with a bootstrap of the whole procedure)",
     ),
     (
         MeasurementOperation::ConditionOnConstruct,

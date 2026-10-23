@@ -44,6 +44,28 @@ pub fn policy_not_applicable(
     )
 }
 
+/// A declared policy the route cannot execute, naming the supported policy to declare next.
+#[must_use]
+pub fn policy_not_applicable_next(
+    declared: MissingPolicy,
+    route: &str,
+    reason: &str,
+    supported: &[MissingPolicy],
+    next: MissingPolicy,
+) -> EstimationError {
+    refuse(
+        antecedent_core::reason_code!("missing_policy_not_applicable"),
+        "missing_data.policy_not_applicable",
+        &format!(
+            "{route} cannot execute missing-data policy `{}`: {reason}; use one of: {}; next \
+             attempt: declare `{}`",
+            declared.name(),
+            policy_names(supported),
+            next.name(),
+        ),
+    )
+}
+
 /// The declared observation-model covariates are themselves incomplete.
 #[must_use]
 pub fn covariates_incomplete(cell: &MissingCell, route: &str) -> EstimationError {

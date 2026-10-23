@@ -559,7 +559,70 @@ pub struct MissingDataReport {
     /// result carry the policy, its assumption and the dropped-row digest, so default claims
     /// keep their identity.
     pub non_default: bool,
+    /// The impute-fit-pool record, for multiple imputation.
+    pub imputation: Option<ImputationReport>,
 }
+
+/// How a multiple-imputation result was formed: the declared specification, what was
+/// imputed, every completed table's estimate and the pooled variance components.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ImputationReport {
+    /// The declared specification (model, imputations, sweeps, seed, assumption).
+    pub spec: antecedent_data::ImputationSpec,
+    /// Unit the parameter draws resampled (`row` or `group`).
+    pub unit: std::sync::Arc<str>,
+    /// Units resampled.
+    pub units: usize,
+    /// Cells imputed per variable of the imputation model.
+    pub imputed_cells: std::sync::Arc<[(std::sync::Arc<str>, usize)]>,
+    /// Estimator fitted on every completed table.
+    pub estimator: std::sync::Arc<str>,
+    /// `rubin` (frequentist) or `stacked_posterior` (Bayesian).
+    pub pooling: std::sync::Arc<str>,
+    /// Each completed table's point estimate, in imputation order.
+    pub points: std::sync::Arc<[f64]>,
+    /// Within-imputation variance.
+    pub within: f64,
+    /// Between-imputation variance.
+    pub between: f64,
+    /// Total variance (Rubin's `T`, or the stacked posterior variance).
+    pub total: f64,
+    /// Degrees of freedom of the Student-t reference (Barnard–Rubin when the estimator has a
+    /// finite complete-data degrees of freedom); `None` for a normal reference or a posterior.
+    pub df: Option<f64>,
+    /// Complete-data degrees of freedom used by the Barnard–Rubin adjustment.
+    pub df_complete: Option<f64>,
+    /// Fraction of missing information, for Rubin pooling.
+    pub fraction_missing_information: Option<f64>,
+    /// Relative increase in variance due to nonresponse, for Rubin pooling.
+    pub relative_increase: Option<f64>,
+}
+
+/// Bitwise equality of the numbers, so the report is `Eq` like the accounting it travels
+/// with: two reports are equal when they would serialize identically.
+impl PartialEq for ImputationReport {
+    fn eq(&self, other: &Self) -> bool {
+        let bits = |values: &[f64]| values.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
+        let option = |value: Option<f64>| value.map(f64::to_bits);
+        self.spec == other.spec
+            && self.unit == other.unit
+            && self.units == other.units
+            && self.imputed_cells == other.imputed_cells
+            && self.estimator == other.estimator
+            && self.pooling == other.pooling
+            && bits(&self.points) == bits(&other.points)
+            && bits(&[self.within, self.between, self.total])
+                == bits(&[other.within, other.between, other.total])
+            && option(self.df) == option(other.df)
+            && option(self.df_complete) == option(other.df_complete)
+            && option(self.fraction_missing_information)
+                == option(other.fraction_missing_information)
+            && option(self.relative_increase) == option(other.relative_increase)
+    }
+}
+
+impl Eq for ImputationReport {}
 
 impl MissingDataReport {
     /// The policy the accounting was produced under.
