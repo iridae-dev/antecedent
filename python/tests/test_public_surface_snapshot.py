@@ -275,6 +275,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "identify",
         "load",
         "prepare",
+        "staleness",
         # Structure, results and selectors
         "AcceptedGraph",
         "Admg",
@@ -366,6 +367,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "transport",
         "learners",
         "validation",
+        # Staleness and drift diagnostics (`staleness` above is its verb)
+        "drift",
         # Lazy stage modules (`_LAZY_MODULES`): listed by ``dir``, imported on first access
         # (`joint_distribution` and `preflight` above are also in this family)
         "adaptive_inference",
@@ -557,6 +560,9 @@ SNAPSHOT: dict[str, set[str]] = {
         # Callback validators frozen at prepare
         "rebind_validators",
         "validator_names",
+        # Staleness and drift diagnostics against the retained data
+        "staleness",
+        "staleness_baseline",
         # Plan coordinates
         "allowlist_parent",
         "allowlist_reason",

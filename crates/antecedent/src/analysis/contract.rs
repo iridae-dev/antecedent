@@ -1191,6 +1191,11 @@ fn claim_evidence(result: &StudyResult, contract: &CausalContract) -> Vec<Arc<st
         evidence.push(Arc::from(format!("missing_policy:{}", report.policy().name())));
         evidence.push(Arc::from(format!("missing_assumption:{}", report.assumption)));
         evidence.push(Arc::from(format!("missing_dropped:{}", report.accounting.dropped_digest)));
+        if let Some(imputation) = &report.imputation {
+            for entry in super::missing_imputation::evidence_entries(imputation) {
+                evidence.push(Arc::from(entry));
+            }
+        }
     }
     evidence
 }

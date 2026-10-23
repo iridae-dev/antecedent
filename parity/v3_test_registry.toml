@@ -395,3 +395,157 @@ crate = "antecedent"
 cargo_target = "cyclic_dag_regression"
 path = "crates/antecedent/tests/cyclic_dag_regression.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "experiment-planning"
+crate = "antecedent"
+cargo_target = "experiment_planning"
+path = "crates/antecedent/tests/experiment_planning.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "experiment-planning-analytic"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/planning/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "power-numerics"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/power.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "experiment-planning-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_experiment_planning.py"
+gates = ["inventory"]
+
+[[test]]
+id = "continuous-measurement-error-numerics"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/continuous_error.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "continuous-measurement-error-estimator"
+crate = "antecedent-estimate"
+cargo_target = "continuous_measurement_error"
+path = "crates/antecedent-estimate/tests/continuous_measurement_error.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "continuous-measurement-error-facade"
+crate = "antecedent"
+cargo_target = "continuous_measurement_facade"
+path = "crates/antecedent/tests/continuous_measurement_facade.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "staleness-diagnostics"
+crate = "antecedent-validate"
+cargo_target = "staleness"
+path = "crates/antecedent-validate/tests/staleness.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "staleness-statistics"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/staleness/stats.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "staleness-policy-identity"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/staleness/policy.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "staleness-baseline-artifact"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/staleness_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "staleness-facade"
+crate = "antecedent"
+cargo_target = "staleness_facade"
+path = "crates/antecedent/tests/staleness_facade.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "file-source-reader"
+crate = "antecedent-data"
+cargo_target = "file_source"
+path = "crates/antecedent-data/tests/file_source.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "file-table-capacity"
+crate = "antecedent"
+cargo_target = "file_table_capacity"
+path = "crates/antecedent/tests/file_table_capacity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "parquet-ingest-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_parquet_ingest.py"
+gates = ["inventory"]
+
+[[test]]
+id = "multiple-imputation-engine"
+crate = "antecedent-estimate"
+cargo_target = "multiple_imputation"
+path = "crates/antecedent-estimate/tests/multiple_imputation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "missing-policy-support-facade"
+crate = "antecedent"
+cargo_target = "missing_policy_support"
+path = "crates/antecedent/tests/missing_policy_support.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "missing-policy-support-registry"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/missing_support.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "missing-policy-family-agreement"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/missing_data.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "missing-policy-support-check"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/check_missing_policy_support.py"
+gates = ["inventory"]
+
+[[test]]
+id = "unbalanced-panel-preparation"
+crate = "antecedent-data"
+cargo_target = "lib"
+path = "crates/antecedent-data/src/unbalanced_panel.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "multiple-imputation-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_missing_imputation.py"
+gates = ["inventory"]

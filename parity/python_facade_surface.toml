@@ -680,6 +680,13 @@ status = "bound"
 python = "antecedent.interface_contract.export_interface_contract"
 
 [[entry]]
+rust = "antecedent::analysis::file_table::summarize_weighted_gaussian"
+kind = "fn"
+status = "bound"
+python = "antecedent._table_file.TableFile.summarize_weighted_gaussian"
+reason = "antecedent.data.from_parquet(...).summarize_weighted_gaussian; tested in python/tests/test_parquet_ingest.py"
+
+[[entry]]
 rust = "antecedent::analysis::forecast_law_from_sample"
 kind = "fn"
 status = "bound"
@@ -1030,6 +1037,20 @@ status = "bound"
 python = "native:python/src/selective_discovery_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::planning::compile_planning"
+kind = "fn"
+status = "bound"
+python = "antecedent.design.planning.planning_program_identity"
+reason = "compiles the request to its lowered program; tested in python/tests/test_experiment_planning.py"
+
+[[entry]]
+rust = "antecedent::analysis::planning::plan_experiment"
+kind = "fn"
+status = "bound"
+python = "antecedent.design.planning.plan_experiment"
+reason = "compile and execute through plan_experiment_py; tested in python/tests/test_experiment_planning.py"
+
+[[entry]]
 rust = "antecedent::analysis::predictive_law_source"
 kind = "fn"
 status = "bound"
@@ -1370,6 +1391,37 @@ rust = "antecedent::analysis::source_projection::source_resolved_consumer"
 kind = "fn"
 status = "bound"
 python = "native:python/src/source_projection_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::staleness::assess_artifact_staleness"
+kind = "fn"
+status = "bound"
+python = "antecedent.drift.staleness"
+reason = "antecedent.staleness(artifact, new_data); tested in python/tests/test_staleness.py"
+
+[[entry]]
+rust = "antecedent::analysis::staleness::staleness_finding_json"
+kind = "fn"
+status = "internal"
+reason = "report rendering behind antecedent.drift.staleness and PreparedAnalysis.staleness; Python reads the findings as antecedent.drift.StalenessFinding"
+
+[[entry]]
+rust = "antecedent::analysis::staleness::staleness_policy_from_json"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.staleness_policy"
+
+[[entry]]
+rust = "antecedent::analysis::staleness::staleness_policy_json"
+kind = "fn"
+status = "bound"
+python = "antecedent.drift.StalenessPolicy.resolved"
+
+[[entry]]
+rust = "antecedent::analysis::staleness::staleness_report_json"
+kind = "fn"
+status = "internal"
+reason = "report rendering behind antecedent.drift.staleness and PreparedAnalysis.staleness; Python reads it as antecedent.drift.StalenessReport"
 
 [[entry]]
 rust = "antecedent::analysis::temporal_counterfactual::transported_path_specific"
@@ -2673,3 +2725,15 @@ rust = "antecedent::analysis::composition_verification::replay_decision"
 kind = "fn"
 status = "missing"
 reason = "Historical numerical replay for the Rust mixed-decision workflow. The Python composition-verification consumer does not expose this typed workflow; replay grants no current decision authority."
+
+[[entry]]
+rust = "antecedent::analysis::missing_support::route_missing_support"
+kind = "fn"
+status = "internal"
+reason = "Reads parity/missing_policy_support.toml for the builder. Python reaches it through the `missing=` option of antecedent.analyze and the prepared builders, whose declarations the builder checks against the registry and refuses with missing_policy_not_applicable."
+
+[[entry]]
+rust = "antecedent::analysis::missing_support::missing_support_table"
+kind = "fn"
+status = "internal"
+reason = "The parsed missing-data support registry the builder consults; Python reaches it through the `missing=` option, and docs/guides/missing-data.md publishes the same table."

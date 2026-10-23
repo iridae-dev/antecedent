@@ -173,7 +173,11 @@ def analyze(
         Mapping of column name → 1-d float array, a pandas ``DataFrame``,
         an Arrow CDI / ``__arrow_c_stream__`` table (PyArrow, Polars, DuckDB),
         or an ``antecedent.data`` frame (``EventFrame`` / ``PanelFrame`` /
-        ``MultiEnvFrame``). The library does not take a Polars or pandas
+        ``MultiEnvFrame``). A path to a ``.parquet`` file, a directory of
+        Parquet files, an Arrow IPC ``.arrow`` / ``.feather`` file or ``.arrows``
+        stream, or a lazy handle from ``antecedent.data.from_parquet`` /
+        ``from_arrow_ipc`` is read in bounded chunks, decoding only the columns
+        the analysis needs. The library does not take a Polars or pandas
         dependency on the way out; tabular results speak Arrow.
         Arrow CDI / stream inputs may be borrowed without copying. Keep their
         exported buffers unchanged while a data or prepared handle retains them,
@@ -247,11 +251,15 @@ def analyze(
     missing:
         How rows with missing values are handled: a policy name (``"error"``,
         ``"complete_case"``, ``"inverse_probability"``, ``"balanced_panel"``,
-        ``"available_case"``) or an :class:`antecedent.missing.MissingPolicy`. Average-effect
-        routes keep their complete-case selection by default and report the rows it dropped;
-        randomized, panel, temporal and NOTEARS routes refuse a missing value until a policy
-        is declared, naming the first missing cell. Every result carries ``missing_data``:
-        the policy, the assumption it needs and the row accounting.
+        ``"available_case"``, ``"multiple_imputation"``) or an
+        :class:`antecedent.missing.MissingPolicy`. Average-effect routes keep their
+        complete-case selection by default and report the rows it dropped, and execute
+        multiple imputation with Rubin's-rules pooling (or a stacked posterior under Bayesian
+        inference) when it is declared; randomized, panel, temporal and NOTEARS routes refuse a
+        missing value until a policy is declared, naming the first missing cell. A policy the
+        route cell does not support is refused when the study is built. Every result carries
+        ``missing_data``: the policy, the assumption it needs, the row accounting and, for
+        multiple imputation, the pooled variance components.
     latency:
         Optional compute tier (``interactive`` / ``standard`` / ``report``).
         The study builder maps it onto the omitted bootstrap / refute / draw

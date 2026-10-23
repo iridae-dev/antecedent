@@ -319,7 +319,11 @@ pub use compile_decision::{
     ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, confidence_interval_as_posterior, score_decision,
 };
 mod compile_graph_posterior;
+mod compile_planning;
+pub(crate) use compile_planning::compile_planning;
+pub use compile_planning::{PlannedExperiment, PlanningPlan, STANDALONE_PLANNING};
 mod plan_id;
+mod planning_simulation;
 pub(super) use compile::compile_logical_admg_response;
 mod route_input;
 pub(crate) use route_input::{RouteInput, StaticMediationSource};

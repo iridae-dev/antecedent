@@ -98,6 +98,7 @@ pub mod scientific_target_wire;
 pub mod score_wire;
 pub mod selective_discovery_artifact;
 pub mod sensitivity_artifact;
+pub mod staleness_artifact;
 pub mod temporal_recalc_artifact;
 pub mod trace;
 pub mod transport_catalog_wire;
@@ -196,13 +197,13 @@ pub use identity::{
     DistributionFactorTableWire, EstimatorConfigWire, EstimatorSpecWire, ExecutionIdentityWire,
     ExternalComposeIdentityWire, ExternalPriorSourceIdentityWire, GlmOptionsWire,
     GraphIdentityWire, IdentificationEnvelopeWire, IdentificationIdentityWire,
-    IdentificationProductWire, InferenceBindingWire, InferentialCommitmentsWire,
-    InterferenceSnapshotWire, KernelPolicyWire, LinearFitMomentsWire, MissingPolicyWire,
-    NestedCounterfactualFitWire, ObservationIdentityWire, ObservationOptionsWire,
-    OverlapPolicyWire, ParticipantBindingWire, PayloadDigestWire, PosteriorAtomGraphWire,
-    PosteriorAtomIdentityWire, PriorMappingIdentityWire, PriorSetIdentityWire,
-    PriorSpecIdentityWire, ProgramIdentityWire, ROW_WEIGHTS_PAYLOAD, RdConfigWire,
-    ResponseOptionsWire, ScoreReuseIdentityWire, ScoreTableKey, SplitIdentityWire,
+    IdentificationProductWire, ImputationSpecWire, InferenceBindingWire,
+    InferentialCommitmentsWire, InterferenceSnapshotWire, KernelPolicyWire, LinearFitMomentsWire,
+    MissingPolicyWire, NestedCounterfactualFitWire, ObservationIdentityWire,
+    ObservationOptionsWire, OverlapPolicyWire, ParticipantBindingWire, PayloadDigestWire,
+    PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PriorMappingIdentityWire,
+    PriorSetIdentityWire, PriorSpecIdentityWire, ProgramIdentityWire, ROW_WEIGHTS_PAYLOAD,
+    RdConfigWire, ResponseOptionsWire, ScoreReuseIdentityWire, ScoreTableKey, SplitIdentityWire,
     TargetIdentityWire, TargetWeightsIdentityWire, TemporalClassIdentityWire,
     TransportIdentityWire, admg_identity, canonical_dag_wire, canonical_temporal_dag_wire,
     cpdag_identity, dag_identity, data_snapshot_digest, digest_canonical, digest_wire,

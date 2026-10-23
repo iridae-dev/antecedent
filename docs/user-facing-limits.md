@@ -26,6 +26,11 @@ confidence interval, a posterior coverage statement or a calibration claim.
 | [Assumption range and revalidation](guides/assumption-range-and-revalidation.md) | Choose the bound; attach a probability; carry a record to another target | A range for a discovered structure, or calibration at a new target (it is withdrawn, never inherited) | Use the structural envelope; re-measure |
 | [Inverse and decision reach](guides/inverse-and-decision-reach.md) | Supply a law from a point; supply an interval region; rank actions from scenario inversion; export a transported law | A quantile or probability on a point source, or a transported input to a consumer not declared to accept one (`cell_not_licensed`) | Supply a law (draws or a finite table), or accept the transported input explicitly with its receipt |
 | [Interface-contract adapters and overlap](guides/interface-contract-adapters.md) | Infer support, estimand or calibration; treat unknown overlap as disjoint | Independence declared where overlap is unknown | Register the sources in the evidence ledger |
+| [Parquet, Arrow IPC and large tables](guides/large-tables.md) | Read decimal, binary or nested columns; cast a type lossily; give a calibrated interval above 100,000 rows; use Polars as a backend; hold a table resident beyond the admission pool | A resident read, or a full-design route, on a table larger than the pool | Stream the weighted Gaussian summary, lower `chunk_rows`, raise `memory_limit_bytes`, or flatten and cast the column explicitly |
+| [Staleness and drift diagnostics](guides/staleness.md) | Schedule or alert; correct repeated assessments over time for multiplicity (each assessment controls only its own family); learn a drift model; assess positivity for a non-binary treatment or a non-numeric adjustment set; check the plan's own prior (the Bayesian check uses a reference conjugate model of the outcome regression); detect a change of variance across periods; assess a panel or multi-environment study as a whole | New data with a changed schema, or with fewer rows (or rows per arm) than the policy's floors (`refuse`) | Project the new data onto the prepared schema or re-prepare; collect the rows the policy requires; assess each unit or environment table |
+| [Missing data and multiple imputation](guides/missing-data.md) | Impute on any route other than the average effect; impute under missing not at random; run a sensitivity analysis for departures from missing at random; pool a graph-posterior mixture, a matching or stratification estimator, or a route without a variance; resample clusters on the average-effect route; publish a calibrated interval for the pooled estimate | A policy the route cell does not list in `parity/missing_policy_support.toml`, or `missing_not_at_random` (`missing_policy_not_applicable`) | Declare a policy the cell supports (the refusal names the next one); for missing not at random, a sensitivity analysis, which is not shipped |
+| [Unbalanced panel preparation](guides/missing-data.md) | Estimate a difference-in-differences effect; impute a missing unit-period; borrow a lag across a gap or a unit; relabel units or periods | A design that needs balance (two-period panel, synthetic control, balanced event study, augmented panel) on an unbalanced panel | Declare `balanced_panel`, `available_case` where the design's contrasts allow it, or restrict to a common window |
+| [Continuous measurement error](measurement-models.md) | Correct error whose variance is not identified; correct differential error; correct additive error in a binary outcome; give a calibrated interval (SIMEX and logistic regression calibration are approximate corrections with a bootstrap standard error) | A correction with no error variance, replicates or validation sample (`measurement_not_identified`) | Supply replicates or a validation sample; use the binary misclassification route for a binary outcome |
 
 ## Reading a refusal
 
@@ -71,3 +76,12 @@ Memory for the practitioner designs is bounded by the table: a 100,000-row,
 22-column table is 17.6 MB, and the calibration replicates hold one table per
 worker thread. A series is processed in place; the circular-block bootstrap
 holds one resampled index vector per replicate.
+
+Tables larger than these ranges, and larger than memory, are executable: Parquet
+files, Parquet datasets and Arrow IPC files are read in bounded chunks under the
+admission pool, row ids are checked 64-bit, and the weighted Gaussian / OLS
+summary streams a file one chunk at a time ([large tables](guides/large-tables.md)).
+Executing a larger table does not extend a measured range: its intervals remain
+`scope_not_assessed` until a coverage record measures that size. A route that
+needs the whole table resident is quoted before reading and refused, with the
+quote and the next attempt, when the pool cannot hold it.

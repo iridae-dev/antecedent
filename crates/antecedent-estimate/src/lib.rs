@@ -97,6 +97,7 @@ pub mod mechanism_discrepancy;
 pub mod missing_policy;
 pub mod mixed_source;
 pub mod multi_arm;
+pub mod multiple_imputation;
 pub mod nested_markov_binary;
 pub mod nested_markov_uncertainty;
 pub mod nonlinear_mediation;

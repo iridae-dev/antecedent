@@ -1610,8 +1610,31 @@ pub struct MissingPolicyWire {
     /// Policy name (`error`, `complete_case`, `inverse_probability`, `balanced_panel`,
     /// `available_case`).
     pub policy: String,
-    /// Names of the observation-model covariates, in declared order.
+    /// Names of the observation-model covariates (inverse probability) or of the auxiliary
+    /// variables of the imputation model (multiple imputation), in declared order.
     pub covariates: Vec<String>,
+    /// The imputation specification of a multiple-imputation policy. Absent for every other
+    /// policy, so their digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub imputation: Option<ImputationSpecWire>,
+}
+
+/// The declared inputs of a multiple-imputation analysis: each enters the data-snapshot
+/// identity, so two analyses that differ in any of them are different claims.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ImputationSpecWire {
+    /// Imputation model (`chained_equations`, `joint_normal`).
+    pub model: String,
+    /// Number of completed tables.
+    pub imputations: u32,
+    /// Sweeps per completed table.
+    pub iterations: u32,
+    /// Seed of the keyed random streams.
+    pub seed: u64,
+    /// Declared missingness mechanism (`missing_at_random`).
+    pub assumption: String,
+    /// Sampling unit the parameter draws resample (`row`, `group`).
+    pub unit: String,
 }
 
 /// Data-snapshot payload binding contents and ordered unit/environment partitions.

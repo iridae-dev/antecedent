@@ -213,6 +213,7 @@ if getattr(_native_module, "__build_optimized__", True) is False:
     )
 from ._workflow import load, prepare
 from .accepted_graph import AcceptedGraph
+from .drift import staleness
 from .errors import CausalError, ReviewRequired
 from .identify import Identification, estimate, identify
 from .ids import Estimator, Identifier, Latency, Refute
@@ -253,6 +254,7 @@ __all__ = [
     "load",
     "identify",
     "estimate",
+    "staleness",
     # Structure and results
     "AcceptedGraph",
     "Identification",

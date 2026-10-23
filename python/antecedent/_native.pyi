@@ -117,6 +117,52 @@ class ArrowLoadInfo:
     diagnostic_count: int
     column_names: list[str]
 
+class NativeTableFile:
+    """Parquet file or dataset, or Arrow IPC file or stream, read in bounded chunks."""
+
+    @staticmethod
+    def open(path: str, format: str | None = None) -> NativeTableFile: ...
+    @property
+    def format(self) -> str: ...
+    @property
+    def paths(self) -> list[str]: ...
+    @property
+    def declared_rows(self) -> int | None: ...
+    def columns(self) -> list[tuple[str, str, bool, str, str | None, bool]]: ...
+    def quote(
+        self, columns: list[str] | None = None, *, chunk_rows: int | None = None
+    ) -> tuple[int | None, int | None, int, int]: ...
+    def read(
+        self,
+        columns: list[str] | None = None,
+        *,
+        chunk_rows: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> dict[str, Any]: ...
+    def content_identity(
+        self,
+        columns: list[str] | None = None,
+        *,
+        chunk_rows: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str, int, int]: ...
+    def summarize_weighted_gaussian(
+        self,
+        covariates: list[str],
+        response: str,
+        *,
+        weight: str | None = None,
+        intercept: bool = True,
+        missing: str = "refuse",
+        batch_rows: int = 65536,
+        ceiling_bytes: int | None = None,
+        control: str = "glm",
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> dict[str, Any]: ...
+
 class AteAnalysisResult:
     def effect_source_json(
         self, units: str, population: str, supplied_value: float
@@ -1059,6 +1105,19 @@ class AnalysisResult:
 
 class PreparedAnalysis:
     def identification_json(self) -> str: ...
+    def staleness(
+        self,
+        names: list[str],
+        columns: list[Any],
+        *,
+        policy_json: str | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def export_staleness_baseline(
+        self, *, policy_json: str | None = None, seed: int = 1, threads: int | None = None
+    ) -> bytes: ...
+    def staleness_plan_json(self) -> str: ...
     def refute_bound(
         self, suite: Any, *, seed: int = 1, threads: int | None = None, cancel: Any = None
     ) -> AteAnalysisResult: ...
@@ -4408,6 +4467,16 @@ class NativePeriodRefreshSummary:
     def replay_rows(self) -> tuple[bool | None, str | None]: ...
 
 def consume_period_refresh_artifact(artifact: bytes) -> tuple[str | None, str | None]: ...
+def staleness_from_artifact(
+    artifact: bytes,
+    names: list[str],
+    columns: list[Any],
+    *,
+    policy_json: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...
+def staleness_policy(policy_json: str | None = None) -> str: ...
 def temporal_dependent_interval_closed(
     snapshot_id: str,
     units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
@@ -6024,6 +6093,10 @@ def consume_design_ranking(
     artifact: bytes, expectation_json: str | None = None
 ) -> tuple[str | None, str | None]: ...
 def rank_structural_designs(candidates_json: str) -> tuple[str | None, str | None]: ...
+def plan_experiment_py(
+    request_json: str, threads: int = 1, cancel: CancellationToken | None = None
+) -> str: ...
+def planning_program_identity_py(request_json: str) -> str: ...
 def consume_array_fit_artifact(
     artifact: bytes,
     *,
@@ -6928,6 +7001,9 @@ class PreparedMeasurementHandle:
     def estimate(
         self, *, cancel: CancellationToken | None = None
     ) -> tuple[MeasurementEstimateHandle | None, str | None]: ...
+    def estimate_continuous(
+        self, input_json: str, *, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
     def refresh(
         self, data_json: str, *, cancel: CancellationToken | None = None
     ) -> tuple[PreparedMeasurementHandle | None, MeasurementEstimateHandle | None, str | None]: ...

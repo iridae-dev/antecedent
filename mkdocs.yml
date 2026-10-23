@@ -45,6 +45,7 @@ nav:
   - Notebook to system: guides/notebook-to-system.md
   - Measurement to decision: tutorials/measurement-to-decision.md
   - Bring your own data: guides/your-data.md
+  - Parquet, Arrow IPC and large tables: guides/large-tables.md
   - Refusal and repair: guides/refusal-recipes.md
   - Producer and consumer: guides/artifact-handoff.md
 - How-to guides:
@@ -67,6 +68,7 @@ nav:
     - Preflight diagnostics and cost: guides/preflight-diagnostics.md
     - Configured batches and batch retarget: guides/batch-retarget.md
     - Cross-fitted DML scores and retarget covariance: guides/dml-scores.md
+    - Staleness and drift diagnostics: guides/staleness.md
   - Discovery and structural uncertainty:
     - Prior bank: priors.md
     - Graph uncertainty: graph_uncertainty.md
@@ -102,6 +104,7 @@ nav:
     - Decisions: decisions.md
     - Decisions, design, repair and estimator breadth: decisions-breadth.md
     - Design ranking: design-ranking.md
+    - Power and sample size: guides/power-and-sample-size.md
     - Sensitivity and robustness: sensitivity-and-robustness.md
     - Transport and counterfactuals: transport-counterfactuals.md
     - Population, time and uncertainty: population-time-uncertainty.md

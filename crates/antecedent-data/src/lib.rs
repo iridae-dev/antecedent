@@ -29,13 +29,15 @@ pub mod backend_boundary;
 pub mod buffer;
 pub mod categorical;
 pub mod column;
-mod column_closure;
+pub mod column_closure;
 mod content_identity;
 pub mod dataset;
 pub mod design_layout;
 pub mod discrete;
 pub mod error;
 pub mod event;
+#[cfg(any(feature = "parquet", feature = "ipc"))]
+pub mod file_source;
 pub mod global_index;
 pub mod lagged_frame;
 mod lazy_identity;
@@ -45,9 +47,6 @@ pub mod multi_env;
 pub mod network;
 pub mod panel;
 pub mod panel_window;
-mod polars_pool;
-#[cfg(feature = "polars")]
-pub(crate) mod polars_seam;
 pub mod pooled_frame;
 pub mod project;
 pub mod reference;
@@ -61,6 +60,7 @@ pub mod storage;
 pub mod surrogate;
 pub mod table;
 pub mod temporal;
+pub mod unbalanced_panel;
 pub mod vector_vars;
 
 #[cfg(test)]
@@ -90,8 +90,9 @@ pub use event::EventData;
 pub use global_index::{ChunkIndex, GlobalId, GlobalIndexError};
 pub use lagged_frame::{LaggedFrame, LaggedFrameOptions};
 pub use missing::{
-    DropReason, GroupAccounting, MissingCell, RowAccounting, UnitAccounting, complete_rows,
-    dropped_row_digest, first_missing_cell, policy_required_text,
+    DropReason, GroupAccounting, MissingCell, RowAccounting, UnitAccounting,
+    complete_float_columns, complete_rows, dropped_row_digest, first_missing_cell,
+    policy_required_text,
 };
 pub use multi_env::MultiEnvironmentData;
 pub use network::{NetworkData, NetworkEdge};
@@ -114,12 +115,19 @@ pub use sample::{
     DropSummary, GappedSample, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan,
     LaggedSampleWorkspace,
 };
-pub use sample_policy::{MaskPolicy, MissingDeclaration, MissingPolicy};
+pub use sample_policy::{
+    ImputationModel, ImputationSpec, MaskPolicy, MissingDeclaration, MissingPolicy,
+    MissingnessAssumption,
+};
 pub use split::{DiscoveryEstimationSplit, EnvHoldoutSplit, TimeRange};
 pub use storage::OwnedColumnarStorage;
 pub use surrogate::{surrogate_permute_columns, surrogate_phase_randomize};
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};
+pub use unbalanced_panel::{
+    AttritionBaseline, AttritionRow, BalanceRequirement, PanelBalanceReport, PanelLayout,
+    PanelPreparationError, PeriodRun, PreparationMode, PreparedPanel, UnitRun, UnitSummary,
+};
 pub use vector_vars::{VectorVariableGroups, column_blocks_for_frame};
 
 #[cfg(test)]

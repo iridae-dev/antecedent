@@ -93,6 +93,7 @@ pub use super::{
     MechanismCompositionRequest, MechanismInput, MechanismRefit, MechanismSource,
     PreparedMechanismComposition, consume_mechanism_composition_artifact,
 };
+pub use super::{ContinuousErrorInput, ContinuousMeasurementEstimate};
 pub use super::{
     CounterfactualTransportConsumption, CounterfactualTransportObstructionReport,
     CounterfactualTransportOptions, CounterfactualTransportPreparation,
@@ -112,6 +113,10 @@ pub use super::{
 };
 pub use super::{
     LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
+};
+pub use super::{
+    MissingInference, MissingModality, MissingRouteCell, MissingRouteSupport,
+    missing_support_table, route_missing_support,
 };
 pub use super::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use super::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};

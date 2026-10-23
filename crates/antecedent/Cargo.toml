@@ -18,7 +18,9 @@ autotests = false
 workspace = true
 
 [features]
-default = []
+default = ["file-source"]
+# Parquet and Arrow IPC table files (`analysis::file_table`).
+file-source = ["antecedent-data/parquet", "antecedent-data/ipc"]
 calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-io/calibration-internal", "antecedent-validate/calibration-internal"]
 ml-gbdt = ["antecedent-estimate/ml-gbdt", "antecedent-model/ml-gbdt"]
 ml-forest = ["antecedent-estimate/ml-forest", "antecedent-model/ml-forest"]
@@ -35,6 +37,7 @@ antecedent-expr = { workspace = true }
 antecedent-graph = { workspace = true }
 antecedent-identify = { workspace = true }
 antecedent-io = { workspace = true }
+antecedent-io-core = { workspace = true }
 antecedent-prob = { workspace = true }
 antecedent-stats = { workspace = true }
 antecedent-validate = { workspace = true }
@@ -205,6 +208,10 @@ path = "tests/weighted_interval_calibration.rs"
 [[test]]
 name = "missing_data_routes"
 path = "tests/missing_data_routes.rs"
+
+[[test]]
+name = "missing_policy_support"
+path = "tests/missing_policy_support.rs"
 
 [[test]]
 name = "observational_survival_policy_routes"
@@ -689,6 +696,23 @@ path = "tests/cyclic_independent_consumer.rs"
 [[test]]
 name = "cyclic_dag_regression"
 path = "tests/cyclic_dag_regression.rs"
+
+[[test]]
+name = "continuous_measurement_facade"
+path = "tests/continuous_measurement_facade.rs"
+
+[[test]]
+name = "experiment_planning"
+path = "tests/experiment_planning.rs"
+
+[[test]]
+name = "staleness_facade"
+path = "tests/staleness_facade.rs"
+
+[[test]]
+name = "file_table_capacity"
+path = "tests/file_table_capacity.rs"
+required-features = ["file-source"]
 
 [[example]]
 name = "joint_panel_workflow"

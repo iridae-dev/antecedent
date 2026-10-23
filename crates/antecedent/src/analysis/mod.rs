@@ -55,6 +55,7 @@ pub mod composition;
 pub mod composition_verification;
 mod conditional_admg;
 pub mod conditional_study_ranking;
+pub mod continuous_measurement;
 mod contract;
 mod contract_identity;
 mod cost;
@@ -80,6 +81,8 @@ pub mod effect_constancy_consumers;
 pub mod evidence_ledger;
 mod exact;
 mod execute;
+#[cfg(feature = "file-source")]
+pub mod file_table;
 mod finite_discrete;
 pub(crate) mod four_way;
 pub mod interface_contract;
@@ -101,6 +104,8 @@ pub mod mechanism_composition;
 pub mod mechanism_discrepancy;
 pub(crate) mod mechanism_exports;
 mod missing_data;
+mod missing_imputation;
+pub mod missing_support;
 mod mixed_source;
 pub mod msm_sensitivity;
 pub mod multi_level_treatment;
@@ -113,6 +118,7 @@ pub mod observation_query;
 pub mod observational_policy;
 pub mod observational_survival;
 pub mod per_population_discovery;
+pub mod planning;
 pub mod posterior_boundaries;
 pub mod predictive_assessment;
 mod preflight;
@@ -140,6 +146,7 @@ pub mod selective_discovery;
 pub mod sensitivity_decision;
 pub mod sequential_evaluation;
 mod smoothed_dose;
+pub mod staleness;
 mod statistical;
 pub mod temporal_counterfactual;
 mod temporal_extensions;
@@ -217,6 +224,7 @@ pub use composition_verification::{
     FlagshipError, FlagshipWorkflow, LoadedDecision, MixedDecision, PeriodReplay, PriorReplay,
     UtilityReplay, consume_composition_verification_artifact, load_decision, replay_decision,
 };
+pub use continuous_measurement::{ContinuousErrorInput, ContinuousMeasurementEstimate};
 pub use cost::{
     BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,
     estimate_joint_cell_cost,
@@ -293,6 +301,10 @@ pub use mechanism_composition::{
     ConsumedComposition, DependenceInput, MechanismCompositionExport, MechanismCompositionRefusal,
     MechanismCompositionRequest, MechanismInput, MechanismRefit, MechanismSource,
     PreparedMechanismComposition, consume_mechanism_composition_artifact,
+};
+pub use missing_support::{
+    MissingInference, MissingModality, MissingRouteCell, MissingRouteSupport,
+    missing_support_table, route_missing_support,
 };
 pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};

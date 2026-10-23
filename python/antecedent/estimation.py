@@ -59,6 +59,7 @@ from ._native import (
     identify_ate_admg as _identify_ate_admg,
 )
 from ._study_lifecycle import guard_design, replay_declaration, retain, retain_preparation
+from ._table_file import coerce_table_source
 from ._treatment_labels import TreatmentLabels
 from .discovery import (
     DbnPosterior,
@@ -1209,6 +1210,7 @@ class PreparedAnalysis(Generic[ResultT]):
         declaration is part of the study's data identity. A name that is not one of the three
         raises :class:`CausalValueError`.
         """
+        data = coerce_table_source(data)
         from .transport import ExactTransportData, StatisticalTransportData
         from .transport._day1 import prepare_transport, refuse_transport_only_kwargs
         from .transport.advanced import (
@@ -2219,6 +2221,7 @@ class PreparedAnalysis(Generic[ResultT]):
         return _wrap_ate(raw, query=self._display_query, prepared=self)
 
     def _click(self, data: Any, **kwargs: Any) -> Any:
+        data = coerce_table_source(data)
         guard_design(self, data)
         result = self._execute_click(data, **kwargs)
         self._last_result = cast(ResultT, result)
@@ -2483,6 +2486,7 @@ class PreparedAnalysis(Generic[ResultT]):
         observations and keep those buffers, including writable NumPy aliases,
         unchanged while the refreshed handle retains them.
         """
+        data = coerce_table_source(data)
         previous_stage = self._transport_stage
         if isinstance(self._query, Transport):
             from .transport._day1 import catalog_from_evidence
@@ -2508,6 +2512,66 @@ class PreparedAnalysis(Generic[ResultT]):
         except BaseException:
             self._transport_stage = previous_stage
             raise
+
+    def _staleness_payload(self, data: Any) -> tuple[list[str], list[Any]]:
+        """Every column of ``data`` (encoded like a click, never projected onto the schema)."""
+        if self._transport is not None:
+            raise CausalUnsupportedError(
+                "This operation is not licensed on the prepared transport handle",
+                reason_code="option_not_applicable",
+            )
+        if self._treatment_labels is not None:
+            data = self._treatment_labels.encode(data)
+        data = drop_columns(data, self._named_design_columns)
+        present = table_column_names(data)
+        if self._column_names is not None and present is not None:
+            # Prepared columns in prepared order, then any column the plan never saw, so an
+            # added or missing column is reported and a mere reordering of the frame is not.
+            prepared = [name for name in self._column_names if name in present]
+            data = project_columns(
+                data, prepared + [name for name in present if name not in prepared], what="new"
+            )
+        return ingest_columns(data)
+
+    @describe_refusal
+    def staleness(
+        self,
+        data: Mapping[str, Any] | Any,
+        *,
+        policy: Any = None,
+        threads: int | None = None,
+    ) -> Any:
+        """Compare ``data`` with the data this study retains; a ``StalenessReport``.
+
+        The report names every diagnostic, the dependency keys the findings change, and one
+        recommendation (``reuse``, ``refresh``, ``reidentify`` or ``refuse``) with the next
+        attempt. The study is not modified. See :mod:`antecedent.drift`.
+        """
+        from .drift import StalenessReport, _policy_json
+
+        names, columns = self._staleness_payload(data)
+        raw = self._native.staleness(
+            names, columns, policy_json=_policy_json(policy), threads=threads
+        )
+        return StalenessReport._from_json(raw)
+
+    @describe_refusal
+    def staleness_baseline(self, *, policy: Any = None, threads: int | None = None) -> Any:
+        """The sealed staleness baseline of the retained data, assessable without this study.
+
+        Pass it with new data to :func:`antecedent.staleness`.
+        """
+        from .drift import StalenessBaseline, _policy_json
+
+        if self._transport is not None:
+            raise CausalUnsupportedError(
+                "This operation is not licensed on the prepared transport handle",
+                reason_code="option_not_applicable",
+            )
+        raw = self._native.export_staleness_baseline(
+            policy_json=_policy_json(policy), threads=threads
+        )
+        return StalenessBaseline(bytes(raw))
 
     @describe_refusal
     def refute(
