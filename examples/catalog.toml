@@ -309,6 +309,17 @@ runtime = "up to 5 min"
 claim = "Retained average effect, randomized ITT, declared mean composition, and independent identity-bound consumption."
 
 [[example]]
+id = "parquet_e2e"
+title = "From a Parquet file"
+summary = "Analyze a Parquet file read in bounded chunks, then stream a summary through a pool smaller than the table."
+python = "examples/python/parquet_e2e.py"
+topic = "Start and reuse"
+level = "beginner"
+dependencies = ["pyarrow"]
+runtime = "up to 1 min"
+claim = "The average effect from a Parquet file equals the one from the same table in memory; only the needed columns are decoded, every read is charged to the admission pool, and the content identity tracks the values. Calibration above 100k rows is not assessed."
+
+[[example]]
 id = "pcmci_pulse_benchmark"
 title = "PCMCI pulse discovery"
 summary = "Discover a lagged graph and estimate a pulse effect in simulated data"

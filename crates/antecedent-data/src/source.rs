@@ -7,8 +7,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-// Modalities and setters are part of the contract. Later preparation call
-// sites use them; until then only the unit tests do, which CI does not count.
+// A materialized file-backed table (`file_source`) is snapshotted here with
+// `from_storage` and addresses row ranges with `chunk`. The other modalities and
+// setters are part of the contract; their preparation call sites are not wired
+// yet, and only the unit tests use them.
 #![allow(dead_code)]
 
 use std::ops::Range;

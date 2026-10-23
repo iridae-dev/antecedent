@@ -26,12 +26,12 @@ arrow = [
     "arrow-array/ffi",
     "arrow-schema/ffi",
 ]
-# Off-by-default adapter seam. The feature is empty: it enables a crate-private
-# module and links no Polars crate. crates.io polars 0.55.2 was inspected and
-# not linked; that release's Cargo.toml declares no rust-version, so it is not
-# shown to build on Rust 1.85. The record is parity/polars_decision/decision.toml.
-# Polars is not an internal-contract backend.
-polars = []
+# File-backed table sources (module `file_source`). Off by default in this
+# crate; the `antecedent` facade and the Python extension turn them on. Polars
+# was refused and its empty feature retired: the record is
+# parity/polars_decision/decision.toml.
+parquet = ["arrow", "dep:parquet"]
+ipc = ["arrow", "dep:arrow-ipc"]
 
 [dependencies]
 antecedent-core = { workspace = true }
@@ -39,6 +39,9 @@ antecedent-kernels = { workspace = true }
 arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }
+arrow-ipc = { workspace = true, optional = true }
+# Snappy and zstd cover the codecs pyarrow, pandas, Polars and Spark write by default.
+parquet = { workspace = true, optional = true, features = ["arrow", "snap", "zstd"] }
 realfft = { workspace = true }
 blake3 = { workspace = true }
 
@@ -48,3 +51,8 @@ serde_json = { workspace = true }
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "file_source"
+path = "tests/file_source.rs"
+required-features = ["parquet", "ipc"]

@@ -14,8 +14,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-// Constructors and readers are the identity contract. Later preparation call
-// sites use them; until then only the unit tests do, which CI does not count.
+// A materialized file-backed table (`file_source`) verifies its version-1
+// digest with `FullContentIdentity::try_from_source` and names row ranges with
+// `LazyViewIdentity::from_chunk`. The incremental continuation and the remaining
+// readers have no production caller yet; only the unit tests use them.
 #![allow(dead_code)]
 
 use std::ops::Range;

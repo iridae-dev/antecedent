@@ -5,6 +5,10 @@ without copying. Keep exported buffers unchanged while their data or prepared
 handles retain them, including writable NumPy aliases backing Arrow arrays.
 Use new backing arrays and ``result.refresh(new_data)`` to replace data.
 Ordinary mappings of NumPy columns are copied during native ingest.
+
+``from_parquet`` / ``from_arrow_ipc`` open a Parquet file, a directory of Parquet
+files, or an Arrow IPC file or stream as a lazy :class:`TableFile`. Analyses read
+only the columns they need, in bounded chunks under the admission pool.
 """
 
 from __future__ import annotations
@@ -18,6 +22,14 @@ from numpy.typing import NDArray
 
 from ._data import as_columns, as_multi_env_columns, to_f64
 from ._native import ArrowLoadInfo, load_float64_arrow_c_columns, load_float64_columns
+from ._table_file import (
+    GaussianSummary,
+    MemoryQuote,
+    TableColumn,
+    TableFile,
+    from_arrow_ipc,
+    from_parquet,
+)
 
 
 @dataclass(frozen=True)
@@ -109,9 +121,15 @@ def multi_env(
 __all__ = [
     "ArrowLoadInfo",
     "EventFrame",
+    "GaussianSummary",
+    "MemoryQuote",
     "MultiEnvFrame",
     "PanelFrame",
+    "TableColumn",
+    "TableFile",
     "event",
+    "from_arrow_ipc",
+    "from_parquet",
     "load_float64_arrow_c_columns",
     "load_float64_columns",
     "multi_env",

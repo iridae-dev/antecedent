@@ -31,6 +31,10 @@ The table may hold more than the analysis uses. Strings, dates and identifier co
 
 A required column that is missing, and a selected column name that occurs twice (in a pandas frame or an Arrow table), are refused with the column names. A duplicated name among columns the analysis does not read is ignored.
 
+## Files and large tables
+
+`analyze`, `prepare`, `estimate(new_data)` and `refresh(new_data)` also take a Parquet file, a directory of Parquet files, or an Arrow IPC file or stream, by path or as a handle from `antecedent.data.from_parquet` / `from_arrow_ipc`. Only the columns above are decoded, in bounded chunks charged to the admission pool; see [Parquet, Arrow IPC and large tables](large-tables.md).
+
 ## Cluster identifiers
 
 `LinearAdjustment(se="cluster", cluster="site")` and `GlmAdjustment(se="cluster", cluster="site")` name the column of cluster labels instead of passing `cluster_ids`. The column may hold strings or whole numbers; a missing or empty label is refused. Labels are encoded in first-seen order over the rows of the table you pass, and the estimator keeps each label with its row: a row dropped for a missing treatment, outcome or adjustment value, or by a target-population predicate, takes its label with it. `cluster_ids`, by contrast, must already be aligned to the rows the estimator uses.

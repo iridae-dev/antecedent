@@ -30,7 +30,7 @@ ml-neural = ["antecedent/ml-neural", "antecedent-estimate/ml-neural"]
 blake3.workspace = true
 antecedent-core = { workspace = true }
 antecedent-contract = { workspace = true }
-antecedent-data = { workspace = true, features = ["arrow"] }
+antecedent-data = { workspace = true, features = ["arrow", "parquet", "ipc"] }
 antecedent = { workspace = true }
 antecedent-io = { workspace = true }
 antecedent-io-core = { workspace = true }

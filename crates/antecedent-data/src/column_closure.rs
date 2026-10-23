@@ -8,14 +8,15 @@
 //! column that must be retained, and the attempt does not return a narrower
 //! column set.
 //!
+//! The file-backed table source plans every read from this closure: only the
+//! closed columns are decoded, and a projection that would drop one of them is
+//! refused before a byte is read.
+//!
 //! Column identity is an owned name ([`ColumnRole`]). Snapshot schema names are
 //! the same kind of string; a dense variable id is assigned when a schema is
 //! built and is remapped by projection, so it is the wrong key for this check.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-// Later call sites will use these types and functions; until then only tests do.
-#![allow(dead_code)]
 
 use std::collections::HashSet;
 use std::fmt;

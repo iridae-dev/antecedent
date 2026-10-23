@@ -72,6 +72,10 @@ def test_example_runs(path, monkeypatch, tmp_path):
             "--max-iterations",
             "50",
         ]
+    # The Parquet example writes its input with PyArrow; without it the example only
+    # prints its skip, so the run is reported as skipped rather than as checked.
+    if path.name == "parquet_e2e.py":
+        pytest.importorskip("pyarrow")
     monkeypatch.setattr("sys.argv", argv)
     runpy.run_path(str(path), run_name="__main__")
 

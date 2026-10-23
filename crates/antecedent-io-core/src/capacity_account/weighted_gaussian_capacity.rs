@@ -381,6 +381,13 @@ pub enum WeightedCapacityError {
     /// [`WeightedRowSource::prepare_decoder`] was not called for this bound.
     #[error("decoder was not prepared for this batch bound")]
     DecoderNotPrepared,
+    /// A row source outside this module refused a read; the source keeps the
+    /// structured refusal.
+    #[error("row source: {message}")]
+    RowSource {
+        /// The source's refusal, with its next attempt.
+        message: String,
+    },
 }
 
 impl From<IoFail> for WeightedCapacityError {

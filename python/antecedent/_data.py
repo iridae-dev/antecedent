@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from ._table_file import TableFile
 from .errors import CausalTypeError, CausalValueError
 
 # Integers beyond this are not exactly representable as float64.
@@ -48,6 +49,10 @@ def table_row_count(data: Any) -> int | None:
     names = table_column_names(data)
     if names is None:
         return None
+    if isinstance(data, TableFile):
+        if data.num_rows is not None:
+            return data.num_rows
+        return len(data[names[0]]) if names else 0
     if hasattr(data, "num_rows"):
         return int(data.num_rows)
     if not names:
@@ -95,6 +100,9 @@ def project_columns(
         raise CausalValueError(
             f"data has duplicate column names: {duplicated}", reason_code="invalid_argument"
         )
+    if isinstance(data, TableFile):
+        # One planned read of exactly these columns; the rest of the file is never decoded.
+        return data.read(chosen)
     if chosen == available:
         return data
     positions = [available.index(name) for name in chosen]
@@ -167,6 +175,8 @@ def ingest_columns(
     data: Mapping[str, Any] | Any,
 ) -> tuple[list[str], list[Any]]:
     """Normalize to ``(names, columns)`` preferring Arrow CDI exporters."""
+    if isinstance(data, TableFile):
+        data = data.read()
     arrow = try_as_arrow_c_columns(data)
     if arrow is not None:
         return arrow
@@ -177,6 +187,8 @@ def as_columns(
     data: Mapping[str, Any] | Any,
 ) -> tuple[list[str], list[NDArray[np.float64]]]:
     """Normalize a mapping or pandas DataFrame to ``(names, float64 columns)``."""
+    if isinstance(data, TableFile):
+        data = data.read()
     if isinstance(data, Mapping):
         names = list(data.keys())
         cols = [to_f64(data[n], name=str(n)) for n in names]
@@ -369,6 +381,8 @@ def try_as_arrow_c_columns(
     Returns ``None`` when the object is not an Arrow CDI exporter (caller should
     fall back to [`as_columns`]).
     """
+    if isinstance(data, TableFile):
+        return None
     if isinstance(data, Mapping):
         names = list(data.keys())
         cols = [data[n] for n in names]
@@ -422,6 +436,8 @@ def ingest_arrow_frame(data: Any) -> tuple[list[str], list[ArrowChunkColumn]] | 
     None when ``data`` is not an Arrow exporter. A mutable alias of the
     exporter is not a frozen study; freezing copies the bytes.
     """
+    if isinstance(data, TableFile):
+        return None
     if isinstance(data, Mapping):
         names = [str(key) for key in data]
         cols = [data[key] for key in data]

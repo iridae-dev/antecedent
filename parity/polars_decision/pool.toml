@@ -11,7 +11,7 @@ configuration = "fixed"
 disposition = "refusal"
 pool_linked = false
 per_study_resize = "refused"
-polars_feature = "polars = []"
+polars_feature = "retired"
 dependency_added = false
 decision_record = "parity/polars_decision/decision.toml"
 why = """

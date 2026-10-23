@@ -28,6 +28,7 @@ from typing import Any, TypeVar, cast, overload
 import numpy as np
 
 from ._data import read_columns, table_column_names, table_row_count
+from ._table_file import TableFile
 from ._validate import count as _count
 from .errors import CausalUnsupportedError, CausalValueError
 
@@ -245,6 +246,8 @@ def drop_columns(data: Any, names: set[str] | frozenset[str]) -> Any:
     """Return ``data`` without the design columns, so the numeric ingest never sees them."""
     if not names:
         return data
+    if isinstance(data, TableFile):
+        return data.without(names)
     if isinstance(data, Mapping):
         return {key: value for key, value in data.items() if key not in names}
     if hasattr(data, "column_names") and hasattr(data, "drop_columns"):

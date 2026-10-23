@@ -182,6 +182,15 @@ impl ArrowCStream {
         Self { inner: FFI_ArrowArrayStream::new(reader) }
     }
 
+    /// Import the stream schema and return a reader that yields one batch at a time.
+    ///
+    /// The stream is released when the reader is dropped.
+    pub(crate) fn into_reader(self) -> Result<ArrowArrayStreamReader, DataError> {
+        ArrowArrayStreamReader::try_new(self.inner).map_err(|e| DataError::InvalidArgument {
+            message: format!("Arrow stream schema import failed: {e}"),
+        })
+    }
+
     /// Read every batch, up to 65_536. Chunks are not concatenated.
     ///
     /// # Errors
@@ -190,11 +199,7 @@ impl ArrowCStream {
     /// yields more than 65_536 batches. The stream is released on both success
     /// and failure.
     pub fn into_batches(self) -> Result<(SchemaRef, Vec<RecordBatch>), DataError> {
-        let reader = ArrowArrayStreamReader::try_new(self.inner).map_err(|e| {
-            DataError::InvalidArgument {
-                message: format!("Arrow stream schema import failed: {e}"),
-            }
-        })?;
+        let reader = self.into_reader()?;
         let schema = reader.schema();
         let mut batches = Vec::new();
         for batch in reader {

@@ -690,7 +690,7 @@ fn variable_id(index: usize) -> Result<VariableId, DataError> {
     Ok(VariableId::from_raw(raw))
 }
 
-fn finish_load(
+pub(crate) fn finish_load(
     names: &[String],
     columns: Vec<OwnedColumn>,
     diagnostics: DiagnosticSet,
@@ -914,7 +914,7 @@ fn dictionary_labels(values: &ArrayRef) -> Result<Vec<CategoryLevel>, DataError>
     Ok(labels)
 }
 
-fn level_text(values: &dyn Array, row: usize) -> Result<String, DataError> {
+pub(crate) fn level_text(values: &dyn Array, row: usize) -> Result<String, DataError> {
     if let Some(text) = values.as_any().downcast_ref::<StringArray>() {
         return Ok(text.value(row).to_owned());
     }

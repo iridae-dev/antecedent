@@ -6,9 +6,10 @@
 //! Arrow type, so it builds with `--no-default-features`.
 //!
 //! Polars is not a dependency and is not a backend of the internal contract.
-//! The feature stays empty (`polars = []`) because that crate was refused.
-//! See `parity/polars_decision/decision.toml`. Nothing here selects a default
-//! backend.
+//! That crate was refused and the empty `polars` feature was retired. See
+//! `parity/polars_decision/decision.toml`. File-backed Parquet and Arrow IPC
+//! tables are read by `file_source` into the same library-owned columns.
+//! Nothing here selects a default backend.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -164,7 +165,7 @@ mod tests {
         for needle in [
             "item = \"polars_refused\"",
             "preparation_path = \"direct_arrow\"",
-            "polars_feature = \"polars = []\"",
+            "polars_feature = \"retired\"",
             "dependency_added = false",
             "version = \"0.55.2\"",
             "crate_cargo_toml_rust_version = \"absent\"",
@@ -181,6 +182,7 @@ mod tests {
         }
         assert!(!declares_polars_crate(DATA_CARGO));
         assert!(!declares_polars_crate(WORKSPACE_CARGO));
+        assert!(!DATA_CARGO.contains("\npolars = []"), "the empty polars feature is retired");
     }
 
     #[test]
