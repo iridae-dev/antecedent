@@ -83,6 +83,14 @@ path = "crates/antecedent-io/src/cyclic_family_artifact.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "cyclic-typed-family-worlds"
+crate = "antecedent-io"
+cargo_target = "suite_02"
+path = "crates/antecedent-io/tests/cyclic_family_typed.rs"
+gates = ["inventory", "named"]
+suite_map_line = "suite_02: cyclic_family_typed, nonlinear_mediation_artifact, period_refresh_summary_artifact, predictive_assessment_artifact, recalc_receipt_artifact, recovery_chain_artifact, sampled_recovery_artifact, scenario_covariance_artifact, sensitivity_artifact, temporal_counterfactual_artifact, temporal_initial_state_artifact, temporal_interval_artifact, temporal_refresh_artifact, transported_counterfactual_artifact, vector_treatment_artifact"
+
+[[test]]
 id = "cyclic-dynamics-fit"
 crate = "antecedent-estimate"
 cargo_target = "lib"
@@ -309,4 +317,11 @@ id = "joint-target-retained-execution"
 crate = "antecedent"
 cargo_target = "lib"
 path = "crates/antecedent/src/analysis/prepared/joint_response.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compile-from-decision"
+crate = "antecedent"
+cargo_target = "compile_from_decision"
+path = "crates/antecedent/tests/compile_from_decision.rs"
 gates = ["inventory", "named"]

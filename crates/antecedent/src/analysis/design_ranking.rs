@@ -16,6 +16,11 @@
 //! Monte Carlo error coverage and rank guarantees are `unmeasured`, and an exact-integration
 //! EVSI is a point-only value.
 //!
+//! [`evaluate_for_study`] binds the evaluation to a lowered program: the study is compiled
+//! for the request through [`Study::compile_for_evsi`] first, which refuses a study whose
+//! statistical program publishes no parameter posterior and a Monte Carlo store the
+//! admission pool cannot hold, and the evaluation carries that program's identity.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -24,7 +29,7 @@ use antecedent_contract::{
     ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState,
     ProviderObjectIdentity, ScientificQuantity, SignalProviderContract,
 };
-use antecedent_core::CancellationToken;
+use antecedent_core::{CancellationToken, ExecutionContext, SemanticDigest};
 use antecedent_design::design_ranking_artifact::{SealInputs, seal};
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiReport, EvsiRequest, StudyCostSpec,
@@ -41,6 +46,9 @@ use antecedent_design::{
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use serde::Deserialize;
+
+use crate::planner::PhysicalExecutionPlan;
+use crate::{CausalError, CompileCause, Study};
 
 pub use antecedent_design::design_ranking_artifact::{
     ConsumeExpectation, ConsumedCandidate, ConsumedDesignRanking, DESIGN_RANKING_ARTIFACT_KIND,
@@ -318,6 +326,8 @@ pub enum DesignRankingError {
     Artifact(DesignRankingArtifactError),
     /// The structural ordering refused.
     Ranking(RankingError),
+    /// Compiling the study for the request refused.
+    Compile(CausalError),
 }
 
 impl From<EvsiError> for DesignRankingError {
@@ -345,7 +355,9 @@ impl From<RankingError> for DesignRankingError {
 }
 
 impl DesignRankingError {
-    /// Structured refusal, or `None` for a serialization failure (corruption, truncation).
+    /// Structured refusal, or `None` for a serialization failure (corruption, truncation)
+    /// and for a compile refusal other than a decision-carrier refusal (read it through
+    /// `Display`).
     #[must_use]
     pub fn refusal(&self) -> Option<ExternalRefusal> {
         match self {
@@ -362,8 +374,25 @@ impl DesignRankingError {
             Self::Evsi(error) => Some(error.to_refusal()),
             Self::Artifact(error) => error.refusal(),
             Self::Ranking(error) => Some(error.to_refusal()),
+            Self::Compile(error) => compile_refusal(error),
         }
     }
+}
+
+/// The decision-carrier refusal of a compile, as a bind-stage refusal.
+fn compile_refusal(error: &CausalError) -> Option<ExternalRefusal> {
+    let CausalError::Rejected(failure) = error.peeled() else {
+        return None;
+    };
+    let CompileCause::Decision(refusal) = failure.cause() else {
+        return None;
+    };
+    Some(
+        ExternalRefusal::new(refusal.code, "bind", refusal.detail)
+            .with_expected(refusal.demanded.as_str())
+            .with_supplied(refusal.realization)
+            .with_remedy(refusal.next_attempt.sentence()),
+    )
 }
 
 impl std::fmt::Display for DesignRankingError {
@@ -373,6 +402,7 @@ impl std::fmt::Display for DesignRankingError {
             Self::Evsi(error) => write!(f, "{error:?}"),
             Self::Artifact(error) => write!(f, "{error}"),
             Self::Ranking(error) => write!(f, "{error:?}"),
+            Self::Compile(error) => write!(f, "{error}"),
         }
     }
 }
@@ -555,6 +585,7 @@ pub struct DesignRankingEvaluation {
     report: EvsiReport,
     ranking: RankingRecord,
     wire: DesignRankingArtifactWire,
+    lowered_program: Option<SemanticDigest>,
 }
 
 impl DesignRankingEvaluation {
@@ -574,6 +605,13 @@ impl DesignRankingEvaluation {
     #[must_use]
     pub fn artifact(&self) -> &DesignRankingArtifactWire {
         &self.wire
+    }
+
+    /// Identity of the lowered program the evaluation was bound to; `None` for an
+    /// evaluation of a bare declaration ([`evaluate`]).
+    #[must_use]
+    pub const fn lowered_program_identity(&self) -> Option<SemanticDigest> {
+        self.lowered_program
     }
 
     /// Artifact digest; unchanged by the order candidates were declared in.
@@ -602,12 +640,73 @@ pub fn evaluate(
     wire: &DesignRankingRequestWire,
 ) -> Result<DesignRankingEvaluation, DesignRankingError> {
     let prepared = prepare(wire)?;
-    let report = evaluate_evsi(
-        &prepared.problem,
-        &prepared.prior,
-        &prepared.request,
-        &CancellationToken::new(),
-    )?;
+    evaluate_prepared(wire, &prepared, &CancellationToken::new(), None)
+}
+
+/// Compile `study` as the state belief of the declared EVSI evaluation.
+///
+/// The plan's lowered program carries the decision and the request (candidates, prior
+/// observations, ranking schedule, seed, tolerances and the quoted Monte Carlo store).
+/// Nothing is fitted or simulated.
+///
+/// # Errors
+/// A malformed declaration, or [`DesignRankingError::Compile`] when the study publishes no
+/// parameter posterior, the Monte Carlo store does not fit the admission pool of `ctx`, or
+/// compile otherwise refuses.
+pub fn compile_for_study(
+    study: &Study,
+    wire: &DesignRankingRequestWire,
+    ctx: &ExecutionContext,
+) -> Result<PhysicalExecutionPlan, DesignRankingError> {
+    let prepared = prepare(wire)?;
+    study
+        .compile_for_evsi(&prepared.problem, &prepared.request, ctx)
+        .map_err(DesignRankingError::Compile)
+}
+
+/// [`evaluate`], bound to the lowered program of `study` compiled for the request.
+///
+/// The compile runs first, so a study that cannot carry the request or a store the pool
+/// cannot hold refuses before any candidate is scored. The evaluation observes the
+/// cancellation of `ctx` and carries the program's identity
+/// ([`DesignRankingEvaluation::lowered_program_identity`]).
+///
+/// # Errors
+/// As [`compile_for_study`] and [`evaluate`].
+pub fn evaluate_for_study(
+    study: &Study,
+    wire: &DesignRankingRequestWire,
+    ctx: &ExecutionContext,
+) -> Result<DesignRankingEvaluation, DesignRankingError> {
+    let prepared = prepare(wire)?;
+    let plan = study
+        .compile_for_evsi(&prepared.problem, &prepared.request, ctx)
+        .map_err(DesignRankingError::Compile)?;
+    let lowered = plan
+        .lowered()
+        .filter(|lowered| {
+            lowered
+                .evidence()
+                .decision()
+                .is_some_and(|decision| decision.information_value().is_some())
+        })
+        .ok_or_else(|| {
+            DesignRankingError::Compile(crate::compile_reason!(
+                "route_not_lowered",
+                "the plan compiled for an EVSI request carries no value-of-information program"
+            ))
+        })?;
+    evaluate_prepared(wire, &prepared, &ctx.cancellation, Some(lowered.identity()))
+}
+
+fn evaluate_prepared(
+    wire: &DesignRankingRequestWire,
+    prepared: &Prepared,
+    cancellation: &CancellationToken,
+    lowered_program: Option<SemanticDigest>,
+) -> Result<DesignRankingEvaluation, DesignRankingError> {
+    let report =
+        evaluate_evsi(&prepared.problem, &prepared.prior, &prepared.request, cancellation)?;
     let artifact = seal(&SealInputs {
         problem: &prepared.problem,
         prior: &prepared.prior,
@@ -616,7 +715,7 @@ pub fn evaluate(
         source_digests: &wire.source_digests,
     })?;
     let ranking = RankingRecord::from_evsi(&report, &wire.source_digests)?;
-    Ok(DesignRankingEvaluation { report, ranking, wire: artifact })
+    Ok(DesignRankingEvaluation { report, ranking, wire: artifact, lowered_program })
 }
 
 /// The structural ordering when no probabilistic model is licensed: verified structural

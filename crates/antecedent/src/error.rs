@@ -163,6 +163,9 @@ pub enum CompileCause {
     /// An artifact could not be encoded or decoded.
     #[error(transparent)]
     Serialization(#[from] IoError),
+    /// A decision demanded a carrier the statistical program cannot publish.
+    #[error(transparent)]
+    Decision(#[from] crate::analysis::DecisionCarrierError),
 }
 
 /// A compile refusal raised from a typed cause ([`CausalError::Rejected`]).

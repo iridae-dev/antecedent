@@ -666,6 +666,10 @@ path = "tests/temporal_treatment_score_product.rs"
 name = "temporal_lagged_instrument_route"
 path = "tests/temporal_lagged_instrument_route.rs"
 
+[[test]]
+name = "compile_from_decision"
+path = "tests/compile_from_decision.rs"
+
 [[example]]
 name = "joint_panel_workflow"
 path = "../../examples/rust/joint_panel_workflow.rs"
