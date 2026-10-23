@@ -135,8 +135,15 @@ pub(super) fn validate_result(
     let design_posterior = result.posterior_artifact.is_some();
     // A rollout design result carries its rollout section in place of the design's own one.
     let rollout = result.quasi_rollout.is_some();
+    // A Bayesian rollout section rides beside its posterior; the section validator checks the
+    // pairing, so here it only counts as present beside the posterior.
+    let bayesian_rollout = result
+        .quasi_rollout
+        .as_ref()
+        .is_some_and(|section| section.uncertainty.starts_with("bayesian_"));
+    let frequentist_rollout = rollout && !bayesian_rollout;
     if matches!(result.query, crate::CausalQueryWire::PanelDid(_))
-        && ((result.panel_did.is_some() || rollout) == design_posterior
+        && ((result.panel_did.is_some() || frequentist_rollout) == design_posterior
             || (result.panel_did.is_some() && rollout))
     {
         return Err(IoError::Convert(
@@ -145,7 +152,7 @@ pub(super) fn validate_result(
     }
     if let crate::CausalQueryWire::SyntheticControl(query) = &result.query {
         if rollout {
-            if design_posterior
+            if design_posterior != bayesian_rollout
                 || result.synthetic_did.is_some()
                 || result.synthetic_control.is_some()
             {
@@ -173,7 +180,7 @@ pub(super) fn validate_result(
         }
     }
     if matches!(result.query, crate::CausalQueryWire::LocalPolynomialRatio(_))
-        && ((result.local_polynomial_ratio.is_some() || rollout) == design_posterior
+        && ((result.local_polynomial_ratio.is_some() || frequentist_rollout) == design_posterior
             || (result.local_polynomial_ratio.is_some() && rollout))
     {
         return Err(IoError::Convert(

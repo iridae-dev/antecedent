@@ -15,6 +15,7 @@ import numpy as np
 
 from ._columns import resolved, resolved_opt, resolved_scalar
 from ._native import PreparedAnalysis as _NativePreparedAnalysis
+from ._temporal_design import TEMPORAL_DESIGN_QUERIES, temporal_design_keywords
 from .discovery import DbnPosterior, ExactDagPosterior, GraphPosterior
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .estimation import _RESPONSE_FAMILY, _not_applicable, _static_edges
@@ -306,6 +307,7 @@ _COMPILE_ROUTES: tuple[tuple[tuple[type, ...], str, str], ...] = (
     ((SequentialContrast,), "_sequential_contrast", "pre"),
     ((PeriodHistoryMatch,), "_history_match", "pre"),
     ((SurvivalOutcome, CompetingRisksOutcome), "_survival", "pre"),
+    (TEMPORAL_DESIGN_QUERIES, "_temporal_design", "pre"),
     ((TransportQuery,), "_transport", "post_temporal"),
     ((InterferenceQuery,), "_interference", "post_temporal"),
     ((AnomalyAttribution, ChangeAttribution), "_attribution", "post_temporal"),
@@ -1444,6 +1446,55 @@ class _PrepareRoute:
             placebo_replicates=query.placebo_replicates,
             accepted=False,
             **self._common(),
+        )
+        return native, "average"
+
+    def _temporal_design(self) -> tuple[Any, Literal["average"]]:
+        """A sequentially randomized unit-period design, or regime survival.
+
+        The recorded assignment law is the design; the estimator follows the inference
+        (the excursion or regime-survival estimator, or its Bayesian counterpart).
+        """
+        query = self.query
+        route = type(query).__name__
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", route)
+        self._refuse_ids(route)
+        self._refuse_estimator_config(route)
+        if self._explicit_refute():
+            raise CausalUnsupportedError(
+                f"{route} has no refutation suite; its uncertainty is the design's own",
+                reason_code="option_not_applicable",
+            )
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
+            raise _not_applicable("inference", route)
+        design = self.design_columns
+        if design is None:
+            raise CausalValueError("temporal design columns were not bound at prepare")
+        declared = self.options.get("inference") or {}
+        if isinstance(self.inference, Bayesian):
+            if declared.get("prior_artifact") is not None or declared.get("composed_prior"):
+                raise _not_applicable("prior_from / composed prior", route)
+            # The design's posterior is its own; the conjugate declaration carries the draw
+            # count and prior scale without selecting a regression backend.
+            inference = {
+                "mode": "conjugate",
+                "n_draws": declared.get("n_draws"),
+                "prior_scale": float(declared.get("prior_scale", 10.0)),
+            }
+        else:
+            inference = {"mode": "frequentist", "prior_scale": 10.0}
+        native = _NativePreparedAnalysis.prepare_temporal_design(
+            self.names,
+            self.columns,
+            query.outcome,
+            list(design["units"]),
+            list(design["periods"]),
+            design["spec"],
+            **temporal_design_keywords(query),
+            seed=self.seed,
+            threads=self.threads,
+            options={**self.options, "inference": inference},
         )
         return native, "average"
 

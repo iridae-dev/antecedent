@@ -670,6 +670,13 @@ path = "crates/antecedent/tests/target_native_validation.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "target-constructed-refuters"
+crate = "antecedent"
+cargo_target = "target_constructed_refuters"
+path = "crates/antecedent/tests/target_constructed_refuters.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "target-validation-python"
 crate = "python"
 cargo_target = "script"
@@ -821,4 +828,18 @@ id = "plan-view-python"
 crate = "python"
 cargo_target = "script"
 path = "python/tests/test_plan_view.py"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-attribution-block-bootstrap"
+crate = "antecedent"
+cargo_target = "temporal_attribution_block_bootstrap"
+path = "crates/antecedent/tests/temporal_attribution_block_bootstrap.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-queries-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_temporal_design_queries.py"
 gates = ["inventory"]

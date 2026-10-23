@@ -722,8 +722,16 @@ name = "temporal_point_uncertainty"
 path = "tests/temporal_point_uncertainty.rs"
 
 [[test]]
+name = "temporal_attribution_block_bootstrap"
+path = "tests/temporal_attribution_block_bootstrap.rs"
+
+[[test]]
 name = "target_native_validation"
 path = "tests/target_native_validation.rs"
+
+[[test]]
+name = "target_constructed_refuters"
+path = "tests/target_constructed_refuters.rs"
 
 [[test]]
 name = "bayesian_intervention_level_refutation"
