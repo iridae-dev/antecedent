@@ -367,6 +367,7 @@ mod route_guards;
 mod stage;
 mod transport_common;
 pub(crate) use graph_posterior_target::GraphPosteriorEffectTarget;
+pub(crate) use prepared::IdentificationCache;
 
 pub use antecedent_contract::{
     BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
@@ -408,6 +409,11 @@ pub use decision_contract_facade::{
 };
 pub use execute::DagResponseOrigin;
 pub use execute::Study;
+pub use execute::{
+    BAYESIAN_REALIZATION, DECISION_NEXT_ATTEMPTS, DISTRIBUTIONAL_CARRIER, DecisionCarrierError,
+    DecisionCompileRequest, DecisionDemand, INTERVENTIONAL_LAW, MissingCarrier, PublishedCarriers,
+    ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, confidence_interval_as_posterior, score_decision,
+};
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,
     LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,
@@ -466,7 +472,8 @@ pub use antecedent_io::cyclic_system_artifact::{
 
 /// Typed continuous-time and equation-system execution with independent replay.
 pub use antecedent_io::cyclic_family_artifact::{
-    CyclicFamilyAnswer, CyclicFamilyReport, CyclicFamilyRequest, consume_cyclic_family,
+    CyclicFamilyAnswer, CyclicFamilyReport, CyclicFamilyRequest, CyclicInterventionWorld,
+    CyclicWorldAnswer, CyclicWorldWire, RecoveredDrawOriginWire, consume_cyclic_family,
 };
 
 /// Cyclic specialization of the common retained prepared-analysis handle.

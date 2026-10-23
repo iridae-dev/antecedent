@@ -32,6 +32,7 @@ mod tests;
 pub(in crate::analysis) use cached::conditional_class_proof_is_complete;
 pub(crate) use cached::{
     CachedCpdagIdentification, CachedPagIdentification, CachedTemporalClassIdentification,
+    IdentificationCache,
 };
 pub use cached::{
     CachedStaticIdentification, CachedTemporalHorizonIdentification, CachedTemporalIdentification,

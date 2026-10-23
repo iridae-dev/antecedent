@@ -9,11 +9,10 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    CausalQuery, Conditioning, GraphFamily, InferenceSelection, Intervention, InterventionContrast,
-    InterventionWorld, ModelAssumptions, ObservationSpec, ObservationUnit, OutcomeFunctional,
-    OutcomeQuantity, QuantityUnits, ResponseFunctional, ResponseQuery, ScientificTarget,
-    ScientificWorldId, TargetForm, TargetPopulation, TimeFrame, Value, VariableId, WorldAction,
-    WorldBinding, WorldCollection,
+    CausalQuery, GraphFamily, InferenceSelection, Intervention, InterventionContrast,
+    InterventionWorld, ModelAssumptions, ObservationSpec, OutcomeFunctional, ResponseFunctional,
+    ResponseQuery, ScientificTarget, ScientificWorldId, TargetForm, TargetPopulation, Value,
+    VariableId, WorldBinding, WorldCollection,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{ScoreTable, effect_estimate::CompiledFamilyContrast};
@@ -24,6 +23,7 @@ use antecedent_identify::{
 };
 
 use super::batch::CellFamilyContrast;
+use super::lowering::{response_world, response_world_binding};
 use crate::{GraphClass, StudyResult};
 
 /// Compile the scientific contract of an already executed, joint-identified cell family.
@@ -197,21 +197,8 @@ fn scientific_target(
             );
         }
     };
-    let units = if query.outcome_functional.is_mean() {
-        let source = data.schema().get(cells.outcome).map_err(|error| error.to_string())?;
-        QuantityUnits::new(source.unit.as_deref().unwrap_or("unspecified"))
-            .map_err(|error| error.to_string())?
-    } else {
-        QuantityUnits::dimensionless()
-    };
-    let binding = WorldBinding::new(
-        query.target_population.clone(),
-        ObservationUnit::new("row").map_err(|error| error.to_string())?,
-        OutcomeQuantity::new(cells.outcome, query.outcome_functional.clone(), units)
-            .map_err(|error| error.to_string())?,
-        Conditioning::unconditional(),
-    )
-    .map_err(|error| error.to_string())?;
+    let binding = response_world_binding(data.schema(), query, cells.outcome)
+        .map_err(|error| error.to_string())?;
     let worlds = cells
         .world_arms
         .iter()
@@ -243,15 +230,7 @@ fn cell_world(
     let interventions = treatments.iter().enumerate().map(|(index, &variable)| {
         Intervention::set(variable, Value::f64(f64::from((arm >> index) & 1)))
     });
-    let action = WorldAction::at_decision(interventions).map_err(|error| error.to_string())?;
-    InterventionWorld::new(
-        ScientificWorldId::from_raw(arm),
-        action,
-        arm == 0,
-        binding.clone(),
-        TimeFrame::static_decision(),
-    )
-    .map_err(|error| error.to_string())
+    response_world(arm, interventions, arm == 0, binding).map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

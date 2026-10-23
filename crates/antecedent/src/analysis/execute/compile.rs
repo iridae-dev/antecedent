@@ -1352,12 +1352,26 @@ impl super::Study {
     /// class/accessor invariant applies here, and it is checked inside
     /// [`Study::route_input`], not again below.
     pub fn compile(&self, ctx: &ExecutionContext) -> Result<PhysicalExecutionPlan, CausalError> {
+        self.compile_for_goal(&crate::analysis::lowering::CompileGoal::Estimate, ctx)
+    }
+
+    /// [`Self::compile`] with the lowered program's layer four built for `goal`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::compile`]; and the route's statistical program cannot supply the
+    /// carrier a decision goal demands.
+    pub(super) fn compile_for_goal(
+        &self,
+        goal: &crate::analysis::lowering::CompileGoal,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
         crate::analysis::lowering::refuse_reentry(ctx)?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "compile" });
         }
         if self.graph_posterior.is_some() {
-            return self.compile_graph_posterior(ctx);
+            return self.compile_graph_posterior(goal, ctx);
         }
         let input = self.route_input()?;
         let checked_linear = matches!(&input, RouteInput::StaticAteDag { query, .. }
@@ -1380,7 +1394,7 @@ impl super::Study {
                 ));
             }
         }
-        crate::analysis::lowering::attach(self, input, &mut plan, ctx)?;
+        crate::analysis::lowering::attach(self, input, &mut plan, goal, ctx)?;
         Ok(plan)
     }
 

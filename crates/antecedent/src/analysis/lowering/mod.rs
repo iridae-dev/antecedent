@@ -26,18 +26,29 @@ mod tests;
 
 use std::sync::Arc;
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_data::Contrast;
+use antecedent_identify::CompiledIdentificationProduct;
 
 pub(crate) use decision::CompileGoal;
 pub(crate) use registry::{GraphPosteriorCell, RouteCell};
+pub(crate) use static_response::{response_world, response_world_binding};
+pub(crate) use structural::theorem_mediation_target;
+pub(crate) use temporal::history_window;
+#[cfg(test)]
+pub(crate) use temporal::{
+    TemporalContrast, contrast_frame, contrast_outcome, target_contrast, temporal_contrast_target,
+};
 
+use crate::analysis::builder::DataInput;
 use crate::analysis::compiled_linear::CompiledLinearProgram;
 use crate::analysis::execute::RouteInput;
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
 use crate::planner::lowered::{
     ClaimDemand, DesignShape, IdentificationLayer, LoweredParts, LoweredProgram, LoweringDepth,
-    PhysicalLayer, ProblemTarget, ScientificProblem, UncertaintyReading, WidthSource,
+    PhysicalLayer, ProblemTarget, RetainedIdentification, ScientificProblem, UncertaintyReading,
+    WidthSource,
 };
 use crate::planner::statistical::{DeclaredProgram, StatisticalProgram};
 use crate::{EstimatorId, IdentifierId, InferenceMode, Study};
@@ -62,55 +73,55 @@ pub(crate) struct LoweringContext<'a> {
     pub(crate) ctx: &'a ExecutionContext,
 }
 
-/// Lower the parsed route `input` and attach the program to `plan`.
+/// Lower the parsed route `input` for `goal` and attach the program to `plan`.
 ///
 /// # Errors
 ///
-/// The route's lowering refuses, or compile was cancelled.
+/// The route's lowering refuses, the statistical program cannot supply the
+/// carrier a decision goal demands, or compile was cancelled.
 pub(crate) fn attach(
     study: &Study,
     input: RouteInput<'_>,
     plan: &mut PhysicalExecutionPlan,
+    goal: &CompileGoal,
     ctx: &ExecutionContext,
 ) -> Result<(), CausalError> {
-    let goal = CompileGoal::Estimate;
     let lowered = lower(&LoweringContext {
         study,
         cell: RouteCell::of(&input),
         input: Some(input),
         plan: &*plan,
-        goal: &goal,
+        goal,
         ctx,
     })?;
-    plan.lowered = Some(Arc::new(lowered));
-    Ok(())
+    install(plan, lowered, ctx)
 }
 
-/// Lower a graph-posterior study and attach the program to `plan`.
+/// Lower a graph-posterior study for `goal` and attach the program to `plan`.
 ///
 /// # Errors
 ///
 /// Graph-posterior compile has no cell for the study's data and query, the
-/// lowering refuses, or compile was cancelled.
+/// lowering refuses, the statistical program cannot supply the carrier a
+/// decision goal demands, or compile was cancelled.
 pub(crate) fn attach_graph_posterior(
     study: &Study,
     plan: &mut PhysicalExecutionPlan,
+    goal: &CompileGoal,
     ctx: &ExecutionContext,
 ) -> Result<(), CausalError> {
     let cell = GraphPosteriorCell::classify(study).ok_or(CausalError::Unsupported {
         message: "graph-posterior compile has no route cell for this data and query",
     })?;
-    let goal = CompileGoal::Estimate;
     let lowered = lower(&LoweringContext {
         study,
         cell: RouteCell::GraphPosterior(cell),
         input: None,
         plan: &*plan,
-        goal: &goal,
+        goal,
         ctx,
     })?;
-    plan.lowered = Some(Arc::new(lowered));
-    Ok(())
+    install(plan, lowered, ctx)
 }
 
 /// The cell `study` executes as now, when it classifies as one.
@@ -135,6 +146,70 @@ pub(crate) fn refuse_reentry(ctx: &ExecutionContext) -> Result<(), CausalError> 
         ));
     }
     Ok(())
+}
+
+/// Attach `lowered` to `plan`. A quoted design re-plans the physical record from
+/// the real width; the retained linear operation has already sized its own plan.
+fn install(
+    plan: &mut PhysicalExecutionPlan,
+    lowered: LoweredProgram,
+    ctx: &ExecutionContext,
+) -> Result<(), CausalError> {
+    let design = lowered.physical().design();
+    if design.source() == WidthSource::Quoted && plan.linear.is_none() {
+        plan.requote(design, ctx)?;
+    }
+    plan.lowered = Some(Arc::new(lowered));
+    Ok(())
+}
+
+/// Identify at compile what preparation would identify, and retain it with the
+/// program, so preparation installs it instead of identifying again.
+///
+/// `product` is the route's checked identification product bound to its
+/// scientific target, when the route builds one.
+///
+/// # Errors
+///
+/// Identification refuses, as preparation would have.
+pub(crate) fn retain_identification(
+    cx: &LoweringContext<'_>,
+    product: Option<CompiledIdentificationProduct>,
+) -> Result<IdentificationLayer, CausalError> {
+    let caches = cx.study.identify_caches(cx.plan, cx.ctx)?;
+    Ok(IdentificationLayer::Retained(Arc::new(RetainedIdentification {
+        product,
+        caches: Arc::from(caches),
+    })))
+}
+
+/// The real width of the linear adjustment design `[1 | T | Z…]` over `adjustment`
+/// under `contrasts`, quoted from the study's tabular data. The attached program
+/// re-plans the physical record from this shape.
+///
+/// # Errors
+///
+/// The study's data is not tabular, an adjustment column is missing, or a
+/// categorical adjustment variable has no contrast coding.
+pub(crate) fn quote_adjustment_width(
+    cx: &LoweringContext<'_>,
+    adjustment: &[VariableId],
+    contrasts: &[(VariableId, Contrast)],
+) -> Result<DesignShape, CausalError> {
+    let DataInput::Tabular(data) = &cx.study.data else {
+        return Err(CausalError::Compile {
+            message: "an adjustment design width is quoted from tabular data".into(),
+        });
+    };
+    let quote =
+        antecedent_estimate::design_width::quote_adjustment_design(data, adjustment, contrasts)
+            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    Ok(DesignShape {
+        rows: quote.rows as u64,
+        columns: quote.columns as u64,
+        source: WidthSource::Quoted,
+        direct: quote.direct,
+    })
 }
 
 fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {
@@ -181,16 +256,24 @@ fn generic(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {
         licensed: matches!(study.support_status, Some(crate::support::CellStatus::Licensed)),
     };
     let identification = match (linear, estimator) {
-        (Some(program), _) => IdentificationLayer::Product(program.identification().clone()),
+        (Some(program), _) => retain_identification(cx, Some(program.identification().clone()))?,
         (None, Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear)) => {
             IdentificationLayer::PerExecution { reason: RD_IDENTIFIES_PER_EXECUTION }
         }
         (None, _) => IdentificationLayer::Deferred,
     };
-    let design = DesignShape {
-        rows: plan.logical.row_count_hint,
-        columns: plan.logical.design_columns_hint,
-        source: if linear.is_some() { WidthSource::Quoted } else { WidthSource::SchemaBound },
+    let design = match plan.linear.as_deref() {
+        Some(linear) => quote_adjustment_width(
+            cx,
+            &linear.identification.estimand.adjustment_set,
+            &linear.fitter.contrasts,
+        )?,
+        None => DesignShape {
+            rows: plan.logical.row_count_hint,
+            columns: plan.logical.design_columns_hint,
+            source: WidthSource::SchemaBound,
+            direct: false,
+        },
     };
     let statistical = StatisticalProgram::declared(DeclaredProgram {
         identifier,
@@ -214,7 +297,7 @@ fn generic(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {
         },
         kind: None,
     };
-    let evidence = decision::evidence_program(cx, source_digest);
+    let evidence = decision::evidence_program(cx, source_digest, &statistical)?;
     Ok(LoweredParts {
         cell: cx.cell,
         depth: LoweringDepth::Generic,

@@ -105,3 +105,47 @@ impl CachedTemporalIdentification {
         self.by_horizon.iter().find(|entry| entry.horizon == horizon)
     }
 }
+
+/// One identification product a prepare installs into its study, identified once.
+///
+/// Compile may identify these and retain them with the lowered program; prepare
+/// then installs them instead of identifying again. Each variant fills the study
+/// slot of the same name.
+#[derive(Clone, Debug)]
+pub(crate) enum IdentificationCache {
+    /// Static ATE / response identification.
+    Static(Arc<CachedStaticIdentification>),
+    /// Generalized-adjustment envelope of a supplied PAG.
+    Pag(Arc<CachedPagIdentification>),
+    /// Equivalence-class envelope of a supplied CPDAG.
+    Cpdag(Arc<CachedCpdagIdentification>),
+    /// Temporal-backdoor identification by horizon.
+    Temporal(Arc<CachedTemporalIdentification>),
+    /// Temporal CPDAG / PAG envelope.
+    TemporalClass(Arc<CachedTemporalClassIdentification>),
+    /// Transport formula and certificate.
+    Transport(Arc<antecedent_identify::TransportIdentification>),
+    /// Per-atom identification of a static graph posterior.
+    GraphPosterior(Arc<super::CachedGraphPosteriorIdentification>),
+    /// Per-atom identification of a DBN posterior.
+    DbnPosterior(Arc<super::CachedDbnPosteriorIdentification>),
+    /// Per-atom class envelopes of a temporal class posterior.
+    TemporalClassPosterior(Arc<super::CachedTemporalClassPosteriorIdentification>),
+}
+
+impl IdentificationCache {
+    /// Stable name of the slot this product fills.
+    pub(crate) const fn kind(&self) -> &'static str {
+        match self {
+            Self::Static(_) => "static",
+            Self::Pag(_) => "pag",
+            Self::Cpdag(_) => "cpdag",
+            Self::Temporal(_) => "temporal",
+            Self::TemporalClass(_) => "temporal_class",
+            Self::Transport(_) => "transport",
+            Self::GraphPosterior(_) => "graph_posterior",
+            Self::DbnPosterior(_) => "dbn_posterior",
+            Self::TemporalClassPosterior(_) => "temporal_class_posterior",
+        }
+    }
+}

@@ -39,6 +39,13 @@ impl RandomizedTrialQuery for antecedent_core::HistoryMatchQuery {
 }
 
 impl CheckedHistoryMatchOperation {
+    /// The design identification this operation records; the route lowering retains it.
+    pub(crate) fn design_identification(
+        query: &antecedent_core::HistoryMatchQuery,
+    ) -> (IdentificationResult, IdentifiedEstimand) {
+        match_identification(query)
+    }
+
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,

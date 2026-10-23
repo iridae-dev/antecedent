@@ -53,7 +53,8 @@ impl super::Study {
         let trial_spec = self.transport_trial.as_ref().ok_or(CausalError::Unsupported {
             message: "TransportQuery execute requires transport_trial columns",
         })?;
-        let (treatment, outcome) = transport_primary_pair(query)?;
+        // Refuse a query without a treatment/outcome pair before identifying.
+        transport_primary_pair(query)?;
         let (transport_id, identify_cached) =
             if let Some(cached) = self.transport_identification_cache.as_deref() {
                 (cached.clone(), true)
@@ -61,13 +62,8 @@ impl super::Study {
                 report_identify_compute(ctx);
                 (live_transport_identification(diagram, query)?, false)
             };
-        refuse_unestimable_transport(&transport_id)?;
-        let (identification, estimand) = transport_sid_identification(
-            CausalQuery::Transport(query.clone()),
-            treatment,
-            outcome,
-            &transport_id,
-        );
+        let (identification, estimand) =
+            Self::transport_design_identification(query, &transport_id)?;
         self.execute_transport_identified(
             data,
             query,
@@ -82,6 +78,43 @@ impl super::Study {
             },
             ctx,
         )
+    }
+
+    /// The sID identification of a certified transport formula for `query`. Execution and
+    /// the route lowering share this one builder.
+    ///
+    /// # Errors
+    ///
+    /// The inner response names no treatment/outcome pair, or the formula is not certified
+    /// or not estimable on the trial-to-target IPW path.
+    pub(crate) fn transport_design_identification(
+        query: &antecedent_core::TransportQuery,
+        identified: &TransportIdentification,
+    ) -> Result<(IdentificationResult, IdentifiedEstimand), CausalError> {
+        let (treatment, outcome) = transport_primary_pair(query)?;
+        refuse_unestimable_transport(identified)?;
+        Ok(transport_sid_identification(
+            CausalQuery::Transport(query.clone()),
+            treatment,
+            outcome,
+            identified,
+        ))
+    }
+
+    /// The identification the one-shot interference route records: the fixed-network
+    /// Gaussian model for a Bayesian study, the known assignment mechanism otherwise.
+    /// Execution and the route lowering share this one builder.
+    pub(crate) fn interference_route_identification(
+        query: &antecedent_core::InterferenceQuery,
+        bayesian: bool,
+    ) -> (IdentificationResult, IdentifiedEstimand) {
+        let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
+            query.functional;
+        if bayesian {
+            interference_bayesian_identification(CausalQuery::Interference(query.clone()), outcome)
+        } else {
+            interference_design_identification(CausalQuery::Interference(query.clone()), outcome)
+        }
     }
 
     /// Binary trial-to-target IPW (or its Bayesian bootstrap) from an
@@ -205,11 +238,8 @@ impl super::Study {
                     .map_err(CausalError::from)?,
             )
         };
-        let (identification, estimand) = if bayesian_model {
-            interference_bayesian_identification(CausalQuery::Interference(query.clone()), outcome)
-        } else {
-            interference_design_identification(CausalQuery::Interference(query.clone()), outcome)
-        };
+        let (identification, estimand) =
+            Self::interference_route_identification(query, bayesian_model);
         let (estimate, posterior, estimator_id, diagnostic) = match &self.inference {
             InferenceMode::Frequentist => {
                 let estimated = estimated.as_ref().expect("frequentist interference estimate");

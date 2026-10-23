@@ -305,18 +305,43 @@ fn mediation_targets(
         }
         CheckedMediationInference::Bayesian(_) => antecedent_core::InferenceSelection::Bayesian,
     };
-    horizons
-        .iter()
-        .map(|horizon| {
-            super::checked_static_mediation::theorem_mediation_target(
-                query,
-                schema,
-                &horizon.identification.required_assumptions,
-                selection,
-                Some((horizon.horizon, horizon.indexer.history())),
-            )
-        })
-        .collect()
+    CheckedTemporalMediationOperation::theorem_targets(
+        query,
+        schema,
+        horizons.iter().map(|horizon| (horizon.horizon, &horizon.identification, &horizon.indexer)),
+        selection,
+    )
+}
+
+impl CheckedTemporalMediationOperation {
+    /// Theorem-scoped mediation targets, one per identified horizon, over the observed
+    /// lag-window law that horizon's proof unfolded.
+    ///
+    /// The one builder of these targets: compile lowers a one-horizon family from it,
+    /// and the checked operation freezes and re-checks the family with it.
+    ///
+    /// # Errors
+    ///
+    /// The query or a horizon's frame is not a mediation target.
+    pub(crate) fn theorem_targets<'h>(
+        query: &antecedent_core::MediationQuery,
+        schema: &antecedent_core::CausalSchema,
+        horizons: impl IntoIterator<Item = (u32, &'h IdentificationResult, &'h TemporalIndexer)>,
+        inference: antecedent_core::InferenceSelection,
+    ) -> Result<Vec<antecedent_core::ScientificTarget>, CausalError> {
+        horizons
+            .into_iter()
+            .map(|(horizon, identification, indexer)| {
+                super::checked_static_mediation::theorem_mediation_target(
+                    query,
+                    schema,
+                    &identification.required_assumptions,
+                    inference,
+                    Some((horizon, indexer.history())),
+                )
+            })
+            .collect()
+    }
 }
 
 fn adjustment_for_horizon(

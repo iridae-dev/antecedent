@@ -17,7 +17,7 @@ use super::{
 };
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::require_primary_pair;
-use antecedent_core::{HistoryWindow, IdentificationStatus};
+use antecedent_core::IdentificationStatus;
 use antecedent_data::TimeIndex;
 use antecedent_model::history_operators::{
     DelayedAction, DelayedDynamics, DelayedFeedback, DelayedFeedbackRequest, FeedbackDelay,
@@ -432,10 +432,8 @@ fn admit_delayed_finite_horizon(
     intervention: &antecedent_core::Intervention,
 ) -> Result<DelayedFeedback, HistoryOperatorError> {
     let horizon = horizon_ending_after(cadence, steps)?;
-    let history = match temporal.max_history_lag {
-        Some(lag) => HistoryWindow::max_lag(lag),
-        None => HistoryWindow::planner_default().resolve(searched_steps),
-    };
+    let history =
+        crate::analysis::lowering::history_window(temporal.max_history_lag, searched_steps);
     DelayedFeedback::try_new(DelayedFeedbackRequest {
         cadence: cadence.clone(),
         horizon,

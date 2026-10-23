@@ -52,6 +52,13 @@ impl RandomizedTrialQuery for antecedent_core::LongitudinalRegimeQuery {
 }
 
 impl CheckedLongitudinalRegimeOperation {
+    /// The design identification this operation records; the route lowering retains it.
+    pub(crate) fn design_identification(
+        query: &antecedent_core::LongitudinalRegimeQuery,
+    ) -> (IdentificationResult, IdentifiedEstimand) {
+        longitudinal_identification(query)
+    }
+
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,

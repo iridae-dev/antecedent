@@ -311,6 +311,13 @@ mod class_posterior_response;
 mod completion_fit_memo;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectExecution;
 mod compile;
+mod compile_decision;
+pub(crate) use compile_decision::require_carrier;
+pub use compile_decision::{
+    BAYESIAN_REALIZATION, DECISION_NEXT_ATTEMPTS, DISTRIBUTIONAL_CARRIER, DecisionCarrierError,
+    DecisionCompileRequest, DecisionDemand, INTERVENTIONAL_LAW, MissingCarrier, PublishedCarriers,
+    ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, confidence_interval_as_posterior, score_decision,
+};
 mod compile_graph_posterior;
 mod plan_id;
 pub(super) use compile::compile_logical_admg_response;

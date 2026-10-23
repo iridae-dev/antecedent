@@ -10,19 +10,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::{DecisionRequest, EvidencePort, EvidencePortError};
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, Conditioning, ContrastForm,
-    ExecutionContext, GraphFamily, HistoryWindow, InferenceSelection, InitialLaw, IntervalMethod,
-    Intervention, InterventionWorld, Lag, ModelAssumptions, ObservationUnit, OutcomeFunctional,
-    OutcomeQuantity, QuantityUnits, ScientificTarget, ScientificWorldId, TargetForm,
-    TemporalEffectQuery, TemporalPolicy, TimeFrame, Value, WorldAction, WorldBinding,
-    WorldCollection,
+    AverageEffectQuery, CausalSchemaBuilder, ContrastForm, ExecutionContext, InferenceSelection,
+    IntervalMethod, Lag, OutcomeFunctional, QuantityUnits, ScientificTarget, TemporalEffectQuery,
+    TemporalPolicy, TimeFrame,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_graph::ensure_lagged;
 use antecedent_stats::fit_counts::count_least_squares_solves;
 
+use crate::analysis::execute::{
+    DecisionDemand, MissingCarrier, PublishedCarriers, ScoredDecision,
+    confidence_interval_as_posterior, score_decision,
+};
 use crate::{
     BayesianConfig, Dag, EffectEstimate, InferenceMode, PublishedScalarUncertainty, RefuteSuite,
     Study, StudyResult, TemporalDag,
@@ -39,8 +39,6 @@ const LINE: [(f64, f64); 8] = [
     (1.0, 3.0),
 ];
 
-const CONTROL_WORLD: u32 = 0;
-const ACTIVE_WORLD: u32 = 1;
 const POSTERIOR_DRAWS: usize = 1024;
 const POSTERIOR_PRIOR_SCALE: f64 = 1.0e6;
 const FREQUENTIST_LEVEL: f64 = 0.95;
@@ -105,49 +103,6 @@ impl FourWayCell {
     }
 }
 
-/// Carrier a decision still needs, or that a cell could not publish.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum MissingCarrier {
-    /// Parameter posterior. A confidence interval is not this carrier.
-    ParameterPosterior,
-    /// Predictive or interventional law. A mean is not this carrier.
-    OutcomeLaw,
-}
-
-impl MissingCarrier {
-    /// Stable name: `parameter_posterior` or `outcome_law`.
-    #[must_use]
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::ParameterPosterior => "parameter_posterior",
-            Self::OutcomeLaw => "outcome_law",
-        }
-    }
-}
-
-/// What the decision asked the cell to score.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum DecisionDemand {
-    /// Affine utility of the contrast, scored from a parameter posterior.
-    AffinePosterior { slope: f64, intercept: f64 },
-    /// Affine utility of the contrast, scored from the mean.
-    AffineMean { slope: f64, intercept: f64 },
-    /// Nonlinear utility. A mean cannot carry it.
-    Nonlinear,
-    /// Threshold or other outcome risk. A mean cannot carry it.
-    Risk,
-}
-
-/// Affine score and the carrier that produced it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[must_use = "an affine score names the carrier that produced it"]
-pub(crate) struct ScoredDecision {
-    /// `slope * location + intercept`.
-    pub(crate) value: f64,
-    /// Posterior or mean. Never a confidence interval.
-    pub(crate) carrier: EvidencePort,
-}
-
 /// Location of one fitted cell.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct FittedCell {
@@ -191,26 +146,14 @@ impl FittedCell {
         self.posterior_mean
     }
 
-    /// Score `demand` from this cell.
-    ///
-    /// An affine posterior request uses the posterior mean. An affine mean
-    /// request uses the published contrast and does not require a posterior.
-    /// A nonlinear utility or an outcome risk is refused and names
-    /// [`MissingCarrier::OutcomeLaw`]. A posterior request on a cell that has
-    /// no posterior names [`MissingCarrier::ParameterPosterior`].
+    /// Score `demand` from this cell with the production carrier rules of
+    /// [`score_decision`]: the published contrast is the mean and the posterior
+    /// mean, when the cell has one, is the parameter-posterior carrier.
     pub(crate) fn decide(&self, demand: DecisionDemand) -> Result<ScoredDecision, MissingCarrier> {
-        match demand {
-            DecisionDemand::AffinePosterior { slope, intercept } => {
-                let Some(mean) = self.posterior_mean else {
-                    return Err(MissingCarrier::ParameterPosterior);
-                };
-                Ok(score(slope, mean, intercept, EvidencePort::ParameterPosterior))
-            }
-            DecisionDemand::AffineMean { slope, intercept } => {
-                Ok(score(slope, self.effect, intercept, EvidencePort::Mean))
-            }
-            DecisionDemand::Nonlinear | DecisionDemand::Risk => Err(MissingCarrier::OutcomeLaw),
-        }
+        score_decision(
+            demand,
+            PublishedCarriers { mean: self.effect, posterior_mean: self.posterior_mean },
+        )
     }
 }
 
@@ -347,14 +290,6 @@ impl FourWaySlice {
     }
 }
 
-/// Offer a confidence interval as a parameter posterior.
-///
-/// The offer is refused. The interval is unchanged, and the request stays a
-/// parameter posterior.
-pub(crate) fn confidence_interval_as_posterior() -> Result<EvidencePort, EvidencePortError> {
-    EvidencePort::ConfidenceRegion.try_coerce(DecisionRequest::ParameterPosterior)
-}
-
 /// Fit the four cells on the perfect-line contrast.
 ///
 /// # Errors
@@ -464,10 +399,6 @@ where
     fn replay(&self) -> Result<UtilityReplay, crate::CausalError> {
         (self.replay_fn)()
     }
-}
-
-const fn score(slope: f64, location: f64, intercept: f64, carrier: EvidencePort) -> ScoredDecision {
-    ScoredDecision { value: intercept + slope * location, carrier }
 }
 
 fn frequentist_cell(
@@ -592,35 +523,21 @@ fn functional_match(
 fn contrast_of(
     target: &ScientificTarget,
 ) -> Result<&antecedent_core::InterventionContrast, crate::CausalError> {
-    match target.form() {
-        TargetForm::Contrast(contrast) => Ok(contrast),
-        TargetForm::World(_)
-        | TargetForm::Worlds(_)
-        | TargetForm::DoseTime(_)
-        | TargetForm::Mediation(_)
-        | _ => Err(compile("four-way target is not a contrast")),
-    }
+    crate::analysis::lowering::target_contrast(target)
+        .ok_or_else(|| compile("four-way target is not a contrast"))
 }
 
 fn frame_of(
     contrast: &antecedent_core::InterventionContrast,
 ) -> Result<&TimeFrame, crate::CausalError> {
-    contrast
-        .worlds()
-        .worlds()
-        .first()
-        .map(antecedent_core::InterventionWorld::time)
+    crate::analysis::lowering::contrast_frame(contrast)
         .ok_or_else(|| compile("contrast has no worlds"))
 }
 
 fn outcome_variable(
     contrast: &antecedent_core::InterventionContrast,
 ) -> Result<antecedent_core::VariableId, crate::CausalError> {
-    let outcome = contrast
-        .worlds()
-        .worlds()
-        .first()
-        .map(|world| world.binding().outcome())
+    let outcome = crate::analysis::lowering::contrast_outcome(contrast)
         .ok_or_else(|| compile("contrast has no outcome"))?;
     if outcome.functional() != &OutcomeFunctional::Mean {
         return Err(compile("four-way outcome functional is not a mean"));
@@ -628,57 +545,23 @@ fn outcome_variable(
     Ok(outcome.outcome())
 }
 
+/// The horizon-one contrast of the series cells, from the production temporal
+/// target builder the temporal route lowering uses.
 fn horizon_target(
     outcome: antecedent_core::VariableId,
 ) -> Result<ScientificTarget, crate::CausalError> {
-    let treatment = antecedent_core::VariableId::from_raw(0);
-    let binding = WorldBinding::new(
-        antecedent_core::TargetPopulation::AllObserved,
-        ObservationUnit::new("row").map_err(|err| compile(err.to_string()))?,
-        OutcomeQuantity::mean(outcome, QuantityUnits::dimensionless())
-            .map_err(|err| compile(err.to_string()))?,
-        Conditioning::unconditional(),
+    let query = TemporalEffectQuery::pulse(antecedent_core::VariableId::from_raw(0), outcome, 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+    // A one-step horizon with no lagged term retains zero lags.
+    let history = crate::analysis::lowering::history_window(query.max_history_lag, 0);
+    crate::analysis::lowering::temporal_contrast_target(
+        crate::analysis::lowering::TemporalContrast::of_query(
+            &query,
+            history,
+            QuantityUnits::dimensionless(),
+        ),
     )
-    .map_err(|err| compile(err.to_string()))?;
-    let time = TimeFrame::temporal(
-        1,
-        // A one-step horizon with no lagged term retains zero lags.
-        HistoryWindow::planner_default().resolve(0),
-        InitialLaw::contemporaneous_observed(),
-    )
-    .map_err(|err| compile(err.to_string()))?;
-    let policy = TemporalPolicy::pulse(-1);
-    let control = InterventionWorld::new(
-        ScientificWorldId::from_raw(CONTROL_WORLD),
-        WorldAction::schedule(Intervention::set(treatment, Value::f64(0.0)), policy.clone())
-            .map_err(|err| compile(err.to_string()))?,
-        true,
-        binding.clone(),
-        time.clone(),
-    )
-    .map_err(|err| compile(err.to_string()))?;
-    let active = InterventionWorld::new(
-        ScientificWorldId::from_raw(ACTIVE_WORLD),
-        WorldAction::schedule(Intervention::set(treatment, Value::f64(1.0)), policy)
-            .map_err(|err| compile(err.to_string()))?,
-        false,
-        binding,
-        time,
-    )
-    .map_err(|err| compile(err.to_string()))?;
-    let worlds = WorldCollection::new([control, active]).map_err(|err| compile(err.to_string()))?;
-    let contrast = antecedent_core::InterventionContrast::difference(
-        worlds,
-        ScientificWorldId::from_raw(ACTIVE_WORLD),
-        ScientificWorldId::from_raw(CONTROL_WORLD),
-        ScientificWorldId::from_raw(CONTROL_WORLD),
-    )
-    .map_err(|err| compile(err.to_string()))?;
-    Ok(ScientificTarget::new(
-        TargetForm::Contrast(contrast),
-        ModelAssumptions::new(GraphFamily::TemporalDag, AssumptionSet::new()),
-        InferenceSelection::Frequentist,
-    ))
 }
 
 fn linear_study(cell: FourWayCell) -> Result<Study, crate::CausalError> {
@@ -1011,6 +894,31 @@ mod tests {
             MissingCarrier::OutcomeLaw
         );
         assert_eq!(bayesian.decide(DecisionDemand::Risk).unwrap_err(), MissingCarrier::OutcomeLaw);
+
+        // The decision compile entry reaches the same verdict before anything is fitted.
+        let utility = std::sync::Arc::new(
+            antecedent_design::AffineUtility::new(vec![0.0, -0.5], vec![0.0, 2.0]).unwrap(),
+        );
+        let problem: antecedent_design::DecisionProblem<usize, f64> =
+            antecedent_design::DecisionProblem::new(vec![0, 1], utility, vec![]);
+        for cell in FourWayCell::ALL {
+            let study = linear_study(cell).unwrap();
+            for demand in [affine_posterior, affine_mean, DecisionDemand::Nonlinear] {
+                let request = crate::analysis::DecisionCompileRequest::from(demand);
+                let compiled = study.compile_for_decision(&problem, &request, &ctx);
+                let decided = slice.cell(cell).decide(demand);
+                assert_eq!(compiled.is_ok(), decided.is_ok(), "{} {demand:?}", cell.as_str());
+                if let (Err(error), Err(missing)) = (compiled, decided) {
+                    let crate::CausalError::Rejected(failure) = error.peeled() else {
+                        panic!("{error}");
+                    };
+                    let crate::CompileCause::Decision(refusal) = failure.cause() else {
+                        panic!("{error}");
+                    };
+                    assert_eq!(refusal.missing_carrier(), Some(missing));
+                }
+            }
+        }
     }
 
     #[test]

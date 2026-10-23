@@ -23,6 +23,7 @@ use antecedent_core::{
 };
 use antecedent_identify::CompiledIdentificationProduct;
 
+use crate::analysis::IdentificationCache;
 use crate::analysis::lowering::RouteCell;
 use crate::planner::statistical::StatisticalProgram;
 
@@ -80,6 +81,20 @@ pub enum FunctionalKind {
     HistoryMatch,
     /// Identified set rather than a point functional.
     IdentifiedSet,
+    /// Contrast of randomized assignment arms (ITT, complier or treated-recipient effect).
+    AssignmentContrast,
+    /// Contrast of mean outcomes between two network exposure levels.
+    ExposureContrast,
+    /// Value of a fixed treatment policy against its reference policy.
+    PolicyValue,
+    /// Effect on the treated units or unit of a panel design.
+    EffectOnTreated,
+    /// Contrast of arm event-time laws: survival, restricted mean or cumulative incidence.
+    SurvivalContrast,
+    /// Value of a prescribed sequential treatment regime.
+    RegimeValue,
+    /// Derivative, average derivative, directional derivative or Jacobian of a response curve.
+    ResponseDerivative,
 }
 
 impl FunctionalKind {
@@ -96,6 +111,13 @@ impl FunctionalKind {
             Self::UnitChange => "unit_change",
             Self::HistoryMatch => "history_match",
             Self::IdentifiedSet => "identified_set",
+            Self::AssignmentContrast => "assignment_contrast",
+            Self::ExposureContrast => "exposure_contrast",
+            Self::PolicyValue => "policy_value",
+            Self::EffectOnTreated => "effect_on_treated",
+            Self::SurvivalContrast => "survival_contrast",
+            Self::RegimeValue => "regime_value",
+            Self::ResponseDerivative => "response_derivative",
         }
     }
 }
@@ -111,6 +133,17 @@ pub enum ProblemTarget {
         kind: FunctionalKind,
         /// Outcome the functional reads, when it has one.
         outcome: Option<VariableId>,
+    },
+    /// A functional that is not indexed by intervention worlds, with the digest of the query
+    /// (interventions, levels, conditioning, evaluation points) that defines it, so two queries of
+    /// one kind have different identities.
+    QueryFunctional {
+        /// Kind of functional.
+        kind: FunctionalKind,
+        /// Outcome the functional reads, when it has one.
+        outcome: Option<VariableId>,
+        /// Canonical digest of the query the functional answers.
+        query: [u8; 32],
     },
     /// Generic lowering has not stated the target beyond the route record.
     Unlowered,
@@ -189,6 +222,13 @@ impl ScientificProblem {
                     .text(kind.as_str())
                     .opt_word(outcome.map(|id| u64::from(id.raw())));
             }
+            ProblemTarget::QueryFunctional { kind, outcome, query } => {
+                writer
+                    .text("query_functional")
+                    .text(kind.as_str())
+                    .opt_word(outcome.map(|id| u64::from(id.raw())))
+                    .bytes(query);
+            }
             ProblemTarget::Unlowered => {
                 writer.text("unlowered");
             }
@@ -211,15 +251,32 @@ impl ScientificProblem {
 /// Layer two: what identification the program carries.
 #[derive(Clone, Debug)]
 pub(crate) enum IdentificationLayer {
-    /// Generic lowering: preparation identifies as it did before lowering.
+    /// The route has not lowered its identification: preparation identifies.
     Deferred,
-    /// Identified at compile; the product is retained with the program.
-    Product(CompiledIdentificationProduct),
+    /// Identified at compile and retained with the program; preparation installs
+    /// these products and does not identify again.
+    Retained(Arc<RetainedIdentification>),
     /// The route identifies on each execution.
     PerExecution {
         /// Why the route cannot retain one identification.
         reason: &'static str,
     },
+}
+
+/// Identification products compiled with a lowered program.
+#[derive(Clone, Debug)]
+pub(crate) struct RetainedIdentification {
+    /// Checked product bound to the scientific target, when the route builds one.
+    pub(crate) product: Option<CompiledIdentificationProduct>,
+    /// Products preparation installs, in install order.
+    pub(crate) caches: Arc<[IdentificationCache]>,
+}
+
+impl RetainedIdentification {
+    /// Products preparation installs.
+    pub(crate) fn caches(&self) -> &[IdentificationCache] {
+        &self.caches
+    }
 }
 
 impl IdentificationLayer {
@@ -228,8 +285,16 @@ impl IdentificationLayer {
             Self::Deferred => {
                 writer.text("deferred");
             }
-            Self::Product(product) => {
-                writer.text("product").bytes(product.identity().as_bytes());
+            Self::Retained(retained) => {
+                writer.text("retained");
+                match &retained.product {
+                    Some(product) => writer.word(1).bytes(product.identity().as_bytes()),
+                    None => writer.word(0),
+                };
+                writer.word(retained.caches.len() as u64);
+                for cache in &*retained.caches {
+                    writer.text(cache.kind());
+                }
             }
             Self::PerExecution { reason } => {
                 writer.text("per_execution").text(reason);
@@ -267,6 +332,7 @@ pub struct DesignShape {
     pub(crate) rows: u64,
     pub(crate) columns: u64,
     pub(crate) source: WidthSource,
+    pub(crate) direct: bool,
 }
 
 impl DesignShape {
@@ -286,6 +352,13 @@ impl DesignShape {
     #[must_use]
     pub const fn source(&self) -> WidthSource {
         self.source
+    }
+
+    /// Whether every design column is numeric, so the design is gathered directly
+    /// from borrowed source columns instead of a materialized contrast expansion.
+    #[must_use]
+    pub const fn direct(&self) -> bool {
+        self.direct
     }
 }
 
@@ -435,7 +508,15 @@ impl LoweredProgram {
     /// Whether layer two retains an identification product compiled with the program.
     #[must_use]
     pub const fn identification_retained(&self) -> bool {
-        matches!(self.identification, IdentificationLayer::Product(_))
+        matches!(self.identification, IdentificationLayer::Retained(_))
+    }
+
+    /// Identification retained at compile, for preparation to install.
+    pub(crate) fn retained_identification(&self) -> Option<&RetainedIdentification> {
+        match &self.identification {
+            IdentificationLayer::Retained(retained) => Some(retained),
+            IdentificationLayer::Deferred | IdentificationLayer::PerExecution { .. } => None,
+        }
     }
 
     /// Layer three.

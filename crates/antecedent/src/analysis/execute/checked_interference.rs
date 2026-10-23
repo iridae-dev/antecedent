@@ -126,12 +126,7 @@ impl CheckedInterferenceOperation {
             CausalQuery::Interference(query.clone()),
             outcome,
             &procedure,
-            matches!(
-                query.assignment,
-                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
-                    | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
-                    | antecedent_core::AssignmentDesign::ObservedExposure { .. }
-            ),
+            partial_interference(query),
         );
         Ok(Self {
             graph: graph.clone(),
@@ -160,6 +155,39 @@ impl CheckedInterferenceOperation {
 
     pub(crate) fn counts(&self) -> (usize, usize) {
         (self.source_rows, self.network_edges.len())
+    }
+
+    /// The identification this operation records for `query` under `inference`: the
+    /// procedure [`Self::checked`] selects for the declared assignment, without the
+    /// prepare-time design validation that needs the bound network. The route lowering
+    /// retains it at compile.
+    pub(crate) fn design_identification(
+        query: &antecedent_core::InterferenceQuery,
+        inference: &InferenceMode,
+    ) -> (IdentificationResult, IdentifiedEstimand) {
+        let procedure = match inference {
+            InferenceMode::Bayesian(config) => InterferenceProcedure::ConjugateGaussian {
+                draws: config.n_draws,
+                prior_sd: config.prior_scale,
+            },
+            InferenceMode::Frequentist => match query.assignment {
+                antecedent_core::AssignmentDesign::ObservedExposure { .. } => {
+                    InterferenceProcedure::ObservationalIpw
+                }
+                antecedent_core::AssignmentDesign::TwoStageSaturation { .. } => {
+                    InterferenceProcedure::SaturationExact
+                }
+                _ => InterferenceProcedure::DesignBasedYoung,
+            },
+        };
+        let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
+            query.functional;
+        interference_identification(
+            CausalQuery::Interference(query.clone()),
+            outcome,
+            &procedure,
+            partial_interference(query),
+        )
     }
 
     pub(crate) fn execute(
@@ -672,6 +700,16 @@ fn frequentist_interference_procedure(
             EstimatorId::InterferenceHtHajek
         },
     ))
+}
+
+/// Whether the declared assignment confines interference to disjoint clusters.
+fn partial_interference(query: &antecedent_core::InterferenceQuery) -> bool {
+    matches!(
+        query.assignment,
+        antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+            | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+            | antecedent_core::AssignmentDesign::ObservedExposure { .. }
+    )
 }
 
 fn interference_identification(

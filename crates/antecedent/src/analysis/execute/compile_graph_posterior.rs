@@ -34,10 +34,11 @@ impl super::Study {
     /// temporal response queries).
     pub(super) fn compile_graph_posterior(
         &self,
+        goal: &crate::analysis::lowering::CompileGoal,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         let mut plan = self.compile_graph_posterior_record(ctx)?;
-        crate::analysis::lowering::attach_graph_posterior(self, &mut plan, ctx)?;
+        crate::analysis::lowering::attach_graph_posterior(self, &mut plan, goal, ctx)?;
         Ok(plan)
     }
 

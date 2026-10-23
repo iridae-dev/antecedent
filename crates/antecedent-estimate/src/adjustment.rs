@@ -519,6 +519,16 @@ impl LinearAdjustmentAte {
             .transpose()?;
         let design =
             assemble(data, treatment, outcome, &estimand.adjustment_set, &expanded, &row_mask)?;
+        debug_assert!(
+            crate::design_width::quote_adjustment_design(
+                data,
+                &estimand.adjustment_set,
+                &self.contrasts
+            )
+            .ok()
+            .is_none_or(|quote| quote.columns == design.ncols),
+            "the planner's quoted design width must equal the built design"
+        );
         let t: Arc<[f64]> = Arc::from(&design.matrix[design.nrows..2 * design.nrows]);
         let design = match &retained {
             Some(retained) => {

@@ -160,6 +160,11 @@ impl CompiledLinearExecution {
 }
 
 /// The scientific and execution contracts retained with a production linear operation.
+///
+/// The plan's lowered program is built from this value: its scientific target,
+/// its identification product (retained with the caches preparation installs),
+/// and its operators. These accessors and the lowered program's layers read the
+/// same compilation.
 #[derive(Clone, Debug)]
 pub struct CompiledLinearProgram {
     source_digest: [u8; 32],

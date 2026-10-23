@@ -4,8 +4,8 @@
 
 use super::sealers::{SealContext, seal_execution};
 use super::{
-    CachedTemporalClassIdentification, PreparedModality, PreparedStudy, SampledPreparedState,
-    build_admg_graph_posterior_response_identification_cache,
+    CachedTemporalClassIdentification, IdentificationCache, PreparedModality, PreparedStudy,
+    SampledPreparedState, build_admg_graph_posterior_response_identification_cache,
     build_dbn_posterior_identification_cache, build_dbn_posterior_mediation_identification_cache,
     build_dbn_posterior_response_identification_cache, build_graph_posterior_identification_cache,
     build_temporal_class_posterior_identification_cache, ensure_prepared_supported,
@@ -203,42 +203,78 @@ impl Study {
 
     /// The study with the identification caches this query and data modality
     /// freeze at prepare time installed.
+    ///
+    /// A plan whose lowered program retained its identification at compile is
+    /// installed from that program and is not identified again. Every other plan
+    /// is identified here by [`Self::identify_caches`].
     fn with_identification_caches(
         &self,
         plan: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<Study, CausalError> {
         let mut analysis = self.clone();
-        match self.graph_posterior.as_ref() {
-            Some(posterior) => {
-                self.install_graph_posterior_caches(&mut analysis, posterior, ctx)?
+        clear_identification_caches(&mut analysis);
+        let retained = plan
+            .lowered()
+            .and_then(crate::planner::lowered::LoweredProgram::retained_identification);
+        match retained {
+            Some(retained) => {
+                for cache in retained.caches() {
+                    install_cache(&mut analysis, cache);
+                }
             }
-            None => self.install_identification_caches(&mut analysis, plan)?,
+            None => {
+                for cache in &self.identify_caches(plan, ctx)? {
+                    install_cache(&mut analysis, cache);
+                }
+            }
         }
         Ok(analysis)
     }
 
-    /// Install the caches of a study that carries a graph posterior, refusing the coordinates
-    /// the prepared handle does not license.
-    fn install_graph_posterior_caches(
+    /// Identify the caches this query and data modality freeze at prepare time,
+    /// without installing them. Compile calls this to retain identification with a
+    /// lowered program; preparation calls it only for a plan that retained none.
+    ///
+    /// # Errors
+    ///
+    /// Identification refuses, or a graph-posterior coordinate is not licensed on
+    /// the prepared handle.
+    pub(crate) fn identify_caches(
         &self,
-        analysis: &mut Study,
+        plan: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<IdentificationCache>, CausalError> {
+        let mut caches = Vec::new();
+        match self.graph_posterior.as_ref() {
+            Some(posterior) => self.identify_graph_posterior_caches(posterior, ctx, &mut caches)?,
+            None => self.identify_single_graph_caches(plan, &mut caches)?,
+        }
+        Ok(caches)
+    }
+
+    /// Identify the caches of a study that carries a graph posterior, refusing the
+    /// coordinates the prepared handle does not license.
+    fn identify_graph_posterior_caches(
+        &self,
         posterior: &antecedent_discovery::GraphPosterior,
         ctx: &ExecutionContext,
+        caches: &mut Vec<IdentificationCache>,
     ) -> Result<(), CausalError> {
         match (&self.data, &self.query) {
             (DataInput::Tabular(_), CausalQuery::AverageEffect(query)) => {
-                analysis.graph_posterior_identification_cache = Some(Arc::new(
+                caches.push(IdentificationCache::GraphPosterior(Arc::new(
                     build_graph_posterior_identification_cache(posterior, query, ctx)?,
-                ));
+                )));
             }
             (DataInput::Tabular(_), CausalQuery::ConditionalEffect(query)) => {
-                analysis.graph_posterior_identification_cache = Some(Arc::new(
+                caches.push(IdentificationCache::GraphPosterior(Arc::new(
                     build_graph_posterior_identification_cache(posterior, &query.inner, ctx)?,
-                ));
+                )));
             }
             (DataInput::Tabular(_), CausalQuery::Response(query)) if !query.is_temporal() => {
-                Self::install_tabular_response_posterior_cache(analysis, posterior, query, ctx)?;
+                caches
+                    .push(Self::identify_tabular_response_posterior_cache(posterior, query, ctx)?);
             }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
@@ -246,16 +282,18 @@ impl Study {
             ) => {
                 let variables: Vec<_> =
                     data.schema().variables().iter().map(|variable| variable.id).collect();
-                Self::install_temporal_effect_posterior_cache(
-                    analysis, posterior, &variables, query, ctx,
-                )?;
+                caches.push(
+                    self.identify_temporal_effect_posterior_cache(
+                        posterior, &variables, query, ctx,
+                    )?,
+                );
             }
             (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(query)) => {
                 let variables: Vec<_> =
                     data.schema().variables().iter().map(|variable| variable.id).collect();
-                Self::install_temporal_mediation_posterior_cache(
-                    analysis, posterior, &variables, query, ctx,
-                )?;
+                caches.push(self.identify_temporal_mediation_posterior_cache(
+                    posterior, &variables, query, ctx,
+                )?);
             }
             (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Response(query))
                 if query.is_temporal() =>
@@ -263,8 +301,8 @@ impl Study {
                 crate::analysis::execute::dbn_posterior_response_supported(query)?;
                 let variables: Vec<_> =
                     data.schema().variables().iter().map(|variable| variable.id).collect();
-                self.install_temporal_response_posterior_cache(
-                    analysis, posterior, &variables, query, ctx,
+                self.identify_temporal_response_posterior_cache(
+                    posterior, &variables, query, ctx, caches,
                 )?;
             }
             (
@@ -291,18 +329,17 @@ impl Study {
         Ok(())
     }
 
-    /// Install the caches of a study with a single supplied or discovered graph.
-    fn install_identification_caches(
+    /// Identify the caches of a study with a single supplied or discovered graph.
+    fn identify_single_graph_caches(
         &self,
-        analysis: &mut Study,
         plan: &PhysicalExecutionPlan,
+        caches: &mut Vec<IdentificationCache>,
     ) -> Result<(), CausalError> {
+        let mut push = |cache: Option<IdentificationCache>| caches.extend(cache);
         match (&self.data, &self.query) {
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
-                analysis.temporal_identification_cache =
-                    self.prepare_temporal_mediation_identification()?.map(Arc::new);
-                analysis.temporal_class_identification_cache =
-                    self.prepare_temporal_class_identification()?.map(Arc::new);
+                push(temporal(self.prepare_temporal_mediation_identification()?));
+                push(temporal_class(self.prepare_temporal_class_identification()?));
             }
             (DataInput::Tabular(_), CausalQuery::Transport(query)) => {
                 let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
@@ -310,62 +347,60 @@ impl Study {
                 })?;
                 let identification =
                     crate::analysis::execute::live_transport_identification(diagram, query)?;
-                Arc::make_mut(&mut analysis.config).transport_identification_cache =
-                    Some(Arc::new(identification));
+                push(Some(IdentificationCache::Transport(Arc::new(identification))));
             }
             (DataInput::Tabular(_), query) if is_graphless_design(query) => {
                 // A design has no graph class to inspect, so the graph-only PAG/CPDAG
                 // cache builders below do not apply. Its identification is typed by the
                 // design itself and is cached at prepare when the design identifies once.
                 if graphless_design(query).is_some_and(|design| design.identified_at_prepare) {
-                    analysis.identification_cache =
-                        self.prepare_static_identification(plan)?.map(Arc::new);
+                    push(static_cache(self.prepare_static_identification(plan)?));
                 }
             }
             (DataInput::Tabular(_), _) => {
-                analysis.identification_cache = match &plan.linear {
-                    Some(linear) => Some(Arc::clone(&linear.identification)),
-                    None => self.prepare_static_identification(plan)?.map(Arc::new),
-                };
-                analysis.pag_identification_cache =
-                    self.prepare_pag_identification(plan)?.map(Arc::new);
-                analysis.cpdag_identification_cache =
-                    self.prepare_cpdag_identification(plan)?.map(Arc::new);
+                push(match &plan.linear {
+                    Some(linear) => {
+                        Some(IdentificationCache::Static(Arc::clone(&linear.identification)))
+                    }
+                    None => static_cache(self.prepare_static_identification(plan)?),
+                });
+                push(
+                    self.prepare_pag_identification(plan)?
+                        .map(|cache| IdentificationCache::Pag(Arc::new(cache))),
+                );
+                push(
+                    self.prepare_cpdag_identification(plan)?
+                        .map(|cache| IdentificationCache::Cpdag(Arc::new(cache))),
+                );
             }
             (DataInput::Panel(_), CausalQuery::TemporalEffect(_) | CausalQuery::Response(_)) => {
-                if analysis.graph.class().is_incomplete_temporal() {
-                    analysis.temporal_class_identification_cache =
-                        self.prepare_temporal_class_identification()?.map(Arc::new);
+                if self.graph.class().is_incomplete_temporal() {
+                    push(temporal_class(self.prepare_temporal_class_identification()?));
                 } else {
-                    analysis.temporal_identification_cache =
-                        self.prepare_temporal_identification()?.map(Arc::new);
+                    push(temporal(self.prepare_temporal_identification()?));
                 }
             }
             (
                 DataInput::Temporal(_) | DataInput::Event(_),
                 CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
             ) => {
-                analysis.identification_cache =
-                    self.prepare_static_identification(plan)?.map(Arc::new);
+                push(static_cache(self.prepare_static_identification(plan)?));
             }
             (_, _) => {
-                analysis.temporal_identification_cache =
-                    self.prepare_temporal_identification()?.map(Arc::new);
-                analysis.temporal_class_identification_cache =
-                    self.prepare_temporal_class_identification()?.map(Arc::new);
+                push(temporal(self.prepare_temporal_identification()?));
+                push(temporal_class(self.prepare_temporal_class_identification()?));
             }
         }
         Ok(())
     }
 
-    /// Install the graph-posterior cache of a non-temporal tabular response query.
-    fn install_tabular_response_posterior_cache(
-        analysis: &mut Study,
+    /// The graph-posterior cache of a non-temporal tabular response query.
+    fn identify_tabular_response_posterior_cache(
         posterior: &antecedent_discovery::GraphPosterior,
         query: &antecedent_core::ResponseQuery,
         ctx: &ExecutionContext,
-    ) -> Result<(), CausalError> {
-        analysis.graph_posterior_identification_cache = Some(Arc::new(
+    ) -> Result<IdentificationCache, CausalError> {
+        Ok(IdentificationCache::GraphPosterior(Arc::new(
             if matches!(
                 posterior.atom_kind,
                 antecedent_discovery::GraphPosteriorAtomKind::Admg
@@ -381,74 +416,74 @@ impl Study {
                     ctx,
                 )?
             },
-        ));
-        Ok(())
+        )))
     }
 
-    /// Install the temporal-effect graph-posterior cache for the atom kind of `posterior`.
-    fn install_temporal_effect_posterior_cache(
-        analysis: &mut Study,
+    /// The temporal-effect graph-posterior cache for the atom kind of `posterior`.
+    fn identify_temporal_effect_posterior_cache(
+        &self,
         posterior: &antecedent_discovery::GraphPosterior,
         variables: &[antecedent_core::VariableId],
         query: &TemporalEffectQuery,
         ctx: &ExecutionContext,
-    ) -> Result<(), CausalError> {
-        if crate::analysis::execute::is_class_atom(posterior.atom_kind) {
-            analysis.temporal_class_posterior_identification_cache =
-                Some(Arc::new(build_temporal_class_posterior_identification_cache(
+    ) -> Result<IdentificationCache, CausalError> {
+        Ok(if crate::analysis::execute::is_class_atom(posterior.atom_kind) {
+            IdentificationCache::TemporalClassPosterior(Arc::new(
+                build_temporal_class_posterior_identification_cache(
                     posterior,
                     variables,
                     query,
-                    analysis.max_completions,
+                    self.max_completions,
                     ctx,
-                )?));
+                )?,
+            ))
         } else {
-            analysis.dbn_posterior_identification_cache = Some(Arc::new(
-                build_dbn_posterior_identification_cache(posterior, variables, query, ctx)?,
-            ));
-        }
-        Ok(())
+            IdentificationCache::DbnPosterior(Arc::new(build_dbn_posterior_identification_cache(
+                posterior, variables, query, ctx,
+            )?))
+        })
     }
 
-    /// Install the temporal-mediation graph-posterior cache for the atom kind of `posterior`.
-    fn install_temporal_mediation_posterior_cache(
-        analysis: &mut Study,
+    /// The temporal-mediation graph-posterior cache for the atom kind of `posterior`.
+    fn identify_temporal_mediation_posterior_cache(
+        &self,
         posterior: &antecedent_discovery::GraphPosterior,
         variables: &[antecedent_core::VariableId],
         query: &antecedent_core::MediationQuery,
         ctx: &ExecutionContext,
-    ) -> Result<(), CausalError> {
-        if crate::analysis::execute::is_class_atom(posterior.atom_kind) {
+    ) -> Result<IdentificationCache, CausalError> {
+        Ok(if crate::analysis::execute::is_class_atom(posterior.atom_kind) {
             let horizon = query.horizons.first().copied().ok_or_else(|| CausalError::Compile {
                 message: "temporal class graph-posterior mediation requires a horizon".into(),
             })?;
             let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
             witness.horizon_steps = horizon;
-            analysis.temporal_class_posterior_identification_cache =
-                Some(Arc::new(build_temporal_class_posterior_identification_cache(
+            IdentificationCache::TemporalClassPosterior(Arc::new(
+                build_temporal_class_posterior_identification_cache(
                     posterior,
                     variables,
                     &witness,
-                    analysis.max_completions,
+                    self.max_completions,
                     ctx,
-                )?));
+                )?,
+            ))
         } else {
-            analysis.dbn_posterior_identification_cache =
-                Some(Arc::new(build_dbn_posterior_mediation_identification_cache(
+            IdentificationCache::DbnPosterior(Arc::new(
+                build_dbn_posterior_mediation_identification_cache(
                     posterior, variables, query, ctx,
-                )?));
-        }
-        Ok(())
+                )?,
+            ))
+        })
     }
 
-    /// Install the temporal-response graph-posterior cache for the atom kind of `posterior`.
-    fn install_temporal_response_posterior_cache(
+    /// The temporal-response graph-posterior caches for the atom kind of `posterior`.
+    fn identify_temporal_response_posterior_cache(
         &self,
-        analysis: &mut Study,
         posterior: &antecedent_discovery::GraphPosterior,
         variables: &[antecedent_core::VariableId],
         query: &antecedent_core::ResponseQuery,
         ctx: &ExecutionContext,
+        caches: &mut Vec<IdentificationCache>,
     ) -> Result<(), CausalError> {
         if crate::analysis::execute::is_class_atom(posterior.atom_kind) {
             let (treatment, outcome) =
@@ -473,28 +508,92 @@ impl Study {
                 posterior,
                 variables,
                 &witness,
-                analysis.max_completions,
+                self.max_completions,
                 ctx,
             )?;
             if let Some(atom) = cache.class_atoms.first() {
-                analysis.temporal_class_identification_cache =
-                    Some(Arc::new(CachedTemporalClassIdentification {
+                caches.push(IdentificationCache::TemporalClass(Arc::new(
+                    CachedTemporalClassIdentification {
                         envelope: atom.envelope.clone(),
                         by_horizon: vec![(horizon, atom.envelope.clone())],
-                    }));
+                    },
+                )));
             }
-            analysis.temporal_class_posterior_identification_cache = Some(Arc::new(cache));
+            caches.push(IdentificationCache::TemporalClassPosterior(Arc::new(cache)));
         } else {
             let estimator_id = EstimatorId::temporal_response_for(&self.inference);
-            analysis.dbn_posterior_identification_cache =
-                Some(Arc::new(build_dbn_posterior_response_identification_cache(
+            caches.push(IdentificationCache::DbnPosterior(Arc::new(
+                build_dbn_posterior_response_identification_cache(
                     posterior,
                     variables,
                     query,
                     estimator_id,
                     ctx,
-                )?));
+                )?,
+            )));
         }
         Ok(())
+    }
+}
+
+fn static_cache(cache: Option<super::CachedStaticIdentification>) -> Option<IdentificationCache> {
+    cache.map(|cache| IdentificationCache::Static(Arc::new(cache)))
+}
+
+fn temporal(cache: Option<super::CachedTemporalIdentification>) -> Option<IdentificationCache> {
+    cache.map(|cache| IdentificationCache::Temporal(Arc::new(cache)))
+}
+
+fn temporal_class(cache: Option<CachedTemporalClassIdentification>) -> Option<IdentificationCache> {
+    cache.map(|cache| IdentificationCache::TemporalClass(Arc::new(cache)))
+}
+
+/// Empty every identification slot a prepare installs, so a retained or freshly
+/// identified set replaces whatever the source study carried.
+fn clear_identification_caches(analysis: &mut Study) {
+    analysis.identification_cache = None;
+    analysis.pag_identification_cache = None;
+    analysis.cpdag_identification_cache = None;
+    analysis.temporal_identification_cache = None;
+    analysis.temporal_class_identification_cache = None;
+    analysis.graph_posterior_identification_cache = None;
+    analysis.dbn_posterior_identification_cache = None;
+    analysis.temporal_class_posterior_identification_cache = None;
+    if analysis.config.transport_identification_cache.is_some() {
+        Arc::make_mut(&mut analysis.config).transport_identification_cache = None;
+    }
+}
+
+/// Install one identified cache into the study slot that holds it.
+fn install_cache(analysis: &mut Study, cache: &IdentificationCache) {
+    match cache {
+        IdentificationCache::Static(cache) => {
+            analysis.identification_cache = Some(Arc::clone(cache));
+        }
+        IdentificationCache::Pag(cache) => {
+            analysis.pag_identification_cache = Some(Arc::clone(cache));
+        }
+        IdentificationCache::Cpdag(cache) => {
+            analysis.cpdag_identification_cache = Some(Arc::clone(cache));
+        }
+        IdentificationCache::Temporal(cache) => {
+            analysis.temporal_identification_cache = Some(Arc::clone(cache));
+        }
+        IdentificationCache::TemporalClass(cache) => {
+            analysis.temporal_class_identification_cache = Some(Arc::clone(cache));
+        }
+        IdentificationCache::Transport(cache) => {
+            Arc::make_mut(&mut analysis.config).transport_identification_cache =
+                Some(Arc::clone(cache));
+        }
+        IdentificationCache::GraphPosterior(cache) => {
+            analysis.graph_posterior_identification_cache = Some(Arc::clone(cache));
+        }
+        IdentificationCache::DbnPosterior(cache) => {
+            analysis.dbn_posterior_identification_cache = Some(Arc::clone(cache));
+        }
+        IdentificationCache::TemporalClassPosterior(cache) => {
+            analysis.temporal_class_posterior_identification_cache = Some(Arc::clone(cache));
+        }
     }
 }

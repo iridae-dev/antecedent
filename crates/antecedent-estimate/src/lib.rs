@@ -58,6 +58,7 @@ pub mod cyclic_gradient;
 pub mod cyclic_likelihood;
 mod cyclic_optim;
 pub mod design_compile;
+pub mod design_width;
 pub mod dml;
 pub mod dr;
 pub mod effect_constancy;

@@ -225,86 +225,9 @@ impl CheckedStaticMediationOperation {
     }
 }
 
-/// The existing natural-effect and linear temporal theorems carry their own premises.
-/// This target is retained beside their validated proofs, never accepted by the generic
-/// joint-world support validator. Temporal frames describe the observed lag-window law
-/// already averaged by the estimator; they do not introduce independent initial-state draws.
-pub(super) fn theorem_mediation_target(
-    query: &antecedent_core::MediationQuery,
-    schema: &antecedent_core::CausalSchema,
-    assumptions: &antecedent_core::AssumptionSet,
-    inference: antecedent_core::InferenceSelection,
-    temporal: Option<(u32, u32)>,
-) -> Result<antecedent_core::ScientificTarget, CausalError> {
-    use antecedent_core::{
-        Conditioning, CrossWorldPremise, GraphFamily, HistoryWindow, InitialLaw, MediationArms,
-        MediationComponent, MediationContrast, MediationTarget, ModelAssumptions, ObservationUnit,
-        OutcomeQuantity, QuantityUnits, ScientificTarget, TargetForm, TemporalPolicy, TimeFrame,
-        WorldBinding,
-    };
-    let target_error = |error: antecedent_core::ScientificTargetError| CausalError::Compile {
-        message: format!("mediation scientific target: {error}"),
-    };
-    query.validate()?;
-    let component = match query.contrast {
-        MediationContrast::Total => MediationComponent::Total,
-        MediationContrast::Direct => MediationComponent::Direct,
-        MediationContrast::NaturalDirect => MediationComponent::NaturalDirect,
-        MediationContrast::Mediated => MediationComponent::Mediated,
-        MediationContrast::NaturalIndirect => MediationComponent::NaturalIndirect,
-    };
-    let (graph, unit, time, schedule) = match temporal {
-        None => (GraphFamily::Dag, "row", TimeFrame::static_decision(), None),
-        Some((horizon, history)) => (
-            GraphFamily::TemporalDag,
-            "lag_window",
-            TimeFrame::temporal(
-                horizon,
-                HistoryWindow::max_lag(history),
-                InitialLaw::contemporaneous_observed(),
-            )
-            .map_err(target_error)?,
-            // TemporalMediationIdentifier sets T at -1 and Y at h-1 (estimator lag h).
-            Some(TemporalPolicy::pulse(-1)),
-        ),
-    };
-    let binding = WorldBinding::new(
-        query.target_population.clone(),
-        ObservationUnit::new(unit).map_err(target_error)?,
-        OutcomeQuantity::mean(
-            query.outcome,
-            QuantityUnits::new(schema.get(query.outcome)?.unit.as_deref().unwrap_or("unspecified"))
-                .map_err(target_error)?,
-        )
-        .map_err(target_error)?,
-        Conditioning::unconditional(),
-    )
-    .map_err(target_error)?;
-    let arms = MediationArms::new(
-        query.treatment,
-        query.mediators.iter().copied(),
-        query.control.clone(),
-        query.active.clone(),
-        component,
-    )
-    .map_err(target_error)?;
-    let premises = if component == MediationComponent::Total {
-        Vec::new()
-    } else {
-        vec![
-            CrossWorldPremise::Composition,
-            CrossWorldPremise::CrossWorldIndependence,
-            CrossWorldPremise::PathSpecificNested,
-        ]
-    };
-    let mediation =
-        MediationTarget::new(binding, time, schedule, arms, premises).map_err(target_error)?;
-    Ok(ScientificTarget::new(
-        TargetForm::Mediation(mediation),
-        ModelAssumptions::new(graph, assumptions.clone()),
-        inference,
-    ))
-}
+// The natural-effect theorem target, built once by the lowering for the static and
+// temporal mediation executors.
+pub(super) use crate::analysis::lowering::theorem_mediation_target;
 
 fn bind_rows(data: &TabularData, roles: &[VariableId]) -> Result<Arc<[u32]>, CausalError> {
     data.complete_case_mask(roles)?

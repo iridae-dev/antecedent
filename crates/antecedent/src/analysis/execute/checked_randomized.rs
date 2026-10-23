@@ -722,7 +722,25 @@ impl CheckedPolicyValueOperation {
             }
         };
         data.schema().get(query.outcome).map_err(CausalError::rejected)?;
-        let n = data.row_count();
+        let (identification, estimand) = Self::design_identification(query)?;
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
+    }
+
+    /// The identification a fixed policy value carries: the known randomized action
+    /// probabilities of its Bernoulli assignment view, the policy-value derivation, and the
+    /// fixed-policy premises. Preparation and the route lowering share this one builder.
+    ///
+    /// # Errors
+    ///
+    /// The query fails its own validation.
+    pub(crate) fn design_identification(
+        query: &antecedent_core::PolicyValueQuery,
+    ) -> Result<(IdentificationResult, IdentifiedEstimand), CausalError> {
+        query.validate()?;
+        let n = query
+            .multi_action
+            .as_ref()
+            .map_or(query.assignment.len(), |multi| multi.assignment.len());
         let synthetic = policy_binary_query(query, n);
         let (mut identification, mut estimand) = randomized_identification(&synthetic);
         identification.query = CausalQuery::PolicyValue(query.clone());
@@ -773,7 +791,7 @@ impl CheckedPolicyValueOperation {
                 });
             }
         }
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
+        Ok((identification, estimand))
     }
 
     pub(crate) fn execute(

@@ -2,7 +2,7 @@
 //! Checked design dimensions and conservative, overflow-checked allocation quotes.
 use crate::CausalError;
 use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_data::{ColumnView, Contrast, TableView, TabularData};
+use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{CheckedLinearAdjustmentAte, LinearAdjustmentAte};
 
 pub(crate) const RESULT_ENVELOPE_BYTES: u64 =
@@ -85,35 +85,12 @@ pub(crate) fn source_layout(
     fitter: &LinearAdjustmentAte,
     ctx: &ExecutionContext,
 ) -> Result<(LinearResources, u64, bool), CausalError> {
-    let mut columns = 2_usize;
-    let mut expansion = 0_u64;
-    let mut direct = true;
-    for &id in adjustment {
-        let width = match data.column(id)? {
-            ColumnView::Categorical(column) => {
-                direct = false;
-                let contrast = fitter
-                    .contrasts
-                    .iter()
-                    .find(|(variable, _)| *variable == id)
-                    .ok_or_else(|| CausalError::Compile {
-                        message: "categorical adjustment requires explicit contrast coding".into(),
-                    })?;
-                let width = match &contrast.1 {
-                    Contrast::Custom(matrix) => matrix.n_columns,
-                    Contrast::FullRankIndicator => column.domain.len(),
-                    _ => column.domain.len().saturating_sub(1),
-                };
-                let cells = (data.row_count() as u64)
-                    .checked_add(column.domain.len() as u64)
-                    .ok_or_else(overflow)?;
-                expansion = add(expansion, mul(mul(cells, width as u64)?, 8)?)?;
-                width
-            }
-            _ => 1,
-        };
-        columns = columns.checked_add(width).ok_or_else(overflow)?;
-    }
+    let antecedent_estimate::design_width::DesignWidthQuote {
+        columns,
+        expansion_bytes: expansion,
+        direct,
+        ..
+    } = quote_width(data, adjustment, fitter)?;
     let resources =
         LinearResources::new(data.row_count(), columns, fitter.bootstrap_replicates, ctx)?;
     let materialized_columns = if direct {
@@ -134,4 +111,16 @@ pub(crate) fn source_layout(
     check_limit(preparation, ctx)?;
     resources.check(ctx)?;
     Ok((resources, preparation, direct))
+}
+
+/// The encoded design width of a linear adjustment over `adjustment` under the
+/// fitter's contrast codings. A missing contrast or a missing column refuses
+/// compilation, as it would refuse preparation.
+pub(crate) fn quote_width(
+    data: &TabularData,
+    adjustment: &[VariableId],
+    fitter: &LinearAdjustmentAte,
+) -> Result<antecedent_estimate::design_width::DesignWidthQuote, CausalError> {
+    antecedent_estimate::design_width::quote_adjustment_design(data, adjustment, &fitter.contrasts)
+        .map_err(|error| CausalError::Compile { message: error.to_string() })
 }

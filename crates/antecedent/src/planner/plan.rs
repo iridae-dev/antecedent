@@ -160,29 +160,10 @@ impl LogicalAnalysisPlan {
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         self.validate()?;
         let n_rows = self.row_count_hint.max(1);
-        let design_bytes = n_rows
-            .checked_mul(self.design_columns_hint.max(1))
-            .and_then(|cells| cells.checked_mul(8))
-            .ok_or_else(|| CausalError::Resource {
-                message: "design memory estimate overflow".into(),
-            })?;
-        let workspace = design_bytes.checked_mul(2).ok_or_else(|| CausalError::Resource {
-            message: "workspace estimate overflow".into(),
-        })?;
-        let peak = design_bytes
-            .checked_add(workspace)
-            .ok_or_else(|| CausalError::Resource { message: "peak estimate overflow".into() })?;
+        let DesignEstimates { design: design_bytes, workspace, peak } =
+            design_estimates(n_rows, self.design_columns_hint)?;
         let copy_bytes = design_bytes; // design matrix is CopiedContiguous
-
-        if let Some(limit) = ctx.memory_limit_bytes() {
-            if peak > limit {
-                return Err(CausalError::Resource {
-                    message: format!(
-                        "estimated peak memory {peak} exceeds memory limit {limit}; no chunked path"
-                    ),
-                });
-            }
-        }
+        check_memory_limit(peak, ctx)?;
 
         let materialized = PhysicalAlternative::MaterializedDesign;
         let available = AvailableCapabilities::empty()
@@ -402,4 +383,81 @@ impl PhysicalExecutionPlan {
             Arc::from([(Arc::from("design.matrix"), BufferMaterialization::CopiedContiguous)]);
         Ok(())
     }
+
+    /// Re-plan the design bytes and materialization from a quoted design shape, and
+    /// apply the caller's memory limit to the re-planned peak.
+    ///
+    /// A direct design borrows its numeric source columns and copies once into the
+    /// final design; a materialized design copies the selected and expanded columns
+    /// before assembling the final design.
+    ///
+    /// # Errors
+    ///
+    /// The re-planned peak exceeds the memory limit, or the size arithmetic overflows.
+    pub(crate) fn requote(
+        &mut self,
+        design: super::lowered::DesignShape,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        let rows = design.rows().max(1);
+        let DesignEstimates { design: design_bytes, workspace, peak } =
+            design_estimates(rows, design.columns())?;
+        let (source, copies) = if design.direct() {
+            (BufferMaterialization::Borrowed, 1)
+        } else {
+            (BufferMaterialization::CopiedContiguous, 2)
+        };
+        let copy_bytes = design_bytes
+            .checked_mul(copies)
+            .ok_or_else(|| CausalError::Resource { message: "copy estimate overflow".into() })?;
+        let peak = peak
+            .checked_add(copy_bytes - design_bytes)
+            .ok_or_else(|| CausalError::Resource { message: "peak estimate overflow".into() })?;
+        check_memory_limit(peak, ctx)?;
+        self.logical.row_count_hint = rows;
+        self.logical.design_columns_hint = design.columns().max(1);
+        self.record.batch_size = Some(usize::try_from(rows).unwrap_or(usize::MAX));
+        self.record.workspace_bytes = Some(workspace);
+        self.record.estimated_peak_memory_bytes = Some(peak);
+        self.record.estimated_copy_bytes = Some(copy_bytes);
+        self.record.materializations = Arc::from([
+            (Arc::from("source.columns"), source),
+            (Arc::from("design.matrix"), BufferMaterialization::CopiedContiguous),
+        ]);
+        Ok(())
+    }
+}
+
+/// Bytes of a dense `rows × columns` design, its workspace, and their peak.
+struct DesignEstimates {
+    design: u64,
+    workspace: u64,
+    peak: u64,
+}
+
+fn design_estimates(rows: u64, columns: u64) -> Result<DesignEstimates, CausalError> {
+    let design =
+        rows.max(1).checked_mul(columns.max(1)).and_then(|cells| cells.checked_mul(8)).ok_or_else(
+            || CausalError::Resource { message: "design memory estimate overflow".into() },
+        )?;
+    let workspace = design
+        .checked_mul(2)
+        .ok_or_else(|| CausalError::Resource { message: "workspace estimate overflow".into() })?;
+    let peak = design
+        .checked_add(workspace)
+        .ok_or_else(|| CausalError::Resource { message: "peak estimate overflow".into() })?;
+    Ok(DesignEstimates { design, workspace, peak })
+}
+
+fn check_memory_limit(peak: u64, ctx: &ExecutionContext) -> Result<(), CausalError> {
+    if let Some(limit) = ctx.memory_limit_bytes() {
+        if peak > limit {
+            return Err(CausalError::Resource {
+                message: format!(
+                    "estimated peak memory {peak} exceeds memory limit {limit}; no chunked path"
+                ),
+            });
+        }
+    }
+    Ok(())
 }

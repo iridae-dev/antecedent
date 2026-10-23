@@ -88,6 +88,13 @@ fn regime(actions: [u8; 2]) -> StaticRegime {
 }
 
 impl CheckedSequentialContrastOperation {
+    /// The design identification this operation records; the route lowering retains it.
+    pub(crate) fn design_identification(
+        query: &antecedent_core::SequentialContrastQuery,
+    ) -> (IdentificationResult, IdentifiedEstimand) {
+        contrast_identification(query)
+    }
+
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,

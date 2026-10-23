@@ -29,6 +29,13 @@ impl RandomizedTrialQuery for antecedent_core::ContinuousDoseResponseQuery {
 }
 
 impl CheckedContinuousDoseOperation {
+    /// The design identification this operation records; the route lowering retains it.
+    pub(crate) fn design_identification(
+        query: &antecedent_core::ContinuousDoseResponseQuery,
+    ) -> (IdentificationResult, IdentifiedEstimand) {
+        continuous_dose_identification(query)
+    }
+
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
