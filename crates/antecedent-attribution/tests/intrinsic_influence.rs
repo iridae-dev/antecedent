@@ -425,6 +425,27 @@ fn a_bootstrap_with_data_quantifies_mechanism_fit_separately() {
         assert_eq!(*df, 19.0);
         assert!((s.contribution - truth).abs() <= 6.0 * stderr.max(0.2), "source {i}");
         assert!(s.quantified_stderr().is_complete());
+        // The whole procedure keeps the Monte Carlo noise the mechanism-fit component removes,
+        // so its spread is never smaller.
+        let ComponentStatus::Quantified { stderr: whole, df: whole_df, ci_low, ci_high, .. } =
+            &s.whole_procedure
+        else {
+            panic!("whole procedure not quantified: {:?}", s.whole_procedure);
+        };
+        assert!(whole.is_finite() && *whole >= *stderr);
+        assert_eq!(*whole_df, 19.0);
+        assert!(*ci_low <= s.contribution && s.contribution <= *ci_high);
+    }
+}
+
+#[test]
+fn without_a_bootstrap_the_whole_procedure_is_unquantified() {
+    let (m, data) = chain_data(200);
+    let q = IntrinsicInfluenceQuery::new(var(1)).with_simulation(100, 10, 3).with_seed(3);
+    let result =
+        intrinsic_influence(&m, NoiseIndependence::Declared, Some(&data), &q, &ctx()).unwrap();
+    for source in result.sources.iter() {
+        assert!(matches!(source.whole_procedure, ComponentStatus::Unquantified { .. }));
     }
 }
 

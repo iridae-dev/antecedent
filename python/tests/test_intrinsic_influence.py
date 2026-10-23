@@ -80,6 +80,14 @@ def test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero():
     for source in sampled.sources:
         assert source.component("permutation_sampling").status == "quantified"
         assert source.component("mechanism_fit").status == "quantified"
+        whole = source.whole_procedure
+        assert whole is not None and whole.status == "quantified"
+        # The whole procedure keeps the noise the mechanism-fit component removes.
+        assert whole.stderr >= source.component("mechanism_fit").stderr
+        assert whole.ci_low <= source.contribution <= whole.ci_high
+    for source in result.sources:
+        assert source.whole_procedure is not None
+        assert source.whole_procedure.status == "unquantified"
 
 
 def test_same_seed_reproduces_and_a_different_seed_does_not():

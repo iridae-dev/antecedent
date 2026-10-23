@@ -419,11 +419,7 @@ pub(super) fn run_model_query(
             })
         }
         CausalQuery::Simulate(simulate) => {
-            let draws = match &simulate.target {
-                antecedent_core::SimulationTarget::InterventionalSample { draws, .. }
-                | antecedent_core::SimulationTarget::PolicyValue { draws, .. } => *draws as u64,
-                antecedent_core::SimulationTarget::UnitEffects { .. } => 0,
-            };
+            let draws = crate::analysis::structure_route::simulated_rows(&simulate.target, rows);
             let _lease = admit(ctx, model_quote(rows, nodes, draws), "simulation")?;
             let outcome = run_simulate(&fitted, data, simulate, ctx)?;
             let (value, note) = match &outcome {
@@ -436,6 +432,16 @@ pub(super) fn run_model_query(
                     ite.mean_ite,
                     "unit effects are computed under the fitted mechanisms after abduction; they \
                      are not identified from data",
+                ),
+                SimulationOutcome::Counterfactual(_) => (
+                    f64::NAN,
+                    "counterfactual values are computed under the fitted mechanisms after \
+                     abduction; they are not identified from data",
+                ),
+                SimulationOutcome::Temporal(_) => (
+                    f64::NAN,
+                    "a rollout of the fitted model under the declared schedule; only the draws' \
+                     own variation is reported",
                 ),
                 _ => (f64::NAN, "draws of the fitted model under the declared interventions"),
             };

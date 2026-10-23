@@ -85,8 +85,9 @@ const REASON_EXACT: &str = "every_coalition_enumerated";
 /// The three sources of uncertainty in a sampled variance attribution.
 ///
 /// They are different random mechanisms with different remedies, so every interval of an
-/// [`IntrinsicInfluenceResult`] names the one component it covers and none is ever summed into
-/// a combined interval.
+/// [`IntrinsicInfluenceResult`] names the one component it covers and none is summed into
+/// another. The separate [`SourceInfluence::whole_procedure`] status measures the whole
+/// procedure directly, by its spread across full refits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum UncertaintyComponent {
@@ -173,6 +174,12 @@ pub struct SourceInfluence {
     /// Permutation-sampling, simulation and mechanism-fit uncertainty of
     /// [`Self::contribution`], in that order.
     pub uncertainty: Arc<[ComponentUncertainty]>,
+    /// Uncertainty of the whole procedure under the declared design (independent rows):
+    /// the spread of the full attribution (row resample, mechanism refit with family
+    /// selection, fresh simulation batches) across the mechanism-fit bootstrap, with the
+    /// permutation-sampling variance, held fixed across refits, added. Quantified only when
+    /// the bootstrap ran; uncalibrated, and not a licensed interval.
+    pub whole_procedure: ComponentStatus,
 }
 
 impl SourceInfluence {
@@ -566,11 +573,15 @@ pub fn intrinsic_influence(
                 Some(se) => quantified(contribution, se[i], perm_t, perm_df),
                 None => ComponentStatus::NotApplicable { reason: REASON_EXACT },
             };
-            let mechanism_fit = match &fit {
-                FitComponent::Quantified { stderr, t, df } => {
-                    quantified(contribution, stderr[i], *t, *df)
-                }
-                FitComponent::Unquantified(reason) => ComponentStatus::Unquantified { reason },
+            let (mechanism_fit, whole_procedure) = match &fit {
+                FitComponent::Quantified { stderr, whole, t, df } => (
+                    quantified(contribution, stderr[i], *t, *df),
+                    quantified(contribution, whole[i], *t, *df),
+                ),
+                FitComponent::Unquantified(reason) => (
+                    ComponentStatus::Unquantified { reason },
+                    ComponentStatus::Unquantified { reason },
+                ),
             };
             SourceInfluence {
                 source,
@@ -589,6 +600,7 @@ pub fn intrinsic_influence(
                         status: mechanism_fit,
                     },
                 ]),
+                whole_procedure,
             }
         })
         .collect();
@@ -1023,6 +1035,9 @@ enum FitComponent {
     Quantified {
         /// Per-source standard error after removing the Monte Carlo noise of one refit.
         stderr: Vec<f64>,
+        /// Per-source standard error of the whole procedure: the raw bootstrap spread with
+        /// the permutation variance (fixed across refits) added.
+        whole: Vec<f64>,
         t: f64,
         df: f64,
     },
@@ -1106,6 +1121,16 @@ fn fit_component(
         return Ok(FitComponent::Unquantified(REASON_REFIT_FAILED));
     }
     let draws: Vec<&Vec<f64>> = outcomes.iter().flatten().collect();
+    let whole = (0..spec.players.len())
+        .map(|i| {
+            let mut w = Welford::new();
+            draws.iter().for_each(|d| w.push(d[i]));
+            let boot_var = w.sample_variance().unwrap_or(f64::NAN);
+            let permutation_var =
+                pooled.component_mc_stderr.as_ref().map_or(0.0, |se| se[i] * se[i]);
+            (boot_var + permutation_var).sqrt()
+        })
+        .collect();
     let stderr = (0..spec.players.len())
         .map(|i| {
             let mut w = Welford::new();
@@ -1119,5 +1144,10 @@ fn fit_component(
         })
         .collect();
     let df = f64::from(replicates) - 1.0;
-    Ok(FitComponent::Quantified { stderr, t: student_t_ppf(0.5 + 0.5 * query.level, df), df })
+    Ok(FitComponent::Quantified {
+        stderr,
+        whole,
+        t: student_t_ppf(0.5 + 0.5 * query.level, df),
+        df,
+    })
 }

@@ -7,9 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use antecedent::gcm::{
     ChangeAttributionResult as RustChangeAttributionResult, FittedGcm, RobustChangeOptions,
-    fit_gcm, fit_gcm_with, noise_table_from_columns as facade_noise_table_from_columns,
-    rank_root_causes as facade_rank_root_causes, replay_noise as facade_replay_noise,
-    sample_with_noise as facade_sample_with_noise,
+    fit_gcm, fit_gcm_with, rank_root_causes as facade_rank_root_causes,
 };
 use antecedent::{AcceptedGraph, AttributionOutcome, MechanismProgram, SimulationOutcome};
 use antecedent_attribution::{
@@ -158,6 +156,7 @@ pub(crate) fn change_result_from_rust(
         path_breakdown: path_breakdown_names(names, &result),
         rust: result,
         route: None,
+        from_study: false,
     }
 }
 
@@ -243,11 +242,20 @@ pub struct ChangeAttributionResult {
     pub(crate) rust: RustChangeAttributionResult,
     /// The compiled attribution route this result came from.
     pub(crate) route: Option<RouteRecord>,
+    /// Whether the attribution is the payload of a compiled study result, whose own
+    /// contract states it.
+    pub(crate) from_study: bool,
 }
 
 impl ChangeAttributionResult {
     pub(crate) fn with_route(mut self, route: RouteRecord) -> Self {
         self.route = Some(route);
+        self
+    }
+
+    /// Mark the attribution as the payload of a compiled study result.
+    pub(crate) fn from_compiled_study(mut self) -> Self {
+        self.from_study = true;
         self
     }
 }
@@ -709,19 +717,24 @@ impl PyFittedGcm {
         threads: Option<u32>,
         programs: Option<Vec<CallbackProgramArgs>>,
     ) -> PyResult<(GcmSampleResult, Bound<'py, PyAny>)> {
-        let inner = Arc::clone(&self.inner);
+        let source = self.source();
         let data = Arc::clone(&self.data);
-        let (draws, noise) = detach_catch(py, move || {
+        let (draws, noise, route) = detach_catch(py, move || {
             let ints =
                 interventions_of(&data, &interventions, shifts.as_ref(), programs.as_deref())?;
             let ctx = Self::ctx(seed, threads);
-            let (draws, table) =
-                facade_sample_with_noise(&inner.model, &ints, n, &ctx).map_err(py_err)?;
-            Ok::<_, PyErr>((draws, table.values().to_vec()))
+            let target = SimulationTarget::NoiseSample { interventions: Arc::from(ints), draws: n };
+            let (outcome, route) = source.simulate(target, &ctx)?;
+            let SimulationOutcome::NoiseSample { draws, noise } = outcome else {
+                return Err(outcome_mismatch());
+            };
+            Ok::<_, PyErr>((draws, noise.values().to_vec(), route))
         })?;
         let n_nodes = draws.n_nodes;
         let noise = PyArray1::from_vec(py, noise).reshape([n_nodes, n])?;
-        Ok((value_batch_to_sample_result(py, draws)?, noise.into_any()))
+        let mut result = value_batch_to_sample_result(py, draws)?;
+        result.route = Some(route);
+        Ok((result, noise.into_any()))
     }
 
     /// Replay retained exogenous noise through the model under interventions.
@@ -744,18 +757,18 @@ impl PyFittedGcm {
         threads: Option<u32>,
         programs: Option<Vec<CallbackProgramArgs>>,
     ) -> PyResult<GcmSampleResult> {
-        let inner = Arc::clone(&self.inner);
+        let model_nodes = self.inner.model.n_nodes();
+        let source = self.source();
         let data = Arc::clone(&self.data);
         let (n_nodes, n_rows) = noise.as_array().dim();
-        if n_nodes != inner.model.n_nodes() {
+        if n_nodes != model_nodes {
             return Err(py_msg(format!(
-                "noise has {n_nodes} rows but the model has {} variables; pass a \
-                 (n_variables, n_rows) array",
-                inner.model.n_nodes()
+                "noise has {n_nodes} rows but the model has {model_nodes} variables; pass a \
+                 (n_variables, n_rows) array"
             )));
         }
         let values: Vec<f64> = noise.as_array().iter().copied().collect();
-        let batch = detach_catch(py, move || {
+        let (batch, route) = detach_catch(py, move || {
             let ints = interventions_of(
                 &data,
                 &interventions.unwrap_or_default(),
@@ -763,11 +776,21 @@ impl PyFittedGcm {
                 programs.as_deref(),
             )?;
             let ctx = Self::ctx(seed, threads);
-            let table = facade_noise_table_from_columns(&inner.model, n_rows, &values, &ctx)
-                .map_err(py_err)?;
-            facade_replay_noise(&inner.model, &ints, &table, policy_salt, &ctx).map_err(py_err)
+            let target = SimulationTarget::NoiseReplay {
+                interventions: Arc::from(ints),
+                noise: Arc::from(values),
+                n_rows,
+                policy_salt,
+            };
+            let (outcome, route) = source.simulate(target, &ctx)?;
+            let SimulationOutcome::Sample(batch) = outcome else {
+                return Err(outcome_mismatch());
+            };
+            Ok::<_, PyErr>((batch, route))
         })?;
-        value_batch_to_sample_result(py, batch)
+        let mut result = value_batch_to_sample_result(py, batch)?;
+        result.route = Some(route);
+        Ok(result)
     }
 
     /// Intrinsic causal influence of the noise terms upstream of `target` on its variance, from
@@ -1215,8 +1238,11 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<Vec<Contribution>> {
-        let _ = self;
-        rank_root_causes(py, attribution, seed, threads)
+        let ranks = rank_root_causes(py, attribution, seed, threads)?;
+        if let Some(route) = attribution.route.clone() {
+            self.record(route);
+        }
+        Ok(ranks)
     }
 
     fn __repr__(&self) -> String {
@@ -1602,8 +1628,10 @@ fn attribute_paths(
 
 /// Rank root causes from a [`ChangeAttributionResult`].
 ///
-/// The ranking reads only the attribution it is given (no model, no data), so it runs the
-/// ranking engine directly; the attribution's own route already states its contract.
+/// The ranking reads only the attribution it is given (no model, no data): it orders the
+/// components of an attribution a compiled route returned, and that route states its
+/// contract. An attribution with no compiled route is refused, so no ranking reaches a
+/// caller without the contract of the answer it ranks.
 #[pyfunction]
 #[pyo3(signature = (attribution, *, seed=0, threads=None))]
 fn rank_root_causes(
@@ -1612,6 +1640,12 @@ fn rank_root_causes(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Vec<Contribution>> {
+    if attribution.route.is_none() && !attribution.from_study {
+        return Err(py_msg(
+            "rank_root_causes ranks an attribution a compiled route returned; run the change \
+             attribution through FittedGcm or antecedent.gcm first",
+        ));
+    }
     let rust = attribution.rust.clone();
     let name_map: HashMap<u32, String> = attribution
         .rust

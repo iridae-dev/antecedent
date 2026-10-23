@@ -1,8 +1,11 @@
 """Intrinsic causal influence: how much of a target's variance each noise term explains.
 
 See :func:`intrinsic_influence`. Every interval on the result names the uncertainty component
-it covers (Shapley permutation sampling, nested simulation, or mechanism fitting); no combined
-interval is offered, and a component that was not measured says so rather than reading zero.
+it covers (Shapley permutation sampling, nested simulation, or mechanism fitting), and a
+component that was not measured says so rather than reading zero. With ``fit_bootstrap`` each
+source also carries ``whole_procedure``: the spread of the full attribution across row-bootstrap
+refits with the fixed permutation variance added. It is uncalibrated and not a licensed
+interval.
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ from typing import Any, Literal
 from ._data import as_columns
 from ._native import attribute_intrinsic_influence as _attribute_intrinsic_influence
 
-Component = Literal["permutation_sampling", "simulation", "mechanism_fit"]
+Component = Literal["permutation_sampling", "simulation", "mechanism_fit", "whole_procedure"]
 
 
 @dataclass(frozen=True)
@@ -47,6 +50,7 @@ class SourceInfluence:
     source: str
     contribution: float
     uncertainty: tuple[ComponentUncertainty, ...]
+    whole_procedure: ComponentUncertainty | None = None
 
     def component(self, name: Component) -> ComponentUncertainty:
         """The uncertainty entry for ``name``."""
@@ -154,6 +158,11 @@ def _influence(raw: dict[str, Any]) -> IntrinsicInfluence:
             source=s["source"],
             contribution=s["contribution"],
             uncertainty=tuple(ComponentUncertainty(**u) for u in s["uncertainty"]),
+            whole_procedure=(
+                ComponentUncertainty(component="whole_procedure", **s["whole_procedure"])
+                if "whole_procedure" in s
+                else None
+            ),
         )
         for s in raw.pop("sources")
     )

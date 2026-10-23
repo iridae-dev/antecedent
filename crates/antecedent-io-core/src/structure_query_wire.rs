@@ -10,8 +10,8 @@ use std::sync::Arc;
 use antecedent_core::{
     AttributeQuery, AttributeTarget, CausalQuery, ChangeAttributionQuery, ChangeEstimator,
     ChangeMeasure, DiscoverQuery, DiscoveryMethod, InfluenceAllocation, Intervention,
-    IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration, ScreenWeight, SearchBounds,
-    SearchSchedule, SimulateQuery, SimulationTarget, VariableId,
+    InterventionSequence, IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration,
+    ScreenWeight, SearchBounds, SearchSchedule, SimulateQuery, SimulationTarget, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -786,6 +786,72 @@ pub enum SimulationTargetWire {
         /// Control level.
         control: f64,
     },
+    /// Draws with their exogenous noise.
+    NoiseSample {
+        /// Interventions.
+        interventions: Vec<InterventionWire>,
+        /// Rows drawn.
+        draws: u64,
+    },
+    /// Replay of retained noise.
+    NoiseReplay {
+        /// Interventions.
+        interventions: Vec<InterventionWire>,
+        /// Noise, `n_rows` values per variable.
+        noise: Vec<f64>,
+        /// Rows replayed.
+        n_rows: u64,
+        /// Stochastic-policy stream key.
+        policy_salt: u64,
+    },
+    /// Counterfactual values of the factual rows.
+    Counterfactual {
+        /// Interventions.
+        interventions: Vec<InterventionWire>,
+        /// Outcomes.
+        outcomes: Vec<u32>,
+    },
+    /// Temporal rollout.
+    TemporalRollout {
+        /// The schedule, as a sequence intervention.
+        schedule: InterventionWire,
+        /// Rows per step.
+        n_rows: u64,
+        /// Steps.
+        n_steps: u64,
+        /// Lag window.
+        window: u32,
+        /// History before time zero.
+        history: Vec<f64>,
+        /// Seed.
+        seed: u64,
+    },
+    /// Temporal counterfactual over a factual panel.
+    TemporalCounterfactual {
+        /// The schedule, as a sequence intervention.
+        schedule: InterventionWire,
+        /// Units per step.
+        n_rows: u64,
+        /// Steps.
+        n_steps: u64,
+        /// Lag window.
+        window: u32,
+        /// Factual panel.
+        panel: Vec<f64>,
+        /// History before the panel.
+        history: Vec<f64>,
+    },
+}
+
+fn schedule_to_wire(schedule: &InterventionSequence) -> Result<InterventionWire, IoError> {
+    InterventionWire::from_domain(&Intervention::sequence(schedule.clone()))
+}
+
+fn schedule_from_wire(schedule: &InterventionWire) -> Result<InterventionSequence, IoError> {
+    match schedule.to_domain() {
+        Intervention::Sequence(sequence) => Ok(sequence),
+        other => Err(IoError::Convert(format!("a schedule must be a sequence, got {other:?}"))),
+    }
 }
 
 /// Wire form of [`SimulateQuery`].
@@ -834,6 +900,56 @@ impl SimulateQueryWire {
                     control: *control,
                 }
             }
+            SimulationTarget::NoiseSample { interventions, draws } => {
+                SimulationTargetWire::NoiseSample {
+                    interventions: interventions_to_wire(interventions)?,
+                    draws: fit_u64(*draws)?,
+                }
+            }
+            SimulationTarget::NoiseReplay { interventions, noise, n_rows, policy_salt } => {
+                SimulationTargetWire::NoiseReplay {
+                    interventions: interventions_to_wire(interventions)?,
+                    noise: noise.to_vec(),
+                    n_rows: fit_u64(*n_rows)?,
+                    policy_salt: *policy_salt,
+                }
+            }
+            SimulationTarget::Counterfactual { interventions, outcomes } => {
+                SimulationTargetWire::Counterfactual {
+                    interventions: interventions_to_wire(interventions)?,
+                    outcomes: vars_to_raw(outcomes),
+                }
+            }
+            SimulationTarget::TemporalRollout {
+                schedule,
+                n_rows,
+                n_steps,
+                window,
+                history,
+                seed,
+            } => SimulationTargetWire::TemporalRollout {
+                schedule: schedule_to_wire(schedule)?,
+                n_rows: fit_u64(*n_rows)?,
+                n_steps: fit_u64(*n_steps)?,
+                window: *window,
+                history: history.to_vec(),
+                seed: *seed,
+            },
+            SimulationTarget::TemporalCounterfactual {
+                schedule,
+                n_rows,
+                n_steps,
+                window,
+                panel,
+                history,
+            } => SimulationTargetWire::TemporalCounterfactual {
+                schedule: schedule_to_wire(schedule)?,
+                n_rows: fit_u64(*n_rows)?,
+                n_steps: fit_u64(*n_steps)?,
+                window: *window,
+                panel: panel.to_vec(),
+                history: history.to_vec(),
+            },
         };
         Ok(Self { target })
     }
@@ -867,6 +983,56 @@ impl SimulateQueryWire {
                     control: *control,
                 }
             }
+            SimulationTargetWire::NoiseSample { interventions, draws } => {
+                SimulationTarget::NoiseSample {
+                    interventions: interventions_from_wire(interventions),
+                    draws: fit_usize(*draws)?,
+                }
+            }
+            SimulationTargetWire::NoiseReplay { interventions, noise, n_rows, policy_salt } => {
+                SimulationTarget::NoiseReplay {
+                    interventions: interventions_from_wire(interventions),
+                    noise: Arc::from(noise.as_slice()),
+                    n_rows: fit_usize(*n_rows)?,
+                    policy_salt: *policy_salt,
+                }
+            }
+            SimulationTargetWire::Counterfactual { interventions, outcomes } => {
+                SimulationTarget::Counterfactual {
+                    interventions: interventions_from_wire(interventions),
+                    outcomes: vars_from_raw(outcomes),
+                }
+            }
+            SimulationTargetWire::TemporalRollout {
+                schedule,
+                n_rows,
+                n_steps,
+                window,
+                history,
+                seed,
+            } => SimulationTarget::TemporalRollout {
+                schedule: schedule_from_wire(schedule)?,
+                n_rows: fit_usize(*n_rows)?,
+                n_steps: fit_usize(*n_steps)?,
+                window: *window,
+                history: Arc::from(history.as_slice()),
+                seed: *seed,
+            },
+            SimulationTargetWire::TemporalCounterfactual {
+                schedule,
+                n_rows,
+                n_steps,
+                window,
+                panel,
+                history,
+            } => SimulationTarget::TemporalCounterfactual {
+                schedule: schedule_from_wire(schedule)?,
+                n_rows: fit_usize(*n_rows)?,
+                n_steps: fit_usize(*n_steps)?,
+                window: *window,
+                panel: Arc::from(panel.as_slice()),
+                history: Arc::from(history.as_slice()),
+            },
         };
         let query = SimulateQuery { target };
         query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
@@ -877,7 +1043,12 @@ impl SimulateQueryWire {
     #[must_use]
     pub fn variable_ids(&self) -> Vec<u32> {
         match &self.target {
-            SimulationTargetWire::InterventionalSample { .. } => Vec::new(),
+            SimulationTargetWire::InterventionalSample { .. }
+            | SimulationTargetWire::NoiseSample { .. }
+            | SimulationTargetWire::NoiseReplay { .. }
+            | SimulationTargetWire::TemporalRollout { .. }
+            | SimulationTargetWire::TemporalCounterfactual { .. } => Vec::new(),
+            SimulationTargetWire::Counterfactual { outcomes, .. } => outcomes.clone(),
             SimulationTargetWire::PolicyValue { outcome, .. } => vec![*outcome],
             SimulationTargetWire::UnitEffects { treatment, outcome, .. } => {
                 vec![*treatment, *outcome]
@@ -890,7 +1061,16 @@ impl SimulateQueryWire {
     pub fn interventions(&self) -> &[InterventionWire] {
         match &self.target {
             SimulationTargetWire::InterventionalSample { interventions, .. }
-            | SimulationTargetWire::PolicyValue { interventions, .. } => interventions.as_slice(),
+            | SimulationTargetWire::PolicyValue { interventions, .. }
+            | SimulationTargetWire::NoiseSample { interventions, .. }
+            | SimulationTargetWire::NoiseReplay { interventions, .. }
+            | SimulationTargetWire::Counterfactual { interventions, .. } => {
+                interventions.as_slice()
+            }
+            SimulationTargetWire::TemporalRollout { schedule, .. }
+            | SimulationTargetWire::TemporalCounterfactual { schedule, .. } => {
+                std::slice::from_ref(schedule)
+            }
             SimulationTargetWire::UnitEffects { .. } => &[],
         }
     }
@@ -946,6 +1126,23 @@ mod tests {
                 seed: 2,
             },
         )));
+        round_trip(&CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::NoiseReplay {
+            interventions: Arc::from([Intervention::set(v(0), Value::f64(1.0))]),
+            noise: Arc::from([0.1, -0.2, 0.3, 0.4]),
+            n_rows: 2,
+            policy_salt: 5,
+        })));
+        round_trip(&CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::TemporalRollout {
+            schedule: InterventionSequence::new(vec![antecedent_core::SequencedIntervention::new(
+                Intervention::set(v(0), Value::f64(1.0)),
+                antecedent_core::TemporalPolicy::sustained(0, 3),
+            )]),
+            n_rows: 2,
+            n_steps: 3,
+            window: 1,
+            history: Arc::from([]),
+            seed: 9,
+        })));
         round_trip(&CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::UnitEffects {
             treatment: v(0),
             outcome: v(1),

@@ -73,6 +73,7 @@ fn result_json(result: &IntrinsicInfluenceResult, names: &[String]) -> String {
                 "source": source_name(names, s.source),
                 "contribution": s.contribution,
                 "uncertainty": uncertainty,
+                "whole_procedure": status_json(&s.whole_procedure),
             })
         })
         .collect();

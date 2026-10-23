@@ -12,7 +12,7 @@ use std::sync::Arc;
 use crate::canonical_encode::{CanonicalEncode, count, encode_list};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
-use crate::intervention::Intervention;
+use crate::intervention::{Intervention, InterventionSequence};
 
 use super::error::QueryError;
 
@@ -50,6 +50,83 @@ pub enum SimulationTarget {
         /// Control level.
         control: f64,
     },
+    /// Interventional draws together with the exogenous noise that produced
+    /// them. The noise is drawn from the execution context's stream.
+    NoiseSample {
+        /// Interventions, in declared order.
+        interventions: Arc<[Intervention]>,
+        /// Rows drawn.
+        draws: usize,
+    },
+    /// Retained exogenous noise replayed through the fitted model under the
+    /// declared interventions.
+    NoiseReplay {
+        /// Interventions, in declared order.
+        interventions: Arc<[Intervention]>,
+        /// Noise in the model's variable order, `n_rows` values per variable
+        /// (`noise[variable * n_rows + row]`).
+        noise: Arc<[f64]>,
+        /// Rows replayed.
+        n_rows: usize,
+        /// Key of the stream a stochastic policy draws from.
+        policy_salt: u64,
+    },
+    /// Counterfactual values of `outcomes` for every factual row of the
+    /// study's data under the declared interventions, after abduction.
+    Counterfactual {
+        /// Interventions, in declared order.
+        interventions: Arc<[Intervention]>,
+        /// Outcome variables.
+        outcomes: Arc<[VariableId]>,
+    },
+    /// A rollout of the fitted model over time under a schedule; a lagged
+    /// read sees up to `window` earlier steps.
+    TemporalRollout {
+        /// Scheduled interventions.
+        schedule: InterventionSequence,
+        /// Rows per step.
+        n_rows: usize,
+        /// Steps rolled out.
+        n_steps: usize,
+        /// Earlier steps a lagged read may see.
+        window: u32,
+        /// Steps before time zero, most recent first, each `n_rows` values per
+        /// variable in the model's variable order.
+        history: Arc<[f64]>,
+        /// Seed of the noise stream.
+        seed: u64,
+    },
+    /// A factual panel replayed under a schedule after abduction at every step.
+    TemporalCounterfactual {
+        /// Scheduled interventions.
+        schedule: InterventionSequence,
+        /// Units per step.
+        n_rows: usize,
+        /// Steps in the panel.
+        n_steps: usize,
+        /// Earlier steps a lagged read may see.
+        window: u32,
+        /// Factual panel: step by step, `n_rows` values per variable in the
+        /// model's variable order.
+        panel: Arc<[f64]>,
+        /// Steps before the panel, most recent first, laid out like `panel`.
+        history: Arc<[f64]>,
+    },
+}
+
+fn encode_schedule(writer: &mut CanonicalWriter, schedule: &InterventionSequence) {
+    writer.word(count(schedule.steps.len()));
+    for step in schedule.steps.iter() {
+        step.intervention.encode(writer);
+        step.temporal.encode(writer);
+    }
+}
+
+fn validate_interventions(interventions: &[Intervention]) -> Result<(), QueryError> {
+    for intervention in interventions {
+        intervention.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+    }
+    Ok(())
 }
 
 impl SimulationTarget {
@@ -60,6 +137,11 @@ impl SimulationTarget {
             Self::InterventionalSample { .. } => "interventional_sample",
             Self::PolicyValue { .. } => "policy_value",
             Self::UnitEffects { .. } => "unit_effects",
+            Self::NoiseSample { .. } => "noise_sample",
+            Self::NoiseReplay { .. } => "noise_replay",
+            Self::Counterfactual { .. } => "counterfactual",
+            Self::TemporalRollout { .. } => "temporal_rollout",
+            Self::TemporalCounterfactual { .. } => "temporal_counterfactual",
         }
     }
 }
@@ -83,6 +165,41 @@ impl CanonicalEncode for SimulationTarget {
                 treatment.encode(writer);
                 outcome.encode(writer);
                 writer.real(*active).real(*control);
+            }
+            Self::NoiseSample { interventions, draws } => {
+                writer.word(4);
+                encode_list(writer, interventions);
+                writer.word(count(*draws));
+            }
+            Self::NoiseReplay { interventions, noise, n_rows, policy_salt } => {
+                writer.word(5);
+                encode_list(writer, interventions);
+                writer.reals(noise).word(count(*n_rows)).word(*policy_salt);
+            }
+            Self::Counterfactual { interventions, outcomes } => {
+                writer.word(6);
+                encode_list(writer, interventions);
+                encode_list(writer, outcomes);
+            }
+            Self::TemporalRollout { schedule, n_rows, n_steps, window, history, seed } => {
+                writer.word(7);
+                encode_schedule(writer, schedule);
+                writer
+                    .word(count(*n_rows))
+                    .word(count(*n_steps))
+                    .word(u64::from(*window))
+                    .reals(history)
+                    .word(*seed);
+            }
+            Self::TemporalCounterfactual { schedule, n_rows, n_steps, window, panel, history } => {
+                writer.word(8);
+                encode_schedule(writer, schedule);
+                writer
+                    .word(count(*n_rows))
+                    .word(count(*n_steps))
+                    .word(u64::from(*window))
+                    .reals(panel)
+                    .reals(history);
             }
         }
     }
@@ -122,6 +239,18 @@ impl SimulateQuery {
             }
             SimulationTarget::UnitEffects { treatment, outcome, .. } => {
                 (Some(*treatment), Some(*outcome))
+            }
+            SimulationTarget::NoiseSample { interventions, .. }
+            | SimulationTarget::NoiseReplay { interventions, .. } => {
+                (interventions.first().and_then(Intervention::primary_variable), None)
+            }
+            SimulationTarget::Counterfactual { interventions, outcomes } => (
+                interventions.first().and_then(Intervention::primary_variable),
+                outcomes.first().copied(),
+            ),
+            SimulationTarget::TemporalRollout { schedule, .. }
+            | SimulationTarget::TemporalCounterfactual { schedule, .. } => {
+                (schedule.steps.first().and_then(|step| step.intervention.primary_variable()), None)
             }
         }
     }
@@ -166,6 +295,67 @@ impl SimulateQuery {
                 }
                 if !active.is_finite() || !control.is_finite() {
                     return invalid("unit effects need finite treatment levels");
+                }
+                Ok(())
+            }
+            SimulationTarget::NoiseSample { interventions, draws } => {
+                validate_interventions(interventions)?;
+                if *draws == 0 {
+                    return invalid("a noise sample needs at least one draw");
+                }
+                Ok(())
+            }
+            SimulationTarget::NoiseReplay { interventions, noise, n_rows, .. } => {
+                validate_interventions(interventions)?;
+                if *n_rows == 0 || noise.is_empty() || noise.len() % *n_rows != 0 {
+                    return invalid("replayed noise needs n_rows > 0 values for each variable");
+                }
+                if noise.iter().any(|value| !value.is_finite()) {
+                    return invalid("replayed noise must be finite");
+                }
+                Ok(())
+            }
+            SimulationTarget::Counterfactual { interventions, outcomes } => {
+                validate_interventions(interventions)?;
+                if outcomes.is_empty() {
+                    return Err(QueryError::EmptyCounterfactualOutcomes);
+                }
+                Ok(())
+            }
+            SimulationTarget::TemporalRollout { schedule, n_rows, n_steps, history, .. } => {
+                let steps: Vec<Intervention> =
+                    schedule.steps.iter().map(|step| step.intervention.clone()).collect();
+                validate_interventions(&steps)?;
+                if *n_rows == 0 || *n_steps == 0 {
+                    return invalid("a rollout needs at least one row and one step");
+                }
+                if history.len() % *n_rows != 0 {
+                    return invalid("rollout history needs n_rows values per variable and step");
+                }
+                Ok(())
+            }
+            SimulationTarget::TemporalCounterfactual {
+                schedule,
+                n_rows,
+                n_steps,
+                panel,
+                history,
+                ..
+            } => {
+                let steps: Vec<Intervention> =
+                    schedule.steps.iter().map(|step| step.intervention.clone()).collect();
+                validate_interventions(&steps)?;
+                if *n_rows == 0 || *n_steps == 0 {
+                    return invalid("a panel replay needs at least one unit and one step");
+                }
+                if panel.len() % (n_rows.saturating_mul(*n_steps)) != 0 || panel.is_empty() {
+                    return invalid("the panel needs n_rows values per variable at every step");
+                }
+                if history.len() % *n_rows != 0 {
+                    return invalid("panel history needs n_rows values per variable and step");
+                }
+                if panel.iter().chain(history.iter()).any(|value| !value.is_finite()) {
+                    return invalid("the panel and its history must be finite");
                 }
                 Ok(())
             }

@@ -62,3 +62,27 @@ claim = "The free search, attribution and simulation engines are hidden; the bin
 evidence = [
   "crates/antecedent/tests/structure_compiler_routes.rs::the_demoted_engines_are_not_on_the_public_surface",
 ]
+
+[[acceptance]]
+id = "posterior_provenance"
+claim = "A structure posterior accepted from a compiled search carries its provenance into the contract and program identity of a graph-posterior study, not into its identification digest; its MAP DAG keeps the provenance with review posterior_map."
+evidence = [
+  "crates/antecedent/tests/structure_compiler_routes.rs::an_accepted_structure_posterior_carries_its_provenance_downstream",
+]
+
+[[acceptance]]
+id = "model_programs_compiled"
+claim = "Noise replay, counterfactual values of factual rows and seeded temporal rollouts run through the compiled simulation route and equal their engines; caller-wrapped mechanisms are named in the program and never refitted."
+evidence = [
+  "crates/antecedent/tests/structure_compiler_routes.rs::noise_replay_counterfactual_and_rollout_equal_their_engines",
+  "crates/antecedent/tests/structure_compiler_routes.rs::wrapped_mechanisms_name_themselves_in_the_program",
+]
+
+[[acceptance]]
+id = "intrinsic_whole_procedure"
+claim = "With a mechanism-fit bootstrap, every intrinsic-influence source reports a whole-procedure interval no narrower than its mechanism-fit component; without one it is unquantified."
+evidence = [
+  "crates/antecedent-attribution/tests/intrinsic_influence.rs::a_bootstrap_with_data_quantifies_mechanism_fit_separately",
+  "crates/antecedent-attribution/tests/intrinsic_influence.rs::without_a_bootstrap_the_whole_procedure_is_unquantified",
+  "python/tests/test_intrinsic_influence.py::test_unmeasured_mechanism_fit_is_marked_unquantified_not_zero",
+]

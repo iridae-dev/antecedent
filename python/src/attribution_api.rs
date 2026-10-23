@@ -164,17 +164,30 @@ fn sample_do_py(
             let (parts, route) = sample_route(&source, iv, n_draws, seed, &ctx)?;
             return Ok::<_, PyErr>((parts, Some(route)));
         };
-        // Python mechanism wrappers replace fitted mechanisms with caller code, which no
-        // compiled mechanism program states; this slow path samples the wrapped model directly.
+        // Python mechanism wrappers replace fitted mechanisms with caller code. The wrapped
+        // model runs through the compiled simulation route as a prefit the program names:
+        // its label lists the wrapped variables, so the contract states that caller code, not
+        // a fitted family, produced those mechanisms.
         let g = dag_from_named_edges(data.schema(), &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        let model = Python::attach(|py| {
+        let fitted = fit_gcm(g.clone(), &data).map_err(py_err)?;
+        let (model, wrapped) = Python::attach(|py| {
             let dict = w.bind(py);
-            callbacks::apply_mechanism_wrappers(&fitted.model, &names, dict)
+            let wrapped = dict
+                .keys()
+                .iter()
+                .map(|key| key.extract::<String>())
+                .collect::<PyResult<Vec<String>>>()?;
+            let model = callbacks::apply_mechanism_wrappers(&fitted.model, &names, dict)?;
+            Ok::<_, PyErr>((model, wrapped))
         })?;
-        let mut rng = CausalRng::from_seed(seed);
-        let samples = facade_sample_do(&model, &[iv], n_draws, &mut rng, &ctx).map_err(py_err)?;
-        Ok((sample_parts(&samples), None))
+        let wrapped_names: Vec<&str> = wrapped.iter().map(String::as_str).collect();
+        let wrapped_fit =
+            Arc::new(antecedent::gcm::FittedGcm { model, assignments: fitted.assignments.clone() });
+        let program =
+            MechanismProgram::standard().with_wrapped_prefit(wrapped_fit, &data, &wrapped_names);
+        let source = ModelSource { dag: g, data: Arc::new(data), accepted: None, program };
+        let (parts, route) = sample_route(&source, iv, n_draws, seed, &ctx)?;
+        Ok((parts, Some(route)))
     })?;
     let draws = PyArray1::from_vec(py, flat).reshape([n_nodes, n_rows])?.unbind();
     Ok(GcmSampleResult { column_means: means, n_draws: n_rows, n_nodes, draws, route })

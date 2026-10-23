@@ -14,7 +14,7 @@ support matrix and have no row in `parity/licensed_routes.toml`.
 | --- | --- | --- | --- |
 | `CausalQuery::Discover` | `StudyBuilder::discovery(DiscoverySpec, variables)` | `DiscoverStatic` (tabular), `DiscoverTemporal` (series, panel, event, multi-environment) | `DiscoveryPayload`: the search engine's own result |
 | `CausalQuery::Attribute` | `StudyBuilder::graph(dag).query(AttributeQuery)` | `GcmAttributeDag` | `AttributionPayload`: the attribution and the per-node mechanism selection record |
-| `CausalQuery::Simulate` | `StudyBuilder::graph(dag).query(SimulateQuery)` | `GcmSimulateDag` | `SimulationPayload`: draws, a policy value or unit effects, with the selection record |
+| `CausalQuery::Simulate` | `StudyBuilder::graph(dag).query(SimulateQuery)` | `GcmSimulateDag` | `SimulationPayload`: draws, a policy value, unit effects, draws with their noise, a noise replay, counterfactual values of the factual rows, or a temporal rollout or panel replay, with the selection record |
 
 The query encodes everything the answer depends on: the variables, method and
 bounds of a search (with a digest of the executable configuration: the
@@ -74,12 +74,26 @@ supplied by hand, while the program and lowered identity are different.
 `CompiledExecution::accept_dag` additionally reads a fully oriented CPDAG as the
 DAG it describes, which is the structure a mechanism fit needs.
 
+A structure posterior (exact enumeration, MCMC, the CI-screened posterior) is accepted
+with `accept_discovered_posterior` (or `CompiledExecution::accept_posterior`). The
+`AcceptedPosterior` goes to a study through `StudyBuilder::accepted_graph_posterior`.
+Its atoms and weights become the study's graph posterior, and the contract and program
+identity carry the provenance (review `posterior`). As with a single graph, the
+identification digest does not. `AcceptedPosterior::map_dag` keeps only the most
+probable DAG atom as an accepted graph instead (review `posterior_map`). A temporal
+posterior has no single static DAG, so `map_dag` refuses it. The atoms index the
+searched variables by position, so a posterior is accepted only from a search over the
+schema's columns in order.
+
 ## Mechanisms
 
 An attribution or simulation study fits its mechanisms from a
 `MechanismProgram`: by default the standard registry, choosing for each node by
 best held-out score. `MechanismProgram::from_candidates` and `with_options`
-let you declare the candidates and splits instead. The program's label is bound
+let you declare the candidates and splits instead. `with_wrapped_prefit` runs a model
+whose mechanisms the caller replaced with its own code. The wrapped variables enter the
+program label (`gcm.registry.wrapped.<digest>`), and such a model is never refitted:
+on other rows the route refuses. The program's label is bound
 into the lowered statistical program, and every result publishes the per-node
 selection record. `MechanismProgram::with_prefit` reuses an existing fit when
 the route runs on the same rows, matched by content digest. Uncertainty from
@@ -106,12 +120,14 @@ search that produced its graph.
 
 ## What is not here
 
-- A Bayesian structure posterior does not reach a downstream study as an
-  accepted graph. A study on a posterior over graphs uses the graph-posterior
-  routes, which do not carry discovery provenance.
-- Root-cause ranking driven by external mechanism wrappers and sampling with
-  `mechanism_wrappers` still run the hidden engines from Python.
-- The free `antecedent::discovery::discover_*` and the `antecedent::gcm`
-  attribution and simulation functions are hidden engines
-  (`#[doc(hidden)]`). They remain available to the bindings, but they are not
-  the public way in.
+- `PreparedPolicy` still compiles and licenses a program once against a fitted model
+  (`support`, `rebind`, the compilation counters). Its `value`, `sample` and
+  `counterfactual` run the compiled simulation routes. `policy_support` is a licensing
+  check and computes no answer.
+- Ranking root causes (`rank_root_causes`) orders an attribution's components. It
+  accepts only an attribution a compiled route or compiled study returned, so the
+  ranking carries the contract of the answer it ranks.
+- The free `antecedent::discovery::discover_*` functions and the `antecedent::gcm`
+  attribution, simulation, noise-replay, counterfactual-policy and temporal-policy
+  functions are hidden engines (`#[doc(hidden)]`). They are not the public way in, and
+  the Python bindings do not call them directly.

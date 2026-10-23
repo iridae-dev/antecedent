@@ -162,14 +162,15 @@ fn compiled(study: &Study, route: &str) -> CompiledExecution {
     execution
 }
 
+/// The graph, its scored links and its separating sets. Separating sets live in a
+/// hash map, so they are compared as sorted entries rather than in iteration order.
 fn graph_and_links<G: std::fmt::Debug, R>(
     result: &DiscoveryResult<G, R>,
-) -> (String, String, String) {
-    (
-        format!("{:?}", result.evidence.graph),
-        format!("{:?}", result.evidence.links),
-        format!("{:?}", result.sepsets),
-    )
+) -> (String, String, Vec<String>) {
+    let mut sepsets: Vec<String> =
+        result.sepsets.iter().map(|entry| format!("{entry:?}")).collect();
+    sepsets.sort_unstable();
+    (format!("{:?}", result.evidence.graph), format!("{:?}", result.evidence.links), sepsets)
 }
 
 #[test]
@@ -590,6 +591,12 @@ fn the_demoted_engines_are_not_on_the_public_surface() {
         "antecedent::gcm::mechanism_change_detection(",
         "antecedent::gcm::sample_interventional_distribution(",
         "antecedent::gcm::rank_root_causes(",
+        "antecedent::gcm::sample_with_noise(",
+        "antecedent::gcm::noise_table_from_columns(",
+        "antecedent::gcm::replay_noise(",
+        "antecedent::gcm::counterfactual_policy(",
+        "antecedent::gcm::sample_temporal_policy(",
+        "antecedent::gcm::counterfactual_temporal_policy(",
     ];
     for line in snapshot.lines().filter(|line| line.starts_with("pub fn ")) {
         for name in demoted {
@@ -603,4 +610,224 @@ fn the_demoted_engines_are_not_on_the_public_surface() {
             "{binding} calls a hidden discovery engine instead of the compiled route"
         );
     }
+    for (binding, engines) in [
+        ("python/src/gcm_api.rs", &["facade_replay_noise", "facade_sample_with_noise"][..]),
+        (
+            "python/src/intervention_program_api.rs",
+            &[
+                "facade_counterfactual_policy",
+                "facade_sample_temporal_policy",
+                "facade_counterfactual_temporal_policy",
+                "core.value(",
+            ][..],
+        ),
+        ("python/src/lib.rs", &["facade_sample_do"][..]),
+    ] {
+        let text = std::fs::read_to_string(root.join(binding)).unwrap();
+        for engine in engines {
+            assert!(!text.contains(engine), "{binding} calls the hidden engine {engine}");
+        }
+    }
+}
+
+#[test]
+fn an_accepted_structure_posterior_carries_its_provenance_downstream() {
+    on_large_stack("posterior-provenance", || {
+        let data = chain_table(300, 6);
+        let search = Study::tabular(data.clone())
+            .discovery(
+                DiscoverySpec::exact_dag_posterior(BayesianDiscoverParams::default()),
+                three(),
+            )
+            .build()
+            .unwrap();
+        let execution = CompiledExecution::run(&search, &ctx()).unwrap();
+        let accepted = execution.accept_posterior(&ctx()).unwrap();
+        assert_eq!(&*accepted.provenance().method, "exact_dag_posterior");
+        assert_eq!(&*accepted.provenance().inference, "bayesian");
+        assert_eq!(&*accepted.provenance().review, "posterior");
+        assert_eq!(
+            Some(accepted.provenance().program),
+            execution.lowered_identity().map(|id| *id.as_bytes())
+        );
+        let query = antecedent::AverageEffectQuery::binary_ate(v(1), v(2));
+        let bayesian =
+            || antecedent::InferenceMode::Bayesian(antecedent::BayesianConfig::conjugate());
+        let on_discovered = Study::tabular(data.clone())
+            .accepted_graph_posterior(accepted.clone())
+            .query(query.clone())
+            .inference(bayesian())
+            .refute(antecedent::RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let on_supplied = Study::tabular(data.clone())
+            .graph_posterior(accepted.posterior().clone())
+            .query(query)
+            .inference(bayesian())
+            .refute(antecedent::RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let discovered = on_discovered.inspect().unwrap();
+        let supplied = on_supplied.inspect().unwrap();
+        assert_eq!(discovered.structure_source, StructureSource::GraphPosterior);
+        assert_eq!(discovered.structure_provenance.as_deref(), Some(accepted.provenance()));
+        assert!(supplied.structure_provenance.is_none());
+        assert_eq!(discovered.identities.identification, supplied.identities.identification);
+        // The lowered program reads the provenance as evidence; the supplied posterior adds none.
+        assert_ne!(
+            on_discovered.compile(&ctx()).unwrap().lowered_program_identity(),
+            on_supplied.compile(&ctx()).unwrap().lowered_program_identity()
+        );
+
+        // The most probable atom as a single accepted DAG.
+        let map = accepted.map_dag().unwrap();
+        let map_provenance = map.provenance().expect("the MAP graph keeps the provenance");
+        assert_eq!(&*map_provenance.review, "posterior_map");
+        assert_eq!(map_provenance.claim, accepted.provenance().claim);
+        let best = accepted.posterior().weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        assert!(best > 0.0);
+        // A frequentist search has no posterior to accept.
+        let pc = Study::tabular(data)
+            .discovery(DiscoverySpec::pc(static_params(), "parcorr"), three())
+            .build()
+            .unwrap();
+        assert!(CompiledExecution::run(&pc, &ctx()).unwrap().accept_posterior(&ctx()).is_err());
+    });
+}
+
+#[test]
+fn noise_replay_counterfactual_and_rollout_equal_their_engines() {
+    on_large_stack("model-programs", || {
+        let data = chain_table(200, 12);
+        let fitted = antecedent::gcm::fit_gcm(chain_dag(), &data).unwrap();
+        let run = |target: SimulationTarget| {
+            let study = Study::tabular(data.clone())
+                .graph(chain_dag())
+                .query(CausalQuery::Simulate(SimulateQuery::new(target)))
+                .build()
+                .unwrap();
+            compiled(&study, "GcmSimulateDag")
+        };
+        let bits = |values: &[f64]| values.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+        let interventions: Arc<[Intervention]> =
+            Arc::from([Intervention::set(v(1), Value::f64(0.5))]);
+
+        // Replay of retained noise.
+        let (_, table) =
+            antecedent::gcm::sample_with_noise(&fitted.model, &interventions, 16, &ctx()).unwrap();
+        let noise: Arc<[f64]> = Arc::from(table.values());
+        let replay = run(SimulationTarget::NoiseReplay {
+            interventions: Arc::clone(&interventions),
+            noise: Arc::clone(&noise),
+            n_rows: 16,
+            policy_salt: 3,
+        });
+        let direct_table =
+            antecedent::gcm::noise_table_from_columns(&fitted.model, 16, &noise, &ctx()).unwrap();
+        let direct_replay =
+            antecedent::gcm::replay_noise(&fitted.model, &interventions, &direct_table, 3, &ctx())
+                .unwrap();
+        let Some(SimulationOutcome::Sample(replayed)) =
+            replay.result().simulation().map(|payload| payload.outcome.clone())
+        else {
+            panic!("a replay returns draws");
+        };
+        assert_eq!(bits(&replayed.values[..]), bits(&direct_replay.values[..]));
+
+        // Counterfactual values of the factual rows.
+        let counterfactual = run(SimulationTarget::Counterfactual {
+            interventions: Arc::clone(&interventions),
+            outcomes: Arc::from([v(2)]),
+        });
+        let direct_counterfactual = antecedent::gcm::counterfactual_policy(
+            fitted.model.clone(),
+            &data,
+            &interventions,
+            &[v(2)],
+            &ctx(),
+        )
+        .unwrap();
+        let Some(SimulationOutcome::Counterfactual(values)) =
+            counterfactual.result().simulation().map(|payload| payload.outcome.clone())
+        else {
+            panic!("a counterfactual returns its values");
+        };
+        assert_eq!(bits(&values.values[..]), bits(&direct_counterfactual.values[..]));
+
+        // A seeded rollout.
+        let schedule = antecedent_core::InterventionSequence::new(vec![
+            antecedent_core::SequencedIntervention::new(
+                Intervention::set(v(0), Value::f64(1.0)),
+                antecedent_core::TemporalPolicy::sustained(0, 3),
+            ),
+        ]);
+        let rollout = run(SimulationTarget::TemporalRollout {
+            schedule: schedule.clone(),
+            n_rows: 4,
+            n_steps: 3,
+            window: 0,
+            history: Arc::from([]),
+            seed: 5,
+        });
+        let plan = antecedent::gcm::TemporalPlan {
+            sequence: &schedule,
+            n_steps: 3,
+            n_rows: 4,
+            window: 0,
+            initial_history: &[],
+        };
+        let mut rng = CausalRng::from_seed(5);
+        let direct_path =
+            antecedent::gcm::sample_temporal_policy(&fitted.model, &plan, &mut rng, &ctx())
+                .unwrap();
+        let Some(SimulationOutcome::Temporal(path)) =
+            rollout.result().simulation().map(|payload| payload.outcome.clone())
+        else {
+            panic!("a rollout returns its path");
+        };
+        assert_eq!(path.steps.len(), direct_path.steps.len());
+        for (compiled_step, direct_step) in path.steps.iter().zip(&direct_path.steps) {
+            assert_eq!(bits(&compiled_step.values[..]), bits(&direct_step.values[..]));
+        }
+    });
+}
+
+#[test]
+fn wrapped_mechanisms_name_themselves_in_the_program() {
+    on_large_stack("wrapped-program", || {
+        let data = chain_table(120, 13);
+        let fitted = Arc::new(antecedent::gcm::fit_gcm(chain_dag(), &data).unwrap());
+        let standard = antecedent::MechanismProgram::standard();
+        let wrapped = antecedent::MechanismProgram::standard().with_wrapped_prefit(
+            Arc::clone(&fitted),
+            &data,
+            &["y"],
+        );
+        assert!(wrapped.label().starts_with("gcm.registry.wrapped."));
+        assert_ne!(wrapped.label(), standard.label());
+        let target = SimulationTarget::InterventionalSample {
+            interventions: Arc::from([Intervention::set(v(1), Value::f64(1.0))]),
+            draws: 8,
+            seed: 1,
+        };
+        let build = |program: antecedent::MechanismProgram, rows: TabularData| {
+            Study::tabular(rows)
+                .graph(chain_dag())
+                .query(CausalQuery::Simulate(SimulateQuery::new(target.clone())))
+                .mechanisms(program)
+                .build()
+                .unwrap()
+        };
+        let on_wrapped = build(wrapped.clone(), data.clone());
+        let on_standard = build(standard, data);
+        assert_ne!(
+            on_wrapped.compile(&ctx()).unwrap().lowered_program_identity(),
+            on_standard.compile(&ctx()).unwrap().lowered_program_identity()
+        );
+        // A wrapped model never refits on other rows.
+        let other = build(wrapped, chain_table(120, 14));
+        assert!(CompiledExecution::run(&other, &ctx()).is_err());
+    });
 }

@@ -471,6 +471,7 @@ pub field antecedent_attribution::ShapleyEstimate::values: alloc::vec::Vec<f64>
 pub field antecedent_attribution::SourceInfluence::contribution: f64
 pub field antecedent_attribution::SourceInfluence::source: antecedent_core::ids::ComponentId
 pub field antecedent_attribution::SourceInfluence::uncertainty: alloc::sync::Arc<[antecedent_attribution::ComponentUncertainty]>
+pub field antecedent_attribution::SourceInfluence::whole_procedure: antecedent_attribution::ComponentStatus
 pub field antecedent_attribution::StructureChangeOptions::measure: antecedent_attribution::DifferenceMeasure
 pub field antecedent_attribution::StructureChangeOptions::n_samples: usize
 pub field antecedent_attribution::StructureChangeOptions::seed: u64

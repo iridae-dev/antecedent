@@ -443,6 +443,8 @@ pub struct MechanismProgram {
     options: SelectionOptions,
     candidates: Option<Arc<[Arc<str>]>>,
     prefit: Option<(Arc<FittedGcm>, [u8; 32])>,
+    /// Variables whose fitted mechanism the caller replaced with its own code.
+    wrapped: Option<Arc<[Arc<str>]>>,
 }
 
 // A user-supplied mechanism is only ever called through a boundary that contains its panic and
@@ -474,6 +476,7 @@ impl MechanismProgram {
             options: SelectionOptions::default(),
             candidates: None,
             prefit: None,
+            wrapped: None,
         }
     }
 
@@ -492,6 +495,7 @@ impl MechanismProgram {
             options,
             candidates: Some(candidates.iter().map(|token| Arc::from(*token)).collect()),
             prefit: None,
+            wrapped: None,
         })
     }
 
@@ -510,9 +514,31 @@ impl MechanismProgram {
         self
     }
 
+    /// Reuse `fitted`, made under this program on `rows` and then with the
+    /// mechanisms of `wrapped` replaced by caller code. The route never
+    /// refits such a model: on any other rows it refuses. The wrapped
+    /// variables enter the program's label, so the program identity says that
+    /// caller code, not a fitted family, produced those mechanisms.
+    #[must_use]
+    pub fn with_wrapped_prefit(
+        mut self,
+        fitted: Arc<FittedGcm>,
+        rows: &TabularData,
+        wrapped: &[&str],
+    ) -> Self {
+        let mut names: Vec<Arc<str>> = wrapped.iter().map(|name| Arc::from(*name)).collect();
+        names.sort_unstable();
+        names.dedup();
+        self.prefit = Some((fitted, rows.storage().content_digest()));
+        self.wrapped = Some(Arc::from(names));
+        self
+    }
+
     /// Whether the program is the standard registry with default selection.
     fn is_standard(&self) -> bool {
-        self.candidates.is_none() && self.options == SelectionOptions::default()
+        self.candidates.is_none()
+            && self.wrapped.is_none()
+            && self.options == SelectionOptions::default()
     }
 
     /// Stable label of the candidate set and selection rule, for the
@@ -535,6 +561,10 @@ impl MechanismProgram {
             }
         }
         writer.text(&format!("{:?}", self.options));
+        if let Some(wrapped) = &self.wrapped {
+            writer.texts(&wrapped[..]);
+            return format!("gcm.registry.wrapped.{}", &writer.finish_hex()[..16]);
+        }
         format!("gcm.registry.declared.{}", &writer.finish_hex()[..16])
     }
 
@@ -549,6 +579,13 @@ impl MechanismProgram {
             if *rows == data.storage().content_digest() {
                 return Ok(Arc::clone(fitted));
             }
+        }
+        if self.wrapped.is_some() {
+            return Err(crate::compile_reason!(
+                "invalid_argument",
+                "a model with caller-wrapped mechanisms runs only on the rows it was fitted on; \
+                 refit and wrap it on these rows"
+            ));
         }
         let fitted = if self.is_standard() {
             crate::gcm::fit_gcm(graph.clone(), data)?
@@ -747,6 +784,17 @@ pub enum SimulationOutcome {
     PolicyValue(PolicyValue),
     /// Unit-level effects after abduction.
     UnitEffects(IteResult),
+    /// Interventional draws with the exogenous noise that produced them.
+    NoiseSample {
+        /// The draws.
+        draws: ValueBatch,
+        /// The noise, replayable through [`SimulationTarget::NoiseReplay`].
+        noise: crate::gcm::NoiseTable,
+    },
+    /// Counterfactual values of the factual rows (world × node × unit).
+    Counterfactual(crate::gcm::CounterfactualResult),
+    /// Realised values of every step of a rollout or panel replay.
+    Temporal(crate::gcm::TemporalPath),
 }
 
 /// The answer of a compiled simulation and the mechanisms it ran on.
@@ -1305,7 +1353,137 @@ pub(crate) fn run_simulate(
                 ctx,
             )?)
         }
+        SimulationTarget::NoiseSample { interventions, draws } => {
+            let (draws, noise) =
+                crate::gcm::sample_with_noise(&fitted.model, interventions, *draws, ctx)?;
+            SimulationOutcome::NoiseSample { draws, noise }
+        }
+        SimulationTarget::NoiseReplay { interventions, noise, n_rows, policy_salt } => {
+            let table = crate::gcm::noise_table_from_columns(&fitted.model, *n_rows, noise, ctx)?;
+            SimulationOutcome::Sample(crate::gcm::replay_noise(
+                &fitted.model,
+                interventions,
+                &table,
+                *policy_salt,
+                ctx,
+            )?)
+        }
+        SimulationTarget::Counterfactual { interventions, outcomes } => {
+            SimulationOutcome::Counterfactual(crate::gcm::counterfactual_policy(
+                fitted.model.clone(),
+                data,
+                interventions,
+                outcomes,
+                ctx,
+            )?)
+        }
+        SimulationTarget::TemporalRollout { schedule, n_rows, n_steps, window, history, seed } => {
+            let initial = history_batches(fitted, history, *n_rows)?;
+            let plan = crate::gcm::TemporalPlan {
+                sequence: schedule,
+                n_steps: *n_steps,
+                n_rows: *n_rows,
+                window: *window,
+                initial_history: &initial,
+            };
+            let mut rng = CausalRng::from_seed(*seed);
+            SimulationOutcome::Temporal(crate::gcm::sample_temporal_policy(
+                &fitted.model,
+                &plan,
+                &mut rng,
+                ctx,
+            )?)
+        }
+        SimulationTarget::TemporalCounterfactual {
+            schedule,
+            n_rows,
+            n_steps,
+            window,
+            panel,
+            history,
+        } => {
+            let initial = history_batches(fitted, history, *n_rows)?;
+            let tables = panel_tables(data, panel, *n_rows, *n_steps)?;
+            let plan = crate::gcm::TemporalPlan {
+                sequence: schedule,
+                n_steps: *n_steps,
+                n_rows: *n_rows,
+                window: *window,
+                initial_history: &initial,
+            };
+            SimulationOutcome::Temporal(crate::gcm::counterfactual_temporal_policy(
+                fitted.model.clone(),
+                &tables,
+                &plan,
+                ctx,
+            )?)
+        }
     })
+}
+
+/// Rows a simulation draws or replays, for its admission quote.
+pub(crate) fn simulated_rows(target: &SimulationTarget, data_rows: u64) -> u64 {
+    match target {
+        SimulationTarget::InterventionalSample { draws, .. }
+        | SimulationTarget::PolicyValue { draws, .. }
+        | SimulationTarget::NoiseSample { draws, .. } => *draws as u64,
+        SimulationTarget::NoiseReplay { n_rows, .. } => *n_rows as u64,
+        SimulationTarget::UnitEffects { .. } | SimulationTarget::Counterfactual { .. } => data_rows,
+        SimulationTarget::TemporalRollout { n_rows, n_steps, .. }
+        | SimulationTarget::TemporalCounterfactual { n_rows, n_steps, .. } => {
+            (*n_rows as u64).saturating_mul(*n_steps as u64)
+        }
+    }
+}
+
+/// Steps before time zero, most recent first, as one batch per step over every model node.
+fn history_batches(
+    fitted: &FittedGcm,
+    history: &[f64],
+    n_rows: usize,
+) -> Result<Vec<ValueBatch>, CausalError> {
+    let n_nodes = fitted.model.n_nodes();
+    let width = n_nodes.saturating_mul(n_rows);
+    if width == 0 || history.len() % width != 0 {
+        return Err(crate::compile_reason!(
+            "invalid_argument",
+            "rollout history needs {n_rows} values for each of the model's {n_nodes} variables \
+             at every step"
+        ));
+    }
+    Ok(history
+        .chunks(width)
+        .map(|step| ValueBatch { n_rows, n_nodes, values: Arc::from(step) })
+        .collect())
+}
+
+/// The factual panel as one table per step, columns named as the study's schema.
+fn panel_tables(
+    data: &TabularData,
+    panel: &[f64],
+    n_rows: usize,
+    n_steps: usize,
+) -> Result<Vec<TabularData>, CausalError> {
+    let names: Vec<String> =
+        data.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
+    let width = names.len().saturating_mul(n_rows);
+    if width == 0 || panel.len() != width.saturating_mul(n_steps) {
+        return Err(crate::compile_reason!(
+            "invalid_argument",
+            "the panel needs {n_rows} values for each of the {} schema variables at each of \
+             {n_steps} steps",
+            names.len()
+        ));
+    }
+    panel
+        .chunks(width)
+        .map(|step| {
+            TabularData::from_f64_columns(
+                names.iter().zip(step.chunks(n_rows)).map(|(name, column)| (name.as_str(), column)),
+            )
+            .map_err(CausalError::from)
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -1387,6 +1565,180 @@ pub fn accept_discovered(
         resolved_marks: pending,
     };
     Ok(accepted.with_provenance(Arc::new(provenance)))
+}
+
+/// A structure posterior accepted from a compiled discovery, with the search's
+/// provenance.
+///
+/// A study takes it through [`crate::StudyBuilder::accepted_graph_posterior`]:
+/// the posterior's atoms and weights become the study's graph posterior and
+/// the provenance enters its contract and program identity.
+/// [`Self::map_dag`] instead keeps the single most probable DAG as an
+/// accepted graph.
+#[derive(Clone, Debug)]
+pub struct AcceptedPosterior {
+    posterior: GraphPosterior,
+    provenance: Arc<StructureProvenance>,
+    temporal: bool,
+}
+
+impl AcceptedPosterior {
+    /// The posterior over structures.
+    #[must_use]
+    pub const fn posterior(&self) -> &GraphPosterior {
+        &self.posterior
+    }
+
+    /// The search and acceptance this posterior came from.
+    #[must_use]
+    pub fn provenance(&self) -> &StructureProvenance {
+        &self.provenance
+    }
+
+    /// The posterior and its provenance.
+    pub(crate) fn into_parts(self) -> (GraphPosterior, Arc<StructureProvenance>) {
+        (self.posterior, self.provenance)
+    }
+
+    /// The most probable DAG atom as an accepted static graph, carrying the
+    /// posterior's provenance with the review recorded as `posterior_map`.
+    /// Ties go to the first atom in the posterior's order.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_supported` for a temporal posterior, for atoms that are not
+    /// DAGs, or for a search over a variable list that is not the schema's
+    /// columns in order (the atoms index the searched variables by position);
+    /// the posterior's own refusals for an atom that is not acyclic.
+    pub fn map_dag(&self) -> Result<AcceptedGraph, CausalError> {
+        if self.temporal {
+            return Err(crate::compile_reason!(
+                "route_not_supported",
+                "a temporal structure posterior has no single static DAG; supply it as a graph \
+                 posterior instead"
+            ));
+        }
+        if self.posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Dag {
+            return Err(crate::compile_reason!(
+                "route_not_supported",
+                "the posterior's atoms are not DAGs; supply it as a graph posterior instead"
+            ));
+        }
+        let best = self
+            .posterior
+            .weights
+            .iter()
+            .enumerate()
+            .fold(None::<(usize, f64)>, |best, (index, &weight)| match best {
+                Some((_, top)) if top >= weight => best,
+                _ => Some((index, weight)),
+            })
+            .map(|(index, _)| index)
+            .ok_or_else(|| {
+                crate::compile_reason!("invalid_argument", "the structure posterior has no atoms")
+            })?;
+        let mask = self.posterior.atoms[best];
+        let dag = antecedent_discovery::adjacency_mask::dag_from_adjacency_mask(
+            mask,
+            self.posterior.n_vars,
+        )?;
+        let mut provenance = (*self.provenance).clone();
+        provenance.review = Arc::from("posterior_map");
+        let mut accepted = AcceptedGraph::dag(dag);
+        if let Some(algorithm) = self.posterior.algorithm.as_deref() {
+            accepted = accepted.with_discovery_algorithm(algorithm);
+        }
+        Ok(accepted.with_provenance(Arc::new(provenance)))
+    }
+}
+
+/// Accept the structure posterior an executed discovery returned, recording
+/// where it came from.
+///
+/// `result` must be the stamped result of a prepared discovery handle whose
+/// method samples or enumerates a posterior, and `claim` the claim sealed over
+/// it. A posterior has no pending marks, so the review is recorded as
+/// `posterior`.
+///
+/// # Errors
+///
+/// A result that is not an executed structure posterior, that no prepared
+/// handle stamped, or whose claim seals another execution; and a searched
+/// variable list that is not the schema's columns in order.
+pub fn accept_discovered_posterior(
+    result: &StudyResult,
+    claim: &ClaimEnvelope,
+) -> Result<AcceptedPosterior, CausalError> {
+    let payload = result.discovery().ok_or(CausalError::Conflict {
+        what: "result",
+        detail: "the result is not an executed structure search",
+    })?;
+    let DiscoveredStructure::Posterior(posterior) = &payload.structure else {
+        return Err(crate::compile_reason!(
+            "route_not_supported",
+            "the {} search returned no structure posterior; accept it with accept_discovered",
+            payload.query.method.id()
+        ));
+    };
+    let executed = result.executed_contract.as_ref().ok_or(CausalError::Conflict {
+        what: "result",
+        detail: "the discovery result carries no execution stamp; accept the result of a \
+                 prepared discovery handle",
+    })?;
+    if executed.identities != claim.identities {
+        return Err(CausalError::Conflict {
+            what: "claim",
+            detail: "the claim seals another execution than this discovery result",
+        });
+    }
+    let program = result.lowered_identity.ok_or(CausalError::Conflict {
+        what: "result",
+        detail: "the discovery result carries no lowered program identity",
+    })?;
+    let positional = payload
+        .query
+        .variables
+        .iter()
+        .enumerate()
+        .all(|(index, variable)| variable.raw() as usize == index);
+    if !positional {
+        return Err(crate::compile_reason!(
+            "route_not_supported",
+            "the posterior's atoms index the searched variables by position; search the \
+             schema's columns in order to accept the posterior as the study's structure"
+        ));
+    }
+    let provenance = StructureProvenance {
+        method: Arc::from(payload.query.method.id()),
+        inference: Arc::from(payload.query.inference().as_str()),
+        discovered_class: Arc::from(payload.query.output().as_str()),
+        query: query_digest(&payload.query),
+        search_bounds: Arc::from(bounds_label(&payload.query)),
+        data_snapshot: *executed.identities.data_snapshot.as_bytes(),
+        program: *program.as_bytes(),
+        claim: *claim.claim_id.as_bytes(),
+        review: Arc::from("posterior"),
+        resolved_marks: 0,
+    };
+    Ok(AcceptedPosterior {
+        posterior: posterior.clone(),
+        provenance: Arc::new(provenance),
+        temporal: payload.query.method.is_temporal(),
+    })
+}
+
+impl crate::Study {
+    /// Provenance of the structure this study reads, when it was accepted
+    /// from a compiled discovery: on its accepted graph, or on its accepted
+    /// graph posterior.
+    pub(crate) fn structure_provenance(&self) -> Option<&StructureProvenance> {
+        self.graph.provenance().or(self.config.posterior_provenance.as_deref())
+    }
+
+    /// Shared handle of [`Self::structure_provenance`].
+    pub(crate) fn structure_provenance_shared(&self) -> Option<Arc<StructureProvenance>> {
+        self.graph.provenance_shared().or_else(|| self.config.posterior_provenance.clone())
+    }
 }
 
 /// Attach the executable specifications a builder carried to the study it built.
@@ -1520,6 +1872,19 @@ impl CompiledExecution {
 }
 
 impl CompiledExecution {
+    /// Accept the discovered structure posterior, recording its provenance.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`accept_discovered_posterior`] and of the contract and claim.
+    pub fn accept_posterior(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<AcceptedPosterior, CausalError> {
+        let (_, claim) = self.contract_and_claim(ctx)?;
+        accept_discovered_posterior(&self.result, &claim)
+    }
+
     /// Accept the discovered structure as a fully oriented static DAG, the
     /// structure a mechanism fit needs, keeping its algorithm id and provenance.
     ///
