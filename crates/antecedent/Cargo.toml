@@ -666,6 +666,10 @@ name = "temporal_design_routes"
 path = "tests/temporal_design_routes.rs"
 
 [[test]]
+name = "lag_zero_average_effect"
+path = "tests/lag_zero_average_effect.rs"
+
+[[test]]
 name = "panel_link_contrast_route"
 path = "tests/panel_link_contrast_route.rs"
 

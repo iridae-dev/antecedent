@@ -487,6 +487,8 @@ impl PreparedStudy {
         } else {
             None
         };
+        // The second click ran this handle's own program on its own result.
+        crate::analysis::target_validation::stamp_route_refutations(&mut out);
         Ok(out)
     }
 
@@ -559,11 +561,15 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_series_compatible(data)?;
         let input = series_input(&self.analysis.data, data.clone());
-        let result =
+        let mut result =
             match self.run_sealed_series(&self.analysis, &input, ctx, SeriesEntry::Estimate)? {
                 Some(result) => result,
                 None => self.analysis.execute_on(&input, &self.plan, ctx)?,
             };
+        crate::analysis::execute::push_lag_zero_average_effect_disclosure(
+            &self.analysis,
+            &mut result,
+        );
         self.stamp(&input, result)
     }
 

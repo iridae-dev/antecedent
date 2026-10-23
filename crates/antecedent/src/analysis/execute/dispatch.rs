@@ -614,12 +614,14 @@ impl super::Study {
             _ => self.execute_on_inner(data, physical, ctx)?,
         };
         push_gaussian_likelihood_disclosure(&mut result, &self.inference, data);
+        push_lag_zero_average_effect_disclosure(self, &mut result);
         result.custom_validator_names = self
             .custom_validators
             .iter()
             .map(|validator| std::sync::Arc::from(validator.name()))
             .collect();
         result.lowered_identity = Some(lowered);
+        crate::analysis::target_validation::stamp_route_refutations(&mut result);
         Ok(result)
     }
 
@@ -893,6 +895,7 @@ impl super::Study {
             self.execute_tabular_route(route, data, physical, execution, ctx)?
         };
         result.lowered_identity = Some(lowered);
+        crate::analysis::target_validation::stamp_route_refutations(&mut result);
         Ok(result)
     }
 
@@ -2566,6 +2569,41 @@ pub(crate) fn push_gaussian_likelihood_disclosure(
     if let Some(disclosure) = gaussian_likelihood_disclosure(inference, data, result.outcome) {
         result.diagnostics.push(disclosure);
     }
+}
+
+/// Disclose that a requested `AverageEffect` on a temporal graph was compiled and executed as
+/// its lag-0 pulse contrast, and that the result is unlicensed.
+pub(crate) fn push_lag_zero_average_effect_disclosure(
+    study: &crate::Study,
+    result: &mut StudyResult,
+) {
+    const CODE: &str = "estimate.temporal_class.lag_zero_average_effect";
+    let Some(average) = study.lag_zero_average_effect.as_ref() else {
+        return;
+    };
+    if result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == CODE) {
+        return;
+    }
+    let treatment = average.treatment.raw().to_string();
+    let outcome = average.outcome.raw().to_string();
+    result.diagnostics.push(
+        Diagnostic::new(
+            CODE,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "the AverageEffect on series data under a temporal graph denotes the lag-0 \
+             contrast E[Y_t | do(X_t = active)] - E[Y_t | do(X_t = control)]; it was compiled \
+             as the pulse at offset 0 read at horizon 1 and identified on every completion of \
+             the graph. The AverageEffect cell on a temporal graph is unlicensed: the result \
+             reports support status refused and no coverage record names it"
+                .to_owned(),
+        )
+        .with_fields([
+            ("treatment", treatment.as_str()),
+            ("outcome", outcome.as_str()),
+            ("compiled_as", "PulseEffect(offset=0, horizon_steps=1)"),
+        ]),
+    );
 }
 
 /// Disclose a Gaussian likelihood fitted to a binary or count outcome.

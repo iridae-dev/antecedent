@@ -2133,6 +2133,7 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
+        as_average_effect: bool = False,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_temporal_mediation(
@@ -7361,6 +7362,29 @@ def measurement_model_transport_verify(
     binding_json: str,
     expected_identity: str,
 ) -> tuple[str | None, str | None]: ...
+
+class PooledDifferentialSection:
+    target_population: str
+    prevalence: float
+    interval: tuple[float, float]
+    sensitivity: tuple[float, float, float, float, float]
+    specificity: tuple[float, float, float, float, float]
+    discarded_draws: int
+    truncated_draws: int
+    draws: list[float]
+    calibration: str
+
+def measurement_pooled_differential_transport(
+    sources: list[tuple[str, int, int, int, int]],
+    target_population: str,
+    observed_positive: int,
+    observed_total: int,
+    *,
+    target_validation: tuple[int, int, int, int] | None = None,
+    draws: int = 4000,
+    seed: int = 1,
+    threads: int | None = None,
+) -> PooledDifferentialSection: ...
 
 class PreparedBridgeHandle:
     def contract_json(self) -> str: ...

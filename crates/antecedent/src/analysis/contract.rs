@@ -1250,9 +1250,11 @@ impl StudyResult {
                 detail: "result was not executed under this contract",
             });
         }
-        // A scalar average-effect refutation does not certify another target: a claim on a
+        // A refutation this result's own program did not produce can only be a scalar
+        // average-effect refutation, and it does not certify another target: a claim on a
         // conditional, derivative, temporal-vector, mediation, world-valued or joint target
-        // refuses one, naming the target-native suite as the next attempt.
+        // refuses one, naming the target-native suite as the next attempt. Route-native
+        // reports carry the producing program's stamp and pass.
         super::target_validation::refuse_scalar_refutations_for_result(self)
             .map_err(|error| CausalError::Compile { message: error.to_string() })?;
         let mut body = body_for(&contract.body, self)?;
@@ -1308,6 +1310,7 @@ impl StudyResult {
             || self.sequential_contrast().is_some()
             || self.history_match().is_some()
             || self.quasi_rollout().is_some()
+            || self.temporal_design().is_some()
         {
             // These non-effect result families report no calibrated scalar
             // effect interval. Their uncertainty semantics live in their
@@ -1907,8 +1910,7 @@ fn program_payloads(
         checked_functional_response_grid: lowerings.functional_response_grid,
         checked_nested_counterfactual: lowerings.nested_counterfactual,
         structure_provenance: study
-            .graph
-            .provenance()
+            .structure_provenance()
             .map(crate::accepted::StructureProvenance::digest),
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
@@ -2090,7 +2092,7 @@ fn compile_with_payloads(
             structure_source: study.structure_source,
             accepted_version: study.graph.version(),
             discovery_algorithm: study.graph.algorithm_id().map(Arc::from),
-            structure_provenance: study.graph.provenance_shared(),
+            structure_provenance: study.structure_provenance_shared(),
             accepted_variable_names: study.graph.variable_names().map(Arc::from),
             support_status: study.support_status,
             identifier: study.identifier.map(|id| Arc::from(id.as_str())),
@@ -3113,8 +3115,10 @@ fn identifies_per_execution(study: &Study) -> bool {
 }
 
 pub(crate) fn matrix_coordinate(study: &Study) -> Option<String> {
+    // A lag-0 AverageEffect on a temporal graph runs as its pulse; its cell is the AverageEffect.
+    let requested = study.lag_zero_average_effect.clone().map(CausalQuery::AverageEffect);
     let cell = crate::support::support_cell_named(
-        &study.query,
+        requested.as_ref().unwrap_or(&study.query),
         if study.graph_posterior.is_some() {
             study.graph.class().as_str()
         } else {
@@ -3530,6 +3534,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         longitudinal_regime: result.longitudinal_regime().map(Into::into),
         sequential_contrast: result.sequential_contrast().map(Into::into),
         history_match: result.history_match().map(Into::into),
+        quasi_rollout: result.quasi_rollout().map(Into::into),
+        temporal_design: result.temporal_design().map(Into::into),
         interference_inference: result.interference_inference().map(Into::into),
         interventional_distribution: result.distribution().map(distribution_wire),
         // A standard error describes the published scalar; none rides without it.

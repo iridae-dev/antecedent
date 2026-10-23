@@ -63,6 +63,9 @@ Transport and counterfactual:
   ``temporal_counterfactual`` is its fixed-population temporal counterpart, ``cross_world`` is the
   path-specific edge intervention on a Markovian DAG and ``counterfactual_id`` the effect of
   treatment on the treated on a bounded ADMG;
+* ``temporal_designs`` estimates the excursion effects of sequentially randomized unit-period
+  designs (two arms, several arms, factorial, interference, dose, quantile) and static-regime
+  survival on subject trajectories;
 * ``transported_response`` carries a response value to a target population with its transport
   receipt and decides on it, ``transported_constructors`` builds those responses from checked
   inputs, ``transport_handoff`` seals the connection of a transported claim to a callback input,

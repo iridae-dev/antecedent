@@ -814,6 +814,56 @@ class _PrepareRoute:
         return native, response_kind
 
     # -- static average / conditional ------------------------------------------
+    def _lag_zero_average(self, functional: Any) -> tuple[Any, Any]:
+        """An AverageEffect on one series under a temporal graph: the lag-0 contrast.
+
+        It is compiled as the pulse at offset 0 read at horizon 1 and keeps the
+        AverageEffect support cell, which executes and is unlicensed (``support_status``
+        ``"refused"``); the result carries ``estimate.temporal_class.lag_zero_average_effect``.
+        """
+        query, graph = self.query, self.graph
+        if functional is not None:
+            raise CausalUnsupportedError(
+                "a lag-0 AverageEffect on a temporal graph is the mean contrast. Next attempt: "
+                "a temporal ResponseCurve for another functional",
+                reason_code="route_not_supported",
+            )
+        if getattr(query, "target_population", None) is not None:
+            raise CausalUnsupportedError(
+                "a lag-0 AverageEffect on a temporal graph is the contrast over all observed "
+                "periods; omit target_population",
+                reason_code="route_not_supported",
+            )
+        try:
+            control, active = float(query.control_level), float(query.active_level)
+        except (TypeError, ValueError) as error:
+            raise CausalValueError(
+                "a lag-0 AverageEffect on a temporal graph takes numeric control and active levels"
+            ) from error
+        self._refuse_estimator_config("AverageEffect on a temporal graph (lag-0 pulse)")
+        self._select_ids()
+        class_graph = graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None
+        lagged = [] if class_graph is not None else _lagged_edges(graph)
+        native = _NativePreparedAnalysis.prepare_temporal_effect(
+            self.names,
+            self.columns,
+            lagged,
+            query.treatment,
+            query.outcome,
+            policy="pulse",
+            treatment_lag=0,
+            horizon_steps=1,
+            control_level=control,
+            active_level=active,
+            accepted=self.accepted,
+            class_graph=class_graph,
+            as_average_effect=True,
+            **_class_prior_kwargs(self.class_prior),
+            **_max_completions_kwargs(self.max_completions),
+            **self._common(),
+        )
+        return native, "average"
+
     def _average(self) -> tuple[Any, Any]:
         from .query import coerce_outcome_functional
 
@@ -826,6 +876,8 @@ class _PrepareRoute:
                 reason_code="option_not_applicable",
             )
         functional = coerce_outcome_functional(getattr(query, "outcome_functional", None))
+        if isinstance(graph, (TemporalDag, TemporalCpdag, TemporalPag)):
+            return self._lag_zero_average(functional)
         if isinstance(graph, TieredBackground):
             if self.identifier is not None:
                 raise CausalUnsupportedError(

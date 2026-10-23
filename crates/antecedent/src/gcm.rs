@@ -718,6 +718,7 @@ pub fn sample_do(
 /// # Errors
 ///
 /// Abduction / prediction failures, or a refused policy.
+#[doc(hidden)]
 pub fn counterfactual_policy(
     model: CompiledCausalModel,
     data: &TabularData,
@@ -745,6 +746,7 @@ pub fn counterfactual_policy(
 ///
 /// Abduction failures at any step, noise that does not match the model, rows or steps, a policy
 /// reading history that does not exist yet, or a refused program.
+#[doc(hidden)]
 pub fn counterfactual_temporal_policy(
     model: CompiledCausalModel,
     steps: &[TabularData],
@@ -768,6 +770,7 @@ pub fn counterfactual_temporal_policy(
 ///
 /// An invalid intervention set, an unfitted mechanism that is not hard-set, a table over the
 /// context's memory limit, or cancellation.
+#[doc(hidden)]
 pub fn sample_with_noise(
     model: &CompiledCausalModel,
     interventions: &[Intervention],
@@ -785,6 +788,7 @@ pub fn sample_with_noise(
 /// # Errors
 ///
 /// A shape mismatch, an invalid noise value, or a table over the context's memory limit.
+#[doc(hidden)]
 pub fn noise_table_from_columns(
     model: &CompiledCausalModel,
     n_rows: usize,
@@ -816,6 +820,7 @@ pub fn noise_table_from_columns(
 ///
 /// An invalid intervention set, a table of another model's width, a mechanism that refuses its
 /// noise, a table over the context's memory limit, or cancellation.
+#[doc(hidden)]
 pub fn replay_noise(
     model: &CompiledCausalModel,
     interventions: &[Intervention],
@@ -1028,6 +1033,7 @@ impl PreparedPolicy {
     ///
     /// An outcome absent from the model, fewer than two draws, a table over the context's
     /// memory limit, or cancellation.
+    #[doc(hidden)]
     pub fn value(
         &self,
         model: &CompiledCausalModel,
@@ -1048,6 +1054,7 @@ impl PreparedPolicy {
 ///
 /// Rollout failures: shape, a policy reading history that does not exist yet, or a refused
 /// program.
+#[doc(hidden)]
 pub fn sample_temporal_policy(
     model: &CompiledCausalModel,
     plan: &TemporalPlan<'_>,

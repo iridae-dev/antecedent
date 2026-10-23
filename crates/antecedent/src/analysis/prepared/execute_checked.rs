@@ -52,6 +52,7 @@ impl PreparedStudy {
         result: &mut StudyResult,
     ) -> Result<(), CausalError> {
         result.lowered_identity = Some(self.plan.require_lowered(None)?.identity());
+        crate::analysis::target_validation::stamp_route_refutations(result);
         if let (DataInput::Tabular(tabular), Some(MissingRoute::Static)) =
             (data, MissingRoute::of(&self.study().query, &self.study().data))
         {

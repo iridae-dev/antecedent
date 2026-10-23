@@ -204,6 +204,8 @@ fn fixture_body() -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
         longitudinal_regime: None,
         sequential_contrast: None,
         history_match: None,
+        quasi_rollout: None,
+        temporal_design: None,
         interference_inference: None,
         interventional_distribution: None,
         standard_error: Some(0.1),

@@ -122,6 +122,7 @@ mod observational_policy_api;
 mod observational_survival_api;
 mod planning_api;
 mod policy_api;
+mod pooled_measurement_api;
 mod predictive_assessment_api;
 mod preflight_api;
 mod prepared_api;
@@ -254,7 +255,7 @@ use antecedent::discovery::{
 };
 use antecedent::error::PendingEdge as FacadePendingEdge;
 use antecedent::estimate::{TemporalLinearPredictor, TemporalMediationEstimator};
-use antecedent::gcm::{fit_gcm, sample_do as facade_sample_do};
+use antecedent::gcm::fit_gcm;
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::review::{PendingCpdagReview, PendingGraphReview};
 use antecedent::{
@@ -262,11 +263,11 @@ use antecedent::{
     Study,
 };
 use antecedent_core::{
-    AllocationMethod, AttributionComponents, CachePolicy, CausalRng, ChangeAttributionQuery,
-    DistributionRef, ExecutionContext, Intervention, KernelPolicy, Lag, MechanismChangeQuery,
-    MediationContrast, MediationQuery, PopulationRegistry, PopulationSelector, PredicateExpr,
-    RegimeId, SchemaError, ShapleyConfig, TargetPopulation, TemporalEffectQuery, TemporalPolicy,
-    UnitChangeQuery, VERSION, Value, VariableId,
+    AllocationMethod, AttributionComponents, CachePolicy, ChangeAttributionQuery, DistributionRef,
+    ExecutionContext, Intervention, KernelPolicy, Lag, MechanismChangeQuery, MediationContrast,
+    MediationQuery, PopulationRegistry, PopulationSelector, PredicateExpr, RegimeId, SchemaError,
+    ShapleyConfig, TargetPopulation, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION,
+    Value, VariableId,
 };
 use antecedent_data::{
     DataError, MultiEnvironmentData, TableView, TimeSeriesData, tabular_from_arrow_c_columns,

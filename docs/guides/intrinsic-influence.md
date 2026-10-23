@@ -65,9 +65,10 @@ slightly negative. Without the correction every contribution would be shrunk by
 - `method` and `budget`: the allocation (exact or permutation sampling with its count and
   seed), the draw counts, the coalition values simulated and the rows replayed.
 
-### Three uncertainty components, never combined
+### Three uncertainty components and the whole procedure
 
-Every interval names the component it covers. There is no total interval.
+Every component interval names the component it covers; components are never summed into
+one another. The whole procedure is measured separately (below).
 
 | Component | What varies | How it is measured |
 | --- | --- | --- |
@@ -85,6 +86,17 @@ Student-t intervals on those standard errors and are uncalibrated diagnostics: n
 coverage claim is made. `SourceInfluence::quantified_stderr` adds the quantified
 components in quadrature for comparison with a known value and lists the components it
 leaves out; it is a total only when that list is empty.
+
+### Whole-procedure uncertainty
+
+With `fit_bootstrap` and data, each source also reports `whole_procedure`. It is the spread
+of the full attribution across the row-bootstrap refits: each refit resamples the rows,
+re-selects and refits every mechanism and simulates fresh batches. The permutation
+variance is added because the permutations stay fixed across refits. This is the
+uncertainty of the procedure under the declared design (independent rows), not a sum of
+the components. It is a Student-t interval with `fit_bootstrap - 1` degrees of freedom. It
+is uncalibrated and unlicensed: no coverage record stands behind it. It is `unquantified`,
+with the mechanism-fit reason, when no bootstrap ran.
 
 ## Example
 

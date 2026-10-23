@@ -80,7 +80,7 @@ pub(super) fn evidence_program(
     // A structure accepted from a compiled discovery is evidence the program reads:
     // its provenance (search, bounds, snapshot, program, claim, review) enters the
     // lowered identity. A supplied structure adds nothing, so its identity is unchanged.
-    if let Some(provenance) = cx.study.graph.provenance() {
+    if let Some(provenance) = cx.study.structure_provenance() {
         sources.push(EvidenceSourceRef {
             role: EvidenceRole::DiscoveredStructure,
             digest: Some(provenance.digest()),

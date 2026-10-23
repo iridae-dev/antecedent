@@ -773,3 +773,31 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_temporal_designs.py"
 gates = ["inventory"]
+
+[[test]]
+id = "measurement-pooled-differential-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_pooled_differential_transport.py"
+gates = ["inventory"]
+
+[[test]]
+id = "dose-grid-bias-aware-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_dose_grid_bias_aware.py"
+gates = ["inventory"]
+
+[[test]]
+id = "lag-zero-average-effect"
+crate = "antecedent"
+cargo_target = "lag_zero_average_effect"
+path = "crates/antecedent/tests/lag_zero_average_effect.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "lag-zero-average-effect-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_lag_zero_average_effect.py"
+gates = ["inventory"]

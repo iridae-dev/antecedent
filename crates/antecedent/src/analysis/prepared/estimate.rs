@@ -188,6 +188,7 @@ impl PreparedStudy {
             self.estimate_click(data, shared, &scoped, notes)?
         };
         result.lowered_identity = Some(lowered);
+        crate::analysis::target_validation::stamp_route_refutations(&mut result);
         Ok(result)
     }
 

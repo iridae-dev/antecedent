@@ -133,15 +133,28 @@ pub(super) fn validate_result(
     // A Bayesian design result carries its posterior in place of the design-specific frequentist
     // section; exactly one of the two must be present.
     let design_posterior = result.posterior_artifact.is_some();
+    // A rollout design result carries its rollout section in place of the design's own one.
+    let rollout = result.quasi_rollout.is_some();
     if matches!(result.query, crate::CausalQueryWire::PanelDid(_))
-        && result.panel_did.is_some() == design_posterior
+        && ((result.panel_did.is_some() || rollout) == design_posterior
+            || (result.panel_did.is_some() && rollout))
     {
         return Err(IoError::Convert(
             "panel DiD artifact is missing its design-specific result section".into(),
         ));
     }
     if let crate::CausalQueryWire::SyntheticControl(query) = &result.query {
-        if design_posterior {
+        if rollout {
+            if design_posterior
+                || result.synthetic_did.is_some()
+                || result.synthetic_control.is_some()
+            {
+                return Err(IoError::Convert(
+                    "a synthetic rollout section replaces the weight sections and the posterior"
+                        .into(),
+                ));
+            }
+        } else if design_posterior {
             if result.synthetic_did.is_some() || result.synthetic_control.is_some() {
                 return Err(IoError::Convert(
                     "a synthetic-control posterior replaces the frequentist weight sections".into(),
@@ -160,7 +173,8 @@ pub(super) fn validate_result(
         }
     }
     if matches!(result.query, crate::CausalQueryWire::LocalPolynomialRatio(_))
-        && result.local_polynomial_ratio.is_some() == design_posterior
+        && ((result.local_polynomial_ratio.is_some() || rollout) == design_posterior
+            || (result.local_polynomial_ratio.is_some() && rollout))
     {
         return Err(IoError::Convert(
             "local ratio artifact is missing its design-specific result section".into(),
@@ -207,6 +221,8 @@ pub(super) fn validate_result(
     validate_longitudinal_graphless(result, allow_legacy_graphless_missing)?;
     validate_sequential_contrast_graphless(result)?;
     validate_history_match_graphless(result)?;
+    super::quasi_rollout::validate_quasi_rollout(result)?;
+    super::temporal_design::validate_temporal_design(result)?;
     crate::causal_query_from_wire(&result.query)?;
     let identification_count = match &result.identification_variables {
         Some(variables) => {

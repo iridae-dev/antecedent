@@ -600,6 +600,21 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 crate::SimulationTargetWire::UnitEffects { outcome, .. } => {
                     ("unit_effects".to_owned(), vec![*outcome])
                 }
+                crate::SimulationTargetWire::NoiseSample { draws, .. } => {
+                    (format!("noise_sample:{draws}"), Vec::new())
+                }
+                crate::SimulationTargetWire::NoiseReplay { n_rows, .. } => {
+                    (format!("noise_replay:{n_rows}"), Vec::new())
+                }
+                crate::SimulationTargetWire::Counterfactual { outcomes, .. } => {
+                    ("counterfactual".to_owned(), outcomes.clone())
+                }
+                crate::SimulationTargetWire::TemporalRollout { n_rows, n_steps, .. } => {
+                    (format!("temporal_rollout:{n_rows}x{n_steps}"), Vec::new())
+                }
+                crate::SimulationTargetWire::TemporalCounterfactual { n_rows, n_steps, .. } => {
+                    (format!("temporal_counterfactual:{n_rows}x{n_steps}"), Vec::new())
+                }
             };
             let mut dimensions = named_outcomes("simulate", &outcomes);
             dimensions.push(("simulation".into(), kind));

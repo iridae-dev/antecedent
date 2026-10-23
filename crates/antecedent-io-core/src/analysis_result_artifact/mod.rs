@@ -1226,6 +1226,14 @@ pub struct AnalysisResultWire {
     /// Within-period history-matched contrast, unlicensed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history_match: Option<HistoryMatchWire>,
+    /// Rollout design effects with whole-procedure uncertainty, unlicensed. Absent on every
+    /// other result, so their bodies and digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quasi_rollout: Option<QuasiRolloutWire>,
+    /// Sequentially randomized unit-period design or regime survival, unlicensed. Absent on
+    /// every other result, so their bodies and digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal_design: Option<TemporalDesignWire>,
     /// Independent-cluster exposure support and pointwise inference.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interference_inference: Option<InterferenceInferenceWire>,
@@ -1437,7 +1445,12 @@ pub fn decode_analysis_result_artifact(
 }
 
 mod graphless;
+mod quasi_rollout;
+mod temporal_design;
 mod validate;
+
+pub use quasi_rollout::{DesignEffectWire, QuasiRolloutWire, rederive_rollout_summary};
+pub use temporal_design::TemporalDesignWire;
 
 pub(crate) use validate::validate_interventional_distribution;
 

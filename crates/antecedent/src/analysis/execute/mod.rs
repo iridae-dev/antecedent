@@ -145,6 +145,12 @@ pub struct StudyConfig {
     /// Mechanism fit of an attribution or simulation query; `None` runs the
     /// standard registry.
     pub(crate) mechanisms: Option<Arc<super::structure_route::MechanismProgram>>,
+    /// Provenance of a graph posterior accepted from a compiled structure search.
+    pub(crate) posterior_provenance: Option<Arc<crate::accepted::StructureProvenance>>,
+    /// The `AverageEffect` the caller asked for on series data under a `TemporalDag`,
+    /// `TemporalCpdag` or `TemporalPag`, when the build compiled it as its lag-0 pulse contrast. The support
+    /// cell is the `AverageEffect` cell; every result discloses the reading.
+    pub(crate) lag_zero_average_effect: Option<antecedent_core::AverageEffectQuery>,
 }
 
 /// Prepared analysis (static or temporal).
@@ -426,6 +432,7 @@ pub(super) use tuple_bootstrap::{
 };
 
 pub(crate) use dispatch::push_gaussian_likelihood_disclosure;
+pub(crate) use dispatch::push_lag_zero_average_effect_disclosure;
 pub(crate) use dispatch::{
     ANOMALY_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND, COUNTERFACTUAL_DIRICHLET_BACKEND,
     ROBUST_ATE_BOOTSTRAP_BACKEND,

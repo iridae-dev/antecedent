@@ -1678,6 +1678,10 @@ pub(in crate::analysis_result_artifact) fn validate_policy_graphless(
     Ok(())
 }
 
+/// Uncertainty label of the augmented panel's unlicensed whole-cluster resample interval.
+const AUGMENTED_RESAMPLE_UNCERTAINTY: &str =
+    "whole_cluster_resample_supplied_nuisance_held_fixed_calibration_unmeasured";
+
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
 #[allow(
     clippy::too_many_lines,
@@ -1890,8 +1894,13 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                 && ess.is_finite()
                 && *ess > 0.0
                 && *ess <= comparison_subjects as f64 + 1e-9
-                && did.standard_error.is_none()
-                && did.uncertainty == "point_only_no_standard_error"
+                && ((did.standard_error.is_none()
+                    && did.interval_95.is_none()
+                    && did.uncertainty == "point_only_no_standard_error")
+                    || (query.resampling.is_some()
+                        && did.uncertainty == AUGMENTED_RESAMPLE_UNCERTAINTY
+                        && did.interval_95.is_some()
+                        && did.standard_error.is_some_and(|se| se.is_finite() && se > 0.0)))
         }
         (None, None) => true,
         _ => false,
@@ -1928,6 +1937,21 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                         .standard_error
                         .is_some_and(|reported| (reported - se).abs() <= tolerance)
                     && did.uncertainty == "cluster_robust_normal_interval_independent_clusters"
+            }
+            (Some(bounds), Some(se))
+                if query.augmented.is_some()
+                    && did.uncertainty == AUGMENTED_RESAMPLE_UNCERTAINTY
+                    && se.is_finite()
+                    && se > 0.0 =>
+            {
+                // The unlicensed whole-cluster resample interval: the normal interval of its
+                // interquartile bootstrap standard error, never published as the scalar's.
+                let radius = antecedent_stats::NORMAL_Q975 * se;
+                let tolerance = 1e-8 * (1.0 + did.effect.abs() + radius.abs());
+                (bounds[0] - (did.effect - radius)).abs() <= tolerance
+                    && (bounds[1] - (did.effect + radius)).abs() <= tolerance
+                    && result.standard_error.is_none()
+                    && did.graphless_support_status.is_none()
             }
             (None, _) => {
                 result.standard_error.is_none()

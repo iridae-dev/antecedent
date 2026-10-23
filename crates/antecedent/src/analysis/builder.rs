@@ -649,6 +649,8 @@ pub struct StudyBuilder {
     discovery: Option<Arc<super::structure_route::DiscoverySpec>>,
     /// Mechanism fit of an attribution or simulation query.
     mechanisms: Option<Arc<super::structure_route::MechanismProgram>>,
+    /// Provenance of a graph posterior accepted from a compiled structure search.
+    posterior_provenance: Option<Arc<crate::accepted::StructureProvenance>>,
 }
 
 // The refusal removes a wrong label, not a capability: the estimator stays
@@ -1236,6 +1238,7 @@ impl StudyBuilder {
             interference: None,
             discovery: None,
             mechanisms: None,
+            posterior_provenance: None,
         }
     }
 
@@ -1264,6 +1267,24 @@ impl StudyBuilder {
     #[must_use]
     pub fn mechanisms(mut self, program: super::structure_route::MechanismProgram) -> Self {
         self.mechanisms = Some(Arc::new(program));
+        self
+    }
+
+    /// Supply a structure posterior accepted from a compiled discovery as the
+    /// study's graph posterior.
+    ///
+    /// Behaves as [`Self::graph_posterior`] with the posterior's atoms and
+    /// weights, and the study's contract and program identity carry the
+    /// search's [`crate::StructureProvenance`]. The identification digest does
+    /// not: the same posterior supplied by hand identifies the same way.
+    #[must_use]
+    pub fn accepted_graph_posterior(
+        mut self,
+        accepted: super::structure_route::AcceptedPosterior,
+    ) -> Self {
+        let (posterior, provenance) = accepted.into_parts();
+        self.graph_posterior = Some(posterior);
+        self.posterior_provenance = Some(provenance);
         self
     }
 
@@ -1783,6 +1804,7 @@ impl StudyBuilder {
     fn finish(mut self, inspect_only: bool) -> Result<Study, CausalError> {
         let discovery = self.discovery.take();
         let mechanisms = self.mechanisms.take();
+        let posterior_provenance = self.posterior_provenance.take();
         let mut study = finish::assemble(finish::FinishInput {
             inspect_only,
             data: self.data,
@@ -1829,6 +1851,11 @@ impl StudyBuilder {
             mechanisms,
             inspect_only,
         )?;
+        if let Some(provenance) = posterior_provenance {
+            if study.graph_posterior.is_some() {
+                Arc::make_mut(&mut study.config).posterior_provenance = Some(provenance);
+            }
+        }
         Ok(study)
     }
 }

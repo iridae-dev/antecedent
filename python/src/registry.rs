@@ -336,6 +336,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     regimes_api::register(m)?;
     unlicensed_design_api::register(m)?;
     temporal_design_api::register(m)?;
+    super::pooled_measurement_api::register(m)?;
     quasi_api::register(m)?;
     survival_api::register(m)?;
     posterior_row_api::register(m)?;

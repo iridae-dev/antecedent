@@ -153,7 +153,13 @@ impl LicensedWire for PanelDidEstimate {
     fn to_wire(&self, support: Option<CellStatus>) -> PanelDidWire {
         PanelDidWire {
             effect: self.effect,
-            standard_error: if self.augmented.is_some() { None } else { Some(self.standard_error) },
+            // An augmented panel has a standard error only when its whole-cluster resample
+            // published an interval; otherwise the field is a placeholder.
+            standard_error: if self.augmented.is_some() && self.interval_95.is_none() {
+                None
+            } else {
+                Some(self.standard_error)
+            },
             interval_95: self.interval_95,
             treated_subjects: self.treated_subjects,
             comparison_subjects: self.comparison_subjects,
@@ -452,5 +458,80 @@ pub(super) fn distribution_wire(
                 probability: atom.probability,
             })
             .collect(),
+    }
+}
+
+impl From<&crate::QuasiRolloutEstimate>
+    for antecedent_io::analysis_result_artifact::QuasiRolloutWire
+{
+    fn from(fit: &crate::QuasiRolloutEstimate) -> Self {
+        Self {
+            design: fit.design.to_string(),
+            method: fit.method.to_string(),
+            effects: fit
+                .effects
+                .iter()
+                .map(|effect| antecedent_io::analysis_result_artifact::DesignEffectWire {
+                    kind: effect.kind.as_str().to_string(),
+                    group: effect.group,
+                    period: effect.period,
+                    event_time: effect.event_time,
+                    unit: effect.unit.clone(),
+                    estimate: effect.estimate,
+                    standard_error: effect.standard_error,
+                    interval: effect.interval,
+                    band: effect.band,
+                    treated: effect.treated,
+                    comparison: effect.comparison,
+                })
+                .collect(),
+            uncertainty: fit.uncertainty.to_string(),
+            calibration: fit.calibration.to_string(),
+            replicates_requested: fit.replicates_requested,
+            replicates_ok: fit.replicates_ok,
+            replicates_failed: fit.replicates_failed,
+            critical_value: fit.critical_value,
+            diagnostics: fit
+                .diagnostics
+                .iter()
+                .map(|(name, value)| (name.to_string(), *value))
+                .collect(),
+            licensed: fit.licensed,
+        }
+    }
+}
+
+impl From<&crate::TemporalDesignEstimate>
+    for antecedent_io::analysis_result_artifact::TemporalDesignWire
+{
+    fn from(fit: &crate::TemporalDesignEstimate) -> Self {
+        Self {
+            design: fit.design.to_string(),
+            functional: fit.functional.to_string(),
+            coordinates: fit.coordinates.iter().map(ToString::to_string).collect(),
+            estimate: fit.estimate.to_vec(),
+            standard_error: fit.standard_error.to_vec(),
+            lower: fit.lower.to_vec(),
+            upper: fit.upper.to_vec(),
+            covariance: fit.covariance.as_ref().map(|values| values.to_vec()),
+            band_coordinates: fit.band_coordinates.iter().map(|index| *index as u64).collect(),
+            band_critical_value: fit.band_critical_value,
+            band_lower: fit.band_lower.as_ref().map(|values| values.to_vec()),
+            band_upper: fit.band_upper.as_ref().map(|values| values.to_vec()),
+            holm_adjusted_p: fit.holm_adjusted_p.as_ref().map(|values| values.to_vec()),
+            smoothing_bias_bound: fit.smoothing_bias_bound.as_ref().map(|values| values.to_vec()),
+            pairs: fit.pairs,
+            clusters: fit.clusters,
+            unpaired: fit.unpaired,
+            minimum_probability: fit
+                .minimum_probability
+                .is_finite()
+                .then_some(fit.minimum_probability),
+            replicates: fit.replicates.map(|(ok, failed)| [ok, failed]),
+            draws: fit.draws,
+            uncertainty: fit.uncertainty.to_string(),
+            calibration: fit.calibration.to_string(),
+            licensed: fit.licensed,
+        }
     }
 }

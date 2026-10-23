@@ -600,6 +600,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "export",
         "inspect",
         "program_id",
+        "quasi_rollout",
         "refresh",
         "refute",
         "study",

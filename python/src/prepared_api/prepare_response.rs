@@ -277,6 +277,10 @@ impl PyPreparedAnalysis {
     ///
     /// Series columns, or a panel / multi-environment / event `frame` of the
     /// same schema; the study builder licenses or refuses the combination.
+    ///
+    /// `as_average_effect` poses the lag-0 pulse (offset 0, horizon 1) as the
+    /// `AverageEffect` the caller asked for; the build compiles it as that pulse and keeps
+    /// the `AverageEffect` support cell (executing, unlicensed).
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -302,6 +306,7 @@ impl PyPreparedAnalysis {
         seed=1,
         threads=None,
         options=None,
+        as_average_effect=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_temporal_effect(
@@ -328,11 +333,25 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
+        as_average_effect: bool,
     ) -> PyResult<Self> {
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         let class_graph = extract_temporal_class(class_graph, &req.names)?;
         let input = req.load_weighted_series(py, columns, frame.as_ref())?;
         let policy = policy.to_ascii_lowercase();
+        if as_average_effect
+            && (policy != "pulse"
+                || window.is_some()
+                || treatment_lag != 0
+                || horizon_steps != 1
+                || modifier.is_some()
+                || frame.is_some())
+        {
+            return Err(crate::value_err(
+                "as_average_effect is the lag-0 pulse on one series: policy='pulse', \
+                 treatment_lag=0, horizon_steps=1, no window, modifier or frame",
+            ));
+        }
         req.off_gil(py, move |mut req| {
             let data = input.materialize()?;
             let schema = data.schema().clone();
@@ -365,7 +384,18 @@ impl PyPreparedAnalysis {
                     req.opts.discovery_algorithm(),
                 )
             };
-            builder = req.opts.apply(builder.temporal_query(q));
+            builder = if as_average_effect {
+                let mut average = antecedent_core::AverageEffectQuery::with_levels(
+                    t_id,
+                    y_id,
+                    control_level,
+                    active_level,
+                );
+                average.target_population = q.target_population.clone();
+                req.opts.apply(builder.query(CausalQuery::AverageEffect(average)))
+            } else {
+                req.opts.apply(builder.temporal_query(q))
+            };
             builder = req.opts.apply_inference(builder)?;
             builder = req.opts.apply_selection(builder);
             builder = crate::temporal_api::apply_class_prior(
