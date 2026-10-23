@@ -122,13 +122,21 @@ pub(in crate::contract_section) fn contract_seal_of(
 ///
 /// Covers every body field: scalar, standard error, assumptions, diagnostics,
 /// refutations, response, posterior draws, mediation grid, structural atoms,
-/// and the identification certificate.
+/// and the identification certificate. The native execution observation is a
+/// record of how one run did its work (a fit, or a reuse of a frozen fit), not
+/// part of what the result claims, so the claim identity leaves it out: a
+/// retained study that re-estimates reproduces its own claim.
 ///
 /// # Errors
 ///
 /// CBOR encode failure.
 pub fn result_digest(body: &AnalysisResultWire) -> Result<[u8; 32], IoError> {
-    crate::identity::payload_digest_of("analysis_result.body", body)
+    if body.native_execution.is_none() {
+        return crate::identity::payload_digest_of("analysis_result.body", body);
+    }
+    let mut claimed = body.clone();
+    claimed.native_execution = None;
+    crate::identity::payload_digest_of("analysis_result.body", &claimed)
 }
 
 /// Claim kind implied by a result body and its identification slot.

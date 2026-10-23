@@ -288,6 +288,15 @@ def test_missing_reaches_plan():
         assert _resolve(_contract(plain), "data_snapshot.missing") is _ABSENT
 
 
+def test_sampling_design_reaches_plan():
+    """A declared sampling design binds to the data snapshot; an undeclared study carries none."""
+    declared = _contract(_analyze(sampling_design="independent_subject_trajectories"))
+    assert (
+        _resolve(declared, "data_snapshot.sampling_design") == "independent_subject_trajectories"
+    )
+    assert _resolve(_contract(_analyze()), "data_snapshot.sampling_design") is _ABSENT
+
+
 def test_latency_reaches_plan():
     """A tier sets the omitted budgets; the bound inference differs between tiers."""
     interactive = _analyze(bootstrap=None, refute=None, latency="interactive")
